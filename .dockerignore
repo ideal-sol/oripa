@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!*.env.example
+backend/vendor
+backend/storage/logs/*
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/bootstrap/cache/*
+frontend/.next
+frontend/node_modules
+infra/data

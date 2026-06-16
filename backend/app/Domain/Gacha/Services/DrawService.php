@@ -1,0 +1,264 @@
+<?php
+
+namespace App\Domain\Gacha\Services;
+
+use App\Domain\Gacha\Enums\DrawRequestStatus;
+use App\Domain\Gacha\Enums\DrawResultType;
+use App\Domain\Gacha\Enums\GachaStatus;
+use App\Domain\Gacha\Enums\MinimumGuaranteeType;
+use App\Domain\Gacha\Exceptions\DrawException;
+use App\Domain\Point\Enums\PointLedgerType;
+use App\Domain\Point\Enums\PointLotSourceType;
+use App\Domain\Point\Services\PointConsumptionService;
+use App\Domain\Point\Services\PointLotService;
+use App\Domain\Probability\Services\ProbabilityRangeBuilder;
+use App\Domain\Probability\Services\StageResolver;
+use App\Domain\Shipping\Enums\UserPrizeStatus;
+use App\Models\DrawRequest;
+use App\Models\DrawResult;
+use App\Models\Gacha;
+use App\Models\GachaPrize;
+use App\Models\User;
+use App\Models\UserPrize;
+use Illuminate\Support\Facades\DB;
+
+class DrawService
+{
+    public function __construct(
+        private readonly StageResolver $stageResolver,
+        private readonly ProbabilityRangeBuilder $rangeBuilder,
+        private readonly PointConsumptionService $pointConsumptionService,
+        private readonly PointLotService $pointLotService,
+    ) {
+    }
+
+    public function draw(User $user, Gacha $gacha, int $drawCount, string $idempotencyKey): DrawRequest
+    {
+        if ($drawCount < 1) {
+            throw new DrawException('Draw count must be greater than or equal to one.');
+        }
+
+        if ($idempotencyKey === '') {
+            throw new DrawException('Idempotency key is required.');
+        }
+
+        return DB::transaction(function () use ($user, $gacha, $drawCount, $idempotencyKey): DrawRequest {
+            $existing = DrawRequest::query()
+                ->where('user_id', $user->id)
+                ->where('gacha_id', $gacha->id)
+                ->where('idempotency_key', $idempotencyKey)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                if ($existing->status === DrawRequestStatus::Completed) {
+                    return $existing->load('results');
+                }
+
+                throw new DrawException('Draw request with the same idempotency key is already processing.');
+            }
+
+            $lockedGacha = Gacha::query()
+                ->whereKey($gacha->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->assertDrawable($lockedGacha, $drawCount);
+
+            $totalCost = $lockedGacha->price * $drawCount;
+            $this->pointConsumptionService->assertSpendable($user, $totalCost);
+
+            $drawRequest = DrawRequest::query()->create([
+                'user_id' => $user->id,
+                'gacha_id' => $lockedGacha->id,
+                'draw_count' => $drawCount,
+                'idempotency_key' => $idempotencyKey,
+                'status' => DrawRequestStatus::Processing,
+                'consumed_point_total' => $totalCost,
+            ]);
+
+            $this->pointConsumptionService->consume(
+                user: $user,
+                amount: $totalCost,
+                relatedType: 'draw_request',
+                relatedId: $drawRequest->id,
+                description: "Gacha draw {$lockedGacha->id}",
+            );
+
+            $soldCountBefore = (int) $lockedGacha->sold_count;
+
+            for ($drawIndex = 1; $drawIndex <= $drawCount; $drawIndex++) {
+                $sequence = $soldCountBefore + $drawIndex;
+                $stage = $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
+                $range = $this->rangeBuilder->build($stage);
+                $randomValue = random_int(0, 999_999);
+                $entry = $range->pick($randomValue);
+
+                $drawResult = null;
+
+                if ($entry->isPrize()) {
+                    $prize = GachaPrize::query()
+                        ->whereKey($entry->prizeId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    $this->assertPrizeAvailable($prize, $lockedGacha);
+
+                    $prize->forceFill([
+                        'won_count' => (int) $prize->won_count + 1,
+                    ])->save();
+
+                    $drawResult = $this->storePrizeResult(
+                        drawRequest: $drawRequest,
+                        user: $user,
+                        gacha: $lockedGacha,
+                        prize: $prize,
+                        sequence: $sequence,
+                        randomValue: $randomValue,
+                        stageId: $stage->id,
+                    );
+
+                    $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
+                } else {
+                    $drawResult = $this->storePointBackResult(
+                        drawRequest: $drawRequest,
+                        user: $user,
+                        gacha: $lockedGacha,
+                        sequence: $sequence,
+                        randomValue: $randomValue,
+                        stageId: $stage->id,
+                    );
+
+                    $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
+                }
+
+                $lockedGacha->forceFill([
+                    'sold_count' => (int) $lockedGacha->sold_count + 1,
+                ])->save();
+            }
+
+            if ((int) $lockedGacha->sold_count >= (int) $lockedGacha->total_count) {
+                $lockedGacha->forceFill([
+                    'status' => GachaStatus::SoldOut,
+                ])->save();
+            }
+
+            $drawRequest->forceFill([
+                'status' => DrawRequestStatus::Completed,
+            ])->save();
+
+            return $drawRequest->refresh()->load('results');
+        });
+    }
+
+    private function assertDrawable(Gacha $gacha, int $drawCount): void
+    {
+        if ($gacha->status !== GachaStatus::Active) {
+            throw new DrawException('Gacha is not active.');
+        }
+
+        if (! $gacha->current_probability_version_id) {
+            throw new DrawException('Gacha has no published probability version.');
+        }
+
+        if ((int) $gacha->sold_count + $drawCount > (int) $gacha->total_count) {
+            throw new DrawException('Gacha does not have enough remaining draw count.');
+        }
+    }
+
+    private function assertPrizeAvailable(GachaPrize $prize, Gacha $gacha): void
+    {
+        if ((int) $prize->gacha_id !== (int) $gacha->id) {
+            throw new DrawException('Prize does not belong to the gacha.');
+        }
+
+        if (! $prize->is_active || (int) $prize->won_count >= (int) $prize->max_win_count) {
+            throw new DrawException('Prize is not available.');
+        }
+    }
+
+    private function storePrizeResult(
+        DrawRequest $drawRequest,
+        User $user,
+        Gacha $gacha,
+        GachaPrize $prize,
+        int $sequence,
+        int $randomValue,
+        int $stageId,
+    ): DrawResult {
+        return DrawResult::query()->create([
+            'draw_request_id' => $drawRequest->id,
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'draw_sequence_number' => $sequence,
+            'rank_id' => $prize->rank_id,
+            'prize_id' => $prize->id,
+            'result_type' => DrawResultType::Prize,
+            'consumed_point' => $gacha->price,
+            'granted_point' => 0,
+            'random_value' => $randomValue,
+            'probability_version_id' => $gacha->current_probability_version_id,
+            'probability_version_stage_id' => $stageId,
+        ]);
+    }
+
+    private function storePointBackResult(
+        DrawRequest $drawRequest,
+        User $user,
+        Gacha $gacha,
+        int $sequence,
+        int $randomValue,
+        int $stageId,
+    ): DrawResult {
+        return DrawResult::query()->create([
+            'draw_request_id' => $drawRequest->id,
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'draw_sequence_number' => $sequence,
+            'rank_id' => null,
+            'prize_id' => null,
+            'result_type' => DrawResultType::PointBack,
+            'consumed_point' => $gacha->price,
+            'granted_point' => $gacha->minimum_guarantee_value,
+            'random_value' => $randomValue,
+            'probability_version_id' => $gacha->current_probability_version_id,
+            'probability_version_stage_id' => $stageId,
+        ]);
+    }
+
+    private function createUserPrize(User $user, Gacha $gacha, GachaPrize $prize, DrawResult $drawResult): void
+    {
+        UserPrize::query()->create([
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'gacha_prize_id' => $prize->id,
+            'draw_result_id' => $drawResult->id,
+            'status' => UserPrizeStatus::Stored,
+            'acquired_at' => now(),
+            'storage_expire_at' => now()->addDays(60),
+        ]);
+    }
+
+    private function grantMinimumGuarantee(User $user, Gacha $gacha, DrawResult $drawResult): void
+    {
+        if ($gacha->minimum_guarantee_type !== MinimumGuaranteeType::Point) {
+            throw new DrawException('Only point minimum guarantee is implemented.');
+        }
+
+        if ((int) $gacha->minimum_guarantee_value <= 0) {
+            return;
+        }
+
+        $this->pointLotService->grantFree(
+            user: $user,
+            amount: (int) $gacha->minimum_guarantee_value,
+            expireAt: now()->addDays((int) config('oripa.free_point_expiration_days', 180)),
+            sourceType: PointLotSourceType::MinimumGuarantee,
+            sourceId: $drawResult->id,
+            ledgerType: PointLedgerType::Grant,
+            relatedType: 'draw_result',
+            relatedId: $drawResult->id,
+            description: "Minimum guarantee for draw result {$drawResult->id}",
+        );
+    }
+}
