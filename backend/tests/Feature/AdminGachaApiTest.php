@@ -319,7 +319,6 @@ class AdminGachaApiTest extends TestCase
         $this->getJson("/admin/api/gachas/{$gacha->id}/readiness")
             ->assertOk()
             ->assertJsonPath('data.ready', true)
-            ->assertJsonFragment(['key' => 'rank_result_images', 'passed' => false, 'severity' => 'warning'])
             ->assertJsonFragment(['key' => 'expected_profit', 'passed' => false, 'severity' => 'warning']);
 
         $this->putJson("/admin/api/gachas/{$gacha->id}", [

@@ -43,7 +43,6 @@ class GachaReadinessService
             $this->check('ranks', 'ランク', (int) $gacha->ranks_count > 0, '少なくとも1つのランクが必要です。'),
             $this->check('rank_images', 'ランク画像', $this->allRanksHaveImages($gacha), '表示中ランクには画像を登録してください。'),
             $this->check('rank_draw_videos', 'ランク演出動画', $this->allRanksHaveDrawVideos($gacha), '表示中ランクには抽選演出動画を登録してください。'),
-            $this->check('rank_result_images', 'ランク結果画像', $this->allRanksHaveResultImages($gacha), '表示中ランクには抽選結果画像を登録してください。', 'warning'),
             $this->check('prizes', '景品', (int) $gacha->active_prizes_count > 0, '有効かつ表示中の景品が必要です。'),
             $this->check('prize_images', '景品画像', $this->allPrizesHaveImages($gacha), '有効かつ表示中の景品には画像を登録してください。'),
             $this->check('probability_version', '確率公開', $gacha->current_probability_version_id !== null, '公開済みの確率バージョンが必要です。'),
@@ -104,19 +103,13 @@ class GachaReadinessService
     private function allRanksHaveImages(Gacha $gacha): bool
     {
         return $gacha->ranks->isNotEmpty()
-            && $gacha->ranks->every(fn ($rank): bool => $this->hasValue($rank->image_url));
+            && $gacha->ranks->every(fn ($rank): bool => $this->hasValue($rank->effectiveImageUrl()));
     }
 
     private function allRanksHaveDrawVideos(Gacha $gacha): bool
     {
         return $gacha->ranks->isNotEmpty()
-            && $gacha->ranks->every(fn ($rank): bool => $this->hasValue($rank->draw_video_url));
-    }
-
-    private function allRanksHaveResultImages(Gacha $gacha): bool
-    {
-        return $gacha->ranks->isNotEmpty()
-            && $gacha->ranks->every(fn ($rank): bool => $this->hasValue($rank->result_image_url));
+            && $gacha->ranks->every(fn ($rank): bool => $this->hasValue($rank->effectiveDrawVideoUrl()));
     }
 
     private function allPrizesHaveImages(Gacha $gacha): bool

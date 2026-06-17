@@ -2828,6 +2828,11 @@ tbody tr:hover td {
   min-width: 0;
 }
 
+.stack-sections {
+  display: grid;
+  gap: 18px;
+}
+
 .user-detail-panel {
   display: grid;
   gap: 16px;
@@ -3014,6 +3019,124 @@ tbody tr:hover td {
 
 .stage-simulation-row strong {
   text-align: right;
+}
+
+.pricing-planner-panel {
+  gap: 16px;
+}
+
+.pricing-planner-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+  gap: 14px;
+}
+
+.planner-input-card,
+.planner-result-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.planner-table-head,
+.planner-rank-row,
+.planner-subtotal {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.75fr) minmax(92px, 1fr) minmax(120px, 1.15fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.planner-table-head {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.planner-rank-row strong {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  color: #17211f;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.planner-rank-row input,
+.planner-controls input {
+  width: 100%;
+  text-align: right;
+}
+
+.planner-subtotal {
+  padding-top: 11px;
+  border-top: 1px dashed #cbd5e1;
+  color: #17211f;
+}
+
+.planner-subtotal strong {
+  text-align: right;
+}
+
+.planner-big-stat {
+  display: grid;
+  gap: 3px;
+  padding: 16px;
+  color: #ffffff;
+  background: #17211f;
+  border-radius: 8px;
+}
+
+.planner-big-stat span {
+  color: #b9c4c0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-big-stat strong {
+  color: #ffffff;
+  font-size: 34px;
+  line-height: 1.15;
+}
+
+.planner-big-stat small {
+  color: #a8b5b0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-big-stat strong small {
+  margin-left: 5px;
+  color: #d6b35f;
+  font-size: 15px;
+}
+
+.planner-profit-table {
+  display: grid;
+  gap: 8px;
+}
+
+.planner-profit-table .stage-simulation-row {
+  grid-template-columns: minmax(76px, 0.7fr) minmax(82px, 0.7fr) repeat(3, minmax(110px, 1fr));
+}
+
+.planner-profit-head {
+  background: #eef2f7;
+}
+
+.text-positive {
+  color: #047857;
+}
+
+.text-negative {
+  color: var(--danger);
 }
 
 .form-grid {
@@ -3572,7 +3695,8 @@ tbody tr:hover td {
 
   .gacha-manager,
   .category-admin-panel,
-  .form-grid {
+  .form-grid,
+  .pricing-planner-grid {
     grid-template-columns: 1fr;
   }
 
@@ -3613,6 +3737,17 @@ tbody tr:hover td {
 
   .hero-media {
     min-height: 260px;
+  }
+
+  .planner-table-head,
+  .planner-rank-row,
+  .planner-subtotal {
+    grid-template-columns: minmax(58px, 0.75fr) minmax(74px, 1fr) minmax(96px, 1fr);
+    gap: 7px;
+  }
+
+  .planner-big-stat strong {
+    font-size: 28px;
   }
 
   .gacha-detail-media {

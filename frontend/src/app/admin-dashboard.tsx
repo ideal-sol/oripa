@@ -150,6 +150,16 @@ type StaticPage = {
   updated_at: string | null;
 };
 
+type RankAsset = {
+  id: number;
+  title: string;
+  asset_type: "image" | "video";
+  url: string;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type Announcement = {
   id: number;
   title: string;
@@ -226,7 +236,11 @@ type GachaRank = {
   display_name: string;
   description: string | null;
   image_url: string | null;
+  rank_image_asset_id: number | null;
+  rank_image_asset?: RankAsset | null;
   draw_video_url: string | null;
+  draw_video_asset_id: number | null;
+  draw_video_asset?: RankAsset | null;
   result_image_url: string | null;
   sort_order: number;
   is_visible: boolean;
@@ -365,7 +379,7 @@ type NoticeTone = "success" | "error" | "info";
 type AnnouncementView = "list" | "new" | "edit";
 type PointView = "list" | "new";
 type ContactView = "list" | "edit";
-type SettingView = "list" | "edit";
+type SettingView = "list" | "edit" | "rank-asset-new" | "rank-asset-edit";
 type PurchasePlanView = "list" | "new" | "edit";
 type UserManagementView = "list" | "detail";
 type GachaAdminView =
@@ -470,6 +484,7 @@ export default function AdminDashboard({
   const [contacts, setContacts] = useState<ContactRequest[]>([]);
   const [selectedContact, setSelectedContact] = useState<ContactRequest | null>(null);
   const [staticPages, setStaticPages] = useState<StaticPage[]>([]);
+  const [rankAssets, setRankAssets] = useState<RankAsset[]>([]);
   const [selectedStaticPage, setSelectedStaticPage] = useState<StaticPage | null>(null);
   const [filters, setFilters] = useState<Record<TabKey, FilterState>>(emptyFilters);
   const [pages, setPages] = useState<Record<TabKey, number>>({
@@ -532,6 +547,13 @@ export default function AdminDashboard({
     title: "",
     body: "",
   });
+  const [selectedRankAsset, setSelectedRankAsset] = useState<RankAsset | null>(null);
+  const [rankAssetForm, setRankAssetForm] = useState({
+    title: "",
+    assetType: "image",
+    url: "",
+    isActive: true,
+  });
   const [announcementForm, setAnnouncementForm] = useState({
     id: "",
     title: "",
@@ -574,7 +596,9 @@ export default function AdminDashboard({
     displayName: "",
     description: "",
     imageUrl: "",
+    rankImageAssetId: "",
     drawVideoUrl: "",
+    drawVideoAssetId: "",
     resultImageUrl: "",
     sortOrder: "1",
     isVisible: true,
@@ -696,6 +720,10 @@ export default function AdminDashboard({
     try {
       const response = await apiRequest<ApiCollection<unknown>>(endpointFor(tab, page, nextFilters), {}, token);
       setTabData(tab, response);
+      if (tab === "settings") {
+        const assetResponse = await apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, token);
+        setRankAssets(assetResponse.data);
+      }
       setPages((current) => ({ ...current, [tab]: response.meta?.current_page ?? page }));
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "データ取得に失敗しました");
@@ -713,10 +741,11 @@ export default function AdminDashboard({
     clearMessage();
 
     try {
-      const [announcementData, contactData, staticPageData, categoryData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
+      const [announcementData, contactData, staticPageData, rankAssetData, categoryData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
         apiRequest<ApiCollection<Announcement>>(endpointFor("announcements", pages.announcements, filters.announcements), {}, token),
         apiRequest<ApiCollection<ContactRequest>>(endpointFor("contacts", pages.contacts, filters.contacts), {}, token),
         apiRequest<ApiCollection<StaticPage>>(endpointFor("settings", pages.settings, filters.settings), {}, token),
+        apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, token),
         apiRequest<{ data: GachaCategory[] }>("/gacha-categories", {}, token),
         apiRequest<ApiCollection<Gacha>>(endpointFor("gachas", pages.gachas, filters.gachas), {}, token),
         apiRequest<ApiCollection<User>>(endpointFor("users", pages.users, filters.users), {}, token),
@@ -733,6 +762,7 @@ export default function AdminDashboard({
       setTabData("announcements", announcementData);
       setTabData("contacts", contactData);
       setTabData("settings", staticPageData);
+      setRankAssets(rankAssetData.data);
       setCategories(categoryData.data);
       setGachaRanks(gachaRankData.data);
       setGachaPrizes(gachaPrizeData.data);
@@ -1104,6 +1134,27 @@ export default function AdminDashboard({
     setActiveSettingView("edit");
   }
 
+  function resetRankAssetForm(assetType: "image" | "video" = "image") {
+    setSelectedRankAsset(null);
+    setRankAssetForm({
+      title: "",
+      assetType,
+      url: "",
+      isActive: true,
+    });
+  }
+
+  function editRankAsset(asset: RankAsset) {
+    setSelectedRankAsset(asset);
+    setRankAssetForm({
+      title: asset.title,
+      assetType: asset.asset_type,
+      url: asset.url,
+      isActive: asset.is_active,
+    });
+    setActiveSettingView("rank-asset-edit");
+  }
+
   async function submitStaticPage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1129,6 +1180,49 @@ export default function AdminDashboard({
       await fetchTab("settings", 1, filters.settings, session.access_token);
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "設定ページの更新に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitRankAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    const isUpdate = selectedRankAsset !== null;
+
+    try {
+      const response = await apiRequest<{ data: RankAsset }>(isUpdate ? `/rank-assets/${selectedRankAsset.id}` : "/rank-assets", {
+        method: isUpdate ? "PUT" : "POST",
+        body: JSON.stringify({
+          title: rankAssetForm.title,
+          asset_type: rankAssetForm.assetType,
+          url: rankAssetForm.url,
+          is_active: rankAssetForm.isActive,
+        }),
+      }, session.access_token);
+
+      setSelectedRankAsset(response.data);
+      setRankAssetForm({
+        title: response.data.title,
+        assetType: response.data.asset_type,
+        url: response.data.url,
+        isActive: response.data.is_active,
+      });
+      showMessage("success", isUpdate ? "ランク演出設定を更新しました" : "ランク演出設定を作成しました");
+      const assetResponse = await apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, session.access_token);
+      setRankAssets(assetResponse.data);
+      if (!isUpdate) {
+        setActiveSettingView("list");
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "ランク演出設定の保存に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -1352,7 +1446,9 @@ export default function AdminDashboard({
       displayName: "",
       description: "",
       imageUrl: "",
+      rankImageAssetId: "",
       drawVideoUrl: "",
+      drawVideoAssetId: "",
       resultImageUrl: "",
       sortOrder: "1",
       isVisible: true,
@@ -1366,7 +1462,9 @@ export default function AdminDashboard({
       displayName: rank.display_name,
       description: rank.description ?? "",
       imageUrl: rank.image_url ?? "",
+      rankImageAssetId: rank.rank_image_asset_id ? String(rank.rank_image_asset_id) : "",
       drawVideoUrl: rank.draw_video_url ?? "",
+      drawVideoAssetId: rank.draw_video_asset_id ? String(rank.draw_video_asset_id) : "",
       resultImageUrl: rank.result_image_url ?? "",
       sortOrder: String(rank.sort_order),
       isVisible: rank.is_visible,
@@ -1517,8 +1615,9 @@ export default function AdminDashboard({
           display_name: rankForm.displayName,
           description: rankForm.description || null,
           image_url: rankForm.imageUrl || null,
+          rank_image_asset_id: rankForm.rankImageAssetId ? Number(rankForm.rankImageAssetId) : null,
           draw_video_url: rankForm.drawVideoUrl || null,
-          result_image_url: rankForm.resultImageUrl || null,
+          draw_video_asset_id: rankForm.drawVideoAssetId ? Number(rankForm.drawVideoAssetId) : null,
           sort_order: Number(rankForm.sortOrder),
           is_visible: rankForm.isVisible,
         }),
@@ -1994,6 +2093,7 @@ export default function AdminDashboard({
                 categories={categories}
                 gachaRanks={gachaRanks}
                 gachaPrizes={gachaPrizes}
+                rankAssets={rankAssets}
                 categoryForm={categoryForm}
                 selectedGacha={selectedGacha}
                 readiness={readiness}
@@ -2325,20 +2425,33 @@ export default function AdminDashboard({
           )}
           {activeTab === "settings" && (
             activeSettingView === "list" ? (
-              <ListSurface title="設定" actionLabel="更新" onAction={() => void fetchTab("settings", 1, filters.settings)}>
-                <DataTable
-                  headers={["ページ", "URL", "更新日時", "操作"]}
-                  rows={staticPages.map((page) => [
-                    page.title,
-                    <a className="table-link" href={`/${page.slug}`} key="url" target="_blank" rel="noreferrer">/{page.slug}</a>,
-                    formatDate(page.updated_at),
-                    <button className="secondary-button small-button" type="button" key="edit" onClick={() => editStaticPage(page)}>編集</button>,
-                  ])}
-                />
-              </ListSurface>
+              <div className="stack-sections">
+                <ListSurface title="設定" actionLabel="更新" onAction={() => void fetchTab("settings", 1, filters.settings)}>
+                  <DataTable
+                    headers={["ページ", "URL", "更新日時", "操作"]}
+                    rows={staticPages.map((page) => [
+                      page.title,
+                      <a className="table-link" href={`/${page.slug}`} key="url" target="_blank" rel="noreferrer">/{page.slug}</a>,
+                      formatDate(page.updated_at),
+                      <button className="secondary-button small-button" type="button" key="edit" onClick={() => editStaticPage(page)}>編集</button>,
+                    ])}
+                  />
+                </ListSurface>
+                <ListSurface
+                  title="ランク演出設定"
+                  actionLabel="演出素材登録"
+                  onAction={() => {
+                    resetRankAssetForm("image");
+                    setActiveSettingView("rank-asset-new");
+                  }}
+                >
+                  <RankAssetTable rows={rankAssets} onEdit={editRankAsset} />
+                </ListSurface>
+              </div>
             ) : (
-              <FormSurface title={selectedStaticPage?.title ?? "設定編集"} backLabel="設定一覧" onBack={() => setActiveSettingView("list")}>
-                {selectedStaticPage ? (
+              activeSettingView === "edit" ? (
+                <FormSurface title={selectedStaticPage?.title ?? "設定編集"} backLabel="設定一覧" onBack={() => setActiveSettingView("list")}>
+                  {selectedStaticPage ? (
                   <form className="stack-form compact-form" onSubmit={submitStaticPage}>
                     <label>
                       <span>タイトル</span>
@@ -2350,10 +2463,50 @@ export default function AdminDashboard({
                     </label>
                     <button className="primary-button" type="submit" disabled={loading}>更新</button>
                   </form>
-                ) : (
-                  <div className="empty-detail compact">編集するページを選択してください。</div>
-                )}
-              </FormSurface>
+                  ) : (
+                    <div className="empty-detail compact">編集するページを選択してください。</div>
+                  )}
+                </FormSurface>
+              ) : (
+                <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="設定一覧" onBack={() => setActiveSettingView("list")}>
+                  <form className="stack-form compact-form" onSubmit={submitRankAsset}>
+                    <label>
+                      <span>タイトル</span>
+                      <input value={rankAssetForm.title} onChange={(event) => setRankAssetForm((current) => ({ ...current, title: event.target.value }))} required />
+                    </label>
+                    <label>
+                      <span>種別</span>
+                      <select value={rankAssetForm.assetType} onChange={(event) => setRankAssetForm((current) => ({ ...current, assetType: event.target.value as "image" | "video", url: "" }))}>
+                        <option value="image">画像</option>
+                        <option value="video">動画</option>
+                      </select>
+                    </label>
+                    {rankAssetForm.assetType === "image" ? (
+                      <ImageUploadField
+                        context="rank"
+                        label="画像URL"
+                        value={rankAssetForm.url}
+                        onChange={(value) => setRankAssetForm((current) => ({ ...current, url: value }))}
+                        onUploadImage={uploadImage}
+                        required
+                      />
+                    ) : (
+                      <VideoUploadField
+                        context="draw-video"
+                        label="動画URL"
+                        value={rankAssetForm.url}
+                        onChange={(value) => setRankAssetForm((current) => ({ ...current, url: value }))}
+                        onUploadVideo={uploadVideo}
+                      />
+                    )}
+                    <label className="check-row">
+                      <input type="checkbox" checked={rankAssetForm.isActive} onChange={(event) => setRankAssetForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                      <span>有効</span>
+                    </label>
+                    <button className="primary-button" type="submit" disabled={loading}>{activeSettingView === "rank-asset-edit" ? "更新" : "作成"}</button>
+                  </form>
+                </FormSurface>
+              )
             )
           )}
         </section>
@@ -2720,6 +2873,161 @@ function ProfitSimulationPanel({ simulation }: { simulation: ProfitSimulation })
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function PricingPlannerPanel({ selectedGacha, gachaForm }: { selectedGacha: Gacha | null; gachaForm: { price: string; targetMargin: string } }) {
+  const initialRanks = useMemo(() => {
+    const ranks = selectedGacha?.ranks ?? [];
+
+    if (ranks.length === 0) {
+      return [
+        { key: "S", label: "S", count: 3, cost: 150000 },
+        { key: "A", label: "A", count: 10, cost: 100000 },
+        { key: "B", label: "B", count: 50, cost: 50000 },
+      ];
+    }
+
+    return ranks.map((rank) => {
+      const prizes = rank.prizes ?? [];
+
+      return {
+        key: String(rank.id),
+        label: rank.display_name || rank.rank_key,
+        count: prizes.reduce((sum, prize) => sum + Number(prize.max_win_count || 0), 0),
+        cost: prizes.reduce((sum, prize) => sum + Number(prize.cost_price || 0) * Number(prize.max_win_count || 0), 0),
+      };
+    });
+  }, [selectedGacha?.id, selectedGacha?.ranks]);
+
+  const [rankRows, setRankRows] = useState(initialRanks);
+  const [marginPct, setMarginPct] = useState(Number(gachaForm.targetMargin || 20));
+  const [pointPrice, setPointPrice] = useState(Number(gachaForm.price || selectedGacha?.price || 1000));
+  const [yenPerPoint, setYenPerPoint] = useState(1);
+
+  useEffect(() => {
+    setRankRows(initialRanks);
+  }, [initialRanks]);
+
+  useEffect(() => {
+    setPointPrice(Number(gachaForm.price || selectedGacha?.price || 1000));
+  }, [gachaForm.price, selectedGacha?.price]);
+
+  useEffect(() => {
+    setMarginPct(Number(gachaForm.targetMargin || 20));
+  }, [gachaForm.targetMargin, selectedGacha?.id]);
+
+  const setRankValue = (key: string, field: "count" | "cost", value: string) => {
+    const nextValue = Math.max(0, Number(value || 0));
+    setRankRows((rows) => rows.map((row) => row.key === key ? { ...row, [field]: nextValue } : row));
+  };
+
+  const calc = useMemo(() => {
+    const totalCost = rankRows.reduce((sum, row) => sum + row.cost, 0);
+    const totalPrizes = rankRows.reduce((sum, row) => sum + row.count, 0);
+    const margin = marginPct / 100;
+    const targetRevenue = totalCost * (1 + margin);
+    const revenuePerDraw = pointPrice * yenPerPoint;
+    const drawCountRaw = revenuePerDraw > 0 ? targetRevenue / revenuePerDraw : Number.NaN;
+    const drawCount = Number.isFinite(drawCountRaw) ? Math.ceil(drawCountRaw) : Number.NaN;
+    const fullRevenue = Number.isFinite(drawCount) ? drawCount * revenuePerDraw : Number.NaN;
+    const fullProfit = fullRevenue - totalCost;
+    const breakEvenWorst = Number.isFinite(fullRevenue) && fullRevenue > 0 ? totalCost / fullRevenue : Number.NaN;
+    const rows = [0.1, 0.25, 0.5, 0.75, 0.9, 1].map((rate) => {
+      const soldDraws = Number.isFinite(drawCount) ? Math.round(drawCount * rate) : Number.NaN;
+      const revenue = Number.isFinite(fullRevenue) ? fullRevenue * rate : Number.NaN;
+
+      return {
+        rate,
+        soldDraws,
+        revenue,
+        profitProrated: revenue - totalCost * rate,
+        profitWorst: revenue - totalCost,
+      };
+    });
+
+    return { totalCost, totalPrizes, targetRevenue, revenuePerDraw, drawCount, fullRevenue, fullProfit, breakEvenWorst, rows };
+  }, [rankRows, marginPct, pointPrice, yenPerPoint]);
+
+  return (
+    <div className="simulation-panel pricing-planner-panel">
+      <div className="form-title form-title-row">
+        <span>
+          <strong>商品設計プランナー</strong>
+          <span>ランク別仕入から必要口数と消化率別利益を試算</span>
+        </span>
+      </div>
+
+      <div className="pricing-planner-grid">
+        <div className="planner-input-card">
+          <div className="planner-table-head">
+            <span>ランク</span>
+            <span>商品数</span>
+            <span>仕入合計</span>
+          </div>
+          {rankRows.map((row) => (
+            <div className="planner-rank-row" key={row.key}>
+              <strong>{row.label}</strong>
+              <input value={String(row.count)} onChange={(event) => setRankValue(row.key, "count", event.target.value)} inputMode="numeric" />
+              <input value={String(row.cost)} onChange={(event) => setRankValue(row.key, "cost", event.target.value)} inputMode="numeric" />
+            </div>
+          ))}
+          <div className="planner-subtotal">
+            <span>合計</span>
+            <strong>{calc.totalPrizes.toLocaleString("ja-JP")}点</strong>
+            <strong>{moneyLabel(Math.round(calc.totalCost))}</strong>
+          </div>
+          <div className="inline-fields three planner-controls">
+            <label>
+              <span>粗利率</span>
+              <input value={String(marginPct)} onChange={(event) => setMarginPct(Math.max(0, Number(event.target.value || 0)))} inputMode="decimal" />
+            </label>
+            <label>
+              <span>1回ポイント</span>
+              <input value={String(pointPrice)} onChange={(event) => setPointPrice(Math.max(0, Number(event.target.value || 0)))} inputMode="numeric" />
+            </label>
+            <label>
+              <span>円 / pt</span>
+              <input value={String(yenPerPoint)} onChange={(event) => setYenPerPoint(Math.max(0, Number(event.target.value || 0)))} inputMode="decimal" />
+            </label>
+          </div>
+        </div>
+
+        <div className="planner-result-card">
+          <div className="planner-big-stat">
+            <span>必要な総口数</span>
+            <strong>{formatFiniteNumber(calc.drawCount)}<small>口</small></strong>
+            <small>1回 {formatFiniteNumber(pointPrice)}pt（{formatFiniteMoney(calc.revenuePerDraw)}）で販売</small>
+          </div>
+          <div className="simulation-grid compact">
+            <SimulationItem label="目標総売上" value={formatFiniteMoney(calc.targetRevenue)} />
+            <SimulationItem label="完売時売上" value={formatFiniteMoney(calc.fullRevenue)} />
+            <SimulationItem label="完売時利益" value={formatFiniteMoney(calc.fullProfit)} emphasis={calc.fullProfit >= 0 ? "positive" : "negative"} />
+            <SimulationItem label="損益分岐消化率" value={formatFinitePercent(calc.breakEvenWorst)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="planner-profit-table">
+        <div className="stage-simulation-row planner-profit-head">
+          <span>消化率</span>
+          <small>販売口数</small>
+          <strong>売上</strong>
+          <strong>単純按分利益</strong>
+          <strong>最悪利益</strong>
+        </div>
+        {calc.rows.map((row) => (
+          <div className="stage-simulation-row" key={row.rate}>
+            <span>{formatFinitePercent(row.rate)}</span>
+            <small>{formatFiniteNumber(row.soldDraws)}口</small>
+            <strong>{formatFiniteMoney(row.revenue)}</strong>
+            <strong className={row.profitProrated >= 0 ? "text-positive" : "text-negative"}>{formatFiniteMoney(row.profitProrated)}</strong>
+            <strong className={row.profitWorst >= 0 ? "text-positive" : "text-negative"}>{formatFiniteMoney(row.profitWorst)}</strong>
+          </div>
+        ))}
+      </div>
+      <p className="inline-note">概算です。決済手数料・送料・景品交換による還元などは含みません。</p>
     </div>
   );
 }
@@ -3196,6 +3504,7 @@ function GachaManagement({
   categories,
   gachaRanks,
   gachaPrizes,
+  rankAssets,
   categoryForm,
   selectedGacha,
   readiness,
@@ -3239,6 +3548,7 @@ function GachaManagement({
   categories: GachaCategory[];
   gachaRanks: GachaRank[];
   gachaPrizes: GachaPrize[];
+  rankAssets: RankAsset[];
   categoryForm: {
     id: string;
     name: string;
@@ -3274,7 +3584,9 @@ function GachaManagement({
     displayName: string;
     description: string;
     imageUrl: string;
+    rankImageAssetId: string;
     drawVideoUrl: string;
+    drawVideoAssetId: string;
     resultImageUrl: string;
     sortOrder: string;
     isVisible: boolean;
@@ -3326,6 +3638,8 @@ function GachaManagement({
   onUploadVideo: (context: AssetContext, file: File) => Promise<string>;
 }) {
   const prizes = selectedGacha?.ranks?.flatMap((rank) => rank.prizes ?? []) ?? [];
+  const rankImageAssets = rankAssets.filter((asset) => asset.asset_type === "image" && asset.is_active);
+  const rankVideoAssets = rankAssets.filter((asset) => asset.asset_type === "video" && asset.is_active);
   const stageTotals = probabilityStages.map((stage) => ({
     uid: stage.uid,
     total: probabilityStageTotal(stage, prizes),
@@ -3436,14 +3750,13 @@ function GachaManagement({
               <div className="empty-detail compact">このガチャにはランクが登録されていません。</div>
             ) : (
               <DataTable
-                headers={["ID", "ランク", "キー", "景品", "演出", "結果画像", "表示", "操作"]}
+                headers={["ID", "ランク", "キー", "景品", "演出", "表示", "操作"]}
                 rows={selectedRanks.map((rank) => [
                   `#${rank.id}`,
                   rank.display_name,
                   rank.rank_key,
                   `${rank.prizes_count ?? rank.prizes?.length ?? 0}点`,
                   rank.draw_video_url ? "設定済み" : "未設定",
-                  rank.result_image_url ? "設定済み" : "未設定",
                   <StatusBadge key="status" value={rank.is_visible ? "visible" : "hidden"} />,
                   <button
                     className="secondary-button small-button"
@@ -3565,27 +3878,30 @@ function GachaManagement({
             <span>説明</span>
             <textarea value={rankForm.description} onChange={(event) => onRankFormChange({ description: event.target.value })} />
           </label>
-          <ImageUploadField
-            context="rank"
-            label="画像URL"
-            value={rankForm.imageUrl}
-            onChange={(value) => onRankFormChange({ imageUrl: value })}
-            onUploadImage={onUploadImage}
-          />
-          <VideoUploadField
-            context="draw-video"
-            label="抽選演出動画URL"
-            value={rankForm.drawVideoUrl}
-            onChange={(value) => onRankFormChange({ drawVideoUrl: value })}
-            onUploadVideo={onUploadVideo}
-          />
-          <ImageUploadField
-            context="rank"
-            label="抽選結果画像URL"
-            value={rankForm.resultImageUrl}
-            onChange={(value) => onRankFormChange({ resultImageUrl: value })}
-            onUploadImage={onUploadImage}
-          />
+          <label>
+            <span>ランク画像</span>
+            <select value={rankForm.rankImageAssetId} onChange={(event) => onRankFormChange({ rankImageAssetId: event.target.value })}>
+              <option value="">選択なし</option>
+              {rankImageAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>{asset.title}</option>
+              ))}
+            </select>
+          </label>
+          {rankForm.imageUrl && !rankForm.rankImageAssetId && (
+            <p className="inline-note">旧URL: {rankForm.imageUrl}</p>
+          )}
+          <label>
+            <span>抽選演出動画</span>
+            <select value={rankForm.drawVideoAssetId} onChange={(event) => onRankFormChange({ drawVideoAssetId: event.target.value })}>
+              <option value="">選択なし</option>
+              {rankVideoAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>{asset.title}</option>
+              ))}
+            </select>
+          </label>
+          {rankForm.drawVideoUrl && !rankForm.drawVideoAssetId && (
+            <p className="inline-note">旧URL: {rankForm.drawVideoUrl}</p>
+          )}
           <label>
             <span>並び順</span>
             <input value={rankForm.sortOrder} onChange={(event) => onRankFormChange({ sortOrder: event.target.value })} inputMode="numeric" required />
@@ -4068,6 +4384,8 @@ function GachaManagement({
               <ProfitSimulationPanel simulation={profitSimulation} />
             )}
 
+            <PricingPlannerPanel selectedGacha={selectedGacha} gachaForm={gachaForm} />
+
             <div className="form-grid">
               <form className="stack-form compact-form" onSubmit={onSubmitRank}>
                 <div className="form-title form-title-row">
@@ -4089,20 +4407,30 @@ function GachaManagement({
                   <span>説明</span>
                   <textarea value={rankForm.description} onChange={(event) => onRankFormChange({ description: event.target.value })} />
                 </label>
-                <ImageUploadField
-                  context="rank"
-                  label="画像URL"
-                  value={rankForm.imageUrl}
-                  onChange={(value) => onRankFormChange({ imageUrl: value })}
-                  onUploadImage={onUploadImage}
-                />
-                <VideoUploadField
-                  context="draw-video"
-                  label="抽選演出動画URL"
-                  value={rankForm.drawVideoUrl}
-                  onChange={(value) => onRankFormChange({ drawVideoUrl: value })}
-                  onUploadVideo={onUploadVideo}
-                />
+                <label>
+                  <span>ランク画像</span>
+                  <select value={rankForm.rankImageAssetId} onChange={(event) => onRankFormChange({ rankImageAssetId: event.target.value })}>
+                    <option value="">選択なし</option>
+                    {rankImageAssets.map((asset) => (
+                      <option key={asset.id} value={asset.id}>{asset.title}</option>
+                    ))}
+                  </select>
+                </label>
+                {rankForm.imageUrl && !rankForm.rankImageAssetId && (
+                  <p className="inline-note">旧URL: {rankForm.imageUrl}</p>
+                )}
+                <label>
+                  <span>抽選演出動画</span>
+                  <select value={rankForm.drawVideoAssetId} onChange={(event) => onRankFormChange({ drawVideoAssetId: event.target.value })}>
+                    <option value="">選択なし</option>
+                    {rankVideoAssets.map((asset) => (
+                      <option key={asset.id} value={asset.id}>{asset.title}</option>
+                    ))}
+                  </select>
+                </label>
+                {rankForm.drawVideoUrl && !rankForm.drawVideoAssetId && (
+                  <p className="inline-note">旧URL: {rankForm.drawVideoUrl}</p>
+                )}
                 <label>
                   <span>並び順</span>
                   <input value={rankForm.sortOrder} onChange={(event) => onRankFormChange({ sortOrder: event.target.value })} inputMode="numeric" required />
@@ -4197,7 +4525,6 @@ function GachaManagement({
                     <button className="table-link" type="button" onClick={() => onEditRank(rank)}>{rank.display_name}</button>
                     <span className="mono-id">{rank.rank_key} / #{rank.id}</span>
                     <span className={rank.draw_video_url ? "ok-text" : "muted-text"}>{rank.draw_video_url ? "演出あり" : "演出なし"}</span>
-                    <span className={rank.result_image_url ? "ok-text" : "muted-text"}>{rank.result_image_url ? "結果画像あり" : "結果画像なし"}</span>
                     <StatusBadge value={rank.is_visible ? "visible" : "hidden"} />
                   </div>
                   <div className="prize-chip-list">
@@ -4405,6 +4732,25 @@ function AnnouncementTable({ rows, onEdit }: { rows: Announcement[]; onEdit: (an
         <span className="user-cell" key="title"><span>{row.title}</span><small>{row.body.slice(0, 48)}</small></span>,
         <StatusBadge key="status" value={row.status} />,
         formatDate(row.published_at),
+        formatDate(row.updated_at),
+        <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
+      ])}
+    />
+  );
+}
+
+function RankAssetTable({ rows, onEdit }: { rows: RankAsset[]; onEdit: (asset: RankAsset) => void }) {
+  return (
+    <DataTable
+      headers={["ID", "種別", "タイトル", "プレビュー", "状態", "更新日時", "操作"]}
+      rows={rows.map((row) => [
+        <span className="mono-id" key="id">#{row.id}</span>,
+        <StatusBadge key="type" value={row.asset_type} />,
+        row.title,
+        row.asset_type === "image"
+          ? <span className="table-thumb" key="preview" style={{ backgroundImage: `url("${row.url}")` }} />
+          : <a className="table-link" href={row.url} key="preview" target="_blank" rel="noreferrer">動画を表示</a>,
+        <StatusBadge key="status" value={row.is_active ? "active" : "hidden"} />,
         formatDate(row.updated_at),
         <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
       ])}
@@ -4835,6 +5181,18 @@ function pointLabel(value: number) {
 
 function moneyLabel(value: number) {
   return `¥${value.toLocaleString("ja-JP")}`;
+}
+
+function formatFiniteNumber(value: number) {
+  return Number.isFinite(value) ? Math.round(value).toLocaleString("ja-JP") : "-";
+}
+
+function formatFiniteMoney(value: number) {
+  return Number.isFinite(value) ? moneyLabel(Math.round(value)) : "-";
+}
+
+function formatFinitePercent(value: number) {
+  return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "-";
 }
 
 function percentToPpm(value: string) {

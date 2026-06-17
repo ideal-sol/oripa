@@ -39,7 +39,7 @@ class UserPrizeResource extends JsonResource
                     'id' => $this->prize->rank->id,
                     'rank_key' => $this->prize->rank->rank_key,
                     'display_name' => $this->prize->rank->display_name,
-                    'image_url' => $this->prize->rank->image_url,
+                    'image_url' => $this->prize->rank->effectiveImageUrl(),
                     'result_image_url' => $this->prize->rank->result_image_url,
                 ] : null,
             ]),

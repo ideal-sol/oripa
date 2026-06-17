@@ -14,7 +14,7 @@ class UserDrawRequestController extends Controller
     {
         return DrawRequestResource::collection(
             DrawRequest::query()
-                ->with(['gacha:id,title,slug,price,main_image_url', 'results.prize', 'results.rank'])
+                ->with(['gacha:id,title,slug,price,main_image_url', 'results.prize', 'results.rank.rankImageAsset', 'results.rank.drawVideoAsset'])
                 ->withCount('results')
                 ->where('user_id', $request->user()->id)
                 ->orderByDesc('id')
@@ -27,7 +27,7 @@ class UserDrawRequestController extends Controller
         abort_unless((int) $drawRequest->user_id === (int) $request->user()->id, 404);
 
         return new DrawRequestResource(
-            $drawRequest->load(['gacha:id,title,slug,price,main_image_url', 'results.prize', 'results.rank'])
+            $drawRequest->load(['gacha:id,title,slug,price,main_image_url', 'results.prize', 'results.rank.rankImageAsset', 'results.rank.drawVideoAsset'])
                 ->loadCount('results')
         );
     }

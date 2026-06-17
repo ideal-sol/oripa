@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\Gacha\AdminGachaRankController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaProfitSimulationController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaReadinessController;
 use App\Http\Controllers\Admin\Gacha\AdminProbabilityController;
+use App\Http\Controllers\Admin\Gacha\AdminRankAssetController;
 use App\Http\Controllers\Admin\Payment\AdminPaymentController;
 use App\Http\Controllers\Admin\Payment\AdminPointPurchasePlanController;
 use App\Http\Controllers\Admin\Point\AdminPointAdjustmentController;
@@ -44,6 +45,11 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
     Route::get('/static-pages', [AdminStaticPageController::class, 'index'])->name('admin.api.static-pages.index');
     Route::get('/static-pages/{staticPage}', [AdminStaticPageController::class, 'show'])->name('admin.api.static-pages.show');
     Route::put('/static-pages/{staticPage}', [AdminStaticPageController::class, 'update'])->name('admin.api.static-pages.update');
+
+    Route::get('/rank-assets', [AdminRankAssetController::class, 'index'])->name('admin.api.rank-assets.index');
+    Route::post('/rank-assets', [AdminRankAssetController::class, 'store'])->name('admin.api.rank-assets.store');
+    Route::get('/rank-assets/{rankAsset}', [AdminRankAssetController::class, 'show'])->name('admin.api.rank-assets.show');
+    Route::put('/rank-assets/{rankAsset}', [AdminRankAssetController::class, 'update'])->name('admin.api.rank-assets.update');
 
     Route::get('/gacha-categories', [AdminGachaCategoryController::class, 'index'])->name('admin.api.gacha-categories.index');
     Route::post('/gacha-categories', [AdminGachaCategoryController::class, 'store'])->name('admin.api.gacha-categories.store');

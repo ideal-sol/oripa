@@ -40,6 +40,7 @@ type DrawResult = {
     id: number;
     rank_key: string;
     display_name: string;
+    image_url: string | null;
     draw_video_url: string | null;
     result_image_url: string | null;
   } | null;
@@ -473,8 +474,8 @@ function drawResultImageSrc(result: DrawResult): string {
 function primaryDrawResultImageSrc(drawResponse: DrawResponse["data"]): string {
   const primaryPrize = primaryPrizeResult(drawResponse);
 
-  if (primaryPrize?.rank?.result_image_url) {
-    return primaryPrize.rank.result_image_url;
+  if (primaryPrize?.rank?.image_url) {
+    return primaryPrize.rank.image_url;
   }
 
   if (primaryPrize) {
@@ -483,7 +484,7 @@ function primaryDrawResultImageSrc(drawResponse: DrawResponse["data"]): string {
 
   const firstResult = drawResponse.results[0];
 
-  return firstResult?.rank?.result_image_url ?? (firstResult ? drawResultImageSrc(firstResult) : defaultDrawResultImageSrc);
+  return firstResult?.rank?.image_url ?? (firstResult ? drawResultImageSrc(firstResult) : defaultDrawResultImageSrc);
 }
 
 function drawMovieSrc(drawResponse: DrawResponse["data"]): string {

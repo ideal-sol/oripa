@@ -20,6 +20,8 @@ class GachaDetailService
                 ->where('is_visible', true)
                 ->orderBy('sort_order')
                 ->orderBy('id'),
+            'ranks.rankImageAsset',
+            'ranks.drawVideoAsset',
             'ranks.prizes' => fn ($query) => $query
                 ->where('is_visible', true)
                 ->orderBy('sort_order')

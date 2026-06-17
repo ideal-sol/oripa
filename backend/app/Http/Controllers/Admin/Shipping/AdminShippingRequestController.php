@@ -20,7 +20,7 @@ class AdminShippingRequestController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = ShippingRequest::query()
-            ->with(['user', 'items.userPrize.gacha', 'items.userPrize.prize.rank'])
+            ->with(['user', 'items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.drawVideoAsset'])
             ->withCount('items')
             ->orderByDesc('id');
 

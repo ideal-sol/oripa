@@ -13,7 +13,7 @@ class AdminDrawResultController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = DrawResult::query()
-            ->with(['user', 'gacha', 'rank', 'prize', 'userPrize', 'probabilityVersion', 'probabilityVersionStage'])
+            ->with(['user', 'gacha', 'rank.rankImageAsset', 'rank.drawVideoAsset', 'prize', 'userPrize', 'probabilityVersion', 'probabilityVersionStage'])
             ->orderByDesc('id');
 
         if ($request->filled('result_type')) {
@@ -44,7 +44,8 @@ class AdminDrawResultController extends Controller
         return new AdminDrawResultResource($drawResult->load([
             'user',
             'gacha',
-            'rank',
+            'rank.rankImageAsset',
+            'rank.drawVideoAsset',
             'prize',
             'userPrize',
             'probabilityVersion',

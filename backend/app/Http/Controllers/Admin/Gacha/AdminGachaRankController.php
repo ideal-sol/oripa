@@ -18,7 +18,7 @@ class AdminGachaRankController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = GachaRank::query()
-            ->with(['gacha:id,title,slug,status'])
+            ->with(['gacha:id,title,slug,status', 'rankImageAsset', 'drawVideoAsset'])
             ->withCount('prizes')
             ->orderByDesc('id');
 
@@ -38,7 +38,7 @@ class AdminGachaRankController extends Controller
     public function show(GachaRank $rank): AdminGachaRankResource
     {
         return new AdminGachaRankResource(
-            $rank->load(['gacha:id,title,slug,status', 'prizes'])->loadCount('prizes')
+            $rank->load(['gacha:id,title,slug,status', 'prizes', 'rankImageAsset', 'drawVideoAsset'])->loadCount('prizes')
         );
     }
 
@@ -57,7 +57,7 @@ class AdminGachaRankController extends Controller
             ],
         );
 
-        return (new AdminGachaRankResource($rank->load('prizes')))
+        return (new AdminGachaRankResource($rank->load(['prizes', 'rankImageAsset', 'drawVideoAsset'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -81,6 +81,6 @@ class AdminGachaRankController extends Controller
             ],
         );
 
-        return new AdminGachaRankResource($rank->refresh()->load('prizes'));
+        return new AdminGachaRankResource($rank->refresh()->load(['prizes', 'rankImageAsset', 'drawVideoAsset']));
     }
 }
