@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ReactNode } from "react";
 import AdminDashboard from "./admin-dashboard";
 import PublicHeader from "./public-header";
@@ -28,6 +29,10 @@ export default async function Home({ searchParams }: HomeProps) {
     const tab = typeof params?.tab === "string" ? params.tab : undefined;
     const view = typeof params?.view === "string" ? params.view : undefined;
     const id = typeof params?.id === "string" ? params.id : undefined;
+
+    if (!tab && !view && !id) {
+      redirect("/admin/guide");
+    }
 
     return <AdminDashboard initialSession={initialSession} initialTab={tab} initialGachaView={view} initialGachaEntityId={id} />;
   }

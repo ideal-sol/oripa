@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, MouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ApiCollection<T> = {
   data: T[];
@@ -452,7 +453,7 @@ const gachaSubViews: { key: GachaAdminView; label: string }[] = [
 ];
 
 const adminApiBase = process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ?? "/admin/api";
-const tabKeys = tabs.map((tab) => tab.key);
+const tabKeys: TabKey[] = [...tabs.map((tab) => tab.key), "draws", "prizes"];
 const perPage = 10;
 const emptyFilters: Record<TabKey, FilterState> = {
   guide: {},
@@ -474,27 +475,37 @@ export default function AdminDashboard({
   initialTab,
   initialGachaView,
   initialGachaEntityId,
+  initialSubView,
+  initialEntityId,
+  initialParentEntityId,
 }: {
   initialSession?: AdminSession | null;
   initialTab?: string;
   initialGachaView?: string;
   initialGachaEntityId?: string;
+  initialSubView?: string;
+  initialEntityId?: string;
+  initialParentEntityId?: string;
 }) {
+  const router = useRouter();
+  const routeEntityId = useMemo(() => parsePositiveInt(initialEntityId), [initialEntityId]);
+  const routeParentEntityId = useMemo(() => parsePositiveInt(initialParentEntityId), [initialParentEntityId]);
   const [session, setSession] = useState<AdminSession | null>(initialSession?.access_token ? initialSession : null);
   const [authReady, setAuthReady] = useState(Boolean(initialSession?.access_token));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>(() => resolveTab(initialTab));
-  const [activeAnnouncementView, setActiveAnnouncementView] = useState<AnnouncementView>("list");
-  const [activePointView, setActivePointView] = useState<PointView>("list");
-  const [activeContactView, setActiveContactView] = useState<ContactView>("list");
-  const [activeSettingView, setActiveSettingView] = useState<SettingView>("list");
-  const [activePurchasePlanView, setActivePurchasePlanView] = useState<PurchasePlanView>("list");
-  const [activeUserView, setActiveUserView] = useState<UserManagementView>("list");
-  const [activeShippingView, setActiveShippingView] = useState<ShippingView>("list");
+  const [activeAnnouncementView, setActiveAnnouncementView] = useState<AnnouncementView>(() => resolveAnnouncementView(initialSubView));
+  const [activePointView, setActivePointView] = useState<PointView>(() => resolvePointView(initialSubView));
+  const [activeContactView, setActiveContactView] = useState<ContactView>(() => resolveContactView(initialSubView));
+  const [activeSettingView, setActiveSettingView] = useState<SettingView>(() => resolveSettingView(initialSubView));
+  const [activePurchasePlanView, setActivePurchasePlanView] = useState<PurchasePlanView>(() => resolvePurchasePlanView(initialSubView));
+  const [activeUserView, setActiveUserView] = useState<UserManagementView>(() => resolveUserView(initialSubView));
+  const [activeShippingView, setActiveShippingView] = useState<ShippingView>(() => resolveShippingView(initialSubView));
   const [activeGachaView, setActiveGachaView] = useState<GachaAdminView>(() => resolveGachaView(initialGachaView));
-  const [initialEditId] = useState(() => parsePositiveInt(initialGachaEntityId));
+  const initialEditId = useMemo(() => parsePositiveInt(initialGachaEntityId), [initialGachaEntityId]);
   const restoredInitialEditRef = useRef(false);
+  const restoredRouteRef = useRef("");
   const restoreInitialEditRef = useRef<() => Promise<void> | void>(() => undefined);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -850,6 +861,73 @@ export default function AdminDashboard({
     void restoreInitialEditRef.current();
   }, [activeGachaView, activeTab, initialEditId, session]);
 
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    const routeKey = `${activeTab}:${initialSubView ?? ""}:${routeParentEntityId ?? ""}:${routeEntityId ?? ""}`;
+
+    if (restoredRouteRef.current === routeKey) {
+      return;
+    }
+
+    restoredRouteRef.current = routeKey;
+
+    if (activeTab === "announcements" && activeAnnouncementView === "edit" && routeEntityId) {
+      void apiRequest<{ data: Announcement }>(`/announcements/${routeEntityId}`, {}, session.access_token)
+        .then((response) => editAnnouncement(response.data))
+        .catch((error) => showMessage("error", error instanceof Error ? error.message : "お知らせ詳細の取得に失敗しました"));
+    }
+
+    if (activeTab === "contacts" && activeContactView === "edit" && routeEntityId) {
+      void apiRequest<{ data: ContactRequest }>(`/contact-requests/${routeEntityId}`, {}, session.access_token)
+        .then((response) => editContact(response.data))
+        .catch((error) => showMessage("error", error instanceof Error ? error.message : "お問い合わせ詳細の取得に失敗しました"));
+    }
+
+    if (activeTab === "purchasePlans" && activePurchasePlanView === "edit" && routeEntityId) {
+      void apiRequest<{ data: PointPurchasePlan }>(`/point-purchase-plans/${routeEntityId}`, {}, session.access_token)
+        .then((response) => editPurchasePlan(response.data))
+        .catch((error) => showMessage("error", error instanceof Error ? error.message : "購入プラン詳細の取得に失敗しました"));
+    }
+
+    if (activeTab === "users" && activeUserView === "detail" && routeEntityId) {
+      void selectUser(routeEntityId);
+    }
+
+    if (activeTab === "shipping" && activeShippingView === "edit" && routeParentEntityId && routeEntityId) {
+      void editShippingItem({ id: routeParentEntityId } as ShippingRequest, { id: routeEntityId } as ShippingItem);
+    }
+
+    if (activeTab === "settings" && activeSettingView === "edit" && routeEntityId) {
+      void apiRequest<{ data: StaticPage }>(`/static-pages/${routeEntityId}`, {}, session.access_token)
+        .then((response) => editStaticPage(response.data))
+        .catch((error) => showMessage("error", error instanceof Error ? error.message : "設定ページ詳細の取得に失敗しました"));
+    }
+
+    if (activeTab === "settings" && activeSettingView === "rank-asset-edit" && routeEntityId) {
+      void apiRequest<{ data: RankAsset }>(`/rank-assets/${routeEntityId}`, {}, session.access_token)
+        .then((response) => editRankAsset(response.data))
+        .catch((error) => showMessage("error", error instanceof Error ? error.message : "ランク演出設定の取得に失敗しました"));
+    }
+    // URL復元は routeKey で多重実行を止めるため、イベントハンドラ関数は依存に含めない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeAnnouncementView,
+    activeContactView,
+    activePurchasePlanView,
+    activeSettingView,
+    activeShippingView,
+    activeTab,
+    activeUserView,
+    initialSubView,
+    routeEntityId,
+    routeParentEntityId,
+    session,
+    showMessage,
+  ]);
+
   const summary = useMemo(() => ({
     gachas: gachas.length,
     draws: draws.length,
@@ -934,6 +1012,7 @@ export default function AdminDashboard({
       showMessage("success", "ポイント調整を登録しました");
       await fetchTab("points", 1, filters.points, session.access_token);
       setActivePointView("list");
+      router.push(adminPathForTab("points"));
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "ポイント調整に失敗しました");
     } finally {
@@ -1008,6 +1087,7 @@ export default function AdminDashboard({
       await fetchTab("purchasePlans", isUpdate ? pages.purchasePlans : 1, filters.purchasePlans, session.access_token);
       if (!isUpdate) {
         setActivePurchasePlanView("list");
+        router.push(adminPathForTab("purchasePlans"));
       }
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "購入プランの保存に失敗しました");
@@ -1031,6 +1111,7 @@ export default function AdminDashboard({
   function editPurchasePlan(plan: PointPurchasePlan) {
     setPurchasePlanForm(formFromPurchasePlan(plan));
     setActivePurchasePlanView("edit");
+    router.push(adminPathForPurchasePlanView("edit", plan.id));
   }
 
   async function editShippingItem(row: ShippingRequest, item?: ShippingItem) {
@@ -1053,6 +1134,9 @@ export default function AdminDashboard({
         note: "",
       });
       setActiveShippingView("edit");
+      if (targetItem) {
+        router.push(adminPathForShippingEdit(response.data.id, targetItem.id));
+      }
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "配送詳細の取得に失敗しました");
     } finally {
@@ -1111,6 +1195,7 @@ export default function AdminDashboard({
       shippedAt: "",
       note: "",
     });
+    router.push(adminPathForTab("shipping"));
   }
 
   async function selectUser(userId: number) {
@@ -1146,6 +1231,7 @@ export default function AdminDashboard({
         status: userResponse.data.status,
       });
       setActiveUserView("detail");
+      router.push(adminPathForUserDetail(userResponse.data.id));
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "ユーザー詳細の取得に失敗しました");
     } finally {
@@ -1195,10 +1281,7 @@ export default function AdminDashboard({
       [tab]: nextFilters,
     }));
     void fetchTab(tab, 1, nextFilters);
-
-    if (typeof window !== "undefined") {
-      window.history.pushState(null, "", `/?tab=${tab}`);
-    }
+    router.push(adminPathForTab(tab));
   }
 
   async function editUserPrizeFromUserDetail(userPrize: UserPrize) {
@@ -1226,10 +1309,7 @@ export default function AdminDashboard({
 
       setActiveTab("shipping");
       setActiveUserView("list");
-
-      if (typeof window !== "undefined") {
-        window.history.pushState(null, "", "/?tab=shipping");
-      }
+      router.push(adminPathForShippingEdit(matched.request.id, matched.item.id));
 
       await editShippingItem(matched.request, matched.item);
     } catch (error) {
@@ -1277,6 +1357,7 @@ export default function AdminDashboard({
           publishedAt: "",
         });
         setActiveAnnouncementView("list");
+        router.push(adminPathForTab("announcements"));
       }
       showMessage("success", isUpdate ? "お知らせを更新しました" : "お知らせを作成しました");
       await fetchTab("announcements", isUpdate ? pages.announcements : 1, filters.announcements, session.access_token);
@@ -1298,6 +1379,7 @@ export default function AdminDashboard({
       publishedAt: toDateTimeLocal(announcement.published_at),
     });
     setActiveAnnouncementView("edit");
+    router.push(adminPathForAnnouncementView("edit", announcement.id));
   }
 
   function editContact(contact: ContactRequest) {
@@ -1307,6 +1389,7 @@ export default function AdminDashboard({
       replyBody: contact.reply_body ?? "",
     });
     setActiveContactView("edit");
+    router.push(adminPathForContactView("edit", contact.id));
   }
 
   async function submitContactReply(event: FormEvent<HTMLFormElement>) {
@@ -1349,6 +1432,7 @@ export default function AdminDashboard({
       body: page.body,
     });
     setActiveSettingView("edit");
+    router.push(adminPathForSettingView("edit", page.id));
   }
 
   function resetRankAssetForm(assetType: "image" | "video" = "image") {
@@ -1370,6 +1454,7 @@ export default function AdminDashboard({
       isActive: asset.is_active,
     });
     setActiveSettingView("rank-asset-edit");
+    router.push(adminPathForSettingView("rank-asset-edit", asset.id));
   }
 
   async function submitStaticPage(event: FormEvent<HTMLFormElement>) {
@@ -1437,6 +1522,7 @@ export default function AdminDashboard({
       setRankAssets(assetResponse.data);
       if (!isUpdate) {
         setActiveSettingView("list");
+        router.push(adminPathForTab("settings"));
       }
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "ランク演出設定の保存に失敗しました");
@@ -1992,19 +2078,7 @@ export default function AdminDashboard({
   function changeGachaView(view: GachaAdminView, id?: number | string) {
     setActiveTab("gachas");
     setActiveGachaView(view);
-
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams({
-        tab: "gachas",
-        view,
-      });
-
-      if (id) {
-        params.set("id", String(id));
-      }
-
-      window.history.pushState(null, "", `/?${params.toString()}`);
-    }
+    router.push(adminPathForGachaView(view, id));
   }
 
   function changeAdminTab(tab: TabKey) {
@@ -2042,10 +2116,7 @@ export default function AdminDashboard({
       changeGachaView("gacha-list");
       return;
     }
-
-    if (typeof window !== "undefined") {
-      window.history.pushState(null, "", `/?tab=${tab}`);
-    }
+    router.push(adminPathForTab(tab));
   }
 
   if (!authReady) {
@@ -2107,7 +2178,7 @@ export default function AdminDashboard({
           {tabs.map((tab) => (
             <div className="nav-group" key={tab.key}>
               <a
-                href={`/?tab=${tab.key}${tab.key === "gachas" ? "&view=gacha-list" : ""}`}
+                href={adminPathForTab(tab.key)}
                 className={activeTab === tab.key ? "active" : ""}
                 onClick={(event: MouseEvent<HTMLAnchorElement>) => {
                   event.preventDefault();
@@ -2125,7 +2196,7 @@ export default function AdminDashboard({
                   {gachaSubViews.map((view) => (
                     <a
                       key={view.key}
-                      href={`/?tab=gachas&view=${view.key}`}
+                      href={adminPathForGachaView(view.key)}
                       className={activeGachaView === view.key ? "active" : ""}
                       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
                         event.preventDefault();
@@ -2201,6 +2272,7 @@ export default function AdminDashboard({
                 onAction={() => {
                   setAnnouncementForm({ id: "", title: "", body: "", thumbnailUrl: "", showOnTopSlider: false, status: "draft", publishedAt: "" });
                   setActiveAnnouncementView("new");
+                  router.push(adminPathForAnnouncementView("new"));
                 }}
               >
                 <AnnouncementTable rows={announcements} onEdit={editAnnouncement} />
@@ -2210,7 +2282,10 @@ export default function AdminDashboard({
               <FormSurface
                 title={activeAnnouncementView === "edit" ? "お知らせ編集" : "お知らせ登録"}
                 backLabel="お知らせ一覧"
-                onBack={() => setActiveAnnouncementView("list")}
+                onBack={() => {
+                  setActiveAnnouncementView("list");
+                  router.push(adminPathForTab("announcements"));
+                }}
               >
               <form className="stack-form compact-form" onSubmit={submitAnnouncement}>
                 <div className="form-title form-title-row">
@@ -2268,7 +2343,10 @@ export default function AdminDashboard({
                 <Pagination meta={pagination.contacts} onPage={(page) => goToPage("contacts", page)} />
               </ListSurface>
             ) : (
-              <FormSurface title="お問い合わせ詳細・返信" backLabel="お問い合わせ一覧" onBack={() => setActiveContactView("list")}>
+              <FormSurface title="お問い合わせ詳細・返信" backLabel="お問い合わせ一覧" onBack={() => {
+                setActiveContactView("list");
+                router.push(adminPathForTab("contacts"));
+              }}>
                 {selectedContact ? (
                   <div className="contact-admin-detail">
                     <div className="detail-heading">
@@ -2393,7 +2471,10 @@ export default function AdminDashboard({
                 <Pagination meta={pagination.users} onPage={(page) => goToPage("users", page)} />
               </>
             ) : (
-              <FormSurface title="ユーザー詳細" backLabel="ユーザー一覧" onBack={() => setActiveUserView("list")} wide>
+              <FormSurface title="ユーザー詳細" backLabel="ユーザー一覧" onBack={() => {
+                setActiveUserView("list");
+                router.push(adminPathForTab("users"));
+              }} wide>
                 {selectedUser ? (
                   <div className="user-detail-panel">
                     <div className="detail-heading">
@@ -2564,6 +2645,7 @@ export default function AdminDashboard({
                 onAction={() => {
                   resetPurchasePlanForm();
                   setActivePurchasePlanView("new");
+                  router.push(adminPathForPurchasePlanView("new"));
                 }}
               >
                 <PointPurchasePlanTable rows={purchasePlans} onEdit={editPurchasePlan} />
@@ -2573,7 +2655,10 @@ export default function AdminDashboard({
               <FormSurface
                 title={activePurchasePlanView === "edit" ? "購入プラン編集" : "購入プラン登録"}
                 backLabel="購入プラン一覧"
-                onBack={() => setActivePurchasePlanView("list")}
+                onBack={() => {
+                  setActivePurchasePlanView("list");
+                  router.push(adminPathForTab("purchasePlans"));
+                }}
               >
                 <form className="stack-form compact-form" onSubmit={submitPurchasePlan}>
                   <label>
@@ -2624,13 +2709,17 @@ export default function AdminDashboard({
                     reason: "",
                   });
                   setActivePointView("new");
+                  router.push(adminPathForPointView("new"));
                 }}
               >
                 <PointAdjustmentTable rows={pointAdjustments} />
                 <Pagination meta={pagination.points} onPage={(page) => goToPage("points", page)} />
               </ListSurface>
             ) : (
-              <FormSurface title="ポイント調整登録" backLabel="ポイント調整履歴" onBack={() => setActivePointView("list")}>
+              <FormSurface title="ポイント調整登録" backLabel="ポイント調整履歴" onBack={() => {
+                setActivePointView("list");
+                router.push(adminPathForTab("points"));
+              }}>
               <form className="stack-form compact-form" onSubmit={submitPointAdjustment}>
                 <div className="form-title">
                   <strong>ポイント調整</strong>
@@ -2695,6 +2784,7 @@ export default function AdminDashboard({
                   onAction={() => {
                     resetRankAssetForm("image");
                     setActiveSettingView("rank-asset-new");
+                    router.push(adminPathForSettingView("rank-asset-new"));
                   }}
                 >
                   <RankAssetTable rows={rankAssets} onEdit={editRankAsset} />
@@ -2702,7 +2792,10 @@ export default function AdminDashboard({
               </div>
             ) : (
               activeSettingView === "edit" ? (
-                <FormSurface title={selectedStaticPage?.title ?? "設定編集"} backLabel="設定一覧" onBack={() => setActiveSettingView("list")}>
+                <FormSurface title={selectedStaticPage?.title ?? "設定編集"} backLabel="設定一覧" onBack={() => {
+                  setActiveSettingView("list");
+                  router.push(adminPathForTab("settings"));
+                }}>
                   {selectedStaticPage ? (
                   <form className="stack-form compact-form" onSubmit={submitStaticPage}>
                     <label>
@@ -2720,7 +2813,10 @@ export default function AdminDashboard({
                   )}
                 </FormSurface>
               ) : (
-                <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="設定一覧" onBack={() => setActiveSettingView("list")}>
+                <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="設定一覧" onBack={() => {
+                  setActiveSettingView("list");
+                  router.push(adminPathForTab("settings"));
+                }}>
                   <form className="stack-form compact-form" onSubmit={submitRankAsset}>
                     <label>
                       <span>タイトル</span>
@@ -5393,6 +5489,35 @@ function resolveGachaView(value?: string): GachaAdminView {
   return views.includes(value as GachaAdminView) ? value as GachaAdminView : "gacha-list";
 }
 
+function resolveAnnouncementView(value?: string): AnnouncementView {
+  return value === "new" || value === "edit" ? value : "list";
+}
+
+function resolvePointView(value?: string): PointView {
+  return value === "new" ? "new" : "list";
+}
+
+function resolveContactView(value?: string): ContactView {
+  return value === "edit" ? "edit" : "list";
+}
+
+function resolveSettingView(value?: string): SettingView {
+  const views: SettingView[] = ["list", "edit", "rank-asset-new", "rank-asset-edit"];
+  return views.includes(value as SettingView) ? value as SettingView : "list";
+}
+
+function resolvePurchasePlanView(value?: string): PurchasePlanView {
+  return value === "new" || value === "edit" ? value : "list";
+}
+
+function resolveUserView(value?: string): UserManagementView {
+  return value === "detail" ? "detail" : "list";
+}
+
+function resolveShippingView(value?: string): ShippingView {
+  return value === "edit" ? "edit" : "list";
+}
+
 function parsePositiveInt(value?: string) {
   if (!value) {
     return null;
@@ -5401,6 +5526,100 @@ function parsePositiveInt(value?: string) {
   const parsed = Number(value);
 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function adminPathForTab(tab: TabKey) {
+  const paths: Record<TabKey, string> = {
+    guide: "/admin/guide",
+    announcements: "/admin/announcements",
+    contacts: "/admin/contacts",
+    gachas: "/admin/gachas",
+    users: "/admin/users",
+    draws: "/admin/draws",
+    prizes: "/admin/prizes",
+    shipping: "/admin/shipping",
+    payments: "/admin/payments",
+    purchasePlans: "/admin/purchase-plans",
+    points: "/admin/points",
+    settings: "/admin/settings",
+  };
+
+  return paths[tab];
+}
+
+function adminPathForGachaView(view: GachaAdminView, id?: number | string) {
+  const paths: Record<GachaAdminView, string> = {
+    "gacha-list": "/admin/gachas",
+    "gacha-new": "/admin/gachas/new",
+    "gacha-edit": `/admin/gachas/${id ?? ""}/edit`,
+    "rank-list": "/admin/gachas/ranks",
+    "rank-new": "/admin/gachas/ranks/new",
+    "rank-edit": `/admin/gachas/ranks/${id ?? ""}/edit`,
+    "category-list": "/admin/gachas/categories",
+    "category-new": "/admin/gachas/categories/new",
+    "category-edit": `/admin/gachas/categories/${id ?? ""}/edit`,
+    "prize-list": "/admin/gachas/prizes",
+    "prize-new": "/admin/gachas/prizes/new",
+    "prize-edit": `/admin/gachas/prizes/${id ?? ""}/edit`,
+  };
+
+  return paths[view].replace("//", "/");
+}
+
+function adminPathForAnnouncementView(view: AnnouncementView, id?: number | string) {
+  if (view === "new") {
+    return "/admin/announcements/new";
+  }
+
+  if (view === "edit") {
+    return `/admin/announcements/${id ?? ""}/edit`;
+  }
+
+  return adminPathForTab("announcements");
+}
+
+function adminPathForContactView(view: ContactView, id?: number | string) {
+  return view === "edit" ? `/admin/contacts/${id ?? ""}/edit` : adminPathForTab("contacts");
+}
+
+function adminPathForPurchasePlanView(view: PurchasePlanView, id?: number | string) {
+  if (view === "new") {
+    return "/admin/purchase-plans/new";
+  }
+
+  if (view === "edit") {
+    return `/admin/purchase-plans/${id ?? ""}/edit`;
+  }
+
+  return adminPathForTab("purchasePlans");
+}
+
+function adminPathForPointView(view: PointView) {
+  return view === "new" ? "/admin/points/new" : adminPathForTab("points");
+}
+
+function adminPathForUserDetail(id: number | string) {
+  return `/admin/users/${id}`;
+}
+
+function adminPathForShippingEdit(requestId: number | string, itemId: number | string) {
+  return `/admin/shipping/${requestId}/items/${itemId}/edit`;
+}
+
+function adminPathForSettingView(view: SettingView, id?: number | string) {
+  if (view === "rank-asset-new") {
+    return "/admin/settings/rank-assets/new";
+  }
+
+  if (view === "rank-asset-edit") {
+    return `/admin/settings/rank-assets/${id ?? ""}/edit`;
+  }
+
+  if (view === "edit") {
+    return `/admin/settings/static-pages/${id ?? ""}/edit`;
+  }
+
+  return adminPathForTab("settings");
 }
 
 function buildProbabilityPayload(
