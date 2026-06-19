@@ -12,11 +12,6 @@ class PaymentWebhookService
     public function __construct(private readonly PaymentPointGrantService $paymentPointGrantService)
     {
     }
-
-    /**
-     * @param array<string, mixed> $payload
-     * @return array{payment: Payment, duplicate: bool}
-     */
     public function handle(array $payload): array
     {
         $eventId = (string) $payload['event_id'];

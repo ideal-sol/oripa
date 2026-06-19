@@ -91,7 +91,7 @@ export default function PublicHeader() {
   return (
     <header className="public-header">
       <Link className="public-logo" href="/">
-        <Image className="public-logo-image" src="/logo.png" alt="Luxe Pack" width={64} height={58} priority />
+        <Image className="public-logo-image" src="/logo.png" alt="Luxe Pack" width={64} height={58} priority unoptimized />
       </Link>
       <nav aria-label="公開メニュー">
         <Link href="/#gachas">ガチャ</Link>

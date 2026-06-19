@@ -14,6 +14,7 @@ class StageResolver
             throw new ProbabilityStageNotFoundException('Draw sequence number must be greater than or equal to 1.');
         }
 
+        // 抽選通し番号に対応する公開済みステージだけを採用する。
         $stage = GachaProbabilityVersionStage::query()
             ->where('probability_version_id', $probabilityVersionId)
             ->where('min_draw_number', '<=', $drawSequenceNumber)

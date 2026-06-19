@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Mail\PasswordResetMail;
+use App\Mail\UserRegisteredMail;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class UserAuthApiTest extends TestCase
@@ -14,6 +18,8 @@ class UserAuthApiTest extends TestCase
 
     public function test_user_can_register_and_receive_token(): void
     {
+        Mail::fake();
+
         $this->postJson('/api/register', [
             'name' => 'New User',
             'email' => 'new-user@example.test',
@@ -43,7 +49,9 @@ class UserAuthApiTest extends TestCase
             'paid_balance' => 0,
             'free_balance' => 0,
         ]);
-        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $user = User::query()->where('email', 'new-user@example.test')->firstOrFail();
+        $this->assertSame(1, $user->tokens()->count());
+        Mail::assertSent(UserRegisteredMail::class);
     }
 
     public function test_register_payload_is_validated(): void
@@ -85,7 +93,7 @@ class UserAuthApiTest extends TestCase
             ->assertJsonPath('user.wallet.total_balance', 1200)
             ->assertJsonStructure(['access_token']);
 
-        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertSame(1, $user->tokens()->count());
     }
 
     public function test_login_rejects_invalid_or_inactive_user(): void
@@ -110,7 +118,10 @@ class UserAuthApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
 
-        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_type' => User::class,
+            'name' => 'feature-test',
+        ]);
     }
 
     public function test_user_can_logout_current_token(): void
@@ -123,6 +134,51 @@ class UserAuthApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Logged out.');
 
-        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_user_can_request_password_reset_mail(): void
+    {
+        Mail::fake();
+
+        User::factory()->create([
+            'email' => 'reset@example.test',
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/password/forgot', [
+            'email' => 'reset@example.test',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'If the email exists, a password reset link has been sent.');
+
+        Mail::assertSent(PasswordResetMail::class);
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => 'reset@example.test',
+        ]);
+    }
+
+    public function test_password_reset_updates_password_and_revokes_tokens(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'resettable@example.test',
+            'password' => Hash::make('old-password'),
+            'status' => 'active',
+        ]);
+        $user->createToken('feature-test', ['user']);
+        $token = Password::broker()->createToken($user);
+
+        $this->postJson('/api/password/reset', [
+            'email' => 'resettable@example.test',
+            'token' => $token,
+            'password' => 'new-secret-password',
+            'password_confirmation' => 'new-secret-password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Password has been reset.');
+
+        $user->refresh();
+        $this->assertTrue(Hash::check('new-secret-password', $user->password));
+        $this->assertSame(0, $user->tokens()->count());
     }
 }

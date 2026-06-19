@@ -11,10 +11,6 @@ class StoreGachaRankRequest extends FormRequest
     {
         return true;
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         $gachaId = $this->route('gacha')?->id;

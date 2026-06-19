@@ -11,9 +11,6 @@ use Illuminate\Support\Facades\DB;
 
 class PointExpirationService
 {
-    /**
-     * @return array{expired_lot_count: int, expired_point_amount: int}
-     */
     public function expire(int $limit = 1000): array
     {
         if ($limit <= 0) {
@@ -21,6 +18,7 @@ class PointExpirationService
         }
 
         return DB::transaction(function () use ($limit): array {
+            // 有償ポイントは期限なし。期限切れ処理の対象は無償ポイントのロットだけにする。
             $lots = PointLot::query()
                 ->where('point_type', PointType::Free->value)
                 ->where('remaining_amount', '>', 0)
@@ -43,6 +41,7 @@ class PointExpirationService
 
                 $amount = min((int) $lot->remaining_amount, (int) $wallet->free_balance);
 
+                // ロットを先に0へ寄せ、ウォレット残高との差分があっても二重失効を起こさない。
                 $lot->forceFill([
                     'remaining_amount' => 0,
                 ])->save();

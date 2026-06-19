@@ -6,9 +6,6 @@ use App\Models\Gacha;
 
 class GachaProfitSimulationService
 {
-    /**
-     * @return array<string, mixed>
-     */
     public function simulate(Gacha $gacha): array
     {
         $gacha->loadMissing([
@@ -29,6 +26,7 @@ class GachaProfitSimulationService
         $prizeAwardedCost = 0;
         $prizeRemainingCost = 0;
 
+        // 最大原価シナリオでは、登録景品がすべて上限まで当たる前提で原価を見る。
         foreach ($gacha->prizes as $prize) {
             $costPrice = (int) $prize->cost_price;
             $maxWinCount = (int) $prize->max_win_count;
@@ -79,9 +77,6 @@ class GachaProfitSimulationService
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function expectedCost(Gacha $gacha, int $totalSales): array
     {
         $version = $gacha->currentProbabilityVersion;
@@ -101,6 +96,7 @@ class GachaProfitSimulationService
         $expectedTotalCost = 0.0;
         $stageResults = [];
 
+        // 公開済み確率を使い、各ステージの販売口数に応じた期待原価を積み上げる。
         foreach ($version->stages->sortBy('sort_order') as $stage) {
             $minDraw = max(1, (int) $stage->min_draw_number);
             $maxDraw = $stage->max_draw_number !== null
@@ -145,9 +141,6 @@ class GachaProfitSimulationService
         ];
     }
 
-    /**
-     * @return list<string>
-     */
     private function warnings(Gacha $gacha, int $projectedProfit, ?float $projectedMarginRate, ?float $targetMarginRate): array
     {
         $warnings = [];

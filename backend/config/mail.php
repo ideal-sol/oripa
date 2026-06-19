@@ -14,6 +14,9 @@ return [
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
+        'mailgun' => [
+            'transport' => 'mailgun',
+        ],
     ],
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'no-reply@example.local'),

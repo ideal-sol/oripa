@@ -201,11 +201,16 @@ function PublicGachaCard({ gacha, selectedCategory }: { gacha: PublicGachaListIt
       <div className="gacha-card-media">
         {gacha.main_image_url ? <div className="image-fill image-contain" style={{ backgroundImage: `url(${gacha.main_image_url})` }} /> : <span>LP</span>}
         <span className="gacha-card-badge">{gacha.category.name ?? "Gacha"}</span>
+        <span className="gacha-card-price">{pointLabel(gacha.price)}</span>
+        <span className="gacha-card-remaining">残り {gacha.remaining_count.toLocaleString("ja-JP")}口</span>
         {soldOut && <span className="sold-out-overlay">SOLD OUT</span>}
       </div>
       <div className="gacha-card-body">
         <strong>{gacha.title}</strong>
-        <small>{pointLabel(gacha.price)} / 残 {gacha.remaining_count.toLocaleString("ja-JP")}口</small>
+        <div className="gacha-card-meta">
+          <small>{gacha.total_count.toLocaleString("ja-JP")}口</small>
+          <small>{gacha.sold_count.toLocaleString("ja-JP")}口販売済み</small>
+        </div>
         <Progress sold={gacha.sold_count} total={gacha.total_count} />
       </div>
     </GachaTileLink>

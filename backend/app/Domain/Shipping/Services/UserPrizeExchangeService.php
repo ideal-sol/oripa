@@ -27,6 +27,7 @@ class UserPrizeExchangeService
                 ->lockForUpdate()
                 ->first();
 
+            // 景品をロックし、配送申請とポイント交換の二重処理を防ぐ。
             if (! $lockedPrize || $lockedPrize->user_id !== $user->id) {
                 throw new UserPrizeOperationException('Prize was not found.');
             }
@@ -44,6 +45,7 @@ class UserPrizeExchangeService
                 throw new UserPrizeOperationException('This prize cannot be exchanged for points.');
             }
 
+            // 交換で得るポイントは景品由来の無償ポイントとして期限付きにする。
             $lockedPrize->forceFill([
                 'status' => UserPrizeStatus::Converted,
                 'converted_point' => $exchangePoint,

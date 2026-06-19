@@ -2881,6 +2881,7 @@ function PricingPlannerPanel({ selectedGacha, gachaForm }: { selectedGacha: Gach
   const initialRanks = useMemo(() => {
     const ranks = selectedGacha?.ranks ?? [];
 
+    // ガチャ未選択やランク未登録でも試算できるよう、標準的なS/A/Bの仮値を用意する。
     if (ranks.length === 0) {
       return [
         { key: "S", label: "S", count: 3, cost: 150000 },
@@ -2892,6 +2893,7 @@ function PricingPlannerPanel({ selectedGacha, gachaForm }: { selectedGacha: Gach
     return ranks.map((rank) => {
       const prizes = rank.prizes ?? [];
 
+      // 登録済み景品がある場合は、当選上限と原価からランク別仕入を初期値にする。
       return {
         key: String(rank.id),
         label: rank.display_name || rank.rank_key,
@@ -2942,7 +2944,9 @@ function PricingPlannerPanel({ selectedGacha, gachaForm }: { selectedGacha: Gach
         rate,
         soldDraws,
         revenue,
+        // 単純按分は景品原価も消化率どおり発生する楽観寄りの見方。
         profitProrated: revenue - totalCost * rate,
+        // 最悪利益は景品が先に全部出た前提で、保守的な資金繰りを見る。
         profitWorst: revenue - totalCost,
       };
     });
@@ -3394,7 +3398,10 @@ function ImageUploadField({
   return (
     <div className="image-upload-field">
       <label>
-        <span>{label}</span>
+        <span className="upload-field-label">
+          {label}
+          <small>画像は5MBまで</small>
+        </span>
         <input value={value} onChange={(event) => onChange(event.target.value)} required={required} />
       </label>
       <div className="image-upload-actions">
@@ -3456,7 +3463,10 @@ function VideoUploadField({
   return (
     <div className="image-upload-field">
       <label>
-        <span>{label}</span>
+        <span className="upload-field-label">
+          {label}
+          <small>動画は50MBまで</small>
+        </span>
         <input value={value} onChange={(event) => onChange(event.target.value)} />
       </label>
       <div className="image-upload-actions">
@@ -4866,7 +4876,14 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, token?: strin
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error("管理者セッションの有効期限が切れています。ログアウトして再ログインしてください");
+      if (token && path !== "/login" && typeof window !== "undefined") {
+        window.localStorage.removeItem("oripa_admin_session");
+        document.cookie = "oripa_admin_session=; path=/; max-age=0; SameSite=Lax; secure";
+        window.location.href = "/admin-logout?expired=1";
+        return await new Promise<never>(() => {});
+      }
+
+      throw new Error(data?.message || "ログインに失敗しました");
     }
 
     const details = data?.errors ? Object.values(data.errors).flat() : [];

@@ -17,6 +17,7 @@ use App\Models\GachaRank;
 use App\Models\User;
 use App\Models\UserPrize;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -87,6 +88,10 @@ class UserPrizeOperationApiTest extends TestCase
 
     public function test_user_can_create_shipping_request_for_stored_prizes(): void
     {
+        config(['services.discord.admin_webhook_url' => 'https://discord.test/webhook']);
+        Http::fake([
+            'discord.test/*' => Http::response('', 204),
+        ]);
         $user = User::factory()->create();
         [$gacha, , $prize] = $this->createPrizeFixture(exchangePoint: 300);
         $firstPrize = $this->createUserPrize($user, $gacha, $prize, UserPrizeStatus::Stored);
@@ -124,6 +129,10 @@ class UserPrizeOperationApiTest extends TestCase
             'id' => $secondPrize->id,
             'status' => 'shipping_requested',
         ]);
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://discord.test/webhook'
+            && str_contains($request['content'], '【新規配送申請】')
+            && str_contains($request['content'], '宛名: 山田 太郎')
+            && str_contains($request['content'], '景品数: 2件'));
     }
 
     public function test_shipping_request_rejects_non_stored_or_other_users_prize(): void

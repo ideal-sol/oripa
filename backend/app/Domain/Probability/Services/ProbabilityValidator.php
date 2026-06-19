@@ -11,10 +11,6 @@ class ProbabilityValidator
 {
     public const TOTAL_PPM = 1_000_000;
 
-    /**
-     * @param list<array<string, mixed>> $stages
-     * @return list<array<string, mixed>>
-     */
     public function validateForPublish(Gacha $gacha, array $stages): array
     {
         $errors = [];
@@ -60,6 +56,7 @@ class ProbabilityValidator
             $seenPrizeIds = [];
             $normalizedProbabilities = [];
 
+            // 各ステージは景品行と最低保証行を合わせて必ず100%にする。
             foreach (array_values($probabilities) as $probabilityIndex => $probability) {
                 $probabilityPpm = (int) ($probability['probability_ppm'] ?? -1);
                 $isMinimumGuarantee = (bool) ($probability['is_minimum_guarantee'] ?? false);
@@ -105,6 +102,7 @@ class ProbabilityValidator
                 $errors[] = "{$stageKey}: probability total must be exactly 1000000 ppm.";
             }
 
+            // 公開スナップショットのハッシュが入力順に左右されないよう、確率行は安定した順番に正規化する。
             usort($normalizedProbabilities, function (array $a, array $b): int {
                 if ($a['is_minimum_guarantee'] !== $b['is_minimum_guarantee']) {
                     return $a['is_minimum_guarantee'] ? 1 : -1;
@@ -133,16 +131,13 @@ class ProbabilityValidator
         return $normalized;
     }
 
-    /**
-     * @param list<array<string, mixed>> $normalized
-     * @param list<string> $errors
-     */
     private function validateRanges(array $normalized, Gacha $gacha, array &$errors): void
     {
         usort($normalized, fn (array $a, array $b): int => $a['min_draw_number'] <=> $b['min_draw_number']);
 
         $expectedMin = 1;
 
+        // 販売口数ステージは1口目から総口数まで、重複や空白なく連続している必要がある。
         foreach ($normalized as $stage) {
             if ($stage['condition_type'] !== StageConditionType::SoldCount->value) {
                 $errors[] = "{$stage['stage_key']}: condition_type must be sold_count.";

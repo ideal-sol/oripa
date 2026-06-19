@@ -56,10 +56,6 @@ class AdminGachaController extends Controller
             ->response()
             ->setStatusCode(201);
     }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
     private function assertStoreIsAllowed(array $payload): void
     {
         if (($payload['status'] ?? null) !== GachaStatus::Active->value) {
@@ -110,10 +106,6 @@ class AdminGachaController extends Controller
 
         return new AdminGachaResource($gacha->refresh()->load(['category', 'currentProbabilityVersion'])->loadCount(['ranks', 'prizes']));
     }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
     private function assertUpdateIsAllowed(Gacha $gacha, array $payload, GachaReadinessService $readinessService): void
     {
         if ($gacha->status !== GachaStatus::Active && ($payload['status'] ?? null) === GachaStatus::Active->value) {

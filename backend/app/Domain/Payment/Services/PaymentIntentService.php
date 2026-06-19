@@ -9,9 +9,6 @@ use Illuminate\Support\Str;
 
 class PaymentIntentService
 {
-    /**
-     * @param array<string, mixed> $metadata
-     */
     public function create(
         User $user,
         int $amount,

@@ -10,9 +10,6 @@ use Illuminate\Http\Request;
 
 class AuditLogService
 {
-    /**
-     * @param array<string, mixed>|null $metadata
-     */
     public function record(
         string $action,
         ?AdminUser $adminUser = null,

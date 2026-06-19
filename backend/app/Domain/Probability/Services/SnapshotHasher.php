@@ -4,9 +4,6 @@ namespace App\Domain\Probability\Services;
 
 class SnapshotHasher
 {
-    /**
-     * @param list<array<string, mixed>> $normalizedStages
-     */
     public function hash(array $normalizedStages): string
     {
         return hash('sha256', json_encode(

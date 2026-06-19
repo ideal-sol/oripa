@@ -115,10 +115,6 @@ class AdminGachaPrizeController extends Controller
 
         return new AdminGachaPrizeResource($prize->refresh());
     }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
     private function assertUpdateIsAllowed(GachaPrize $prize, array $payload): void
     {
         $prize->loadMissing('gacha');

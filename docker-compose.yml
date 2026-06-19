@@ -27,11 +27,21 @@ services:
       SESSION_DRIVER: redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      MAIL_MAILER: smtp
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      MAIL_FROM_ADDRESS: no-reply@example.local
-      MAIL_FROM_NAME: Oripa Local
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@example.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Oripa Local}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
+      MAILGUN_SECRET: ${MAILGUN_SECRET:-}
+      MAILGUN_ENDPOINT: ${MAILGUN_ENDPOINT:-api.mailgun.net}
+      MAILGUN_SCHEME: ${MAILGUN_SCHEME:-https}
+      DISCORD_ADMIN_WEBHOOK_URL: ${DISCORD_ADMIN_WEBHOOK_URL:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_DAILY_REPORT_TIMEZONE: ${DISCORD_DAILY_REPORT_TIMEZONE:-Asia/Tokyo}
       FILESYSTEM_DISK: s3
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minio_password}
@@ -75,6 +85,18 @@ services:
       QUEUE_CONNECTION: redis
       SESSION_DRIVER: redis
       REDIS_HOST: redis
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@example.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Oripa Local}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
+      MAILGUN_SECRET: ${MAILGUN_SECRET:-}
+      MAILGUN_ENDPOINT: ${MAILGUN_ENDPOINT:-api.mailgun.net}
+      MAILGUN_SCHEME: ${MAILGUN_SCHEME:-https}
+      DISCORD_ADMIN_WEBHOOK_URL: ${DISCORD_ADMIN_WEBHOOK_URL:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_DAILY_REPORT_TIMEZONE: ${DISCORD_DAILY_REPORT_TIMEZONE:-Asia/Tokyo}
     depends_on:
       backend:
         condition: service_started
@@ -100,6 +122,18 @@ services:
       QUEUE_CONNECTION: redis
       SESSION_DRIVER: redis
       REDIS_HOST: redis
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@example.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Oripa Local}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
+      MAILGUN_SECRET: ${MAILGUN_SECRET:-}
+      MAILGUN_ENDPOINT: ${MAILGUN_ENDPOINT:-api.mailgun.net}
+      MAILGUN_SCHEME: ${MAILGUN_SCHEME:-https}
+      DISCORD_ADMIN_WEBHOOK_URL: ${DISCORD_ADMIN_WEBHOOK_URL:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_DAILY_REPORT_TIMEZONE: ${DISCORD_DAILY_REPORT_TIMEZONE:-Asia/Tokyo}
     depends_on:
       backend:
         condition: service_started

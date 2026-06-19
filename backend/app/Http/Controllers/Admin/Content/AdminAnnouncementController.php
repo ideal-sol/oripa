@@ -62,11 +62,6 @@ class AdminAnnouncementController extends Controller
 
         return new AnnouncementResource($announcement->refresh());
     }
-
-    /**
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
-     */
     private function payload(array $payload): array
     {
         if (($payload['status'] ?? null) === 'published' && empty($payload['published_at'])) {

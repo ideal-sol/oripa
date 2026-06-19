@@ -208,6 +208,7 @@ export default function DrawPanel({ gachaId, price, remainingCount }: DrawPanelP
 
       setPendingDrawResponse((payload as DrawResponse).data);
       setDrawMovieNeedsGesture(false);
+      // APIの抽選結果は保持しつつ、先に全画面の演出動画を表示する。
       setRevealing(true);
       setMessage("抽選演出中です。動画をクリックまたはタップすると結果を表示します。");
       await fetchWallet(session);
@@ -271,6 +272,7 @@ export default function DrawPanel({ gachaId, price, remainingCount }: DrawPanelP
     const hasNotStarted = Boolean(video && video.paused && video.currentTime === 0 && !video.ended);
     const shouldStartMovie = drawMovieNeedsGesture || hasNotStarted;
 
+    // ブラウザの自動再生制限で止まった場合だけ、初回タップを動画再生に使う。
     if (shouldStartMovie) {
       const started = await startDrawMovie(video);
 
@@ -474,6 +476,7 @@ function drawResultImageSrc(result: DrawResult): string {
 function primaryDrawResultImageSrc(drawResponse: DrawResponse["data"]): string {
   const primaryPrize = primaryPrizeResult(drawResponse);
 
+  // 複数回抽選では最上位ランクのランク画像をメイン結果画像として表示する。
   if (primaryPrize?.rank?.image_url) {
     return primaryPrize.rank.image_url;
   }

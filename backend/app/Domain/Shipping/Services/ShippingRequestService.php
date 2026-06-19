@@ -2,6 +2,7 @@
 
 namespace App\Domain\Shipping\Services;
 
+use App\Domain\Notification\Services\DiscordNotificationService;
 use App\Domain\Shipping\Enums\ShippingRequestStatus;
 use App\Domain\Shipping\Enums\UserPrizeStatus;
 use App\Domain\Shipping\Exceptions\UserPrizeOperationException;
@@ -13,10 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class ShippingRequestService
 {
-    /**
-     * @param list<int> $userPrizeIds
-     * @param array<string, string|null> $address
-     */
+    public function __construct(private readonly DiscordNotificationService $discordNotification)
+    {
+    }
+
     public function create(User $user, array $userPrizeIds, array $address): ShippingRequest
     {
         $userPrizeIds = array_values(array_unique($userPrizeIds));
@@ -25,7 +26,8 @@ class ShippingRequestService
             throw new UserPrizeOperationException('At least one prize is required.');
         }
 
-        return DB::transaction(function () use ($user, $userPrizeIds, $address): ShippingRequest {
+        $shippingRequest = DB::transaction(function () use ($user, $userPrizeIds, $address): ShippingRequest {
+            // 景品箱の状態をロックし、同じ景品で配送申請とポイント交換が同時に通らないようにする。
             $prizes = UserPrize::query()
                 ->whereIn('id', $userPrizeIds)
                 ->lockForUpdate()
@@ -62,6 +64,7 @@ class ShippingRequestService
                     'user_prize_id' => $prize->id,
                 ]);
 
+                // 申請に含めた景品は景品箱から再操作できない状態へ移す。
                 $prize->forceFill([
                     'status' => UserPrizeStatus::ShippingRequested,
                 ])->save();
@@ -69,5 +72,9 @@ class ShippingRequestService
 
             return $shippingRequest->refresh()->load('items.userPrize.gacha', 'items.userPrize.prize.rank');
         });
+
+        $this->discordNotification->notifyShippingRequested($shippingRequest);
+
+        return $shippingRequest;
     }
 }

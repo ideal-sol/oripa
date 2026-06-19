@@ -6,9 +6,6 @@ use LogicException;
 
 class ProbabilityRange
 {
-    /**
-     * @param list<ProbabilityRangeEntry> $entries
-     */
     public function __construct(
         public readonly array $entries,
     ) {

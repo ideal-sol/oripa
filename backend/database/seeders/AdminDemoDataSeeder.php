@@ -164,6 +164,7 @@ class AdminDemoDataSeeder extends Seeder
                 'description' => '管理画面確認用のデモガチャです。',
                 'caution' => 'デモデータです。実販売には使用しないでください。',
                 'main_image_url' => 'https://placehold.co/960x540/png?text=Luxe+Pack+Demo',
+                'show_on_top_slider' => true,
                 'target_margin' => 30,
             ],
         );

@@ -42,6 +42,7 @@ class DrawService
             throw new DrawException('Idempotency key is required.');
         }
 
+        // 抽選はポイント消費、通し番号、在庫、結果作成を必ず同じDBトランザクションで確定する。
         return DB::transaction(function () use ($user, $gacha, $drawCount, $idempotencyKey): DrawRequest {
             $existing = DrawRequest::query()
                 ->where('user_id', $user->id)
@@ -50,6 +51,7 @@ class DrawService
                 ->lockForUpdate()
                 ->first();
 
+            // 同じリクエストの二重送信は既存結果を返し、処理中の重複実行は止める。
             if ($existing) {
                 if ($existing->status === DrawRequestStatus::Completed) {
                     return $existing->load('results');
@@ -63,6 +65,7 @@ class DrawService
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            // sold_count をロックした状態で採番することで、ガチャごとの通し番号に重複と欠番を出さない。
             $this->assertDrawable($lockedGacha, $drawCount);
 
             $totalCost = $lockedGacha->price * $drawCount;
@@ -91,6 +94,7 @@ class DrawService
                 $sequence = $soldCountBefore + $drawIndex;
                 $stage = $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
                 $range = $this->rangeBuilder->build($stage);
+                // 抽選乱数はフロントではなくバックエンドのCSPRNGで生成する。
                 $randomValue = random_int(0, 999_999);
                 $entry = $range->pick($randomValue);
 
@@ -102,6 +106,7 @@ class DrawService
                         ->lockForUpdate()
                         ->firstOrFail();
 
+                    // 当選直前に景品在庫をロックし、同じ景品が上限を超えて当たらないようにする。
                     $this->assertPrizeAvailable($prize, $lockedGacha);
 
                     $prize->forceFill([
@@ -137,6 +142,7 @@ class DrawService
                 ])->save();
             }
 
+            // 最後の口まで販売された時点で完売へ切り替え、以後の抽選を止める。
             if ((int) $lockedGacha->sold_count >= (int) $lockedGacha->total_count) {
                 $lockedGacha->forceFill([
                     'status' => GachaStatus::SoldOut,

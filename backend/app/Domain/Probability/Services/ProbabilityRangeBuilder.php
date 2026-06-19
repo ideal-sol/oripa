@@ -35,6 +35,7 @@ class ProbabilityRangeBuilder
         $entries = [];
         $minimumGuaranteePpm = (int) $minimumRow->probability_ppm;
 
+        // 売り切れ・無効化された景品の確率は最低保証へ寄せ、100%の抽選範囲を維持する。
         foreach ($probabilities as $probability) {
             if ($probability->is_minimum_guarantee) {
                 continue;
@@ -70,6 +71,7 @@ class ProbabilityRangeBuilder
         $cursor = 0;
         $rangeEntries = [];
 
+        // ppmを連続した整数範囲に変換し、0〜999999の乱数で1件だけ選べる形にする。
         foreach ($entries as $entry) {
             $start = $cursor;
             $cursor += $entry['probability_ppm'];

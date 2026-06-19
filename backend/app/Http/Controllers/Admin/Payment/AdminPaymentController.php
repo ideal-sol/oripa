@@ -78,10 +78,6 @@ class AdminPaymentController extends Controller
 
         return new PaymentResource($payment);
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     private function statusSnapshot(Payment $payment): array
     {
         return [

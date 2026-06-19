@@ -165,10 +165,6 @@ class AdminShippingRequestController extends Controller
             ]);
         }
     }
-
-    /**
-     * @param array<string, mixed> $validated
-     */
     private function resolveShippedAt(ShippingRequestStatus $nextStatus, array $validated, ShippingRequest $shippingRequest): mixed
     {
         if (array_key_exists('shipped_at', $validated)) {

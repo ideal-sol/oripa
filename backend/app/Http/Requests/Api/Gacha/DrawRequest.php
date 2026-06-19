@@ -10,10 +10,6 @@ class DrawRequest extends FormRequest
     {
         return $this->user()?->status === 'active';
     }
-
-    /**
-     * @return array<string, list<string>>
-     */
     public function rules(): array
     {
         return [

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { fetchPublicGacha, PublicGachaDetail } from "@/lib/api";
+import { fetchPublicGacha, fetchPublicGachas, PublicGachaDetail, PublicGachaListItem } from "@/lib/api";
 import DrawPanel from "./draw-panel";
 import PublicHeader from "../../public-header";
 
@@ -9,20 +9,22 @@ type GachaDetailPageProps = {
 
 export default async function GachaDetailPage({ params }: GachaDetailPageProps) {
   const { id } = await params;
-  const gacha = await fetchPublicGacha(Number(id)).then((response) => response.data);
+  const [gacha, gachas] = await Promise.all([
+    fetchPublicGacha(Number(id)).then((response) => response.data),
+    fetchPublicGachas().catch(() => ({ data: [] as PublicGachaListItem[] })),
+  ]);
+  const recommendedGachas = sameCategoryRecommendations(gacha, gachas.data);
 
   return (
     <main className="public-shell">
       <PublicHeader />
 
-      <GachaDetailView gacha={gacha} />
+      <GachaDetailView gacha={gacha} recommendedGachas={recommendedGachas} />
     </main>
   );
 }
 
-function GachaDetailView({ gacha }: { gacha: PublicGachaDetail }) {
-  const currentStageKey = gacha.current_stage?.stage_key;
-
+function GachaDetailView({ gacha, recommendedGachas }: { gacha: PublicGachaDetail; recommendedGachas: PublicGachaListItem[] }) {
   return (
     <article className="detail-surface gacha-detail-page">
       <div className="gacha-detail-hero">
@@ -37,7 +39,7 @@ function GachaDetailView({ gacha }: { gacha: PublicGachaDetail }) {
           <div>
             <span className="public-kicker">{gacha.category.name ?? "Gacha"}</span>
             <h1>{gacha.title}</h1>
-            <p>{gacha.description ?? "景品ラインナップと確率を確認できます。"}</p>
+            <p>{gacha.description ?? "景品ラインナップを確認できます。"}</p>
           </div>
           <div className="price-box">
             <span>1回</span>
@@ -73,7 +75,6 @@ function GachaDetailView({ gacha }: { gacha: PublicGachaDetail }) {
           <section className="rank-section" key={rank.id}>
             <div className="rank-title">
               <h3>{rank.display_name}</h3>
-              <span>{currentStageKey ? ppmPercent(rank.stage_total_ppm[currentStageKey] ?? 0) : "-"}</span>
             </div>
             <div className="public-prize-grid">
               {rank.prizes.map((prize) => (
@@ -84,7 +85,6 @@ function GachaDetailView({ gacha }: { gacha: PublicGachaDetail }) {
                   <div>
                     <strong>{prize.name}</strong>
                     <small>{prize.condition} / 残 {prize.remaining_win_count.toLocaleString("ja-JP")}</small>
-                    <span className="probability-label">{currentStageKey ? ppmPercent(prize.ppm[currentStageKey] ?? 0) : "-"}</span>
                   </div>
                 </div>
               ))}
@@ -94,8 +94,53 @@ function GachaDetailView({ gacha }: { gacha: PublicGachaDetail }) {
       </div>
 
       {gacha.caution && <p className="caution-box">{gacha.caution}</p>}
+
+      <section className="recommended-gachas">
+        <div className="public-section-head">
+          <h2>おすすめガチャ</h2>
+          <span>{gacha.category.name ?? "同じカテゴリー"}</span>
+        </div>
+        {recommendedGachas.length === 0 ? (
+          <div className="public-empty">現在おすすめできる同カテゴリーのガチャはありません。</div>
+        ) : (
+          <div className="public-gacha-grid">
+            {recommendedGachas.map((recommended) => (
+              <RecommendedGachaCard gacha={recommended} key={recommended.id} />
+            ))}
+          </div>
+        )}
+      </section>
     </article>
   );
+}
+
+function RecommendedGachaCard({ gacha }: { gacha: PublicGachaListItem }) {
+  const soldOut = isGachaSoldOut(gacha);
+  const children = (
+    <>
+      <div className="gacha-card-media">
+        {gacha.main_image_url ? <div className="image-fill image-contain" style={{ backgroundImage: `url(${gacha.main_image_url})` }} /> : <span>LP</span>}
+        <span className="gacha-card-badge">{gacha.category.name ?? "Gacha"}</span>
+        <span className="gacha-card-price">{pointLabel(gacha.price)}</span>
+        <span className="gacha-card-remaining">残り {gacha.remaining_count.toLocaleString("ja-JP")}口</span>
+        {soldOut && <span className="sold-out-overlay">SOLD OUT</span>}
+      </div>
+      <div className="gacha-card-body">
+        <strong>{gacha.title}</strong>
+        <div className="gacha-card-meta">
+          <small>{gacha.total_count.toLocaleString("ja-JP")}口</small>
+          <small>{gacha.sold_count.toLocaleString("ja-JP")}口販売済み</small>
+        </div>
+        <Progress sold={gacha.sold_count} total={gacha.total_count} />
+      </div>
+    </>
+  );
+
+  if (soldOut) {
+    return <div className="public-gacha-card sold-out" aria-disabled="true">{children}</div>;
+  }
+
+  return <Link className="public-gacha-card" href={`/gachas/${gacha.id}`}>{children}</Link>;
 }
 
 function MetricLite({ label, value }: { label: string; value: string }) {
@@ -121,10 +166,19 @@ function pointLabel(value: number) {
   return `${value.toLocaleString("ja-JP")}pt`;
 }
 
-function ppmPercent(value: number) {
-  return `${(value / 10000).toFixed(2)}%`;
-}
-
 function stageRangeLabel(stage: { name: string; min_draw_number: number; max_draw_number: number | null }) {
   return `${stage.name} ${stage.min_draw_number.toLocaleString("ja-JP")} - ${stage.max_draw_number?.toLocaleString("ja-JP") ?? "LAST"}口`;
+}
+
+function sameCategoryRecommendations(gacha: PublicGachaDetail, gachas: PublicGachaListItem[]) {
+  const categorySlug = gacha.category.slug;
+
+  return gachas
+    .filter((item) => item.id !== gacha.id)
+    .filter((item) => categorySlug ? item.category.slug === categorySlug : item.category.id === gacha.category.id)
+    .slice(0, 4);
+}
+
+function isGachaSoldOut(gacha: PublicGachaListItem) {
+  return gacha.status === "sold_out" || gacha.remaining_count <= 0;
 }

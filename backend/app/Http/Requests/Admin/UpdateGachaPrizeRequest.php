@@ -10,10 +10,6 @@ class UpdateGachaPrizeRequest extends FormRequest
     {
         return true;
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         $wonCount = (int) ($this->route('prize')?->won_count ?? 0);

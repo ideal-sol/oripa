@@ -8,9 +8,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class GachaDetailResource extends JsonResource
 {
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         $version = $this->currentProbabilityVersion;
@@ -85,10 +82,6 @@ class GachaDetailResource extends JsonResource
             ])->values(),
         ];
     }
-
-    /**
-     * @return array<int, array<string, int>>
-     */
     private function stageTotalsByRank(): array
     {
         $totals = [];
@@ -108,10 +101,6 @@ class GachaDetailResource extends JsonResource
 
         return $totals;
     }
-
-    /**
-     * @return array<string, int>
-     */
     private function minimumGuaranteePpmByStage(): array
     {
         $ppm = [];
@@ -123,10 +112,6 @@ class GachaDetailResource extends JsonResource
 
         return $ppm;
     }
-
-    /**
-     * @return array<string, int>
-     */
     private function ppmByStageForPrize(GachaPrize $prize): array
     {
         $ppm = [];

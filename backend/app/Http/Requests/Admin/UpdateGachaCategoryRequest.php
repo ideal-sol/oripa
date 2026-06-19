@@ -11,10 +11,6 @@ class UpdateGachaCategoryRequest extends FormRequest
     {
         return true;
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         $category = $this->route('category');

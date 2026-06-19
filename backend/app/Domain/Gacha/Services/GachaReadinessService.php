@@ -11,10 +11,6 @@ class GachaReadinessService
         private readonly GachaProfitSimulationService $profitSimulationService,
     ) {
     }
-
-    /**
-     * @return array{gacha_id: int, ready: bool, checks: list<array<string, mixed>>}
-     */
     public function inspect(Gacha $gacha): array
     {
         $gacha->loadCount([
@@ -57,20 +53,12 @@ class GachaReadinessService
             'checks' => $checks,
         ];
     }
-
-    /**
-     * @return Collection<int, array<string, mixed>>
-     */
     public function failedChecks(Gacha $gacha): Collection
     {
         return collect($this->inspect($gacha)['checks'])
             ->filter(fn (array $check): bool => ! $check['passed'] && $check['severity'] !== 'warning')
             ->values();
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     private function check(string $key, string $label, bool $passed, string $message, string $severity = 'blocking'): array
     {
         return [

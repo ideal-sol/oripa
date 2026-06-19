@@ -26,9 +26,6 @@ class PointConsumptionService
         }
     }
 
-    /**
-     * @return list<array{lot_id: int, point_type: string, amount: int}>
-     */
     public function consume(User $user, int $amount, string $relatedType, int $relatedId, ?string $description = null): array
     {
         if ($amount < 0) {
@@ -49,6 +46,7 @@ class PointConsumptionService
         $remaining = $amount;
         $consumptions = [];
 
+        // 無償ポイントは期限があるため、有効期限が近いロットから先に消費する。
         foreach ($this->lockedConsumableLots($user, PointType::Free) as $lot) {
             $remaining = $this->consumeFromLot($wallet, $lot, $remaining, $relatedType, $relatedId, $description, $consumptions);
 
@@ -57,6 +55,7 @@ class PointConsumptionService
             }
         }
 
+        // 有償ポイントは期限なしの方針なので、無償ポイントで不足した分だけ消費する。
         foreach ($this->lockedConsumableLots($user, PointType::Paid) as $lot) {
             $remaining = $this->consumeFromLot($wallet, $lot, $remaining, $relatedType, $relatedId, $description, $consumptions);
 
@@ -75,9 +74,6 @@ class PointConsumptionService
         }
     }
 
-    /**
-     * @return iterable<PointLot>
-     */
     private function lockedConsumableLots(User $user, PointType $pointType): iterable
     {
         $query = PointLot::query()
@@ -101,9 +97,6 @@ class PointConsumptionService
         return $query->get();
     }
 
-    /**
-     * @param list<array{lot_id: int, point_type: string, amount: int}> $consumptions
-     */
     private function consumeFromLot(
         Wallet $wallet,
         PointLot $lot,
@@ -119,6 +112,7 @@ class PointConsumptionService
             return $remaining;
         }
 
+        // ロット残高、ウォレット残高、台帳を同じトランザクション内で更新する。
         $lot->forceFill([
             'remaining_amount' => (int) $lot->remaining_amount - $amount,
         ])->save();

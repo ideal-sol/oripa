@@ -10,10 +10,6 @@ class PublishProbabilityVersionRequest extends FormRequest
     {
         return true;
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         return [
@@ -31,10 +27,6 @@ class PublishProbabilityVersionRequest extends FormRequest
             'stages.*.probabilities.*.probability_ppm' => ['required', 'integer', 'min:0', 'max:1000000'],
         ];
     }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
     public function stages(): array
     {
         return $this->validated('stages');

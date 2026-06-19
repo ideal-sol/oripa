@@ -11,10 +11,6 @@ class UpdateGachaRankRequest extends FormRequest
     {
         return true;
     }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         $rank = $this->route('rank');

@@ -14,10 +14,6 @@ class RecordAdminAuditLog
         private readonly AuditLogService $auditLogService,
     ) {
     }
-
-    /**
-     * @param Closure(Request): Response $next
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);

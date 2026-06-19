@@ -8,9 +8,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class AdminProbabilityMatrixResource extends JsonResource
 {
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         $gacha = $this->resource;

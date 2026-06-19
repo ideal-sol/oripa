@@ -15,13 +15,10 @@ class ProbabilityVersionPublisher
         private readonly SnapshotHasher $snapshotHasher,
     ) {
     }
-
-    /**
-     * @param list<array<string, mixed>> $stages
-     */
     public function publish(Gacha $gacha, array $stages, ?AdminUser $publisher = null, ?string $changeReason = null): GachaProbabilityVersion
     {
         return DB::transaction(function () use ($gacha, $stages, $publisher, $changeReason): GachaProbabilityVersion {
+            // ガチャをロックして、同時公開時にもバージョン番号が重複しないようにする。
             $lockedGacha = Gacha::query()
                 ->whereKey($gacha->id)
                 ->lockForUpdate()
@@ -30,6 +27,7 @@ class ProbabilityVersionPublisher
             $normalizedStages = $this->validator->validateForPublish($lockedGacha, $stages);
             $snapshotHash = $this->snapshotHasher->hash($normalizedStages);
 
+            // 公開済みバージョンは変更せず、新しいスナップショットを積み上げる。
             $nextVersionNumber = ((int) GachaProbabilityVersion::query()
                 ->where('gacha_id', $lockedGacha->id)
                 ->max('version_number')) + 1;
@@ -67,6 +65,7 @@ class ProbabilityVersionPublisher
                 'published_at' => now(),
             ])->save();
 
+            // 抽選時はガチャに紐づく現行公開バージョンだけを参照する。
             $lockedGacha->forceFill([
                 'current_probability_version_id' => $version->id,
             ])->save();

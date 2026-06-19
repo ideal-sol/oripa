@@ -9,6 +9,7 @@ use App\Domain\Point\Enums\PointType;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -75,6 +76,10 @@ class PaymentApiTest extends TestCase
 
     public function test_payment_success_grants_paid_points_once(): void
     {
+        config(['services.discord.admin_webhook_url' => 'https://discord.test/webhook']);
+        Http::fake([
+            'discord.test/*' => Http::response('', 204),
+        ]);
         $user = User::factory()->create();
         $payment = Payment::query()->create([
             'user_id' => $user->id,
@@ -123,6 +128,11 @@ class PaymentApiTest extends TestCase
         ]);
         $this->assertDatabaseCount('point_lots', 2);
         $this->assertDatabaseCount('point_ledgers', 2);
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://discord.test/webhook'
+            && str_contains($request['content'], '【ポイント購入完了】')
+            && str_contains($request['content'], '決済ID: '.$payment->id)
+            && str_contains($request['content'], '有償ポイント: 1,000pt'));
     }
 
     public function test_user_can_confirm_own_mock_payment_in_local_environment(): void

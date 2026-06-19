@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Content;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Http\Requests\Admin\ReplyContactRequest;
 use App\Http\Resources\ContactRequestResource;
+use App\Mail\ContactReplyMail;
 use App\Models\ContactRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -57,11 +58,7 @@ class AdminContactRequestController extends Controller
             ! empty($contactRequest->reply_body)
             && $contactRequest->reply_body !== $previousReplyBody
         ) {
-            Mail::raw((string) $contactRequest->reply_body, function ($message) use ($contactRequest): void {
-                $message
-                    ->to($contactRequest->email, $contactRequest->name)
-                    ->subject('お問い合わせへのご返信');
-            });
+            Mail::to($contactRequest->email, $contactRequest->name)->send(new ContactReplyMail($contactRequest));
         }
 
         $auditLogService->record(
