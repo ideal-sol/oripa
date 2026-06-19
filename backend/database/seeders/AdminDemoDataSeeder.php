@@ -191,6 +191,75 @@ class AdminDemoDataSeeder extends Seeder
             ],
         );
 
+        Gacha::query()->updateOrCreate(
+            ['slug' => 'demo-sneaker-box'],
+            [
+                'category_id' => $categoryPremium->id,
+                'title' => 'デモ スニーカーBOX',
+                'status' => GachaStatus::Active->value,
+                'price' => 800,
+                'total_count' => 1500,
+                'sold_count' => 320,
+                'probability_mode' => ProbabilityMode::Single->value,
+                'minimum_guarantee_type' => MinimumGuaranteeType::Point->value,
+                'minimum_guarantee_value' => 20,
+                'minimum_guarantee_cost' => 20,
+                'start_at' => now()->subHours(8),
+                'end_at' => now()->addWeeks(3),
+                'description' => 'トップ一覧レイアウト確認用の公開中ガチャです。',
+                'caution' => 'デモデータです。',
+                'main_image_url' => 'https://placehold.co/960x540/111827/ffffff/png?text=Sneaker+Box',
+                'show_on_top_slider' => true,
+                'target_margin' => 28,
+            ],
+        );
+
+        Gacha::query()->updateOrCreate(
+            ['slug' => 'demo-standard-pack'],
+            [
+                'category_id' => $categoryPremium->id,
+                'title' => 'デモ スタンダードパック',
+                'status' => GachaStatus::Active->value,
+                'price' => 300,
+                'total_count' => 2000,
+                'sold_count' => 860,
+                'probability_mode' => ProbabilityMode::Single->value,
+                'minimum_guarantee_type' => MinimumGuaranteeType::Point->value,
+                'minimum_guarantee_value' => 5,
+                'minimum_guarantee_cost' => 5,
+                'start_at' => now()->subHours(4),
+                'end_at' => now()->addWeeks(2),
+                'description' => '開催中ガチャのカード確認用データです。',
+                'caution' => 'デモデータです。',
+                'main_image_url' => 'https://placehold.co/960x540/f8fafc/111827/png?text=Standard+Pack',
+                'show_on_top_slider' => false,
+                'target_margin' => 25,
+            ],
+        );
+
+        Gacha::query()->updateOrCreate(
+            ['slug' => 'demo-sold-out-pack'],
+            [
+                'category_id' => $categoryPremium->id,
+                'title' => 'デモ 完売パック',
+                'status' => GachaStatus::SoldOut->value,
+                'price' => 1000,
+                'total_count' => 800,
+                'sold_count' => 800,
+                'probability_mode' => ProbabilityMode::Single->value,
+                'minimum_guarantee_type' => MinimumGuaranteeType::Point->value,
+                'minimum_guarantee_value' => 30,
+                'minimum_guarantee_cost' => 30,
+                'start_at' => now()->subDays(3),
+                'end_at' => now()->addDay(),
+                'description' => '完売オーバーレイ確認用データです。',
+                'caution' => 'デモデータです。',
+                'main_image_url' => 'https://placehold.co/960x540/0f172a/ffffff/png?text=SOLD+OUT',
+                'show_on_top_slider' => true,
+                'target_margin' => 30,
+            ],
+        );
+
         $rankS = $this->rank($gacha, 'S', 'S賞', 1, 'https://placehold.co/320x180/png?text=S+Rank');
         $rankA = $this->rank($gacha, 'A', 'A賞', 2, 'https://placehold.co/320x180/png?text=A+Rank');
         $rankB = $this->rank($gacha, 'B', 'B賞', 3, 'https://placehold.co/320x180/png?text=B+Rank');
@@ -480,30 +549,38 @@ class AdminDemoDataSeeder extends Seeder
             return;
         }
 
-        $shippingRequest = ShippingRequest::query()->firstOrCreate(
-            ['user_id' => $user->id, 'recipient_name' => '山田 太郎', 'tracking_number' => 'DEMO123456789'],
-            [
+        foreach ($userPrizes as $userPrize) {
+            if ($userPrize->user_id !== $user->id) {
+                continue;
+            }
+
+            $existingItem = ShippingItem::query()->where('user_prize_id', $userPrize->id)->first();
+            $shippingRequest = $existingItem?->shippingRequest ?? ShippingRequest::query()->create([
+                'user_id' => $user->id,
                 'status' => 'requested',
+                'recipient_name' => '山田 太郎',
                 'postal_code' => '100-0001',
                 'prefecture' => '東京都',
                 'city' => '千代田区',
                 'address_line1' => '千代田1-1',
                 'address_line2' => 'Luxe Pack Demo',
                 'phone_number' => '0312345678',
+                'tracking_number' => null,
                 'requested_at' => now()->subDay(),
                 'shipped_at' => null,
-            ],
-        );
-
-        foreach ($userPrizes as $userPrize) {
-            if ($userPrize->user_id !== $user->id) {
-                continue;
-            }
-
-            ShippingItem::query()->firstOrCreate([
-                'shipping_request_id' => $shippingRequest->id,
-                'user_prize_id' => $userPrize->id,
             ]);
+
+            ShippingItem::query()->firstOrCreate(
+                [
+                    'shipping_request_id' => $shippingRequest->id,
+                    'user_prize_id' => $userPrize->id,
+                ],
+                [
+                    'status' => 'requested',
+                    'tracking_number' => null,
+                    'shipped_at' => null,
+                ],
+            );
 
             $userPrize->forceFill(['status' => 'shipping_requested'])->save();
         }

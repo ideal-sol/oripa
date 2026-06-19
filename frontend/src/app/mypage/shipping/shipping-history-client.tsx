@@ -14,6 +14,9 @@ type UserSession = {
 
 type ShippingItem = {
   id: number;
+  status: string;
+  tracking_number: string | null;
+  shipped_at: string | null;
   user_prize?: {
     id: number;
     prize?: {
@@ -158,11 +161,16 @@ export default function ShippingHistoryClient() {
         <div className="history-list">
           {shippingRequests.map((request) => (
             <article className="history-card shipping-history-card" key={request.id}>
+              {(() => {
+                const item = request.items?.[0];
+
+                return (
+                  <>
               <div>
                 <span>{formatDateTime(request.requested_at)}</span>
-                <h2>配送申請 #{request.id}</h2>
+                <h2>{item?.user_prize?.prize?.name ?? `配送申請 #${request.id}`}</h2>
                 <p>
-                  {shippingStatusLabel(request.status)} / {request.items_count ?? request.items?.length ?? 0}点 / {request.recipient_name}
+                  {shippingStatusLabel(item?.status ?? request.status)} / 配送ID #{request.id} / {request.recipient_name}
                 </p>
                 <p>
                   〒{request.postal_code} {request.prefecture}
@@ -172,8 +180,8 @@ export default function ShippingHistoryClient() {
                 </p>
               </div>
               <div className="history-shipping-meta">
-                <strong>{request.tracking_number ?? "追跡番号未登録"}</strong>
-                <span>発送日 {formatDateTime(request.shipped_at)}</span>
+                <strong>{item?.tracking_number ?? request.tracking_number ?? "追跡番号未登録"}</strong>
+                <span>発送日 {formatDateTime(item?.shipped_at ?? request.shipped_at)}</span>
               </div>
               <div className="history-result-list full">
                 {(request.items ?? []).map((item) => (
@@ -182,6 +190,9 @@ export default function ShippingHistoryClient() {
                   </small>
                 ))}
               </div>
+                  </>
+                );
+              })()}
             </article>
           ))}
         </div>
@@ -215,9 +226,11 @@ function formatDateTime(value: string | null): string {
 function shippingStatusLabel(value: string): string {
   const labels: Record<string, string> = {
     requested: "申請済み",
+    packing: "梱包中",
     preparing: "準備中",
     shipped: "発送済み",
     delivered: "配達完了",
+    returned: "返送",
     canceled: "キャンセル",
   };
 

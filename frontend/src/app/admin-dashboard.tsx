@@ -81,12 +81,47 @@ type ShippingRequest = {
   user_id: number;
   status: string;
   recipient_name: string;
+  postal_code: string | null;
   prefecture: string;
   city: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  phone_number: string | null;
   tracking_number: string | null;
   items_count?: number;
   user?: User;
+  items?: ShippingItem[];
+  histories?: ShippingHistory[];
   requested_at: string | null;
+  shipped_at: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type ShippingItem = {
+  id: number;
+  shipping_request_id: number;
+  user_prize_id: number;
+  status: string;
+  tracking_number: string | null;
+  shipped_at: string | null;
+  user_prize?: UserPrize;
+};
+
+type ShippingItemRow = {
+  request: ShippingRequest;
+  item?: ShippingItem;
+};
+
+type ShippingHistory = {
+  id: number;
+  shipping_request_id: number;
+  from_status: string | null;
+  to_status: string;
+  tracking_number: string | null;
+  note: string | null;
+  admin_user?: AdminSession["admin"];
+  created_at: string | null;
 };
 
 type Payment = {
@@ -382,6 +417,7 @@ type ContactView = "list" | "edit";
 type SettingView = "list" | "edit" | "rank-asset-new" | "rank-asset-edit";
 type PurchasePlanView = "list" | "new" | "edit";
 type UserManagementView = "list" | "detail";
+type ShippingView = "list" | "edit";
 type GachaAdminView =
   | "gacha-list"
   | "gacha-new"
@@ -455,6 +491,7 @@ export default function AdminDashboard({
   const [activeSettingView, setActiveSettingView] = useState<SettingView>("list");
   const [activePurchasePlanView, setActivePurchasePlanView] = useState<PurchasePlanView>("list");
   const [activeUserView, setActiveUserView] = useState<UserManagementView>("list");
+  const [activeShippingView, setActiveShippingView] = useState<ShippingView>("list");
   const [activeGachaView, setActiveGachaView] = useState<GachaAdminView>(() => resolveGachaView(initialGachaView));
   const [initialEditId] = useState(() => parsePositiveInt(initialGachaEntityId));
   const restoredInitialEditRef = useRef(false);
@@ -477,6 +514,8 @@ export default function AdminDashboard({
   const [readiness, setReadiness] = useState<GachaReadiness | null>(null);
   const [prizes, setPrizes] = useState<UserPrize[]>([]);
   const [shipping, setShipping] = useState<ShippingRequest[]>([]);
+  const [selectedShippingRequest, setSelectedShippingRequest] = useState<ShippingRequest | null>(null);
+  const [selectedShippingItem, setSelectedShippingItem] = useState<ShippingItem | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>([]);
   const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>([]);
@@ -530,6 +569,9 @@ export default function AdminDashboard({
     expireAt: "",
     reason: "",
   });
+  const [userStatusForm, setUserStatusForm] = useState({
+    status: "active",
+  });
   const [purchasePlanForm, setPurchasePlanForm] = useState({
     id: "",
     name: "",
@@ -542,6 +584,12 @@ export default function AdminDashboard({
   const [contactReplyForm, setContactReplyForm] = useState({
     status: "new",
     replyBody: "",
+  });
+  const [shippingForm, setShippingForm] = useState({
+    status: "requested",
+    trackingNumber: "",
+    shippedAt: "",
+    note: "",
   });
   const [staticPageForm, setStaticPageForm] = useState({
     title: "",
@@ -985,6 +1033,86 @@ export default function AdminDashboard({
     setActivePurchasePlanView("edit");
   }
 
+  async function editShippingItem(row: ShippingRequest, item?: ShippingItem) {
+    if (!session) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: ShippingRequest }>(`/shipping-requests/${row.id}`, {}, session.access_token);
+      const targetItem = response.data.items?.find((current) => current.id === item?.id) ?? item ?? null;
+      setSelectedShippingRequest(response.data);
+      setSelectedShippingItem(targetItem);
+      setShippingForm({
+        status: targetItem?.status ?? response.data.status,
+        trackingNumber: targetItem?.tracking_number ?? response.data.tracking_number ?? "",
+        shippedAt: toDateTimeLocal(targetItem?.shipped_at ?? response.data.shipped_at),
+        note: "",
+      });
+      setActiveShippingView("edit");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "配送詳細の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitShippingRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session || !selectedShippingRequest || !selectedShippingItem) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: ShippingItem }>(`/shipping-items/${selectedShippingItem.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: shippingForm.status,
+          tracking_number: shippingForm.trackingNumber || null,
+          shipped_at: shippingForm.shippedAt || null,
+          note: shippingForm.note || null,
+        }),
+      }, session.access_token);
+
+      const refreshedRequest = await apiRequest<{ data: ShippingRequest }>(`/shipping-requests/${selectedShippingRequest.id}`, {}, session.access_token);
+      const refreshedItem = refreshedRequest.data.items?.find((item) => item.id === response.data.id) ?? response.data;
+
+      setSelectedShippingRequest(refreshedRequest.data);
+      setSelectedShippingItem(refreshedItem);
+      setShippingForm({
+        status: refreshedItem.status,
+        trackingNumber: refreshedItem.tracking_number ?? "",
+        shippedAt: toDateTimeLocal(refreshedItem.shipped_at),
+        note: "",
+      });
+      showMessage("success", "景品の配送情報を更新しました");
+      await fetchTab("shipping", pages.shipping, filters.shipping, session.access_token);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "配送情報の更新に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function backToShippingList() {
+    setActiveShippingView("list");
+    setSelectedShippingRequest(null);
+    setSelectedShippingItem(null);
+    setShippingForm({
+      status: "requested",
+      trackingNumber: "",
+      shippedAt: "",
+      note: "",
+    });
+  }
+
   async function selectUser(userId: number) {
     if (!session) {
       return;
@@ -1014,9 +1142,98 @@ export default function AdminDashboard({
         expireAt: "",
         reason: "",
       });
+      setUserStatusForm({
+        status: userResponse.data.status,
+      });
       setActiveUserView("detail");
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "ユーザー詳細の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitSelectedUserStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session || !selectedUser) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: User }>(`/users/${selectedUser.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: userStatusForm.status,
+        }),
+      }, session.access_token);
+
+      setSelectedUser(response.data);
+      setUserStatusForm({ status: response.data.status });
+      showMessage("success", "ユーザー状態を更新しました");
+      await fetchTab("users", pages.users, filters.users, session.access_token);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "ユーザー状態の更新に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function moveToUserRelatedList(tab: Extract<TabKey, "points" | "payments" | "prizes" | "draws">, userId: number) {
+    const nextFilters = {
+      ...emptyFilters[tab],
+      user_id: String(userId),
+    };
+
+    setActiveTab(tab);
+    setActiveUserView("list");
+    setFilters((current) => ({
+      ...current,
+      [tab]: nextFilters,
+    }));
+    void fetchTab(tab, 1, nextFilters);
+
+    if (typeof window !== "undefined") {
+      window.history.pushState(null, "", `/?tab=${tab}`);
+    }
+  }
+
+  async function editUserPrizeFromUserDetail(userPrize: UserPrize) {
+    if (!session) {
+      return;
+    }
+
+    if (!["shipping_requested", "shipped"].includes(userPrize.status)) {
+      moveToUserRelatedList("prizes", userPrize.user_id);
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<ApiCollection<ShippingRequest>>(`/shipping-requests?per_page=100&user_id=${userPrize.user_id}`, {}, session.access_token);
+      const matched = response.data
+        .flatMap((request) => (request.items ?? []).map((item) => ({ request, item })))
+        .find(({ item }) => item.user_prize_id === userPrize.id);
+
+      if (!matched) {
+        throw new Error("この景品に紐づく配送情報が見つかりませんでした。");
+      }
+
+      setActiveTab("shipping");
+      setActiveUserView("list");
+
+      if (typeof window !== "undefined") {
+        window.history.pushState(null, "", "/?tab=shipping");
+      }
+
+      await editShippingItem(matched.request, matched.item);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "配送編集ページを開けませんでした");
     } finally {
       setLoading(false);
     }
@@ -1813,6 +2030,10 @@ export default function AdminDashboard({
       setActiveUserView("list");
     }
 
+    if (tab === "shipping") {
+      backToShippingList();
+    }
+
     if (tab === "settings") {
       setActiveSettingView("list");
     }
@@ -2187,6 +2408,25 @@ export default function AdminDashboard({
                       <Metric label="有償P" value={selectedUser.wallet?.paid_balance ?? 0} tone="blue" caption="期限なし" />
                       <Metric label="無償P" value={selectedUser.wallet?.free_balance ?? 0} tone="green" caption="期限あり" />
                     </div>
+                    <div className="nested-list-section">
+                      <div className="subsection-title">
+                        <strong>ユーザー状態変更</strong>
+                        <span>現在: {statusLabel(selectedUser.status)}</span>
+                      </div>
+                      <form className="stack-form compact-form" onSubmit={submitSelectedUserStatus}>
+                        <div className="inline-fields three">
+                          <label>
+                            <span>状態</span>
+                            <select value={userStatusForm.status} onChange={(event) => setUserStatusForm({ status: event.target.value })}>
+                              <option value="active">有効</option>
+                              <option value="suspended">停止</option>
+                              <option value="withdrawn">退会</option>
+                            </select>
+                          </label>
+                        </div>
+                        <button className="primary-button" type="submit" disabled={loading || userStatusForm.status === selectedUser.status}>状態を更新</button>
+                      </form>
+                    </div>
                     <div className="profile-detail-grid">
                       <DetailItem label="氏名" value={`${selectedUser.profile?.last_name ?? ""} ${selectedUser.profile?.first_name ?? ""}`.trim() || selectedUser.name} />
                       <DetailItem label="カナ" value={`${selectedUser.profile?.last_name_kana ?? ""} ${selectedUser.profile?.first_name_kana ?? ""}`.trim()} />
@@ -2250,28 +2490,28 @@ export default function AdminDashboard({
                         <strong>ポイント調整履歴</strong>
                         <span>{selectedUserPointAdjustments.length.toLocaleString("ja-JP")}件</span>
                       </div>
-                      <PointAdjustmentTable rows={selectedUserPointAdjustments} />
+                      <PointAdjustmentTable rows={selectedUserPointAdjustments} onEdit={(row) => moveToUserRelatedList("points", row.user_id)} />
                     </div>
                     <div className="nested-list-section">
                       <div className="subsection-title">
                         <strong>ポイント購入履歴</strong>
                         <span>{selectedUserPayments.length.toLocaleString("ja-JP")}件</span>
                       </div>
-                      <PaymentTable rows={selectedUserPayments} />
+                      <PaymentTable rows={selectedUserPayments} onEdit={(row) => moveToUserRelatedList("payments", row.user?.id ?? selectedUser.id)} />
                     </div>
                     <div className="nested-list-section">
                       <div className="subsection-title">
                         <strong>ユーザー保有景品</strong>
                         <span>{selectedUserPrizes.length.toLocaleString("ja-JP")}件</span>
                       </div>
-                      <PrizeTable rows={selectedUserPrizes} />
+                      <PrizeTable rows={selectedUserPrizes} onEdit={(row) => void editUserPrizeFromUserDetail(row)} />
                     </div>
                     <div className="nested-list-section">
                       <div className="subsection-title">
                         <strong>抽選履歴</strong>
                         <span>{selectedUserDraws.length.toLocaleString("ja-JP")}件</span>
                       </div>
-                      <DrawTable rows={selectedUserDraws} />
+                      <DrawTable rows={selectedUserDraws} onEdit={(row) => moveToUserRelatedList("draws", row.user_id)} />
                     </div>
                   </div>
                 ) : (
@@ -2293,10 +2533,22 @@ export default function AdminDashboard({
             </>
           )}
           {activeTab === "shipping" && (
-            <>
-              <ShippingTable rows={shipping} />
-              <Pagination meta={pagination.shipping} onPage={(page) => goToPage("shipping", page)} />
-            </>
+            activeShippingView === "list" ? (
+              <>
+                <ShippingTable rows={shipping} onEdit={editShippingItem} />
+                <Pagination meta={pagination.shipping} onPage={(page) => goToPage("shipping", page)} />
+              </>
+            ) : (
+              <ShippingEditPanel
+                request={selectedShippingRequest}
+                item={selectedShippingItem}
+                form={shippingForm}
+                loading={loading}
+                onBack={backToShippingList}
+                onSubmit={submitShippingRequest}
+                onChange={setShippingForm}
+              />
+            )
           )}
           {activeTab === "payments" && (
             <>
@@ -4627,10 +4879,10 @@ function GachaManagement({
   );
 }
 
-function DrawTable({ rows }: { rows: DrawRequest[] }) {
+function DrawTable({ rows, onEdit }: { rows: DrawRequest[]; onEdit?: (row: DrawRequest) => void }) {
   return (
     <DataTable
-      headers={["ID", "ユーザー", "ガチャ", "回数", "消費", "状態", "日時"]}
+      headers={onEdit ? ["ID", "ユーザー", "ガチャ", "回数", "消費", "状態", "日時", "操作"] : ["ID", "ユーザー", "ガチャ", "回数", "消費", "状態", "日時"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
         <UserCell key="user" user={row.user} fallbackId={row.user_id} />,
@@ -4639,6 +4891,7 @@ function DrawTable({ rows }: { rows: DrawRequest[] }) {
         pointLabel(row.consumed_point_total),
         <StatusBadge key="status" value={row.status} />,
         formatDate(row.created_at),
+        ...(onEdit ? [<button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>] : []),
       ])}
     />
   );
@@ -4662,10 +4915,10 @@ function UserTable({ rows, onDetail }: { rows: User[]; onDetail: (user: User) =>
   );
 }
 
-function PrizeTable({ rows }: { rows: UserPrize[] }) {
+function PrizeTable({ rows, onEdit }: { rows: UserPrize[]; onEdit?: (row: UserPrize) => void }) {
   return (
     <DataTable
-      headers={["ID", "ユーザー", "景品", "ランク", "状態", "交換P", "期限"]}
+      headers={onEdit ? ["ID", "ユーザー", "景品", "ランク", "状態", "交換P", "期限", "操作"] : ["ID", "ユーザー", "景品", "ランク", "状態", "交換P", "期限"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
         <UserCell key="user" user={row.user} fallbackId={row.user_id} />,
@@ -4674,32 +4927,174 @@ function PrizeTable({ rows }: { rows: UserPrize[] }) {
         <StatusBadge key="status" value={row.status} />,
         pointLabel(row.converted_point ?? row.prize?.exchange_point ?? 0),
         formatDate(row.storage_expire_at),
+        ...(onEdit ? [<button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>] : []),
       ])}
     />
   );
 }
 
-function ShippingTable({ rows }: { rows: ShippingRequest[] }) {
+function ShippingTable({ rows, onEdit }: { rows: ShippingRequest[]; onEdit: (row: ShippingRequest, item?: ShippingItem) => void }) {
+  const itemRows = shippingRowsByItem(rows);
+
   return (
     <DataTable
-      headers={["ID", "ユーザー", "宛名", "住所", "点数", "状態", "追跡番号"]}
-      rows={rows.map((row) => [
-        <span className="mono-id" key="id">#{row.id}</span>,
-        <UserCell key="user" user={row.user} fallbackId={row.user_id} />,
-        row.recipient_name,
-        `${row.prefecture}${row.city}`,
-        `${row.items_count ?? 0}点`,
-        <StatusBadge key="status" value={row.status} />,
-        row.tracking_number ?? "-",
+      headers={["配送ID", "ユーザー", "景品", "ガチャ", "宛名", "住所", "状態", "追跡番号"]}
+      rows={itemRows.map(({ request, item }) => [
+        <span className="mono-id" key="id">#{request.id}</span>,
+        <UserCell key="user" user={request.user} fallbackId={request.user_id} />,
+        item?.user_prize?.prize?.name ?? "-",
+        item?.user_prize?.gacha?.title ?? "-",
+        request.recipient_name,
+        shippingAddress(request),
+        <StatusBadge key="status" value={item?.status ?? request.status} />,
+        <span className="inline-action-cell" key="tracking">
+          <span>{item?.tracking_number ?? "未入力"}</span>
+          <button className="secondary-button small-button" type="button" onClick={() => onEdit(request, item)}>編集</button>
+        </span>,
       ])}
     />
   );
 }
 
-function PaymentTable({ rows }: { rows: Payment[] }) {
+function ShippingEditPanel({
+  request,
+  item,
+  form,
+  loading,
+  onBack,
+  onSubmit,
+  onChange,
+}: {
+  request: ShippingRequest | null;
+  item: ShippingItem | null;
+  form: { status: string; trackingNumber: string; shippedAt: string; note: string };
+  loading: boolean;
+  onBack: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onChange: (form: { status: string; trackingNumber: string; shippedAt: string; note: string }) => void;
+}) {
+  return (
+    <FormSurface title="配送編集" backLabel="配送一覧" onBack={onBack} wide>
+      {request && item ? (
+        <div className="stack-sections">
+          <div className="profile-detail-grid">
+            <DetailItem label="配送ID" value={`#${request.id}`} />
+            <DetailItem label="景品ID" value={`#${item.user_prize_id}`} />
+            <DetailItem label="ユーザー" value={request.user ? `${request.user.name} / ${request.user.email}` : `ID:${request.user_id}`} />
+            <DetailItem label="景品" value={item.user_prize?.prize?.name ?? "-"} />
+            <DetailItem label="ガチャ" value={item.user_prize?.gacha?.title ?? "-"} />
+            <DetailItem label="宛名" value={request.recipient_name} />
+            <DetailItem label="電話番号" value={request.phone_number ?? "-"} />
+            <DetailItem label="住所" value={shippingAddress(request)} />
+            <DetailItem label="景品配送状態" value={statusLabel(item.status)} />
+            <DetailItem label="追跡番号" value={item.tracking_number ?? "未入力"} />
+            <DetailItem label="依頼日時" value={formatDate(request.requested_at)} />
+            <DetailItem label="発送日時" value={formatDate(item.shipped_at)} />
+            <DetailItem label="更新日時" value={formatDate(request.updated_at ?? null)} />
+          </div>
+
+          <div className="nested-list-section">
+            <div className="subsection-title">
+              <strong>同じ配送依頼の景品</strong>
+              <span>{request.items?.length ?? 0}件</span>
+            </div>
+            <ShippingItemTable items={request.items ?? []} selectedItemId={item.id} />
+          </div>
+
+          <form className="stack-form compact-form" onSubmit={onSubmit}>
+            <div className="inline-fields">
+              <label>
+                <span>配送状態</span>
+                <select value={form.status} onChange={(event) => onChange({ ...form, status: event.target.value })}>
+                  <option value="requested">依頼受付</option>
+                  <option value="packing">梱包中</option>
+                  <option value="shipped">発送済み</option>
+                  <option value="delivered">配達完了</option>
+                  <option value="returned">返送</option>
+                  <option value="canceled">キャンセル</option>
+                </select>
+              </label>
+              <label>
+                <span>追跡番号</span>
+                <input value={form.trackingNumber} onChange={(event) => onChange({ ...form, trackingNumber: event.target.value })} placeholder="管理側で入力" />
+              </label>
+              <label>
+                <span>発送日時</span>
+                <input type="datetime-local" value={form.shippedAt} onChange={(event) => onChange({ ...form, shippedAt: event.target.value })} />
+              </label>
+            </div>
+            <label>
+              <span>管理メモ</span>
+              <textarea value={form.note} onChange={(event) => onChange({ ...form, note: event.target.value })} placeholder="ステータス変更理由や社内メモ" />
+            </label>
+            <button className="primary-button" type="submit" disabled={loading}>更新</button>
+          </form>
+
+          <div className="nested-list-section">
+            <div className="subsection-title">
+              <strong>更新履歴</strong>
+              <span>{request.histories?.length ?? 0}件</span>
+            </div>
+            <DataTable
+              headers={["日時", "変更", "追跡番号", "担当", "メモ"]}
+              rows={(request.histories ?? []).map((history) => [
+                formatDate(history.created_at),
+                `${history.from_status ? statusLabel(history.from_status) : "-"} → ${statusLabel(history.to_status)}`,
+                history.tracking_number ?? "-",
+                history.admin_user?.name ?? history.admin_user?.email ?? "-",
+                history.note ?? "-",
+              ])}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="empty-detail compact">配送景品を選択してください。</div>
+      )}
+    </FormSurface>
+  );
+}
+
+function ShippingItemTable({ items, selectedItemId }: { items: ShippingItem[]; selectedItemId?: number }) {
   return (
     <DataTable
-      headers={["ID", "ユーザー", "決済", "金額", "有償P", "無償P", "状態", "日時"]}
+      headers={["景品ID", "景品", "ガチャ", "ランク", "配送状態", "追跡番号", "獲得日時"]}
+      rows={items.map((item) => [
+        <span className="mono-id" key="id">{selectedItemId === item.id ? "編集中 " : ""}#{item.user_prize_id}</span>,
+        item.user_prize?.prize?.name ?? "-",
+        item.user_prize?.gacha?.title ?? "-",
+        <span className="rank-pill" key="rank">{item.user_prize?.prize?.rank?.display_name ?? "-"}</span>,
+        <StatusBadge key="status" value={item.status} />,
+        item.tracking_number ?? "未入力",
+        formatDate(item.user_prize?.acquired_at ?? null),
+      ])}
+    />
+  );
+}
+
+function shippingRowsByItem(rows: ShippingRequest[]): ShippingItemRow[] {
+  return rows.flatMap<ShippingItemRow>((request) => {
+    if (request.items?.length) {
+      return request.items.map((item) => ({ request, item }));
+    }
+
+    return [{ request }];
+  });
+}
+
+function shippingAddress(request: ShippingRequest) {
+  return [
+    request.postal_code ? `〒${request.postal_code}` : "",
+    request.prefecture,
+    request.city,
+    request.address_line1 ?? "",
+    request.address_line2 ?? "",
+  ].filter(Boolean).join(" ");
+}
+
+function PaymentTable({ rows, onEdit }: { rows: Payment[]; onEdit?: (row: Payment) => void }) {
+  return (
+    <DataTable
+      headers={onEdit ? ["ID", "ユーザー", "決済", "金額", "有償P", "無償P", "状態", "日時", "操作"] : ["ID", "ユーザー", "決済", "金額", "有償P", "無償P", "状態", "日時"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
         <UserCell key="user" user={row.user} />,
@@ -4709,6 +5104,7 @@ function PaymentTable({ rows }: { rows: Payment[] }) {
         pointLabel(row.free_point_amount),
         <StatusBadge key="status" value={row.status} />,
         formatDate(row.created_at),
+        ...(onEdit ? [<button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>] : []),
       ])}
     />
   );
@@ -4785,10 +5181,10 @@ function ContactRequestTable({ rows, onEdit }: { rows: ContactRequest[]; onEdit:
   );
 }
 
-function PointAdjustmentTable({ rows }: { rows: PointAdjustment[] }) {
+function PointAdjustmentTable({ rows, onEdit }: { rows: PointAdjustment[]; onEdit?: (row: PointAdjustment) => void }) {
   return (
     <DataTable
-      headers={["ID", "ユーザー", "区分", "種別", "数量", "期限", "理由"]}
+      headers={onEdit ? ["ID", "ユーザー", "区分", "種別", "数量", "期限", "理由", "操作"] : ["ID", "ユーザー", "区分", "種別", "数量", "期限", "理由"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
         <UserCell key="user" user={row.user} fallbackId={row.user_id} />,
@@ -4797,6 +5193,7 @@ function PointAdjustmentTable({ rows }: { rows: PointAdjustment[] }) {
         pointLabel(row.amount),
         formatDate(row.expire_at),
         row.reason,
+        ...(onEdit ? [<button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>] : []),
       ])}
     />
   );

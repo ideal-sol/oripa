@@ -10,6 +10,7 @@ use App\Models\ShippingRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\ValidationException;
 
@@ -37,10 +38,10 @@ class ShippingRequestController extends Controller
         );
     }
 
-    public function store(StoreShippingRequestRequest $request, ShippingRequestService $service): ShippingRequestResource|JsonResponse
+    public function store(StoreShippingRequestRequest $request, ShippingRequestService $service): ResourceCollection|JsonResponse
     {
         try {
-            $shippingRequest = $service->create(
+            $shippingRequests = $service->create(
                 user: $request->user(),
                 userPrizeIds: $request->collect('user_prize_ids')->map(fn ($id): int => (int) $id)->all(),
                 address: $request->safe()->except('user_prize_ids'),
@@ -51,7 +52,7 @@ class ShippingRequestController extends Controller
             ]);
         }
 
-        return (new ShippingRequestResource($shippingRequest))
+        return ShippingRequestResource::collection($shippingRequests)
             ->response()
             ->setStatusCode(201);
     }

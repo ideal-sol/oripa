@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\Payment\AdminPaymentController;
 use App\Http\Controllers\Admin\Payment\AdminPointPurchasePlanController;
 use App\Http\Controllers\Admin\Point\AdminPointAdjustmentController;
 use App\Http\Controllers\Admin\Prize\AdminUserPrizeController;
+use App\Http\Controllers\Admin\Shipping\AdminShippingItemController;
 use App\Http\Controllers\Admin\Shipping\AdminShippingRequestController;
 use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
@@ -80,6 +81,7 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
     Route::get('/shipping-requests', [AdminShippingRequestController::class, 'index'])->name('admin.api.shipping-requests.index');
     Route::get('/shipping-requests/{shippingRequest}', [AdminShippingRequestController::class, 'show'])->name('admin.api.shipping-requests.show');
     Route::put('/shipping-requests/{shippingRequest}', [AdminShippingRequestController::class, 'update'])->name('admin.api.shipping-requests.update');
+    Route::put('/shipping-items/{shippingItem}', [AdminShippingItemController::class, 'update'])->name('admin.api.shipping-items.update');
 
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('admin.api.payments.index');
     Route::get('/payments/{payment}', [AdminPaymentController::class, 'show'])->name('admin.api.payments.show');

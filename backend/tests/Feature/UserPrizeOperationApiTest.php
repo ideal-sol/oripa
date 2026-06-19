@@ -110,15 +110,19 @@ class UserPrizeOperationApiTest extends TestCase
             'phone_number' => '09012345678',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.status', 'requested')
-            ->assertJsonPath('data.recipient_name', '山田 太郎')
-            ->assertJsonCount(2, 'data.items');
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.status', 'requested')
+            ->assertJsonPath('data.0.recipient_name', '山田 太郎')
+            ->assertJsonCount(1, 'data.0.items')
+            ->assertJsonCount(1, 'data.1.items');
 
         $this->assertDatabaseHas('shipping_requests', [
             'user_id' => $user->id,
             'status' => 'requested',
             'recipient_name' => '山田 太郎',
         ]);
+        $this->assertDatabaseCount('shipping_requests', 2);
+        $this->assertDatabaseCount('shipping_items', 2);
         $this->assertDatabaseHas('shipping_items', ['user_prize_id' => $firstPrize->id]);
         $this->assertDatabaseHas('shipping_items', ['user_prize_id' => $secondPrize->id]);
         $this->assertDatabaseHas('user_prizes', [
@@ -132,7 +136,7 @@ class UserPrizeOperationApiTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->url() === 'https://discord.test/webhook'
             && str_contains($request['content'], '【新規配送申請】')
             && str_contains($request['content'], '宛名: 山田 太郎')
-            && str_contains($request['content'], '景品数: 2件'));
+            && str_contains($request['content'], '景品数: 1件'));
     }
 
     public function test_shipping_request_rejects_non_stored_or_other_users_prize(): void

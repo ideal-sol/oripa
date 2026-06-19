@@ -77,3 +77,13 @@ Not yet implemented:
 - point ledgers and point lots
 - probability versions
 - admin screen business implementation
+
+## Multi-Codex operation
+
+- When multiple Codex agents are operating, read `TASK_BOARD.md` before starting work.
+- Do not modify files outside your assigned scope.
+- Frontend Sub Codex may modify only `frontend/`.
+- Frontend Sub Codex must not touch Docker, Laravel, DB, nginx, `.env`, or `.env.example`.
+- Docker operations are handled only by Main Codex.
+- After work, update your own log under `worklogs/`.
+- If you find changes that may conflict with another agent or human work, stop and report before editing.

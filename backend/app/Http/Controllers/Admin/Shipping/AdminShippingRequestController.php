@@ -19,13 +19,24 @@ class AdminShippingRequestController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $status = $request->filled('status') ? $request->string('status')->toString() : null;
         $query = ShippingRequest::query()
-            ->with(['user', 'items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.drawVideoAsset'])
+            ->with([
+                'user',
+                'items' => function ($query) use ($status): void {
+                    if ($status) {
+                        $query->where('status', $status);
+                    }
+                },
+                'items.userPrize.gacha',
+                'items.userPrize.prize.rank.rankImageAsset',
+                'items.userPrize.prize.rank.drawVideoAsset',
+            ])
             ->withCount('items')
             ->orderByDesc('id');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
+        if ($status) {
+            $query->whereHas('items', fn ($query) => $query->where('status', $status));
         }
 
         if ($request->filled('user_id')) {
@@ -84,6 +95,14 @@ class AdminShippingRequestController extends Controller
                 'tracking_number' => $trackingNumber,
                 'shipped_at' => $this->resolveShippedAt($nextStatus, $validated, $lockedRequest),
             ])->save();
+
+            foreach ($lockedRequest->items as $item) {
+                $item->forceFill([
+                    'status' => $nextStatus,
+                    'tracking_number' => $trackingNumber,
+                    'shipped_at' => $lockedRequest->shipped_at,
+                ])->save();
+            }
 
             if (in_array($nextStatus, [
                 ShippingRequestStatus::Shipped,

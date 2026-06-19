@@ -56,6 +56,68 @@ class AdminShippingRequestApiTest extends TestCase
             ->assertJsonPath('data.items.0.user_prize.prize.name', 'Admin Shipping Prize');
     }
 
+    public function test_admin_can_update_single_shipping_item(): void
+    {
+        $admin = $this->actingAdmin();
+        $user = User::factory()->create();
+        $shippingRequest = $this->createShippingRequest($user, ShippingRequestStatus::Requested);
+        [$gacha, $prize] = $this->createPrizeFixture();
+        $secondUserPrize = $this->createUserPrize($user, $gacha, $prize, UserPrizeStatus::ShippingRequested);
+        $firstItem = $shippingRequest->items()->firstOrFail();
+        $secondItem = ShippingItem::query()->create([
+            'shipping_request_id' => $shippingRequest->id,
+            'user_prize_id' => $secondUserPrize->id,
+            'status' => ShippingRequestStatus::Requested,
+        ]);
+
+        $this->putJson("/admin/api/shipping-items/{$firstItem->id}", [
+            'status' => ShippingRequestStatus::Packing->value,
+            'note' => 'First item only.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $firstItem->id)
+            ->assertJsonPath('data.status', 'packing');
+
+        $this->putJson("/admin/api/shipping-items/{$firstItem->id}", [
+            'status' => ShippingRequestStatus::Shipped->value,
+            'tracking_number' => 'ITEM-TRACK-001',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'shipped')
+            ->assertJsonPath('data.tracking_number', 'ITEM-TRACK-001');
+
+        $this->assertDatabaseHas('shipping_items', [
+            'id' => $firstItem->id,
+            'status' => 'shipped',
+            'tracking_number' => 'ITEM-TRACK-001',
+        ]);
+        $this->assertDatabaseHas('shipping_items', [
+            'id' => $secondItem->id,
+            'status' => 'requested',
+            'tracking_number' => null,
+        ]);
+        $this->assertDatabaseHas('user_prizes', [
+            'id' => $firstItem->user_prize_id,
+            'status' => 'shipped',
+        ]);
+        $this->assertDatabaseHas('user_prizes', [
+            'id' => $secondUserPrize->id,
+            'status' => 'shipping_requested',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'admin_user_id' => $admin->id,
+            'action' => 'admin.shipping_item.updated',
+            'auditable_type' => ShippingItem::class,
+            'auditable_id' => $firstItem->id,
+        ]);
+        $this->assertDatabaseHas('shipping_request_histories', [
+            'shipping_request_id' => $shippingRequest->id,
+            'from_status' => 'requested',
+            'to_status' => 'packing',
+            'note' => "景品ID #{$firstItem->user_prize_id}: First item only.",
+        ]);
+    }
+
     public function test_user_token_cannot_access_admin_shipping_requests(): void
     {
         Sanctum::actingAs(User::factory()->create());
@@ -218,6 +280,9 @@ class AdminShippingRequestApiTest extends TestCase
         ShippingItem::query()->create([
             'shipping_request_id' => $shippingRequest->id,
             'user_prize_id' => $userPrize->id,
+            'status' => $status,
+            'tracking_number' => $status === ShippingRequestStatus::Shipped ? 'TRACK-OLD' : null,
+            'shipped_at' => $status === ShippingRequestStatus::Shipped ? now() : null,
         ]);
 
         return $shippingRequest->refresh()->load('items');

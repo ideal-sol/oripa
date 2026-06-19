@@ -3019,6 +3019,13 @@ tbody tr:hover td {
   min-width: 0;
 }
 
+.inline-action-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .stack-sections {
   display: grid;
   gap: 18px;

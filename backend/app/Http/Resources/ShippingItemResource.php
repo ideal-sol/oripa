@@ -13,6 +13,9 @@ class ShippingItemResource extends JsonResource
             'id' => $this->id,
             'shipping_request_id' => $this->shipping_request_id,
             'user_prize_id' => $this->user_prize_id,
+            'status' => $this->status?->value ?? $this->status,
+            'tracking_number' => $this->tracking_number,
+            'shipped_at' => $this->shipped_at?->toIso8601String(),
             'user_prize' => new UserPrizeResource($this->whenLoaded('userPrize')),
         ];
     }
