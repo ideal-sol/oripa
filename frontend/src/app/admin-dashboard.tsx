@@ -409,6 +409,25 @@ type AdminSession = {
   };
 };
 
+type AdminDataCache = {
+  savedAt: number;
+  announcements: Announcement[];
+  contacts: ContactRequest[];
+  staticPages: StaticPage[];
+  rankAssets: RankAsset[];
+  categories: GachaCategory[];
+  gachas: Gacha[];
+  users: User[];
+  gachaRanks: GachaRank[];
+  gachaPrizes: GachaPrize[];
+  draws: DrawRequest[];
+  prizes: UserPrize[];
+  shipping: ShippingRequest[];
+  payments: Payment[];
+  purchasePlans: PointPurchasePlan[];
+  pointAdjustments: PointAdjustment[];
+};
+
 type TabKey = "guide" | "announcements" | "contacts" | "gachas" | "users" | "draws" | "prizes" | "shipping" | "payments" | "purchasePlans" | "points" | "settings";
 type FilterState = Record<string, string>;
 type NoticeTone = "success" | "error" | "info";
@@ -507,34 +526,36 @@ export default function AdminDashboard({
   const restoredInitialEditRef = useRef(false);
   const restoredRouteRef = useRef("");
   const restoreInitialEditRef = useRef<() => Promise<void> | void>(() => undefined);
+  const cachedAdminData = useMemo(() => readAdminDataCache(), []);
   const [loading, setLoading] = useState(false);
+  const [hasLoadedAdminData, setHasLoadedAdminData] = useState(Boolean(cachedAdminData));
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<NoticeTone>("info");
-  const [draws, setDraws] = useState<DrawRequest[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [draws, setDraws] = useState<DrawRequest[]>(cachedAdminData?.draws ?? []);
+  const [users, setUsers] = useState<User[]>(cachedAdminData?.users ?? []);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUserPrizes, setSelectedUserPrizes] = useState<UserPrize[]>([]);
   const [selectedUserDraws, setSelectedUserDraws] = useState<DrawRequest[]>([]);
   const [selectedUserPayments, setSelectedUserPayments] = useState<Payment[]>([]);
   const [selectedUserPointAdjustments, setSelectedUserPointAdjustments] = useState<PointAdjustment[]>([]);
-  const [gachas, setGachas] = useState<Gacha[]>([]);
-  const [gachaRanks, setGachaRanks] = useState<GachaRank[]>([]);
-  const [gachaPrizes, setGachaPrizes] = useState<GachaPrize[]>([]);
-  const [categories, setCategories] = useState<GachaCategory[]>([]);
+  const [gachas, setGachas] = useState<Gacha[]>(cachedAdminData?.gachas ?? []);
+  const [gachaRanks, setGachaRanks] = useState<GachaRank[]>(cachedAdminData?.gachaRanks ?? []);
+  const [gachaPrizes, setGachaPrizes] = useState<GachaPrize[]>(cachedAdminData?.gachaPrizes ?? []);
+  const [categories, setCategories] = useState<GachaCategory[]>(cachedAdminData?.categories ?? []);
   const [selectedGacha, setSelectedGacha] = useState<Gacha | null>(null);
   const [readiness, setReadiness] = useState<GachaReadiness | null>(null);
-  const [prizes, setPrizes] = useState<UserPrize[]>([]);
-  const [shipping, setShipping] = useState<ShippingRequest[]>([]);
+  const [prizes, setPrizes] = useState<UserPrize[]>(cachedAdminData?.prizes ?? []);
+  const [shipping, setShipping] = useState<ShippingRequest[]>(cachedAdminData?.shipping ?? []);
   const [selectedShippingRequest, setSelectedShippingRequest] = useState<ShippingRequest | null>(null);
   const [selectedShippingItem, setSelectedShippingItem] = useState<ShippingItem | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>([]);
-  const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [contacts, setContacts] = useState<ContactRequest[]>([]);
+  const [payments, setPayments] = useState<Payment[]>(cachedAdminData?.payments ?? []);
+  const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>(cachedAdminData?.purchasePlans ?? []);
+  const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>(cachedAdminData?.pointAdjustments ?? []);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(cachedAdminData?.announcements ?? []);
+  const [contacts, setContacts] = useState<ContactRequest[]>(cachedAdminData?.contacts ?? []);
   const [selectedContact, setSelectedContact] = useState<ContactRequest | null>(null);
-  const [staticPages, setStaticPages] = useState<StaticPage[]>([]);
-  const [rankAssets, setRankAssets] = useState<RankAsset[]>([]);
+  const [staticPages, setStaticPages] = useState<StaticPage[]>(cachedAdminData?.staticPages ?? []);
+  const [rankAssets, setRankAssets] = useState<RankAsset[]>(cachedAdminData?.rankAssets ?? []);
   const [selectedStaticPage, setSelectedStaticPage] = useState<StaticPage | null>(null);
   const [filters, setFilters] = useState<Record<TabKey, FilterState>>(emptyFilters);
   const [pages, setPages] = useState<Record<TabKey, number>>({
@@ -722,6 +743,27 @@ export default function AdminDashboard({
     return () => window.clearTimeout(timerId);
   }, [authReady]);
 
+  useEffect(() => {
+    setActiveTab(resolveTab(initialTab));
+    setActiveGachaView(resolveGachaView(initialGachaView));
+    setActiveAnnouncementView(resolveAnnouncementView(initialSubView));
+    setActivePointView(resolvePointView(initialSubView));
+    setActiveContactView(resolveContactView(initialSubView));
+    setActiveSettingView(resolveSettingView(initialSubView));
+    setActivePurchasePlanView(resolvePurchasePlanView(initialSubView));
+    setActiveUserView(resolveUserView(initialSubView));
+    setActiveShippingView(resolveShippingView(initialSubView));
+    restoredInitialEditRef.current = false;
+    restoredRouteRef.current = "";
+  }, [
+    initialEditId,
+    initialGachaView,
+    initialSubView,
+    initialTab,
+    routeEntityId,
+    routeParentEntityId,
+  ]);
+
   const setTabData = useCallback(<T,>(tab: TabKey, response: ApiCollection<T>) => {
     if (tab === "announcements") {
       setAnnouncements(response.data as Announcement[]);
@@ -833,9 +875,27 @@ export default function AdminDashboard({
       setTabData("payments", paymentData);
       setTabData("purchasePlans", purchasePlanData);
       setTabData("points", adjustmentData);
+      writeAdminDataCache({
+        announcements: announcementData.data,
+        contacts: contactData.data,
+        staticPages: staticPageData.data,
+        rankAssets: rankAssetData.data,
+        categories: categoryData.data,
+        gachas: gachaData.data,
+        users: userData.data,
+        gachaRanks: gachaRankData.data,
+        gachaPrizes: gachaPrizeData.data,
+        draws: drawData.data,
+        prizes: prizeData.data,
+        shipping: shippingData.data,
+        payments: paymentData.data,
+        purchasePlans: purchasePlanData.data,
+        pointAdjustments: adjustmentData.data,
+      });
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "データ取得に失敗しました");
     } finally {
+      setHasLoadedAdminData(true);
       setLoading(false);
     }
   }, [clearMessage, filters, pages, session?.access_token, setTabData, showMessage]);
@@ -2230,16 +2290,26 @@ export default function AdminDashboard({
         </header>
 
         <section className="metric-grid">
-          <Metric label="お知らせ" value={summary.announcements} tone="violet" caption="公開情報" />
-          <Metric label="お問い合わせ" value={summary.contacts} tone="amber" caption="未対応確認" />
-          <Metric label="ガチャ" value={summary.gachas} tone="teal" caption="管理対象" />
-          <Metric label="抽選履歴" value={summary.draws} tone="blue" caption="最新10件" />
-          <Metric label="景品箱" value={summary.prizes} tone="green" caption="保有景品" />
-          <Metric label="配送依頼" value={summary.shipping} tone="amber" caption="対応状況" />
+          <Metric label="お知らせ" value={summary.announcements} tone="violet" caption="公開情報" loading={!hasLoadedAdminData} />
+          <Metric label="お問い合わせ" value={summary.contacts} tone="amber" caption="未対応確認" loading={!hasLoadedAdminData} />
+          <Metric label="ガチャ" value={summary.gachas} tone="teal" caption="管理対象" loading={!hasLoadedAdminData} />
+          <Metric label="抽選履歴" value={summary.draws} tone="blue" caption="最新10件" loading={!hasLoadedAdminData} />
+          <Metric label="景品箱" value={summary.prizes} tone="green" caption="保有景品" loading={!hasLoadedAdminData} />
+          <Metric label="配送依頼" value={summary.shipping} tone="amber" caption="対応状況" loading={!hasLoadedAdminData} />
         </section>
 
         <Notice tone={messageTone} message={message} />
 
+        {!hasLoadedAdminData ? (
+          <section className="admin-section">
+            <SectionHeader
+              title={tabs.find((tab) => tab.key === activeTab)?.label ?? ""}
+              description={tabs.find((tab) => tab.key === activeTab)?.description ?? ""}
+              loading
+            />
+            <div className="empty-detail compact">データを読み込んでいます。</div>
+          </section>
+        ) : (
         <section className="admin-section">
           <SectionHeader
             title={tabs.find((tab) => tab.key === activeTab)?.label ?? ""}
@@ -2858,17 +2928,18 @@ export default function AdminDashboard({
             )
           )}
         </section>
+        )}
       </section>
     </main>
   );
 }
 
-function Metric({ label, value, caption, tone }: { label: string; value: number; caption: string; tone: string }) {
+function Metric({ label, value, caption, tone, loading = false }: { label: string; value: number; caption: string; tone: string; loading?: boolean }) {
   return (
     <div className={`metric-item tone-${tone}`}>
       <span className="metric-label">{label}</span>
-      <strong>{value.toLocaleString("ja-JP")}</strong>
-      <span className="metric-caption">{caption}</span>
+      <strong>{loading ? "-" : value.toLocaleString("ja-JP")}</strong>
+      <span className="metric-caption">{loading ? "読み込み中" : caption}</span>
     </div>
   );
 }
@@ -5343,6 +5414,67 @@ function DetailItem({ label, value }: { label: string; value: string | number | 
 
 function StatusBadge({ value }: { value: string }) {
   return <span className={`status-badge status-${value.replaceAll("_", "-")}`}>{statusLabel(value)}</span>;
+}
+
+const adminDataCacheKey = "oripa_admin_dashboard_data_v1";
+const adminDataCacheTtlMs = 5 * 60 * 1000;
+
+function readAdminDataCache(): AdminDataCache | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(adminDataCacheKey);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AdminDataCache>;
+
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > adminDataCacheTtlMs) {
+      window.sessionStorage.removeItem(adminDataCacheKey);
+      return null;
+    }
+
+    return {
+      savedAt: parsed.savedAt,
+      announcements: parsed.announcements ?? [],
+      contacts: parsed.contacts ?? [],
+      staticPages: parsed.staticPages ?? [],
+      rankAssets: parsed.rankAssets ?? [],
+      categories: parsed.categories ?? [],
+      gachas: parsed.gachas ?? [],
+      users: parsed.users ?? [],
+      gachaRanks: parsed.gachaRanks ?? [],
+      gachaPrizes: parsed.gachaPrizes ?? [],
+      draws: parsed.draws ?? [],
+      prizes: parsed.prizes ?? [],
+      shipping: parsed.shipping ?? [],
+      payments: parsed.payments ?? [],
+      purchasePlans: parsed.purchasePlans ?? [],
+      pointAdjustments: parsed.pointAdjustments ?? [],
+    };
+  } catch {
+    window.sessionStorage.removeItem(adminDataCacheKey);
+    return null;
+  }
+}
+
+function writeAdminDataCache(data: Omit<AdminDataCache, "savedAt">) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(adminDataCacheKey, JSON.stringify({
+      ...data,
+      savedAt: Date.now(),
+    }));
+  } catch {
+    window.sessionStorage.removeItem(adminDataCacheKey);
+  }
 }
 
 async function apiRequest<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {

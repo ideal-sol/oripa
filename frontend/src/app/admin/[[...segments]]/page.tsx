@@ -41,7 +41,6 @@ export default async function AdminPage({ params }: AdminPageProps) {
 
   return (
     <AdminDashboard
-      key={segments.join("/") || "admin-root"}
       initialSession={initialSession}
       initialTab={routeState.tab}
       initialGachaView={routeState.gachaView}

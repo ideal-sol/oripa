@@ -6,14 +6,34 @@ Branch: `main`
 
 ## Current Status
 
-- Latest pushed commit: `88de4a3 Update notifications, mail, and public UI`
+- Latest pushed commit: `e596521 Split admin screens into URL routes`
 - Remote: `origin/main`
-- Working tree before this worklog: clean
+- Working tree at last verification: clean
 - `git status --short`: no output
 - `git diff --stat`: no output
 
 ## Recent Work Completed
 
+- Admin screens were split into URL routes.
+  - Added `frontend/src/app/admin/[[...segments]]/page.tsx`
+  - Admin root on the admin subdomain redirects to `/admin/guide`
+  - Admin navigation now uses `/admin/...` paths instead of `/?tab=...`
+  - Direct URL restore was added for main list/detail/edit/new screens
+  - Browser back/forward behavior is now aligned with real Next.js routes
+- Admin route examples now supported:
+  - `/admin/gachas`
+  - `/admin/gachas/new`
+  - `/admin/gachas/{id}/edit`
+  - `/admin/gachas/ranks/{id}/edit`
+  - `/admin/users/{id}`
+  - `/admin/shipping/{requestId}/items/{itemId}/edit`
+  - `/admin/settings/rank-assets/{id}/edit`
+- Verification for the URL route work:
+  - `pnpm typecheck` succeeded in `frontend/`
+  - `pnpm lint` still fails because of pre-existing React Hooks lint issues in existing files
+- The URL route work was committed and pushed:
+  - Commit: `e596521 Split admin screens into URL routes`
+- Previous infrastructure/UI work completed before the route split:
 - Backend image was rebuilt and only the `backend` container was recreated.
 - PHP upload settings are now reflected in the running backend container:
   - `upload_max_filesize = 64M`
@@ -38,6 +58,7 @@ Branch: `main`
 
 - No `.env` files were committed.
 - Secrets remain environment-managed.
+- Docker was not touched during the admin URL route split.
 - `docker compose build backend` initially failed because Compose tried to use Buildx Bake with an unsupported `--allow` flag.
 - The backend image was successfully rebuilt with:
   - `COMPOSE_BAKE=false docker compose build backend`
@@ -57,4 +78,3 @@ git status --short
 git diff --stat
 <no output>
 ```
-
