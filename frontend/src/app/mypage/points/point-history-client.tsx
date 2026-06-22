@@ -214,13 +214,19 @@ export default function PointHistoryClient() {
         </div>
         {lots.length > 0 ? (
           <div className="history-table">
-            {lots.map((lot) => (
-              <div className="history-row" key={lot.id}>
-                <strong>{pointTypeLabel(lot.point_type)}</strong>
-                <span>{formatPoint(lot.remaining_amount)} / {formatPoint(lot.granted_amount)}pt</span>
-                <span>期限 {formatDate(lot.expire_at) ?? "なし"}</span>
-              </div>
-            ))}
+            {lots.map((lot) => {
+              const isExpiringFreePoint = isFreePointExpiringWithinOneMonth(lot);
+
+              return (
+                <div className="history-row" key={lot.id}>
+                  <strong>{pointTypeLabel(lot.point_type)}</strong>
+                  <span className={isExpiringFreePoint ? "history-lot-points-expiring" : undefined}>
+                    {formatPoint(lot.remaining_amount)} / {formatPoint(lot.granted_amount)}pt
+                  </span>
+                  <span>期限 {formatDate(lot.expire_at) ?? "なし"}</span>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="public-empty">保有ポイントはありません。</div>
@@ -252,6 +258,23 @@ function formatPoint(value: number): string {
 
 function formatDate(value: string | null): string | null {
   return value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium" }).format(new Date(value)) : null;
+}
+
+function isFreePointExpiringWithinOneMonth(lot: PointLot): boolean {
+  if (lot.point_type !== "free" || !lot.expire_at) {
+    return false;
+  }
+
+  const expireAt = new Date(lot.expire_at);
+
+  if (Number.isNaN(expireAt.getTime())) {
+    return false;
+  }
+
+  const oneMonthLater = new Date();
+  oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+  return expireAt <= oneMonthLater;
 }
 
 function formatDateTime(value: string | null): string {

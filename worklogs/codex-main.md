@@ -14,6 +14,13 @@ Branch: `main`
 
 ## Recent Work Completed
 
+- 2026-06-22:
+  - User point history now highlights free point lots expiring within one month in red.
+  - Changed only frontend display files:
+    - `frontend/src/app/mypage/points/point-history-client.tsx`
+    - `frontend/src/app/globals.css`
+  - Verification:
+    - `pnpm typecheck` succeeded in `frontend/`
 - Admin screens were split into URL routes.
   - Added `frontend/src/app/admin/[[...segments]]/page.tsx`
   - Admin root on the admin subdomain redirects to `/admin/guide`

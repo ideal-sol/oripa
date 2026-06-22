@@ -1400,6 +1400,10 @@ code {
   border-top: 1px solid #e5ecee;
 }
 
+.history-row span.history-lot-points-expiring {
+  color: var(--danger);
+}
+
 .history-shipping-meta {
   display: grid;
   justify-items: end;
