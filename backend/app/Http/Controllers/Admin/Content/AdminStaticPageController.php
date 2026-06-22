@@ -11,26 +11,38 @@ use Illuminate\Routing\Controller;
 
 class AdminStaticPageController extends Controller
 {
+    private const EDITABLE_SLUGS = [
+        'terms',
+        'point-terms',
+        'privacy',
+        'commercial-law',
+        'antique-dealer',
+        'return-policy',
+        'shipping-policy',
+        'oripa-notice',
+        'contact-info',
+    ];
+
     public function index(): AnonymousResourceCollection
     {
         return StaticPageResource::collection(
             StaticPage::query()
-                ->whereIn('slug', ['terms', 'privacy', 'commercial-law'])
-                ->orderByRaw("CASE slug WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'commercial-law' THEN 3 ELSE 4 END")
+                ->whereIn('slug', self::EDITABLE_SLUGS)
+                ->orderByRaw("CASE slug WHEN 'terms' THEN 1 WHEN 'point-terms' THEN 2 WHEN 'privacy' THEN 3 WHEN 'commercial-law' THEN 4 WHEN 'antique-dealer' THEN 5 WHEN 'return-policy' THEN 6 WHEN 'shipping-policy' THEN 7 WHEN 'oripa-notice' THEN 8 WHEN 'contact-info' THEN 9 ELSE 10 END")
                 ->get()
         );
     }
 
     public function show(StaticPage $staticPage): StaticPageResource
     {
-        abort_unless(in_array($staticPage->slug, ['terms', 'privacy', 'commercial-law'], true), 404);
+        abort_unless(in_array($staticPage->slug, self::EDITABLE_SLUGS, true), 404);
 
         return new StaticPageResource($staticPage);
     }
 
     public function update(UpdateStaticPageRequest $request, StaticPage $staticPage, AuditLogService $auditLogService): StaticPageResource
     {
-        abort_unless(in_array($staticPage->slug, ['terms', 'privacy', 'commercial-law'], true), 404);
+        abort_unless(in_array($staticPage->slug, self::EDITABLE_SLUGS, true), 404);
 
         $payload = $request->validated();
         $before = $staticPage->only(array_keys($payload));

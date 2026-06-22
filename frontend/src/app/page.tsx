@@ -177,8 +177,14 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
         <nav aria-label="フッター">
           <a href="/terms">利用規約</a>
+          <a href="/point-terms">ポイント利用規約</a>
           <a href="/privacy">プライバシーポリシー</a>
           <a href="/commercial-law">特定商取引法に基づく表記</a>
+          <a href="/antique-dealer">古物営業法に基づく表示</a>
+          <a href="/return-policy">返品・キャンセルポリシー</a>
+          <a href="/shipping-policy">配送ポリシー</a>
+          <a href="/oripa-notice">オリパ販売に関する表示</a>
+          <a href="/contact-info">お問い合わせ窓口</a>
           <a href="/contact">お問い合わせ</a>
         </nav>
       </footer>

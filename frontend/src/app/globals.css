@@ -3692,6 +3692,11 @@ tbody tr:hover td {
   border-radius: 8px;
 }
 
+.admin-static-page-body {
+  min-height: 520px;
+  line-height: 1.65;
+}
+
 .image-upload-field {
   display: grid;
   gap: 8px;

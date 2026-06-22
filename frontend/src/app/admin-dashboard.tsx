@@ -2874,7 +2874,7 @@ export default function AdminDashboard({
                     </label>
                     <label>
                       <span>本文内容</span>
-                      <textarea value={staticPageForm.body} onChange={(event) => setStaticPageForm((current) => ({ ...current, body: event.target.value }))} required />
+                      <textarea className="admin-static-page-body" value={staticPageForm.body} onChange={(event) => setStaticPageForm((current) => ({ ...current, body: event.target.value }))} required />
                     </label>
                     <button className="primary-button" type="submit" disabled={loading}>更新</button>
                   </form>
