@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ContactReceivedMail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class ContactRequestApiTest extends TestCase
@@ -12,6 +14,7 @@ class ContactRequestApiTest extends TestCase
 
     public function test_contact_request_notifies_admin_discord_when_webhook_is_configured(): void
     {
+        Mail::fake();
         config(['services.discord.admin_webhook_url' => 'https://discord.test/webhook']);
         Http::fake([
             'discord.test/*' => Http::response('', 204),
@@ -33,10 +36,12 @@ class ContactRequestApiTest extends TestCase
             && str_contains($request['content'], '【新規お問い合わせ】')
             && str_contains($request['content'], '氏名: 山田 太郎')
             && str_contains($request['content'], 'メール: contact@example.test'));
+        Mail::assertSent(ContactReceivedMail::class, fn (ContactReceivedMail $mail): bool => $mail->hasTo('contact@example.test'));
     }
 
     public function test_contact_request_skips_discord_when_webhook_is_not_configured(): void
     {
+        Mail::fake();
         config(['services.discord.admin_webhook_url' => null]);
         Http::fake();
 
@@ -48,5 +53,6 @@ class ContactRequestApiTest extends TestCase
         ])->assertCreated();
 
         Http::assertNothingSent();
+        Mail::assertSent(ContactReceivedMail::class, fn (ContactReceivedMail $mail): bool => $mail->hasTo('support@example.test'));
     }
 }
