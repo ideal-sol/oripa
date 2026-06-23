@@ -6,6 +6,7 @@ use App\Domain\Admin\Enums\AdminRole;
 use App\Models\AdminUser;
 use App\Models\Gacha;
 use App\Models\GachaRank;
+use App\Models\RankAsset;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -76,6 +77,41 @@ class AdminGachaRankApiTest extends TestCase
             'action' => 'admin.gacha_rank.created',
             'auditable_type' => GachaRank::class,
             'auditable_id' => $rank->id,
+        ]);
+    }
+
+    public function test_admin_can_attach_multiple_rank_image_and_video_assets(): void
+    {
+        $this->actingAdmin();
+        $gacha = Gacha::factory()->create();
+        $imageA = RankAsset::query()->create(['title' => 'Image A', 'asset_type' => 'image', 'url' => 'https://example.test/image-a.png', 'is_active' => true]);
+        $imageB = RankAsset::query()->create(['title' => 'Image B', 'asset_type' => 'image', 'url' => 'https://example.test/image-b.png', 'is_active' => true]);
+        $videoA = RankAsset::query()->create(['title' => 'Video A', 'asset_type' => 'video', 'url' => 'https://example.test/video-a.mp4', 'is_active' => true]);
+        $videoB = RankAsset::query()->create(['title' => 'Video B', 'asset_type' => 'video', 'url' => 'https://example.test/video-b.mp4', 'is_active' => true]);
+
+        $response = $this->postJson("/admin/api/gachas/{$gacha->id}/ranks", $this->payload([
+            'rank_image_asset_ids' => [$imageA->id, $imageB->id],
+            'draw_video_asset_ids' => [$videoA->id, $videoB->id],
+        ]));
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.rank_image_asset_ids', [$imageA->id, $imageB->id])
+            ->assertJsonPath('data.draw_video_asset_ids', [$videoA->id, $videoB->id])
+            ->assertJsonPath('data.image_url', 'https://example.test/image-a.png')
+            ->assertJsonPath('data.draw_video_url', 'https://example.test/video-a.mp4');
+
+        $rank = GachaRank::query()->where('gacha_id', $gacha->id)->where('rank_key', 'S')->firstOrFail();
+
+        $this->assertDatabaseHas('gacha_rank_assets', [
+            'gacha_rank_id' => $rank->id,
+            'rank_asset_id' => $imageA->id,
+            'usage_type' => 'image',
+        ]);
+        $this->assertDatabaseHas('gacha_rank_assets', [
+            'gacha_rank_id' => $rank->id,
+            'rank_asset_id' => $videoB->id,
+            'usage_type' => 'video',
         ]);
     }
 

@@ -8,6 +8,7 @@ type DrawPanelProps = {
   gachaId: number;
   price: number;
   remainingCount: number;
+  dailyDrawLimit: number | null;
 };
 
 type Wallet = {
@@ -53,6 +54,8 @@ type DrawResult = {
   } | null;
   consumed_point: number;
   granted_point: number;
+  selected_rank_image_url?: string | null;
+  selected_draw_video_url?: string | null;
 };
 
 type DrawResponse = {
@@ -75,7 +78,7 @@ const sessionStorageKey = "oripa_user_session";
 const defaultDrawMovieSrc = "/draw-videos/default.mp4";
 const defaultDrawResultImageSrc = "/draw-image/gacha.png";
 
-export default function DrawPanel({ gachaId, price, remainingCount }: DrawPanelProps) {
+export default function DrawPanel({ gachaId, price, remainingCount, dailyDrawLimit }: DrawPanelProps) {
   const router = useRouter();
   const drawMovieRef = useRef<HTMLVideoElement | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -90,7 +93,8 @@ export default function DrawPanel({ gachaId, price, remainingCount }: DrawPanelP
   const [drawMovieNeedsGesture, setDrawMovieNeedsGesture] = useState(false);
 
   const totalPoint = useMemo(() => price * drawCount, [drawCount, price]);
-  const availableOptions = drawOptions.filter((count) => count <= Math.max(1, remainingCount));
+  const maxSelectableDrawCount = Math.max(1, Math.min(remainingCount, dailyDrawLimit ?? remainingCount));
+  const availableOptions = drawOptions.filter((count) => count <= maxSelectableDrawCount);
   const isLoggedIn = Boolean(session);
   const currentBalance = wallet?.total_balance ?? session?.user.wallet?.total_balance ?? 0;
   const hasEnoughPoints = currentBalance >= totalPoint;
@@ -293,6 +297,7 @@ export default function DrawPanel({ gachaId, price, remainingCount }: DrawPanelP
           <span>Draw</span>
           <h2>抽選</h2>
           <p>回数と消費ポイントを確認して抽選します。</p>
+          {dailyDrawLimit ? <p>このガチャは1日{dailyDrawLimit.toLocaleString("ja-JP")}回まで抽選できます。</p> : null}
         </div>
         <strong>{totalPoint.toLocaleString("ja-JP")}pt</strong>
       </div>

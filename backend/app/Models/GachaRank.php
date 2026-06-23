@@ -45,18 +45,54 @@ class GachaRank extends Model
         return $this->belongsTo(RankAsset::class, 'rank_image_asset_id');
     }
 
+    public function rankImageAssets()
+    {
+        return $this->belongsToMany(RankAsset::class, 'gacha_rank_assets')
+            ->withPivot(['usage_type', 'sort_order'])
+            ->wherePivot('usage_type', 'image')
+            ->orderByPivot('sort_order')
+            ->orderBy('rank_assets.id')
+            ->withTimestamps();
+    }
+
     public function drawVideoAsset()
     {
         return $this->belongsTo(RankAsset::class, 'draw_video_asset_id');
     }
 
+    public function drawVideoAssets()
+    {
+        return $this->belongsToMany(RankAsset::class, 'gacha_rank_assets')
+            ->withPivot(['usage_type', 'sort_order'])
+            ->wherePivot('usage_type', 'video')
+            ->orderByPivot('sort_order')
+            ->orderBy('rank_assets.id')
+            ->withTimestamps();
+    }
+
     public function effectiveImageUrl(): ?string
     {
+        if ($this->relationLoaded('rankImageAssets')) {
+            $asset = $this->rankImageAssets->firstWhere('is_active', true);
+
+            if ($asset) {
+                return $asset->url;
+            }
+        }
+
         return $this->rankImageAsset?->url ?? $this->image_url;
     }
 
     public function effectiveDrawVideoUrl(): ?string
     {
+        if ($this->relationLoaded('drawVideoAssets')) {
+            $asset = $this->drawVideoAssets->firstWhere('is_active', true);
+
+            if ($asset) {
+                return $asset->url;
+            }
+        }
+
         return $this->drawVideoAsset?->url ?? $this->draw_video_url;
     }
 }

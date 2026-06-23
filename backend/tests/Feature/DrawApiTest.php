@@ -94,6 +94,30 @@ class DrawApiTest extends TestCase
             ->assertJsonValidationErrors(['points']);
     }
 
+    public function test_it_rejects_draw_when_daily_draw_limit_would_be_exceeded(): void
+    {
+        [$user, $gacha, $prize] = $this->createDrawableFixture();
+        $gacha->forceFill(['daily_draw_limit' => 2])->save();
+        $this->createWalletWithPaidLot($user, 300);
+        $this->publishPointBackStage($gacha, $prize);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/gachas/{$gacha->id}/draw", [
+            'draw_count' => 2,
+            'idempotency_key' => 'limited-first',
+        ])->assertCreated();
+
+        $this->postJson("/api/gachas/{$gacha->id}/draw", [
+            'draw_count' => 1,
+            'idempotency_key' => 'limited-second',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['draw']);
+
+        $this->assertSame(2, $gacha->refresh()->sold_count);
+    }
+
     /**
      * @return array{0: User, 1: Gacha, 2: GachaPrize}
      */

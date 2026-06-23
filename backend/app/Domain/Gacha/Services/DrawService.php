@@ -18,8 +18,10 @@ use App\Models\DrawRequest;
 use App\Models\DrawResult;
 use App\Models\Gacha;
 use App\Models\GachaPrize;
+use App\Models\GachaRank;
 use App\Models\User;
 use App\Models\UserPrize;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 class DrawService
@@ -67,6 +69,7 @@ class DrawService
 
             // sold_count をロックした状態で採番することで、ガチャごとの通し番号に重複と欠番を出さない。
             $this->assertDrawable($lockedGacha, $drawCount);
+            $this->assertWithinDailyDrawLimit($user, $lockedGacha, $drawCount);
 
             $totalCost = $lockedGacha->price * $drawCount;
             $this->pointConsumptionService->assertSpendable($user, $totalCost);
@@ -183,6 +186,31 @@ class DrawService
         }
     }
 
+    private function assertWithinDailyDrawLimit(User $user, Gacha $gacha, int $drawCount): void
+    {
+        if ($gacha->daily_draw_limit === null) {
+            return;
+        }
+
+        $timezone = config('app.user_timezone', 'Asia/Tokyo');
+        $startOfDay = CarbonImmutable::now($timezone)->startOfDay()->utc();
+        $endOfDay = CarbonImmutable::now($timezone)->endOfDay()->utc();
+        $drawnToday = (int) DrawRequest::query()
+            ->where('user_id', $user->id)
+            ->where('gacha_id', $gacha->id)
+            ->where('status', DrawRequestStatus::Completed)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->sum('draw_count');
+
+        if ($drawnToday + $drawCount <= (int) $gacha->daily_draw_limit) {
+            return;
+        }
+
+        $remaining = max(0, (int) $gacha->daily_draw_limit - $drawnToday);
+
+        throw new DrawException("このガチャの本日抽選可能回数を超えています。本日残り{$remaining}回です。");
+    }
+
     private function storePrizeResult(
         DrawRequest $drawRequest,
         User $user,
@@ -192,6 +220,8 @@ class DrawService
         int $randomValue,
         int $stageId,
     ): DrawResult {
+        $presentation = $this->selectRankPresentation($prize);
+
         return DrawResult::query()->create([
             'draw_request_id' => $drawRequest->id,
             'user_id' => $user->id,
@@ -205,7 +235,42 @@ class DrawService
             'random_value' => $randomValue,
             'probability_version_id' => $gacha->current_probability_version_id,
             'probability_version_stage_id' => $stageId,
+            'selected_rank_image_url' => $presentation['image_url'],
+            'selected_draw_video_url' => $presentation['video_url'],
         ]);
+    }
+
+    private function selectRankPresentation(GachaPrize $prize): array
+    {
+        /** @var GachaRank $rank */
+        $rank = GachaRank::query()
+            ->with([
+                'rankImageAsset',
+                'drawVideoAsset',
+                'rankImageAssets' => fn ($query) => $query->where('is_active', true),
+                'drawVideoAssets' => fn ($query) => $query->where('is_active', true),
+            ])
+            ->whereKey($prize->rank_id)
+            ->firstOrFail();
+
+        return [
+            'image_url' => $this->randomAssetUrl($rank->rankImageAssets) ?? $rank->effectiveImageUrl(),
+            'video_url' => $this->randomAssetUrl($rank->drawVideoAssets) ?? $rank->effectiveDrawVideoUrl(),
+        ];
+    }
+
+    private function randomAssetUrl($assets): ?string
+    {
+        $urls = $assets
+            ->pluck('url')
+            ->filter(fn (?string $url): bool => $url !== null && $url !== '')
+            ->values();
+
+        if ($urls->isEmpty()) {
+            return null;
+        }
+
+        return $urls->get(random_int(0, $urls->count() - 1));
     }
 
     private function storePointBackResult(

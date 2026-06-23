@@ -30,7 +30,9 @@ class AdminShippingRequestController extends Controller
                 },
                 'items.userPrize.gacha',
                 'items.userPrize.prize.rank.rankImageAsset',
+                'items.userPrize.prize.rank.rankImageAssets',
                 'items.userPrize.prize.rank.drawVideoAsset',
+                'items.userPrize.prize.rank.drawVideoAssets',
             ])
             ->withCount('items')
             ->orderByDesc('id');
@@ -51,7 +53,10 @@ class AdminShippingRequestController extends Controller
         return new ShippingRequestResource($shippingRequest->load([
             'user',
             'items.userPrize.gacha',
-            'items.userPrize.prize.rank',
+            'items.userPrize.prize.rank.rankImageAsset',
+            'items.userPrize.prize.rank.rankImageAssets',
+            'items.userPrize.prize.rank.drawVideoAsset',
+            'items.userPrize.prize.rank.drawVideoAssets',
             'histories.adminUser',
         ]));
     }
@@ -149,7 +154,10 @@ class AdminShippingRequestController extends Controller
         return new ShippingRequestResource($shippingRequest->refresh()->load([
             'user',
             'items.userPrize.gacha',
-            'items.userPrize.prize.rank',
+            'items.userPrize.prize.rank.rankImageAsset',
+            'items.userPrize.prize.rank.rankImageAssets',
+            'items.userPrize.prize.rank.drawVideoAsset',
+            'items.userPrize.prize.rank.drawVideoAssets',
             'histories.adminUser',
         ]));
     }

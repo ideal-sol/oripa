@@ -20,7 +20,7 @@ class ShippingRequestController extends Controller
     {
         return ShippingRequestResource::collection(
             ShippingRequest::query()
-                ->with(['items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.drawVideoAsset'])
+                ->with(['items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.rankImageAssets', 'items.userPrize.prize.rank.drawVideoAsset', 'items.userPrize.prize.rank.drawVideoAssets'])
                 ->withCount('items')
                 ->where('user_id', $request->user()->id)
                 ->orderByDesc('id')
@@ -33,7 +33,7 @@ class ShippingRequestController extends Controller
         abort_unless((int) $shippingRequest->user_id === (int) $request->user()->id, 404);
 
         return new ShippingRequestResource(
-            $shippingRequest->load(['items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.drawVideoAsset', 'histories'])
+            $shippingRequest->load(['items.userPrize.gacha', 'items.userPrize.prize.rank.rankImageAsset', 'items.userPrize.prize.rank.rankImageAssets', 'items.userPrize.prize.rank.drawVideoAsset', 'items.userPrize.prize.rank.drawVideoAssets', 'histories'])
                 ->loadCount('items')
         );
     }

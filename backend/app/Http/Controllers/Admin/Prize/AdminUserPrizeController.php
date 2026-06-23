@@ -13,7 +13,7 @@ class AdminUserPrizeController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = UserPrize::query()
-            ->with(['user', 'gacha', 'prize.rank.rankImageAsset', 'prize.rank.drawVideoAsset'])
+            ->with(['user', 'gacha', 'prize.rank.rankImageAsset', 'prize.rank.rankImageAssets', 'prize.rank.drawVideoAsset', 'prize.rank.drawVideoAssets'])
             ->orderByDesc('id');
 
         if ($request->filled('status')) {
@@ -40,10 +40,16 @@ class AdminUserPrizeController extends Controller
         return new AdminUserPrizeResource($userPrize->load([
             'user',
             'gacha',
-            'prize.rank',
+            'prize.rank.rankImageAsset',
+            'prize.rank.rankImageAssets',
+            'prize.rank.drawVideoAsset',
+            'prize.rank.drawVideoAssets',
             'drawResult.user',
             'drawResult.gacha',
-            'drawResult.rank',
+            'drawResult.rank.rankImageAsset',
+            'drawResult.rank.rankImageAssets',
+            'drawResult.rank.drawVideoAsset',
+            'drawResult.rank.drawVideoAssets',
             'drawResult.prize',
             'drawResult.probabilityVersion',
             'drawResult.probabilityVersionStage',

@@ -13,7 +13,7 @@ class UserPrizeController extends Controller
     public function index(IndexUserPrizeRequest $request): AnonymousResourceCollection
     {
         $query = UserPrize::query()
-            ->with(['gacha', 'prize.rank.rankImageAsset', 'prize.rank.drawVideoAsset'])
+            ->with(['gacha', 'prize.rank.rankImageAsset', 'prize.rank.rankImageAssets', 'prize.rank.drawVideoAsset', 'prize.rank.drawVideoAssets'])
             ->where('user_id', $request->user()->id);
 
         if ($request->filled('status')) {

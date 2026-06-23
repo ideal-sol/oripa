@@ -52,11 +52,12 @@ function GachaDetailView({ gacha, recommendedGachas }: { gacha: PublicGachaDetai
         <MetricLite label="残り" value={`${gacha.remaining_count.toLocaleString("ja-JP")}口`} />
         <MetricLite label="販売" value={`${gacha.sold_count.toLocaleString("ja-JP")} / ${gacha.total_count.toLocaleString("ja-JP")}`} />
         <MetricLite label="最低保証" value={gacha.minimum_guarantee.type === "point" ? `${gacha.minimum_guarantee.value}pt` : "景品"} />
+        <MetricLite label="1日上限" value={gacha.daily_draw_limit ? `${gacha.daily_draw_limit.toLocaleString("ja-JP")}回` : "なし"} />
       </div>
 
       <Progress sold={gacha.sold_count} total={gacha.total_count} />
 
-      <DrawPanel gachaId={gacha.id} price={gacha.price} remainingCount={gacha.remaining_count} />
+      <DrawPanel gachaId={gacha.id} price={gacha.price} remainingCount={gacha.remaining_count} dailyDrawLimit={gacha.daily_draw_limit} />
 
       <div className="stage-panel">
         <div>

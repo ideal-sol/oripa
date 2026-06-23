@@ -20,12 +20,14 @@ class DrawResultResource extends JsonResource
             'random_value' => $this->random_value,
             'probability_version_id' => $this->probability_version_id,
             'probability_version_stage_id' => $this->probability_version_stage_id,
+            'selected_rank_image_url' => $this->selected_rank_image_url,
+            'selected_draw_video_url' => $this->selected_draw_video_url,
             'rank' => $this->whenLoaded('rank', fn (): ?array => $this->rank ? [
                 'id' => $this->rank->id,
                 'rank_key' => $this->rank->rank_key,
                 'display_name' => $this->rank->display_name,
-                'image_url' => $this->rank->effectiveImageUrl(),
-                'draw_video_url' => $this->rank->effectiveDrawVideoUrl(),
+                'image_url' => $this->selected_rank_image_url ?? $this->rank->effectiveImageUrl(),
+                'draw_video_url' => $this->selected_draw_video_url ?? $this->rank->effectiveDrawVideoUrl(),
                 'result_image_url' => $this->rank->result_image_url,
             ] : null),
             'prize' => $this->whenLoaded('prize', fn (): ?array => $this->prize ? [

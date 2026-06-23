@@ -17,6 +17,7 @@ use App\Models\GachaPrize;
 use App\Models\GachaProbabilityVersion;
 use App\Models\GachaRank;
 use App\Models\PointLot;
+use App\Models\RankAsset;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -75,6 +76,41 @@ class DrawServiceTest extends TestCase
             'gacha_prize_id' => $prize->id,
             'draw_result_id' => $result->id,
             'status' => 'stored',
+        ]);
+    }
+
+    public function test_it_stores_random_rank_presentation_urls_for_prize_result(): void
+    {
+        [$user, $gacha, $prize, $rank] = $this->createDrawableFixture(price: 100);
+        $this->createWalletWithPaidLot($user, 100);
+        $this->publishSingleStage($gacha, $prize, prizePpm: 1_000_000, minimumGuaranteePpm: 0);
+
+        $imageAssets = [
+            RankAsset::query()->create(['title' => 'S image 1', 'asset_type' => 'image', 'url' => 'https://example.test/s-1.png', 'is_active' => true]),
+            RankAsset::query()->create(['title' => 'S image 2', 'asset_type' => 'image', 'url' => 'https://example.test/s-2.png', 'is_active' => true]),
+        ];
+        $videoAssets = [
+            RankAsset::query()->create(['title' => 'S video 1', 'asset_type' => 'video', 'url' => 'https://example.test/s-1.mp4', 'is_active' => true]),
+            RankAsset::query()->create(['title' => 'S video 2', 'asset_type' => 'video', 'url' => 'https://example.test/s-2.mp4', 'is_active' => true]),
+        ];
+
+        foreach ($imageAssets as $index => $asset) {
+            $rank->rankImageAssets()->attach($asset->id, ['usage_type' => 'image', 'sort_order' => $index]);
+        }
+
+        foreach ($videoAssets as $index => $asset) {
+            $rank->drawVideoAssets()->attach($asset->id, ['usage_type' => 'video', 'sort_order' => $index]);
+        }
+
+        $request = app(DrawService::class)->draw($user, $gacha, 1, 'draw-prize-presentation');
+        $result = $request->results->first();
+
+        $this->assertContains($result->selected_rank_image_url, ['https://example.test/s-1.png', 'https://example.test/s-2.png']);
+        $this->assertContains($result->selected_draw_video_url, ['https://example.test/s-1.mp4', 'https://example.test/s-2.mp4']);
+        $this->assertDatabaseHas('draw_results', [
+            'id' => $result->id,
+            'selected_rank_image_url' => $result->selected_rank_image_url,
+            'selected_draw_video_url' => $result->selected_draw_video_url,
         ]);
     }
 

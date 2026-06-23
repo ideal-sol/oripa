@@ -25,6 +25,7 @@ class GachaDetailResource extends JsonResource
             ],
             'price' => $this->price,
             'total_count' => $this->total_count,
+            'daily_draw_limit' => $this->daily_draw_limit,
             'sold_count' => $this->sold_count,
             'remaining_count' => max(0, (int) $this->total_count - (int) $this->sold_count),
             'probability_mode' => $this->probability_mode?->value ?? $this->probability_mode,

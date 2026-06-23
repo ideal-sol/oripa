@@ -18,6 +18,7 @@ class Gacha extends Model
         'category_id',
         'price',
         'total_count',
+        'daily_draw_limit',
         'sold_count',
         'probability_mode',
         'current_probability_version_id',

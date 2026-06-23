@@ -33,7 +33,7 @@ class DrawController extends Controller
             ]);
         }
 
-        return (new DrawRequestResource($drawRequest->loadMissing(['results.prize', 'results.rank.rankImageAsset', 'results.rank.drawVideoAsset'])))
+        return (new DrawRequestResource($drawRequest->loadMissing(['results.prize', 'results.rank.rankImageAsset', 'results.rank.rankImageAssets', 'results.rank.drawVideoAsset', 'results.rank.drawVideoAssets'])))
             ->response()
             ->setStatusCode(201);
     }

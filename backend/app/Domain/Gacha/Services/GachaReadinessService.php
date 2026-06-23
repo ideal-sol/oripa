@@ -22,6 +22,10 @@ class GachaReadinessService
         ])->load([
             'currentProbabilityVersion',
             'ranks' => fn ($query) => $query->where('is_visible', true),
+            'ranks.rankImageAsset',
+            'ranks.rankImageAssets',
+            'ranks.drawVideoAsset',
+            'ranks.drawVideoAssets',
             'prizes' => fn ($query) => $query
                 ->where('is_active', true)
                 ->where('is_visible', true),

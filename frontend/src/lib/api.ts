@@ -44,6 +44,7 @@ export type PublicGachaListItem = {
   };
   price: number;
   total_count: number;
+  daily_draw_limit: number | null;
   sold_count: number;
   remaining_count: number;
   probability_mode: string;

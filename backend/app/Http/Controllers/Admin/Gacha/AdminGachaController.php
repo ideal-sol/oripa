@@ -74,7 +74,9 @@ class AdminGachaController extends Controller
             'currentProbabilityVersion',
             'ranks' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'ranks.rankImageAsset',
+            'ranks.rankImageAssets',
             'ranks.drawVideoAsset',
+            'ranks.drawVideoAssets',
             'ranks.prizes' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->loadCount(['ranks', 'prizes']));
     }

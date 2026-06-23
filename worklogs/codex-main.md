@@ -15,6 +15,31 @@ Branch: `main`
 ## Recent Work Completed
 
 - 2026-06-22:
+  - Committed the previous free-point expiry highlight work:
+    - Commit: `7acfe4d Highlight expiring free point lots`
+  - Added multi-rank presentation asset support.
+    - A rank can now attach multiple rank image assets and multiple draw video assets.
+    - DrawService selects one active image and one active video with Laravel-side `random_int` when a prize result is created.
+    - Selected presentation URLs are stored on `draw_results` so old draw results remain reproducible after rank settings change.
+    - Existing single `rank_image_asset_id` / `draw_video_asset_id` values are migrated into the new pivot table.
+    - Admin rank forms now use multiple-select controls for rank images and draw videos.
+  - Applied migration:
+    - `2026_06_22_000003_add_multiple_rank_presentation_assets`
+    - `2026_06_23_000001_add_daily_draw_limit_to_gachas`
+  - Added limited gacha daily draw cap support.
+    - `gachas.daily_draw_limit` is nullable. Null means no daily cap.
+    - Admin gacha create/edit now has a "1日の規定回数" field.
+    - Public gacha detail displays the daily cap when configured.
+    - DrawService enforces user/gacha/day draw counts in Laravel during the locked draw transaction.
+    - Over-limit draws return a validation error without consuming points or creating results.
+  - Verification:
+    - `docker compose exec -T backend php artisan test --filter=AdminGachaRankApiTest` succeeded
+    - `docker compose exec -T backend php artisan test --filter=DrawServiceTest` succeeded
+    - `docker compose exec -T backend php artisan test --filter=DrawApiTest` succeeded
+    - `docker compose exec -T backend php artisan test --filter=AdminGachaApiTest` succeeded
+    - `pnpm typecheck` succeeded in `frontend/`
+  - Note:
+    - Laravel tests must be run sequentially against `oripa_test`; parallel test commands collide because RefreshDatabase resets the same PostgreSQL schema.
   - User point history now highlights free point lots expiring within one month in red.
   - Changed only frontend display files:
     - `frontend/src/app/mypage/points/point-history-client.tsx`

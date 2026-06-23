@@ -216,6 +216,7 @@ type Gacha = {
   category?: { id: number | null; name: string | null; slug: string | null };
   price: number;
   total_count: number;
+  daily_draw_limit: number | null;
   sold_count: number;
   remaining_count: number;
   probability_mode: string;
@@ -274,9 +275,13 @@ type GachaRank = {
   image_url: string | null;
   rank_image_asset_id: number | null;
   rank_image_asset?: RankAsset | null;
+  rank_image_asset_ids?: number[];
+  rank_image_assets?: RankAsset[];
   draw_video_url: string | null;
   draw_video_asset_id: number | null;
   draw_video_asset?: RankAsset | null;
+  draw_video_asset_ids?: number[];
+  draw_video_assets?: RankAsset[];
   result_image_url: string | null;
   sort_order: number;
   is_visible: boolean;
@@ -657,6 +662,7 @@ export default function AdminDashboard({
     categoryId: "",
     price: "500",
     totalCount: "10000",
+    dailyDrawLimit: "",
     probabilityMode: "single",
     minimumGuaranteeType: "point",
     minimumGuaranteeValue: "10",
@@ -677,8 +683,10 @@ export default function AdminDashboard({
     description: "",
     imageUrl: "",
     rankImageAssetId: "",
+    rankImageAssetIds: [] as string[],
     drawVideoUrl: "",
     drawVideoAssetId: "",
+    drawVideoAssetIds: [] as string[],
     resultImageUrl: "",
     sortOrder: "1",
     isVisible: true,
@@ -1777,6 +1785,7 @@ export default function AdminDashboard({
       categoryId: categories[0]?.id ? String(categories[0].id) : "",
       price: "500",
       totalCount: "10000",
+      dailyDrawLimit: "",
       probabilityMode: "single",
       minimumGuaranteeType: "point",
       minimumGuaranteeValue: "10",
@@ -1810,8 +1819,10 @@ export default function AdminDashboard({
       description: "",
       imageUrl: "",
       rankImageAssetId: "",
+      rankImageAssetIds: [],
       drawVideoUrl: "",
       drawVideoAssetId: "",
+      drawVideoAssetIds: [],
       resultImageUrl: "",
       sortOrder: "1",
       isVisible: true,
@@ -1826,8 +1837,10 @@ export default function AdminDashboard({
       description: rank.description ?? "",
       imageUrl: rank.image_url ?? "",
       rankImageAssetId: rank.rank_image_asset_id ? String(rank.rank_image_asset_id) : "",
+      rankImageAssetIds: rank.rank_image_asset_ids?.length ? rank.rank_image_asset_ids.map(String) : rank.rank_image_asset_id ? [String(rank.rank_image_asset_id)] : [],
       drawVideoUrl: rank.draw_video_url ?? "",
       drawVideoAssetId: rank.draw_video_asset_id ? String(rank.draw_video_asset_id) : "",
+      drawVideoAssetIds: rank.draw_video_asset_ids?.length ? rank.draw_video_asset_ids.map(String) : rank.draw_video_asset_id ? [String(rank.draw_video_asset_id)] : [],
       resultImageUrl: rank.result_image_url ?? "",
       sortOrder: String(rank.sort_order),
       isVisible: rank.is_visible,
@@ -1979,8 +1992,10 @@ export default function AdminDashboard({
           description: rankForm.description || null,
           image_url: rankForm.imageUrl || null,
           rank_image_asset_id: rankForm.rankImageAssetId ? Number(rankForm.rankImageAssetId) : null,
+          rank_image_asset_ids: rankForm.rankImageAssetIds.map(Number),
           draw_video_url: rankForm.drawVideoUrl || null,
           draw_video_asset_id: rankForm.drawVideoAssetId ? Number(rankForm.drawVideoAssetId) : null,
+          draw_video_asset_ids: rankForm.drawVideoAssetIds.map(Number),
           sort_order: Number(rankForm.sortOrder),
           is_visible: rankForm.isVisible,
         }),
@@ -3994,6 +4009,7 @@ function GachaManagement({
     categoryId: string;
     price: string;
     totalCount: string;
+    dailyDrawLimit: string;
     probabilityMode: string;
     minimumGuaranteeType: string;
     minimumGuaranteeValue: string;
@@ -4014,8 +4030,10 @@ function GachaManagement({
     description: string;
     imageUrl: string;
     rankImageAssetId: string;
+    rankImageAssetIds: string[];
     drawVideoUrl: string;
     drawVideoAssetId: string;
+    drawVideoAssetIds: string[];
     resultImageUrl: string;
     sortOrder: string;
     isVisible: boolean;
@@ -4185,7 +4203,7 @@ function GachaManagement({
                   rank.display_name,
                   rank.rank_key,
                   `${rank.prizes_count ?? rank.prizes?.length ?? 0}点`,
-                  rank.draw_video_url ? "設定済み" : "未設定",
+                  rank.draw_video_asset_ids?.length ? `${rank.draw_video_asset_ids.length}件設定` : rank.draw_video_url ? "設定済み" : "未設定",
                   <StatusBadge key="status" value={rank.is_visible ? "visible" : "hidden"} />,
                   <button
                     className="secondary-button small-button"
@@ -4309,26 +4327,34 @@ function GachaManagement({
           </label>
           <label>
             <span>ランク画像</span>
-            <select value={rankForm.rankImageAssetId} onChange={(event) => onRankFormChange({ rankImageAssetId: event.target.value })}>
-              <option value="">選択なし</option>
+            <select
+              multiple
+              value={rankForm.rankImageAssetIds}
+              size={Math.min(6, Math.max(3, rankImageAssets.length))}
+              onChange={(event) => onRankFormChange({ rankImageAssetIds: selectedOptionValues(event.currentTarget), rankImageAssetId: "" })}
+            >
               {rankImageAssets.map((asset) => (
                 <option key={asset.id} value={asset.id}>{asset.title}</option>
               ))}
             </select>
           </label>
-          {rankForm.imageUrl && !rankForm.rankImageAssetId && (
+          {rankForm.imageUrl && rankForm.rankImageAssetIds.length === 0 && (
             <p className="inline-note">旧URL: {rankForm.imageUrl}</p>
           )}
           <label>
             <span>抽選演出動画</span>
-            <select value={rankForm.drawVideoAssetId} onChange={(event) => onRankFormChange({ drawVideoAssetId: event.target.value })}>
-              <option value="">選択なし</option>
+            <select
+              multiple
+              value={rankForm.drawVideoAssetIds}
+              size={Math.min(6, Math.max(3, rankVideoAssets.length))}
+              onChange={(event) => onRankFormChange({ drawVideoAssetIds: selectedOptionValues(event.currentTarget), drawVideoAssetId: "" })}
+            >
               {rankVideoAssets.map((asset) => (
                 <option key={asset.id} value={asset.id}>{asset.title}</option>
               ))}
             </select>
           </label>
-          {rankForm.drawVideoUrl && !rankForm.drawVideoAssetId && (
+          {rankForm.drawVideoUrl && rankForm.drawVideoAssetIds.length === 0 && (
             <p className="inline-note">旧URL: {rankForm.drawVideoUrl}</p>
           )}
           <label>
@@ -4710,6 +4736,10 @@ function GachaManagement({
               <span>総口数</span>
               <input value={gachaForm.totalCount} onChange={(event) => onGachaFormChange({ totalCount: event.target.value })} inputMode="numeric" required />
             </label>
+            <label>
+              <span>1日の規定回数</span>
+              <input value={gachaForm.dailyDrawLimit} onChange={(event) => onGachaFormChange({ dailyDrawLimit: event.target.value })} inputMode="numeric" placeholder="空白なら無制限" />
+            </label>
           </div>
           <div className="inline-fields three">
             <SelectField
@@ -4838,26 +4868,34 @@ function GachaManagement({
                 </label>
                 <label>
                   <span>ランク画像</span>
-                  <select value={rankForm.rankImageAssetId} onChange={(event) => onRankFormChange({ rankImageAssetId: event.target.value })}>
-                    <option value="">選択なし</option>
+                  <select
+                    multiple
+                    value={rankForm.rankImageAssetIds}
+                    size={Math.min(6, Math.max(3, rankImageAssets.length))}
+                    onChange={(event) => onRankFormChange({ rankImageAssetIds: selectedOptionValues(event.currentTarget), rankImageAssetId: "" })}
+                  >
                     {rankImageAssets.map((asset) => (
                       <option key={asset.id} value={asset.id}>{asset.title}</option>
                     ))}
                   </select>
                 </label>
-                {rankForm.imageUrl && !rankForm.rankImageAssetId && (
+                {rankForm.imageUrl && rankForm.rankImageAssetIds.length === 0 && (
                   <p className="inline-note">旧URL: {rankForm.imageUrl}</p>
                 )}
                 <label>
                   <span>抽選演出動画</span>
-                  <select value={rankForm.drawVideoAssetId} onChange={(event) => onRankFormChange({ drawVideoAssetId: event.target.value })}>
-                    <option value="">選択なし</option>
+                  <select
+                    multiple
+                    value={rankForm.drawVideoAssetIds}
+                    size={Math.min(6, Math.max(3, rankVideoAssets.length))}
+                    onChange={(event) => onRankFormChange({ drawVideoAssetIds: selectedOptionValues(event.currentTarget), drawVideoAssetId: "" })}
+                  >
                     {rankVideoAssets.map((asset) => (
                       <option key={asset.id} value={asset.id}>{asset.title}</option>
                     ))}
                   </select>
                 </label>
-                {rankForm.drawVideoUrl && !rankForm.drawVideoAssetId && (
+                {rankForm.drawVideoUrl && rankForm.drawVideoAssetIds.length === 0 && (
                   <p className="inline-note">旧URL: {rankForm.drawVideoUrl}</p>
                 )}
                 <label>
@@ -5856,6 +5894,7 @@ function formFromGacha(gacha: Gacha) {
     categoryId: String(gacha.category_id),
     price: String(gacha.price),
     totalCount: String(gacha.total_count),
+    dailyDrawLimit: gacha.daily_draw_limit !== null ? String(gacha.daily_draw_limit) : "",
     probabilityMode: gacha.probability_mode,
     minimumGuaranteeType: gacha.minimum_guarantee.type,
     minimumGuaranteeValue: String(gacha.minimum_guarantee.value),
@@ -5914,6 +5953,7 @@ function gachaPayload(form: ReturnType<typeof formFromGacha>) {
     category_id: Number(form.categoryId),
     price: Number(form.price),
     total_count: Number(form.totalCount),
+    daily_draw_limit: form.dailyDrawLimit ? Number(form.dailyDrawLimit) : null,
     probability_mode: form.probabilityMode,
     minimum_guarantee_type: form.minimumGuaranteeType,
     minimum_guarantee_value: Number(form.minimumGuaranteeValue),
@@ -5976,6 +6016,10 @@ function ppmToPercentString(value: number) {
   return percentage
     .toFixed(4)
     .replace(/\.?0+$/, "");
+}
+
+function selectedOptionValues(select: HTMLSelectElement): string[] {
+  return Array.from(select.selectedOptions).map((option) => option.value);
 }
 
 function makeSlugFallback(prefix: string) {

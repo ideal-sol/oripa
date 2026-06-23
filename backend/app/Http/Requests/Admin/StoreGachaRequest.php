@@ -22,6 +22,7 @@ class StoreGachaRequest extends FormRequest
             'category_id' => ['required', 'integer', 'exists:gacha_categories,id'],
             'price' => ['required', 'integer', 'min:0'],
             'total_count' => ['required', 'integer', 'min:1'],
+            'daily_draw_limit' => ['nullable', 'integer', 'min:1'],
             'probability_mode' => ['required', Rule::enum(ProbabilityMode::class)],
             'minimum_guarantee_type' => ['required', Rule::enum(MinimumGuaranteeType::class)],
             'minimum_guarantee_value' => ['required', 'integer', 'min:0'],

@@ -37,7 +37,7 @@ class AdminUserPrizeResource extends JsonResource
                     'id' => $this->prize->rank->id,
                     'rank_key' => $this->prize->rank->rank_key,
                     'display_name' => $this->prize->rank->display_name,
-                    'image_url' => $this->prize->rank->image_url,
+                    'image_url' => $this->prize->rank->effectiveImageUrl(),
                 ] : null,
             ]),
             'draw_result' => new AdminDrawResultResource($this->whenLoaded('drawResult')),

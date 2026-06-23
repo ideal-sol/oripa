@@ -22,6 +22,8 @@ class DrawResult extends Model
         'random_value',
         'probability_version_id',
         'probability_version_stage_id',
+        'selected_rank_image_url',
+        'selected_draw_video_url',
     ];
 
     protected function casts(): array

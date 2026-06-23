@@ -25,6 +25,7 @@ class UpdateGachaRequest extends FormRequest
             'category_id' => ['sometimes', 'required', 'integer', 'exists:gacha_categories,id'],
             'price' => ['sometimes', 'required', 'integer', 'min:0'],
             'total_count' => ['sometimes', 'required', 'integer', 'min:'.max(1, $soldCount)],
+            'daily_draw_limit' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'probability_mode' => ['sometimes', 'required', Rule::enum(ProbabilityMode::class)],
             'minimum_guarantee_type' => ['sometimes', 'required', Rule::enum(MinimumGuaranteeType::class)],
             'minimum_guarantee_value' => ['sometimes', 'required', 'integer', 'min:0'],

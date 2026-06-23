@@ -81,6 +81,7 @@ class AdminGachaApiTest extends TestCase
             ->assertJsonPath('data.title', 'Admin Created Gacha')
             ->assertJsonPath('data.slug', 'admin-created-gacha')
             ->assertJsonPath('data.status', GachaStatus::Draft->value)
+            ->assertJsonPath('data.daily_draw_limit', null)
             ->assertJsonPath('data.minimum_guarantee.type', MinimumGuaranteeType::Point->value);
 
         $gacha = Gacha::query()->where('slug', 'admin-created-gacha')->firstOrFail();
@@ -90,6 +91,24 @@ class AdminGachaApiTest extends TestCase
             'action' => 'admin.gacha.created',
             'auditable_type' => Gacha::class,
             'auditable_id' => $gacha->id,
+        ]);
+    }
+
+    public function test_admin_can_create_limited_gacha_with_daily_draw_limit(): void
+    {
+        $this->actingAdmin();
+        $category = GachaCategory::factory()->create();
+
+        $this->postJson('/admin/api/gachas', $this->payload($category->id, [
+            'slug' => 'daily-limited-gacha',
+            'daily_draw_limit' => 3,
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.daily_draw_limit', 3);
+
+        $this->assertDatabaseHas('gachas', [
+            'slug' => 'daily-limited-gacha',
+            'daily_draw_limit' => 3,
         ]);
     }
 
