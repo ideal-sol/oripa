@@ -14,6 +14,9 @@ services:
       APP_NAME: Oripa
       APP_ENV: local
       APP_DEBUG: "true"
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Tokyo}
+      DB_TIMEZONE: ${DB_TIMEZONE:-Asia/Tokyo}
+      TZ: ${APP_TIMEZONE:-Asia/Tokyo}
       APP_URL: ${PUBLIC_APP_URL:-http://localhost:${FRONTEND_PORT:-3000}}
       FRONTEND_URL: ${PUBLIC_APP_URL:-http://localhost:${FRONTEND_PORT:-3000}}
       DB_CONNECTION: pgsql
@@ -75,6 +78,9 @@ services:
       - backend_vendor:/var/www/backend/vendor
     environment:
       APP_ENV: local
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Tokyo}
+      DB_TIMEZONE: ${DB_TIMEZONE:-Asia/Tokyo}
+      TZ: ${APP_TIMEZONE:-Asia/Tokyo}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
@@ -112,6 +118,9 @@ services:
       - backend_vendor:/var/www/backend/vendor
     environment:
       APP_ENV: local
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Tokyo}
+      DB_TIMEZONE: ${DB_TIMEZONE:-Asia/Tokyo}
+      TZ: ${APP_TIMEZONE:-Asia/Tokyo}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
@@ -166,6 +175,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-oripa}
       POSTGRES_USER: ${POSTGRES_USER:-oripa}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oripa_password}
+      TZ: ${APP_TIMEZONE:-Asia/Tokyo}
+      PGTZ: ${DB_TIMEZONE:-Asia/Tokyo}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

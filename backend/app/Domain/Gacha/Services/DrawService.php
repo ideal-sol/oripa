@@ -192,9 +192,9 @@ class DrawService
             return;
         }
 
-        $timezone = config('app.user_timezone', 'Asia/Tokyo');
-        $startOfDay = CarbonImmutable::now($timezone)->startOfDay()->utc();
-        $endOfDay = CarbonImmutable::now($timezone)->endOfDay()->utc();
+        $timezone = config('app.timezone', 'Asia/Tokyo');
+        $startOfDay = CarbonImmutable::now($timezone)->startOfDay();
+        $endOfDay = CarbonImmutable::now($timezone)->endOfDay();
         $drawnToday = (int) DrawRequest::query()
             ->where('user_id', $user->id)
             ->where('gacha_id', $gacha->id)

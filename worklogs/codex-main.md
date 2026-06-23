@@ -40,6 +40,20 @@ Branch: `main`
     - `pnpm typecheck` succeeded in `frontend/`
   - Note:
     - Laravel tests must be run sequentially against `oripa_test`; parallel test commands collide because RefreshDatabase resets the same PostgreSQL schema.
+  - Updated runtime timezone handling so new DB timestamps are stored as Japan time.
+    - Added `DB_TIMEZONE` to PostgreSQL connection config.
+    - Added `APP_TIMEZONE`, `DB_TIMEZONE`, and `TZ` wiring to Docker services.
+    - Set current root `.env` and `backend/.env` timezone values to `Asia/Tokyo`.
+    - Set PostgreSQL database/role timezone defaults to `Asia/Tokyo`.
+    - Recreated only backend/queue/scheduler and cleared Laravel config cache.
+    - Verified Laravel DB session `SHOW timezone` returns `Asia/Tokyo`.
+    - Verified a temporary DB insert using Laravel `now()` stores JST local time.
+    - `docker compose exec -T backend php artisan test --filter=DrawApiTest` succeeded.
+  - Updated the admin operation guide to match the current implementation.
+    - Added latest gacha workflow notes for daily draw limits, immutable published probability versions, and percentage-to-ppm probability handling.
+    - Added rank presentation master workflow: upload reusable image/video assets in Settings, then select multiple assets on rank registration/edit screens.
+    - Added current notes for user management, individual shipping item handling, purchase plans, free point expiration lots, announcements, contacts, and settings.
+    - Verification: `pnpm typecheck` succeeded in `frontend/`.
   - User point history now highlights free point lots expiring within one month in red.
   - Changed only frontend display files:
     - `frontend/src/app/mypage/points/point-history-client.tsx`
