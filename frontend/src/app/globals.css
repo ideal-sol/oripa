@@ -1,15 +1,22 @@
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #17211f;
-  --muted: #66726f;
-  --border: #dbe2e4;
+  --background: #f6f7fb;
+  --foreground: #000000;
+  --muted: #5b6478;
+  --border: #d9deea;
   --surface: #ffffff;
-  --surface-soft: #f6f8f9;
-  --accent: #0f766e;
-  --accent-strong: #115e59;
-  --danger: #b42318;
-  --shadow: 0 18px 50px rgba(24, 36, 34, 0.08);
+  --surface-soft: #eef1f8;
+  --brand: #223670;
+  --brand-soft: #000000;
+  --accent: #223670;
+  --accent-strong: #000000;
+  --gold: #D0A900;
+  --gold-strong: #A88700;
+  --gold-soft: #FFF6CC;
+  --success: #223670;
+  --danger: #c24135;
+  --shadow: 0 18px 50px rgba(34, 54, 112, 0.12);
+  --shadow-strong: 0 24px 70px rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -20,13 +27,13 @@ html,
 body {
   min-height: 100%;
   margin: 0;
-  background: #ffffff;
+  background: var(--background);
 }
 
 body {
-  background: #ffffff;
+  background: linear-gradient(180deg, #e5d097 0%, #ead9ad 42vh, #ffffff 100vh);
   color: var(--foreground);
-  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), var(--font-noto-sans-jp), Arial, Helvetica, sans-serif;
 }
 
 main {
@@ -72,7 +79,7 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 3px solid rgba(15, 118, 110, 0.14);
+  outline: 3px solid rgba(34, 54, 112, 0.16);
   border-color: var(--accent);
 }
 
@@ -143,29 +150,48 @@ code {
   width: min(1180px, calc(100% - 28px));
   display: grid;
   gap: 18px;
-  padding: 16px 0 28px;
+  padding: 0 0 28px;
   background: #ffffff;
 }
 
 .public-header {
-  min-height: 62px;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+}
+
+.public-header-inner {
+  width: min(1180px, calc(100% - 28px));
+  margin: 0 auto;
+  min-height: 54px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 10px 0;
+  padding: 6px 0;
 }
 
 .public-logo {
   display: inline-flex;
   align-items: center;
-  color: #17211f;
+  color: #111827;
   text-decoration: none;
 }
 
 .public-logo-image {
   width: auto;
-  height: 46px;
+  height: clamp(32px, 4vw, 40px);
+  max-width: min(220px, 42vw);
+  display: block;
+  object-fit: contain;
+}
+
+.public-footer-logo {
+  width: auto;
+  height: clamp(30px, 4vw, 42px);
+  max-width: min(180px, 48vw);
   display: block;
   object-fit: contain;
 }
@@ -187,12 +213,23 @@ code {
 }
 
 .public-header nav a:last-child {
-  min-height: 38px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 13px;
   color: #ffffff;
   background: #111827;
+  border-radius: 7px;
+}
+
+.public-header nav a.public-login-link {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  color: var(--gold);
+  background: #ffffff;
+  border: 1px solid var(--gold);
   border-radius: 7px;
 }
 
@@ -217,7 +254,7 @@ code {
 }
 
 .public-kicker {
-  color: #22c55e;
+  color: #D0A900;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0;
@@ -276,6 +313,57 @@ code {
   font-size: 13px;
 }
 
+.top-banner {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.top-banner-viewport {
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.48);
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(34, 54, 112, 0.14);
+}
+
+.top-banner-track {
+  display: flex;
+  transition: transform 0.62s ease;
+  will-change: transform;
+}
+
+.top-banner-item {
+  position: relative;
+  height: clamp(180px, 16vw, 200px);
+  flex: 0 0 100%;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 10px;
+  text-decoration: none;
+}
+
+.top-banner-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.top-banner-dots button {
+  width: 9px;
+  height: 9px;
+  min-height: 0;
+  padding: 0;
+  background: rgba(34, 54, 112, 0.24);
+  border: 0;
+  border-radius: 999px;
+}
+
+.top-banner-dots button.active,
+.top-banner-dots button[aria-current="true"] {
+  width: 24px;
+  background: var(--gold);
+}
+
 .top-slider {
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -314,6 +402,7 @@ code {
 .top-slider-image {
   position: absolute;
   inset: 0;
+  display: block;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -339,8 +428,8 @@ code {
 .top-slider-caption small {
   width: fit-content;
   padding: 4px 8px;
-  color: #111827;
-  background: #ffffff;
+  color: #ffffff;
+  background: var(--gold);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 900;
@@ -403,9 +492,9 @@ code {
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
-  color: #0f5132;
-  background: #e8f6ee;
-  border: 1px solid #b7e4c7;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
@@ -442,10 +531,20 @@ code {
 }
 
 .image-fill {
+  position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
   background-position: center;
   background-size: cover;
+}
+
+.optimized-image {
+  object-fit: cover;
+}
+
+.optimized-image-contain {
+  object-fit: contain;
 }
 
 .image-contain {
@@ -461,7 +560,7 @@ code {
   display: grid;
   place-items: center;
   color: #ffffff;
-  background: #173b35;
+  background: var(--gold);
   font-weight: 900;
 }
 
@@ -502,7 +601,7 @@ code {
 .public-section-head span,
 .rank-title span,
 .stage-panel span {
-  color: #0f766e;
+  color: #223670;
   font-size: 12px;
   font-weight: 900;
 }
@@ -518,7 +617,7 @@ code {
   display: inline-flex;
   align-items: center;
   padding: 0 14px;
-  color: #263330;
+  color: #1f2638;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
@@ -536,21 +635,30 @@ code {
 
 .public-gacha-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .public-gacha-card {
   display: grid;
   gap: 0;
   overflow: hidden;
-  color: #17211f;
+  color: #111827;
   background: #ffffff;
   border: 1px solid #e7ecef;
   border-radius: 16px;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
   text-decoration: none;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.gacha-card-head {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px 8px;
 }
 
 .public-gacha-card.active,
@@ -566,25 +674,29 @@ code {
 }
 
 .public-gacha-card.sold-out:hover {
-  border-color: #e5ecee;
+  border-color: #dde3ef;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
   transform: none;
 }
 
 .gacha-card-media {
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: #111827;
+  background: #f3f5fa;
 }
 
-.gacha-card-media::after {
+.hero-gacha-tile::after {
   position: absolute;
   inset: auto 0 0;
   height: 46%;
   content: "";
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.76));
   pointer-events: none;
+}
+
+.public-gacha-card.sold-out .gacha-card-media .image-fill {
+  filter: grayscale(1);
 }
 
 .sold-out-overlay {
@@ -601,10 +713,6 @@ code {
 }
 
 .gacha-card-badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 1;
   min-height: 26px;
   display: inline-flex;
   align-items: center;
@@ -616,40 +724,67 @@ code {
   font-weight: 900;
 }
 
-.gacha-card-price,
-.gacha-card-remaining {
-  position: absolute;
-  z-index: 1;
+.gacha-card-tag {
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
-  color: #ffffff;
+  padding: 0 8px;
+  color: #223670;
+  background: #ffffff;
+  border: 1px solid #223670;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.gacha-card-price,
+.gacha-card-remaining {
+  display: inline-flex;
+  align-items: center;
   font-weight: 900;
   letter-spacing: 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .gacha-card-price {
-  left: 14px;
-  bottom: 14px;
-  font-size: 24px;
+  gap: 4px;
+  color: #111827;
+  font-size: clamp(20px, 2.4vw, 28px);
   line-height: 1;
 }
 
-.gacha-card-remaining {
-  right: 12px;
-  bottom: 12px;
-  min-height: 30px;
-  padding: 0 10px;
-  background: rgba(17, 24, 39, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
+.gacha-card-price-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.gacha-card-price small {
+  color: #111827;
   font-size: 12px;
+  font-weight: 900;
+}
+
+.gacha-card-remaining {
+  justify-content: flex-end;
+  min-width: 0;
+  color: #111827;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .gacha-card-body {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.gacha-card-purchase {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
 }
 
 .public-gacha-card strong,
@@ -686,15 +821,16 @@ code {
   overflow: hidden;
 }
 
-.gacha-detail-page > .detail-metrics,
-.gacha-detail-page > .public-progress,
-.gacha-detail-page > .draw-panel,
 .gacha-detail-page > .stage-panel,
 .gacha-detail-page > .rank-list,
 .gacha-detail-page > .caution-box,
 .gacha-detail-page > .recommended-gachas {
   margin-right: 18px;
   margin-left: 18px;
+}
+
+.gacha-detail-page > .stage-panel {
+  margin-top: 18px;
 }
 
 .gacha-detail-page > .caution-box,
@@ -704,30 +840,142 @@ code {
 
 .gacha-detail-hero {
   display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.05fr);
-  gap: 0;
-  background: #111827;
+  grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
+  gap: 18px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 22% 0%, rgba(208, 169, 0, 0.2), transparent 34%),
+    linear-gradient(145deg, #223670 0%, #080b14 72%);
 }
 
 .gacha-detail-media {
-  min-height: 380px;
-  background: #0f172a;
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  background: #0b1020;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+}
+
+.gacha-detail-media .image-fill {
+  min-height: 620px;
+}
+
+.gacha-detail-side {
+  display: grid;
+  align-content: start;
+  gap: 14px;
 }
 
 .gacha-detail-hero .detail-top {
-  align-content: center;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  align-items: start;
+  padding: 0 2px;
+}
+
+.detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.detail-tag {
+  display: inline-flex;
   align-items: center;
-  padding: 28px;
+  min-height: 26px;
+  padding: 0 10px;
+  color: #223670;
+  background: #ffffff;
+  border: 1px solid rgba(208, 169, 0, 0.58);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .gacha-detail-hero .detail-top h1 {
-  margin-top: 6px;
   color: #ffffff;
-  font-size: 36px;
+  font-size: clamp(27px, 3vw, 42px);
+  line-height: 1.2;
 }
 
 .gacha-detail-hero .detail-top p {
-  color: #cbd5e1;
+  color: #e7edf6;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.detail-purchase-card {
+  display: grid;
+  gap: 13px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(208, 169, 0, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.detail-stock-meter {
+  display: grid;
+  gap: 8px;
+}
+
+.detail-stock-meter > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-stock-meter span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.detail-stock-meter strong {
+  color: #223670;
+  font-size: 13px;
+}
+
+
+.detail-purchase-card .price-box {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #fff8dd, #ffffff 68%);
+  border-color: rgba(208, 169, 0, 0.42);
+  text-align: left;
+}
+
+.detail-purchase-card .price-box strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #101820;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.detail-purchase-card .detail-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.detail-purchase-card .metric-lite {
+  min-height: 58px;
+  padding: 10px;
+  background: #f7f9fc;
+  border-color: #e1e7f0;
+}
+
+.detail-purchase-card .metric-lite strong {
+  color: #101820;
+  font-size: 15px;
 }
 
 .draw-panel {
@@ -746,7 +994,7 @@ code {
 }
 
 .draw-panel-head span {
-  color: #22c55e;
+  color: #D0A900;
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
@@ -879,11 +1127,99 @@ code {
 .draw-message {
   padding: 10px 12px;
   color: #ffffff;
-  background: rgba(34, 197, 94, 0.16);
-  border: 1px solid rgba(34, 197, 94, 0.28);
+  background: rgba(208, 169, 0, 0.16);
+  border: 1px solid rgba(208, 169, 0, 0.28);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.gacha-detail-side .draw-panel {
+  gap: 12px;
+  padding: 14px;
+  color: #101820;
+  background: #ffffff;
+  border: 1px solid rgba(34, 54, 112, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 16px 34px rgba(34, 54, 112, 0.12);
+}
+
+.gacha-detail-side .draw-panel-head {
+  align-items: center;
+}
+
+.gacha-detail-side .draw-panel-head h2,
+.gacha-detail-side .draw-panel-head > strong,
+.gacha-detail-side .draw-user-row strong,
+.gacha-detail-side .draw-summary strong {
+  color: #101820;
+}
+
+.gacha-detail-side .draw-panel-head p,
+.gacha-detail-side .draw-summary span,
+.gacha-detail-side .draw-guidance p,
+.gacha-detail-side .draw-user-row p,
+.gacha-detail-side .draw-login-form span,
+.gacha-detail-side .draw-user-row span,
+.gacha-detail-side .draw-result-panel span {
+  color: #667085;
+}
+
+.gacha-detail-side .draw-panel-head > strong {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 120px;
+  padding: 10px 12px;
+  background: #fff8dd;
+  border: 1px solid rgba(208, 169, 0, 0.42);
+  border-radius: 8px;
+  font-size: 24px;
+}
+
+.gacha-detail-side .draw-count-selector button {
+  color: #223670;
+  background: #f7f9fc;
+  border-color: #d9e2ea;
+}
+
+.gacha-detail-side .draw-count-selector button.active,
+.gacha-detail-side .draw-count-selector button:hover {
+  color: #ffffff;
+  background: #223670;
+  border-color: #223670;
+}
+
+.gacha-detail-side .draw-summary > div,
+.gacha-detail-side .draw-user-row {
+  background: #f7f9fc;
+  border-color: #e1e7f0;
+}
+
+.gacha-detail-side .draw-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.gacha-detail-side .draw-actions .public-primary-link {
+  min-height: 52px;
+  justify-content: center;
+  color: #223670;
+  background: linear-gradient(135deg, #ffe9a8, #d0a900);
+  border-color: #d0a900;
+  font-size: 16px;
+  box-shadow: 0 14px 30px rgba(208, 169, 0, 0.28);
+}
+
+.gacha-detail-side .draw-actions .public-secondary-link {
+  min-height: 52px;
+  align-items: center;
+}
+
+.gacha-detail-side .draw-message {
+  color: #223670;
+  background: #fff8dd;
+  border-color: rgba(208, 169, 0, 0.32);
 }
 
 .draw-movie-overlay {
@@ -914,7 +1250,7 @@ code {
 }
 
 .draw-movie-head span {
-  color: #22c55e;
+  color: #D0A900;
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
@@ -992,7 +1328,7 @@ code {
 }
 
 .draw-result-title span {
-  color: #22c55e;
+  color: #D0A900;
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
@@ -1019,8 +1355,8 @@ code {
   display: grid;
   gap: 10px;
   padding: 12px;
-  background: rgba(15, 118, 110, 0.18);
-  border: 1px solid rgba(45, 212, 191, 0.28);
+  background: rgba(34, 54, 112, 0.18);
+  border: 1px solid rgba(208, 169, 0, 0.28);
   border-radius: 8px;
 }
 
@@ -1125,7 +1461,7 @@ code {
 }
 
 .auth-copy > span {
-  color: #22c55e;
+  color: #D0A900;
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
@@ -1251,9 +1587,9 @@ code {
 
 .mypage-message {
   padding: 10px 12px;
-  color: #0f5132;
-  background: #e8f6ee;
-  border: 1px solid #b7e4c7;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 800;
@@ -1304,8 +1640,8 @@ code {
   gap: 14px;
   align-items: center;
   padding: 14px;
-  background: #fbfdfd;
-  border: 1px solid #e5ecee;
+  background: #ffffff;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -1334,7 +1670,7 @@ code {
 }
 
 .history-card > strong.positive {
-  color: #0f766e;
+  color: #223670;
 }
 
 .history-card > strong.negative {
@@ -1383,7 +1719,7 @@ code {
 .history-table {
   display: grid;
   overflow: hidden;
-  border: 1px solid #e5ecee;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -1393,11 +1729,11 @@ code {
   gap: 10px;
   align-items: center;
   padding: 12px;
-  background: #fbfdfd;
+  background: #ffffff;
 }
 
 .history-row + .history-row {
-  border-top: 1px solid #e5ecee;
+  border-top: 1px solid #dde3ef;
 }
 
 .history-row span.history-lot-points-expiring {
@@ -1425,8 +1761,8 @@ code {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: #fbfdfd;
-  border: 1px solid #e5ecee;
+  background: #ffffff;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -1490,8 +1826,8 @@ code {
   gap: 12px;
   align-items: center;
   padding: 12px;
-  background: #fbfdfd;
-  border: 1px solid #e5ecee;
+  background: #ffffff;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -1649,7 +1985,7 @@ code {
   justify-items: start;
   padding: 16px;
   color: var(--foreground);
-  background: #fbfdfd;
+  background: #ffffff;
   border-color: #dbe5e7;
   text-align: left;
 }
@@ -1768,8 +2104,8 @@ code {
   gap: 4px;
   min-height: 70px;
   padding: 12px;
-  background: #fbfdfd;
-  border: 1px solid #edf1f2;
+  background: #ffffff;
+  border: 1px solid #e6ebf4;
   border-radius: 8px;
 }
 
@@ -1787,7 +2123,20 @@ code {
 .public-progress span {
   height: 100%;
   display: block;
-  background: #0f766e;
+  background: var(--gold);
+  transition: width 0.18s ease, background-color 0.18s ease;
+}
+
+.public-progress span.public-progress-high {
+  background: var(--gold);
+}
+
+.public-progress span.public-progress-middle {
+  background: #dfc34a;
+}
+
+.public-progress span.public-progress-low {
+  background: var(--danger);
 }
 
 .stage-panel {
@@ -1820,23 +2169,24 @@ code {
 
 .public-prize-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .public-prize-card {
   display: grid;
-  gap: 10px;
-  padding: 10px;
-  background: #fbfdfd;
-  border: 1px solid #edf1f2;
+  gap: 9px;
+  padding: 9px;
+  background: #ffffff;
+  border: 1px solid #e6ebf4;
   border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(34, 54, 112, 0.08);
 }
 
 .prize-image {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
-  background: #173b35;
+  background: #223670;
   border-radius: 7px;
 }
 
@@ -1869,27 +2219,27 @@ code {
   display: grid;
   gap: 1px;
   overflow: hidden;
-  border: 1px solid #edf1f2;
+  border: 1px solid #e6ebf4;
   border-radius: 8px;
 }
 
 .information-list a {
   display: grid;
-  grid-template-columns: 72px 130px 1fr;
+  grid-template-columns: 130px 1fr;
   align-items: center;
   gap: 14px;
   padding: 13px 14px;
-  color: #17211f;
+  color: #111827;
   background: #ffffff;
   text-decoration: none;
 }
 
 .information-list a + a {
-  border-top: 1px solid #edf1f2;
+  border-top: 1px solid #e6ebf4;
 }
 
 .information-list time {
-  color: #0f766e;
+  color: #223670;
   font-size: 12px;
   font-weight: 900;
 }
@@ -1899,27 +2249,18 @@ code {
   font-weight: 800;
 }
 
-.information-thumb {
-  width: 72px;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #eef3f4;
-  border: 1px solid #e5ecee;
-  border-radius: 6px;
-}
-
-.information-thumb span,
 .announcement-main-image span,
 .table-thumb {
   display: block;
   width: 100%;
   height: 100%;
+  position: relative;
+  overflow: hidden;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
 }
 
-.information-thumb.logo-fallback span,
 .announcement-main-image.logo-fallback span,
 .top-slider-image.logo-fallback {
   background-color: #ffffff;
@@ -1933,7 +2274,7 @@ code {
   margin: 24px auto 48px;
   padding: 24px;
   background: #ffffff;
-  border: 1px solid #e5ecee;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -1961,15 +2302,15 @@ code {
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: #eef3f4;
-  border: 1px solid #e5ecee;
+  background: #f3f5fa;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
 .announcement-body {
   display: grid;
   gap: 12px;
-  color: #17211f;
+  color: #111827;
   line-height: 1.85;
 }
 
@@ -1986,7 +2327,7 @@ code {
   gap: 12px;
   padding: 24px;
   background: #ffffff;
-  border: 1px solid #e5ecee;
+  border: 1px solid #dde3ef;
   border-radius: 8px;
 }
 
@@ -2005,7 +2346,7 @@ code {
 }
 
 .contact-form label span {
-  color: #5e6a68;
+  color: #667085;
   font-size: 12px;
   font-weight: 900;
 }
@@ -2022,9 +2363,9 @@ code {
 }
 
 .contact-notice.success {
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
 }
 
 .contact-notice.error {
@@ -2053,21 +2394,61 @@ code {
 }
 
 .public-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.32fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+  padding: 22px;
 }
 
 .public-footer > div {
   display: grid;
+  align-content: start;
   gap: 3px;
 }
+
+.public-footer > div:has(.public-footer-logo) {
+  gap: 6px;
+}
+
 
 .public-footer > div span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.public-footer nav {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+}
+
+.public-footer nav a {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  color: #334155;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.public-footer nav a::before {
+  color: #223670;
+  content: "・";
+  font-weight: 900;
+}
+
+.public-footer nav a:hover {
+  color: #223670;
 }
 
 .public-error-page {
@@ -2089,7 +2470,7 @@ code {
 }
 
 .public-error-hero-danger {
-  background: #17211f;
+  background: #111827;
 }
 
 .public-error-media {
@@ -2098,14 +2479,14 @@ code {
   place-items: center;
   color: #ffffff;
   background:
-    linear-gradient(135deg, rgba(15, 118, 110, 0.82), rgba(17, 24, 39, 0.92)),
-    url("/logo.png") center / contain no-repeat;
+    linear-gradient(135deg, rgba(34, 54, 112, 0.82), rgba(17, 24, 39, 0.92)),
+    url("/lp-logo.png") center / contain no-repeat;
 }
 
 .public-error-hero-danger .public-error-media {
   background:
     linear-gradient(135deg, rgba(180, 35, 24, 0.84), rgba(17, 24, 39, 0.92)),
-    url("/logo.png") center / contain no-repeat;
+    url("/lp-logo.png") center / contain no-repeat;
 }
 
 .public-error-media span {
@@ -2157,7 +2538,7 @@ code {
   place-items: center;
   padding: 24px;
   background:
-    linear-gradient(135deg, rgba(15, 118, 110, 0.12), transparent 35%),
+    linear-gradient(135deg, rgba(34, 54, 112, 0.12), transparent 35%),
     linear-gradient(315deg, rgba(180, 83, 9, 0.10), transparent 42%),
     var(--background);
 }
@@ -2191,7 +2572,7 @@ code {
   place-items: center;
   flex: 0 0 auto;
   color: #ffffff;
-  background: #173b35;
+  background: #223670;
   border-radius: 6px;
   font-weight: 800;
 }
@@ -2257,7 +2638,7 @@ code {
   padding: 28px;
   background: #ffffff;
   border: 1px solid var(--border);
-  border-left: 6px solid #0f766e;
+  border-left: 6px solid #223670;
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
@@ -2270,9 +2651,9 @@ code {
   min-height: 150px;
   display: grid;
   place-items: center;
-  color: #0f766e;
-  background: #eef8f6;
-  border: 1px solid #d4eeea;
+  color: #223670;
+  background: #f3f5fa;
+  border: 1px solid #dce3f1;
   border-radius: 8px;
   font-size: 42px;
   font-weight: 900;
@@ -2322,7 +2703,7 @@ code {
   align-items: center;
   gap: 9px;
   padding: 0 12px;
-  color: #263330;
+  color: #1f2638;
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2353,7 +2734,7 @@ code {
 }
 
 .secondary-button {
-  color: #173b35;
+  color: #223670;
   background: #ffffff;
   border-color: #b8c5c7;
 }
@@ -2404,8 +2785,8 @@ code {
 }
 
 .tone-blue { --metric-color: #2563eb; }
-.tone-teal { --metric-color: #0f766e; }
-.tone-green { --metric-color: #059669; }
+.tone-teal { --metric-color: #223670; }
+.tone-green { --metric-color: #223670; }
 .tone-amber { --metric-color: #d97706; }
 .tone-rose { --metric-color: #e11d48; }
 .tone-violet { --metric-color: #7c3aed; }
@@ -2427,7 +2808,7 @@ code {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  color: #273532;
+  color: #1f2638;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -2436,12 +2817,12 @@ code {
 }
 
 .admin-tabs a:hover {
-  background: #f4f7f7;
+  background: #f7f8fb;
 }
 
 .admin-tabs a.active {
-  color: #0f2f2b;
-  background: #e8f3f1;
+  color: #223670;
+  background: #eef1f8;
   border-color: #c8dedb;
 }
 
@@ -2454,7 +2835,7 @@ code {
 .admin-subtabs a {
   min-height: 30px;
   padding: 6px 9px;
-  color: #4b635e;
+  color: #667085;
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -2463,8 +2844,8 @@ code {
 }
 
 .admin-subtabs a.active {
-  color: #0f2f2b;
-  background: #dff3ec;
+  color: #223670;
+  background: #f3f5fa;
 }
 
 .admin-tabs a span:last-child {
@@ -2506,7 +2887,7 @@ code {
   display: grid;
   gap: 16px;
   padding: 18px;
-  background: #fbfdfd;
+  background: #ffffff;
 }
 
 .guide-intro {
@@ -2524,7 +2905,7 @@ code {
 .guide-intro h3,
 .guide-section h4 {
   margin: 0;
-  color: #17211f;
+  color: #111827;
   line-height: 1.3;
 }
 
@@ -2543,9 +2924,9 @@ code {
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  color: #0f766e;
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
@@ -2589,7 +2970,7 @@ code {
   gap: 8px;
   margin: 0;
   padding-left: 20px;
-  color: #263330;
+  color: #1f2638;
 }
 
 .guide-section li {
@@ -2622,7 +3003,7 @@ code {
 
 .guide-manual-head h3 {
   margin: 6px 0 0;
-  color: #17211f;
+  color: #111827;
   font-size: 24px;
   line-height: 1.3;
 }
@@ -2637,9 +3018,9 @@ code {
   align-items: center;
   min-height: 26px;
   padding: 0 9px;
-  color: #0f766e;
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
@@ -2663,7 +3044,7 @@ code {
 
 .manual-block h4 {
   margin: 0;
-  color: #17211f;
+  color: #111827;
   font-size: 17px;
   line-height: 1.3;
 }
@@ -2674,7 +3055,7 @@ code {
   gap: 10px;
   margin: 0;
   padding-left: 20px;
-  color: #263330;
+  color: #1f2638;
 }
 
 .manual-block li {
@@ -2702,13 +3083,13 @@ code {
 }
 
 .manual-field-item strong {
-  color: #0f2f2b;
+  color: #223670;
   font-size: 14px;
   line-height: 1.3;
 }
 
 .manual-field-item p {
-  color: #52615e;
+  color: #667085;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -2733,9 +3114,9 @@ code {
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
@@ -2752,7 +3133,7 @@ code {
   grid-template-columns: repeat(5, minmax(120px, 1fr));
   gap: 12px;
   padding: 14px 18px;
-  background: #fbfdfd;
+  background: #ffffff;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2762,7 +3143,7 @@ code {
 }
 
 .filter-panel label span {
-  color: #5e6a68;
+  color: #667085;
   font-size: 11px;
   font-weight: 800;
 }
@@ -2799,7 +3180,7 @@ code {
 
 .page-count {
   min-width: 64px;
-  color: #24312f;
+  color: #1f2638;
   text-align: center;
   font-weight: 800;
 }
@@ -2814,7 +3195,7 @@ th,
 td {
   padding: 13px 16px;
   text-align: left;
-  border-bottom: 1px solid #edf1f2;
+  border-bottom: 1px solid #e6ebf4;
   vertical-align: middle;
   font-size: 13px;
 }
@@ -2831,11 +3212,11 @@ th {
 }
 
 td {
-  color: #1f2d2a;
+  color: #1f2638;
 }
 
 tbody tr:hover td {
-  background: #fbfdfd;
+  background: #ffffff;
 }
 
 .mono-id {
@@ -2851,7 +3232,7 @@ tbody tr:hover td {
 }
 
 .user-cell span {
-  color: #17211f;
+  color: #111827;
   font-weight: 700;
 }
 
@@ -2889,9 +3270,9 @@ tbody tr:hover td {
 .status-delivered,
 .status-paid,
 .status-grant {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .status-processing,
@@ -2924,15 +3305,15 @@ tbody tr:hover td {
 }
 
 .status-active {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .status-visible {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .status-draft,
@@ -2970,7 +3351,7 @@ tbody tr:hover td {
   display: grid;
   gap: 14px;
   padding: 18px;
-  background: #fbfdfd;
+  background: #ffffff;
 }
 
 .subpage-surface.narrow {
@@ -3096,7 +3477,7 @@ tbody tr:hover td {
   align-content: start;
   gap: 16px;
   padding: 18px;
-  background: #fbfdfd;
+  background: #ffffff;
 }
 
 .detail-heading {
@@ -3163,13 +3544,13 @@ tbody tr:hover td {
 }
 
 .simulation-item strong {
-  color: #17211f;
+  color: #111827;
   font-size: 18px;
   line-height: 1.2;
 }
 
 .simulation-positive strong {
-  color: #047857;
+  color: #223670;
 }
 
 .simulation-negative strong {
@@ -3265,7 +3646,7 @@ tbody tr:hover td {
   align-items: center;
   justify-content: center;
   padding: 0 10px;
-  color: #17211f;
+  color: #111827;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -3280,7 +3661,7 @@ tbody tr:hover td {
 .planner-subtotal {
   padding-top: 11px;
   border-top: 1px dashed #cbd5e1;
-  color: #17211f;
+  color: #111827;
 }
 
 .planner-subtotal strong {
@@ -3292,7 +3673,7 @@ tbody tr:hover td {
   gap: 3px;
   padding: 16px;
   color: #ffffff;
-  background: #17211f;
+  background: #111827;
   border-radius: 8px;
 }
 
@@ -3334,7 +3715,7 @@ tbody tr:hover td {
 }
 
 .text-positive {
-  color: #047857;
+  color: #223670;
 }
 
 .text-negative {
@@ -3394,7 +3775,7 @@ tbody tr:hover td {
   align-items: center;
   gap: 8px;
   padding: 7px 9px;
-  color: #17211f;
+  color: #111827;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 7px;
@@ -3417,9 +3798,9 @@ tbody tr:hover td {
 }
 
 .check-row {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center;
-  gap: 8px !important;
+  gap: 8px;
 }
 
 .check-row input {
@@ -3441,8 +3822,8 @@ tbody tr:hover td {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: #fbfdfd;
-  border: 1px solid #edf1f2;
+  background: #ffffff;
+  border: 1px solid #e6ebf4;
   border-radius: 8px;
 }
 
@@ -3475,7 +3856,7 @@ tbody tr:hover td {
 }
 
 .probability-grid span {
-  color: #5e6a68;
+  color: #667085;
   font-size: 12px;
   font-weight: 800;
 }
@@ -3483,9 +3864,9 @@ tbody tr:hover td {
 .preview-box {
   justify-content: flex-start;
   padding: 10px 12px;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border: 1px solid #d9deea;
   border-radius: 7px;
   font-size: 13px;
 }
@@ -3513,8 +3894,8 @@ tbody tr:hover td {
   display: grid;
   gap: 10px;
   padding: 12px;
-  background: #fbfdfd;
-  border: 1px solid #edf1f2;
+  background: #ffffff;
+  border: 1px solid #e6ebf4;
   border-radius: 7px;
 }
 
@@ -3537,7 +3918,7 @@ tbody tr:hover td {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  color: #17211f;
+  color: #111827;
   background: #ffffff;
   border: 1px solid #dbe2e4;
   border-radius: 7px;
@@ -3568,8 +3949,8 @@ tbody tr:hover td {
 }
 
 .readiness-panel.ready {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .check-list {
@@ -3623,9 +4004,9 @@ tbody tr:hover td {
 }
 
 .check-dot.passed {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .check-dot.warning {
@@ -3635,7 +4016,7 @@ tbody tr:hover td {
 }
 
 .ok-text {
-  color: #047857;
+  color: #223670;
 }
 
 .danger-text {
@@ -3645,7 +4026,7 @@ tbody tr:hover td {
 .table-link {
   min-height: 28px;
   padding: 0;
-  color: #0f766e;
+  color: #223670;
   background: transparent;
   border: 0;
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -3683,7 +4064,7 @@ tbody tr:hover td {
 
 .stack-form label span,
 .form-title span {
-  color: #5e6a68;
+  color: #667085;
   font-size: 12px;
   font-weight: 700;
 }
@@ -3714,7 +4095,7 @@ tbody tr:hover td {
 }
 
 .upload-field-label small {
-  color: #0f766e;
+  color: #223670;
   font-size: 11px;
   font-weight: 800;
 }
@@ -3731,7 +4112,7 @@ tbody tr:hover td {
   align-items: center;
   justify-content: center;
   padding: 0 14px;
-  color: #173b35;
+  color: #223670;
   background: #ffffff;
   border: 1px solid #b8c5c7;
   border-radius: 7px;
@@ -3771,8 +4152,8 @@ tbody tr:hover td {
   width: 64px;
   height: auto;
   aspect-ratio: 16 / 9;
-  background-color: #eef3f4;
-  border: 1px solid #e5ecee;
+  background-color: #f3f5fa;
+  border: 1px solid #dde3ef;
   border-radius: 6px;
 }
 
@@ -3843,13 +4224,13 @@ tbody tr:hover td {
 }
 
 .flash-success {
-  color: #14532d;
-  background: #f0fdf4;
-  border-color: #86efac;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .flash-success span {
-  background: #dcfce7;
+  background: #e4e8f3;
 }
 
 .flash-error {
@@ -3863,14 +4244,15 @@ tbody tr:hover td {
 }
 
 .flash-info {
-  color: #164e63;
-  background: #ecfeff;
-  border-color: #67e8f9;
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
 }
 
 .flash-info span {
-  background: #cffafe;
+  background: #d9deea;
 }
+
 
 @media (max-width: 1100px) {
   .public-hero {
@@ -3884,6 +4266,15 @@ tbody tr:hover td {
 
   .gacha-detail-hero {
     grid-template-columns: 1fr;
+  }
+
+  .gacha-detail-media,
+  .gacha-detail-media .image-fill {
+    min-height: 520px;
+  }
+
+  .public-prize-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .hero-media {
@@ -3929,13 +4320,31 @@ tbody tr:hover td {
 @media (max-width: 760px) {
   .public-shell {
     width: min(100% - 24px, 1280px);
-    padding: 10px 0 18px;
+    padding: 0 0 18px;
   }
 
-  .public-header,
-  .public-footer {
+  .public-header-inner {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .public-footer {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .public-footer nav {
+    grid-template-columns: 1fr;
+  }
+
+  .public-logo-image {
+    height: 36px;
+    max-width: 58vw;
+  }
+
+  .public-footer-logo {
+    height: 34px;
+    max-width: 58vw;
   }
 
   .hero-copy {
@@ -3946,13 +4355,23 @@ tbody tr:hover td {
     font-size: 32px;
   }
 
-  .public-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .public-header nav {
     width: 100%;
+  }
+
+  .public-gacha-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .gacha-card-purchase {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .gacha-card-remaining {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   .hero-media {
@@ -3970,8 +4389,19 @@ tbody tr:hover td {
     font-size: 28px;
   }
 
-  .gacha-detail-media {
-    min-height: 260px;
+  .gacha-detail-hero {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .gacha-detail-media,
+  .gacha-detail-media .image-fill {
+    min-height: 360px;
+  }
+
+  .detail-purchase-card .detail-metrics,
+  .public-prize-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero-stats {
@@ -3984,7 +4414,8 @@ tbody tr:hover td {
 
   .draw-count-selector,
   .draw-login-form,
-  .draw-summary {
+  .draw-summary,
+  .gacha-detail-side .draw-actions {
     grid-template-columns: 1fr;
   }
 
@@ -4003,6 +4434,11 @@ tbody tr:hover td {
   .price-box {
     width: 100%;
     text-align: left;
+  }
+
+  .detail-purchase-card .price-box {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .detail-metrics {

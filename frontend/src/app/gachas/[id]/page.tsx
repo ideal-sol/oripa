@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { fetchPublicGacha, fetchPublicGachas, PublicGachaDetail, PublicGachaListItem } from "@/lib/api";
 import DrawPanel from "./draw-panel";
@@ -30,34 +31,46 @@ function GachaDetailView({ gacha, recommendedGachas }: { gacha: PublicGachaDetai
       <div className="gacha-detail-hero">
         <div className="gacha-detail-media">
           {gacha.main_image_url ? (
-            <div className="image-fill image-contain" style={{ backgroundImage: `url(${gacha.main_image_url})` }} role="img" aria-label={gacha.title} />
+            <div className="image-fill image-contain" role="img" aria-label={gacha.title}><Image className="optimized-image-contain" src={gacha.main_image_url} alt="" fill sizes="(max-width: 900px) 100vw, 620px" /></div>
           ) : (
             <div className="media-placeholder">LP</div>
           )}
         </div>
-        <header className="detail-top">
-          <div>
-            <span className="public-kicker">{gacha.category.name ?? "Gacha"}</span>
+        <div className="gacha-detail-side">
+          <header className="detail-top">
+            <div className="detail-badges">
+              <span className="public-kicker">{gacha.category.name ?? "Gacha"}</span>
+              {gacha.tags.slice(0, 3).map((tag) => (
+                <span className="detail-tag" key={tag.id}>#{tag.name}</span>
+              ))}
+            </div>
             <h1>{gacha.title}</h1>
             <p>{gacha.description ?? "景品ラインナップを確認できます。"}</p>
-          </div>
-          <div className="price-box">
-            <span>1回</span>
-            <strong>{pointLabel(gacha.price)}</strong>
-          </div>
-        </header>
+          </header>
+
+          <section className="detail-purchase-card" aria-label="販売状況">
+            <div className="price-box">
+              <span>1回</span>
+              <strong><Image src="/coin.png" alt="" width={26} height={26} aria-hidden="true" />{gacha.price.toLocaleString("ja-JP")}</strong>
+            </div>
+            <div className="detail-metrics">
+              <MetricLite label="残り" value={`${gacha.remaining_count.toLocaleString("ja-JP")}口`} />
+              <MetricLite label="販売" value={`${gacha.sold_count.toLocaleString("ja-JP")} / ${gacha.total_count.toLocaleString("ja-JP")}`} />
+              <MetricLite label="最低保証" value={gacha.minimum_guarantee.type === "point" ? `${gacha.minimum_guarantee.value}pt` : "景品"} />
+              <MetricLite label="1日上限" value={gacha.daily_draw_limit ? `${gacha.daily_draw_limit.toLocaleString("ja-JP")}回` : "なし"} />
+            </div>
+            <div className="detail-stock-meter">
+              <div>
+                <span>残り口数</span>
+                <strong>{gacha.remaining_count.toLocaleString("ja-JP")} / {gacha.total_count.toLocaleString("ja-JP")}</strong>
+              </div>
+              <Progress sold={gacha.sold_count} total={gacha.total_count} />
+            </div>
+          </section>
+
+          <DrawPanel gachaId={gacha.id} price={gacha.price} remainingCount={gacha.remaining_count} dailyDrawLimit={gacha.daily_draw_limit} />
+        </div>
       </div>
-
-      <div className="detail-metrics">
-        <MetricLite label="残り" value={`${gacha.remaining_count.toLocaleString("ja-JP")}口`} />
-        <MetricLite label="販売" value={`${gacha.sold_count.toLocaleString("ja-JP")} / ${gacha.total_count.toLocaleString("ja-JP")}`} />
-        <MetricLite label="最低保証" value={gacha.minimum_guarantee.type === "point" ? `${gacha.minimum_guarantee.value}pt` : "景品"} />
-        <MetricLite label="1日上限" value={gacha.daily_draw_limit ? `${gacha.daily_draw_limit.toLocaleString("ja-JP")}回` : "なし"} />
-      </div>
-
-      <Progress sold={gacha.sold_count} total={gacha.total_count} />
-
-      <DrawPanel gachaId={gacha.id} price={gacha.price} remainingCount={gacha.remaining_count} dailyDrawLimit={gacha.daily_draw_limit} />
 
       <div className="stage-panel">
         <div>
@@ -81,7 +94,7 @@ function GachaDetailView({ gacha, recommendedGachas }: { gacha: PublicGachaDetai
               {rank.prizes.map((prize) => (
                 <div className="public-prize-card" key={prize.id}>
                   <div className="prize-image">
-                    {prize.image_url ? <div className="image-fill" style={{ backgroundImage: `url(${prize.image_url})` }} role="img" aria-label={prize.name} /> : <span>LP</span>}
+                    {prize.image_url ? <div className="image-fill" role="img" aria-label={prize.name}><Image className="optimized-image" src={prize.image_url} alt="" fill sizes="(max-width: 760px) 50vw, 260px" /></div> : <span>LP</span>}
                   </div>
                   <div>
                     <strong>{prize.name}</strong>
@@ -119,18 +132,23 @@ function RecommendedGachaCard({ gacha }: { gacha: PublicGachaListItem }) {
   const soldOut = isGachaSoldOut(gacha);
   const children = (
     <>
-      <div className="gacha-card-media">
-        {gacha.main_image_url ? <div className="image-fill image-contain" style={{ backgroundImage: `url(${gacha.main_image_url})` }} /> : <span>LP</span>}
+      <div className="gacha-card-head">
         <span className="gacha-card-badge">{gacha.category.name ?? "Gacha"}</span>
-        <span className="gacha-card-price">{pointLabel(gacha.price)}</span>
-        <span className="gacha-card-remaining">残り {gacha.remaining_count.toLocaleString("ja-JP")}口</span>
-        {soldOut && <span className="sold-out-overlay">SOLD OUT</span>}
+        {gacha.tags.slice(0, 2).map((tag) => (
+          <span className="gacha-card-tag" key={tag.id}>#{tag.name}</span>
+        ))}
+      </div>
+      <div className="gacha-card-media">
+        {gacha.main_image_url ? <div className="image-fill image-contain"><Image className="optimized-image-contain" src={gacha.main_image_url} alt="" fill sizes="(max-width: 760px) 100vw, 590px" /></div> : <span>LP</span>}
       </div>
       <div className="gacha-card-body">
         <strong>{gacha.title}</strong>
-        <div className="gacha-card-meta">
-          <small>{gacha.total_count.toLocaleString("ja-JP")}口</small>
-          <small>{gacha.sold_count.toLocaleString("ja-JP")}口販売済み</small>
+        <div className="gacha-card-purchase">
+          <span className="gacha-card-price">
+            <Image className="gacha-card-price-icon" src="/coin.png" alt="" width={22} height={22} aria-hidden="true" />
+            {gacha.price.toLocaleString("ja-JP")}<small>/1回</small>
+          </span>
+          <span className="gacha-card-remaining">{soldOut ? "完売しました" : `残り ${gacha.remaining_count.toLocaleString("ja-JP")} / ${gacha.total_count.toLocaleString("ja-JP")}`}</span>
         </div>
         <Progress sold={gacha.sold_count} total={gacha.total_count} />
       </div>
@@ -154,11 +172,13 @@ function MetricLite({ label, value }: { label: string; value: string }) {
 }
 
 function Progress({ sold, total }: { sold: number; total: number }) {
-  const percentage = total > 0 ? Math.min(100, Math.max(0, (sold / total) * 100)) : 0;
+  const remaining = Math.max(0, total - sold);
+  const percentage = total > 0 ? Math.min(100, Math.max(0, (remaining / total) * 100)) : 0;
+  const tone = percentage >= 50 ? "high" : percentage >= 20 ? "middle" : "low";
 
   return (
     <div className="public-progress">
-      <span style={{ width: `${percentage}%` }} />
+      <span className={`public-progress-${tone}`} style={{ width: `${percentage}%` }} />
     </div>
   );
 }

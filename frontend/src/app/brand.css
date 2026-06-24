@@ -1,0 +1,399 @@
+:root {
+  --background: #f6f7fb;
+  --foreground: #000000;
+  --muted: #5b6478;
+  --border: #d9deea;
+  --surface: #ffffff;
+  --surface-soft: #eef1f8;
+  --brand: #223670;
+  --brand-soft: #000000;
+  --accent: #223670;
+  --accent-strong: #000000;
+  --gold: #D0A900;
+  --gold-strong: #A88700;
+  --gold-soft: #FFF6CC;
+  --success: #223670;
+  --danger: #c24135;
+  --shadow: 0 18px 50px rgba(34, 54, 112, 0.12);
+  --shadow-strong: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+html,
+body {
+  background: var(--background);
+}
+
+body {
+  background: linear-gradient(180deg, #e5d097 0%, #ead9ad 42vh, #ffffff 100vh);
+  color: var(--foreground);
+}
+
+.public-shell {
+  background: transparent;
+}
+
+.public-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #ffffff;
+  border: 0;
+  border-bottom: 1px solid rgba(217, 226, 234, 0.9);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.public-header nav a,
+.public-footer nav a {
+  color: #344054;
+}
+
+.public-header nav a:hover,
+.public-footer nav a:hover {
+  color: #000000;
+}
+
+.public-footer nav a:hover {
+  color: var(--brand);
+}
+
+.public-header nav a:last-child {
+  color: #ffffff;
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.public-header nav a.public-login-link {
+  color: var(--gold);
+  background: #ffffff;
+  border-color: var(--gold);
+}
+
+.category-tabs a.active,
+.category-tabs a:hover,
+.mypage-tabs button.active,
+.mypage-tabs button:hover {
+  color: #ffffff;
+  background: linear-gradient(135deg, #223670 0%, #000000 100%);
+  border-color: #000000;
+}
+
+.public-header nav a:last-child {
+  box-shadow: 0 10px 22px rgba(208, 169, 0, 0.24);
+}
+
+.public-header nav a.public-login-link {
+  box-shadow: none;
+}
+
+.public-hero,
+.auth-copy,
+.mypage-login,
+.public-error-hero {
+  background:
+    linear-gradient(135deg, rgba(208, 169, 0, 0.18), transparent 38%),
+    linear-gradient(145deg, #223670 0%, #000000 58%, #000000 100%);
+}
+
+.hero-media,
+.gacha-detail-media,
+.top-slider-item,
+.gacha-card-media,
+.history-thumb,
+.user-prize-image,
+.video-preview {
+  background: var(--brand);
+}
+
+.category-panel,
+.gacha-showcase,
+.information-panel,
+.detail-surface,
+.public-footer,
+.status-strip,
+.purchase-panel,
+.mypage-panel,
+.auth-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.public-hero,
+.top-slider-item,
+.public-gacha-card,
+.detail-surface,
+.auth-panel,
+.purchase-panel,
+.mypage-panel,
+.announcement-detail,
+.contact-head,
+.contact-form,
+.public-error-hero {
+  box-shadow: var(--shadow);
+}
+
+.public-hero,
+.detail-surface,
+.auth-panel,
+.purchase-panel,
+.mypage-panel,
+.announcement-detail,
+.contact-head,
+.contact-form,
+.public-footer,
+.status-strip {
+  border-color: rgba(217, 226, 234, 0.92);
+}
+
+.public-kicker,
+.draw-panel-head span,
+.draw-movie-head span,
+.draw-result-title span,
+.auth-copy > span,
+.purchase-head span,
+.purchase-user span,
+.user-prize-body > span,
+.shipping-form > div > span,
+.profile-form section > div:first-child span,
+.information-list time,
+.section-kicker {
+  color: var(--gold);
+}
+
+.hero-copy p,
+.gacha-detail-hero .detail-top p,
+.draw-panel-head p,
+.draw-summary span,
+.draw-guidance p,
+.draw-user-row p,
+.auth-copy p {
+  color: #d6dee8;
+}
+
+.public-primary-link,
+button,
+.auth-form button[type="submit"] {
+  color: #ffffff;
+  background: linear-gradient(135deg, #223670 0%, #000000 100%);
+  border-color: #000000;
+  box-shadow: 0 12px 26px rgba(34, 54, 112, 0.22);
+}
+
+.public-primary-link:hover,
+button:hover:not(:disabled),
+.auth-form button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.public-primary-link.dark {
+  background: linear-gradient(135deg, #223670 0%, #000000 100%);
+  border-color: #223670;
+}
+
+.hero-copy .public-primary-link,
+.draw-panel .public-primary-link,
+.draw-result-actions .public-primary-link {
+  color: #223670;
+  background: linear-gradient(135deg, #ffe9a8, #D0A900);
+  border-color: #D0A900;
+  box-shadow: 0 14px 30px rgba(208, 169, 0, 0.28);
+}
+
+.public-secondary-link.light {
+  color: var(--brand);
+  background: #eef3f7;
+  border-color: #d9e2ea;
+  box-shadow: none;
+}
+
+.public-secondary-link {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.public-user-chip,
+.mypage-message,
+.contact-notice.success,
+.flash-success,
+.flash-info {
+  color: #223670;
+  background: #eef1f8;
+  border-color: #d9deea;
+}
+
+.flash-success span {
+  background: #e4e8f3;
+}
+
+.flash-info span {
+  background: #d9deea;
+}
+
+.public-gacha-card {
+  color: var(--foreground);
+  background: #ffffff;
+  border-color: #dbe5ee;
+  box-shadow: 0 14px 34px rgba(16, 24, 32, 0.09);
+}
+
+.public-gacha-card.active,
+.public-gacha-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-strong);
+}
+
+.hero-gacha-tile::after,
+.top-slider-item::after {
+  background: linear-gradient(180deg, transparent 38%, rgba(11, 18, 32, 0.88));
+}
+
+.gacha-card-badge,
+.top-slider-caption small {
+  color: #ffffff;
+  background: var(--gold);
+  border: 1px solid var(--gold);
+}
+
+.gacha-card-tag {
+  color: var(--brand);
+  background: #ffffff;
+  border-color: #223670;
+}
+
+.gacha-card-price {
+  color: var(--foreground);
+}
+
+.gacha-card-remaining {
+  color: var(--foreground);
+}
+
+.public-progress {
+  background: #e3eaf1;
+}
+
+.public-progress span {
+  background: var(--gold);
+}
+
+.metric-lite,
+.history-metrics > div,
+.purchase-summary > div,
+.payment-result > div,
+.purchase-user,
+.stage-panel,
+.profile-form section,
+.user-prize-card,
+.history-card,
+.shipping-form,
+.point-plan-grid button,
+.terms-check {
+  background: #fbfdff;
+  border-color: #dbe5ee;
+}
+
+.metric-lite strong,
+.price-box strong,
+.purchase-head > strong,
+.mypage-panel .public-section-head > strong,
+.history-shipping-meta strong {
+  color: var(--accent-strong);
+}
+
+.price-box,
+.draw-guidance.warning,
+.caution-box,
+.public-empty,
+.rank-pill,
+.status-processing,
+.status-requested,
+.status-shipping-requested,
+.status-packing,
+.status-pending,
+.status-free,
+.status-scheduled,
+.status-sold-out,
+.status-ended {
+  color: #6f4a08;
+  background: var(--gold-soft);
+  border-color: #f0cf7a;
+}
+
+.draw-count-selector button.active,
+.draw-count-selector button:hover,
+.auth-switch button.active,
+.auth-switch button:hover,
+.point-plan-grid button.active,
+.point-plan-grid button:hover {
+  color: var(--brand);
+  background: linear-gradient(135deg, #fff8df, var(--gold-soft));
+  border-color: var(--gold);
+}
+
+.draw-summary > div,
+.draw-user-row,
+.draw-guidance,
+.draw-result-list li,
+.draw-result-panel,
+.hero-stats .metric-lite {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.draw-message {
+  color: #ffffff;
+  background: rgba(34, 54, 112, 0.20);
+  border-color: rgba(34, 54, 112, 0.36);
+}
+
+.draw-result-bottom {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.48), rgba(11, 18, 32, 0.98)),
+    linear-gradient(135deg, rgba(208, 169, 0, 0.18), transparent 46%);
+}
+
+.history-card > strong.positive,
+.text-positive,
+.ok-text,
+.status-completed,
+.status-succeeded,
+.status-delivered,
+.status-paid,
+.status-grant,
+.status-active,
+.status-visible {
+  color: var(--success);
+}
+
+.auth-message,
+.contact-notice.error,
+.flash-error {
+  color: var(--danger);
+  background: #fff3f0;
+  border-color: #ffd1c9;
+}
+
+.gacha-detail-hero {
+  background:
+    radial-gradient(circle at 22% 0%, rgba(208, 169, 0, 0.22), transparent 34%),
+    linear-gradient(145deg, #223670 0%, #05070d 74%);
+}
+
+.gacha-detail-side .draw-panel {
+  background: #ffffff;
+  border-color: rgba(34, 54, 112, 0.14);
+}
+
+.gacha-detail-side .draw-panel-head p,
+.gacha-detail-side .draw-summary span,
+.gacha-detail-side .draw-guidance p,
+.gacha-detail-side .draw-user-row p {
+  color: #667085;
+}
+
+.gacha-detail-side .draw-panel-head h2,
+.gacha-detail-side .draw-panel-head > strong,
+.gacha-detail-side .draw-summary strong,
+.gacha-detail-side .draw-user-row strong {
+  color: #101820;
+}

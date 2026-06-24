@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Requests\Api\ForgotPasswordRequest;
 use App\Http\Requests\Api\LoginRequest;
 use App\Http\Requests\Api\RegisterRequest;
+use App\Http\Requests\Api\ResendEmailVerificationRequest;
 use App\Http\Requests\Api\ResetPasswordRequest;
 use App\Http\Resources\UserResource;
 use App\Mail\PasswordResetMail;
-use App\Mail\UserRegisteredMail;
+use App\Mail\UserEmailVerificationMail;
+use App\Models\ReferralSetting;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Models\UserReferral;
 use App\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -28,9 +32,14 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated): User {
+            $referrer = ! empty($validated['referral_code'])
+                ? User::query()->where('referral_code', $validated['referral_code'])->lockForUpdate()->first()
+                : null;
+
             $user = User::query()->create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
+                'referral_code' => User::generateReferralCode(),
                 'password' => $validated['password'],
                 'status' => 'active',
             ]);
@@ -48,18 +57,70 @@ class AuthController extends Controller
                 'free_balance' => 0,
             ]);
 
+            if ($referrer && (int) $referrer->id !== (int) $user->id) {
+                $setting = ReferralSetting::current();
+
+                UserReferral::query()->create([
+                    'referrer_user_id' => $referrer->id,
+                    'referred_user_id' => $user->id,
+                    'referral_code' => $validated['referral_code'],
+                    'status' => 'pending',
+                    'reward_point_amount' => $setting->is_active ? (int) $setting->reward_point_amount : 0,
+                    'reward_expiration_days' => $setting->is_active ? $setting->reward_expiration_days : null,
+                ]);
+            }
+
             return $user;
         });
 
-        Mail::to($user->email, $user->name)->send(new UserRegisteredMail($user));
-
-        $token = $user->createToken($request->deviceName(), ['user'])->plainTextToken;
+        $this->sendEmailVerificationMail($user);
 
         return response()->json([
-            'token_type' => 'Bearer',
-            'access_token' => $token,
+            'message' => 'Registration has been accepted. Please verify your email address within 24 hours.',
             'user' => new UserResource($user->load(['wallet', 'profile'])),
         ], 201);
+    }
+
+    public function verifyEmail(Request $request, User $user, string $hash): JsonResponse
+    {
+        if (! $request->hasValidSignature()) {
+            throw ValidationException::withMessages([
+                'email' => ['The email verification link is invalid or expired.'],
+            ]);
+        }
+
+        if (! hash_equals(sha1($user->email), $hash)) {
+            throw ValidationException::withMessages([
+                'email' => ['The email verification link is invalid or expired.'],
+            ]);
+        }
+
+        if (! $user->email_verified_at) {
+            $user->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+        }
+
+        return response()->json([
+            'message' => 'Email has been verified.',
+            'user' => new UserResource($user->load(['wallet', 'profile'])),
+        ]);
+    }
+
+    public function resendEmailVerification(ResendEmailVerificationRequest $request): JsonResponse
+    {
+        $user = User::query()
+            ->where('email', $request->email())
+            ->where('status', 'active')
+            ->first();
+
+        if ($user && ! $user->email_verified_at) {
+            $this->sendEmailVerificationMail($user);
+        }
+
+        return response()->json([
+            'message' => 'If the email exists and is not verified, a verification link has been sent.',
+        ]);
     }
 
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
@@ -125,6 +186,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->email_verified_at) {
+            throw ValidationException::withMessages([
+                'email' => ['Please verify your email address before logging in.'],
+            ]);
+        }
+
         $token = $user->createToken($request->deviceName(), ['user'])->plainTextToken;
 
         return response()->json([
@@ -141,5 +208,27 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Logged out.',
         ]);
+    }
+
+    private function sendEmailVerificationMail(User $user): void
+    {
+        $apiVerificationUrl = URL::temporarySignedRoute(
+            'api.email.verify',
+            now()->addHours(24),
+            [
+                'user' => $user->id,
+                'hash' => sha1($user->email),
+            ],
+        );
+
+        Mail::to($user->email, $user->name)->send(new UserEmailVerificationMail($user, $this->frontendEmailVerificationUrl($apiVerificationUrl)));
+    }
+
+    private function frontendEmailVerificationUrl(string $apiVerificationUrl): string
+    {
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+        $token = rtrim(strtr(base64_encode($apiVerificationUrl), '+/', '-_'), '=');
+
+        return "{$frontendUrl}/email/verify?token={$token}";
     }
 }

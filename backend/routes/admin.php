@@ -22,6 +22,8 @@ use App\Http\Controllers\Admin\Payment\AdminPaymentController;
 use App\Http\Controllers\Admin\Payment\AdminPointPurchasePlanController;
 use App\Http\Controllers\Admin\Point\AdminPointAdjustmentController;
 use App\Http\Controllers\Admin\Prize\AdminUserPrizeController;
+use App\Http\Controllers\Admin\Referral\AdminReferralSettingController;
+use App\Http\Controllers\Admin\Referral\AdminUserReferralController;
 use App\Http\Controllers\Admin\Shipping\AdminShippingItemController;
 use App\Http\Controllers\Admin\Shipping\AdminShippingRequestController;
 use App\Http\Controllers\Admin\User\AdminUserController;
@@ -119,6 +121,10 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
 
     Route::get('/point-adjustments', [AdminPointAdjustmentController::class, 'index'])->name('admin.api.point-adjustments.index');
     Route::post('/users/{user}/point-adjustments', [AdminPointAdjustmentController::class, 'store'])->name('admin.api.users.point-adjustments.store');
+
+    Route::get('/referrals', [AdminUserReferralController::class, 'index'])->name('admin.api.referrals.index');
+    Route::get('/referral-settings', [AdminReferralSettingController::class, 'show'])->name('admin.api.referral-settings.show');
+    Route::put('/referral-settings', [AdminReferralSettingController::class, 'update'])->name('admin.api.referral-settings.update');
 
     Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('admin.api.audit-logs.index');
 });

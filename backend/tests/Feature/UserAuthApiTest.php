@@ -4,21 +4,25 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Mail\PasswordResetMail;
-use App\Mail\UserRegisteredMail;
+use App\Mail\UserEmailVerificationMail;
+use App\Models\ReferralSetting;
 use App\Models\Wallet;
+use App\Models\UserReferral;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class UserAuthApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_register_and_receive_token(): void
+    public function test_user_can_register_and_receive_email_verification_mail(): void
     {
         Mail::fake();
+        config(['app.frontend_url' => 'https://luxe-pack.biz']);
 
         $this->postJson('/api/register', [
             'name' => 'New User',
@@ -31,15 +35,16 @@ class UserAuthApiTest extends TestCase
             'device_name' => 'feature-test',
         ])
             ->assertCreated()
-            ->assertJsonPath('token_type', 'Bearer')
+            ->assertJsonPath('message', 'Registration has been accepted. Please verify your email address within 24 hours.')
             ->assertJsonPath('user.email', 'new-user@example.test')
             ->assertJsonPath('user.wallet.total_balance', 0)
             ->assertJsonPath('user.profile.last_name', '山田')
-            ->assertJsonStructure(['access_token']);
+            ->assertJsonPath('user.email_verified_at', null);
 
         $this->assertDatabaseHas('users', [
             'email' => 'new-user@example.test',
             'status' => 'active',
+            'email_verified_at' => null,
         ]);
         $this->assertDatabaseHas('user_profiles', [
             'last_name' => '山田',
@@ -50,8 +55,13 @@ class UserAuthApiTest extends TestCase
             'free_balance' => 0,
         ]);
         $user = User::query()->where('email', 'new-user@example.test')->firstOrFail();
-        $this->assertSame(1, $user->tokens()->count());
-        Mail::assertSent(UserRegisteredMail::class);
+        $this->assertSame(0, $user->tokens()->count());
+        Mail::assertSent(
+            UserEmailVerificationMail::class,
+            fn (UserEmailVerificationMail $mail): bool => $mail->hasTo('new-user@example.test')
+                && str_contains($mail->render(), 'https://luxe-pack.biz/email/verify?token=')
+                && ! str_contains($mail->render(), '/api/email/verify'),
+        );
     }
 
     public function test_register_payload_is_validated(): void
@@ -66,6 +76,71 @@ class UserAuthApiTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name', 'email', 'password']);
+    }
+
+    public function test_register_rejects_plus_alias_email_local_part(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Alias User',
+            'email' => 'alias+test@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_register_with_referral_code_creates_pending_referral(): void
+    {
+        Mail::fake();
+        $referrer = User::factory()->create([
+            'referral_code' => 'LPREFERRAL1',
+        ]);
+        ReferralSetting::query()->updateOrCreate(
+            ['id' => 1],
+            [
+                'reward_point_amount' => 700,
+                'reward_expiration_days' => 180,
+                'is_active' => true,
+            ],
+        );
+
+        $this->postJson('/api/register', [
+            'name' => 'Referred User',
+            'email' => 'referred-user@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+            'referral_code' => 'lpreferral1',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('user.email', 'referred-user@example.test')
+            ->assertJsonPath('user.referral_code', fn (?string $value): bool => is_string($value) && str_starts_with($value, 'LP'));
+
+        $referred = User::query()->where('email', 'referred-user@example.test')->firstOrFail();
+
+        $this->assertDatabaseHas('user_referrals', [
+            'referrer_user_id' => $referrer->id,
+            'referred_user_id' => $referred->id,
+            'referral_code' => 'LPREFERRAL1',
+            'status' => 'pending',
+            'reward_point_amount' => 700,
+            'reward_expiration_days' => 180,
+            'rewarded_at' => null,
+        ]);
+        $this->assertSame(1, UserReferral::query()->count());
+    }
+
+    public function test_register_rejects_unknown_referral_code(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Unknown Referral User',
+            'email' => 'unknown-referral@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+            'referral_code' => 'LPUNKNOWN',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['referral_code']);
     }
 
     public function test_active_user_can_login_and_receive_token(): void
@@ -94,6 +169,23 @@ class UserAuthApiTest extends TestCase
             ->assertJsonStructure(['access_token']);
 
         $this->assertSame(1, $user->tokens()->count());
+    }
+
+    public function test_unverified_user_cannot_login(): void
+    {
+        User::factory()->create([
+            'email' => 'unverified@example.test',
+            'email_verified_at' => null,
+            'password' => Hash::make('secret-password'),
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => 'unverified@example.test',
+            'password' => 'secret-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     }
 
     public function test_login_rejects_invalid_or_inactive_user(): void
@@ -135,6 +227,72 @@ class UserAuthApiTest extends TestCase
             ->assertJsonPath('message', 'Logged out.');
 
         $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_user_can_verify_email_with_signed_url(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'verify@example.test',
+            'email_verified_at' => null,
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.email.verify',
+            now()->addHours(24),
+            [
+                'user' => $user->id,
+                'hash' => sha1($user->email),
+            ],
+        );
+
+        $this->getJson($url)
+            ->assertOk()
+            ->assertJsonPath('message', 'Email has been verified.')
+            ->assertJsonPath('user.email_verified_at', fn (?string $value): bool => $value !== null);
+
+        $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_expired_email_verification_link_is_rejected(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'expired@example.test',
+            'email_verified_at' => null,
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.email.verify',
+            now()->subMinute(),
+            [
+                'user' => $user->id,
+                'hash' => sha1($user->email),
+            ],
+        );
+
+        $this->getJson($url)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $this->assertNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_user_can_request_email_verification_resend(): void
+    {
+        Mail::fake();
+
+        User::factory()->create([
+            'email' => 'resend@example.test',
+            'email_verified_at' => null,
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/email/verification-notification', [
+            'email' => 'resend@example.test',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'If the email exists and is not verified, a verification link has been sent.');
+
+        Mail::assertSent(UserEmailVerificationMail::class, fn (UserEmailVerificationMail $mail): bool => $mail->hasTo('resend@example.test'));
     }
 
     public function test_user_can_request_password_reset_mail(): void

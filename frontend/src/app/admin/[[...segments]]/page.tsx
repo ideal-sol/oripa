@@ -132,6 +132,14 @@ function routeStateFromSegments(segments: string[]): AdminRouteState {
   }
 
   if (section === "settings") {
+    if (second === "pages") {
+      return { tab: "settings", subView: "pages" };
+    }
+
+    if (second === "rank-assets" && !third) {
+      return { tab: "settings", subView: "rank-assets" };
+    }
+
     if (second === "rank-assets" && third === "new") {
       return { tab: "settings", subView: "rank-asset-new" };
     }
@@ -142,6 +150,10 @@ function routeStateFromSegments(segments: string[]): AdminRouteState {
 
     if (second === "static-pages" && third && fourth === "edit") {
       return { tab: "settings", subView: "edit", entityId: third };
+    }
+
+    if (second === "referral") {
+      return { tab: "settings", subView: "referral" };
     }
 
     return { tab: "settings" };
@@ -169,6 +181,30 @@ function routeStateFromGachaSegments([first, second, third]: (string | undefined
     }
 
     return { tab: "gachas", gachaView: "category-list" };
+  }
+
+  if (first === "tags") {
+    if (second === "new") {
+      return { tab: "gachas", gachaView: "tag-new" };
+    }
+
+    if (second && third === "edit") {
+      return { tab: "gachas", gachaView: "tag-edit", gachaEntityId: second };
+    }
+
+    return { tab: "gachas", gachaView: "tag-list" };
+  }
+
+  if (first === "top-banners") {
+    if (second === "new") {
+      return { tab: "gachas", gachaView: "top-banner-new" };
+    }
+
+    if (second && third === "edit") {
+      return { tab: "gachas", gachaView: "top-banner-edit", gachaEntityId: second };
+    }
+
+    return { tab: "gachas", gachaView: "top-banner-list" };
   }
 
   if (first === "ranks") {

@@ -33,6 +33,16 @@ export type StaticPage = {
   updated_at: string | null;
 };
 
+export type PublicTopBanner = {
+  id: number;
+  image_url: string;
+  link_url: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type PublicGachaListItem = {
   id: number;
   title: string;
@@ -42,6 +52,12 @@ export type PublicGachaListItem = {
     name: string | null;
     slug: string | null;
   };
+  tags: {
+    id: number;
+    name: string;
+    slug: string;
+    sort_order: number;
+  }[];
   price: number;
   total_count: number;
   daily_draw_limit: number | null;
@@ -136,6 +152,21 @@ export async function fetchPublicGachas(baseUrl = getApiBaseUrl()): Promise<ApiC
   }
 
   return response.json() as Promise<ApiCollection<PublicGachaListItem>>;
+}
+
+export async function fetchPublicTopBanners(baseUrl = getApiBaseUrl()): Promise<ApiCollection<PublicTopBanner>> {
+  const response = await fetch(`${baseUrl}/top-banners`, {
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Laravel API top banner list failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<ApiCollection<PublicTopBanner>>;
 }
 
 export async function fetchPublicAnnouncements(baseUrl = getApiBaseUrl()): Promise<ApiCollection<Announcement>> {

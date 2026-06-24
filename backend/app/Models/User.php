@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -16,6 +17,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'referral_code',
         'password',
         'status',
     ];
@@ -51,5 +53,24 @@ class User extends Authenticatable
     public function pointLedgers()
     {
         return $this->hasMany(PointLedger::class);
+    }
+
+    public function referralsMade()
+    {
+        return $this->hasMany(UserReferral::class, 'referrer_user_id');
+    }
+
+    public function referralReceived()
+    {
+        return $this->hasOne(UserReferral::class, 'referred_user_id');
+    }
+
+    public static function generateReferralCode(): string
+    {
+        do {
+            $code = 'LP'.Str::upper(Str::random(10));
+        } while (self::query()->where('referral_code', $code)->exists());
+
+        return $code;
     }
 }

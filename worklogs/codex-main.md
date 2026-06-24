@@ -135,6 +135,57 @@ Branch: `main`
       - `docker compose exec -T backend php artisan test --filter=PointPurchasePlanApiTest` succeeded; the filter also matched `AdminPointPurchasePlanApiTest`, total 3 tests and 16 assertions before the end-only case was added.
       - `docker compose exec -T backend php artisan test --filter=expired_point_purchase_plan_cannot_be_used_for_payment` succeeded with 1 test and 2 assertions.
       - `pnpm typecheck` succeeded in `frontend/`.
+  - Added email verification for normal user registration.
+    - Registration now creates the user/profile/wallet but does not issue an access token.
+    - A 24-hour signed email verification URL is sent via Laravel Mail.
+    - `GET /api/email/verify/{user}/{hash}` verifies the signed URL and sets `email_verified_at`.
+    - `POST /api/email/verification-notification` resends the verification email when the account exists and is still unverified.
+    - Login now rejects active users whose `email_verified_at` is still null.
+    - Registration email validation now rejects email local parts containing `+`.
+    - Frontend layout files were not changed for this task.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 12 tests and 58 assertions.
+  - Added referral code foundation.
+    - Users now have a unique `referral_code`.
+    - Registration accepts an optional referral code and records a pending `user_referrals` row when valid.
+    - Referral reward settings are stored in `referral_settings`.
+    - Admin APIs were added for referral history and referral reward settings.
+    - Actual reward point grant is intentionally not implemented yet; the current business decision is to grant after SMS verification.
+    - Frontend layout files were not changed for this task.
+    - Verification:
+      - `docker compose exec -T backend php artisan migrate --force` succeeded.
+      - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 14 tests and 66 assertions.
+      - `docker compose exec -T backend php artisan test --filter=AdminReferralApiTest` succeeded with 2 tests and 11 assertions.
+  - Adjusted email verification UX.
+    - Registration and resend emails now show a frontend URL under `/email/verify` instead of exposing `/api/email/verify`.
+    - The frontend verification route calls the signed Laravel API URL server-side and redirects users to `/login`.
+    - Successful verification redirects to `/login?email_verified=success`.
+    - Invalid or expired verification links redirect to `/login?email_verified=invalid`.
+    - The login page displays a Japanese status message for the verification result.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 14 tests and 66 assertions.
+      - `docker compose exec -T frontend pnpm typecheck` succeeded.
+  - Updated admin settings navigation.
+    - The settings page now first shows three links: page settings, rank asset settings, and referral point settings.
+    - Page settings and rank asset settings now open as separate settings subviews.
+    - Referral point settings now display the current reward configuration and referral history.
+    - Referral point settings can be updated from the admin UI via the existing Laravel admin API.
+    - Verification:
+      - `docker compose exec -T frontend pnpm typecheck` succeeded.
+  - Added admin referral history visibility.
+    - User detail pages now show referral history where the selected user is either the referrer or referred user.
+    - Referral point settings now include a user ID search for referral history.
+    - The admin referral API now accepts `user_id` and searches both `referrer_user_id` and `referred_user_id`.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=AdminReferralApiTest` succeeded with 3 tests and 15 assertions.
+      - `docker compose exec -T frontend pnpm typecheck` succeeded.
+  - Refined admin referral display.
+    - The page settings list now uses the full admin section width.
+    - User detail pages now show the user's own referral code in the profile grid.
+    - If the user registered with a referral code, the referrer's code and name are shown in the profile grid.
+    - User detail referral history now lists only users referred by the selected user, hiding the redundant referrer and referral code columns.
+    - Verification:
+      - `docker compose exec -T frontend pnpm typecheck` succeeded.
 - Admin screens were split into URL routes.
   - Added `frontend/src/app/admin/[[...segments]]/page.tsx`
   - Admin root on the admin subdomain redirects to `/admin/guide`

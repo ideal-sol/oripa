@@ -35,6 +35,8 @@ Route::get('/gachas', [GachaController::class, 'index'])->name('api.gachas.index
 Route::get('/gachas/{gacha}', [GachaController::class, 'show'])->name('api.gachas.show');
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');
+Route::get('/email/verify/{user}/{hash}', [AuthController::class, 'verifyEmail'])->name('api.email.verify');
+Route::post('/email/verification-notification', [AuthController::class, 'resendEmailVerification'])->name('api.email.verification.resend');
 Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->name('api.password.forgot');
 Route::post('/password/reset', [AuthController::class, 'resetPassword'])->name('api.password.reset');
 Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.webhook');

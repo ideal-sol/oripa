@@ -90,32 +90,32 @@ export default function PublicHeader() {
 
   return (
     <header className="public-header">
-      <Link className="public-logo" href="/">
-        <Image className="public-logo-image" src="/logo.png" alt="Luxe Pack" width={64} height={58} priority unoptimized />
-      </Link>
-      <nav aria-label="公開メニュー">
-        <Link href="/#gachas">ガチャ</Link>
-        <Link href="/#information">お知らせ</Link>
-        {ready && session ? (
-          <>
-            <Link href="/points/purchase">ポイント購入</Link>
-            <Link href="/mypage/prizes">景品BOX</Link>
-            <Link href="/mypage/points">ポイント履歴</Link>
-            <Link href="/mypage/draws">抽選履歴</Link>
-            <Link href="/mypage/shipping">配送履歴</Link>
-            <Link href="/mypage/profile">プロフィール</Link>
-            <span className="public-user-chip">{session.user.name}</span>
-            <button className="public-nav-button" type="button" onClick={() => void handleLogout()}>
-              ログアウト
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href="/login">ログイン</Link>
-            <Link href="/login?mode=register">会員登録</Link>
-          </>
-        )}
-      </nav>
+      <div className="public-header-inner">
+        <Link className="public-logo" href="/">
+          <Image className="public-logo-image" src="/lp-logo.png" alt="Luxe Pack" width={296} height={71} priority unoptimized />
+        </Link>
+        <nav aria-label="公開メニュー">
+          {ready && session ? (
+            <>
+              <Link href="/points/purchase">ポイント購入</Link>
+              <Link href="/mypage/prizes">景品BOX</Link>
+              <Link href="/mypage/points">ポイント履歴</Link>
+              <Link href="/mypage/draws">抽選履歴</Link>
+              <Link href="/mypage/shipping">配送履歴</Link>
+              <Link href="/mypage/profile">プロフィール</Link>
+              <span className="public-user-chip">{session.user.name}</span>
+              <button className="public-nav-button" type="button" onClick={() => void handleLogout()}>
+                ログアウト
+              </button>
+            </>
+          ) : (
+            <>
+              <Link className="public-login-link" href="/login">ログイン</Link>
+              <Link href="/login?mode=register">会員登録</Link>
+            </>
+          )}
+        </nav>
+      </div>
     </header>
   );
 }

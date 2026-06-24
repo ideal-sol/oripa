@@ -27,6 +27,7 @@ type ApiErrorResponse = {
 };
 
 type AuthClientProps = {
+  initialMessage: string | null;
   initialMode: AuthMode;
   redirectTo: string;
 };
@@ -34,7 +35,7 @@ type AuthClientProps = {
 const sessionStorageKey = "oripa_user_session";
 const sessionChangedEvent = "oripa-session-changed";
 
-export default function AuthClient({ initialMode, redirectTo }: AuthClientProps) {
+export default function AuthClient({ initialMessage, initialMode, redirectTo }: AuthClientProps) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
@@ -45,7 +46,7 @@ export default function AuthClient({ initialMode, redirectTo }: AuthClientProps)
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialMessage);
 
   useEffect(() => {
     const rawSession = window.localStorage.getItem(sessionStorageKey);

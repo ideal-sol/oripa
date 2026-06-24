@@ -20,6 +20,7 @@ type User = {
   id: number;
   name: string;
   email: string;
+  referral_code?: string | null;
   status: string;
   email_verified_at?: string | null;
   created_at?: string | null;
@@ -146,6 +147,8 @@ type PointPurchasePlan = {
   free_point_amount: number;
   sort_order: number;
   is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -160,6 +163,31 @@ type PointAdjustment = {
   reason: string;
   user?: User;
   created_at: string;
+};
+
+type ReferralSetting = {
+  id: number;
+  reward_point_amount: number;
+  reward_expiration_days: number | null;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type UserReferral = {
+  id: number;
+  referrer_user_id: number;
+  referred_user_id: number;
+  referral_code: string;
+  status: string;
+  reward_point_amount: number;
+  reward_expiration_days: number | null;
+  rewarded_at: string | null;
+  canceled_at: string | null;
+  referrer?: User;
+  referred?: User;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 type ContactRequest = {
@@ -208,12 +236,24 @@ type Announcement = {
   updated_at: string | null;
 };
 
+type TopBanner = {
+  id: number;
+  image_url: string;
+  link_url: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type Gacha = {
   id: number;
   title: string;
   slug: string;
   category_id: number;
   category?: { id: number | null; name: string | null; slug: string | null };
+  tags?: GachaTag[];
+  tag_ids?: number[];
   price: number;
   total_count: number;
   daily_draw_limit: number | null;
@@ -251,6 +291,16 @@ type GachaCategory = {
   slug: string;
   sort_order: number;
   is_visible: boolean;
+};
+
+type GachaTag = {
+  id: number;
+  name: string;
+  slug: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type GachaReadiness = {
@@ -309,7 +359,7 @@ type GachaPrize = {
   sort_order: number;
 };
 
-type AssetContext = "gacha" | "rank" | "prize" | "draw-video" | "announcement";
+type AssetContext = "gacha" | "rank" | "prize" | "draw-video" | "announcement" | "top-banner";
 
 type UploadedAsset = {
   path: string;
@@ -421,6 +471,8 @@ type AdminDataCache = {
   staticPages: StaticPage[];
   rankAssets: RankAsset[];
   categories: GachaCategory[];
+  tags: GachaTag[];
+  topBanners: TopBanner[];
   gachas: Gacha[];
   users: User[];
   gachaRanks: GachaRank[];
@@ -431,6 +483,8 @@ type AdminDataCache = {
   payments: Payment[];
   purchasePlans: PointPurchasePlan[];
   pointAdjustments: PointAdjustment[];
+  referralSetting: ReferralSetting | null;
+  referrals: UserReferral[];
 };
 
 type TabKey = "guide" | "announcements" | "contacts" | "gachas" | "users" | "draws" | "prizes" | "shipping" | "payments" | "purchasePlans" | "points" | "settings";
@@ -439,7 +493,7 @@ type NoticeTone = "success" | "error" | "info";
 type AnnouncementView = "list" | "new" | "edit";
 type PointView = "list" | "new";
 type ContactView = "list" | "edit";
-type SettingView = "list" | "edit" | "rank-asset-new" | "rank-asset-edit";
+type SettingView = "list" | "pages" | "edit" | "rank-assets" | "rank-asset-new" | "rank-asset-edit" | "referral";
 type PurchasePlanView = "list" | "new" | "edit";
 type UserManagementView = "list" | "detail";
 type ShippingView = "list" | "edit";
@@ -453,6 +507,12 @@ type GachaAdminView =
   | "category-list"
   | "category-new"
   | "category-edit"
+  | "tag-list"
+  | "tag-new"
+  | "tag-edit"
+  | "top-banner-list"
+  | "top-banner-new"
+  | "top-banner-edit"
   | "prize-list"
   | "prize-new"
   | "prize-edit";
@@ -473,6 +533,8 @@ const gachaSubViews: { key: GachaAdminView; label: string }[] = [
   { key: "gacha-list", label: "ガチャ一覧" },
   { key: "rank-list", label: "ランク一覧" },
   { key: "category-list", label: "カテゴリ一覧" },
+  { key: "tag-list", label: "タグ一覧" },
+  { key: "top-banner-list", label: "トップバナー一覧" },
   { key: "prize-list", label: "景品一覧" },
 ];
 
@@ -543,10 +605,13 @@ export default function AdminDashboard({
   const [selectedUserDraws, setSelectedUserDraws] = useState<DrawRequest[]>([]);
   const [selectedUserPayments, setSelectedUserPayments] = useState<Payment[]>([]);
   const [selectedUserPointAdjustments, setSelectedUserPointAdjustments] = useState<PointAdjustment[]>([]);
+  const [selectedUserReferrals, setSelectedUserReferrals] = useState<UserReferral[]>([]);
   const [gachas, setGachas] = useState<Gacha[]>(cachedAdminData?.gachas ?? []);
   const [gachaRanks, setGachaRanks] = useState<GachaRank[]>(cachedAdminData?.gachaRanks ?? []);
   const [gachaPrizes, setGachaPrizes] = useState<GachaPrize[]>(cachedAdminData?.gachaPrizes ?? []);
   const [categories, setCategories] = useState<GachaCategory[]>(cachedAdminData?.categories ?? []);
+  const [tags, setTags] = useState<GachaTag[]>(cachedAdminData?.tags ?? []);
+  const [topBanners, setTopBanners] = useState<TopBanner[]>(cachedAdminData?.topBanners ?? []);
   const [selectedGacha, setSelectedGacha] = useState<Gacha | null>(null);
   const [readiness, setReadiness] = useState<GachaReadiness | null>(null);
   const [prizes, setPrizes] = useState<UserPrize[]>(cachedAdminData?.prizes ?? []);
@@ -556,6 +621,8 @@ export default function AdminDashboard({
   const [payments, setPayments] = useState<Payment[]>(cachedAdminData?.payments ?? []);
   const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>(cachedAdminData?.purchasePlans ?? []);
   const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>(cachedAdminData?.pointAdjustments ?? []);
+  const [referralSetting, setReferralSetting] = useState<ReferralSetting | null>(cachedAdminData?.referralSetting ?? null);
+  const [referrals, setReferrals] = useState<UserReferral[]>(cachedAdminData?.referrals ?? []);
   const [announcements, setAnnouncements] = useState<Announcement[]>(cachedAdminData?.announcements ?? []);
   const [contacts, setContacts] = useState<ContactRequest[]>(cachedAdminData?.contacts ?? []);
   const [selectedContact, setSelectedContact] = useState<ContactRequest | null>(null);
@@ -617,6 +684,8 @@ export default function AdminDashboard({
     freePointAmount: "0",
     sortOrder: "1",
     isActive: true,
+    startsAt: "",
+    endsAt: "",
   });
   const [contactReplyForm, setContactReplyForm] = useState({
     status: "new",
@@ -639,6 +708,14 @@ export default function AdminDashboard({
     url: "",
     isActive: true,
   });
+  const [referralSettingForm, setReferralSettingForm] = useState({
+    rewardPointAmount: "0",
+    rewardExpirationDays: "",
+    isActive: true,
+  });
+  const [referralSearchForm, setReferralSearchForm] = useState({
+    userId: "",
+  });
   const [announcementForm, setAnnouncementForm] = useState({
     id: "",
     title: "",
@@ -654,6 +731,20 @@ export default function AdminDashboard({
     slug: "",
     sortOrder: "1",
     isVisible: true,
+  });
+  const [tagForm, setTagForm] = useState({
+    id: "",
+    name: "",
+    slug: "",
+    sortOrder: "1",
+    isActive: true,
+  });
+  const [topBannerForm, setTopBannerForm] = useState({
+    id: "",
+    imageUrl: "",
+    linkUrl: "",
+    sortOrder: "1",
+    isActive: true,
   });
   const [gachaForm, setGachaForm] = useState({
     id: "",
@@ -675,6 +766,7 @@ export default function AdminDashboard({
     mainImageUrl: "",
     showOnTopSlider: false,
     targetMargin: "",
+    tagIds: [] as string[],
   });
   const [rankForm, setRankForm] = useState({
     id: "",
@@ -850,12 +942,16 @@ export default function AdminDashboard({
     clearMessage();
 
     try {
-      const [announcementData, contactData, staticPageData, rankAssetData, categoryData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
+      const [announcementData, contactData, staticPageData, rankAssetData, referralSettingData, referralData, categoryData, tagData, topBannerData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
         apiRequest<ApiCollection<Announcement>>(endpointFor("announcements", pages.announcements, filters.announcements), {}, token),
         apiRequest<ApiCollection<ContactRequest>>(endpointFor("contacts", pages.contacts, filters.contacts), {}, token),
         apiRequest<ApiCollection<StaticPage>>(endpointFor("settings", pages.settings, filters.settings), {}, token),
         apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, token),
+        apiRequest<{ data: ReferralSetting }>("/referral-settings", {}, token),
+        apiRequest<ApiCollection<UserReferral>>("/referrals?per_page=100", {}, token),
         apiRequest<{ data: GachaCategory[] }>("/gacha-categories", {}, token),
+        apiRequest<{ data: GachaTag[] }>("/gacha-tags", {}, token),
+        apiRequest<{ data: TopBanner[] }>("/top-banners", {}, token),
         apiRequest<ApiCollection<Gacha>>(endpointFor("gachas", pages.gachas, filters.gachas), {}, token),
         apiRequest<ApiCollection<User>>(endpointFor("users", pages.users, filters.users), {}, token),
         apiRequest<ApiCollection<GachaRank>>("/gacha-ranks?per_page=100", {}, token),
@@ -872,7 +968,16 @@ export default function AdminDashboard({
       setTabData("contacts", contactData);
       setTabData("settings", staticPageData);
       setRankAssets(rankAssetData.data);
+      setReferralSetting(referralSettingData.data);
+      setReferralSettingForm({
+        rewardPointAmount: String(referralSettingData.data.reward_point_amount),
+        rewardExpirationDays: referralSettingData.data.reward_expiration_days === null ? "" : String(referralSettingData.data.reward_expiration_days),
+        isActive: referralSettingData.data.is_active,
+      });
+      setReferrals(referralData.data);
       setCategories(categoryData.data);
+      setTags(tagData.data);
+      setTopBanners(topBannerData.data);
       setGachaRanks(gachaRankData.data);
       setGachaPrizes(gachaPrizeData.data);
       setTabData("gachas", gachaData);
@@ -888,7 +993,11 @@ export default function AdminDashboard({
         contacts: contactData.data,
         staticPages: staticPageData.data,
         rankAssets: rankAssetData.data,
+        referralSetting: referralSettingData.data,
+        referrals: referralData.data,
         categories: categoryData.data,
+        tags: tagData.data,
+        topBanners: topBannerData.data,
         gachas: gachaData.data,
         users: userData.data,
         gachaRanks: gachaRankData.data,
@@ -1007,6 +1116,12 @@ export default function AdminDashboard({
     contacts: contacts.length,
     users: users.length,
   }), [announcements.length, contacts.length, draws.length, gachas.length, payments.length, pointAdjustments.length, prizes.length, shipping.length, users.length]);
+  const selectedUserReceivedReferral = selectedUser
+    ? selectedUserReferrals.find((referral) => referral.referred_user_id === selectedUser.id) ?? null
+    : null;
+  const selectedUserMadeReferrals = selectedUser
+    ? selectedUserReferrals.filter((referral) => referral.referrer_user_id === selectedUser.id)
+    : [];
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1147,6 +1262,8 @@ export default function AdminDashboard({
           free_point_amount: Number(purchasePlanForm.freePointAmount),
           sort_order: Number(purchasePlanForm.sortOrder),
           is_active: purchasePlanForm.isActive,
+          starts_at: purchasePlanForm.startsAt || null,
+          ends_at: purchasePlanForm.endsAt || null,
         }),
       }, session.access_token);
 
@@ -1173,6 +1290,8 @@ export default function AdminDashboard({
       freePointAmount: "0",
       sortOrder: String((purchasePlans.length + 1) * 10),
       isActive: true,
+      startsAt: "",
+      endsAt: "",
     });
   }
 
@@ -1275,12 +1394,13 @@ export default function AdminDashboard({
     clearMessage();
 
     try {
-      const [userResponse, prizeResponse, drawResponse, paymentResponse, adjustmentResponse] = await Promise.all([
+      const [userResponse, prizeResponse, drawResponse, paymentResponse, adjustmentResponse, referralResponse] = await Promise.all([
         apiRequest<{ data: User }>(`/users/${userId}`, {}, session.access_token),
         apiRequest<ApiCollection<UserPrize>>(`/user-prizes?per_page=100&user_id=${userId}`, {}, session.access_token),
         apiRequest<ApiCollection<DrawRequest>>(`/draw-requests?per_page=100&user_id=${userId}`, {}, session.access_token),
         apiRequest<ApiCollection<Payment>>(`/payments?per_page=100&user_id=${userId}`, {}, session.access_token),
         apiRequest<ApiCollection<PointAdjustment>>(`/point-adjustments?per_page=100&user_id=${userId}`, {}, session.access_token),
+        apiRequest<ApiCollection<UserReferral>>(`/referrals?per_page=100&user_id=${userId}`, {}, session.access_token),
       ]);
 
       setSelectedUser(userResponse.data);
@@ -1288,6 +1408,7 @@ export default function AdminDashboard({
       setSelectedUserDraws(drawResponse.data);
       setSelectedUserPayments(paymentResponse.data);
       setSelectedUserPointAdjustments(adjustmentResponse.data);
+      setSelectedUserReferrals(referralResponse.data);
       setUserPointForm({
         adjustmentType: "grant",
         pointType: "paid",
@@ -1599,6 +1720,78 @@ export default function AdminDashboard({
     }
   }
 
+  async function submitReferralSetting(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: ReferralSetting }>("/referral-settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          reward_point_amount: Number(referralSettingForm.rewardPointAmount || 0),
+          reward_expiration_days: referralSettingForm.rewardExpirationDays ? Number(referralSettingForm.rewardExpirationDays) : null,
+          is_active: referralSettingForm.isActive,
+        }),
+      }, session.access_token);
+
+      setReferralSetting(response.data);
+      setReferralSettingForm({
+        rewardPointAmount: String(response.data.reward_point_amount),
+        rewardExpirationDays: response.data.reward_expiration_days === null ? "" : String(response.data.reward_expiration_days),
+        isActive: response.data.is_active,
+      });
+      showMessage("success", "紹介ポイント設定を更新しました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "紹介ポイント設定の保存に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchReferralsBySearch() {
+    if (!session) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      per_page: "100",
+    });
+
+    if (referralSearchForm.userId.trim()) {
+      params.set("user_id", referralSearchForm.userId.trim());
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<ApiCollection<UserReferral>>(`/referrals?${params.toString()}`, {}, session.access_token);
+      setReferrals(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "紹介履歴の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function clearReferralSearch() {
+    setReferralSearchForm({ userId: "" });
+
+    if (!session) {
+      return;
+    }
+
+    void apiRequest<ApiCollection<UserReferral>>("/referrals?per_page=100", {}, session.access_token)
+      .then((response) => setReferrals(response.data))
+      .catch((error) => showMessage("error", error instanceof Error ? error.message : "紹介履歴の取得に失敗しました"));
+  }
+
   async function uploadImage(context: AssetContext, file: File): Promise<string> {
     if (!session) {
       throw new Error("管理者セッションが切れています。再ログインしてください");
@@ -1774,6 +1967,162 @@ export default function AdminDashboard({
     }
   }
 
+  async function submitTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session) {
+      showMessage("error", "管理者セッションが切れています。再ログインしてください");
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    const isUpdate = tagForm.id !== "";
+    const payload = {
+      name: tagForm.name.trim(),
+      slug: tagForm.slug.trim() || makeSlugFallback("tag"),
+      sort_order: Number(tagForm.sortOrder),
+      is_active: tagForm.isActive,
+    };
+
+    if (!payload.name) {
+      setLoading(false);
+      showMessage("error", "タグ名を入力してください");
+      return;
+    }
+
+    if (!Number.isInteger(payload.sort_order) || payload.sort_order < 0) {
+      setLoading(false);
+      showMessage("error", "並び順は0以上の整数で入力してください");
+      return;
+    }
+
+    try {
+      const response = await apiRequest<{ data: GachaTag }>(isUpdate ? `/gacha-tags/${tagForm.id}` : "/gacha-tags", {
+        method: isUpdate ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      }, session.access_token);
+      const tagData = await apiRequest<{ data: GachaTag[] }>("/gacha-tags", {}, session.access_token);
+      setTags(tagData.data);
+      showMessage("success", isUpdate ? "タグを更新しました" : "タグを作成しました");
+
+      if (isUpdate) {
+        setTagForm({
+          id: String(response.data.id),
+          name: response.data.name,
+          slug: response.data.slug,
+          sortOrder: String(response.data.sort_order),
+          isActive: response.data.is_active,
+        });
+      } else {
+        changeGachaView("tag-list");
+        setTagForm({
+          id: "",
+          name: "",
+          slug: "",
+          sortOrder: String((response.data.sort_order ?? 0) + 1),
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "タグ保存に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitTopBanner(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session) {
+      showMessage("error", "管理者セッションが切れています。再ログインしてください");
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    const isUpdate = topBannerForm.id !== "";
+    const payload = {
+      image_url: topBannerForm.imageUrl.trim(),
+      link_url: topBannerForm.linkUrl.trim() || null,
+      sort_order: Number(topBannerForm.sortOrder),
+      is_active: topBannerForm.isActive,
+    };
+
+    if (!payload.image_url) {
+      setLoading(false);
+      showMessage("error", "バナー画像を選択してください");
+      return;
+    }
+
+    if (!Number.isInteger(payload.sort_order) || payload.sort_order < 0) {
+      setLoading(false);
+      showMessage("error", "並び順は0以上の整数で入力してください");
+      return;
+    }
+
+    try {
+      const response = await apiRequest<{ data: TopBanner }>(isUpdate ? `/top-banners/${topBannerForm.id}` : "/top-banners", {
+        method: isUpdate ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      }, session.access_token);
+      const bannerData = await apiRequest<{ data: TopBanner[] }>("/top-banners", {}, session.access_token);
+      setTopBanners(bannerData.data);
+      showMessage("success", isUpdate ? "トップバナーを更新しました" : "トップバナーを作成しました");
+
+      if (isUpdate) {
+        setTopBannerForm(formFromTopBanner(response.data));
+      } else {
+        changeGachaView("top-banner-list");
+        setTopBannerForm({
+          id: "",
+          imageUrl: "",
+          linkUrl: "",
+          sortOrder: String((response.data.sort_order ?? 0) + 1),
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "トップバナー保存に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function bulkUpdateTopBannerStatus(ids: number[], isActive: boolean) {
+    if (!session) {
+      showMessage("error", "管理者セッションが切れています。再ログインしてください");
+      return;
+    }
+
+    if (ids.length === 0) {
+      showMessage("error", "更新するバナーを選択してください");
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      await apiRequest<{ data: TopBanner[] }>("/top-banners/status", {
+        method: "PATCH",
+        body: JSON.stringify({
+          ids,
+          is_active: isActive,
+        }),
+      }, session.access_token);
+      const bannerData = await apiRequest<{ data: TopBanner[] }>("/top-banners", {}, session.access_token);
+      setTopBanners(bannerData.data);
+      showMessage("success", isActive ? "選択したバナーを有効にしました" : "選択したバナーを無効にしました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "トップバナーの一括更新に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function resetGachaForm() {
     setSelectedGacha(null);
     setReadiness(null);
@@ -1798,6 +2147,7 @@ export default function AdminDashboard({
       mainImageUrl: "",
       showOnTopSlider: false,
       targetMargin: "",
+      tagIds: [],
     });
   }
 
@@ -1809,6 +2159,31 @@ export default function AdminDashboard({
       sortOrder: "1",
       isVisible: true,
     });
+  }
+
+  function resetTagForm() {
+    setTagForm({
+      id: "",
+      name: "",
+      slug: "",
+      sortOrder: "1",
+      isActive: true,
+    });
+  }
+
+  function resetTopBannerForm() {
+    setTopBannerForm({
+      id: "",
+      imageUrl: "",
+      linkUrl: "",
+      sortOrder: "1",
+      isActive: true,
+    });
+  }
+
+  function editTopBanner(banner: TopBanner) {
+    setTopBannerForm(formFromTopBanner(banner));
+    changeGachaView("top-banner-edit", banner.id);
   }
 
   function resetRankForm() {
@@ -1905,6 +2280,35 @@ export default function AdminDashboard({
         });
       } catch (error) {
         showMessage("error", error instanceof Error ? error.message : "カテゴリ詳細の取得に失敗しました");
+      }
+      return;
+    }
+
+    if (activeGachaView === "tag-edit") {
+      try {
+        const response = await apiRequest<{ data: GachaTag }>(`/gacha-tags/${initialEditId}`, {}, session.access_token);
+        const tag = response.data;
+
+        setTagForm({
+          id: String(tag.id),
+          name: tag.name,
+          slug: tag.slug,
+          sortOrder: String(tag.sort_order),
+          isActive: tag.is_active,
+        });
+      } catch (error) {
+        showMessage("error", error instanceof Error ? error.message : "タグ詳細の取得に失敗しました");
+      }
+      return;
+    }
+
+    if (activeGachaView === "top-banner-edit") {
+      try {
+        const response = await apiRequest<{ data: TopBanner }>(`/top-banners/${initialEditId}`, {}, session.access_token);
+
+        setTopBannerForm(formFromTopBanner(response.data));
+      } catch (error) {
+        showMessage("error", error instanceof Error ? error.message : "トップバナー詳細の取得に失敗しました");
       }
       return;
     }
@@ -2475,10 +2879,14 @@ export default function AdminDashboard({
                 activeView={activeGachaView}
                 rows={gachas}
                 categories={categories}
+                tags={tags}
+                topBanners={topBanners}
                 gachaRanks={gachaRanks}
                 gachaPrizes={gachaPrizes}
                 rankAssets={rankAssets}
                 categoryForm={categoryForm}
+                tagForm={tagForm}
+                topBannerForm={topBannerForm}
                 selectedGacha={selectedGacha}
                 readiness={readiness}
                 gachaForm={gachaForm}
@@ -2510,6 +2918,30 @@ export default function AdminDashboard({
                   changeGachaView("category-new");
                 }}
                 onSubmitCategory={submitCategory}
+                onTagFormChange={(next) => setTagForm((current) => ({ ...current, ...next }))}
+                onEditTag={(tag) => {
+                  setTagForm({
+                    id: String(tag.id),
+                    name: tag.name,
+                    slug: tag.slug,
+                    sortOrder: String(tag.sort_order),
+                    isActive: tag.is_active,
+                  });
+                  changeGachaView("tag-edit", tag.id);
+                }}
+                onResetTagForm={() => {
+                  resetTagForm();
+                  changeGachaView("tag-new");
+                }}
+                onSubmitTag={submitTag}
+                onTopBannerFormChange={(next) => setTopBannerForm((current) => ({ ...current, ...next }))}
+                onEditTopBanner={editTopBanner}
+                onResetTopBannerForm={() => {
+                  resetTopBannerForm();
+                  changeGachaView("top-banner-new");
+                }}
+                onSubmitTopBanner={submitTopBanner}
+                onBulkUpdateTopBanners={bulkUpdateTopBannerStatus}
                 onResetGachaForm={() => {
                   resetGachaForm();
                   changeGachaView("gacha-new");
@@ -2603,6 +3035,9 @@ export default function AdminDashboard({
                       <DetailItem label="市区町村" value={selectedUser.profile?.city ?? ""} />
                       <DetailItem label="住所1" value={selectedUser.profile?.address_line1 ?? ""} />
                       <DetailItem label="住所2" value={selectedUser.profile?.address_line2 ?? ""} />
+                      <DetailItem label="自身の紹介コード" value={selectedUser.referral_code ?? ""} />
+                      <DetailItem label="紹介元の紹介コード" value={selectedUserReceivedReferral?.referral_code ?? ""} />
+                      <DetailItem label="紹介元ユーザー名" value={userDisplayName(selectedUserReceivedReferral?.referrer)} />
                       <DetailItem label="登録日" value={formatDate(selectedUser.created_at ?? null)} />
                     </div>
                     <div className="nested-list-section">
@@ -2664,6 +3099,13 @@ export default function AdminDashboard({
                         <span>{selectedUserPayments.length.toLocaleString("ja-JP")}件</span>
                       </div>
                       <PaymentTable rows={selectedUserPayments} onEdit={(row) => moveToUserRelatedList("payments", row.user?.id ?? selectedUser.id)} />
+                    </div>
+                    <div className="nested-list-section">
+                      <div className="subsection-title">
+                        <strong>紹介履歴</strong>
+                        <span>{selectedUserMadeReferrals.length.toLocaleString("ja-JP")}件</span>
+                      </div>
+                      <UserReferralMadeTable rows={selectedUserMadeReferrals} />
                     </div>
                     <div className="nested-list-section">
                       <div className="subsection-title">
@@ -2770,6 +3212,16 @@ export default function AdminDashboard({
                       <input value={purchasePlanForm.sortOrder} onChange={(event) => setPurchasePlanForm((current) => ({ ...current, sortOrder: event.target.value }))} inputMode="numeric" required />
                     </label>
                   </div>
+                  <div className="inline-fields">
+                    <label>
+                      <span>開始期限</span>
+                      <input type="datetime-local" value={purchasePlanForm.startsAt} onChange={(event) => setPurchasePlanForm((current) => ({ ...current, startsAt: event.target.value }))} />
+                    </label>
+                    <label>
+                      <span>終了期限</span>
+                      <input type="datetime-local" value={purchasePlanForm.endsAt} onChange={(event) => setPurchasePlanForm((current) => ({ ...current, endsAt: event.target.value }))} />
+                    </label>
+                  </div>
                   <label className="check-row">
                     <input type="checkbox" checked={purchasePlanForm.isActive} onChange={(event) => setPurchasePlanForm((current) => ({ ...current, isActive: event.target.checked }))} />
                     <span>有効</span>
@@ -2851,8 +3303,28 @@ export default function AdminDashboard({
           )}
           {activeTab === "settings" && (
             activeSettingView === "list" ? (
-              <div className="stack-sections">
-                <ListSurface title="設定" actionLabel="更新" onAction={() => void fetchTab("settings", 1, filters.settings)}>
+              <ListSurface title="設定" actionLabel="更新" onAction={() => void refreshAll()}>
+                <div className="toolbar-row">
+                  <button className="secondary-button" type="button" onClick={() => {
+                    setActiveSettingView("pages");
+                    router.push(adminPathForSettingView("pages"));
+                  }}>ページ設定</button>
+                  <button className="secondary-button" type="button" onClick={() => {
+                    setActiveSettingView("rank-assets");
+                    router.push(adminPathForSettingView("rank-assets"));
+                  }}>ランク演出設定</button>
+                  <button className="secondary-button" type="button" onClick={() => {
+                    setActiveSettingView("referral");
+                    router.push(adminPathForSettingView("referral"));
+                  }}>紹介ポイント設定</button>
+                </div>
+              </ListSurface>
+            ) : (
+              activeSettingView === "pages" ? (
+                <FormSurface title="ページ設定" backLabel="設定" onBack={() => {
+                  setActiveSettingView("list");
+                  router.push(adminPathForSettingView("list"));
+                }} wide>
                   <DataTable
                     headers={["ページ", "URL", "更新日時", "操作"]}
                     rows={staticPages.map((page) => [
@@ -2862,24 +3334,11 @@ export default function AdminDashboard({
                       <button className="secondary-button small-button" type="button" key="edit" onClick={() => editStaticPage(page)}>編集</button>,
                     ])}
                   />
-                </ListSurface>
-                <ListSurface
-                  title="ランク演出設定"
-                  actionLabel="演出素材登録"
-                  onAction={() => {
-                    resetRankAssetForm("image");
-                    setActiveSettingView("rank-asset-new");
-                    router.push(adminPathForSettingView("rank-asset-new"));
-                  }}
-                >
-                  <RankAssetTable rows={rankAssets} onEdit={editRankAsset} />
-                </ListSurface>
-              </div>
-            ) : (
-              activeSettingView === "edit" ? (
-                <FormSurface title={selectedStaticPage?.title ?? "設定編集"} backLabel="設定一覧" onBack={() => {
-                  setActiveSettingView("list");
-                  router.push(adminPathForTab("settings"));
+                </FormSurface>
+              ) : activeSettingView === "edit" ? (
+                <FormSurface title={selectedStaticPage?.title ?? "ページ設定編集"} backLabel="ページ設定" onBack={() => {
+                  setActiveSettingView("pages");
+                  router.push(adminPathForSettingView("pages"));
                 }}>
                   {selectedStaticPage ? (
                   <form className="stack-form compact-form" onSubmit={submitStaticPage}>
@@ -2897,10 +3356,71 @@ export default function AdminDashboard({
                     <div className="empty-detail compact">編集するページを選択してください。</div>
                   )}
                 </FormSurface>
+              ) : activeSettingView === "rank-assets" ? (
+                <ListSurface
+                  title="ランク演出設定"
+                  actionLabel="演出素材登録"
+                  onAction={() => {
+                    resetRankAssetForm("image");
+                    setActiveSettingView("rank-asset-new");
+                    router.push(adminPathForSettingView("rank-asset-new"));
+                  }}
+                >
+                  <div className="toolbar-row">
+                    <button className="secondary-button small-button" type="button" onClick={() => {
+                      setActiveSettingView("list");
+                      router.push(adminPathForSettingView("list"));
+                    }}>設定へ戻る</button>
+                  </div>
+                  <RankAssetTable rows={rankAssets} onEdit={editRankAsset} />
+                </ListSurface>
+              ) : activeSettingView === "referral" ? (
+                <div className="stack-sections">
+                  <FormSurface title="紹介ポイント設定" backLabel="設定" onBack={() => {
+                    setActiveSettingView("list");
+                    router.push(adminPathForSettingView("list"));
+                  }}>
+                    <form className="stack-form compact-form" onSubmit={submitReferralSetting}>
+                      <label>
+                        <span>紹介ポイント</span>
+                        <input value={referralSettingForm.rewardPointAmount} onChange={(event) => setReferralSettingForm((current) => ({ ...current, rewardPointAmount: event.target.value }))} inputMode="numeric" required />
+                      </label>
+                      <label>
+                        <span>無償ポイント有効期限（日数）</span>
+                        <input value={referralSettingForm.rewardExpirationDays} onChange={(event) => setReferralSettingForm((current) => ({ ...current, rewardExpirationDays: event.target.value }))} inputMode="numeric" placeholder="空白なら期限なし" />
+                      </label>
+                      <label className="check-row">
+                        <input type="checkbox" checked={referralSettingForm.isActive} onChange={(event) => setReferralSettingForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                        <span>紹介ポイント付与を有効にする</span>
+                      </label>
+                      <button className="primary-button" type="submit" disabled={loading}>更新</button>
+                      {referralSetting ? <p className="inline-note">現在設定: {referralSetting.reward_point_amount.toLocaleString("ja-JP")}pt / 期限 {referralSetting.reward_expiration_days === null ? "なし" : `${referralSetting.reward_expiration_days}日`} / {referralSetting.is_active ? "有効" : "無効"}</p> : null}
+                      <p className="inline-note">ポイント付与タイミングはSMS認証完了後に接続予定です。</p>
+                    </form>
+                  </FormSurface>
+                  <ListSurface title="紹介履歴" actionLabel="更新" onAction={() => {
+                    void fetchReferralsBySearch();
+                  }}>
+                    <form className="filter-panel" onSubmit={(event) => {
+                      event.preventDefault();
+                      void fetchReferralsBySearch();
+                    }}>
+                      <label>
+                        <span>ユーザーID</span>
+                        <input value={referralSearchForm.userId} onChange={(event) => setReferralSearchForm({ userId: event.target.value })} inputMode="numeric" placeholder="紹介元・紹介先を検索" />
+                      </label>
+                      <div className="filter-actions">
+                        <button className="secondary-button" type="submit" disabled={loading}>検索</button>
+                        <button className="ghost-button" type="button" onClick={clearReferralSearch}>クリア</button>
+                      </div>
+                    </form>
+                    <ReferralTable rows={referrals} />
+                  </ListSurface>
+                </div>
               ) : (
-                <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="設定一覧" onBack={() => {
-                  setActiveSettingView("list");
-                  router.push(adminPathForTab("settings"));
+                <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="ランク演出設定" onBack={() => {
+                  setActiveSettingView("rank-assets");
+                  router.push(adminPathForSettingView("rank-assets"));
                 }}>
                   <form className="stack-form compact-form" onSubmit={submitRankAsset}>
                     <label>
@@ -2964,11 +3484,12 @@ function OperationGuide() {
   const sections = [
     {
       title: "ガチャ管理",
-      tag: "カテゴリ・ガチャ・ランク・景品",
-      description: "カテゴリ、ガチャ、ランク、景品、確率、限定回数、公開前チェックを扱います。",
+      tag: "カテゴリ・タグ・ガチャ・ランク・景品",
+      description: "カテゴリ、タグ、ガチャ、ランク、景品、確率、限定回数、公開前チェックを扱います。",
       items: [
-        "カテゴリ、ガチャ、ランク、景品はそれぞれ一覧、登録、編集ページに分かれています。",
+        "カテゴリ、タグ、ガチャ、ランク、景品はそれぞれ一覧、登録、編集ページに分かれています。",
         "ランク一覧と景品一覧は、対象ガチャを選択してから紐づくデータを確認します。",
+        "タグ一覧で表示用タグを作成し、ガチャ登録・編集画面で複数選択できます。",
         "1日の規定回数を入力すると、ユーザーごとの日本時間1日あたりの抽選上限として扱われます。",
         "確率設定は画面上では%で入力し、保存時にバックエンドでppm整数へ変換します。",
         "公開済み確率バージョンは直接編集せず、新しい確率バージョンとして公開します。",
@@ -2998,26 +3519,43 @@ function OperationGuide() {
           name: "1日の規定回数",
           detail: "限定ガチャ用の項目です。空白なら制限なし、数値を入力するとユーザーごとに日本時間の当日0時から23時59分59秒までの抽選回数を制限します。上限超過時はポイント消費も抽選結果作成も行われません。",
         },
+        {
+          name: "利益シミュレーション",
+          detail: "ガチャ編集画面で、登録済みの価格、総口数、景品原価、最低保証原価、目標粗利をもとに利益を確認する機能です。完売時売上、景品原価総額、最低保証最大原価、最大原価合計、想定利益、想定粗利率、目標利益との差分を確認します。公開済み確率がある場合は、確率ベースの1回あたり期待原価、期待原価合計、期待利益、期待粗利率も表示されます。公開前チェックで期待利益が未計算または赤字になる場合は、確率公開後にこの欄で数値を確認してください。",
+        },
+        {
+          name: "商品設計プランナー",
+          detail: "ガチャ作成前または編集中に、ランク別の商品数と仕入合計から必要な総口数を試算する補助機能です。粗利率、1回ポイント、円/ptを入力すると、目標総売上、必要口数、完売時利益、損益分岐消化率を確認できます。消化率ごとの想定利益は、景品原価も消化率どおり発生すると見る単純按分と、景品が先にすべて出た前提の最悪ケースの両方で確認します。ここで出た数値は設計補助であり、実際に保存されるのはガチャ基本情報、ランク、景品、確率設定です。",
+        },
+        {
+          name: "確率設定",
+          detail: "景品登録後に、各ステージごとに景品別の排出率を%で入力する機能です。画面では%入力ですが、保存・抽選処理ではLaravel側でppm整数に変換します。各ステージは最低保証を含めて合計100%にする必要があります。販売数ステージを使う場合は、開始口数と終了口数の範囲が重複せず、抜けが出ないように設定します。検証ボタンで合計や範囲を確認し、問題がなければ公開ボタンで新しい確率バージョンとして固定します。公開済み確率バージョンは履歴として残り、直接編集しません。",
+        },
       ],
       manual: {
         purpose: "販売するガチャと景品構成を作成し、確率公開から稼働化までを管理します。",
         steps: [
           "左メニューのガチャ管理を選択し、子メニューからカテゴリ一覧を開きます。",
           "カテゴリ一覧の登録ボタンを選択し、カテゴリ名、slug、並び順、表示状態を入力して作成します。",
+          "タグ一覧を開き、タグ登録ボタンからタグ名、slug、並び順、有効状態を入力して作成します。",
           "子メニューのガチャ一覧を開き、登録ボタンからガチャ新規作成画面へ移動します。",
-          "タイトル、カテゴリ、価格、総口数、最低保証、販売期間、目標粗利、メイン画像、必要に応じて1日の規定回数を入力してガチャを作成します。",
+          "タイトル、カテゴリ、タグ、価格、総口数、最低保証、販売期間、目標粗利、メイン画像、必要に応じて1日の規定回数を入力してガチャを作成します。",
           "設定メニューのランク演出設定で、ランク画像と抽選演出動画をマスタ素材として登録します。",
           "ランク一覧を開き、対象ガチャを選択してS賞、A賞、B賞などのランク名、並び順、表示状態を登録します。",
           "ランク登録または編集画面で、登録済みのランク画像と抽選演出動画を複数選択します。",
           "景品一覧を開き、対象ガチャとランクを選択して景品名、画像、当選上限、原価、表示価格、交換ポイントを登録します。",
-          "ガチャ一覧から対象ガチャの編集を開き、利益シミュレーションで最大原価利益、単純按分、最悪ケース、期待利益を確認します。",
-          "確率設定で各景品と最低保証の確率を%で入力し、各ステージ合計が100%になるように調整します。",
-          "検証ボタンで確率設定を確認し、問題がなければ公開ボタンで確率バージョンを公開します。",
+          "ガチャ一覧から対象ガチャの編集を開き、商品設計プランナーでランク別商品数、仕入合計、目標粗利から必要口数と消化率別利益を試算します。",
+          "利益シミュレーションで最大原価利益、単純按分、最悪ケース、公開済み確率ベースの期待利益を確認します。",
+          "確率設定で各景品と最低保証の確率を%で入力し、各ステージ合計が100%になるように調整します。販売数ステージを使う場合はステージ範囲も確認します。",
+          "検証ボタンで確率合計、ステージ範囲、最低保証行を確認し、問題がなければ公開ボタンで新しい確率バージョンを公開します。",
           "公開前チェックの不足項目を解消し、すべて通過したら稼働化ボタンでガチャを公開状態にします。",
         ],
         checks: [
           "確率は最低保証を含めて各ステージ合計100%です。",
+          "商品設計プランナーは設計補助です。保存・公開判定の正本は登録済みガチャ、景品、公開済み確率、利益シミュレーションです。",
+          "利益シミュレーションの期待値は公開済み確率バージョンがないと計算されません。",
           "公開済み確率バージョンは履歴として固定され、直接変更しません。",
+          "タグは表示・絞り込み用の分類です。限定回数などの抽選制御はガチャ本体の設定を正とします。",
           "ランクに複数の画像や動画を紐づけた場合、抽選結果ごとに対象素材から1つずつ選ばれます。",
           "1日の規定回数はユーザー単位で判定され、同じガチャを上限以上引くことはできません。",
           "完売ガチャはユーザー側一覧にSOLD OUT表示され、詳細遷移や抽選はできません。",
@@ -3320,7 +3858,7 @@ function OperationGuide() {
           </div>
           {"fields" in selectedManual && selectedManual.fields && (
             <section className="manual-block manual-field-block">
-              <h4>ガチャ基本項目の説明</h4>
+              <h4>ガチャ管理項目の説明</h4>
               <div className="manual-field-list">
                 {selectedManual.fields.map((field) => (
                   <div className="manual-field-item" key={field.name}>
@@ -4065,10 +4603,14 @@ function GachaManagement({
   activeView,
   rows,
   categories,
+  tags,
+  topBanners,
   gachaRanks,
   gachaPrizes,
   rankAssets,
   categoryForm,
+  tagForm,
+  topBannerForm,
   selectedGacha,
   readiness,
   gachaForm,
@@ -4085,6 +4627,15 @@ function GachaManagement({
   onEditCategory,
   onResetCategoryForm,
   onSubmitCategory,
+  onTagFormChange,
+  onEditTag,
+  onResetTagForm,
+  onSubmitTag,
+  onTopBannerFormChange,
+  onEditTopBanner,
+  onResetTopBannerForm,
+  onSubmitTopBanner,
+  onBulkUpdateTopBanners,
   onResetGachaForm,
   onGachaFormChange,
   onSubmitGacha,
@@ -4109,6 +4660,8 @@ function GachaManagement({
   activeView: GachaAdminView;
   rows: Gacha[];
   categories: GachaCategory[];
+  tags: GachaTag[];
+  topBanners: TopBanner[];
   gachaRanks: GachaRank[];
   gachaPrizes: GachaPrize[];
   rankAssets: RankAsset[];
@@ -4118,6 +4671,20 @@ function GachaManagement({
     slug: string;
     sortOrder: string;
     isVisible: boolean;
+  };
+  tagForm: {
+    id: string;
+    name: string;
+    slug: string;
+    sortOrder: string;
+    isActive: boolean;
+  };
+  topBannerForm: {
+    id: string;
+    imageUrl: string;
+    linkUrl: string;
+    sortOrder: string;
+    isActive: boolean;
   };
   selectedGacha: Gacha | null;
   readiness: GachaReadiness | null;
@@ -4141,6 +4708,7 @@ function GachaManagement({
     mainImageUrl: string;
     showOnTopSlider: boolean;
     targetMargin: string;
+    tagIds: string[];
   };
   rankForm: {
     id: string;
@@ -4182,6 +4750,15 @@ function GachaManagement({
   onEditCategory: (category: GachaCategory) => void;
   onResetCategoryForm: () => void;
   onSubmitCategory: (event: FormEvent<HTMLFormElement>) => void;
+  onTagFormChange: (next: Partial<typeof tagForm>) => void;
+  onEditTag: (tag: GachaTag) => void;
+  onResetTagForm: () => void;
+  onSubmitTag: (event: FormEvent<HTMLFormElement>) => void;
+  onTopBannerFormChange: (next: Partial<typeof topBannerForm>) => void;
+  onEditTopBanner: (banner: TopBanner) => void;
+  onResetTopBannerForm: () => void;
+  onSubmitTopBanner: (event: FormEvent<HTMLFormElement>) => void;
+  onBulkUpdateTopBanners: (ids: number[], isActive: boolean) => Promise<void>;
   onResetGachaForm: () => void;
   onGachaFormChange: (next: Partial<typeof gachaForm>) => void;
   onSubmitGacha: (event: FormEvent<HTMLFormElement>) => void;
@@ -4215,6 +4792,8 @@ function GachaManagement({
   const [rankListMode, setRankListMode] = useState(false);
   const [prizeSearchGachaId, setPrizeSearchGachaId] = useState(selectedGacha?.id ? String(selectedGacha.id) : "");
   const [prizeListMode, setPrizeListMode] = useState(false);
+  const [selectedTopBannerIds, setSelectedTopBannerIds] = useState<number[]>([]);
+  const selectedTopBannerSet = useMemo(() => new Set(selectedTopBannerIds), [selectedTopBannerIds]);
 
   useEffect(() => {
     if (selectedGacha?.id) {
@@ -4230,6 +4809,10 @@ function GachaManagement({
 
     if (activeView !== "prize-list") {
       setPrizeListMode(false);
+    }
+
+    if (activeView !== "top-banner-list") {
+      setSelectedTopBannerIds([]);
     }
   }, [activeView]);
 
@@ -4287,6 +4870,172 @@ function GachaManagement({
             </label>
           </div>
           <button className="primary-button" type="submit">{activeView === "category-edit" ? "カテゴリ更新" : "カテゴリ作成"}</button>
+        </form>
+      </FormSurface>
+    );
+  }
+
+  if (activeView === "tag-list") {
+    return (
+      <ListSurface
+        title="タグ一覧"
+        actionLabel="タグ登録"
+        onAction={() => {
+          onResetTagForm();
+          onChangeView("tag-new");
+        }}
+      >
+        <DataTable
+          headers={["ID", "タグ名", "slug", "並び順", "状態", "操作"]}
+          rows={tags.map((tag) => [
+            `#${tag.id}`,
+            tag.name,
+            tag.slug,
+            tag.sort_order.toLocaleString("ja-JP"),
+            <StatusBadge key="status" value={tag.is_active ? "active" : "hidden"} />,
+            <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEditTag(tag)}>編集</button>,
+          ])}
+        />
+      </ListSurface>
+    );
+  }
+
+  if (activeView === "tag-new" || activeView === "tag-edit") {
+    return (
+      <FormSurface
+        title={activeView === "tag-edit" ? "タグ編集" : "タグ登録"}
+        backLabel="タグ一覧"
+        onBack={() => onChangeView("tag-list")}
+      >
+        <form className="stack-form compact-form category-form" onSubmit={onSubmitTag} noValidate>
+          <div className="inline-fields">
+            <label>
+              <span>タグ名</span>
+              <input value={tagForm.name} onChange={(event) => onTagFormChange({ name: event.target.value })} required />
+            </label>
+            <label>
+              <span>slug（未入力なら自動）</span>
+              <input value={tagForm.slug} onChange={(event) => onTagFormChange({ slug: event.target.value })} />
+            </label>
+          </div>
+          <div className="inline-fields">
+            <label>
+              <span>並び順</span>
+              <input value={tagForm.sortOrder} onChange={(event) => onTagFormChange({ sortOrder: event.target.value })} inputMode="numeric" required />
+            </label>
+            <label className="check-row">
+              <input type="checkbox" checked={tagForm.isActive} onChange={(event) => onTagFormChange({ isActive: event.target.checked })} />
+              <span>有効</span>
+            </label>
+          </div>
+          <button className="primary-button" type="submit">{activeView === "tag-edit" ? "タグ更新" : "タグ作成"}</button>
+        </form>
+      </FormSurface>
+    );
+  }
+
+  if (activeView === "top-banner-list") {
+    const allTopBannerIds = topBanners.map((banner) => banner.id);
+    const allSelected = allTopBannerIds.length > 0 && allTopBannerIds.every((id) => selectedTopBannerSet.has(id));
+
+    return (
+      <ListSurface
+        title="トップバナー一覧"
+        actionLabel="バナー登録"
+        onAction={() => {
+          onResetTopBannerForm();
+          onChangeView("top-banner-new");
+        }}
+      >
+        <div className="table-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(event) => setSelectedTopBannerIds(event.target.checked ? allTopBannerIds : [])}
+            />
+            <span>全選択</span>
+          </label>
+          <button
+            className="secondary-button small-button"
+            type="button"
+            disabled={loading || selectedTopBannerIds.length === 0}
+            onClick={async () => {
+              await onBulkUpdateTopBanners(selectedTopBannerIds, true);
+              setSelectedTopBannerIds([]);
+            }}
+          >
+            選択を有効
+          </button>
+          <button
+            className="secondary-button small-button"
+            type="button"
+            disabled={loading || selectedTopBannerIds.length === 0}
+            onClick={async () => {
+              await onBulkUpdateTopBanners(selectedTopBannerIds, false);
+              setSelectedTopBannerIds([]);
+            }}
+          >
+            選択を無効
+          </button>
+        </div>
+        <DataTable
+          headers={["ID", "バナー", "リンク先", "並び順", "状態", "編集"]}
+          rows={topBanners.map((banner) => [
+            <label className="table-check" key="select" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={selectedTopBannerSet.has(banner.id)}
+                onChange={(event) => {
+                  setSelectedTopBannerIds((current) => event.target.checked
+                    ? [...current, banner.id]
+                    : current.filter((id) => id !== banner.id));
+                }}
+		/>
+              <span>#{banner.id}</span>
+            </label>,
+            <span className="table-thumb wide" style={{ width: '120px', backgroundImage: `url("${banner.image_url}")` }} key="image" />,
+            banner.link_url || "-",
+            banner.sort_order.toLocaleString("ja-JP"),
+            <StatusBadge key="status" value={banner.is_active ? "active" : "hidden"} />,
+            <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEditTopBanner(banner)}>編集</button>,
+          ])}
+        />
+      </ListSurface>
+    );
+  }
+
+  if (activeView === "top-banner-new" || activeView === "top-banner-edit") {
+    return (
+      <FormSurface
+        title={activeView === "top-banner-edit" ? "トップバナー編集" : "トップバナー登録"}
+        backLabel="トップバナー一覧"
+        onBack={() => onChangeView("top-banner-list")}
+      >
+        <form className="stack-form compact-form category-form" onSubmit={onSubmitTopBanner} noValidate>
+          <ImageUploadField
+            label="アップロード画像"
+            value={topBannerForm.imageUrl}
+            context="top-banner"
+            required
+            onChange={(value) => onTopBannerFormChange({ imageUrl: value })}
+            onUploadImage={onUploadImage}
+          />
+          <div className="inline-fields">
+            <label>
+              <span>画像選択のリンク先</span>
+              <input value={topBannerForm.linkUrl} onChange={(event) => onTopBannerFormChange({ linkUrl: event.target.value })} placeholder="/gachas/1" />
+            </label>
+            <label>
+              <span>並び順</span>
+              <input value={topBannerForm.sortOrder} onChange={(event) => onTopBannerFormChange({ sortOrder: event.target.value })} inputMode="numeric" required />
+            </label>
+          </div>
+          <label className="check-row">
+            <input type="checkbox" checked={topBannerForm.isActive} onChange={(event) => onTopBannerFormChange({ isActive: event.target.checked })} />
+            <span>有効</span>
+          </label>
+          <button className="primary-button" type="submit">{activeView === "top-banner-edit" ? "バナー更新" : "バナー作成"}</button>
         </form>
       </FormSurface>
     );
@@ -4501,11 +5250,12 @@ function GachaManagement({
         }}
       >
         <DataTable
-          headers={["ID", "タイトル", "カテゴリ", "価格", "販売", "景品", "状態", "操作"]}
+          headers={["ID", "タイトル", "カテゴリ", "タグ", "価格", "販売", "景品", "状態", "操作"]}
           rows={rows.map((row) => [
             `#${row.id}`,
             <span className="user-cell" key="title"><span>{row.title}</span><small>{row.slug}</small></span>,
             row.category?.name ?? "-",
+            row.tags?.length ? row.tags.map((tag) => tag.name).join(" / ") : "-",
             pointLabel(row.price),
             `${row.sold_count.toLocaleString("ja-JP")} / ${row.total_count.toLocaleString("ja-JP")}`,
             `${row.prizes_count ?? 0}点`,
@@ -4845,6 +5595,21 @@ function GachaManagement({
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>{category.name}</option>
                 ))}
+              </select>
+            </label>
+            <label>
+              <span>タグ</span>
+              <select
+                multiple
+                value={gachaForm.tagIds}
+                size={Math.min(6, Math.max(3, tags.length))}
+                onChange={(event) => onGachaFormChange({ tagIds: selectedOptionValues(event.currentTarget) })}
+              >
+                {tags
+                  .filter((tag) => tag.is_active || gachaForm.tagIds.includes(String(tag.id)))
+                  .map((tag) => (
+                    <option key={tag.id} value={tag.id}>{tag.name}{tag.is_active ? "" : "（無効）"}</option>
+                  ))}
               </select>
             </label>
             <label>
@@ -5437,13 +6202,14 @@ function PaymentTable({ rows, onEdit }: { rows: Payment[]; onEdit?: (row: Paymen
 function PointPurchasePlanTable({ rows, onEdit }: { rows: PointPurchasePlan[]; onEdit: (plan: PointPurchasePlan) => void }) {
   return (
     <DataTable
-      headers={["ID", "プラン名", "支払金額", "有償P", "無償P", "並び順", "状態", "操作"]}
+      headers={["ID", "プラン名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "状態", "操作"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
         row.name,
         moneyLabel(row.amount),
         pointLabel(row.paid_point_amount),
         pointLabel(row.free_point_amount),
+        purchasePlanPeriodLabel(row),
         row.sort_order.toLocaleString("ja-JP"),
         <StatusBadge key="status" value={row.is_active ? "active" : "hidden"} />,
         <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
@@ -5548,6 +6314,48 @@ function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }
   );
 }
 
+function ReferralTable({ rows }: { rows: UserReferral[] }) {
+  return (
+    <DataTable
+      headers={["ID", "紹介元", "紹介先", "紹介コード", "状態", "付与予定", "付与日時", "登録日時"]}
+      rows={rows.map((referral) => [
+        `#${referral.id}`,
+        <UserCell key="referrer" user={referral.referrer} fallbackId={referral.referrer_user_id} />,
+        <UserCell key="referred" user={referral.referred} fallbackId={referral.referred_user_id} />,
+        referral.referral_code,
+        statusLabel(referral.status),
+        `${referral.reward_point_amount.toLocaleString("ja-JP")}pt`,
+        formatDate(referral.rewarded_at),
+        formatDate(referral.created_at),
+      ])}
+    />
+  );
+}
+
+function UserReferralMadeTable({ rows }: { rows: UserReferral[] }) {
+  return (
+    <DataTable
+      headers={["ID", "紹介先", "状態", "付与予定", "付与日時", "登録日時"]}
+      rows={rows.map((referral) => [
+        `#${referral.id}`,
+        userDisplayName(referral.referred),
+        statusLabel(referral.status),
+        `${referral.reward_point_amount.toLocaleString("ja-JP")}pt`,
+        formatDate(referral.rewarded_at),
+        formatDate(referral.created_at),
+      ])}
+    />
+  );
+}
+
+function userDisplayName(user?: User | null) {
+  if (!user) {
+    return "";
+  }
+
+  return `${user.profile?.last_name ?? ""} ${user.profile?.first_name ?? ""}`.trim() || user.name || user.email;
+}
+
 function UserCell({ user, fallbackId }: { user?: User; fallbackId?: number }) {
   const label = user?.email ?? (fallbackId ? `User #${fallbackId}` : "-");
   const subLabel = user ? `ID ${user.id} / ${user.status}` : "未読込";
@@ -5602,6 +6410,8 @@ function readAdminDataCache(): AdminDataCache | null {
       staticPages: parsed.staticPages ?? [],
       rankAssets: parsed.rankAssets ?? [],
       categories: parsed.categories ?? [],
+      tags: parsed.tags ?? [],
+      topBanners: parsed.topBanners ?? [],
       gachas: parsed.gachas ?? [],
       users: parsed.users ?? [],
       gachaRanks: parsed.gachaRanks ?? [],
@@ -5612,6 +6422,8 @@ function readAdminDataCache(): AdminDataCache | null {
       payments: parsed.payments ?? [],
       purchasePlans: parsed.purchasePlans ?? [],
       pointAdjustments: parsed.pointAdjustments ?? [],
+      referralSetting: parsed.referralSetting ?? null,
+      referrals: parsed.referrals ?? [],
     };
   } catch {
     window.sessionStorage.removeItem(adminDataCacheKey);
@@ -5770,6 +6582,12 @@ function resolveGachaView(value?: string): GachaAdminView {
     "category-list",
     "category-new",
     "category-edit",
+    "tag-list",
+    "tag-new",
+    "tag-edit",
+    "top-banner-list",
+    "top-banner-new",
+    "top-banner-edit",
     "prize-list",
     "prize-new",
     "prize-edit",
@@ -5791,7 +6609,7 @@ function resolveContactView(value?: string): ContactView {
 }
 
 function resolveSettingView(value?: string): SettingView {
-  const views: SettingView[] = ["list", "edit", "rank-asset-new", "rank-asset-edit"];
+  const views: SettingView[] = ["list", "pages", "edit", "rank-assets", "rank-asset-new", "rank-asset-edit", "referral"];
   return views.includes(value as SettingView) ? value as SettingView : "list";
 }
 
@@ -5847,6 +6665,12 @@ function adminPathForGachaView(view: GachaAdminView, id?: number | string) {
     "category-list": "/admin/gachas/categories",
     "category-new": "/admin/gachas/categories/new",
     "category-edit": `/admin/gachas/categories/${id ?? ""}/edit`,
+    "tag-list": "/admin/gachas/tags",
+    "tag-new": "/admin/gachas/tags/new",
+    "tag-edit": `/admin/gachas/tags/${id ?? ""}/edit`,
+    "top-banner-list": "/admin/gachas/top-banners",
+    "top-banner-new": "/admin/gachas/top-banners/new",
+    "top-banner-edit": `/admin/gachas/top-banners/${id ?? ""}/edit`,
     "prize-list": "/admin/gachas/prizes",
     "prize-new": "/admin/gachas/prizes/new",
     "prize-edit": `/admin/gachas/prizes/${id ?? ""}/edit`,
@@ -5896,6 +6720,18 @@ function adminPathForShippingEdit(requestId: number | string, itemId: number | s
 }
 
 function adminPathForSettingView(view: SettingView, id?: number | string) {
+  if (view === "pages") {
+    return "/admin/settings/pages";
+  }
+
+  if (view === "rank-assets") {
+    return "/admin/settings/rank-assets";
+  }
+
+  if (view === "referral") {
+    return "/admin/settings/referral";
+  }
+
   if (view === "rank-asset-new") {
     return "/admin/settings/rank-assets/new";
   }
@@ -6026,6 +6862,17 @@ function formFromGacha(gacha: Gacha) {
     mainImageUrl: gacha.main_image_url ?? "",
     showOnTopSlider: gacha.show_on_top_slider,
     targetMargin: gacha.target_margin !== null ? String(gacha.target_margin) : "",
+    tagIds: (gacha.tag_ids ?? gacha.tags?.map((tag) => tag.id) ?? []).map(String),
+  };
+}
+
+function formFromTopBanner(banner: TopBanner) {
+  return {
+    id: String(banner.id),
+    imageUrl: banner.image_url,
+    linkUrl: banner.link_url ?? "",
+    sortOrder: String(banner.sort_order),
+    isActive: banner.is_active,
   };
 }
 
@@ -6038,7 +6885,17 @@ function formFromPurchasePlan(plan: PointPurchasePlan) {
     freePointAmount: String(plan.free_point_amount),
     sortOrder: String(plan.sort_order),
     isActive: plan.is_active,
+    startsAt: toDateTimeLocal(plan.starts_at),
+    endsAt: toDateTimeLocal(plan.ends_at),
   };
+}
+
+function purchasePlanPeriodLabel(plan: PointPurchasePlan) {
+  if (!plan.starts_at && !plan.ends_at) {
+    return "無期限";
+  }
+
+  return `${formatDate(plan.starts_at)} - ${formatDate(plan.ends_at)}`;
 }
 
 function pointAdjustmentPayload(form: {
@@ -6085,6 +6942,7 @@ function gachaPayload(form: ReturnType<typeof formFromGacha>) {
     main_image_url: form.mainImageUrl || null,
     show_on_top_slider: form.showOnTopSlider,
     target_margin: form.targetMargin ? Number(form.targetMargin) : null,
+    tag_ids: form.tagIds.map(Number),
   };
 }
 

@@ -17,6 +17,7 @@ class UserFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'referral_code' => 'LP'.Str::upper(Str::random(10)),
             'email_verified_at' => now(),
             'password' => Hash::make('password'),
             'status' => 'active',
