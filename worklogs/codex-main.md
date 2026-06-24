@@ -54,12 +54,87 @@ Branch: `main`
     - Added rank presentation master workflow: upload reusable image/video assets in Settings, then select multiple assets on rank registration/edit screens.
     - Added current notes for user management, individual shipping item handling, purchase plans, free point expiration lots, announcements, contacts, and settings.
     - Verification: `pnpm typecheck` succeeded in `frontend/`.
+    - Updated the gacha management manual with detailed explanations for:
+      - Profit simulation
+      - Product design planner
+      - Probability settings and probability version publishing
+  - Added backend/admin support for gacha tags.
+    - Added `gacha_tags` and `gacha_tag_assignments` tables.
+    - Added admin tag CRUD API under `/admin/api/gacha-tags`.
+    - Added `tag_ids` support to admin gacha create/update and admin gacha resources.
+    - Added admin UI pages for tag list/register/edit under gacha management.
+    - Added multi-select tag assignment to the admin gacha register/edit form.
+    - Added demo tag seed data and assigned tags to demo gachas.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=AdminGachaTagApiTest` succeeded.
+      - `docker compose exec -T backend php artisan test --filter=AdminGachaApiTest` succeeded.
+      - `pnpm typecheck` succeeded in `frontend/`.
+    - Incident:
+      - A parallel test run caused `oripa_test` migration conflicts.
+      - `migrate:fresh --env=testing` also affected the current local `oripa` database in this Docker configuration.
+      - No SQL backup was found under `/var/www/oripa` or `/home/ec2-user`.
+      - Recreated local demo data with `AdminDemoDataSeeder`; current local DB has 3 users, 1 admin user, 2 categories, 5 gachas, 3 tags, and 6 tag assignments.
+  - Restored frontend SSR API connectivity.
+    - Cause: Next dev was running on the host while `frontend/.env.local` used `INTERNAL_API_BASE_URL=http://backend:8000/api`, which only resolves inside Docker.
+    - Stopped the host-side Next dev process and started only the `frontend` Docker service with `docker compose up -d --no-deps frontend`.
+    - Verified `backend` resolves from inside the frontend container.
+    - Verified `https://luxe-pack.biz/` SSR output includes gacha and announcement data again.
   - User point history now highlights free point lots expiring within one month in red.
   - Changed only frontend display files:
     - `frontend/src/app/mypage/points/point-history-client.tsx`
     - `frontend/src/app/globals.css`
   - Verification:
     - `pnpm typecheck` succeeded in `frontend/`
+  - Added public gacha tag APIs for the user-facing frontend.
+    - `GET /api/gacha-tags` returns active tags sorted by `sort_order`, then `id`.
+    - `GET /api/gachas` now includes active tags attached to each gacha.
+    - `GET /api/gachas/{gacha}` now includes active tags attached to the gacha.
+    - Inactive tags are excluded from public responses.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=GachaApiTest` succeeded.
+      - The filter also matched `AdminGachaApiTest`; total result was 24 passed tests and 174 assertions.
+      - `curl https://luxe-pack.biz/api/gacha-tags` returned active tag data.
+      - `curl https://luxe-pack.biz/api/gachas` returned gacha data with `tags`.
+  - Added top banner management.
+    - Added `top_banners` table and `TopBanner` model.
+    - Added admin API:
+      - `GET /admin/api/top-banners`
+      - `POST /admin/api/top-banners`
+      - `GET /admin/api/top-banners/{topBanner}`
+      - `PUT /admin/api/top-banners/{topBanner}`
+    - Added public API:
+      - `GET /api/top-banners`
+      - Returns active banners sorted by `sort_order`, then `id`.
+    - Added admin UI under gacha management:
+      - `トップバナー一覧`
+      - `バナー登録`
+      - `トップバナー編集`
+      - Top banner list supports checkbox selection and bulk enable/disable.
+    - Banner image upload reuses the existing admin image upload endpoint with `top-banner` context.
+    - Added admin bulk status API:
+      - `PATCH /admin/api/top-banners/status`
+    - Applied migration:
+      - `2026_06_23_000003_create_top_banners_table`
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=TopBannerApiTest` succeeded with 5 tests and 25 assertions.
+      - `docker compose exec -T backend php artisan test --filter=AdminTopBannerApiTest` succeeded with 5 tests and 25 assertions.
+      - `curl https://luxe-pack.biz/api/top-banners` returned a valid JSON response.
+      - `pnpm typecheck` succeeded in `frontend/`.
+  - Added sale period support to point purchase plans.
+    - Added nullable `starts_at` and `ends_at` to `point_purchase_plans`.
+    - Both fields null means the purchase plan is unlimited.
+    - Admin purchase plan create/edit now accepts start and end datetimes.
+    - Admin purchase plan list shows the configured sale period.
+    - Public `GET /api/point-purchase-plans` returns only active plans whose sale period is currently valid.
+    - Payment creation rejects expired or not-yet-started point purchase plans.
+    - User-facing purchase page display was not changed.
+    - Applied migration:
+      - `2026_06_23_000004_add_sale_period_to_point_purchase_plans_table`
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=AdminPointPurchasePlanApiTest` succeeded with 3 tests and 11 assertions.
+      - `docker compose exec -T backend php artisan test --filter=PointPurchasePlanApiTest` succeeded; the filter also matched `AdminPointPurchasePlanApiTest`, total 3 tests and 16 assertions before the end-only case was added.
+      - `docker compose exec -T backend php artisan test --filter=expired_point_purchase_plan_cannot_be_used_for_payment` succeeded with 1 test and 2 assertions.
+      - `pnpm typecheck` succeeded in `frontend/`.
 - Admin screens were split into URL routes.
   - Added `frontend/src/app/admin/[[...segments]]/page.tsx`
   - Admin root on the admin subdomain redirects to `/admin/guide`

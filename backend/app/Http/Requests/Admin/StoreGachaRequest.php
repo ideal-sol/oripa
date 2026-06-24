@@ -35,6 +35,8 @@ class StoreGachaRequest extends FormRequest
             'main_image_url' => ['nullable', 'string', 'max:2048'],
             'show_on_top_slider' => ['sometimes', 'boolean'],
             'target_margin' => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+            'tag_ids' => ['sometimes', 'array'],
+            'tag_ids.*' => ['integer', 'exists:gacha_tags,id'],
         ];
     }
 }

@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
 class AdminGachaController extends Controller
@@ -20,7 +21,7 @@ class AdminGachaController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Gacha::query()
-            ->with(['category', 'currentProbabilityVersion'])
+            ->with(['category', 'tags', 'currentProbabilityVersion'])
             ->withCount(['ranks', 'prizes'])
             ->orderByDesc('id');
 
@@ -38,9 +39,11 @@ class AdminGachaController extends Controller
     public function store(StoreGachaRequest $request, AuditLogService $auditLogService): JsonResponse
     {
         $payload = $request->validated();
+        $tagIds = Arr::pull($payload, 'tag_ids', []);
         $this->assertStoreIsAllowed($payload);
 
         $gacha = Gacha::query()->create($payload);
+        $gacha->tags()->sync($tagIds);
 
         $auditLogService->record(
             action: 'admin.gacha.created',
@@ -49,10 +52,11 @@ class AdminGachaController extends Controller
             request: $request,
             metadata: [
                 'attributes' => $payload,
+                'tag_ids' => $tagIds,
             ],
         );
 
-        return (new AdminGachaResource($gacha->load(['category', 'currentProbabilityVersion'])->loadCount(['ranks', 'prizes'])))
+        return (new AdminGachaResource($gacha->load(['category', 'tags', 'currentProbabilityVersion'])->loadCount(['ranks', 'prizes'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -71,6 +75,7 @@ class AdminGachaController extends Controller
     {
         return new AdminGachaResource($gacha->load([
             'category',
+            'tags',
             'currentProbabilityVersion',
             'ranks' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'ranks.rankImageAsset',
@@ -88,12 +93,17 @@ class AdminGachaController extends Controller
         GachaReadinessService $readinessService,
     ): AdminGachaResource {
         $payload = $request->validated();
+        $tagIds = Arr::pull($payload, 'tag_ids', null);
         $this->assertUpdateIsAllowed($gacha, $payload, $readinessService);
 
         $before = $gacha->only(array_keys($payload));
+        $beforeTagIds = $gacha->tags()->pluck('gacha_tags.id')->values()->all();
 
         $gacha->fill($payload);
         $gacha->save();
+        if ($tagIds !== null) {
+            $gacha->tags()->sync($tagIds);
+        }
 
         $auditLogService->record(
             action: 'admin.gacha.updated',
@@ -103,10 +113,12 @@ class AdminGachaController extends Controller
             metadata: [
                 'before' => $before,
                 'after' => $gacha->only(array_keys($payload)),
+                'before_tag_ids' => $beforeTagIds,
+                'after_tag_ids' => $tagIds ?? $beforeTagIds,
             ],
         );
 
-        return new AdminGachaResource($gacha->refresh()->load(['category', 'currentProbabilityVersion'])->loadCount(['ranks', 'prizes']));
+        return new AdminGachaResource($gacha->refresh()->load(['category', 'tags', 'currentProbabilityVersion'])->loadCount(['ranks', 'prizes']));
     }
     private function assertUpdateIsAllowed(Gacha $gacha, array $payload, GachaReadinessService $readinessService): void
     {

@@ -13,7 +13,7 @@ class PointPurchasePlanController extends Controller
     {
         return PointPurchasePlanResource::collection(
             PointPurchasePlan::query()
-                ->where('is_active', true)
+                ->currentlyAvailable()
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get()

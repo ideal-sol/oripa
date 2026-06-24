@@ -19,6 +19,8 @@ class AdminGachaResource extends JsonResource
                 'slug' => $this->category?->slug,
             ],
             'category_id' => $this->category_id,
+            'tags' => AdminGachaTagResource::collection($this->whenLoaded('tags')),
+            'tag_ids' => $this->whenLoaded('tags', fn () => $this->tags->pluck('id')->values()->all()),
             'price' => $this->price,
             'total_count' => $this->total_count,
             'daily_draw_limit' => $this->daily_draw_limit,

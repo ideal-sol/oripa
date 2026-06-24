@@ -21,7 +21,7 @@ class PaymentController extends Controller
     {
         $plan = $request->filled('point_purchase_plan_id')
             ? PointPurchasePlan::query()
-                ->where('is_active', true)
+                ->currentlyAvailable()
                 ->findOrFail((int) $request->integer('point_purchase_plan_id'))
             : null;
 

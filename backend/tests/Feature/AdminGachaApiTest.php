@@ -12,6 +12,7 @@ use App\Models\Gacha;
 use App\Models\GachaCategory;
 use App\Models\GachaPrize;
 use App\Models\GachaRank;
+use App\Models\GachaTag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -68,10 +69,12 @@ class AdminGachaApiTest extends TestCase
     {
         $admin = $this->actingAdmin();
         $category = GachaCategory::factory()->create();
+        $tag = GachaTag::factory()->create();
 
         $payload = $this->payload($category->id, [
             'title' => 'Admin Created Gacha',
             'slug' => 'admin-created-gacha',
+            'tag_ids' => [$tag->id],
         ]);
 
         $response = $this->postJson('/admin/api/gachas', $payload);
@@ -82,9 +85,16 @@ class AdminGachaApiTest extends TestCase
             ->assertJsonPath('data.slug', 'admin-created-gacha')
             ->assertJsonPath('data.status', GachaStatus::Draft->value)
             ->assertJsonPath('data.daily_draw_limit', null)
+            ->assertJsonPath('data.tags.0.id', $tag->id)
+            ->assertJsonPath('data.tag_ids.0', $tag->id)
             ->assertJsonPath('data.minimum_guarantee.type', MinimumGuaranteeType::Point->value);
 
         $gacha = Gacha::query()->where('slug', 'admin-created-gacha')->firstOrFail();
+
+        $this->assertDatabaseHas('gacha_tag_assignments', [
+            'gacha_id' => $gacha->id,
+            'gacha_tag_id' => $tag->id,
+        ]);
 
         $this->assertDatabaseHas('audit_logs', [
             'admin_user_id' => $admin->id,
@@ -162,27 +172,40 @@ class AdminGachaApiTest extends TestCase
     public function test_admin_can_update_gacha_and_audit_log_is_recorded(): void
     {
         $admin = $this->actingAdmin();
+        $oldTag = GachaTag::factory()->create();
+        $newTag = GachaTag::factory()->create();
         $gacha = Gacha::factory()->create([
             'title' => 'Old Title',
             'sold_count' => 5,
             'total_count' => 10,
         ]);
+        $gacha->tags()->sync([$oldTag->id]);
 
         $this->putJson("/admin/api/gachas/{$gacha->id}", [
             'title' => 'Updated Title',
             'total_count' => 20,
             'status' => GachaStatus::Paused->value,
+            'tag_ids' => [$newTag->id],
         ])
             ->assertOk()
             ->assertJsonPath('data.title', 'Updated Title')
             ->assertJsonPath('data.total_count', 20)
-            ->assertJsonPath('data.status', GachaStatus::Paused->value);
+            ->assertJsonPath('data.status', GachaStatus::Paused->value)
+            ->assertJsonPath('data.tag_ids.0', $newTag->id);
 
         $this->assertDatabaseHas('audit_logs', [
             'admin_user_id' => $admin->id,
             'action' => 'admin.gacha.updated',
             'auditable_type' => Gacha::class,
             'auditable_id' => $gacha->id,
+        ]);
+        $this->assertDatabaseMissing('gacha_tag_assignments', [
+            'gacha_id' => $gacha->id,
+            'gacha_tag_id' => $oldTag->id,
+        ]);
+        $this->assertDatabaseHas('gacha_tag_assignments', [
+            'gacha_id' => $gacha->id,
+            'gacha_tag_id' => $newTag->id,
         ]);
     }
 

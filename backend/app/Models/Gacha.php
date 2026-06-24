@@ -63,6 +63,14 @@ class Gacha extends Model
         return $this->hasMany(GachaPrize::class);
     }
 
+    public function tags()
+    {
+        return $this->belongsToMany(GachaTag::class, 'gacha_tag_assignments', 'gacha_id', 'gacha_tag_id')
+            ->withTimestamps()
+            ->orderBy('gacha_tags.sort_order')
+            ->orderBy('gacha_tags.id');
+    }
+
     public function currentProbabilityVersion()
     {
         return $this->belongsTo(GachaProbabilityVersion::class, 'current_probability_version_id');

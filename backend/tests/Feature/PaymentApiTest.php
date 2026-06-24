@@ -7,6 +7,7 @@ use App\Domain\Payment\Services\PaymentPointGrantService;
 use App\Domain\Point\Enums\PointLedgerType;
 use App\Domain\Point\Enums\PointType;
 use App\Models\Payment;
+use App\Models\PointPurchasePlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -63,6 +64,34 @@ class PaymentApiTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount', 'paid_point_amount', 'provider', 'terms_accepted']);
+    }
+
+    public function test_expired_point_purchase_plan_cannot_be_used_for_payment(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $plan = PointPurchasePlan::query()->create([
+            'name' => 'Expired',
+            'amount' => 1000,
+            'paid_point_amount' => 1000,
+            'free_point_amount' => 100,
+            'sort_order' => 1,
+            'is_active' => true,
+            'starts_at' => now()->subDays(10),
+            'ends_at' => now()->subDay(),
+        ]);
+
+        $this->postJson('/api/payments', [
+            'point_purchase_plan_id' => $plan->id,
+            'terms_accepted' => true,
+        ])
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('payments', [
+            'user_id' => $user->id,
+            'amount' => 1000,
+        ]);
     }
 
     public function test_guest_cannot_create_payment(): void

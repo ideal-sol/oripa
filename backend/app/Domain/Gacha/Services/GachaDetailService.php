@@ -16,6 +16,7 @@ class GachaDetailService
 
         return $gacha->load([
             'category',
+            'tags' => fn ($query) => $query->where('is_active', true),
             'ranks' => fn ($query) => $query
                 ->where('is_visible', true)
                 ->orderBy('sort_order')

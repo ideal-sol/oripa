@@ -11,7 +11,10 @@ class GachaListService
     public function paginate(int $perPage = 20): LengthAwarePaginator
     {
         return Gacha::query()
-            ->with(['category'])
+            ->with([
+                'category',
+                'tags' => fn ($query) => $query->where('is_active', true),
+            ])
             ->where(function ($query): void {
                 $query
                     ->whereIn('status', [GachaStatus::Active->value, GachaStatus::SoldOut->value])

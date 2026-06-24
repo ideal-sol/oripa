@@ -14,6 +14,7 @@ use App\Models\Gacha;
 use App\Models\GachaCategory;
 use App\Models\GachaPrize;
 use App\Models\GachaRank;
+use App\Models\GachaTag;
 use App\Models\Payment;
 use App\Models\PointAdjustment;
 use App\Models\PointLedger;
@@ -146,6 +147,18 @@ class AdminDemoDataSeeder extends Seeder
             ['slug' => 'demo-standard'],
             ['name' => 'スタンダード', 'sort_order' => 20, 'is_visible' => true],
         );
+        $tags = collect([
+            ['name' => '高還元', 'slug' => 'high-return', 'sort_order' => 10],
+            ['name' => '限定', 'slug' => 'limited', 'sort_order' => 20],
+            ['name' => '初心者向け', 'slug' => 'beginner', 'sort_order' => 30],
+        ])->map(fn (array $payload): GachaTag => GachaTag::query()->updateOrCreate(
+            ['slug' => $payload['slug']],
+            [
+                'name' => $payload['name'],
+                'sort_order' => $payload['sort_order'],
+                'is_active' => true,
+            ],
+        ));
 
         $gacha = Gacha::query()->updateOrCreate(
             ['slug' => 'demo-luxe-pack-premium'],
@@ -168,8 +181,9 @@ class AdminDemoDataSeeder extends Seeder
                 'target_margin' => 30,
             ],
         );
+        $gacha->tags()->sync($tags->whereIn('slug', ['high-return', 'limited'])->pluck('id')->all());
 
-        Gacha::query()->updateOrCreate(
+        $draftGacha = Gacha::query()->updateOrCreate(
             ['slug' => 'demo-draft-check'],
             [
                 'category_id' => $categoryPremium->id,
@@ -190,8 +204,9 @@ class AdminDemoDataSeeder extends Seeder
                 'target_margin' => 25,
             ],
         );
+        $draftGacha->tags()->sync($tags->where('slug', 'beginner')->pluck('id')->all());
 
-        Gacha::query()->updateOrCreate(
+        $sneakerGacha = Gacha::query()->updateOrCreate(
             ['slug' => 'demo-sneaker-box'],
             [
                 'category_id' => $categoryPremium->id,
@@ -213,8 +228,9 @@ class AdminDemoDataSeeder extends Seeder
                 'target_margin' => 28,
             ],
         );
+        $sneakerGacha->tags()->sync($tags->whereIn('slug', ['high-return'])->pluck('id')->all());
 
-        Gacha::query()->updateOrCreate(
+        $standardGacha = Gacha::query()->updateOrCreate(
             ['slug' => 'demo-standard-pack'],
             [
                 'category_id' => $categoryPremium->id,
@@ -236,8 +252,9 @@ class AdminDemoDataSeeder extends Seeder
                 'target_margin' => 25,
             ],
         );
+        $standardGacha->tags()->sync($tags->where('slug', 'beginner')->pluck('id')->all());
 
-        Gacha::query()->updateOrCreate(
+        $soldOutGacha = Gacha::query()->updateOrCreate(
             ['slug' => 'demo-sold-out-pack'],
             [
                 'category_id' => $categoryPremium->id,
@@ -259,6 +276,7 @@ class AdminDemoDataSeeder extends Seeder
                 'target_margin' => 30,
             ],
         );
+        $soldOutGacha->tags()->sync($tags->where('slug', 'limited')->pluck('id')->all());
 
         $rankS = $this->rank($gacha, 'S', 'S賞', 1, 'https://placehold.co/320x180/png?text=S+Rank');
         $rankA = $this->rank($gacha, 'A', 'A賞', 2, 'https://placehold.co/320x180/png?text=A+Rank');

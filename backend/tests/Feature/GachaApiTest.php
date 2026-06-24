@@ -10,6 +10,7 @@ use App\Models\Gacha;
 use App\Models\GachaCategory;
 use App\Models\GachaPrize;
 use App\Models\GachaRank;
+use App\Models\GachaTag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,12 +20,24 @@ class GachaApiTest extends TestCase
 
     public function test_index_returns_active_and_sold_out_gachas(): void
     {
+        $tag = GachaTag::factory()->create([
+            'name' => '高還元',
+            'slug' => 'high-return',
+            'sort_order' => 1,
+        ]);
+        $hiddenTag = GachaTag::factory()->create([
+            'name' => '非表示タグ',
+            'slug' => 'hidden-tag',
+            'sort_order' => 2,
+            'is_active' => false,
+        ]);
         $active = Gacha::factory()->create([
             'title' => 'Active Gacha',
             'status' => GachaStatus::Active,
             'sold_count' => 3,
             'total_count' => 10,
         ]);
+        $active->tags()->sync([$tag->id, $hiddenTag->id]);
         $soldOut = Gacha::factory()->create([
             'title' => 'Sold Out Gacha',
             'status' => GachaStatus::SoldOut,
@@ -45,6 +58,9 @@ class GachaApiTest extends TestCase
             ->assertJsonPath('data.0.id', $active->id)
             ->assertJsonPath('data.0.title', 'Active Gacha')
             ->assertJsonPath('data.0.remaining_count', 7)
+            ->assertJsonPath('data.0.tags.0.id', $tag->id)
+            ->assertJsonPath('data.0.tags.0.slug', 'high-return')
+            ->assertJsonMissing(['slug' => 'hidden-tag'])
             ->assertJsonPath('data.1.id', $soldOut->id)
             ->assertJsonPath('data.1.status', GachaStatus::SoldOut->value)
             ->assertJsonPath('data.1.remaining_count', 0)
@@ -54,6 +70,7 @@ class GachaApiTest extends TestCase
                     'title',
                     'slug',
                     'category',
+                    'tags',
                     'price',
                     'total_count',
                     'sold_count',
@@ -64,6 +81,35 @@ class GachaApiTest extends TestCase
                 'links',
                 'meta',
             ]);
+    }
+
+    public function test_public_tag_index_returns_active_tags_in_sort_order(): void
+    {
+        $second = GachaTag::factory()->create([
+            'name' => '限定',
+            'slug' => 'limited',
+            'sort_order' => 20,
+        ]);
+        $first = GachaTag::factory()->create([
+            'name' => '高還元',
+            'slug' => 'high-return',
+            'sort_order' => 10,
+        ]);
+        GachaTag::factory()->create([
+            'name' => '非表示',
+            'slug' => 'hidden',
+            'sort_order' => 1,
+            'is_active' => false,
+        ]);
+
+        $this->getJson('/api/gacha-tags')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', $first->id)
+            ->assertJsonPath('data.0.slug', 'high-return')
+            ->assertJsonPath('data.1.id', $second->id)
+            ->assertJsonPath('data.1.slug', 'limited')
+            ->assertJsonMissing(['slug' => 'hidden']);
     }
 
     public function test_show_rejects_sold_out_gacha(): void
@@ -81,12 +127,25 @@ class GachaApiTest extends TestCase
     public function test_show_returns_ranks_prizes_and_stage_probabilities(): void
     {
         [$gacha, $rankS, $rankA, $prizeS, $prizeA] = $this->createPublishedTwoStageGacha();
+        $tag = GachaTag::factory()->create([
+            'name' => '初心者向け',
+            'slug' => 'beginner',
+        ]);
+        $hiddenTag = GachaTag::factory()->create([
+            'name' => '非表示タグ',
+            'slug' => 'hidden-tag',
+            'is_active' => false,
+        ]);
+        $gacha->tags()->sync([$tag->id, $hiddenTag->id]);
 
         $response = $this->getJson("/api/gachas/{$gacha->id}");
 
         $response
             ->assertOk()
             ->assertJsonPath('data.id', $gacha->id)
+            ->assertJsonPath('data.tags.0.id', $tag->id)
+            ->assertJsonPath('data.tags.0.slug', 'beginner')
+            ->assertJsonMissing(['slug' => 'hidden-tag'])
             ->assertJsonPath('data.probability_mode', ProbabilityMode::SoldCountStage->value)
             ->assertJsonPath('data.remaining_count', 5001)
             ->assertJsonPath('data.current_stage.stage_key', 'stage_1')

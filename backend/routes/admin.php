@@ -12,10 +12,12 @@ use App\Http\Controllers\Admin\Gacha\AdminGachaCategoryController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaPrizeController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaRankController;
+use App\Http\Controllers\Admin\Gacha\AdminGachaTagController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaProfitSimulationController;
 use App\Http\Controllers\Admin\Gacha\AdminGachaReadinessController;
 use App\Http\Controllers\Admin\Gacha\AdminProbabilityController;
 use App\Http\Controllers\Admin\Gacha\AdminRankAssetController;
+use App\Http\Controllers\Admin\Gacha\AdminTopBannerController;
 use App\Http\Controllers\Admin\Payment\AdminPaymentController;
 use App\Http\Controllers\Admin\Payment\AdminPointPurchasePlanController;
 use App\Http\Controllers\Admin\Point\AdminPointAdjustmentController;
@@ -56,6 +58,17 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
     Route::post('/gacha-categories', [AdminGachaCategoryController::class, 'store'])->name('admin.api.gacha-categories.store');
     Route::get('/gacha-categories/{category}', [AdminGachaCategoryController::class, 'show'])->name('admin.api.gacha-categories.show');
     Route::put('/gacha-categories/{category}', [AdminGachaCategoryController::class, 'update'])->name('admin.api.gacha-categories.update');
+
+    Route::get('/gacha-tags', [AdminGachaTagController::class, 'index'])->name('admin.api.gacha-tags.index');
+    Route::post('/gacha-tags', [AdminGachaTagController::class, 'store'])->name('admin.api.gacha-tags.store');
+    Route::get('/gacha-tags/{tag}', [AdminGachaTagController::class, 'show'])->name('admin.api.gacha-tags.show');
+    Route::put('/gacha-tags/{tag}', [AdminGachaTagController::class, 'update'])->name('admin.api.gacha-tags.update');
+
+    Route::get('/top-banners', [AdminTopBannerController::class, 'index'])->name('admin.api.top-banners.index');
+    Route::post('/top-banners', [AdminTopBannerController::class, 'store'])->name('admin.api.top-banners.store');
+    Route::patch('/top-banners/status', [AdminTopBannerController::class, 'bulkStatus'])->name('admin.api.top-banners.bulk-status');
+    Route::get('/top-banners/{topBanner}', [AdminTopBannerController::class, 'show'])->name('admin.api.top-banners.show');
+    Route::put('/top-banners/{topBanner}', [AdminTopBannerController::class, 'update'])->name('admin.api.top-banners.update');
 
     Route::get('/gachas', [AdminGachaController::class, 'index'])->name('admin.api.gachas.index');
     Route::post('/gachas', [AdminGachaController::class, 'store'])->name('admin.api.gachas.store');

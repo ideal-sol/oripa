@@ -16,7 +16,7 @@ class AdminAssetUploadController extends Controller
         $fileField = $request->hasFile('video') ? 'video' : 'image';
 
         $payload = $request->validate([
-            'context' => ['nullable', 'string', Rule::in(['gacha', 'rank', 'prize', 'draw-video', 'announcement'])],
+            'context' => ['nullable', 'string', Rule::in(['gacha', 'rank', 'prize', 'draw-video', 'announcement', 'top-banner'])],
             'image' => [$fileField === 'image' ? 'required' : 'sometimes', 'image', 'max:5120'],
             'video' => [$fileField === 'video' ? 'required' : 'sometimes', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:51200'],
         ]);

@@ -12,6 +12,12 @@ class StorePointPurchasePlanRequest extends FormRequest
     }
     public function rules(): array
     {
+        $endAtRules = ['nullable', 'date'];
+
+        if ($this->filled('starts_at')) {
+            $endAtRules[] = 'after_or_equal:starts_at';
+        }
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'integer', 'min:1', 'max:1000000'],
@@ -19,6 +25,8 @@ class StorePointPurchasePlanRequest extends FormRequest
             'free_point_amount' => ['required', 'integer', 'min:0', 'max:1000000'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:1000000'],
             'is_active' => ['required', 'boolean'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => $endAtRules,
         ];
     }
 }
