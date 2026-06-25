@@ -18,6 +18,8 @@ class User extends Authenticatable
         'name',
         'email',
         'referral_code',
+        'email_verified_at',
+        'sms_verified_at',
         'password',
         'status',
     ];
@@ -31,6 +33,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'sms_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -63,6 +66,16 @@ class User extends Authenticatable
     public function referralReceived()
     {
         return $this->hasOne(UserReferral::class, 'referred_user_id');
+    }
+
+    public function smsVerificationCodes()
+    {
+        return $this->hasMany(SmsVerificationCode::class);
+    }
+
+    public function socialAccounts()
+    {
+        return $this->hasMany(SocialAccount::class);
     }
 
     public static function generateReferralCode(): string

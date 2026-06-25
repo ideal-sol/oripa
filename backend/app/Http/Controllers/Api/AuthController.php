@@ -95,6 +95,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->status !== 'active' || $this->verifiedEmailOwnerExists($user->email, $user->id)) {
+            throw ValidationException::withMessages([
+                'email' => ['The email verification link is invalid or expired.'],
+            ]);
+        }
+
         if (! $user->email_verified_at) {
             $user->forceFill([
                 'email_verified_at' => now(),
@@ -110,9 +116,15 @@ class AuthController extends Controller
     public function resendEmailVerification(ResendEmailVerificationRequest $request): JsonResponse
     {
         $user = User::query()
-            ->where('email', $request->email())
+            ->whereRaw('LOWER(email) = LOWER(?)', [$request->email()])
             ->where('status', 'active')
+            ->whereNull('email_verified_at')
+            ->latest('id')
             ->first();
+
+        if ($this->verifiedEmailOwnerExists($request->email())) {
+            $user = null;
+        }
 
         if ($user && ! $user->email_verified_at) {
             $this->sendEmailVerificationMail($user);
@@ -127,8 +139,10 @@ class AuthController extends Controller
     {
         $email = (string) $request->validated('email');
         $user = User::query()
-            ->where('email', $email)
+            ->whereRaw('LOWER(email) = LOWER(?)', [$email])
             ->where('status', 'active')
+            ->whereNotNull('email_verified_at')
+            ->latest('email_verified_at')
             ->first();
 
         // 登録有無をレスポンスで判別できないよう、存在する有効ユーザーの場合だけメールを送る。
@@ -145,29 +159,24 @@ class AuthController extends Controller
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
         $payload = $request->validated();
+        $user = User::query()
+            ->whereRaw('LOWER(email) = LOWER(?)', [(string) $payload['email']])
+            ->where('status', 'active')
+            ->whereNotNull('email_verified_at')
+            ->latest('email_verified_at')
+            ->first();
 
-        $status = Password::broker()->reset(
-            [
-                'email' => $payload['email'],
-                'password' => $payload['password'],
-                'password_confirmation' => $request->input('password_confirmation'),
-                'token' => $payload['token'],
-            ],
-            function (User $user, string $password): void {
-                $user->forceFill([
-                    'password' => $password,
-                ])->save();
-
-                // パスワード変更後は既存ログイントークンを失効させる。
-                $user->tokens()->delete();
-            },
-        );
-
-        if ($status !== Password::PASSWORD_RESET) {
+        if (! $user || ! Password::broker()->tokenExists($user, (string) $payload['token'])) {
             throw ValidationException::withMessages([
                 'email' => ['The password reset token is invalid or expired.'],
             ]);
         }
+
+        $user->forceFill([
+            'password' => $payload['password'],
+        ])->save();
+        $user->tokens()->delete();
+        Password::broker()->deleteToken($user);
 
         return response()->json([
             'message' => 'Password has been reset.',
@@ -177,10 +186,13 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         $user = User::query()
-            ->where('email', $request->email())
+            ->whereRaw('LOWER(email) = LOWER(?)', [$request->email()])
+            ->where('status', 'active')
+            ->whereNotNull('email_verified_at')
+            ->latest('email_verified_at')
             ->first();
 
-        if (! $user || $user->status !== 'active' || ! Hash::check($request->password(), $user->password)) {
+        if (! $user || ! Hash::check($request->password(), $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are invalid.'],
             ]);
@@ -230,5 +242,15 @@ class AuthController extends Controller
         $token = rtrim(strtr(base64_encode($apiVerificationUrl), '+/', '-_'), '=');
 
         return "{$frontendUrl}/email/verify?token={$token}";
+    }
+
+    private function verifiedEmailOwnerExists(string $email, ?int $exceptUserId = null): bool
+    {
+        return User::query()
+            ->whereRaw('LOWER(email) = LOWER(?)', [$email])
+            ->whereNotNull('email_verified_at')
+            ->whereIn('status', ['active', 'suspended'])
+            ->when($exceptUserId, fn ($query) => $query->whereKeyNot($exceptUserId))
+            ->exists();
     }
 }

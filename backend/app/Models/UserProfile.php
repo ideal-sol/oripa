@@ -18,6 +18,7 @@ class UserProfile extends Model
         'address_line1',
         'address_line2',
         'phone_number',
+        'normalized_phone_number',
         'birth_date',
     ];
 
@@ -31,5 +32,19 @@ class UserProfile extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (UserProfile $profile): void {
+            $profile->normalized_phone_number = self::normalizePhoneNumber($profile->phone_number);
+        });
+    }
+
+    public static function normalizePhoneNumber(?string $phoneNumber): ?string
+    {
+        $normalized = preg_replace('/[^\d+]/', '', trim((string) $phoneNumber));
+
+        return $normalized !== '' ? $normalized : null;
     }
 }

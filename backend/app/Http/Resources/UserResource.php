@@ -16,6 +16,8 @@ class UserResource extends JsonResource
             'referral_code' => $this->referral_code,
             'status' => $this->status,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
+            'sms_verified_at' => $this->sms_verified_at?->toIso8601String(),
+            'sms_verified' => $this->sms_verified_at !== null,
             'wallet' => new WalletResource($this->whenLoaded('wallet')),
             'profile' => new UserProfileResource($this->whenLoaded('profile')),
             'point_lots_count' => $this->whenCounted('pointLots'),

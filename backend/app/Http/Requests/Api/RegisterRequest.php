@@ -4,6 +4,7 @@ namespace App\Http\Requests\Api;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
+use App\Models\User;
 
 class RegisterRequest extends FormRequest
 {
@@ -19,12 +20,22 @@ class RegisterRequest extends FormRequest
                 'required',
                 'email',
                 'max:255',
-                'unique:users,email',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     $localPart = explode('@', (string) $value, 2)[0] ?? '';
 
                     if (str_contains($localPart, '+')) {
                         $fail('+ を含むメールアドレスは登録できません。');
+                    }
+                },
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $exists = User::query()
+                        ->whereRaw('LOWER(email) = LOWER(?)', [(string) $value])
+                        ->whereNotNull('email_verified_at')
+                        ->whereIn('status', ['active', 'suspended'])
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('このメールアドレスはすでに認証済みです。');
                     }
                 },
             ],
@@ -41,7 +52,7 @@ class RegisterRequest extends FormRequest
                         return;
                     }
 
-                    if (! \App\Models\User::query()->where('referral_code', (string) $value)->exists()) {
+                    if (! User::query()->where('referral_code', (string) $value)->exists()) {
                         $fail('紹介コードが見つかりません。');
                     }
                 },

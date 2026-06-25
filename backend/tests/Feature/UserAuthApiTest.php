@@ -90,6 +90,64 @@ class UserAuthApiTest extends TestCase
             ->assertJsonValidationErrors(['email']);
     }
 
+    public function test_register_allows_duplicate_unverified_email(): void
+    {
+        Mail::fake();
+        User::factory()->create([
+            'email' => 'duplicate-unverified@example.test',
+            'email_verified_at' => null,
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/register', [
+            'name' => 'Duplicate Unverified',
+            'email' => 'duplicate-unverified@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('user.email', 'duplicate-unverified@example.test');
+
+        $this->assertSame(2, User::query()->where('email', 'duplicate-unverified@example.test')->count());
+    }
+
+    public function test_register_rejects_duplicate_verified_email(): void
+    {
+        User::factory()->create([
+            'email' => 'duplicate-verified@example.test',
+            'email_verified_at' => now(),
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/register', [
+            'name' => 'Duplicate Verified',
+            'email' => 'duplicate-verified@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_register_allows_withdrawn_verified_email_reuse(): void
+    {
+        Mail::fake();
+        User::factory()->create([
+            'email' => 'withdrawn-email@example.test',
+            'email_verified_at' => now(),
+            'status' => 'withdrawn',
+        ]);
+
+        $this->postJson('/api/register', [
+            'name' => 'Reuse Withdrawn',
+            'email' => 'withdrawn-email@example.test',
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('user.email', 'withdrawn-email@example.test');
+    }
+
     public function test_register_with_referral_code_creates_pending_referral(): void
     {
         Mail::fake();
@@ -145,8 +203,15 @@ class UserAuthApiTest extends TestCase
 
     public function test_active_user_can_login_and_receive_token(): void
     {
+        User::factory()->create([
+            'email' => 'user@example.test',
+            'email_verified_at' => null,
+            'password' => Hash::make('other-password'),
+            'status' => 'active',
+        ]);
         $user = User::factory()->create([
             'email' => 'user@example.test',
+            'email_verified_at' => now(),
             'password' => Hash::make('secret-password'),
             'status' => 'active',
         ]);
@@ -253,6 +318,43 @@ class UserAuthApiTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
+    public function test_verified_duplicate_email_invalidates_other_unverified_email_links(): void
+    {
+        $first = User::factory()->create([
+            'email' => 'same-email@example.test',
+            'email_verified_at' => null,
+        ]);
+        $second = User::factory()->create([
+            'email' => 'same-email@example.test',
+            'email_verified_at' => null,
+        ]);
+
+        $firstUrl = URL::temporarySignedRoute(
+            'api.email.verify',
+            now()->addHours(24),
+            [
+                'user' => $first->id,
+                'hash' => sha1($first->email),
+            ],
+        );
+        $secondUrl = URL::temporarySignedRoute(
+            'api.email.verify',
+            now()->addHours(24),
+            [
+                'user' => $second->id,
+                'hash' => sha1($second->email),
+            ],
+        );
+
+        $this->getJson($firstUrl)->assertOk();
+        $this->getJson($secondUrl)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $this->assertNotNull($first->refresh()->email_verified_at);
+        $this->assertNull($second->refresh()->email_verified_at);
+    }
+
     public function test_expired_email_verification_link_is_rejected(): void
     {
         $user = User::factory()->create([
@@ -318,8 +420,15 @@ class UserAuthApiTest extends TestCase
 
     public function test_password_reset_updates_password_and_revokes_tokens(): void
     {
+        User::factory()->create([
+            'email' => 'resettable@example.test',
+            'email_verified_at' => null,
+            'password' => Hash::make('duplicate-old-password'),
+            'status' => 'active',
+        ]);
         $user = User::factory()->create([
             'email' => 'resettable@example.test',
+            'email_verified_at' => now(),
             'password' => Hash::make('old-password'),
             'status' => 'active',
         ]);

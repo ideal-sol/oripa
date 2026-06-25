@@ -186,6 +186,58 @@ Branch: `main`
     - User detail referral history now lists only users referred by the selected user, hiding the redundant referrer and referral code columns.
     - Verification:
       - `docker compose exec -T frontend pnpm typecheck` succeeded.
+  - Added SMS verification DB state foundation.
+    - Added `users.sms_verified_at` to track SMS verification completion.
+    - Added `sms_verification_codes` for pending/verified/expired/canceled verification attempts.
+    - SMS verification codes store `code_hash`, not the plain code.
+    - Added attempt count, max attempts, resend count, last sent time, expiry, verified time, purpose, status, and metadata fields.
+    - Added `SmsVerificationCode` model and `User::smsVerificationCodes()` relation.
+    - `UserResource` now exposes `sms_verified_at` and `sms_verified`.
+    - Verification:
+      - `docker compose exec -T backend php artisan migrate --force` succeeded.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationStateTest` succeeded with 3 tests and 10 assertions.
+      - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 14 tests and 66 assertions.
+  - Added SMS sending abstraction.
+    - Added `SmsSender` interface for future SMS providers.
+    - Added `SmsMessage` and `SmsSendResult` DTOs.
+    - Added `LogSmsSender` for local/development use without an external provider.
+    - Added `services.sms.driver` config and `SMS_DRIVER=log` to `.env.example`.
+    - Bound `SmsSender` in `AppServiceProvider` based on `services.sms.driver`.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=SmsSenderTest` succeeded with 2 tests and 5 assertions.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationStateTest` succeeded with 3 tests and 10 assertions.
+  - Added SMS verification API.
+    - Added authenticated endpoints for SMS verification status, send, resend, and verify.
+    - SMS verification codes are generated as 6-digit numeric codes using `random_int`.
+    - Plain SMS codes are not stored; only `code_hash` is saved.
+    - Incorrect verification attempts now persist attempt counts and cancel the code after the configured max attempts.
+    - Resending cancels previous pending codes and creates a new pending code.
+    - Verification:
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationApiTest` succeeded with 5 tests and 33 assertions.
+      - `docker compose exec -T backend php artisan test --filter=SmsSenderTest` succeeded with 2 tests and 5 assertions.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationStateTest` succeeded with 3 tests and 10 assertions.
+  - Added SMS verified phone ownership rules.
+    - Added `user_profiles.normalized_phone_number` for duplicate checks.
+    - Duplicate unverified phone numbers are allowed.
+    - SMS send is rejected when another active or suspended user has already verified the same phone number.
+    - Withdrawn users do not block phone number reuse.
+    - Updating a verified user's phone number resets `sms_verified_at`, releasing the old phone number for reuse.
+    - Verification:
+      - `docker compose exec -T backend php artisan migrate --force` succeeded.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationApiTest` succeeded with 10 tests and 49 assertions.
+      - `docker compose exec -T backend php artisan test --filter=UserProfileApiTest` succeeded with 3 tests and 14 assertions.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationStateTest` succeeded with 3 tests and 11 assertions.
+  - Added duplicate unverified email handling.
+    - Removed the database unique constraint from `users.email` and replaced it with a normal index.
+    - Registration now allows duplicate unverified email addresses.
+    - Registration rejects an email already verified by an active or suspended user.
+    - Withdrawn users do not block email reuse.
+    - Email verification links become invalid if another active/suspended user has already verified the same email.
+    - Login and password reset now select the verified active user explicitly to avoid duplicate-email ambiguity.
+    - Verification:
+      - `docker compose exec -T backend php artisan migrate --force` succeeded.
+      - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 18 tests and 80 assertions.
+      - `docker compose exec -T backend php artisan test --filter=SmsVerificationApiTest` succeeded with 10 tests and 49 assertions.
 - Admin screens were split into URL routes.
   - Added `frontend/src/app/admin/[[...segments]]/page.tsx`
   - Admin root on the admin subdomain redirects to `/admin/guide`
@@ -250,3 +302,73 @@ git status --short
 git diff --stat
 <no output>
 ```
+
+## 2026-06-25 SMS Verification Continuation
+
+- Continued backend SMS verification work as Main Codex.
+- Implemented and verified the policy that referral reward points are granted after SMS verification.
+  - Added `ReferralRewardService`.
+  - Added `referral` to `PointLotSourceType`.
+  - Added a migration to allow `point_lots.source_type = referral`.
+  - SMS verification completion now rewards the referrer once for a pending referral.
+  - If the referral setting produced `0` reward points, the referral is canceled instead of granting points.
+- Verified phone number ownership rules.
+  - Duplicate unverified phone numbers are allowed.
+  - Active/suspended users with a verified phone number block reuse.
+  - Withdrawn users do not block reuse.
+  - Changing a verified user's phone number resets SMS verification and releases the old number.
+- Verified duplicate-unverified email handling.
+  - Duplicate unverified emails are allowed.
+  - Active/suspended verified email owners block new registration.
+  - Withdrawn users do not block email reuse.
+  - Once one user verifies an email, other pending verification links for the same email become invalid.
+  - Login and password reset select the active verified user explicitly.
+- Verification:
+  - `docker compose exec -T backend php artisan migrate --force` succeeded with nothing pending.
+  - `docker compose exec -T backend php artisan test --filter=SmsVerificationApiTest` succeeded with 11 tests and 58 assertions.
+  - `docker compose exec -T backend php artisan test --filter=SmsVerificationStateTest` succeeded with 3 tests and 11 assertions, but the command was mistakenly run with duplicate `--filter`; Laravel emitted a warning and returned exit code 1 despite the target test passing.
+  - `docker compose exec -T backend php artisan test --filter=SmsSenderTest` succeeded with 2 tests and 5 assertions.
+  - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 18 tests and 80 assertions.
+  - `docker compose exec -T backend php artisan test --filter=UserProfileApiTest` succeeded with 3 tests and 14 assertions.
+- Current caution:
+  - There are unrelated uncommitted frontend changes under `frontend/` from another worker. Main Codex did not edit those files in this SMS work.
+
+## 2026-06-25 Google Login Backend Foundation
+
+- Added backend-only Google login foundation. Frontend files were not edited.
+- Confirmed `backend/.env` contains:
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI`
+  - Values were not printed to logs.
+- Added Google OAuth config keys to `config/services.php` and `.env.example`.
+- Added social authentication persistence:
+  - `social_accounts`
+  - `social_login_sessions`
+- Added Google auth API routes:
+  - `GET /api/auth/google/redirect`
+  - `POST /api/auth/google/callback`
+  - `POST /api/auth/google/register`
+- Implemented the initial SNS login flow:
+  - Callback exchanges the Google auth code for an access token.
+  - User profile is fetched from Google userinfo.
+  - Existing linked Google account logs in and receives a Sanctum token.
+  - First-time Google login returns a temporary registration token plus Google-provided name/email.
+  - Registration token completion creates an active user with `email_verified_at` set immediately.
+  - The next step after Google registration is `sms_verification`.
+- Implemented email conflict rules for Google first login:
+  - Existing active/suspended verified email is rejected with `既に登録済みのメールアドレスです。`
+  - Existing unverified duplicate email does not block Google registration.
+  - Once Google registration creates a verified user for that email, old unverified email verification links become invalid through the existing verified-owner check.
+  - Withdrawn verified users do not block reuse, matching the normal registration rule.
+- Implemented referral code support during Google registration:
+  - Optional referral code is accepted on `/api/auth/google/register`.
+  - A pending `user_referrals` row is created.
+  - Actual reward grant remains tied to SMS verification.
+- Verification:
+  - `docker compose exec -T backend php artisan migrate --force` applied `2026_06_25_000002_create_social_auth_tables`.
+  - `docker compose exec -T backend php artisan test --filter=GoogleAuthApiTest` succeeded with 6 tests and 38 assertions.
+  - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 18 tests and 80 assertions.
+  - `docker compose exec -T backend php artisan route:list --path=auth/google` showed the 3 Google auth routes.
+- Current caution:
+  - There are unrelated uncommitted frontend changes under `frontend/` from another worker. Main Codex did not edit those files in this Google login backend work.

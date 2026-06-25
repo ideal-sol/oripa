@@ -9,4 +9,5 @@ enum PointLotSourceType: string
     case MinimumGuarantee = 'minimum_guarantee';
     case Compensation = 'compensation';
     case Exchange = 'exchange';
+    case Referral = 'referral';
 }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\ContactRequestController;
 use App\Http\Controllers\Api\Gacha\DrawController;
 use App\Http\Controllers\Api\Gacha\GachaController;
 use App\Http\Controllers\Api\Gacha\GachaTagController;
+use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentWebhookController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Api\PointController;
 use App\Http\Controllers\Api\PointPurchasePlanController;
 use App\Http\Controllers\Api\PointLedgerController;
 use App\Http\Controllers\Api\ShippingRequestController;
+use App\Http\Controllers\Api\SmsVerificationController;
 use App\Http\Controllers\Api\UserPrizeExchangeController;
 use App\Http\Controllers\Api\UserPrizeController;
 use App\Http\Controllers\Api\UserDrawRequestController;
@@ -35,6 +37,9 @@ Route::get('/gachas', [GachaController::class, 'index'])->name('api.gachas.index
 Route::get('/gachas/{gacha}', [GachaController::class, 'show'])->name('api.gachas.show');
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('api.auth.google.redirect');
+Route::post('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('api.auth.google.callback');
+Route::post('/auth/google/register', [GoogleAuthController::class, 'register'])->name('api.auth.google.register');
 Route::get('/email/verify/{user}/{hash}', [AuthController::class, 'verifyEmail'])->name('api.email.verify');
 Route::post('/email/verification-notification', [AuthController::class, 'resendEmailVerification'])->name('api.email.verification.resend');
 Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->name('api.password.forgot');
@@ -44,6 +49,10 @@ Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle'])->n
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', [MeController::class, 'show'])->name('api.me');
     Route::put('/me/profile', [MeController::class, 'updateProfile'])->name('api.me.profile.update');
+    Route::get('/me/sms-verification', [SmsVerificationController::class, 'show'])->name('api.me.sms-verification.show');
+    Route::post('/me/sms-verification', [SmsVerificationController::class, 'send'])->name('api.me.sms-verification.send');
+    Route::post('/me/sms-verification/resend', [SmsVerificationController::class, 'resend'])->name('api.me.sms-verification.resend');
+    Route::post('/me/sms-verification/verify', [SmsVerificationController::class, 'verify'])->name('api.me.sms-verification.verify');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::get('/me/points', [PointController::class, 'index'])->name('api.me.points');
     Route::get('/me/point-ledgers', [PointLedgerController::class, 'index'])->name('api.me.point-ledgers');
