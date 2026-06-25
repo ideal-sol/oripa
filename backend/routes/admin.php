@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\Gacha\AdminGachaReadinessController;
 use App\Http\Controllers\Admin\Gacha\AdminProbabilityController;
 use App\Http\Controllers\Admin\Gacha\AdminRankAssetController;
 use App\Http\Controllers\Admin\Gacha\AdminTopBannerController;
+use App\Http\Controllers\Admin\Line\AdminLineFriendSettingController;
 use App\Http\Controllers\Admin\Payment\AdminPaymentController;
 use App\Http\Controllers\Admin\Payment\AdminPointPurchasePlanController;
 use App\Http\Controllers\Admin\Point\AdminPointAdjustmentController;
@@ -125,6 +126,8 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
     Route::get('/referrals', [AdminUserReferralController::class, 'index'])->name('admin.api.referrals.index');
     Route::get('/referral-settings', [AdminReferralSettingController::class, 'show'])->name('admin.api.referral-settings.show');
     Route::put('/referral-settings', [AdminReferralSettingController::class, 'update'])->name('admin.api.referral-settings.update');
+    Route::get('/line-friend-settings', [AdminLineFriendSettingController::class, 'show'])->name('admin.api.line-friend-settings.show');
+    Route::put('/line-friend-settings', [AdminLineFriendSettingController::class, 'update'])->name('admin.api.line-friend-settings.update');
 
     Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('admin.api.audit-logs.index');
 });

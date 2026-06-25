@@ -12,6 +12,11 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect_uri' => env('GOOGLE_REDIRECT_URI'),
     ],
+    'line' => [
+        'channel_secret' => env('LINE_CHANNEL_SECRET'),
+        'channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN'),
+        'friend_add_url' => env('LINE_FRIEND_ADD_URL'),
+    ],
     'discord' => [
         'webhook_url' => env('DISCORD_WEBHOOK_URL'),
         'admin_webhook_url' => env('DISCORD_ADMIN_WEBHOOK_URL', env('DISCORD_WEBHOOK_URL')),

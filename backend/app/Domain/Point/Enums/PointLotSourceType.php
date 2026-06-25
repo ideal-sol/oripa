@@ -10,4 +10,5 @@ enum PointLotSourceType: string
     case Compensation = 'compensation';
     case Exchange = 'exchange';
     case Referral = 'referral';
+    case LineFriend = 'line_friend';
 }

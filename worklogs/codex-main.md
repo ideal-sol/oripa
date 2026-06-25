@@ -372,3 +372,65 @@ git diff --stat
   - `docker compose exec -T backend php artisan route:list --path=auth/google` showed the 3 Google auth routes.
 - Current caution:
   - There are unrelated uncommitted frontend changes under `frontend/` from another worker. Main Codex did not edit those files in this Google login backend work.
+
+## 2026-06-25 LINE Friend Link Backend Foundation
+
+- Added backend-only LINE friend-add point reward foundation. Frontend files were not edited.
+- Added user LINE fields:
+  - `line_link_code`
+  - `line_user_id`
+  - `line_linked_at`
+- User creation now auto-generates a unique `line_link_code`.
+- `UserResource` now exposes:
+  - `line_link_code`
+  - `line_linked_at`
+  - `line_linked`
+  - `line_friend_add_url`
+- Added LINE friend setting persistence:
+  - `line_friend_settings`
+  - `friend_add_url`
+  - `reward_point_amount`
+  - `reward_expiration_days`
+  - `is_active`
+  - `auto_reply_message`
+- Added LINE friend link/event persistence:
+  - `line_friend_links`
+  - `line_friend_link_events`
+- Added `line_friend` to `PointLotSourceType` and the `point_lots.source_type` DB constraint.
+- Added admin API routes:
+  - `GET /admin/api/line-friend-settings`
+  - `PUT /admin/api/line-friend-settings`
+- Added public LINE webhook:
+  - `POST /api/line/webhook`
+- Implemented LINE webhook behavior:
+  - Verifies `X-Line-Signature` using `LINE_CHANNEL_SECRET`.
+  - `follow` event creates/updates a friend row and replies with the configured auto-response message.
+  - `unfollow` event marks the LINE user as blocked.
+  - Text message event treats message text as the user's LINE link code.
+  - Matching code links `line_user_id` to the user and grants free points once.
+  - Duplicate LINE/user linkage is ignored or rejected without double granting points.
+- Added `.env.example` keys:
+  - `LINE_CHANNEL_SECRET`
+  - `LINE_CHANNEL_ACCESS_TOKEN`
+  - `LINE_FRIEND_ADD_URL`
+- Verification:
+  - `docker compose exec -T backend php artisan migrate --force` applied:
+    - `2026_06_25_000003_create_line_friend_tables`
+    - `2026_06_25_000004_add_line_friend_to_point_lot_source_type`
+  - `docker compose exec -T backend php artisan test --filter=LineFriendApiTest` succeeded with 5 tests and 28 assertions.
+  - `docker compose exec -T backend php artisan test --filter=UserAuthApiTest` succeeded with 18 tests and 80 assertions.
+  - `docker compose exec -T backend php artisan config:clear` succeeded.
+  - `docker compose exec -T backend php artisan route:list --path=line` showed the admin setting routes and public webhook route.
+- Frontend handoff:
+  - Added a LINE settings button/page under the existing admin Settings UI.
+  - Connected it to `/admin/api/line-friend-settings`.
+  - Remaining frontend handoff: display the user `line_link_code` and `line_friend_add_url` in the user profile page.
+- Admin UI addition:
+  - Added `LINE設定` button to the admin settings page.
+  - Added `/admin/settings/line` route handling.
+  - Added form fields for friend add URL, reward points, free point expiration days, auto-reply message, and active flag.
+  - Added display for current friend count and blocked count.
+  - Verification:
+    - `pnpm typecheck` in `frontend/` succeeded.
+- Current caution:
+  - There are unrelated uncommitted frontend changes under `frontend/` from another worker. Main Codex did not edit those files in this LINE backend work.

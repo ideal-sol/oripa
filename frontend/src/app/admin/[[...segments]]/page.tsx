@@ -156,6 +156,10 @@ function routeStateFromSegments(segments: string[]): AdminRouteState {
       return { tab: "settings", subView: "referral" };
     }
 
+    if (second === "line") {
+      return { tab: "settings", subView: "line" };
+    }
+
     return { tab: "settings" };
   }
 

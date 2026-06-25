@@ -18,6 +18,9 @@ class User extends Authenticatable
         'name',
         'email',
         'referral_code',
+        'line_link_code',
+        'line_user_id',
+        'line_linked_at',
         'email_verified_at',
         'sms_verified_at',
         'password',
@@ -34,8 +37,22 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'sms_verified_at' => 'datetime',
+            'line_linked_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            if (! $user->referral_code) {
+                $user->referral_code = self::generateReferralCode();
+            }
+
+            if (! $user->line_link_code) {
+                $user->line_link_code = self::generateLineLinkCode();
+            }
+        });
     }
 
     public function profile()
@@ -78,11 +95,25 @@ class User extends Authenticatable
         return $this->hasMany(SocialAccount::class);
     }
 
+    public function lineFriendLink()
+    {
+        return $this->hasOne(LineFriendLink::class);
+    }
+
     public static function generateReferralCode(): string
     {
         do {
             $code = 'LP'.Str::upper(Str::random(10));
         } while (self::query()->where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    public static function generateLineLinkCode(): string
+    {
+        do {
+            $code = 'LN'.Str::upper(Str::random(10));
+        } while (self::query()->where('line_link_code', $code)->exists());
 
         return $code;
     }

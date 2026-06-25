@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Gacha\DrawController;
 use App\Http\Controllers\Api\Gacha\GachaController;
 use App\Http\Controllers\Api\Gacha\GachaTagController;
 use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\LineWebhookController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentWebhookController;
@@ -45,6 +46,7 @@ Route::post('/email/verification-notification', [AuthController::class, 'resendE
 Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->name('api.password.forgot');
 Route::post('/password/reset', [AuthController::class, 'resetPassword'])->name('api.password.reset');
 Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.webhook');
+Route::post('/line/webhook', LineWebhookController::class)->name('api.line.webhook');
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', [MeController::class, 'show'])->name('api.me');

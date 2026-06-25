@@ -174,6 +174,19 @@ type ReferralSetting = {
   updated_at: string | null;
 };
 
+type LineFriendSetting = {
+  id: number;
+  friend_add_url: string | null;
+  reward_point_amount: number;
+  reward_expiration_days: number | null;
+  is_active: boolean;
+  auto_reply_message: string | null;
+  friends_count: number;
+  blocked_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type UserReferral = {
   id: number;
   referrer_user_id: number;
@@ -484,6 +497,7 @@ type AdminDataCache = {
   purchasePlans: PointPurchasePlan[];
   pointAdjustments: PointAdjustment[];
   referralSetting: ReferralSetting | null;
+  lineFriendSetting: LineFriendSetting | null;
   referrals: UserReferral[];
 };
 
@@ -493,7 +507,7 @@ type NoticeTone = "success" | "error" | "info";
 type AnnouncementView = "list" | "new" | "edit";
 type PointView = "list" | "new";
 type ContactView = "list" | "edit";
-type SettingView = "list" | "pages" | "edit" | "rank-assets" | "rank-asset-new" | "rank-asset-edit" | "referral";
+type SettingView = "list" | "pages" | "edit" | "rank-assets" | "rank-asset-new" | "rank-asset-edit" | "referral" | "line";
 type PurchasePlanView = "list" | "new" | "edit";
 type UserManagementView = "list" | "detail";
 type ShippingView = "list" | "edit";
@@ -622,6 +636,7 @@ export default function AdminDashboard({
   const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>(cachedAdminData?.purchasePlans ?? []);
   const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>(cachedAdminData?.pointAdjustments ?? []);
   const [referralSetting, setReferralSetting] = useState<ReferralSetting | null>(cachedAdminData?.referralSetting ?? null);
+  const [lineFriendSetting, setLineFriendSetting] = useState<LineFriendSetting | null>(cachedAdminData?.lineFriendSetting ?? null);
   const [referrals, setReferrals] = useState<UserReferral[]>(cachedAdminData?.referrals ?? []);
   const [announcements, setAnnouncements] = useState<Announcement[]>(cachedAdminData?.announcements ?? []);
   const [contacts, setContacts] = useState<ContactRequest[]>(cachedAdminData?.contacts ?? []);
@@ -712,6 +727,13 @@ export default function AdminDashboard({
     rewardPointAmount: "0",
     rewardExpirationDays: "",
     isActive: true,
+  });
+  const [lineFriendSettingForm, setLineFriendSettingForm] = useState({
+    friendAddUrl: "",
+    rewardPointAmount: "0",
+    rewardExpirationDays: "",
+    isActive: true,
+    autoReplyMessage: "",
   });
   const [referralSearchForm, setReferralSearchForm] = useState({
     userId: "",
@@ -923,7 +945,16 @@ export default function AdminDashboard({
       setTabData(tab, response);
       if (tab === "settings") {
         const assetResponse = await apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, token);
+        const lineFriendSettingResponse = await apiRequest<{ data: LineFriendSetting }>("/line-friend-settings", {}, token);
         setRankAssets(assetResponse.data);
+        setLineFriendSetting(lineFriendSettingResponse.data);
+        setLineFriendSettingForm({
+          friendAddUrl: lineFriendSettingResponse.data.friend_add_url ?? "",
+          rewardPointAmount: String(lineFriendSettingResponse.data.reward_point_amount),
+          rewardExpirationDays: lineFriendSettingResponse.data.reward_expiration_days === null ? "" : String(lineFriendSettingResponse.data.reward_expiration_days),
+          isActive: lineFriendSettingResponse.data.is_active,
+          autoReplyMessage: lineFriendSettingResponse.data.auto_reply_message ?? "",
+        });
       }
       setPages((current) => ({ ...current, [tab]: response.meta?.current_page ?? page }));
     } catch (error) {
@@ -942,12 +973,13 @@ export default function AdminDashboard({
     clearMessage();
 
     try {
-      const [announcementData, contactData, staticPageData, rankAssetData, referralSettingData, referralData, categoryData, tagData, topBannerData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
+      const [announcementData, contactData, staticPageData, rankAssetData, referralSettingData, lineFriendSettingData, referralData, categoryData, tagData, topBannerData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
         apiRequest<ApiCollection<Announcement>>(endpointFor("announcements", pages.announcements, filters.announcements), {}, token),
         apiRequest<ApiCollection<ContactRequest>>(endpointFor("contacts", pages.contacts, filters.contacts), {}, token),
         apiRequest<ApiCollection<StaticPage>>(endpointFor("settings", pages.settings, filters.settings), {}, token),
         apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, token),
         apiRequest<{ data: ReferralSetting }>("/referral-settings", {}, token),
+        apiRequest<{ data: LineFriendSetting }>("/line-friend-settings", {}, token),
         apiRequest<ApiCollection<UserReferral>>("/referrals?per_page=100", {}, token),
         apiRequest<{ data: GachaCategory[] }>("/gacha-categories", {}, token),
         apiRequest<{ data: GachaTag[] }>("/gacha-tags", {}, token),
@@ -969,10 +1001,18 @@ export default function AdminDashboard({
       setTabData("settings", staticPageData);
       setRankAssets(rankAssetData.data);
       setReferralSetting(referralSettingData.data);
+      setLineFriendSetting(lineFriendSettingData.data);
       setReferralSettingForm({
         rewardPointAmount: String(referralSettingData.data.reward_point_amount),
         rewardExpirationDays: referralSettingData.data.reward_expiration_days === null ? "" : String(referralSettingData.data.reward_expiration_days),
         isActive: referralSettingData.data.is_active,
+      });
+      setLineFriendSettingForm({
+        friendAddUrl: lineFriendSettingData.data.friend_add_url ?? "",
+        rewardPointAmount: String(lineFriendSettingData.data.reward_point_amount),
+        rewardExpirationDays: lineFriendSettingData.data.reward_expiration_days === null ? "" : String(lineFriendSettingData.data.reward_expiration_days),
+        isActive: lineFriendSettingData.data.is_active,
+        autoReplyMessage: lineFriendSettingData.data.auto_reply_message ?? "",
       });
       setReferrals(referralData.data);
       setCategories(categoryData.data);
@@ -994,6 +1034,7 @@ export default function AdminDashboard({
         staticPages: staticPageData.data,
         rankAssets: rankAssetData.data,
         referralSetting: referralSettingData.data,
+        lineFriendSetting: lineFriendSettingData.data,
         referrals: referralData.data,
         categories: categoryData.data,
         tags: tagData.data,
@@ -1749,6 +1790,44 @@ export default function AdminDashboard({
       showMessage("success", "紹介ポイント設定を更新しました");
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "紹介ポイント設定の保存に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitLineFriendSetting(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: LineFriendSetting }>("/line-friend-settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          friend_add_url: lineFriendSettingForm.friendAddUrl.trim() || null,
+          reward_point_amount: Number(lineFriendSettingForm.rewardPointAmount || 0),
+          reward_expiration_days: lineFriendSettingForm.rewardExpirationDays ? Number(lineFriendSettingForm.rewardExpirationDays) : null,
+          is_active: lineFriendSettingForm.isActive,
+          auto_reply_message: lineFriendSettingForm.autoReplyMessage.trim() || null,
+        }),
+      }, session.access_token);
+
+      setLineFriendSetting(response.data);
+      setLineFriendSettingForm({
+        friendAddUrl: response.data.friend_add_url ?? "",
+        rewardPointAmount: String(response.data.reward_point_amount),
+        rewardExpirationDays: response.data.reward_expiration_days === null ? "" : String(response.data.reward_expiration_days),
+        isActive: response.data.is_active,
+        autoReplyMessage: response.data.auto_reply_message ?? "",
+      });
+      showMessage("success", "LINE設定を更新しました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "LINE設定の保存に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -3304,19 +3383,51 @@ export default function AdminDashboard({
           {activeTab === "settings" && (
             activeSettingView === "list" ? (
               <ListSurface title="設定" actionLabel="更新" onAction={() => void refreshAll()}>
-                <div className="toolbar-row">
-                  <button className="secondary-button" type="button" onClick={() => {
+                <div className="toolbar-rows">
+                  <button className="secondary-button" type="button"
+                  style={{
+                    width: "100%",
+                    height: "50px",
+                    display: "block",
+                    boxShadow: "none",
+                  }}
+                  onClick={() => {
                     setActiveSettingView("pages");
                     router.push(adminPathForSettingView("pages"));
                   }}>ページ設定</button>
-                  <button className="secondary-button" type="button" onClick={() => {
+                  <button className="secondary-button" type="button"
+                  style={{
+                            width: "100%",
+                            height: "50px",
+                            display: "block",
+                            boxShadow: "none",
+                  }}
+                  onClick={() => {
                     setActiveSettingView("rank-assets");
                     router.push(adminPathForSettingView("rank-assets"));
                   }}>ランク演出設定</button>
-                  <button className="secondary-button" type="button" onClick={() => {
+                  <button className="secondary-button" type="button"
+                  style={{
+                            width: "100%",
+                            height: "50px",
+                            display: "block",
+                            boxShadow: "none",
+                  }}
+                  onClick={() => {
                     setActiveSettingView("referral");
                     router.push(adminPathForSettingView("referral"));
                   }}>紹介ポイント設定</button>
+                  <button className="secondary-button" type="button"
+                  style={{
+                            width: "100%",
+                            height: "50px",
+                            display: "block",
+                            boxShadow: "none",
+                  }}
+                  onClick={() => {
+                    setActiveSettingView("line");
+                    router.push(adminPathForSettingView("line"));
+                  }}>LINE設定</button>
                 </div>
               </ListSurface>
             ) : (
@@ -3417,6 +3528,43 @@ export default function AdminDashboard({
                     <ReferralTable rows={referrals} />
                   </ListSurface>
                 </div>
+              ) : activeSettingView === "line" ? (
+                <FormSurface title="LINE設定" backLabel="設定" onBack={() => {
+                  setActiveSettingView("list");
+                  router.push(adminPathForSettingView("list"));
+                }}>
+                  <form className="stack-form compact-form" onSubmit={submitLineFriendSetting}>
+                    <label>
+                      <span>LINE友達追加URL</span>
+                      <input value={lineFriendSettingForm.friendAddUrl} onChange={(event) => setLineFriendSettingForm((current) => ({ ...current, friendAddUrl: event.target.value }))} placeholder="https://line.me/R/ti/p/..." />
+                    </label>
+                    <label>
+                      <span>ポイント付与</span>
+                      <input value={lineFriendSettingForm.rewardPointAmount} onChange={(event) => setLineFriendSettingForm((current) => ({ ...current, rewardPointAmount: event.target.value }))} inputMode="numeric" required />
+                    </label>
+                    <label>
+                      <span>無償ポイント有効期限（日数）</span>
+                      <input value={lineFriendSettingForm.rewardExpirationDays} onChange={(event) => setLineFriendSettingForm((current) => ({ ...current, rewardExpirationDays: event.target.value }))} inputMode="numeric" placeholder="空白なら期限なし" />
+                    </label>
+                    <label>
+                      <span>友達追加時の自動応答メッセージ</span>
+                      <textarea value={lineFriendSettingForm.autoReplyMessage} onChange={(event) => setLineFriendSettingForm((current) => ({ ...current, autoReplyMessage: event.target.value }))} rows={8} placeholder="LINE連携コードを送信してください。" />
+                    </label>
+                    <label className="check-row">
+                      <input type="checkbox" checked={lineFriendSettingForm.isActive} onChange={(event) => setLineFriendSettingForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                      <span>LINE友達追加ポイント付与を有効にする</span>
+                    </label>
+                    <button className="primary-button" type="submit" disabled={loading}>更新</button>
+                    {lineFriendSetting ? (
+                      <div className="detail-grid">
+                        <DetailItem label="現在の友達数" value={`${lineFriendSetting.friends_count.toLocaleString("ja-JP")}人`} />
+                        <DetailItem label="現在のブロック数" value={`${lineFriendSetting.blocked_count.toLocaleString("ja-JP")}人`} />
+                        <DetailItem label="現在設定" value={`${lineFriendSetting.reward_point_amount.toLocaleString("ja-JP")}pt / 期限 ${lineFriendSetting.reward_expiration_days === null ? "なし" : `${lineFriendSetting.reward_expiration_days}日`} / ${lineFriendSetting.is_active ? "有効" : "無効"}`} />
+                      </div>
+                    ) : null}
+                    <p className="inline-note">ユーザーがプロフィール画面のコードをLINEボットへ送信すると、LINE IDとユーザーを紐づけてポイントを付与します。</p>
+                  </form>
+                </FormSurface>
               ) : (
                 <FormSurface title={activeSettingView === "rank-asset-edit" ? "ランク演出設定編集" : "ランク演出設定登録"} backLabel="ランク演出設定" onBack={() => {
                   setActiveSettingView("rank-assets");
@@ -6423,6 +6571,7 @@ function readAdminDataCache(): AdminDataCache | null {
       purchasePlans: parsed.purchasePlans ?? [],
       pointAdjustments: parsed.pointAdjustments ?? [],
       referralSetting: parsed.referralSetting ?? null,
+      lineFriendSetting: parsed.lineFriendSetting ?? null,
       referrals: parsed.referrals ?? [],
     };
   } catch {
@@ -6609,7 +6758,7 @@ function resolveContactView(value?: string): ContactView {
 }
 
 function resolveSettingView(value?: string): SettingView {
-  const views: SettingView[] = ["list", "pages", "edit", "rank-assets", "rank-asset-new", "rank-asset-edit", "referral"];
+  const views: SettingView[] = ["list", "pages", "edit", "rank-assets", "rank-asset-new", "rank-asset-edit", "referral", "line"];
   return views.includes(value as SettingView) ? value as SettingView : "list";
 }
 
@@ -6730,6 +6879,10 @@ function adminPathForSettingView(view: SettingView, id?: number | string) {
 
   if (view === "referral") {
     return "/admin/settings/referral";
+  }
+
+  if (view === "line") {
+    return "/admin/settings/line";
   }
 
   if (view === "rank-asset-new") {
