@@ -23,7 +23,7 @@
 | 領域 | 総評 |
 |---|---|
 | 抽選 | 中核ロジックはLaravel側トランザクション内にあり、`gachas`行ロック、通し番号、CSPRNG、ppm検証、最低保証、在庫吸収、idempotencyを確認できた。日次抽選上限はトランザクション内で検証されるが、既存完了リクエストの集計に依存するため実並行テストは必要。 |
-| ポイント | paid/free区分、paid期限なし、free期限あり、無償優先消費、期限近い順、台帳作成、失効処理を確認できた。日次残高スナップショットはテーブルとModelのみ確認でき、作成処理・スケジュールは見つからない。 |
+| ポイント | paid/free区分、paid期限なし、free期限あり、無償優先消費、期限近い順、台帳作成、失効処理を確認できた。日次残高スナップショットはService、Command、Scheduler、対象テストを確認済み。 |
 | 決済 | mock限定の決済フロー、成功前付与なし、Webhook冪等、返金/CB状態は確認できた。`mock-succeed`はlocal/testing限定だが、`POST /api/payments`でmock決済作成自体は本番でも通る構造のため公開前に要制御。 |
 | 認証・外部連携 | メール認証、Googleログイン土台、SMSハッシュ保存、試行回数、LINE署名、管理API認証を確認できた。adminサブドメインはアプリ内のアクセス制御ではなくインフラ/CORS/Cookie設定依存。 |
 
@@ -70,12 +70,12 @@
 | 二重付与防止: 紹介 | PASS | `ReferralRewardService::rewardForReferredUser` | `status=pending` の紹介行を `lockForUpdate` し、付与後 `rewarded` に変更する。 |
 | 二重付与防止: LINE | PASS | `LineFriendLinkService::handleCodeMessage` | `line_user_id` と `user` をロックし、`rewarded_at` 未設定時のみ付与。テストで二重付与なしを確認するケースあり。 |
 | 失効処理 | PASS | `PointExpirationService::expire`, `backend/routes/console.php` | freeロットのみ期限切れ対象。`points:expire` commandがあり、hourly schedule設定あり。 |
-| 日次残高スナップショット | FAIL | `PointBalanceSnapshot` Model, `2026_06_10_000002_create_point_tables.php`, `backend/routes/console.php` | テーブルとModelはあるが、スナップショットを作成するService/Command/Scheduleを確認できない。正本v1.4のMVP必須範囲に対して未実装扱い。 |
+| 日次残高スナップショット | PASS | `PointBalanceSnapshotService`, `CreatePointBalanceSnapshotCommand`, `PointBalanceSnapshot` Model, `backend/routes/console.php`, `PointBalanceSnapshotServiceTest`, `PointBalanceSnapshotCommandTest` | paid/free未使用残高を集計し、`snapshot_date` unique + `updateOrCreate` で同日再実行時に更新する。未指定実行はAsia/Tokyo前日、手動日付指定は現在ロット残高を指定日として保存する仕様。3月31日・9月30日の基準日判定、Command日付指定/省略、Scheduler登録をテスト済み。 |
 
 ### ポイントの注意点
 
 - `PointLotService::grant` 自体は内部で `DB::transaction` を開始していない。決済・抽選・紹介・LINEの呼び出し元がトランザクションを持つ場合は一体化されるが、単体呼び出し時の部分失敗対策は呼び出し側設計に依存する。
-- `point_balance_snapshots` は正本v1.4の資金決済法対応で重要だが、現状は保存先だけで集計処理が見当たらない。
+- `point_balance_snapshots` 作成処理は実装済み。管理画面/APIでスナップショットを閲覧・CSV出力する機能は別タスクとして残る。
 
 ## 決済
 
@@ -118,7 +118,7 @@
 
 | 重大度 | 項目 | 評価 | 内容 | 推奨対応 |
 |---|---|---|---|---|
-| High | 日次残高スナップショット | FAIL | `point_balance_snapshots` テーブルはあるが、日次集計を作成する処理が見当たらない。正本v1.4の資金決済法対応MVP要件に未達。 | `PointBalanceSnapshotService` と日次Command/Schedule、テストを追加する。 |
+| High | 日次残高スナップショット閲覧/出力 | WARNING | 日次集計を作成するService/Command/Schedule/テストは追加済み。管理画面/APIでの閲覧・CSV出力は未実装。 | 売上管理又はポイント管理の別タスクで、最新値・日次推移・基準日値・CSV出力を実装する。 |
 | High | 本番決済 | WARNING | mock成功APIはlocal/testing限定だが、mock決済作成は本番でも通る。実決済未接続のため公開不可。 | 本番決済導入まで購入機能を公開しない、またはproductionでmock payment作成を禁止する。 |
 | Medium | 返金・CB時のポイント取消 | WARNING | refunded/chargeback状態とユーザー停止はあるが、対応するポイント取消はmetadata上pending。 | 正本どおりポイント取消・不足時マイナス残高・利用制限を実装する。 |
 | Medium | adminサブドメイン制御 | WARNING | アプリ側は管理者認証あり。サブドメイン分離はインフラ設定依存で本監査未確認。 | Cloudflare/Nginx/CORS/Cookie/Sanctum設定を別監査する。 |
@@ -135,6 +135,8 @@
 | `backend/tests/Feature/ProbabilityVersionPublisherTest.php` | 公開確率バージョン |
 | `backend/tests/Feature/PointConsumptionServiceTest.php` | 無償優先、期限近い順、FIFO、台帳 |
 | `backend/tests/Feature/PointExpirationServiceTest.php` | 無償ポイント失効 |
+| `backend/tests/Unit/PointBalanceSnapshotServiceTest.php` | 日次残高スナップショットService |
+| `backend/tests/Feature/PointBalanceSnapshotCommandTest.php` | 日次残高スナップショットCommand/Scheduler |
 | `backend/tests/Feature/PaymentApiTest.php` | mock決済、成功時付与、local mock confirmation |
 | `backend/tests/Feature/PaymentWebhookApiTest.php` | Webhook署名、冪等、成功/失敗 |
 | `backend/tests/Feature/AdminPaymentApiTest.php` | 返金/チャージバック状態変更 |
@@ -155,3 +157,11 @@
 - 外部Mailgun、LINE、Discord、Googleとの実通信
 - ブラウザE2E確認
 - 実並行リクエストによる負荷・競合確認
+
+## 2026-06-29 Update
+
+- 日次残高スナップショットのService、Command、Scheduler、対象テストを追加した。
+- Target tests passed:
+  - `docker compose exec -T backend php artisan test tests/Unit/PointBalanceSnapshotServiceTest.php`
+  - `docker compose exec -T backend php artisan test tests/Feature/PointBalanceSnapshotCommandTest.php`
+- 管理画面/APIでの閲覧、CSV出力、実並行二重実行の検証は別タスクとして残る。

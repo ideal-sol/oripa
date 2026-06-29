@@ -511,3 +511,37 @@ git diff --stat
   - `point_balance_snapshots` table and Model exist.
   - Service, Command, Scheduler, and tests are missing or unconfirmed.
   - Daily storage of paid/free unused point balances is required for funds settlement law support.
+
+## 2026-06-29 Daily Point Balance Snapshots
+
+- Implemented backend daily point balance snapshots.
+- Scope kept to backend Service, Command, Scheduler, tests, and documentation.
+- Did not implement sales management, refund/chargeback cancellation logic, production payment, admin refactor, or frontend display.
+- Existing DB state:
+  - `point_balance_snapshots.snapshot_date` already had a unique constraint.
+  - No new migration was required.
+- Added:
+  - `backend/app/Domain/Point/Services/PointBalanceSnapshotService.php`
+  - `backend/app/Console/Commands/CreatePointBalanceSnapshotCommand.php`
+  - `points:snapshot-balances` Artisan command
+  - Scheduler entry at `00:10` Asia/Tokyo with `withoutOverlapping`
+  - `backend/tests/Unit/PointBalanceSnapshotServiceTest.php`
+  - `backend/tests/Feature/PointBalanceSnapshotCommandTest.php`
+- Behavior:
+  - Aggregates all paid point lots with `remaining_amount > 0`.
+  - Aggregates free point lots with `remaining_amount > 0` and `expire_at` in the future.
+  - Uses the previous Asia/Tokyo date when the command is run without `--date`.
+  - Manual `--date=YYYY-MM-DD` stores current `point_lots.remaining_amount` totals under the specified date.
+  - Strict historical reconstruction for an arbitrary past timestamp is a future separate feature if needed.
+  - Marks March 31 and September 30 as base dates.
+  - Uses `updateOrCreate` so rerunning the same date updates one row instead of creating duplicates.
+- Operational order:
+  - Existing `points:expire` remains scheduled hourly.
+  - Daily snapshot runs at `00:10` Asia/Tokyo after the intended free-point expiration step.
+- Verification:
+  - `docker compose exec -T backend php artisan list | grep points` showed `points:snapshot-balances`.
+  - `docker compose exec -T backend php artisan test tests/Unit/PointBalanceSnapshotServiceTest.php` passed: 5 tests, 15 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/PointBalanceSnapshotCommandTest.php` passed: 5 tests, 13 assertions.
+- Remaining follow-up:
+  - Admin/API display and CSV export for latest value, daily trend, and base date value remain separate future tasks.
+  - Concurrent double execution of the same date can be considered later if operating multiple scheduler instances.

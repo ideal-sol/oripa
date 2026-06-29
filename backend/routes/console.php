@@ -17,6 +17,10 @@ Artisan::command('points:expire {--limit=1000}', function (PointExpirationServic
 })->purpose('Expire free point lots whose expiration time has passed.');
 
 Schedule::command('points:expire')->hourly()->withoutOverlapping();
+Schedule::command('points:snapshot-balances')
+    ->dailyAt('00:10')
+    ->timezone(config('app.timezone', 'Asia/Tokyo'))
+    ->withoutOverlapping();
 Schedule::command('admin:daily-sales-report')
     ->dailyAt('10:00')
     ->timezone(config('services.discord.daily_report_timezone', config('app.timezone', 'Asia/Tokyo')))

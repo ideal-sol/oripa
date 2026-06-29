@@ -25,7 +25,7 @@
 | 領域 | 現在のテスト傾向 | 主な不足 |
 |---|---|---|
 | 抽選 | Feature/Serviceテストあり | 実並行テスト、複数リクエスト競合、演出結果再現性の変更後保持 |
-| ポイント | 消費・失効・付与系Featureテストあり | 日次残高スナップショット、三者一致の統合検証、並行付与/消費 |
+| ポイント | 消費・失効・付与・日次残高スナップショット系テストあり | 三者一致の統合検証、並行付与/消費、スナップショット閲覧/CSV |
 | 決済 | mock決済、Webhook冪等テストあり | 本番環境でmock作成禁止、返金/CB時ポイント取消、並行Webhook |
 | 認証 | メール、Google、SMS、LINEのFeatureテストあり | OAuth/SMS/LINEのE2E、レート制限、再送イベントの厳密な冪等 |
 | 管理/フロント | Laravel APIテスト中心 | Browser/E2Eがほぼ未整備 |
@@ -49,7 +49,7 @@
 | TC-013 | 無償優先・期限近い順消費 | あり: `PointConsumptionServiceTest.php` | 部分あり | 部分あり | 不足 | 不足 | free期限近い順→paid FIFO確認あり | 抽選サービス経由での統合検証 | free複数lot+paid lotで抽選し、draw result、ledger、wallet、lot残高まで一括検証 | P0 |
 | TC-014 | point_lots/point_ledgers/wallets三者一致 | 部分あり | 部分あり | 不足 | 不足 | 不足 | 個別テストはあるが全体整合バッチなし | 三者一致監査テスト | 複数付与/消費/失効後、wallet残高=point_lots remaining合計=ledgers累積になることを検証する共通アサーション | P0 |
 | TC-015 | 失効処理 | あり: `PointExpirationServiceTest.php` | 部分あり | 部分あり | 不足 | 不足 | free期限切れ失効、paid対象外は確認 | schedule実行確認、失効前通知 | `points:expire` commandをFeatureで実行し、hourly schedule登録と結果ログを検証 | P1 |
-| TC-016 | 日次残高スナップショット | 不足 | 不足 | 不足 | 不足 | 不足 | テーブル/Modelのみ | 作成処理自体が未確認 | snapshot作成Command/Serviceを実装後、日次・基準日・CSV/API表示を検証 | P0 |
+| TC-016 | 日次残高スナップショット | あり: `PointBalanceSnapshotServiceTest.php` | あり: `PointBalanceSnapshotCommandTest.php` | 部分あり | 不足 | 不足 | Service/Command/Scheduler、paid/free集計、基準日、冪等更新、未指定時のAsia/Tokyo前日、日付指定、無効日付を確認 | 管理API/CSV表示、並行再実行、三者一致との統合確認 | snapshot閲覧API/CSV追加後、最新値・日次推移・基準日値を検証。必要なら同日Command二重起動時の競合も検証 | P1 |
 | TC-017 | 決済成功前にポイント未付与 | 部分あり | あり: `PaymentApiTest.php`, `PaymentWebhookApiTest.php` | 部分あり | 不足 | 不足 | pending作成後、成功時付与確認あり | pending状態で残高不変の明示 | payment作成直後にwallet/lot/ledgerが増えないことを検証 | P0 |
 | TC-018 | 二重Webhook | 部分あり | あり: `PaymentWebhookApiTest.php` | 部分あり | 不足 | 不足 | 同一payload再送で二重付与なし確認あり | 並行Webhook再送 | 同一event_idを2並列送信し、Payment 1件、PointLot 1件、Ledger 1件のみを検証 | P0 |
 | TC-019 | Webhook署名 | あり | あり: `PaymentWebhookApiTest.php` | 部分あり | 不要 | 不足 | invalid signature拒否あり | 本番プロバイダ導入後の署名方式 | Stripe/GMO/KOMOJU等の署名検証Serviceを追加後、正常/異常/リプレイを検証 | P0 |
@@ -215,14 +215,14 @@ frontend側で確認した範囲:
 
 ## Recommended Test Implementation Order
 
-1. P0: 日次残高スナップショットのService/Command実装後のテスト。
-2. P0: 同時抽選Concurrent Test。
-3. P0: daily_draw_limitの並行・JST境界テスト。
-4. P0: 二重Webhookの並行テスト。
-5. P0: 二重紹介ポイントとLINEポイントの並行テスト。
-6. P0: SMS試行回数・期限・再送の境界テスト。
-7. P0: ランク演出結果の再現性テスト。
-8. P0: production環境でmock決済作成/成功ができないことのテスト。
+1. P0: 同時抽選Concurrent Test。
+2. P0: daily_draw_limitの並行・JST境界テスト。
+3. P0: 二重Webhookの並行テスト。
+4. P0: 二重紹介ポイントとLINEポイントの並行テスト。
+5. P0: SMS試行回数・期限・再送の境界テスト。
+6. P0: ランク演出結果の再現性テスト。
+7. P0: production環境でmock決済作成/成功ができないことのテスト。
+8. P1: 日次残高スナップショットの管理API/CSV表示テスト。
 9. P1: 返金/チャージバック時のポイント取消テスト。
 10. P1: Playwrightによる管理画面・ユーザー画面の最小E2E。
 
@@ -231,3 +231,10 @@ frontend側で確認した範囲:
 - 本監査ではテストを実行していない。
 - 既存テストファイルの有無と内容を静的に確認した。
 - 過去の実行結果は `worklogs/codex-main.md` に記録があるが、本レポートでは現在実行済みとは扱わない。
+
+## 2026-06-29 Update
+
+- `PointBalanceSnapshotServiceTest.php` and `PointBalanceSnapshotCommandTest.php` were added.
+- Target tests passed:
+  - `docker compose exec -T backend php artisan test tests/Unit/PointBalanceSnapshotServiceTest.php`
+  - `docker compose exec -T backend php artisan test tests/Feature/PointBalanceSnapshotCommandTest.php`

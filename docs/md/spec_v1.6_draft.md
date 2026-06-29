@@ -56,25 +56,32 @@ Specification name: 日次残高スナップショット
 Current status:
 
 - `point_balance_snapshots` table and Model exist.
-- Service, Command, Scheduler, and tests are not implemented or not yet confirmed.
-- This is the next pre-release critical backend task.
+- Service, Command, Scheduler, and tests are implemented.
+- Target tests passed.
 
 Formal requirement:
 
 - Store daily unused point balances separated by paid and free points.
+- `snapshot_date` represents the end-of-day unused balance for that Asia/Tokyo date.
+- The daily Scheduler runs at 00:10 JST and creates the snapshot for the previous Asia/Tokyo date.
+- Example: execution at 2026-04-01 00:10 JST creates `snapshot_date = 2026-03-31`.
+- Example: execution at 2026-10-01 00:10 JST creates `snapshot_date = 2026-09-30`.
 - Use the stored daily balances as the basis for funds settlement law support and future reporting.
 - Preserve the ability to identify reporting date balances such as March 31 and September 30.
 - Keep implementation in Laravel; do not calculate or persist this logic in Next.js.
+- Manual `--date=YYYY-MM-DD` execution stores the current `point_lots.remaining_amount` totals under the specified `snapshot_date`.
+- Strict historical reconstruction for an arbitrary past timestamp is not provided by this command. If needed, reconstructing past balances from `point_ledgers` is a future separate feature.
 
 Implementation scope for next task:
 
-- Add a domain Service that calculates daily paid/free unused balances.
-- Add an Artisan Command to create snapshots for a target date.
-- Register the Command in Scheduler for daily execution.
-- Add tests for paid/free aggregation, idempotency, reruns for the same date, and basic exclusion rules if applicable.
-- Confirm behavior for withdrawn/suspended users and expired free lots during implementation.
+- Added a domain Service that calculates daily paid/free unused balances.
+- Added an Artisan Command to create snapshots for a target date.
+- Registered the Command in Scheduler for daily execution.
+- Added tests for paid/free aggregation, idempotency, reruns for the same date, base date detection, default previous-day behavior, date option handling, invalid date handling, and Scheduler registration.
+- Expired free lots are excluded from snapshot aggregation. The intended daily operation order remains: free point expiration, daily snapshot creation, then consistency checks.
 
 Release status:
 
 - Pre-release critical feature.
-- Not completed in this draft.
+- Backend Service, Command, Scheduler, and target tests are completed.
+- Management display/API for viewing snapshots remains a separate future task.
