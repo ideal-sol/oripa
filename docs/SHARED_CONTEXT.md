@@ -29,21 +29,29 @@ The working tree before creating these shared coordination files had only `workl
 - Mail: Mailpit locally, Mailgun API for production-style mail sending
 - Admin notifications: Discord webhook
 
-## Master Specification
+## Specification Priority
 
-`AGENTS.md` references `docs/md/00_spec_v1.4.md`, but that file does not currently exist in this working tree.
+Use the following order when requirements conflict:
 
-The existing specification files are:
+1. Latest explicit human decision
+2. `docs/md/spec_v1.5.1.md`
+3. `docs/md/spec_v1.6_draft.md`
+4. `docs/md/spec_v1.5.md`
+5. `docs/decisions/APPROVED_AS_BUILT_SPECIFICATIONS_2026-06-25.md`
+6. `docs/md/spec_v1.4.md`
+7. `AGENTS.md`
+8. `TASK_BOARD.md`
+9. `docs/SHARED_CONTEXT.md`
+10. `docs/md/all_check.md`
+
+Historical and supporting files include:
 
 - `docs/md/spec_v1.4.md`
+- `docs/md/all_check.md`
 - `docs/md/environment_setup_v1.0.md`
 - `docs/md/word.md`
 - `docs/md/implementation.md`
 - `docs/md/OripaPricingPlanner.jsx`
-
-Until the `00_*` files are added or the instruction is corrected, treat `docs/md/spec_v1.4.md` together with `docs/md/word.md` and `docs/md/implementation.md` as the practical project specification sources already used in this repository.
-
-If `docs/md/00_spec_v1.4.md` is later added, it should be treated as the master specification as instructed by `AGENTS.md`.
 
 ## Implemented Areas
 
@@ -69,6 +77,7 @@ If `docs/md/00_spec_v1.4.md` is later added, it should be treated as the master 
 ## Not Yet Complete / Needs Careful Review
 
 - Real production payment provider integration and webhook hardening
+- Daily point balance snapshot implementation for paid/free unused point balances
 - Full production QA pass
 - Legal/accounting confirmation around paid point handling and funds settlement obligations
 - Production storage migration strategy if moving uploaded assets from local/MinIO-compatible storage to AWS S3
@@ -77,6 +86,10 @@ If `docs/md/00_spec_v1.4.md` is later added, it should be treated as the master 
 
 ## Recently Active Work
 
+- Specification priority was updated to prefer latest human decisions, then `spec_v1.5.1`, then `spec_v1.6_draft`.
+- `docs/md/spec_v1.6_draft.md` records the gacha category description column as an additional specification.
+- Admin route-split refactoring is deferred because Next.js dev server compile/cache load caused 504s on the current server specs.
+- New admin features should be added to the stable `admin-dashboard.tsx` structure until the refactor is reopened after feature completion and server capacity review.
 - Backend Docker image was rebuilt and only the backend container was recreated to apply PHP upload limits.
 - Running PHP settings now show:
   - `upload_max_filesize = 64M`
@@ -147,7 +160,6 @@ The server has previously become heavy/hung from broad Docker operations. Follow
 
 ## Known Issues / Operational Notes
 
-- `AGENTS.md` references `docs/md/00_spec_v1.4.md`, but the actual existing file is `docs/md/spec_v1.4.md`.
 - `docker compose build backend` may fail with `unknown flag: --allow` due to Docker Compose/Buildx Bake behavior. Main Codex used `COMPOSE_BAKE=false docker compose build backend` successfully.
 - The active environment uses Next.js dev server, so `_next` HMR/WebSocket warnings can appear before production build/deployment.
 - The frontend and admin domain can return 502 if the `frontend` container is stopped.
@@ -155,8 +167,11 @@ The server has previously become heavy/hung from broad Docker operations. Follow
 
 ## Next Things To Do
 
+- Implement daily point balance snapshots next:
+  - `point_balance_snapshots` table and Model already exist.
+  - Service, Command, Scheduler, and tests are missing or unconfirmed.
+  - Daily storage of paid/free unused point balances is required for funds settlement law support.
 - Keep frontend-only work isolated to `frontend/`.
 - If UI work reveals missing API fields or backend behavior, Frontend Sub Codex should record it in `worklogs/codex-frontend.md` and ask Main Codex.
 - Before production release, run a full QA pass against the QA checklist and review legal/payment/storage operations.
 - Decide whether to implement PWA and push notifications after business policy is finalized.
-

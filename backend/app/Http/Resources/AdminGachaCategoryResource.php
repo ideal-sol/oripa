@@ -13,6 +13,7 @@ class AdminGachaCategoryResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
+            'description' => $this->description,
             'sort_order' => $this->sort_order,
             'is_visible' => $this->is_visible,
         ];

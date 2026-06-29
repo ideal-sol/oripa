@@ -20,13 +20,15 @@ class AdminGachaCategoryApiTest extends TestCase
         $category = GachaCategory::factory()->create([
             'name' => 'Show Category',
             'slug' => 'show-category',
+            'description' => 'Shown on public API responses.',
         ]);
 
         $this->getJson("/admin/api/gacha-categories/{$category->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $category->id)
             ->assertJsonPath('data.name', 'Show Category')
-            ->assertJsonPath('data.slug', 'show-category');
+            ->assertJsonPath('data.slug', 'show-category')
+            ->assertJsonPath('data.description', 'Shown on public API responses.');
     }
 
     public function test_admin_can_create_category_and_audit_log_is_recorded(): void
@@ -36,6 +38,7 @@ class AdminGachaCategoryApiTest extends TestCase
         $response = $this->postJson('/admin/api/gacha-categories', [
             'name' => 'Pokemon',
             'slug' => 'pokemon',
+            'description' => 'Pokemon category description.',
             'sort_order' => 2,
             'is_visible' => true,
         ]);
@@ -44,6 +47,7 @@ class AdminGachaCategoryApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.name', 'Pokemon')
             ->assertJsonPath('data.slug', 'pokemon')
+            ->assertJsonPath('data.description', 'Pokemon category description.')
             ->assertJsonPath('data.sort_order', 2)
             ->assertJsonPath('data.is_visible', true);
 
@@ -85,14 +89,21 @@ class AdminGachaCategoryApiTest extends TestCase
         $this->putJson("/admin/api/gacha-categories/{$category->id}", [
             'name' => 'New',
             'slug' => 'new',
+            'description' => 'Updated category description.',
             'sort_order' => 5,
             'is_visible' => false,
         ])
             ->assertOk()
             ->assertJsonPath('data.name', 'New')
             ->assertJsonPath('data.slug', 'new')
+            ->assertJsonPath('data.description', 'Updated category description.')
             ->assertJsonPath('data.sort_order', 5)
             ->assertJsonPath('data.is_visible', false);
+
+        $this->assertDatabaseHas('gacha_categories', [
+            'id' => $category->id,
+            'description' => 'Updated category description.',
+        ]);
 
         $this->assertDatabaseHas('audit_logs', [
             'admin_user_id' => $admin->id,
@@ -100,6 +111,21 @@ class AdminGachaCategoryApiTest extends TestCase
             'auditable_type' => GachaCategory::class,
             'auditable_id' => $category->id,
         ]);
+    }
+
+    public function test_category_description_must_not_exceed_two_thousand_characters(): void
+    {
+        $this->actingAdmin();
+
+        $this->postJson('/admin/api/gacha-categories', [
+            'name' => 'Long Description',
+            'slug' => 'long-description',
+            'description' => str_repeat('a', 2001),
+            'sort_order' => 1,
+            'is_visible' => true,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['description']);
     }
 
     public function test_user_token_cannot_create_category(): void

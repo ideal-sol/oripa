@@ -31,7 +31,13 @@ class GachaApiTest extends TestCase
             'sort_order' => 2,
             'is_active' => false,
         ]);
+        $category = GachaCategory::factory()->create([
+            'name' => 'Pokemon',
+            'slug' => 'pokemon',
+            'description' => 'Public category description.',
+        ]);
         $active = Gacha::factory()->create([
+            'category_id' => $category->id,
             'title' => 'Active Gacha',
             'status' => GachaStatus::Active,
             'sold_count' => 3,
@@ -57,6 +63,7 @@ class GachaApiTest extends TestCase
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.id', $active->id)
             ->assertJsonPath('data.0.title', 'Active Gacha')
+            ->assertJsonPath('data.0.category.description', 'Public category description.')
             ->assertJsonPath('data.0.remaining_count', 7)
             ->assertJsonPath('data.0.tags.0.id', $tag->id)
             ->assertJsonPath('data.0.tags.0.slug', 'high-return')
@@ -143,6 +150,7 @@ class GachaApiTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('data.id', $gacha->id)
+            ->assertJsonPath('data.category.description', 'Apple category description.')
             ->assertJsonPath('data.tags.0.id', $tag->id)
             ->assertJsonPath('data.tags.0.slug', 'beginner')
             ->assertJsonMissing(['slug' => 'hidden-tag'])
@@ -172,7 +180,11 @@ class GachaApiTest extends TestCase
      */
     private function createPublishedTwoStageGacha(): array
     {
-        $category = GachaCategory::factory()->create(['name' => 'Apple', 'slug' => 'apple']);
+        $category = GachaCategory::factory()->create([
+            'name' => 'Apple',
+            'slug' => 'apple',
+            'description' => 'Apple category description.',
+        ]);
         $gacha = Gacha::factory()->create([
             'category_id' => $category->id,
             'status' => GachaStatus::Active,

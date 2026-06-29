@@ -22,6 +22,7 @@ class GachaDetailResource extends JsonResource
                 'id' => $this->category?->id,
                 'name' => $this->category?->name,
                 'slug' => $this->category?->slug,
+                'description' => $this->category?->description,
             ],
             'tags' => GachaTagResource::collection($this->whenLoaded('tags')),
             'price' => $this->price,

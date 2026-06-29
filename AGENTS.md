@@ -4,9 +4,22 @@
 
 This is an オリパ site project.
 
-The master specification is:
+Specification priority is:
 
-- docs/md/00_spec_v1.4.md
+1. Latest explicit human decision
+2. docs/md/spec_v1.5.1.md
+3. docs/md/spec_v1.6_draft.md
+4. docs/md/spec_v1.5.md
+5. docs/decisions/APPROVED_AS_BUILT_SPECIFICATIONS_2026-06-25.md
+6. docs/md/spec_v1.4.md
+7. AGENTS.md
+8. TASK_BOARD.md
+9. docs/SHARED_CONTEXT.md
+10. docs/md/all_check.md
+
+The as-built approval decision is:
+
+- docs/decisions/APPROVED_AS_BUILT_SPECIFICATIONS_2026-06-25.md
 
 Codex must follow the Laravel backend architecture.
 
@@ -14,10 +27,27 @@ Codex must follow the Laravel backend architecture.
 
 Before implementation, read these files in order:
 
-1. docs/md/00_spec_v1.4.md
-2. docs/md/01_environment_laravel.md
-3. docs/md/02_work_instruction_laravel.md
-4. docs/md/03_implementation_instruction_laravel.md
+1. docs/md/spec_v1.5.1.md
+2. docs/md/spec_v1.6_draft.md
+3. docs/md/spec_v1.5.md
+4. docs/decisions/APPROVED_AS_BUILT_SPECIFICATIONS_2026-06-25.md
+5. TASK_BOARD.md
+6. docs/SHARED_CONTEXT.md
+
+Historical reference files:
+
+- docs/md/spec_v1.4.md
+- docs/md/all_check.md
+- docs/md/word.md
+- docs/md/implementation.md
+
+## Current Next Critical Task
+
+- Daily point balance snapshots are the next pre-release critical backend task.
+- `point_balance_snapshots` table and Model exist.
+- Service, Command, Scheduler, and tests are not implemented or not yet confirmed.
+- Daily storage of paid/free unused point balances is required for funds settlement law support.
+- Do not start broader admin refactoring before this and other remaining release-critical features are handled.
 
 ## Architecture
 
@@ -45,6 +75,16 @@ Before implementation, read these files in order:
 - Published probability versions are immutable.
 - Never edit a published probability version directly.
 - Do not commit .env or secret files.
+
+## Approved as-built specifications
+
+- Items in `docs/md/all_check.md` that are marked `VERIFIED`, `IMPLEMENTED_UNTESTED`, or `PARTIAL` in `docs/review/AS_BUILT_IMPLEMENTATION_MATRIX.md` are approved by the project owner as formal specifications.
+- Do not treat those items as waiting for human specification approval.
+- Keep approval status separate from implementation, test, E2E, release, legal/accounting, and infrastructure readiness.
+- `IMPLEMENTED_UNTESTED` means the specification is approved, but tests/E2E/real-device checks are still missing.
+- `PARTIAL` means the currently implemented behavior is approved. Do not change it casually; keep the unimplemented portion as a remaining task.
+- `PENDING`, `FUTURE`, and `NOT_FOUND` are not approved implemented features.
+- Mock payment is approved only as a development/testing feature. It is not production payment functionality.
 
 ## Forbidden
 

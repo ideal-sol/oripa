@@ -51,6 +51,7 @@ export type PublicGachaListItem = {
     id: number | null;
     name: string | null;
     slug: string | null;
+    description: string | null;
   };
   tags: {
     id: number;

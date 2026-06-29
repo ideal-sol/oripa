@@ -17,6 +17,7 @@ class AdminGachaResource extends JsonResource
                 'id' => $this->category?->id,
                 'name' => $this->category?->name,
                 'slug' => $this->category?->slug,
+                'description' => $this->category?->description,
             ],
             'category_id' => $this->category_id,
             'tags' => AdminGachaTagResource::collection($this->whenLoaded('tags')),

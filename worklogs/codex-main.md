@@ -434,3 +434,80 @@ git diff --stat
     - `pnpm typecheck` in `frontend/` succeeded.
 - Current caution:
   - There are unrelated uncommitted frontend changes under `frontend/` from another worker. Main Codex did not edit those files in this LINE backend work.
+
+## 2026-06-26 Admin Refactor Rollback
+
+- ADMIN-REF-001 route-split refactor was deferred.
+- Confirmed `main` HEAD before rollback work:
+  - `0af553b Add LINE friend reward settings`
+- Backed up the route-split working tree:
+  - Branch: `backup/admin-refactor-deferred-20260626-0847`
+  - Commit: `e0a8537 backup: defer admin route refactor`
+- Reason:
+  - The route conflict was fixed, but 504 timeouts continued.
+  - Next.js dev server compile/cache work remained too heavy for the current server.
+  - `/admin/guide` local rendering had taken tens of seconds, while external requests reached the proxy timeout.
+- Active admin structure after returning to `main`:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `frontend/src/app/admin/[[...segments]]/page.tsx`
+- Deferred route-split files are not active on `main`.
+- New admin features should be added to the current stable admin structure until the refactor is reopened after feature completion and server capacity review.
+
+## 2026-06-26 Gacha Category Description
+
+- Added optional gacha category `description`.
+- DB:
+  - Added nullable `text` column `gacha_categories.description`.
+  - Existing rows keep `description = null`.
+  - Applied migration `2026_06_26_000001_add_description_to_gacha_categories_table`.
+- Backend:
+  - Added `description` to `GachaCategory` fillable fields.
+  - Added admin validation: nullable string, max 2,000 characters.
+  - Added `description` to admin category resources.
+  - Added `category.description` to public gacha list/detail resources.
+- Admin UI:
+  - Added description to category registration and category edit in the stable `admin-dashboard.tsx` structure.
+  - The project owner confirmed browser manual testing and then requested the category list description column be hidden.
+  - User-facing pages do not display category descriptions in this task.
+- Verification:
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminGachaCategoryApiTest.php` passed.
+  - `docker compose exec -T backend php artisan test tests/Feature/GachaApiTest.php` passed.
+  - `pnpm typecheck` in `frontend/` passed.
+
+## 2026-06-29 Specification Priority And v1.6 Draft
+
+- Documentation-only update before daily point balance snapshot work.
+- No code, migration, DB, Docker, or dependency operations were performed.
+- Restored specification priority in:
+  - `AGENTS.md`
+  - `TASK_BOARD.md`
+  - `docs/SHARED_CONTEXT.md`
+- Created `docs/md/spec_v1.6_draft.md`.
+- Recorded the gacha category description column as `v1.6-DRAFT-001`.
+- Current specification priority:
+  1. Latest explicit human decision
+  2. `docs/md/spec_v1.5.1.md`
+  3. `docs/md/spec_v1.6_draft.md`
+  4. `docs/md/spec_v1.5.md`
+  5. `docs/decisions/APPROVED_AS_BUILT_SPECIFICATIONS_2026-06-25.md`
+  6. `docs/md/spec_v1.4.md`
+  7. `AGENTS.md`
+  8. `TASK_BOARD.md`
+  9. `docs/SHARED_CONTEXT.md`
+  10. `docs/md/all_check.md`
+
+## 2026-06-29 Daily Snapshot Preparation Notes
+
+- Documentation-only update before implementation.
+- No code, migration, DB, Docker, or dependency operations were performed.
+- `spec_v1.5.1.md` remains the current aligned v1.5 master specification.
+- Category description column is not mixed into the `spec_v1.5.1.md` body and remains recorded in `docs/md/spec_v1.6_draft.md`.
+- Admin refactoring remains deferred:
+  - Reason: Next.js dev server route-split compile/cache load caused 504 under current server specs.
+  - Current priority is the stable admin structure.
+  - Full refactor should be retried after all feature additions are complete and server specs are upgraded.
+  - New admin features should be added to the current stable `admin-dashboard.tsx` structure.
+- Daily point balance snapshots are recorded as the next pre-release critical feature:
+  - `point_balance_snapshots` table and Model exist.
+  - Service, Command, Scheduler, and tests are missing or unconfirmed.
+  - Daily storage of paid/free unused point balances is required for funds settlement law support.

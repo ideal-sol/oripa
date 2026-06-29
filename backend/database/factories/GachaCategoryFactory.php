@@ -18,6 +18,7 @@ class GachaCategoryFactory extends Factory
         return [
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->numberBetween(1000, 9999),
+            'description' => fake()->optional()->paragraph(),
             'sort_order' => fake()->numberBetween(0, 100),
             'is_visible' => true,
         ];

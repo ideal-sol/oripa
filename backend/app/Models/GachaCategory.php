@@ -12,6 +12,7 @@ class GachaCategory extends Model
     protected $fillable = [
         'name',
         'slug',
+        'description',
         'sort_order',
         'is_visible',
     ];

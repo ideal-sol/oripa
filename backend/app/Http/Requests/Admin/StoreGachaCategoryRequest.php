@@ -16,6 +16,7 @@ class StoreGachaCategoryRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('gacha_categories', 'slug')],
+            'description' => ['nullable', 'string', 'max:2000'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'is_visible' => ['required', 'boolean'],
         ];

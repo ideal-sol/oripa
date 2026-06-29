@@ -302,6 +302,7 @@ type GachaCategory = {
   id: number;
   name: string;
   slug: string;
+  description: string | null;
   sort_order: number;
   is_visible: boolean;
 };
@@ -751,6 +752,7 @@ export default function AdminDashboard({
     id: "",
     name: "",
     slug: "",
+    description: "",
     sortOrder: "1",
     isVisible: true,
   });
@@ -1992,6 +1994,7 @@ export default function AdminDashboard({
     const payload = {
       name: categoryForm.name.trim(),
       slug: categoryForm.slug.trim() || makeSlugFallback("category"),
+      description: categoryForm.description.trim() || null,
       sort_order: Number(categoryForm.sortOrder),
       is_visible: categoryForm.isVisible,
     };
@@ -2022,6 +2025,7 @@ export default function AdminDashboard({
           id: String(response.data.id),
           name: response.data.name,
           slug: response.data.slug,
+          description: response.data.description ?? "",
           sortOrder: String(response.data.sort_order),
           isVisible: response.data.is_visible,
         });
@@ -2031,6 +2035,7 @@ export default function AdminDashboard({
           id: "",
           name: "",
           slug: "",
+          description: "",
           sortOrder: String((response.data.sort_order ?? 0) + 1),
           isVisible: true,
         });
@@ -2235,6 +2240,7 @@ export default function AdminDashboard({
       id: "",
       name: "",
       slug: "",
+      description: "",
       sortOrder: "1",
       isVisible: true,
     });
@@ -2354,6 +2360,7 @@ export default function AdminDashboard({
           id: String(category.id),
           name: category.name,
           slug: category.slug,
+          description: category.description ?? "",
           sortOrder: String(category.sort_order),
           isVisible: category.is_visible,
         });
@@ -2987,6 +2994,7 @@ export default function AdminDashboard({
                     id: String(category.id),
                     name: category.name,
                     slug: category.slug,
+                    description: category.description ?? "",
                     sortOrder: String(category.sort_order),
                     isVisible: category.is_visible,
                   });
@@ -4817,6 +4825,7 @@ function GachaManagement({
     id: string;
     name: string;
     slug: string;
+    description: string;
     sortOrder: string;
     isVisible: boolean;
   };
@@ -5007,6 +5016,15 @@ function GachaManagement({
               <input value={categoryForm.slug} onChange={(event) => onCategoryFormChange({ slug: event.target.value })} />
             </label>
           </div>
+          <label>
+            <span>説明（任意・2,000文字以内）</span>
+            <textarea
+              value={categoryForm.description}
+              onChange={(event) => onCategoryFormChange({ description: event.target.value })}
+              maxLength={2000}
+              rows={4}
+            />
+          </label>
           <div className="inline-fields">
             <label>
               <span>並び順</span>
@@ -5662,6 +5680,15 @@ function GachaManagement({
                 <input value={categoryForm.slug} onChange={(event) => onCategoryFormChange({ slug: event.target.value })} />
               </label>
             </div>
+            <label>
+              <span>説明（任意・2,000文字以内）</span>
+              <textarea
+                value={categoryForm.description}
+                onChange={(event) => onCategoryFormChange({ description: event.target.value })}
+                maxLength={2000}
+                rows={4}
+              />
+            </label>
             <div className="inline-fields">
               <label>
                 <span>並び順</span>
