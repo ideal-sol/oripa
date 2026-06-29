@@ -106,6 +106,7 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
     Route::post('/payments/{payment}/chargeback', [AdminPaymentController::class, 'chargeback'])->name('admin.api.payments.chargeback');
     Route::get('/sales/monthly', [AdminSalesManagementController::class, 'monthly'])->name('admin.api.sales.monthly');
     Route::get('/sales/daily-payments', [AdminSalesManagementController::class, 'dailyPayments'])->name('admin.api.sales.daily-payments');
+    Route::get('/sales/daily-adjustments', [AdminSalesManagementController::class, 'dailyAdjustments'])->name('admin.api.sales.daily-adjustments');
     Route::get('/sales/monthly-point-consumption', [AdminSalesManagementController::class, 'monthlyPointConsumption'])->name('admin.api.sales.monthly-point-consumption');
     Route::get('/sales/daily-point-consumption', [AdminSalesManagementController::class, 'dailyPointConsumption'])->name('admin.api.sales.daily-point-consumption');
     Route::get('/sales/draw-requests/{drawRequest}', [AdminSalesManagementController::class, 'drawRequest'])->name('admin.api.sales.draw-requests.show');

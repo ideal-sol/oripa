@@ -22,12 +22,15 @@ Recommended cases:
 | SM-U-004 | refunded/chargebackを別指標として返す | 売上と別カウントで確認できる |
 | SM-U-005 | 日別決済一覧を取得する | paid_atが対象日のデータのみ |
 | SM-U-006 | 購入プランIDをmetadataから解決する | plan名が表示用データに含まれる |
-| SM-U-007 | 月別ポイント消費を集計する | spend/draw_requestのみ集計 |
-| SM-U-008 | paid/freeを分けて集計する | point_type別にABS(amount)が集計される |
-| SM-U-009 | 管理減算・失効・交換を消費売上に含めない | related_type/ledger_typeで除外 |
-| SM-U-010 | draw_request単位の日別消費一覧を返す | 複数ledgerが1行に集約される |
-| SM-U-011 | Asia/Tokyoの日付境界を守る | 境界時刻のデータが正しい日付に入る |
-| SM-U-012 | 空データ月でも日付枠を返す | カレンダー表示に必要な空日が返る |
+| SM-U-007 | 日別返金・CB一覧を取得する | refunded_at / chargeback_atが対象日のデータのみ |
+| SM-U-008 | paid_at日とchargeback_at日が異なる | 決済一覧はpaid_at日、CB一覧はchargeback_at日に出る |
+| SM-U-009 | pending/failed/canceledを返金・CB一覧に含めない | 不正な発生日があっても除外 |
+| SM-U-010 | 月別ポイント消費を集計する | spend/draw_requestのみ集計 |
+| SM-U-011 | paid/freeを分けて集計する | point_type別にABS(amount)が集計される |
+| SM-U-012 | 管理減算・失効・交換を消費売上に含めない | related_type/ledger_typeで除外 |
+| SM-U-013 | draw_request単位の日別消費一覧を返す | 複数ledgerが1行に集約される |
+| SM-U-014 | Asia/Tokyoの日付境界を守る | 境界時刻のデータが正しい日付に入る |
+| SM-U-015 | 空データ月でも日付枠を返す | カレンダー表示に必要な空日が返る |
 
 ## Backend Feature Tests
 
@@ -44,13 +47,16 @@ Recommended cases:
 | SM-F-003 | `GET /admin/api/sales/monthly` | 一般ユーザー | 403 or 401 according to current admin middleware |
 | SM-F-004 | `GET /admin/api/sales/monthly` | year/month指定 | 対象月の集計 |
 | SM-F-005 | `GET /admin/api/sales/daily-payments` | date指定 | 対象日の決済一覧 |
-| SM-F-006 | `GET /admin/api/sales/daily-payments` | provider filter | providerで絞り込み |
-| SM-F-007 | `GET /admin/api/sales/daily-payments` | status filter | statusで絞り込み |
-| SM-F-008 | `GET /admin/api/sales/monthly-point-consumption` | month指定 | 対象月のポイント消費集計 |
-| SM-F-009 | `GET /admin/api/sales/daily-point-consumption` | date指定 | draw_request単位で一覧 |
-| SM-F-010 | `GET /admin/api/sales/draw-requests/{id}` | detail表示 | draw_resultsを含む |
-| SM-F-011 | all | invalid date | 422 |
-| SM-F-012 | all | per_page上限超過 | validation or capped result |
+| SM-F-006 | `GET /admin/api/sales/daily-adjustments` | date指定 | 対象日の返金・CB一覧 |
+| SM-F-007 | `GET /admin/api/sales/daily-adjustments` | paid_at日とchargeback_at日が異なる | chargeback_at日のみCB一覧に出る |
+| SM-F-008 | `GET /admin/api/sales/daily-adjustments` | refunded_atの返金 | refunded_at日の返金一覧に出る |
+| SM-F-009 | `GET /admin/api/sales/daily-adjustments` | 未ログイン・一般ユーザー | 401/403 |
+| SM-F-010 | `GET /admin/api/sales/daily-adjustments` | invalid date | 422 |
+| SM-F-011 | `GET /admin/api/sales/monthly-point-consumption` | month指定 | 対象月のポイント消費集計 |
+| SM-F-012 | `GET /admin/api/sales/daily-point-consumption` | date指定 | draw_request単位で一覧 |
+| SM-F-013 | `GET /admin/api/sales/draw-requests/{id}` | detail表示 | draw_resultsを含む |
+| SM-F-014 | all | invalid date | 422 |
+| SM-F-015 | all | per_page上限超過 | validation or capped result |
 
 ## Integration Tests
 
@@ -75,7 +81,11 @@ Checklist:
 - `/admin/sales` を直接開ける。
 - 月別/日別を切り替えられる。
 - 月別売上一覧がカレンダー形式で表示される。
-- 日別売上一覧に決済日時、決済種別、購入プラン、金額、状態、ユーザー名が表示される。
+- 月別売上の日付セルを選択すると、対象日の「日別売上」に移動する。
+- 月別売上の返金額・CB額ブロックを選択すると、発生日別内訳を開閉できる。
+- 日別売上に総売上、返金額、CB額、純売上のサマリーが表示される。
+- 日別売上一覧に決済日時、決済種別、購入プラン、金額、状態、ユーザー名、返金日、CB日が表示される。
+- 日別返金・チャージバック一覧に発生日、種別、金額、元決済日、決済ID、ユーザー、購入プラン、決済種別、現在状態が表示される。
 - 月別ポイント消費一覧がカレンダー形式で表示される。
 - 日別ポイント消費一覧に日時、有償ポイント、無償ポイント、ユーザー名、ガチャ名、詳細が表示される。
 - 詳細ボタンで対象draw_requestの当選内容一覧が表示される。
@@ -153,9 +163,9 @@ Implemented:
 Executed target tests:
 
 - `docker compose exec -T backend php artisan test tests/Unit/SalesManagementReportServiceTest.php`
-  - PASS: 4 tests, 27 assertions.
+  - PASS: 5 tests, 42 assertions.
 - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php`
-  - PASS: 6 tests, 45 assertions.
+  - PASS: 8 tests, 77 assertions.
 
 Covered:
 
@@ -163,6 +173,9 @@ Covered:
 - Payment method fallback from `metadata.payment_method` to `provider`.
 - Exclusion of `pending`, `failed`, and `canceled` from gross sales.
 - Daily payment list by `paid_at`.
+- Daily refund/chargeback adjustment list by `refunded_at` / `chargeback_at`.
+- Mismatch between original `paid_at` date and later chargeback/refund event date.
+- Exclusion of `pending`, `failed`, and `canceled` from refund/chargeback event rows.
 - Purchase plan resolution from `payments.metadata.point_purchase_plan_id`.
 - Deleted/missing plan fallback.
 - Monthly point consumption from `point_ledgers`.
@@ -180,3 +193,30 @@ Still not covered because UI is not implemented:
 - Browser/E2E checks for the future admin sales screen.
 - Network check that sales APIs are not called from unrelated admin pages.
 - Manual display check for calendar tables and draw result detail UI.
+
+## 2026-06-29 Admin UI Implementation Update
+
+Implemented:
+
+- Sales management menu in the stable `frontend/src/app/admin-dashboard.tsx` admin structure.
+- `/admin/sales` route mapping through the existing catch-all admin route.
+- `/admin/payments` compatibility mapping to the sales management screen.
+- Monthly sales calendar.
+- Daily sales table.
+- Monthly point consumption calendar.
+- Daily point consumption table.
+- Draw request detail section.
+
+Verification performed:
+
+- `cd frontend && pnpm typecheck`
+  - PASS.
+
+Manual/browser checks still required:
+
+- Confirm `売上管理` appears above `お知らせ`.
+- Confirm `/admin/sales` opens the sales screen.
+- Confirm `/admin/payments` opens the same compatible sales screen.
+- Confirm monthly sales, daily sales, monthly point consumption, daily point consumption, and draw detail render correctly with real data.
+- Confirm `/admin/guide` and `/admin/gachas` do not call sales APIs in browser Network.
+- Confirm existing purchase plan, point, gacha, and shipping screens still work.

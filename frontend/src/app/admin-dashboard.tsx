@@ -16,6 +16,10 @@ type PaginationMeta = {
   total: number;
 };
 
+type ApiPaginationMeta = PaginationMeta & {
+  per_page: number;
+};
+
 type User = {
   id: number;
   name: string;
@@ -138,6 +142,129 @@ type Payment = {
   paid_at: string | null;
   created_at: string;
 };
+
+type SalesPaymentMethod = {
+  payment_method: string;
+  amount: number;
+  count: number;
+};
+
+type SalesMonthlyDay = {
+  date: string;
+  total_amount: number;
+  refund_amount: number;
+  chargeback_amount: number;
+  net_amount: number;
+  payment_count: number;
+  refund_count: number;
+  chargeback_count: number;
+  status_counts: Record<string, number>;
+  methods: SalesPaymentMethod[];
+};
+
+type SalesMonthlyReport = {
+  year: number;
+  month: number;
+  timezone: string;
+  total_amount: number;
+  refund_amount: number;
+  chargeback_amount: number;
+  net_amount: number;
+  days: SalesMonthlyDay[];
+};
+
+type SalesDailyPayment = {
+  id: number;
+  paid_at: string | null;
+  payment_method: string;
+  provider: string;
+  provider_payment_id: string;
+  refunded_at: string | null;
+  chargeback_at: string | null;
+  purchase_plan: { id: number; name: string; deleted: boolean } | null;
+  amount: number;
+  status: string;
+  user: Pick<User, "id" | "name" | "email"> | null;
+};
+
+type SalesDailySummary = {
+  date: string;
+  timezone: string;
+  total_amount: number;
+  refund_amount: number;
+  chargeback_amount: number;
+  net_amount: number;
+};
+
+type SalesDailyAdjustment = {
+  type: "refund" | "chargeback";
+  occurred_at: string | null;
+  amount: number;
+  payment_id: number;
+  original_paid_at: string | null;
+  user: Pick<User, "id" | "name" | "email"> | null;
+  purchase_plan: { id: number; name: string; deleted: boolean } | null;
+  provider: string;
+  payment_method: string;
+  status: string;
+};
+
+type SalesPointGachaSummary = {
+  gacha_id: number;
+  gacha_title: string;
+  paid_point: number;
+  free_point: number;
+  draw_count: number;
+};
+
+type SalesPointMonthlyDay = {
+  date: string;
+  paid_point_total: number;
+  free_point_total: number;
+  gachas: SalesPointGachaSummary[];
+};
+
+type SalesPointMonthlyReport = {
+  year: number;
+  month: number;
+  timezone: string;
+  paid_point_total: number;
+  free_point_total: number;
+  days: SalesPointMonthlyDay[];
+};
+
+type SalesDailyPointConsumption = {
+  draw_request_id: number;
+  datetime: string;
+  paid_point: number;
+  free_point: number;
+  user: Pick<User, "id" | "name" | "email">;
+  gacha: { id: number; title: string };
+  draw_count: number;
+  status: string;
+};
+
+type SalesDrawRequestDetail = {
+  id: number;
+  user: Pick<User, "id" | "name" | "email"> | null;
+  gacha: { id: number; title: string; slug: string; price: number } | null;
+  draw_count: number;
+  status: string;
+  consumed_point_total: number;
+  created_at: string | null;
+  results: {
+    id: number;
+    draw_sequence_number: number;
+    result_type: string;
+    rank: { id: number; rank_key: string; display_name: string } | null;
+    prize: { id: number; name: string; image_url: string } | null;
+    consumed_point: number;
+    granted_point: number;
+    created_at: string | null;
+  }[];
+};
+
+type SalesView = "monthly-sales" | "daily-sales" | "monthly-points" | "daily-points";
 
 type PointPurchasePlan = {
   id: number;
@@ -494,7 +621,6 @@ type AdminDataCache = {
   draws: DrawRequest[];
   prizes: UserPrize[];
   shipping: ShippingRequest[];
-  payments: Payment[];
   purchasePlans: PointPurchasePlan[];
   pointAdjustments: PointAdjustment[];
   referralSetting: ReferralSetting | null;
@@ -502,7 +628,7 @@ type AdminDataCache = {
   referrals: UserReferral[];
 };
 
-type TabKey = "guide" | "announcements" | "contacts" | "gachas" | "users" | "draws" | "prizes" | "shipping" | "payments" | "purchasePlans" | "points" | "settings";
+type TabKey = "guide" | "sales" | "announcements" | "contacts" | "gachas" | "users" | "draws" | "prizes" | "shipping" | "purchasePlans" | "points" | "settings";
 type FilterState = Record<string, string>;
 type NoticeTone = "success" | "error" | "info";
 type AnnouncementView = "list" | "new" | "edit";
@@ -534,12 +660,12 @@ type GachaAdminView =
 
 const tabs: { key: TabKey; label: string; short: string; description: string }[] = [
   { key: "guide", label: "操作ガイド", short: "?", description: "管理画面の確認手順" },
+  { key: "sales", label: "売上管理", short: "¥", description: "決済売上とポイント消費" },
   { key: "announcements", label: "お知らせ", short: "I", description: "トップINFOMATION管理" },
   { key: "contacts", label: "お問い合わせ", short: "C", description: "問い合わせ確認と返信" },
   { key: "gachas", label: "ガチャ管理", short: "G", description: "商品・景品・確率設定" },
   { key: "users", label: "ユーザー管理", short: "U", description: "会員情報と利用状況" },
   { key: "shipping", label: "配送", short: "S", description: "配送依頼と追跡" },
-  { key: "payments", label: "決済", short: "B", description: "購入・返金・状態" },
   { key: "purchasePlans", label: "購入プラン", short: "L", description: "ポイント購入プラン管理" },
   { key: "points", label: "ポイント", short: "W", description: "付与・減算の記録" },
   { key: "settings", label: "設定", short: "S", description: "規約ページ編集" },
@@ -565,7 +691,7 @@ const emptyFilters: Record<TabKey, FilterState> = {
   draws: { user_id: "", gacha_id: "", status: "" },
   prizes: { user_id: "", gacha_id: "", status: "" },
   shipping: { user_id: "", status: "" },
-  payments: { user_id: "", status: "", provider: "" },
+  sales: {},
   purchasePlans: { is_active: "" },
   points: { user_id: "", adjustment_type: "", point_type: "" },
   settings: {},
@@ -633,7 +759,20 @@ export default function AdminDashboard({
   const [shipping, setShipping] = useState<ShippingRequest[]>(cachedAdminData?.shipping ?? []);
   const [selectedShippingRequest, setSelectedShippingRequest] = useState<ShippingRequest | null>(null);
   const [selectedShippingItem, setSelectedShippingItem] = useState<ShippingItem | null>(null);
-  const [payments, setPayments] = useState<Payment[]>(cachedAdminData?.payments ?? []);
+  const [salesView, setSalesView] = useState<SalesView>("monthly-sales");
+  const [salesMonth, setSalesMonth] = useState(() => currentMonthValue());
+  const [salesDate, setSalesDate] = useState(() => currentDateValue());
+  const [salesMonthly, setSalesMonthly] = useState<SalesMonthlyReport | null>(null);
+  const [salesDailyPayments, setSalesDailyPayments] = useState<SalesDailyPayment[]>([]);
+  const [salesDailyPaymentsMeta, setSalesDailyPaymentsMeta] = useState<PaginationMeta | null>(null);
+  const [salesDailySummary, setSalesDailySummary] = useState<SalesDailySummary | null>(null);
+  const [salesDailyAdjustments, setSalesDailyAdjustments] = useState<SalesDailyAdjustment[]>([]);
+  const [salesMonthlyPoints, setSalesMonthlyPoints] = useState<SalesPointMonthlyReport | null>(null);
+  const [salesDailyPoints, setSalesDailyPoints] = useState<SalesDailyPointConsumption[]>([]);
+  const [salesDailyPointsMeta, setSalesDailyPointsMeta] = useState<PaginationMeta | null>(null);
+  const [selectedSalesPointRow, setSelectedSalesPointRow] = useState<SalesDailyPointConsumption | null>(null);
+  const [salesDrawDetail, setSalesDrawDetail] = useState<SalesDrawRequestDetail | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
   const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>(cachedAdminData?.purchasePlans ?? []);
   const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>(cachedAdminData?.pointAdjustments ?? []);
   const [referralSetting, setReferralSetting] = useState<ReferralSetting | null>(cachedAdminData?.referralSetting ?? null);
@@ -655,7 +794,7 @@ export default function AdminDashboard({
     draws: 1,
     prizes: 1,
     shipping: 1,
-    payments: 1,
+    sales: 1,
     purchasePlans: 1,
     points: 1,
     settings: 1,
@@ -669,7 +808,7 @@ export default function AdminDashboard({
     draws: null,
     prizes: null,
     shipping: null,
-    payments: null,
+    sales: null,
     purchasePlans: null,
     points: null,
     settings: null,
@@ -913,9 +1052,6 @@ export default function AdminDashboard({
     if (tab === "shipping") {
       setShipping(response.data as ShippingRequest[]);
     }
-    if (tab === "payments") {
-      setPayments(response.data as Payment[]);
-    }
     if (tab === "purchasePlans") {
       setPurchasePlans(response.data as PointPurchasePlan[]);
     }
@@ -975,7 +1111,7 @@ export default function AdminDashboard({
     clearMessage();
 
     try {
-      const [announcementData, contactData, staticPageData, rankAssetData, referralSettingData, lineFriendSettingData, referralData, categoryData, tagData, topBannerData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, paymentData, purchasePlanData, adjustmentData] = await Promise.all([
+      const [announcementData, contactData, staticPageData, rankAssetData, referralSettingData, lineFriendSettingData, referralData, categoryData, tagData, topBannerData, gachaData, userData, gachaRankData, gachaPrizeData, drawData, prizeData, shippingData, purchasePlanData, adjustmentData] = await Promise.all([
         apiRequest<ApiCollection<Announcement>>(endpointFor("announcements", pages.announcements, filters.announcements), {}, token),
         apiRequest<ApiCollection<ContactRequest>>(endpointFor("contacts", pages.contacts, filters.contacts), {}, token),
         apiRequest<ApiCollection<StaticPage>>(endpointFor("settings", pages.settings, filters.settings), {}, token),
@@ -993,7 +1129,6 @@ export default function AdminDashboard({
         apiRequest<ApiCollection<DrawRequest>>(endpointFor("draws", pages.draws, filters.draws), {}, token),
         apiRequest<ApiCollection<UserPrize>>(endpointFor("prizes", pages.prizes, filters.prizes), {}, token),
         apiRequest<ApiCollection<ShippingRequest>>(endpointFor("shipping", pages.shipping, filters.shipping), {}, token),
-        apiRequest<ApiCollection<Payment>>(endpointFor("payments", pages.payments, filters.payments), {}, token),
         apiRequest<ApiCollection<PointPurchasePlan>>(endpointFor("purchasePlans", pages.purchasePlans, filters.purchasePlans), {}, token),
         apiRequest<ApiCollection<PointAdjustment>>(endpointFor("points", pages.points, filters.points), {}, token),
       ]);
@@ -1027,7 +1162,6 @@ export default function AdminDashboard({
       setTabData("draws", drawData);
       setTabData("prizes", prizeData);
       setTabData("shipping", shippingData);
-      setTabData("payments", paymentData);
       setTabData("purchasePlans", purchasePlanData);
       setTabData("points", adjustmentData);
       writeAdminDataCache({
@@ -1048,7 +1182,6 @@ export default function AdminDashboard({
         draws: drawData.data,
         prizes: prizeData.data,
         shipping: shippingData.data,
-        payments: paymentData.data,
         purchasePlans: purchasePlanData.data,
         pointAdjustments: adjustmentData.data,
       });
@@ -1071,6 +1204,164 @@ export default function AdminDashboard({
 
     return () => window.clearTimeout(timerId);
   }, [refreshAll, session]);
+
+  const loadSalesMonthly = useCallback(async (monthValue: string, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    const [year, month] = parseMonthValue(monthValue);
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: SalesMonthlyReport }>(`/sales/monthly?year=${year}&month=${month}`, {}, token);
+      setSalesMonthly(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "月別売上の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadSalesDailyPayments = useCallback(async (dateValue: string, page = 1, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: SalesDailyPayment[]; meta?: Partial<ApiPaginationMeta> }>(
+        `/sales/daily-payments?date=${encodeURIComponent(dateValue)}&page=${page}&per_page=${perPage}`,
+        {},
+        token,
+      );
+      setSalesDailyPayments(response.data);
+      setSalesDailyPaymentsMeta(normalizePaginationMeta(response.meta));
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "日別売上の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadSalesDailyView = useCallback(async (dateValue: string, page = 1, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const [paymentsResponse, adjustmentsResponse] = await Promise.all([
+        apiRequest<{ data: SalesDailyPayment[]; meta?: Partial<ApiPaginationMeta> }>(
+          `/sales/daily-payments?date=${encodeURIComponent(dateValue)}&page=${page}&per_page=${perPage}`,
+          {},
+          token,
+        ),
+        apiRequest<{ data: SalesDailyAdjustment[]; summary: SalesDailySummary }>(
+          `/sales/daily-adjustments?date=${encodeURIComponent(dateValue)}`,
+          {},
+          token,
+        ),
+      ]);
+
+      setSalesDailyPayments(paymentsResponse.data);
+      setSalesDailyPaymentsMeta(normalizePaginationMeta(paymentsResponse.meta));
+      setSalesDailyAdjustments(adjustmentsResponse.data);
+      setSalesDailySummary(adjustmentsResponse.summary);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "日別売上の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadSalesMonthlyPoints = useCallback(async (monthValue: string, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    const [year, month] = parseMonthValue(monthValue);
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: SalesPointMonthlyReport }>(`/sales/monthly-point-consumption?year=${year}&month=${month}`, {}, token);
+      setSalesMonthlyPoints(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "月別ポイント消費の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadSalesDailyPoints = useCallback(async (dateValue: string, page = 1, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: SalesDailyPointConsumption[]; meta?: Partial<ApiPaginationMeta> }>(
+        `/sales/daily-point-consumption?date=${encodeURIComponent(dateValue)}&page=${page}&per_page=${perPage}`,
+        {},
+        token,
+      );
+      setSalesDailyPoints(response.data);
+      setSalesDailyPointsMeta(normalizePaginationMeta(response.meta));
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "日別ポイント消費の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadSalesDrawDetail = useCallback(async (row: SalesDailyPointConsumption, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSelectedSalesPointRow(row);
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: SalesDrawRequestDetail }>(`/sales/draw-requests/${row.draw_request_id}`, {}, token);
+      setSalesDrawDetail(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "抽選結果詳細の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  useEffect(() => {
+    if (!session || activeTab !== "sales") {
+      return;
+    }
+
+    if (salesView === "monthly-sales") {
+      void loadSalesMonthly(salesMonth);
+    }
+
+    if (salesView === "daily-sales") {
+      void loadSalesDailyView(salesDate);
+    }
+
+    if (salesView === "monthly-points") {
+      void loadSalesMonthlyPoints(salesMonth);
+    }
+
+    if (salesView === "daily-points") {
+      void loadSalesDailyPoints(salesDate);
+    }
+  }, [activeTab, loadSalesDailyPoints, loadSalesDailyView, loadSalesMonthly, loadSalesMonthlyPoints, salesDate, salesMonth, salesView, session]);
 
   useEffect(() => {
     if (!session || !initialEditId || restoredInitialEditRef.current || activeTab !== "gachas") {
@@ -1153,12 +1444,11 @@ export default function AdminDashboard({
     draws: draws.length,
     prizes: prizes.length,
     shipping: shipping.length,
-    payments: payments.length,
     adjustments: pointAdjustments.length,
     announcements: announcements.length,
     contacts: contacts.length,
     users: users.length,
-  }), [announcements.length, contacts.length, draws.length, gachas.length, payments.length, pointAdjustments.length, prizes.length, shipping.length, users.length]);
+  }), [announcements.length, contacts.length, draws.length, gachas.length, pointAdjustments.length, prizes.length, shipping.length, users.length]);
   const selectedUserReceivedReferral = selectedUser
     ? selectedUserReferrals.find((referral) => referral.referred_user_id === selectedUser.id) ?? null
     : null;
@@ -1500,7 +1790,7 @@ export default function AdminDashboard({
     }
   }
 
-  function moveToUserRelatedList(tab: Extract<TabKey, "points" | "payments" | "prizes" | "draws">, userId: number) {
+  function moveToUserRelatedList(tab: Extract<TabKey, "points" | "prizes" | "draws">, userId: number) {
     const nextFilters = {
       ...emptyFilters[tab],
       user_id: String(userId),
@@ -2657,6 +2947,11 @@ export default function AdminDashboard({
       setActiveContactView("list");
     }
 
+    if (tab === "sales") {
+      setSalesDrawDetail(null);
+      setSelectedSalesPointRow(null);
+    }
+
     if (tab === "points") {
       setActivePointView("list");
     }
@@ -2822,6 +3117,7 @@ export default function AdminDashboard({
             loading={loading}
           />
           {activeTab !== "guide"
+            && activeTab !== "sales"
             && activeTab !== "settings"
             && (activeTab !== "gachas" || activeGachaView === "gacha-list")
             && (activeTab !== "announcements" || activeAnnouncementView === "list")
@@ -3185,7 +3481,7 @@ export default function AdminDashboard({
                         <strong>ポイント購入履歴</strong>
                         <span>{selectedUserPayments.length.toLocaleString("ja-JP")}件</span>
                       </div>
-                      <PaymentTable rows={selectedUserPayments} onEdit={(row) => moveToUserRelatedList("payments", row.user?.id ?? selectedUser.id)} />
+                      <PaymentTable rows={selectedUserPayments} />
                     </div>
                     <div className="nested-list-section">
                       <div className="subsection-title">
@@ -3245,11 +3541,69 @@ export default function AdminDashboard({
               />
             )
           )}
-          {activeTab === "payments" && (
-            <>
-              <PaymentTable rows={payments} />
-              <Pagination meta={pagination.payments} onPage={(page) => goToPage("payments", page)} />
-            </>
+          {activeTab === "sales" && (
+            <SalesManagementPanel
+              view={salesView}
+              month={salesMonth}
+              date={salesDate}
+              monthlySales={salesMonthly}
+              dailyPayments={salesDailyPayments}
+              dailyPaymentsMeta={salesDailyPaymentsMeta}
+              dailySummary={salesDailySummary}
+              dailyAdjustments={salesDailyAdjustments}
+              monthlyPoints={salesMonthlyPoints}
+              dailyPoints={salesDailyPoints}
+              dailyPointsMeta={salesDailyPointsMeta}
+              selectedPointRow={selectedSalesPointRow}
+              drawDetail={salesDrawDetail}
+              loading={salesLoading}
+              onChangeView={(view) => {
+                setSalesView(view);
+                setSalesDrawDetail(null);
+                setSelectedSalesPointRow(null);
+              }}
+              onChangeMonth={(value) => {
+                setSalesMonth(value);
+              }}
+              onChangeDate={(value) => {
+                setSalesDate(value);
+                setSalesDrawDetail(null);
+                setSelectedSalesPointRow(null);
+              }}
+              onSelectSalesDate={(value) => {
+                setSalesDate(value);
+                setSalesView("daily-sales");
+                setSalesDrawDetail(null);
+                setSelectedSalesPointRow(null);
+              }}
+              onSelectPointDate={(value) => {
+                setSalesDate(value);
+                setSalesView("daily-points");
+                setSalesDrawDetail(null);
+                setSelectedSalesPointRow(null);
+              }}
+              onReload={() => {
+                if (salesView === "monthly-sales") {
+                  void loadSalesMonthly(salesMonth);
+                }
+                if (salesView === "daily-sales") {
+                  void loadSalesDailyView(salesDate, salesDailyPaymentsMeta?.current_page ?? 1);
+                }
+                if (salesView === "monthly-points") {
+                  void loadSalesMonthlyPoints(salesMonth);
+                }
+                if (salesView === "daily-points") {
+                  void loadSalesDailyPoints(salesDate, salesDailyPointsMeta?.current_page ?? 1);
+                }
+              }}
+              onDailyPaymentPage={(page) => void loadSalesDailyPayments(salesDate, page)}
+              onDailyPointPage={(page) => void loadSalesDailyPoints(salesDate, page)}
+              onShowDrawDetail={(row) => void loadSalesDrawDetail(row)}
+              onCloseDrawDetail={() => {
+                setSalesDrawDetail(null);
+                setSelectedSalesPointRow(null);
+              }}
+            />
           )}
           {activeTab === "purchasePlans" && (
             activePurchasePlanView === "list" ? (
@@ -4378,7 +4732,7 @@ function FilterPanel({
 }) {
   return (
     <form className="filter-panel" onSubmit={onSubmit}>
-      {["draws", "prizes", "shipping", "payments", "points"].includes(tab) && (
+      {["draws", "prizes", "shipping", "points"].includes(tab) && (
         <label>
           <span>ユーザーID</span>
           <input value={filters.user_id ?? ""} onChange={(event) => onChange("user_id", event.target.value)} inputMode="numeric" />
@@ -4509,29 +4863,6 @@ function FilterPanel({
             ["canceled", "取消"],
           ]}
         />
-      )}
-
-      {tab === "payments" && (
-        <>
-          <SelectField
-            label="状態"
-            value={filters.status ?? ""}
-            onChange={(value) => onChange("status", value)}
-            options={[
-              ["", "すべて"],
-              ["pending", "保留"],
-              ["succeeded", "成功"],
-              ["failed", "失敗"],
-              ["canceled", "取消"],
-              ["refunded", "返金"],
-              ["chargeback", "CB"],
-            ]}
-          />
-          <label>
-            <span>プロバイダ</span>
-            <input value={filters.provider ?? ""} onChange={(event) => onChange("provider", event.target.value)} />
-          </label>
-        </>
       )}
 
       {tab === "purchasePlans" && (
@@ -6335,6 +6666,455 @@ function ShippingItemTable({ items, selectedItemId }: { items: ShippingItem[]; s
   );
 }
 
+function SalesManagementPanel({
+  view,
+  month,
+  date,
+  monthlySales,
+  dailyPayments,
+  dailyPaymentsMeta,
+  dailySummary,
+  dailyAdjustments,
+  monthlyPoints,
+  dailyPoints,
+  dailyPointsMeta,
+  selectedPointRow,
+  drawDetail,
+  loading,
+  onChangeView,
+  onChangeMonth,
+  onChangeDate,
+  onSelectSalesDate,
+  onSelectPointDate,
+  onReload,
+  onDailyPaymentPage,
+  onDailyPointPage,
+  onShowDrawDetail,
+  onCloseDrawDetail,
+}: {
+  view: SalesView;
+  month: string;
+  date: string;
+  monthlySales: SalesMonthlyReport | null;
+  dailyPayments: SalesDailyPayment[];
+  dailyPaymentsMeta: PaginationMeta | null;
+  dailySummary: SalesDailySummary | null;
+  dailyAdjustments: SalesDailyAdjustment[];
+  monthlyPoints: SalesPointMonthlyReport | null;
+  dailyPoints: SalesDailyPointConsumption[];
+  dailyPointsMeta: PaginationMeta | null;
+  selectedPointRow: SalesDailyPointConsumption | null;
+  drawDetail: SalesDrawRequestDetail | null;
+  loading: boolean;
+  onChangeView: (view: SalesView) => void;
+  onChangeMonth: (value: string) => void;
+  onChangeDate: (value: string) => void;
+  onSelectSalesDate: (value: string) => void;
+  onSelectPointDate: (value: string) => void;
+  onReload: () => void;
+  onDailyPaymentPage: (page: number) => void;
+  onDailyPointPage: (page: number) => void;
+  onShowDrawDetail: (row: SalesDailyPointConsumption) => void;
+  onCloseDrawDetail: () => void;
+}) {
+  return (
+    <div className="sales-management">
+      <div className="subpage-surface">
+        <div className="sales-toolbar">
+          <div>
+            <h3>売上管理</h3>
+            <p>決済売上とガチャで消費されたポイントを確認できます</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={onReload} disabled={loading}>再取得</button>
+        </div>
+        <div className="sales-controls">
+          <div className="segmented-control" role="tablist" aria-label="売上管理表示切替">
+            {salesViews.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={view === item.key ? "active" : ""}
+                onClick={() => onChangeView(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {(view === "monthly-sales" || view === "monthly-points") ? (
+            <label>
+              <span>対象年月</span>
+              <input type="month" value={month} onChange={(event) => onChangeMonth(event.target.value)} />
+            </label>
+          ) : (
+            <label>
+              <span>対象日</span>
+              <input type="date" value={date} onChange={(event) => onChangeDate(event.target.value)} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {loading && <div className="empty-detail compact">売上管理データを読み込んでいます。</div>}
+
+      {view === "monthly-sales" && (
+        <MonthlySalesCalendar report={monthlySales} onSelectDate={onSelectSalesDate} />
+      )}
+
+      {view === "daily-sales" && (
+        <div className="sales-daily-stack">
+          <div className="subpage-surface">
+            <div className="subsection-title">
+              <strong>日別サマリー</strong>
+              <span>{date}</span>
+            </div>
+            <DailySalesSummaryCards summary={dailySummary} />
+          </div>
+          <div className="subpage-surface">
+            <div className="subsection-title">
+              <strong>決済一覧</strong>
+              <span>paid_at基準</span>
+            </div>
+            <DailySalesTable rows={dailyPayments} />
+            <Pagination meta={dailyPaymentsMeta} onPage={onDailyPaymentPage} />
+          </div>
+          <div className="subpage-surface">
+            <div className="subsection-title">
+              <strong>返金・チャージバック一覧</strong>
+              <span>refunded_at / chargeback_at基準</span>
+            </div>
+            <DailySalesAdjustmentTable rows={dailyAdjustments} />
+          </div>
+        </div>
+      )}
+
+      {view === "monthly-points" && (
+        <MonthlyPointConsumptionCalendar report={monthlyPoints} onSelectDate={onSelectPointDate} />
+      )}
+
+      {view === "daily-points" && (
+        <div className="subpage-surface">
+          <div className="subsection-title">
+            <strong>日別ポイント消費一覧</strong>
+            <span>{date}</span>
+          </div>
+          <DailyPointConsumptionTable rows={dailyPoints} onDetail={onShowDrawDetail} />
+          <Pagination meta={dailyPointsMeta} onPage={onDailyPointPage} />
+        </div>
+      )}
+
+      {drawDetail && (
+        <SalesDrawDetailPanel detail={drawDetail} pointRow={selectedPointRow} onClose={onCloseDrawDetail} />
+      )}
+    </div>
+  );
+}
+
+const salesViews: { key: SalesView; label: string }[] = [
+  { key: "monthly-sales", label: "月別売上" },
+  { key: "daily-sales", label: "日別売上" },
+  { key: "monthly-points", label: "月別ポイント消費" },
+  { key: "daily-points", label: "日別ポイント消費" },
+];
+
+function MonthlySalesCalendar({
+  report,
+  onSelectDate,
+}: {
+  report: SalesMonthlyReport | null;
+  onSelectDate: (value: string) => void;
+}) {
+  const [openBreakdown, setOpenBreakdown] = useState<"refund" | "chargeback" | null>(null);
+
+  if (!report) {
+    return <div className="empty-detail compact">月別売上データがありません。</div>;
+  }
+
+  const refundDays = report.days.filter((day) => day.refund_amount > 0);
+  const chargebackDays = report.days.filter((day) => day.chargeback_amount > 0);
+  const breakdownDays = openBreakdown === "refund" ? refundDays : openBreakdown === "chargeback" ? chargebackDays : [];
+  const breakdownLabel = openBreakdown === "refund" ? "返金額" : openBreakdown === "chargeback" ? "CB額" : "";
+  const leadingBlankCount = report.days[0] ? weekdayIndex(report.days[0].date) : 0;
+  const trailingBlankCount = (7 - ((leadingBlankCount + report.days.length) % 7)) % 7;
+
+  return (
+    <div className="subpage-surface">
+      <div className="sales-summary-row">
+        <div className="sales-summary-grid">
+          <SalesSummaryBlock label="総売上" value={report.total_amount} tone="teal" caption="支払日基準" />
+          <SalesSummaryBlock
+            label="返金額"
+            value={report.refund_amount}
+            tone="amber"
+            caption="返金日基準"
+            active={openBreakdown === "refund"}
+            onClick={() => setOpenBreakdown((current) => current === "refund" ? null : "refund")}
+          />
+          <SalesSummaryBlock
+            label="CB額"
+            value={report.chargeback_amount}
+            tone="red"
+            caption="CB発生日基準"
+            active={openBreakdown === "chargeback"}
+            onClick={() => setOpenBreakdown((current) => current === "chargeback" ? null : "chargeback")}
+          />
+          <SalesSummaryBlock label="純売上" value={report.net_amount} tone="blue" caption="総売上-返金-CB" />
+        </div>
+      </div>
+      {openBreakdown && (
+        <div className="sales-breakdown-panel">
+          <div className="subsection-title">
+            <strong>{breakdownLabel}の発生日別内訳</strong>
+            <span>{breakdownDays.length.toLocaleString("ja-JP")}日</span>
+          </div>
+          {breakdownDays.length > 0 ? (
+            <div className="sales-breakdown-list">
+              {breakdownDays.map((day) => (
+                <div className="sales-breakdown-row" key={day.date}>
+                  <span>{day.date}</span>
+                  <strong>{moneyLabel(openBreakdown === "refund" ? day.refund_amount : day.chargeback_amount)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-detail compact">{breakdownLabel}はありません。</div>
+          )}
+        </div>
+      )}
+      <div className="sales-calendar-scroll">
+        <div className="sales-calendar google-calendar">
+          {["日", "月", "火", "水", "木", "金", "土"].map((weekday) => (
+            <div className="sales-calendar-weekday" key={weekday}>{weekday}</div>
+          ))}
+          {Array.from({ length: leadingBlankCount }).map((_, index) => (
+            <div className="sales-calendar-blank" key={`leading-${index}`} aria-hidden="true" />
+          ))}
+          {report.days.map((day) => (
+            <button className="sales-calendar-cell" key={day.date} type="button" onClick={() => onSelectDate(day.date)}>
+              <div className="sales-cell-date">{shortDateLabel(day.date)}</div>
+              <dl>
+                <div><dt>総売上</dt><dd>{moneyLabel(day.total_amount)}</dd></div>
+                <div><dt>返金</dt><dd>{moneyLabel(day.refund_amount)}</dd></div>
+                <div><dt>CB</dt><dd>{moneyLabel(day.chargeback_amount)}</dd></div>
+                <div><dt>純売上</dt><dd>{moneyLabel(day.net_amount)}</dd></div>
+                <div><dt>件数</dt><dd>{day.payment_count.toLocaleString("ja-JP")}件</dd></div>
+              </dl>
+              <div className="sales-cell-lines">
+                {day.methods.length > 0 ? day.methods.map((method) => (
+                  <span key={method.payment_method}>{method.payment_method}: {moneyLabel(method.amount)} / {method.count}件</span>
+                )) : <span>決済なし</span>}
+              </div>
+            </button>
+          ))}
+          {Array.from({ length: trailingBlankCount }).map((_, index) => (
+            <div className="sales-calendar-blank" key={`trailing-${index}`} aria-hidden="true" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesSummaryBlock({
+  label,
+  value,
+  tone,
+  caption,
+  active = false,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  caption: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className="metric-label">{label}</span>
+      <strong>{moneyLabel(value)}</strong>
+      <span className="metric-caption">{caption}</span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button className={`sales-summary-card tone-${tone} ${active ? "active" : ""}`} type="button" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`sales-summary-card tone-${tone}`}>
+      {content}
+    </div>
+  );
+}
+
+function DailySalesSummaryCards({ summary }: { summary: SalesDailySummary | null }) {
+  if (!summary) {
+    return <div className="empty-detail compact">日別サマリーがありません。</div>;
+  }
+
+  return (
+    <div className="sales-summary-row">
+      <div className="sales-summary-grid">
+        <SalesSummaryBlock label="総売上" value={summary.total_amount} tone="teal" caption="paid_at基準" />
+        <SalesSummaryBlock label="返金額" value={summary.refund_amount} tone="amber" caption="refunded_at基準" />
+        <SalesSummaryBlock label="CB額" value={summary.chargeback_amount} tone="red" caption="chargeback_at基準" />
+        <SalesSummaryBlock label="純売上" value={summary.net_amount} tone="blue" caption="総売上-返金-CB" />
+      </div>
+    </div>
+  );
+}
+
+function DailySalesTable({ rows }: { rows: SalesDailyPayment[] }) {
+  return (
+    <DataTable
+      headers={["決済日時", "決済種別", "購入プラン", "決済金額", "状態", "ユーザー", "返金日", "CB日", "Provider"]}
+      rows={rows.map((row) => [
+        formatDate(row.paid_at),
+        row.payment_method,
+        row.purchase_plan ? `${row.purchase_plan.name}${row.purchase_plan.deleted ? " / 削除済み" : ""}` : "-",
+        moneyLabel(row.amount),
+        <StatusBadge key="status" value={row.status} />,
+        row.user ? `${row.user.name} / ${row.user.email}` : "-",
+        formatDate(row.refunded_at),
+        formatDate(row.chargeback_at),
+        row.provider,
+      ])}
+    />
+  );
+}
+
+function DailySalesAdjustmentTable({ rows }: { rows: SalesDailyAdjustment[] }) {
+  if (rows.length === 0) {
+    return <div className="empty-detail compact">この日に発生した返金・チャージバックはありません。</div>;
+  }
+
+  return (
+    <DataTable
+      headers={["発生日", "種別", "金額", "元決済日", "決済ID", "ユーザー", "購入プラン", "決済種別", "現在の状態"]}
+      rows={rows.map((row) => [
+        formatDate(row.occurred_at),
+        row.type === "refund" ? "返金" : "チャージバック",
+        signedMoneyLabel(-row.amount),
+        formatDate(row.original_paid_at),
+        `#${row.payment_id}`,
+        row.user ? `${row.user.name} / ${row.user.email}` : "-",
+        row.purchase_plan ? `${row.purchase_plan.name}${row.purchase_plan.deleted ? " / 削除済み" : ""}` : "-",
+        row.payment_method || row.provider,
+        <StatusBadge key="status" value={row.status} />,
+      ])}
+    />
+  );
+}
+
+function MonthlyPointConsumptionCalendar({
+  report,
+  onSelectDate,
+}: {
+  report: SalesPointMonthlyReport | null;
+  onSelectDate: (value: string) => void;
+}) {
+  if (!report) {
+    return <div className="empty-detail compact">月別ポイント消費データがありません。</div>;
+  }
+
+  const leadingBlankCount = report.days[0] ? weekdayIndex(report.days[0].date) : 0;
+  const trailingBlankCount = (7 - ((leadingBlankCount + report.days.length) % 7)) % 7;
+
+  return (
+    <div className="subpage-surface">
+      <div className="mini-metrics sales-summary-metrics">
+        <Metric label="有償P消費" value={report.paid_point_total} tone="blue" caption="pt" />
+        <Metric label="無償P消費" value={report.free_point_total} tone="green" caption="pt" />
+      </div>
+      <div className="sales-calendar-scroll">
+        <div className="sales-calendar google-calendar">
+          {["日", "月", "火", "水", "木", "金", "土"].map((weekday) => (
+            <div className="sales-calendar-weekday" key={weekday}>{weekday}</div>
+          ))}
+          {Array.from({ length: leadingBlankCount }).map((_, index) => (
+            <div className="sales-calendar-blank" key={`leading-${index}`} aria-hidden="true" />
+          ))}
+          {report.days.map((day) => (
+            <button className="sales-calendar-cell" key={day.date} type="button" onClick={() => onSelectDate(day.date)}>
+              <div className="sales-cell-date">{shortDateLabel(day.date)}</div>
+              <dl>
+                <div><dt>有償</dt><dd>{pointLabel(day.paid_point_total)}</dd></div>
+                <div><dt>無償</dt><dd>{pointLabel(day.free_point_total)}</dd></div>
+              </dl>
+              <div className="sales-cell-lines">
+                {day.gachas.length > 0 ? day.gachas.map((gacha) => (
+                  <span key={gacha.gacha_id}>
+                    {gacha.gacha_title}: 有償{pointLabel(gacha.paid_point)} / 無償{pointLabel(gacha.free_point)} / {gacha.draw_count}口
+                  </span>
+                )) : <span>消費なし</span>}
+              </div>
+            </button>
+          ))}
+          {Array.from({ length: trailingBlankCount }).map((_, index) => (
+            <div className="sales-calendar-blank" key={`trailing-${index}`} aria-hidden="true" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DailyPointConsumptionTable({ rows, onDetail }: { rows: SalesDailyPointConsumption[]; onDetail: (row: SalesDailyPointConsumption) => void }) {
+  return (
+    <DataTable
+      headers={["日時", "有償P", "無償P", "ユーザー", "ガチャ", "抽選回数", "状態", "詳細"]}
+      rows={rows.map((row) => [
+        formatDate(row.datetime),
+        pointLabel(row.paid_point),
+        pointLabel(row.free_point),
+        `${row.user.name} / ${row.user.email}`,
+        row.gacha.title,
+        `${row.draw_count.toLocaleString("ja-JP")}回`,
+        <StatusBadge key="status" value={row.status} />,
+        <button className="secondary-button small-button" type="button" key="detail" onClick={() => onDetail(row)}>詳細</button>,
+      ])}
+    />
+  );
+}
+
+function SalesDrawDetailPanel({ detail, pointRow, onClose }: { detail: SalesDrawRequestDetail; pointRow: SalesDailyPointConsumption | null; onClose: () => void }) {
+  return (
+    <div className="subpage-surface wide">
+      <div className="subpage-title">
+        <h3>抽選結果詳細</h3>
+        <button className="secondary-button" type="button" onClick={onClose}>閉じる</button>
+      </div>
+      <div className="profile-detail-grid">
+        <DetailItem label="draw_request_id" value={`#${detail.id}`} />
+        <DetailItem label="抽選日時" value={formatDate(detail.created_at)} />
+        <DetailItem label="ユーザー" value={detail.user ? `${detail.user.name} / ${detail.user.email}` : "-"} />
+        <DetailItem label="ガチャ" value={detail.gacha?.title ?? "-"} />
+        <DetailItem label="抽選回数" value={`${detail.draw_count.toLocaleString("ja-JP")}回`} />
+        <DetailItem label="有償ポイント消費" value={pointRow ? pointLabel(pointRow.paid_point) : "-"} />
+        <DetailItem label="無償ポイント消費" value={pointRow ? pointLabel(pointRow.free_point) : "-"} />
+        <DetailItem label="総消費ポイント" value={pointLabel(detail.consumed_point_total)} />
+      </div>
+      <DataTable
+        headers={["通し番号", "結果", "ランク", "景品", "消費P", "付与P", "日時"]}
+        rows={detail.results.map((result) => [
+          `#${result.draw_sequence_number}`,
+          <StatusBadge key="type" value={result.result_type} />,
+          result.rank?.display_name ?? "-",
+          result.prize?.name ?? "-",
+          pointLabel(result.consumed_point),
+          pointLabel(result.granted_point),
+          formatDate(result.created_at),
+        ])}
+      />
+    </div>
+  );
+}
+
 function shippingRowsByItem(rows: ShippingRequest[]): ShippingItemRow[] {
   return rows.flatMap<ShippingItemRow>((request) => {
     if (request.items?.length) {
@@ -6594,7 +7374,6 @@ function readAdminDataCache(): AdminDataCache | null {
       draws: parsed.draws ?? [],
       prizes: parsed.prizes ?? [],
       shipping: parsed.shipping ?? [],
-      payments: parsed.payments ?? [],
       purchasePlans: parsed.purchasePlans ?? [],
       pointAdjustments: parsed.pointAdjustments ?? [],
       referralSetting: parsed.referralSetting ?? null,
@@ -6668,6 +7447,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, token?: strin
 function endpointFor(tab: TabKey, page: number, filters: FilterState) {
   const paths: Record<TabKey, string> = {
     guide: "/me",
+    sales: "/me",
     announcements: "/announcements",
     contacts: "/contact-requests",
     gachas: "/gachas",
@@ -6675,7 +7455,6 @@ function endpointFor(tab: TabKey, page: number, filters: FilterState) {
     draws: "/draw-requests",
     prizes: "/user-prizes",
     shipping: "/shipping-requests",
-    payments: "/payments",
     purchasePlans: "/point-purchase-plans",
     points: "/point-adjustments",
     settings: "/static-pages",
@@ -6720,6 +7499,8 @@ function statusLabel(value: string) {
     succeeded: "成功",
     refunded: "返金",
     chargeback: "CB",
+    prize: "景品",
+    point_back: "ポイント還元",
     grant: "付与",
     deduct: "減算",
     paid: "有償",
@@ -6814,6 +7595,7 @@ function parsePositiveInt(value?: string) {
 function adminPathForTab(tab: TabKey) {
   const paths: Record<TabKey, string> = {
     guide: "/admin/guide",
+    sales: "/admin/sales",
     announcements: "/admin/announcements",
     contacts: "/admin/contacts",
     gachas: "/admin/gachas",
@@ -6821,7 +7603,6 @@ function adminPathForTab(tab: TabKey) {
     draws: "/admin/draws",
     prizes: "/admin/prizes",
     shipping: "/admin/shipping",
-    payments: "/admin/payments",
     purchasePlans: "/admin/purchase-plans",
     points: "/admin/points",
     settings: "/admin/settings",
@@ -7145,6 +7926,12 @@ function moneyLabel(value: number) {
   return `¥${value.toLocaleString("ja-JP")}`;
 }
 
+function signedMoneyLabel(value: number) {
+  const sign = value < 0 ? "-" : "";
+
+  return `${sign}¥${Math.abs(value).toLocaleString("ja-JP")}`;
+}
+
 function formatFiniteNumber(value: number) {
   return Number.isFinite(value) ? Math.round(value).toLocaleString("ja-JP") : "-";
 }
@@ -7194,4 +7981,61 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function currentMonthValue() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}`;
+}
+
+function currentDateValue() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseMonthValue(value: string): [number, number] {
+  const [year, month] = value.split("-").map(Number);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    const fallback = currentMonthValue();
+    const [fallbackYear, fallbackMonth] = fallback.split("-").map(Number);
+
+    return [fallbackYear, fallbackMonth];
+  }
+
+  return [year, month];
+}
+
+function shortDateLabel(value: string) {
+  const [, month, day] = value.split("-");
+
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function weekdayIndex(value: string) {
+  return new Date(`${value}T00:00:00+09:00`).getDay();
+}
+
+function normalizePaginationMeta(meta?: Partial<ApiPaginationMeta>): PaginationMeta | null {
+  if (!meta || typeof meta.current_page !== "number" || typeof meta.last_page !== "number" || typeof meta.per_page !== "number" || typeof meta.total !== "number") {
+    return null;
+  }
+
+  const from = meta.total === 0 ? null : (meta.current_page - 1) * meta.per_page + 1;
+  const to = meta.total === 0 ? null : Math.min(meta.current_page * meta.per_page, meta.total);
+
+  return {
+    current_page: meta.current_page,
+    last_page: meta.last_page,
+    total: meta.total,
+    from: meta.from ?? from,
+    to: meta.to ?? to,
+  };
 }

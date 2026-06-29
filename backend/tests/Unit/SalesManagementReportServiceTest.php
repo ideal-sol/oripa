@@ -84,6 +84,60 @@ class SalesManagementReportServiceTest extends TestCase
         $this->assertSame('Buyer', $result['data'][1]['user']['name']);
     }
 
+    public function test_daily_adjustments_uses_refunded_at_and_chargeback_at_dates(): void
+    {
+        $service = app(SalesManagementReportService::class);
+        $user = User::factory()->create(['name' => 'Adjusted Buyer']);
+        $plan = PointPurchasePlan::query()->create([
+            'name' => 'Adjustment Plan',
+            'amount' => 6000,
+            'paid_point_amount' => 6000,
+            'free_point_amount' => 0,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $chargeback = $this->createPayment(
+            $user,
+            PaymentStatus::Chargeback,
+            6000,
+            '2026-06-11 13:43:00',
+            chargebackAt: '2026-06-22 10:00:00',
+            metadata: ['payment_method' => 'credit_card', 'point_purchase_plan_id' => $plan->id],
+        );
+        $this->createPayment($user, PaymentStatus::Refunded, 2000, '2026-06-20 12:00:00', refundedAt: '2026-06-22 11:00:00');
+        $this->createPayment($user, PaymentStatus::Pending, 9999, null, refundedAt: '2026-06-22 12:00:00');
+        $this->createPayment($user, PaymentStatus::Failed, 9999, null, chargebackAt: '2026-06-22 12:30:00');
+
+        $monthly = $service->monthlySales(2026, 6);
+        $juneEleventh = collect($monthly['days'])->firstWhere('date', '2026-06-11');
+        $juneTwentySecond = collect($monthly['days'])->firstWhere('date', '2026-06-22');
+
+        $this->assertSame(6000, $juneEleventh['total_amount']);
+        $this->assertSame(6000, $juneTwentySecond['chargeback_amount']);
+
+        $originalDayPayments = $service->dailyPayments('2026-06-11', 20);
+        $this->assertCount(1, $originalDayPayments['data']);
+        $this->assertSame($chargeback->id, $originalDayPayments['data'][0]['id']);
+        $this->assertSame('chargeback', $originalDayPayments['data'][0]['status']);
+        $this->assertNotNull($originalDayPayments['data'][0]['chargeback_at']);
+
+        $chargebackDayPayments = $service->dailyPayments('2026-06-22', 20);
+        $this->assertCount(0, $chargebackDayPayments['data']);
+
+        $adjustments = $service->dailyAdjustments('2026-06-22');
+        $this->assertSame(0, $adjustments['summary']['total_amount']);
+        $this->assertSame(2000, $adjustments['summary']['refund_amount']);
+        $this->assertSame(6000, $adjustments['summary']['chargeback_amount']);
+        $this->assertSame(-8000, $adjustments['summary']['net_amount']);
+        $this->assertCount(2, $adjustments['data']);
+        $this->assertSame(['refund', 'chargeback'], collect($adjustments['data'])->pluck('type')->all());
+        $this->assertSame('Adjustment Plan', collect($adjustments['data'])->firstWhere('type', 'chargeback')['purchase_plan']['name']);
+
+        $originalDayAdjustments = $service->dailyAdjustments('2026-06-11');
+        $this->assertCount(0, $originalDayAdjustments['data']);
+    }
+
     public function test_monthly_point_consumption_aggregates_paid_and_free_by_draw_request_and_gacha(): void
     {
         $service = app(SalesManagementReportService::class);

@@ -581,3 +581,74 @@ git diff --stat
 - Remaining follow-up:
   - Admin sales UI must be added later to the current stable `admin-dashboard.tsx` structure.
   - Index additions can be considered later if real data volume makes sales queries slow.
+
+## 2026-06-29 Sales Management Admin UI
+
+- Implemented the admin sales management UI in the current stable admin dashboard structure.
+- Did not restart the deferred admin route-split refactor.
+- Did not change backend, database, migrations, API response contracts, Docker, dependencies, production payment integration, or refund/chargeback point reversal logic.
+- Changed:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `frontend/src/app/admin/[[...segments]]/page.tsx`
+  - `frontend/src/app/globals.css`
+  - sales management documentation entries
+- Behavior:
+  - Sidebar now shows `売上管理` above `お知らせ`.
+  - The old independent `決済` menu is not shown.
+  - `/admin/sales` opens sales management.
+  - `/admin/payments` is treated as a compatibility URL that opens sales management.
+  - Monthly sales, daily sales, monthly point consumption, daily point consumption, and draw request detail sections are implemented.
+  - Sales APIs are not added to `refreshAll()`.
+  - Sales APIs are fetched only from the sales management screen or its controls/detail button.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.
+- Remaining follow-up:
+  - Browser/manual QA is still needed for visual display and Network confirmation.
+
+### 2026-06-29 Monthly Sales Summary Layout Adjustment
+
+- Adjusted the monthly sales summary cards in the admin sales management screen.
+- Changed the summary area to keep four blocks in one row with horizontal overflow on narrow screens.
+- Made the refund and chargeback summary blocks toggleable.
+- When refund or chargeback is selected, the screen shows a date-by-date breakdown with the amount beside each date.
+- Made each monthly sales calendar date cell clickable so it switches to the daily sales view for that date.
+- Did not change backend APIs, database, migrations, Docker, or sales aggregation logic.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.
+
+### 2026-06-29 Sales Daily Adjustments
+
+- Added an event-date based daily refund/chargeback API:
+  - `GET /admin/api/sales/daily-adjustments?date=YYYY-MM-DD`
+- Kept `GET /admin/api/sales/daily-payments` as `paid_at` based.
+- Added daily sales summary values for total sales, refund amount, chargeback amount, and net sales.
+- Added refund/chargeback adjustment rows with event date, type, negative amount display, original payment date, payment ID, user, purchase plan, payment method, and current status.
+- Added refund date and chargeback date to the daily payment list rows.
+- Updated monthly refund/chargeback aggregation to exclude `pending`, `failed`, and `canceled`.
+- Did not implement refund/chargeback point reversal, production payment integration, migrations, or admin route-split refactoring.
+- Verification:
+  - `docker compose exec -T backend php artisan test tests/Unit/SalesManagementReportServiceTest.php` passed: 5 tests, 42 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php` passed: 8 tests, 77 assertions.
+  - `cd frontend && pnpm typecheck` passed.
+
+### 2026-06-29 Monthly Sales Google Calendar Layout
+
+- Changed the monthly sales calendar to a Google Calendar-like month grid.
+- Added weekday headers and leading/trailing blank cells based on the month start weekday.
+- Kept day-cell click behavior that opens the daily sales view for the selected date.
+- PC layout uses a 7-column calendar without horizontal scrolling.
+- Narrow screens use horizontal scrolling for the calendar grid.
+- Did not change backend APIs, database, migrations, Docker, or sales aggregation logic.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.
+
+### 2026-06-29 Monthly Point Consumption Google Calendar Layout
+
+- Changed the monthly point consumption calendar to the same Google Calendar-like month grid.
+- Added weekday headers and leading/trailing blank cells based on the month start weekday.
+- Made each point consumption date cell clickable so it switches to the daily point consumption view for that date.
+- PC layout uses a 7-column calendar without horizontal scrolling.
+- Narrow screens use horizontal scrolling for the calendar grid.
+- Did not change backend APIs, database, migrations, Docker, or point aggregation logic.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.

@@ -29,6 +29,13 @@ class AdminSalesManagementController extends Controller
         ));
     }
 
+    public function dailyAdjustments(SalesDailyRequest $request, SalesManagementReportService $service): JsonResponse
+    {
+        return response()->json($service->dailyAdjustments(
+            date: $request->string('date')->toString(),
+        ));
+    }
+
     public function monthlyPointConsumption(SalesMonthlyRequest $request, SalesManagementReportService $service): JsonResponse
     {
         return response()->json([

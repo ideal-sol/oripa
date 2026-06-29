@@ -111,10 +111,13 @@ Sales aggregation:
 
 - Gross sales include payment amounts whose `paid_at` is in the target range and whose status is `succeeded`, `refunded`, or `chargeback`.
 - `pending`, `failed`, and `canceled` are excluded from gross sales.
-- Refund amount is the sum of payment amounts whose `refunded_at` is in the target range.
-- Chargeback amount is the sum of payment amounts whose `chargeback_at` is in the target range.
+- Refund amount is the sum of payment amounts whose `refunded_at` is in the target range and whose status is `refunded`.
+- Chargeback amount is the sum of payment amounts whose `chargeback_at` is in the target range and whose status is `chargeback`.
 - Net sales is gross sales minus refund amount minus chargeback amount.
 - Daily payment lists use `paid_at` as the date basis and show current payment status.
+- Daily refund/chargeback adjustment lists use `refunded_at` / `chargeback_at` as the date basis.
+- Monthly calendar refund and chargeback amounts are event-date based, not original payment-date based.
+- Daily sales screens separate the `paid_at` payment list from the refund/chargeback adjustment list to avoid mixing original payment dates and event dates.
 
 Payment method and purchase plan:
 
@@ -139,6 +142,7 @@ Implemented endpoints:
 
 - `GET /admin/api/sales/monthly`
 - `GET /admin/api/sales/daily-payments`
+- `GET /admin/api/sales/daily-adjustments`
 - `GET /admin/api/sales/monthly-point-consumption`
 - `GET /admin/api/sales/daily-point-consumption`
 - `GET /admin/api/sales/draw-requests/{drawRequest}`
@@ -148,3 +152,43 @@ Tests:
 - `backend/tests/Unit/SalesManagementReportServiceTest.php`
 - `backend/tests/Feature/AdminSalesManagementApiTest.php`
 - Target tests passed on 2026-06-29.
+
+### v1.6-DRAFT-004: Sales Management Admin UI
+
+Specification name: 売上管理 管理画面UI
+
+Current status:
+
+- Admin UI is implemented in the current stable admin dashboard structure.
+- The deferred admin route-split refactor remains deferred.
+- No backend API, DB, Migration, production payment, or refund/chargeback point reversal changes were made for this UI task.
+- Frontend typecheck passed.
+
+Formal requirement:
+
+- Rename the previous independent payment menu to `売上管理`.
+- Place `売上管理` above `お知らせ` in the admin sidebar.
+- Do not keep the old `決済` menu as an independent menu.
+- Use `/admin/sales` as the primary admin URL.
+- Treat `/admin/payments` as a compatibility URL that opens the sales management screen.
+- Display monthly sales, daily sales, monthly point consumption, daily point consumption, and draw request details.
+- Do not add sales APIs to `refreshAll()`.
+- Do not call sales APIs from unrelated admin pages such as `/admin/guide` or `/admin/gachas`.
+- Fetch sales data only when the sales screen is opened, when month/date controls change, or when the draw detail button is selected.
+
+Implemented screen behavior:
+
+- Monthly sales calendar displays date, gross sales, refund amount, chargeback amount, net sales, payment method/provider breakdown, and payment count.
+- Monthly sales calendar date cells can be selected to open the daily sales screen for that date.
+- Monthly sales summary displays refund and chargeback day-by-day breakdowns by toggle.
+- Daily sales screen displays a daily summary, a `paid_at`-based payment list, and a `refunded_at` / `chargeback_at`-based adjustment list.
+- Daily sales payment table displays payment date, payment method, purchase plan, amount, status, user, refund date, chargeback date, and provider.
+- Daily refund/chargeback adjustment table displays event date, type, amount, original payment date, payment ID, user, purchase plan, payment method, and current status.
+- Monthly point consumption calendar displays paid/free point consumption totals and gacha-level point consumption/draw counts.
+- Daily point consumption table displays datetime, paid/free point consumption, user, gacha, draw count, status, and detail button.
+- Draw request detail section displays draw request metadata and child draw results.
+
+Verification:
+
+- `cd frontend && pnpm typecheck` passed on 2026-06-29.
+- Browser/manual QA remains to be completed by opening the admin screen in the running environment.

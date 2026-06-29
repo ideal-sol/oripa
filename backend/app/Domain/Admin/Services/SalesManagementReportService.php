@@ -115,6 +115,64 @@ class SalesManagementReportService
     }
 
     /**
+     * @return array{data: array<int, array<string, mixed>>, summary: array<string, mixed>}
+     */
+    public function dailyAdjustments(string $date): array
+    {
+        [$start, $end] = $this->dayRange($date);
+
+        $refunds = Payment::query()
+            ->with('user')
+            ->where('status', PaymentStatus::Refunded->value)
+            ->whereNotNull('refunded_at')
+            ->where('refunded_at', '>=', $start)
+            ->where('refunded_at', '<', $end)
+            ->get();
+
+        $chargebacks = Payment::query()
+            ->with('user')
+            ->where('status', PaymentStatus::Chargeback->value)
+            ->whereNotNull('chargeback_at')
+            ->where('chargeback_at', '>=', $start)
+            ->where('chargeback_at', '<', $end)
+            ->get();
+
+        $payments = $refunds
+            ->concat($chargebacks)
+            ->sortByDesc(fn (Payment $payment): string => ($payment->chargeback_at ?? $payment->refunded_at)?->toIso8601String() ?? '')
+            ->values();
+
+        $plans = $this->plansForPayments($payments);
+        $refundAmount = $refunds->sum(fn (Payment $payment): int => (int) $payment->amount);
+        $chargebackAmount = $chargebacks->sum(fn (Payment $payment): int => (int) $payment->amount);
+        $totalAmount = Payment::query()
+            ->whereIn('status', [
+                PaymentStatus::Succeeded->value,
+                PaymentStatus::Refunded->value,
+                PaymentStatus::Chargeback->value,
+            ])
+            ->whereNotNull('paid_at')
+            ->where('paid_at', '>=', $start)
+            ->where('paid_at', '<', $end)
+            ->sum('amount');
+
+        return [
+            'data' => $payments
+                ->map(fn (Payment $payment): array => $this->paymentAdjustmentRow($payment, $plans))
+                ->values()
+                ->all(),
+            'summary' => [
+                'date' => $date,
+                'timezone' => self::TIMEZONE,
+                'total_amount' => (int) $totalAmount,
+                'refund_amount' => (int) $refundAmount,
+                'chargeback_amount' => (int) $chargebackAmount,
+                'net_amount' => (int) $totalAmount - (int) $refundAmount - (int) $chargebackAmount,
+            ],
+        ];
+    }
+
+    /**
      * @return array{year: int, month: int, timezone: string, paid_point_total: int, free_point_total: int, days: array<int, array<string, mixed>>}
      */
     public function monthlyPointConsumption(int $year, int $month): array
@@ -279,7 +337,12 @@ class SalesManagementReportService
         CarbonInterface $start,
         CarbonInterface $end,
     ): void {
+        $status = $timestampColumn === 'chargeback_at'
+            ? PaymentStatus::Chargeback->value
+            : PaymentStatus::Refunded->value;
+
         $payments = Payment::query()
+            ->where('status', $status)
             ->whereNotNull($timestampColumn)
             ->where($timestampColumn, '>=', $start)
             ->where($timestampColumn, '<', $end)
@@ -381,6 +444,8 @@ class SalesManagementReportService
             'payment_method' => $this->paymentMethod($payment),
             'provider' => $payment->provider,
             'provider_payment_id' => $payment->provider_payment_id,
+            'refunded_at' => $payment->refunded_at?->toIso8601String(),
+            'chargeback_at' => $payment->chargeback_at?->toIso8601String(),
             'purchase_plan' => $planId ? [
                 'id' => $planId,
                 'name' => $plan?->name ?? '削除済みプラン',
@@ -393,6 +458,39 @@ class SalesManagementReportService
                 'name' => $payment->user->name,
                 'email' => $payment->user->email,
             ] : null,
+        ];
+    }
+
+    /**
+     * @param Collection<int, PointPurchasePlan> $plans
+     * @return array<string, mixed>
+     */
+    private function paymentAdjustmentRow(Payment $payment, Collection $plans): array
+    {
+        $type = $payment->status === PaymentStatus::Chargeback ? 'chargeback' : 'refund';
+        $occurredAt = $type === 'chargeback' ? $payment->chargeback_at : $payment->refunded_at;
+        $planId = $this->paymentPlanId($payment);
+        $plan = $planId ? $plans->get($planId) : null;
+
+        return [
+            'type' => $type,
+            'occurred_at' => $occurredAt?->toIso8601String(),
+            'amount' => (int) $payment->amount,
+            'payment_id' => $payment->id,
+            'original_paid_at' => $payment->paid_at?->toIso8601String(),
+            'user' => $payment->user ? [
+                'id' => $payment->user->id,
+                'name' => $payment->user->name,
+                'email' => $payment->user->email,
+            ] : null,
+            'purchase_plan' => $planId ? [
+                'id' => $planId,
+                'name' => $plan?->name ?? '削除済みプラン',
+                'deleted' => $plan === null,
+            ] : null,
+            'provider' => $payment->provider,
+            'payment_method' => $this->paymentMethod($payment),
+            'status' => $payment->status?->value ?? $payment->status,
         ];
     }
 

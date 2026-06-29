@@ -83,6 +83,84 @@ class AdminSalesManagementApiTest extends TestCase
             ->assertJsonPath('data.1.user.name', 'Daily Buyer');
     }
 
+    public function test_admin_can_get_daily_refund_and_chargeback_adjustments_by_event_date(): void
+    {
+        $this->actingAdmin();
+        $user = User::factory()->create(['name' => 'Adjustment User']);
+        $plan = PointPurchasePlan::query()->create([
+            'name' => 'Adjustment Plan',
+            'amount' => 6000,
+            'paid_point_amount' => 6000,
+            'free_point_amount' => 0,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $payment = $this->createPayment(
+            $user,
+            PaymentStatus::Chargeback,
+            6000,
+            '2026-06-11 13:43:00',
+            chargebackAt: '2026-06-22 10:00:00',
+            metadata: ['payment_method' => 'demo', 'point_purchase_plan_id' => $plan->id],
+        );
+        $this->createPayment($user, PaymentStatus::Refunded, 2000, '2026-06-20 12:00:00', refundedAt: '2026-06-22 11:00:00');
+        $this->createPayment($user, PaymentStatus::Pending, 9999, null, refundedAt: '2026-06-22 12:00:00');
+        $this->createPayment($user, PaymentStatus::Failed, 9999, null, chargebackAt: '2026-06-22 12:30:00');
+
+        $this->getJson('/admin/api/sales/monthly?year=2026&month=6')
+            ->assertOk()
+            ->assertJsonPath('data.days.10.date', '2026-06-11')
+            ->assertJsonPath('data.days.10.total_amount', 6000)
+            ->assertJsonPath('data.days.21.date', '2026-06-22')
+            ->assertJsonPath('data.days.21.chargeback_amount', 6000);
+
+        $this->getJson('/admin/api/sales/daily-payments?date=2026-06-11')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $payment->id)
+            ->assertJsonPath('data.0.status', 'chargeback')
+            ->assertJsonPath('data.0.chargeback_at', fn ($value): bool => is_string($value) && str_starts_with($value, '2026-06-22T'));
+
+        $this->getJson('/admin/api/sales/daily-payments?date=2026-06-22')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
+
+        $this->getJson('/admin/api/sales/daily-adjustments?date=2026-06-22')
+            ->assertOk()
+            ->assertJsonPath('summary.total_amount', 0)
+            ->assertJsonPath('summary.refund_amount', 2000)
+            ->assertJsonPath('summary.chargeback_amount', 6000)
+            ->assertJsonPath('summary.net_amount', -8000)
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.type', 'refund')
+            ->assertJsonPath('data.1.type', 'chargeback')
+            ->assertJsonPath('data.1.payment_id', $payment->id)
+            ->assertJsonPath('data.1.original_paid_at', fn ($value): bool => is_string($value) && str_starts_with($value, '2026-06-11T'))
+            ->assertJsonPath('data.1.purchase_plan.name', 'Adjustment Plan')
+            ->assertJsonPath('data.1.payment_method', 'demo')
+            ->assertJsonPath('data.1.status', 'chargeback');
+
+        $this->getJson('/admin/api/sales/daily-adjustments?date=2026-06-11')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_daily_adjustments_requires_admin_and_valid_date(): void
+    {
+        $this->getJson('/admin/api/sales/daily-adjustments?date=2026-06-22')->assertUnauthorized();
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/admin/api/sales/daily-adjustments?date=2026-06-22')->assertForbidden();
+
+        $this->actingAdmin();
+
+        $this->getJson('/admin/api/sales/daily-adjustments?date=invalid')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('date');
+    }
+
     public function test_admin_can_get_monthly_and_daily_point_consumption(): void
     {
         $this->actingAdmin();

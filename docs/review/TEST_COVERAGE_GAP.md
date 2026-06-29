@@ -256,3 +256,29 @@ frontend側で確認した範囲:
 - Remaining gap:
   - Admin sales UI is not implemented, so Browser/E2E and unrelated-page Network checks remain pending.
   - Production payment provider behavior remains pending until provider integration is implemented.
+
+## 2026-06-29 Sales Management Daily Adjustments Update
+
+- `GET /admin/api/sales/daily-adjustments` was added for event-date based refund/chargeback rows.
+- Target tests passed:
+  - `docker compose exec -T backend php artisan test tests/Unit/SalesManagementReportServiceTest.php`
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php`
+- Covered:
+  - `paid_at` date and `chargeback_at` date can differ.
+  - Monthly calendar shows gross sales on `paid_at` date and chargeback on `chargeback_at` date.
+  - Daily payment list remains `paid_at` based.
+  - Daily adjustment list is `refunded_at` / `chargeback_at` based.
+  - `pending`, `failed`, and `canceled` are excluded from refund/chargeback adjustment rows.
+  - Unauthenticated, non-admin, and invalid date cases.
+- Remaining gap:
+  - Browser/manual confirmation is still needed for the new daily summary and adjustment table.
+  - Automated E2E coverage for selecting a monthly calendar day and viewing adjustment rows is not present.
+
+## 2026-06-29 Sales Management Admin UI Update
+
+- Admin sales UI was implemented in the stable `admin-dashboard.tsx` structure.
+- `cd frontend && pnpm typecheck` passed.
+- Remaining gap:
+  - Browser/manual checks for menu placement, route compatibility, sales calendars, daily tables, and draw detail display.
+  - Browser Network confirmation that `/admin/guide` and `/admin/gachas` do not call sales APIs.
+  - No automated E2E coverage exists for the new sales UI.

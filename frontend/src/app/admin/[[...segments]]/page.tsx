@@ -107,8 +107,8 @@ function routeStateFromSegments(segments: string[]): AdminRouteState {
     return { tab: "shipping" };
   }
 
-  if (section === "payments") {
-    return { tab: "payments" };
+  if (section === "sales" || section === "payments") {
+    return { tab: "sales" };
   }
 
   if (section === "purchase-plans") {
