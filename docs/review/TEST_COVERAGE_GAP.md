@@ -238,3 +238,21 @@ frontend側で確認した範囲:
 - Target tests passed:
   - `docker compose exec -T backend php artisan test tests/Unit/PointBalanceSnapshotServiceTest.php`
   - `docker compose exec -T backend php artisan test tests/Feature/PointBalanceSnapshotCommandTest.php`
+
+## 2026-06-29 Sales Management Backend Read API Update
+
+- `SalesManagementReportServiceTest.php` and `AdminSalesManagementApiTest.php` were added.
+- Target tests passed:
+  - `docker compose exec -T backend php artisan test tests/Unit/SalesManagementReportServiceTest.php`
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php`
+- Covered:
+  - Monthly sales gross/refund/chargeback/net aggregation.
+  - Daily payment list by `paid_at`.
+  - Payment method fallback and purchase plan fallback.
+  - Monthly and daily point consumption from `point_ledgers`.
+  - Paid/free split and draw_request grouping.
+  - Draw request detail with draw_results.
+  - Admin authentication, invalid date, and per_page validation.
+- Remaining gap:
+  - Admin sales UI is not implemented, so Browser/E2E and unrelated-page Network checks remain pending.
+  - Production payment provider behavior remains pending until provider integration is implemented.

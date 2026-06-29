@@ -85,3 +85,66 @@ Release status:
 - Pre-release critical feature.
 - Backend Service, Command, Scheduler, and target tests are completed.
 - Management display/API for viewing snapshots remains a separate future task.
+
+### v1.6-DRAFT-003: Sales Management Backend Read API
+
+Specification name: 売上管理 Backend Read API
+
+Current status:
+
+- Backend read-only API, aggregation Service, and target tests are implemented.
+- Admin UI is not implemented at this stage.
+- No migration was added.
+- No production payment provider connection was added.
+- Refund/chargeback point reversal remains out of scope.
+
+Formal requirement:
+
+- Provide admin-only read APIs for monthly sales, daily payments, monthly point consumption, daily point consumption, and draw request details.
+- Keep the APIs under existing admin authentication: `auth:sanctum` and `EnsureAdminUser`.
+- Use Asia/Tokyo date boundaries.
+- Do not use `whereDate`; use start-inclusive and end-exclusive datetime ranges.
+- Monthly ranges are from the first day of the month at `00:00:00` to the first day of the next month at `00:00:00`.
+- Daily ranges are from the target date at `00:00:00` to the next date at `00:00:00`.
+
+Sales aggregation:
+
+- Gross sales include payment amounts whose `paid_at` is in the target range and whose status is `succeeded`, `refunded`, or `chargeback`.
+- `pending`, `failed`, and `canceled` are excluded from gross sales.
+- Refund amount is the sum of payment amounts whose `refunded_at` is in the target range.
+- Chargeback amount is the sum of payment amounts whose `chargeback_at` is in the target range.
+- Net sales is gross sales minus refund amount minus chargeback amount.
+- Daily payment lists use `paid_at` as the date basis and show current payment status.
+
+Payment method and purchase plan:
+
+- No `payment_method` column is added in the initial implementation.
+- Payment method is `payments.metadata.payment_method` when present; otherwise `payments.provider`.
+- Purchase plan is resolved from `payments.metadata.point_purchase_plan_id`.
+- If the purchase plan no longer exists, the API returns a fallback label instead of failing.
+- Payment plan snapshot columns are future work if needed.
+
+Point consumption:
+
+- Point consumption uses `point_ledgers` as the source of truth.
+- Only `ledger_type = spend`, `amount < 0`, and `related_type = draw_request` are included.
+- `related_id` links to `draw_requests.id`.
+- Displayed consumption uses `ABS(amount)`.
+- Paid and free point consumption are separated by `point_type`.
+- Admin deductions, expiration, exchange, compensation, and other non-draw ledger rows are excluded from gacha consumption.
+- Daily point consumption rows are grouped by `draw_request`, not by individual ledger row.
+- Draw request details include child `draw_results` with result type, rank, prize, consumed point, granted point, and draw sequence number.
+
+Implemented endpoints:
+
+- `GET /admin/api/sales/monthly`
+- `GET /admin/api/sales/daily-payments`
+- `GET /admin/api/sales/monthly-point-consumption`
+- `GET /admin/api/sales/daily-point-consumption`
+- `GET /admin/api/sales/draw-requests/{drawRequest}`
+
+Tests:
+
+- `backend/tests/Unit/SalesManagementReportServiceTest.php`
+- `backend/tests/Feature/AdminSalesManagementApiTest.php`
+- Target tests passed on 2026-06-29.

@@ -545,3 +545,39 @@ git diff --stat
 - Remaining follow-up:
   - Admin/API display and CSV export for latest value, daily trend, and base date value remain separate future tasks.
   - Concurrent double execution of the same date can be considered later if operating multiple scheduler instances.
+
+## 2026-06-29 Sales Management Backend Read API
+
+- Implemented the backend read-only foundation for the v1.6 sales management feature.
+- Scope kept to backend API, aggregation Service, tests, and documentation.
+- Did not implement admin UI, frontend changes, admin refactor, production payment provider connection, refund/chargeback point reversal, CSV export, new DB tables, or migrations.
+- Added:
+  - `backend/app/Domain/Admin/Services/SalesManagementReportService.php`
+  - `backend/app/Http/Controllers/Admin/Sales/AdminSalesManagementController.php`
+  - `backend/app/Http/Requests/Admin/SalesMonthlyRequest.php`
+  - `backend/app/Http/Requests/Admin/SalesDailyRequest.php`
+  - Admin routes under `/admin/api/sales/*`
+  - `backend/tests/Unit/SalesManagementReportServiceTest.php`
+  - `backend/tests/Feature/AdminSalesManagementApiTest.php`
+- Implemented API endpoints:
+  - `GET /admin/api/sales/monthly`
+  - `GET /admin/api/sales/daily-payments`
+  - `GET /admin/api/sales/monthly-point-consumption`
+  - `GET /admin/api/sales/daily-point-consumption`
+  - `GET /admin/api/sales/draw-requests/{drawRequest}`
+- Behavior:
+  - Uses Asia/Tokyo date ranges with start-inclusive/end-exclusive boundaries.
+  - Gross sales include `succeeded`, `refunded`, and `chargeback` payments by `paid_at`.
+  - Refund amount uses `refunded_at`; chargeback amount uses `chargeback_at`.
+  - Net sales is gross minus refunds and chargebacks.
+  - Payment method uses `metadata.payment_method` when present and falls back to `provider`.
+  - Purchase plan is resolved from `metadata.point_purchase_plan_id`; missing plans return a fallback label.
+  - Point consumption uses `point_ledgers` with `ledger_type=spend`, `amount < 0`, and `related_type=draw_request`.
+  - Daily point consumption is grouped by `draw_request`, not individual ledger row.
+  - Draw request detail returns child draw results with rank/prize and point fields.
+- Verification:
+  - `docker compose exec -T backend php artisan test tests/Unit/SalesManagementReportServiceTest.php` passed: 4 tests, 27 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php` passed: 6 tests, 45 assertions.
+- Remaining follow-up:
+  - Admin sales UI must be added later to the current stable `admin-dashboard.tsx` structure.
+  - Index additions can be considered later if real data volume makes sales queries slow.
