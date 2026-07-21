@@ -9,4 +9,5 @@ enum UserPrizeStatus: string
     case Shipped = 'shipped';
     case Converted = 'converted';
     case Expired = 'expired';
+    case Held = 'held';
 }

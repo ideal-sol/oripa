@@ -42,4 +42,9 @@ class GachaPrize extends Model
     {
         return $this->belongsTo(GachaRank::class, 'rank_id');
     }
+
+    public function qaDrawPlanItems()
+    {
+        return $this->hasMany(QaDrawPlanItem::class);
+    }
 }

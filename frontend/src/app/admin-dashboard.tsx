@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, MouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, MouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ApiCollection<T> = {
@@ -50,6 +50,81 @@ type User = {
     phone_number: string | null;
     birth_date: string | null;
   } | null;
+};
+
+type QaTestUserMode = {
+  id: number;
+  user_id: number;
+  is_enabled: boolean;
+  is_active: boolean;
+  reason: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  enabled_by_admin_user_id: number | null;
+  disabled_by_admin_user_id: number | null;
+  disabled_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type QaDrawPlanAsset = {
+  id: number;
+  title: string;
+  asset_type: string;
+  url: string;
+  is_active: boolean;
+};
+
+type QaDrawPlanItem = {
+  id: number;
+  sort_order: number;
+  gacha_prize_id: number;
+  gacha_prize?: {
+    id: number;
+    name: string;
+    rank_id: number | null;
+    rank_name: string | null;
+    image_url: string | null;
+  };
+  quantity: number;
+  consumed_count: number;
+  remaining_count: number;
+  rank_image_asset_id: number | null;
+  rank_image_asset?: QaDrawPlanAsset | null;
+  draw_video_asset_id: number | null;
+  draw_video_asset?: QaDrawPlanAsset | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type QaDrawPlan = {
+  id: number;
+  user_id: number;
+  gacha_id: number;
+  gacha?: {
+    id: number;
+    title: string;
+    status: string;
+  };
+  status: string;
+  title: string | null;
+  reason: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_by_admin_user_id: number;
+  updated_by_admin_user_id: number | null;
+  items: QaDrawPlanItem[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type QaDrawPlanCreateItemForm = {
+  localId: number;
+  sortOrder: string;
+  gachaPrizeId: string;
+  quantity: string;
+  rankImageAssetId: string;
+  drawVideoAssetId: string;
 };
 
 type DrawRequest = {
@@ -140,7 +215,17 @@ type Payment = {
   free_point_amount: number;
   user?: User;
   paid_at: string | null;
+  refunded_at?: string | null;
+  chargeback_at?: string | null;
   created_at: string;
+};
+
+type RefundEligibility = {
+  payment_id: number;
+  eligible: boolean;
+  reason: string | null;
+  used_amount: number;
+  refundable_amount: number;
 };
 
 type SalesPaymentMethod = {
@@ -209,6 +294,63 @@ type SalesDailyAdjustment = {
   status: string;
 };
 
+type PaymentReversalPointEntry = {
+  id: number;
+  payment_reversal_id: number;
+  payment_id: number;
+  user_id: number;
+  point_lot_id: number | null;
+  point_ledger_id: number | null;
+  point_type: string;
+  bucket: string;
+  amount: number;
+  shortfall_amount: number;
+  created_at: string | null;
+};
+
+type PaymentReversalPrizeAction = {
+  id: number;
+  payment_reversal_id: number;
+  user_prize_id: number;
+  shipping_item_id: number | null;
+  action_type: string;
+  previous_user_prize_status: string | null;
+  previous_shipping_item_status: string | null;
+  status: string;
+  note: string | null;
+  mail_sent_at: string | null;
+  mail_last_error: string | null;
+  mail_last_attempted_at: string | null;
+  user_prize?: UserPrize;
+  shipping_item?: ShippingItem;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type PaymentReversal = {
+  id: number;
+  payment_id: number;
+  user_id: number;
+  admin_user_id: number | null;
+  type: "refund" | "chargeback";
+  status: string;
+  reason: string | null;
+  payment_amount: number;
+  paid_point_amount: number;
+  free_point_amount: number;
+  paid_reversed_amount: number;
+  free_reversed_amount: number;
+  shortfall_paid_amount: number;
+  shortfall_free_amount: number;
+  occurred_at: string | null;
+  payment?: Payment;
+  user?: User;
+  point_entries?: PaymentReversalPointEntry[];
+  prize_actions?: PaymentReversalPrizeAction[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type SalesPointGachaSummary = {
   gacha_id: number;
   gacha_title: string;
@@ -264,7 +406,8 @@ type SalesDrawRequestDetail = {
   }[];
 };
 
-type SalesView = "monthly-sales" | "daily-sales" | "monthly-points" | "daily-points";
+type SalesView = "monthly-sales" | "daily-sales" | "monthly-points" | "daily-points" | "reversals";
+type SalesCsvKind = "monthly-sales" | "daily-payments" | "daily-adjustments" | "monthly-points" | "daily-points";
 
 type PointPurchasePlan = {
   id: number;
@@ -598,12 +741,13 @@ type ProbabilityRowPayload = {
 
 type AdminSession = {
   access_token: string;
-  admin: {
-    id: number;
-    name: string;
-    email: string;
-  };
-};
+	  admin: {
+	    id: number;
+	    name: string;
+	    email: string;
+	    role?: string;
+	  };
+	};
 
 type AdminDataCache = {
   savedAt: number;
@@ -734,6 +878,9 @@ export default function AdminDashboard({
   const restoredInitialEditRef = useRef(false);
   const restoredRouteRef = useRef("");
   const restoreInitialEditRef = useRef<() => Promise<void> | void>(() => undefined);
+  const qaDrawPlansRequestRef = useRef(0);
+  const qaDrawPlanOptionsRequestRef = useRef(0);
+  const qaDrawPlanItemRowIdRef = useRef(1);
   const cachedAdminData = useMemo(() => readAdminDataCache(), []);
   const [loading, setLoading] = useState(false);
   const [hasLoadedAdminData, setHasLoadedAdminData] = useState(Boolean(cachedAdminData));
@@ -747,6 +894,29 @@ export default function AdminDashboard({
   const [selectedUserPayments, setSelectedUserPayments] = useState<Payment[]>([]);
   const [selectedUserPointAdjustments, setSelectedUserPointAdjustments] = useState<PointAdjustment[]>([]);
   const [selectedUserReferrals, setSelectedUserReferrals] = useState<UserReferral[]>([]);
+  const [selectedUserQaMode, setSelectedUserQaMode] = useState<QaTestUserMode | null>(null);
+  const [selectedUserQaDrawPlans, setSelectedUserQaDrawPlans] = useState<QaDrawPlan[]>([]);
+  const [qaDrawPlanDetails, setQaDrawPlanDetails] = useState<Record<number, QaDrawPlan>>({});
+  const [expandedQaDrawPlanIds, setExpandedQaDrawPlanIds] = useState<Record<number, boolean>>({});
+  const [qaDrawPlanCreateOpen, setQaDrawPlanCreateOpen] = useState(false);
+  const [qaDrawPlanCreateForm, setQaDrawPlanCreateForm] = useState({
+    gachaId: "",
+    status: "active",
+    title: "",
+    reason: "",
+    startsAt: "",
+    endsAt: "",
+  });
+  const [qaDrawPlanCreateItems, setQaDrawPlanCreateItems] = useState<QaDrawPlanCreateItemForm[]>(() => [makeQaDrawPlanItemRow(1, 1)]);
+  const [qaDrawPlanPrizeCandidates, setQaDrawPlanPrizeCandidates] = useState<GachaPrize[]>([]);
+  const [qaDrawPlanPrizeLoading, setQaDrawPlanPrizeLoading] = useState(false);
+  const [qaDrawPlanPrizeError, setQaDrawPlanPrizeError] = useState("");
+  const [qaDrawPlanAssetLoading, setQaDrawPlanAssetLoading] = useState(false);
+  const [qaDrawPlanCreateSaving, setQaDrawPlanCreateSaving] = useState(false);
+  const [qaDrawPlanActionPlanId, setQaDrawPlanActionPlanId] = useState<number | null>(null);
+  const [qaModeLoading, setQaModeLoading] = useState(false);
+  const [qaDrawPlansLoading, setQaDrawPlansLoading] = useState(false);
+  const [qaModeSaving, setQaModeSaving] = useState(false);
   const [gachas, setGachas] = useState<Gacha[]>(cachedAdminData?.gachas ?? []);
   const [gachaRanks, setGachaRanks] = useState<GachaRank[]>(cachedAdminData?.gachaRanks ?? []);
   const [gachaPrizes, setGachaPrizes] = useState<GachaPrize[]>(cachedAdminData?.gachaPrizes ?? []);
@@ -772,7 +942,14 @@ export default function AdminDashboard({
   const [salesDailyPointsMeta, setSalesDailyPointsMeta] = useState<PaginationMeta | null>(null);
   const [selectedSalesPointRow, setSelectedSalesPointRow] = useState<SalesDailyPointConsumption | null>(null);
   const [salesDrawDetail, setSalesDrawDetail] = useState<SalesDrawRequestDetail | null>(null);
+  const [refundEligibility, setRefundEligibility] = useState<Record<number, RefundEligibility>>({});
+  const [paymentReversals, setPaymentReversals] = useState<PaymentReversal[]>([]);
+  const [paymentReversalsMeta, setPaymentReversalsMeta] = useState<PaginationMeta | null>(null);
+  const [paymentReversalDateFrom, setPaymentReversalDateFrom] = useState("");
+  const [paymentReversalDateTo, setPaymentReversalDateTo] = useState("");
+  const [selectedPaymentReversal, setSelectedPaymentReversal] = useState<PaymentReversal | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);
+  const [salesCsvDownloading, setSalesCsvDownloading] = useState<SalesCsvKind | null>(null);
   const [purchasePlans, setPurchasePlans] = useState<PointPurchasePlan[]>(cachedAdminData?.purchasePlans ?? []);
   const [pointAdjustments, setPointAdjustments] = useState<PointAdjustment[]>(cachedAdminData?.pointAdjustments ?? []);
   const [referralSetting, setReferralSetting] = useState<ReferralSetting | null>(cachedAdminData?.referralSetting ?? null);
@@ -830,6 +1007,12 @@ export default function AdminDashboard({
   });
   const [userStatusForm, setUserStatusForm] = useState({
     status: "active",
+  });
+  const [qaModeForm, setQaModeForm] = useState({
+    enabled: true,
+    reason: "",
+    startsAt: "",
+    endsAt: "",
   });
   const [purchasePlanForm, setPurchasePlanForm] = useState({
     id: "",
@@ -1341,6 +1524,296 @@ export default function AdminDashboard({
     }
   }, [clearMessage, session?.access_token, showMessage]);
 
+  const loadRefundEligibility = useCallback(async (paymentId: number, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: RefundEligibility }>(`/payments/${paymentId}/refund-eligibility`, {}, token);
+      setRefundEligibility((current) => ({
+        ...current,
+        [paymentId]: response.data,
+      }));
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "返金可否の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const loadPaymentReversals = useCallback(async (
+    page = 1,
+    token = session?.access_token,
+    dateFilters?: { dateFrom: string; dateTo: string },
+  ) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        per_page: String(perPage),
+      });
+
+      const dateFrom = dateFilters?.dateFrom ?? paymentReversalDateFrom;
+      const dateTo = dateFilters?.dateTo ?? paymentReversalDateTo;
+
+      if (dateFrom) {
+        params.set("date_from", dateFrom);
+      }
+
+      if (dateTo) {
+        params.set("date_to", dateTo);
+      }
+
+      const response = await apiRequest<{ data: PaymentReversal[]; meta?: Partial<ApiPaginationMeta> }>(
+        `/payment-reversals?${params.toString()}`,
+        {},
+        token,
+      );
+      setPaymentReversals(response.data);
+      setPaymentReversalsMeta(normalizePaginationMeta(response.meta));
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "返金・チャージバック履歴の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, paymentReversalDateFrom, paymentReversalDateTo, session?.access_token, showMessage]);
+
+  const loadPaymentReversalDetail = useCallback(async (reversalId: number, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: PaymentReversal }>(`/payment-reversals/${reversalId}`, {}, token);
+      setSelectedPaymentReversal(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "返金・チャージバック詳細の取得に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, session?.access_token, showMessage]);
+
+  const handleRefundPayment = useCallback(async (payment: SalesDailyPayment, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const eligibilityResponse = await apiRequest<{ data: RefundEligibility }>(`/payments/${payment.id}/refund-eligibility`, {}, token);
+      setRefundEligibility((current) => ({
+        ...current,
+        [payment.id]: eligibilityResponse.data,
+      }));
+
+      if (!eligibilityResponse.data.eligible) {
+        showMessage("error", eligibilityResponse.data.reason ?? "この決済は通常返金できません");
+        return;
+      }
+
+      if (!window.confirm(`決済 #${payment.id} を通常返金します。よろしいですか？`)) {
+        return;
+      }
+
+      const reason = window.prompt("返金理由を入力してください。", "管理画面からの通常返金") ?? "";
+      await apiRequest<{ data: PaymentReversal }>(`/payments/${payment.id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }, token);
+      showMessage("success", "通常返金を実行しました");
+      await loadSalesDailyView(salesDate, salesDailyPaymentsMeta?.current_page ?? 1, token);
+      if (salesView === "reversals") {
+        await loadPaymentReversals(paymentReversalsMeta?.current_page ?? 1, token);
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "通常返金に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, loadPaymentReversals, loadSalesDailyView, paymentReversalsMeta?.current_page, salesDailyPaymentsMeta?.current_page, salesDate, salesView, session?.access_token, showMessage]);
+
+  const handleChargebackPayment = useCallback(async (payment: SalesDailyPayment, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    if (!window.confirm(`決済 #${payment.id} をチャージバック登録します。ポイント取消と未発送景品holdを行います。よろしいですか？`)) {
+      return;
+    }
+
+    const reason = window.prompt("チャージバック理由を入力してください。", "管理画面からのチャージバック登録") ?? "";
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      await apiRequest<{ data: PaymentReversal }>(`/payments/${payment.id}/chargeback`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }, token);
+      showMessage("success", "チャージバックを登録しました");
+      await loadSalesDailyView(salesDate, salesDailyPaymentsMeta?.current_page ?? 1, token);
+      if (salesView === "reversals") {
+        await loadPaymentReversals(paymentReversalsMeta?.current_page ?? 1, token);
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "チャージバック登録に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, loadPaymentReversals, loadSalesDailyView, paymentReversalsMeta?.current_page, salesDailyPaymentsMeta?.current_page, salesDate, salesView, session?.access_token, showMessage]);
+
+  const handleReleaseHolds = useCallback(async (reversal: PaymentReversal, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    if (!window.confirm(`返金/CB履歴 #${reversal.id} のholdを解除します。よろしいですか？`)) {
+      return;
+    }
+
+    const note = window.prompt("hold解除メモを入力してください。", "相殺確認済みのためhold解除") ?? "";
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: PaymentReversal }>(`/payment-reversals/${reversal.id}/release-holds`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }, token);
+      setSelectedPaymentReversal(response.data);
+      showMessage("success", "holdを解除しました");
+      await loadPaymentReversals(paymentReversalsMeta?.current_page ?? 1, token);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "hold解除に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, loadPaymentReversals, paymentReversalsMeta?.current_page, session?.access_token, showMessage]);
+
+  const handleMarkReturned = useCallback(async (action: PaymentReversalPrizeAction, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    if (!window.confirm(`返送依頼 #${action.id} を返送済みにします。よろしいですか？`)) {
+      return;
+    }
+
+    const note = window.prompt("返送済みメモを入力してください。", "返送済み確認") ?? "";
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      await apiRequest<{ data: PaymentReversalPrizeAction }>(`/payment-reversal-prize-actions/${action.id}/mark-returned`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }, token);
+      showMessage("success", "返送済みに更新しました");
+      if (selectedPaymentReversal) {
+        await loadPaymentReversalDetail(selectedPaymentReversal.id, token);
+      }
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "返送済み更新に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, loadPaymentReversalDetail, selectedPaymentReversal, session?.access_token, showMessage]);
+
+  const handleSendReturnRequestMail = useCallback(async (reversal: PaymentReversal, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    if (!window.confirm(`返金/CB履歴 #${reversal.id} の返送依頼メールを送信します。よろしいですか？`)) {
+      return;
+    }
+
+    setSalesLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: { sent: boolean; sent_count: number; failed_count: number; message: string }; payment_reversal: { data: PaymentReversal } }>(
+        `/payment-reversals/${reversal.id}/send-return-request-mail`,
+        { method: "POST" },
+        token,
+      );
+      setSelectedPaymentReversal(response.payment_reversal.data);
+      await loadPaymentReversals(paymentReversalsMeta?.current_page ?? 1, token);
+      showMessage(
+        response.data.sent ? "success" : response.data.failed_count > 0 ? "error" : "success",
+        response.data.sent
+          ? `返送依頼メールを送信しました。対象${response.data.sent_count}件`
+          : response.data.failed_count > 0
+            ? "返送依頼メールの送信に失敗しました。詳細のエラーを確認してください。"
+            : "送信対象の返送依頼メールはありません。",
+      );
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "返送依頼メールの送信に失敗しました");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [clearMessage, loadPaymentReversals, paymentReversalsMeta?.current_page, session?.access_token, showMessage]);
+
+  const handleDownloadSalesCsv = useCallback(async (kind: SalesCsvKind, token = session?.access_token) => {
+    if (!token) {
+      return;
+    }
+
+    const [year, month] = parseMonthValue(salesMonth);
+    const csvConfigs: Record<SalesCsvKind, { path: string; fallbackFilename: string }> = {
+      "monthly-sales": {
+        path: `/sales/monthly.csv?year=${year}&month=${month}`,
+        fallbackFilename: `sales_monthly_${salesMonth}.csv`,
+      },
+      "daily-payments": {
+        path: `/sales/daily-payments.csv?date=${encodeURIComponent(salesDate)}`,
+        fallbackFilename: `sales_daily_payments_${salesDate}.csv`,
+      },
+      "daily-adjustments": {
+        path: `/sales/daily-adjustments.csv?date=${encodeURIComponent(salesDate)}`,
+        fallbackFilename: `sales_daily_adjustments_${salesDate}.csv`,
+      },
+      "monthly-points": {
+        path: `/sales/monthly-point-consumption.csv?year=${year}&month=${month}`,
+        fallbackFilename: `sales_monthly_point_consumption_${salesMonth}.csv`,
+      },
+      "daily-points": {
+        path: `/sales/daily-point-consumption.csv?date=${encodeURIComponent(salesDate)}`,
+        fallbackFilename: `sales_daily_point_consumption_${salesDate}.csv`,
+      },
+    };
+    const config = csvConfigs[kind];
+
+    setSalesCsvDownloading(kind);
+    clearMessage();
+
+    try {
+      const response = await adminBlobRequest(config.path, token);
+      const filename = filenameFromContentDisposition(response.headers.get("content-disposition")) ?? config.fallbackFilename;
+      downloadBlob(response.blob, filename);
+      showMessage("success", "CSVをダウンロードしました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "CSVのダウンロードに失敗しました");
+    } finally {
+      setSalesCsvDownloading(null);
+    }
+  }, [clearMessage, salesDate, salesMonth, session?.access_token, showMessage]);
+
   useEffect(() => {
     if (!session || activeTab !== "sales") {
       return;
@@ -1361,7 +1834,11 @@ export default function AdminDashboard({
     if (salesView === "daily-points") {
       void loadSalesDailyPoints(salesDate);
     }
-  }, [activeTab, loadSalesDailyPoints, loadSalesDailyView, loadSalesMonthly, loadSalesMonthlyPoints, salesDate, salesMonth, salesView, session]);
+
+    if (salesView === "reversals") {
+      void loadPaymentReversals();
+    }
+  }, [activeTab, loadPaymentReversals, loadSalesDailyPoints, loadSalesDailyView, loadSalesMonthly, loadSalesMonthlyPoints, salesDate, salesMonth, salesView, session]);
 
   useEffect(() => {
     if (!session || !initialEditId || restoredInitialEditRef.current || activeTab !== "gachas") {
@@ -1455,6 +1932,18 @@ export default function AdminDashboard({
   const selectedUserMadeReferrals = selectedUser
     ? selectedUserReferrals.filter((referral) => referral.referrer_user_id === selectedUser.id)
     : [];
+  const isOwnerAdmin = session?.admin.role === "owner";
+  const qaRankImageAssetOptions = rankAssets.filter((asset) => asset.is_active && asset.asset_type === "image");
+  const qaDrawVideoAssetOptions = rankAssets.filter((asset) => asset.is_active && asset.asset_type === "video");
+  const selectedQaDrawPlanGacha = qaDrawPlanCreateForm.gachaId
+    ? gachas.find((gacha) => gacha.id === Number(qaDrawPlanCreateForm.gachaId)) ?? null
+    : null;
+  const qaDrawPlanCreateQuantityTotal = qaDrawPlanCreateItems.reduce((total, row) => {
+    const quantity = Number(row.quantity);
+    return Number.isInteger(quantity) && quantity > 0 ? total + quantity : total;
+  }, 0);
+  const qaDrawPlanRowsWithImage = qaDrawPlanCreateItems.filter((row) => row.rankImageAssetId !== "").length;
+  const qaDrawPlanRowsWithVideo = qaDrawPlanCreateItems.filter((row) => row.drawVideoAssetId !== "").length;
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1725,6 +2214,7 @@ export default function AdminDashboard({
 
     setLoading(true);
     clearMessage();
+    resetQaModeState();
 
     try {
       const [userResponse, prizeResponse, drawResponse, paymentResponse, adjustmentResponse, referralResponse] = await Promise.all([
@@ -1752,12 +2242,438 @@ export default function AdminDashboard({
       setUserStatusForm({
         status: userResponse.data.status,
       });
+      if (session.admin.role === "owner") {
+        await fetchUserQaMode(userResponse.data.id);
+        await fetchUserQaDrawPlans(userResponse.data.id);
+      }
       setActiveUserView("detail");
       router.push(adminPathForUserDetail(userResponse.data.id));
     } catch (error) {
       showMessage("error", error instanceof Error ? error.message : "ユーザー詳細の取得に失敗しました");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function resetQaModeState() {
+    qaDrawPlansRequestRef.current += 1;
+    resetQaDrawPlanCreateState();
+    setSelectedUserQaMode(null);
+    setSelectedUserQaDrawPlans([]);
+    setQaDrawPlanDetails({});
+    setExpandedQaDrawPlanIds({});
+    setQaDrawPlansLoading(false);
+    setQaModeForm({
+      enabled: true,
+      reason: "",
+      startsAt: "",
+      endsAt: "",
+    });
+  }
+
+  function resetQaDrawPlanCreateState() {
+    qaDrawPlanOptionsRequestRef.current += 1;
+    setQaDrawPlanCreateOpen(false);
+    setQaDrawPlanCreateForm({
+      gachaId: "",
+      status: "active",
+      title: "",
+      reason: "",
+      startsAt: "",
+      endsAt: "",
+    });
+    qaDrawPlanItemRowIdRef.current += 1;
+    setQaDrawPlanCreateItems([makeQaDrawPlanItemRow(qaDrawPlanItemRowIdRef.current, 1)]);
+    setQaDrawPlanPrizeCandidates([]);
+    setQaDrawPlanPrizeLoading(false);
+    setQaDrawPlanPrizeError("");
+    setQaDrawPlanAssetLoading(false);
+    setQaDrawPlanCreateSaving(false);
+    setQaDrawPlanActionPlanId(null);
+  }
+
+  function applyQaModeToForm(mode: QaTestUserMode | null) {
+    setSelectedUserQaMode(mode);
+    setQaModeForm({
+      enabled: mode?.is_enabled ?? true,
+      reason: mode?.reason ?? "",
+      startsAt: toDatetimeLocalValue(mode?.starts_at ?? null),
+      endsAt: toDatetimeLocalValue(mode?.ends_at ?? null),
+    });
+  }
+
+  async function fetchUserQaMode(userId: number) {
+    if (!session || session.admin.role !== "owner") {
+      return;
+    }
+
+    setQaModeLoading(true);
+
+    try {
+      const response = await apiRequest<{ data: QaTestUserMode | null }>(`/users/${userId}/qa-test-mode`, {}, session.access_token);
+      applyQaModeToForm(response.data);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "QAテストユーザー設定の取得に失敗しました");
+    } finally {
+      setQaModeLoading(false);
+    }
+  }
+
+  async function fetchUserQaDrawPlans(userId: number) {
+    if (!session || session.admin.role !== "owner") {
+      return;
+    }
+
+    const requestId = qaDrawPlansRequestRef.current + 1;
+    qaDrawPlansRequestRef.current = requestId;
+    setQaDrawPlansLoading(true);
+
+    try {
+      const response = await apiRequest<{ data: QaDrawPlan[] }>(`/users/${userId}/qa-draw-plans`, {}, session.access_token);
+
+      if (qaDrawPlansRequestRef.current !== requestId) {
+        return;
+      }
+
+      setSelectedUserQaDrawPlans(response.data);
+      setQaDrawPlanDetails({});
+      setExpandedQaDrawPlanIds({});
+    } catch (error) {
+      if (qaDrawPlansRequestRef.current === requestId) {
+        showMessage("error", error instanceof Error ? error.message : "QA排出プラン一覧の取得に失敗しました");
+      }
+    } finally {
+      if (qaDrawPlansRequestRef.current === requestId) {
+        setQaDrawPlansLoading(false);
+      }
+    }
+  }
+
+  async function toggleQaDrawPlan(plan: QaDrawPlan) {
+    const nextExpanded = !expandedQaDrawPlanIds[plan.id];
+    setExpandedQaDrawPlanIds((current) => ({ ...current, [plan.id]: nextExpanded }));
+
+    if (!nextExpanded || qaDrawPlanDetails[plan.id] || !session || session.admin.role !== "owner") {
+      return;
+    }
+
+    const requestId = qaDrawPlansRequestRef.current;
+
+    try {
+      const response = await apiRequest<{ data: QaDrawPlan }>(`/qa-draw-plans/${plan.id}`, {}, session.access_token);
+      if (qaDrawPlansRequestRef.current !== requestId) {
+        return;
+      }
+      setQaDrawPlanDetails((current) => ({ ...current, [plan.id]: response.data }));
+    } catch (error) {
+      if (qaDrawPlansRequestRef.current === requestId) {
+        showMessage("error", error instanceof Error ? error.message : "QA排出プラン詳細の取得に失敗しました");
+      }
+    }
+  }
+
+  async function openQaDrawPlanCreateForm() {
+    if (!session || session.admin.role !== "owner") {
+      return;
+    }
+
+    setQaDrawPlanCreateOpen(true);
+    setQaDrawPlanPrizeCandidates([]);
+    setQaDrawPlanPrizeError("");
+
+    if (rankAssets.length > 0) {
+      return;
+    }
+
+    const requestId = qaDrawPlanOptionsRequestRef.current;
+    setQaDrawPlanAssetLoading(true);
+
+    try {
+      const response = await apiRequest<ApiCollection<RankAsset>>("/rank-assets?per_page=100", {}, session.access_token);
+      if (qaDrawPlanOptionsRequestRef.current !== requestId) {
+        return;
+      }
+      setRankAssets(response.data);
+    } catch (error) {
+      if (qaDrawPlanOptionsRequestRef.current === requestId) {
+        showMessage("error", error instanceof Error ? error.message : "固定演出素材の取得に失敗しました");
+      }
+    } finally {
+      if (qaDrawPlanOptionsRequestRef.current === requestId) {
+        setQaDrawPlanAssetLoading(false);
+      }
+    }
+  }
+
+  function cancelQaDrawPlanCreateForm() {
+    resetQaDrawPlanCreateState();
+  }
+
+  async function handleQaDrawPlanGachaChange(gachaId: string) {
+    if (gachaId !== qaDrawPlanCreateForm.gachaId && qaDrawPlanItemRowsHaveInput(qaDrawPlanCreateItems)) {
+      const confirmed = window.confirm("対象ガチャを変更すると、入力中の景品設定行は初期化されます。変更しますか？");
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setQaDrawPlanCreateForm((current) => ({ ...current, gachaId }));
+    qaDrawPlanItemRowIdRef.current += 1;
+    setQaDrawPlanCreateItems([makeQaDrawPlanItemRow(qaDrawPlanItemRowIdRef.current, 1)]);
+    setQaDrawPlanPrizeCandidates([]);
+    setQaDrawPlanPrizeError("");
+
+    qaDrawPlanOptionsRequestRef.current += 1;
+
+    if (!gachaId || !session || session.admin.role !== "owner") {
+      setQaDrawPlanPrizeLoading(false);
+      return;
+    }
+
+    const selectedGachaId = Number(gachaId);
+    const cachedPrizes = gachaPrizes.filter((prize) => prize.gacha_id === selectedGachaId);
+
+    if (cachedPrizes.length > 0) {
+      setQaDrawPlanPrizeCandidates(cachedPrizes);
+      setQaDrawPlanPrizeLoading(false);
+      return;
+    }
+
+    const requestId = qaDrawPlanOptionsRequestRef.current;
+    setQaDrawPlanPrizeLoading(true);
+
+    try {
+      const response = await apiRequest<ApiCollection<GachaPrize>>(`/gacha-prizes?gacha_id=${selectedGachaId}&per_page=100`, {}, session.access_token);
+      if (qaDrawPlanOptionsRequestRef.current !== requestId) {
+        return;
+      }
+      setQaDrawPlanPrizeCandidates(response.data);
+    } catch (error) {
+      if (qaDrawPlanOptionsRequestRef.current === requestId) {
+        setQaDrawPlanPrizeError(error instanceof Error ? error.message : "景品候補の取得に失敗しました");
+        setQaDrawPlanPrizeCandidates([]);
+      }
+    } finally {
+      if (qaDrawPlanOptionsRequestRef.current === requestId) {
+        setQaDrawPlanPrizeLoading(false);
+      }
+    }
+  }
+
+  function addQaDrawPlanItemRow() {
+    qaDrawPlanItemRowIdRef.current += 1;
+    setQaDrawPlanCreateItems((current) => normalizeQaDrawPlanItemRows([
+      ...current,
+      makeQaDrawPlanItemRow(qaDrawPlanItemRowIdRef.current, current.length + 1),
+    ]));
+  }
+
+  function removeQaDrawPlanItemRow(localId: number) {
+    setQaDrawPlanCreateItems((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      return normalizeQaDrawPlanItemRows(current.filter((row) => row.localId !== localId));
+    });
+  }
+
+  function moveQaDrawPlanItemRow(localId: number, direction: -1 | 1) {
+    setQaDrawPlanCreateItems((current) => {
+      const index = current.findIndex((row) => row.localId === localId);
+      const nextIndex = index + direction;
+
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+
+      return normalizeQaDrawPlanItemRows(next);
+    });
+  }
+
+  function updateQaDrawPlanItemRow(localId: number, patch: Partial<Omit<QaDrawPlanCreateItemForm, "localId">>) {
+    setQaDrawPlanCreateItems((current) => current.map((row) => (
+      row.localId === localId ? { ...row, ...patch } : row
+    )));
+  }
+
+  function updateQaDrawPlanItemIntegerField(localId: number, field: "sortOrder" | "quantity", value: string) {
+    if (value !== "" && !/^[1-9]\d*$/.test(value)) {
+      return;
+    }
+
+    updateQaDrawPlanItemRow(localId, field === "sortOrder" ? { sortOrder: value } : { quantity: value });
+  }
+
+  async function submitQaDrawPlanCreateForm() {
+    if (!session || session.admin.role !== "owner" || !selectedUser) {
+      return;
+    }
+
+    if (!qaDrawPlanCreateForm.gachaId) {
+      showMessage("error", "対象ガチャを選択してください");
+      return;
+    }
+
+    if (!qaDrawPlanCreateForm.reason.trim()) {
+      showMessage("error", "reasonを入力してください");
+      return;
+    }
+
+    const normalizedItems = normalizeQaDrawPlanItemRows(qaDrawPlanCreateItems);
+    const invalidItem = normalizedItems.find((row) => !row.gachaPrizeId || !row.quantity || Number(row.quantity) < 1);
+
+    if (invalidItem) {
+      showMessage("error", "景品と数量をすべての景品設定行に入力してください");
+      return;
+    }
+
+    const confirmed = window.confirm("QA排出プランを作成します。QAモード中の抽選では、設定した景品が通常データとして排出されます。作成しますか？");
+
+    if (!confirmed) {
+      return;
+    }
+
+    const payload = {
+      gacha_id: Number(qaDrawPlanCreateForm.gachaId),
+      title: qaDrawPlanCreateForm.title.trim() || null,
+      reason: qaDrawPlanCreateForm.reason.trim(),
+      starts_at: qaDrawPlanCreateForm.startsAt || null,
+      ends_at: qaDrawPlanCreateForm.endsAt || null,
+      items: normalizedItems.map((row) => ({
+        sort_order: Number(row.sortOrder),
+        gacha_prize_id: Number(row.gachaPrizeId),
+        quantity: Number(row.quantity),
+        rank_image_asset_id: row.rankImageAssetId ? Number(row.rankImageAssetId) : null,
+        draw_video_asset_id: row.drawVideoAssetId ? Number(row.drawVideoAssetId) : null,
+      })),
+    };
+
+    setQaDrawPlanCreateSaving(true);
+    clearMessage();
+
+    try {
+      await apiRequest<{ data: QaDrawPlan }>(`/users/${selectedUser.id}/qa-draw-plans`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }, session.access_token);
+
+      showMessage("success", "QA排出プランを作成しました");
+      resetQaDrawPlanCreateState();
+      await fetchUserQaDrawPlans(selectedUser.id);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "QA排出プランの作成に失敗しました");
+    } finally {
+      setQaDrawPlanCreateSaving(false);
+    }
+  }
+
+  async function runQaDrawPlanAction(plan: QaDrawPlan, action: "pause" | "activate" | "disable") {
+    if (!session || session.admin.role !== "owner" || !selectedUser) {
+      return;
+    }
+
+    const labels = {
+      pause: "一時停止",
+      activate: "再開",
+      disable: "無効化",
+    } satisfies Record<typeof action, string>;
+
+    const confirmed = window.confirm(`QA排出プラン #${plan.id} を${labels[action]}します。よろしいですか？`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setQaDrawPlanActionPlanId(plan.id);
+    clearMessage();
+
+    try {
+      const endpoint = action === "pause"
+        ? `/qa-draw-plans/${plan.id}/pause`
+        : action === "activate"
+          ? `/qa-draw-plans/${plan.id}/activate`
+          : `/qa-draw-plans/${plan.id}`;
+
+      await apiRequest<{ data: QaDrawPlan }>(endpoint, {
+        method: action === "disable" ? "DELETE" : "POST",
+      }, session.access_token);
+
+      showMessage("success", `QA排出プランを${labels[action]}しました`);
+      await fetchUserQaDrawPlans(selectedUser.id);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : `QA排出プランの${labels[action]}に失敗しました`);
+    } finally {
+      setQaDrawPlanActionPlanId(null);
+    }
+  }
+
+  async function submitSelectedUserQaMode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session || session.admin.role !== "owner" || !selectedUser) {
+      return;
+    }
+
+    if (!qaModeForm.endsAt) {
+      showMessage("error", "自動終了日時は必須です");
+      return;
+    }
+
+    const actionText = selectedUserQaMode ? "QAモード設定を更新しますか？" : "QAモードを有効化しますか？";
+    if (!window.confirm(`${actionText}\n\nQAモード中の抽選は通常データとして実際に反映されます。`)) {
+      return;
+    }
+
+    setQaModeSaving(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: QaTestUserMode }>(`/users/${selectedUser.id}/qa-test-mode`, {
+        method: "PUT",
+        body: JSON.stringify({
+          reason: qaModeForm.reason,
+          starts_at: qaModeForm.startsAt || null,
+          ends_at: qaModeForm.endsAt,
+        }),
+      }, session.access_token);
+
+      applyQaModeToForm(response.data);
+      showMessage("success", selectedUserQaMode ? "QAモード設定を更新しました" : "QAモードを有効化しました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "QAモード設定の保存に失敗しました");
+    } finally {
+      setQaModeSaving(false);
+    }
+  }
+
+  async function disableSelectedUserQaMode() {
+    if (!session || session.admin.role !== "owner" || !selectedUser || !selectedUserQaMode) {
+      return;
+    }
+
+    if (!window.confirm("QAモードを無効化しますか？\n\n過去の抽選・ポイント消費・景品獲得は自動で取り消されません。")) {
+      return;
+    }
+
+    setQaModeSaving(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: QaTestUserMode | null }>(`/users/${selectedUser.id}/qa-test-mode`, {
+        method: "DELETE",
+      }, session.access_token);
+
+      applyQaModeToForm(response.data);
+      showMessage("success", "QAモードを無効化しました");
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "QAモードの無効化に失敗しました");
+    } finally {
+      setQaModeSaving(false);
     }
   }
 
@@ -3371,10 +4287,12 @@ export default function AdminDashboard({
                 <Pagination meta={pagination.users} onPage={(page) => goToPage("users", page)} />
               </>
             ) : (
-              <FormSurface title="ユーザー詳細" backLabel="ユーザー一覧" onBack={() => {
-                setActiveUserView("list");
-                router.push(adminPathForTab("users"));
-              }} wide>
+	              <FormSurface title="ユーザー詳細" backLabel="ユーザー一覧" onBack={() => {
+	                setActiveUserView("list");
+	                setSelectedUser(null);
+	                resetQaModeState();
+	                router.push(adminPathForTab("users"));
+	              }} wide>
                 {selectedUser ? (
                   <div className="user-detail-panel">
                     <div className="detail-heading">
@@ -3389,11 +4307,11 @@ export default function AdminDashboard({
                       <Metric label="有償P" value={selectedUser.wallet?.paid_balance ?? 0} tone="blue" caption="期限なし" />
                       <Metric label="無償P" value={selectedUser.wallet?.free_balance ?? 0} tone="green" caption="期限あり" />
                     </div>
-                    <div className="nested-list-section">
-                      <div className="subsection-title">
-                        <strong>ユーザー状態変更</strong>
-                        <span>現在: {statusLabel(selectedUser.status)}</span>
-                      </div>
+	                    <div className="nested-list-section">
+	                      <div className="subsection-title">
+	                        <strong>ユーザー状態変更</strong>
+	                        <span>現在: {statusLabel(selectedUser.status)}</span>
+	                      </div>
                       <form className="stack-form compact-form" onSubmit={submitSelectedUserStatus}>
                         <div className="inline-fields three">
                           <label>
@@ -3405,10 +4323,352 @@ export default function AdminDashboard({
                             </select>
                           </label>
                         </div>
-                        <button className="primary-button" type="submit" disabled={loading || userStatusForm.status === selectedUser.status}>状態を更新</button>
-                      </form>
-                    </div>
-                    <div className="profile-detail-grid">
+	                        <button className="primary-button" type="submit" disabled={loading || userStatusForm.status === selectedUser.status}>状態を更新</button>
+	                      </form>
+	                    </div>
+	                    {isOwnerAdmin && (
+	                      <div className="nested-list-section">
+	                        <div className="subsection-title">
+	                          <strong>QAテストユーザー</strong>
+	                          <span>{qaModeLoading ? "読込中" : qaModeStatusLabel(selectedUserQaMode)}</span>
+	                        </div>
+	                        <div className="empty-detail compact" style={{ borderColor: "#f59e0b", background: "#fffbeb", color: "#78350f", textAlign: "left" }}>
+	                          QAテストモードは模擬抽選ではありません。QAモード中の決済、ポイント購入、ポイント消費、景品在庫減少、sold_count、won_count、景品獲得、ポイント交換、発送依頼は、通常データとして実際に反映されます。QAモードを解除しても過去の処理は自動で取り消されません。
+	                        </div>
+	                        <div className="profile-detail-grid">
+	                          <DetailItem label="QAモード状態" value={qaModeStatusLabel(selectedUserQaMode)} />
+	                          <DetailItem label="有効" value={selectedUserQaMode?.is_enabled ? "有効" : "無効"} />
+	                          <DetailItem label="理由" value={selectedUserQaMode?.reason ?? ""} />
+	                          <DetailItem label="開始日時" value={formatDate(selectedUserQaMode?.starts_at ?? null)} />
+	                          <DetailItem label="自動終了日時" value={formatDate(selectedUserQaMode?.ends_at ?? null)} />
+	                          <DetailItem label="有効化した管理者ID" value={selectedUserQaMode?.enabled_by_admin_user_id ?? null} />
+	                          <DetailItem label="無効化した管理者ID" value={selectedUserQaMode?.disabled_by_admin_user_id ?? null} />
+	                          <DetailItem label="無効化日時" value={formatDate(selectedUserQaMode?.disabled_at ?? null)} />
+	                          <DetailItem label="作成日時" value={formatDate(selectedUserQaMode?.created_at ?? null)} />
+	                          <DetailItem label="更新日時" value={formatDate(selectedUserQaMode?.updated_at ?? null)} />
+	                        </div>
+	                        <form className="stack-form compact-form" onSubmit={submitSelectedUserQaMode}>
+	                          <div className="inline-fields three">
+	                            <label>
+	                              <span>QAモード</span>
+	                              <select value={qaModeForm.enabled ? "enabled" : "disabled"} onChange={(event) => setQaModeForm((current) => ({ ...current, enabled: event.target.value === "enabled" }))}>
+	                                <option value="enabled">有効</option>
+	                                <option value="disabled">無効</option>
+	                              </select>
+	                            </label>
+	                            <label>
+	                              <span>開始日時 任意</span>
+	                              <input type="datetime-local" value={qaModeForm.startsAt} onChange={(event) => setQaModeForm((current) => ({ ...current, startsAt: event.target.value }))} />
+	                            </label>
+	                            <label>
+	                              <span>自動終了日時 必須</span>
+	                              <input type="datetime-local" value={qaModeForm.endsAt} onChange={(event) => setQaModeForm((current) => ({ ...current, endsAt: event.target.value }))} required />
+	                            </label>
+	                          </div>
+	                          <small>QAモード期間は最大24時間です。</small>
+	                          <label>
+	                            <span>理由</span>
+	                            <textarea value={qaModeForm.reason} onChange={(event) => setQaModeForm((current) => ({ ...current, reason: event.target.value }))} required />
+	                          </label>
+	                          <div className="toolbar-actions">
+	                            <button className="primary-button" type="submit" disabled={qaModeSaving || qaModeLoading || !qaModeForm.enabled}>
+	                              {selectedUserQaMode ? "設定を更新" : "QAモードを有効化"}
+	                            </button>
+	                            <button className="secondary-button" type="button" disabled={qaModeSaving || qaModeLoading || !selectedUserQaMode?.is_enabled} onClick={() => void disableSelectedUserQaMode()}>
+	                              QAモードを無効化
+	                            </button>
+	                          </div>
+	                        </form>
+	                      </div>
+	                    )}
+	                    {isOwnerAdmin && (
+	                      <div className="nested-list-section">
+	                        <div className="subsection-title">
+	                          <strong>QA排出プラン一覧</strong>
+	                          <span>{qaDrawPlansLoading ? "読込中" : `${selectedUserQaDrawPlans.length.toLocaleString("ja-JP")}件`}</span>
+	                        </div>
+	                        <div className="empty-detail compact" style={{ textAlign: "left" }}>
+	                          QA排出プランは、対象ユーザーのQAテストモードが有効な期間中のみ使用されます。QAモードが無効、開始前、または期限切れの場合は通常抽選になります。
+	                        </div>
+	                        {qaDrawPlansLoading ? (
+	                          <div className="empty-detail compact">QA排出プランを読み込んでいます。</div>
+	                        ) : selectedUserQaDrawPlans.length === 0 ? (
+	                          <div className="empty-detail compact">QA排出プランは登録されていません</div>
+	                        ) : (
+	                          <div className="table-wrap">
+	                            <table className="data-table compact-table">
+	                              <thead>
+	                                <tr>
+	                                  <th>ID</th>
+	                                  <th>対象ガチャ</th>
+	                                  <th>状態</th>
+	                                  <th>タイトル</th>
+	                                  <th>理由</th>
+	                                  <th>期間</th>
+	                                  <th>景品行</th>
+	                                  <th>設定総数</th>
+	                                  <th>消費済み</th>
+	                                  <th>残り</th>
+	                                  <th>作成/更新</th>
+	                                  <th>詳細</th>
+	                                  <th>操作</th>
+	                                </tr>
+	                              </thead>
+	                              <tbody>
+	                                {selectedUserQaDrawPlans.map((plan) => {
+	                                  const detailPlan = qaDrawPlanDetails[plan.id] ?? plan;
+	                                  const totals = qaDrawPlanTotals(detailPlan);
+	                                  const expanded = Boolean(expandedQaDrawPlanIds[plan.id]);
+
+	                                  return (
+	                                    <Fragment key={`qa-plan-${plan.id}`}>
+	                                      <tr>
+	                                        <td>#{plan.id}</td>
+	                                        <td>
+	                                          <strong>{plan.gacha?.title ?? "-"}</strong>
+	                                          <small>Gacha #{plan.gacha_id}</small>
+	                                        </td>
+	                                        <td><QaPlanStatusBadge value={plan.status} /></td>
+	                                        <td>{plan.title || "-"}</td>
+	                                        <td>{plan.reason || "-"}</td>
+	                                        <td>{formatNullableDate(plan.starts_at)} - {formatNullableDate(plan.ends_at)}</td>
+	                                        <td>{totals.rows}</td>
+	                                        <td>{totals.quantity}</td>
+	                                        <td>{totals.consumed}</td>
+	                                        <td>{totals.remaining}</td>
+	                                        <td>
+	                                          <span>{formatDate(plan.created_at)}</span>
+	                                          <small>{formatDate(plan.updated_at)}</small>
+	                                        </td>
+	                                        <td>
+	                                          <button className="secondary-button small" type="button" onClick={() => void toggleQaDrawPlan(plan)}>
+	                                            {expanded ? "閉じる" : "景品設定"}
+	                                          </button>
+	                                        </td>
+	                                        <td>
+	                                          <div className="table-actions">
+	                                            {plan.status === "active" ? (
+	                                              <button
+	                                                className="secondary-button small"
+	                                                type="button"
+	                                                onClick={() => void runQaDrawPlanAction(plan, "pause")}
+	                                                disabled={qaDrawPlanActionPlanId === plan.id}
+	                                              >
+	                                                一時停止
+	                                              </button>
+	                                            ) : null}
+	                                            {plan.status === "paused" ? (
+	                                              <button
+	                                                className="primary-button small"
+	                                                type="button"
+	                                                onClick={() => void runQaDrawPlanAction(plan, "activate")}
+	                                                disabled={qaDrawPlanActionPlanId === plan.id}
+	                                              >
+	                                                再開
+	                                              </button>
+	                                            ) : null}
+	                                            {plan.status === "active" || plan.status === "paused" ? (
+	                                              <button
+	                                                className="danger-button small"
+	                                                type="button"
+	                                                onClick={() => void runQaDrawPlanAction(plan, "disable")}
+	                                                disabled={qaDrawPlanActionPlanId === plan.id}
+	                                              >
+	                                                無効化
+	                                              </button>
+	                                            ) : null}
+	                                            {plan.status === "completed" || plan.status === "disabled" ? <span>-</span> : null}
+	                                          </div>
+	                                        </td>
+	                                      </tr>
+	                                      {expanded && (
+	                                        <tr key={`qa-plan-${plan.id}-items`}>
+	                                          <td colSpan={13}>
+	                                            <QaDrawPlanItemsTable plan={detailPlan} />
+	                                          </td>
+	                                        </tr>
+	                                      )}
+	                                    </Fragment>
+	                                  );
+	                                })}
+	                              </tbody>
+	                            </table>
+	                          </div>
+	                        )}
+	                        <div className="toolbar-actions" style={{ marginTop: 12 }}>
+	                          <button className="primary-button" type="button" onClick={() => void openQaDrawPlanCreateForm()} disabled={qaDrawPlanCreateOpen}>
+	                            QA排出プランを新規作成
+	                          </button>
+	                        </div>
+	                        {qaDrawPlanCreateOpen && (
+	                          <div className="nested-list-section">
+	                            <div className="subsection-title">
+	                              <strong>QA排出プラン新規作成</strong>
+	                              <span>フォーム準備</span>
+	                            </div>
+	                            <div className="empty-detail compact" style={{ textAlign: "left" }}>
+	                              QA排出プランは、対象ユーザーのQAテストモードが有効な期間中のみ使用されます。この段階ではフォーム準備のみで、まだプランは保存されません。
+	                            </div>
+	                            <div className="empty-detail compact" style={{ textAlign: "left" }}>
+	                              この段階では景品・数量・排出順・固定演出の入力のみです。まだQA排出プランは保存されません。
+	                            </div>
+	                            <div className="form-grid">
+	                              <label>
+	                                <span>対象ガチャ 必須</span>
+	                                <select value={qaDrawPlanCreateForm.gachaId} onChange={(event) => void handleQaDrawPlanGachaChange(event.target.value)}>
+	                                  <option value="">選択してください</option>
+	                                  {gachas.map((gacha) => (
+	                                    <option key={gacha.id} value={gacha.id}>
+	                                      #{gacha.id} {gacha.title} / {gacha.status}
+	                                    </option>
+	                                  ))}
+	                                </select>
+	                              </label>
+	                              <label>
+	                                <span>title 任意</span>
+	                                <input value={qaDrawPlanCreateForm.title} onChange={(event) => setQaDrawPlanCreateForm((current) => ({ ...current, title: event.target.value }))} />
+	                              </label>
+	                              <label>
+	                                <span>開始日時 任意</span>
+	                                <input type="datetime-local" value={qaDrawPlanCreateForm.startsAt} onChange={(event) => setQaDrawPlanCreateForm((current) => ({ ...current, startsAt: event.target.value }))} />
+	                              </label>
+	                              <label>
+	                                <span>終了日時 任意</span>
+	                                <input type="datetime-local" value={qaDrawPlanCreateForm.endsAt} onChange={(event) => setQaDrawPlanCreateForm((current) => ({ ...current, endsAt: event.target.value }))} />
+	                              </label>
+	                            </div>
+	                            <label>
+	                              <span>reason 必須</span>
+	                              <textarea value={qaDrawPlanCreateForm.reason} onChange={(event) => setQaDrawPlanCreateForm((current) => ({ ...current, reason: event.target.value }))} />
+	                            </label>
+	                            <div className="profile-detail-grid">
+	                              <DetailItem label="対象ガチャ候補" value={`${gachas.length.toLocaleString("ja-JP")}件`} />
+	                              <DetailItem label="選択中の対象ガチャ" value={selectedQaDrawPlanGacha ? `#${selectedQaDrawPlanGacha.id} ${selectedQaDrawPlanGacha.title}` : "未選択"} />
+	                              <DetailItem label="景品設定行数" value={`${qaDrawPlanCreateItems.length.toLocaleString("ja-JP")}行`} />
+	                              <DetailItem label="設定総数" value={`${qaDrawPlanCreateQuantityTotal.toLocaleString("ja-JP")}個`} />
+	                              <DetailItem label="固定画像指定行数" value={`${qaDrawPlanRowsWithImage.toLocaleString("ja-JP")}行`} />
+	                              <DetailItem label="固定動画指定行数" value={`${qaDrawPlanRowsWithVideo.toLocaleString("ja-JP")}行`} />
+	                              <DetailItem label="固定画像候補" value={qaDrawPlanAssetLoading ? "読込中" : `${qaRankImageAssetOptions.length.toLocaleString("ja-JP")}件`} />
+	                              <DetailItem label="固定動画候補" value={qaDrawPlanAssetLoading ? "読込中" : `${qaDrawVideoAssetOptions.length.toLocaleString("ja-JP")}件`} />
+	                              <DetailItem
+	                                label="景品候補"
+	                                value={
+	                                  qaDrawPlanPrizeLoading
+	                                    ? "景品データ取得中"
+	                                    : qaDrawPlanPrizeError
+	                                      ? "景品取得エラー"
+	                                      : qaDrawPlanCreateForm.gachaId
+	                                        ? qaDrawPlanPrizeCandidates.length > 0
+	                                          ? `${qaDrawPlanPrizeCandidates.length.toLocaleString("ja-JP")}件`
+	                                          : "景品候補なし"
+	                                        : "対象ガチャ選択後に取得"
+	                                }
+	                              />
+	                            </div>
+	                            {qaDrawPlanPrizeError ? <div className="inline-error">{qaDrawPlanPrizeError}</div> : null}
+	                            <div className="nested-list-section">
+	                              <div className="subsection-title">
+	                                <strong>景品設定行</strong>
+	                                <span>{qaDrawPlanCreateItems.length.toLocaleString("ja-JP")}行</span>
+	                              </div>
+	                              <div className="table-wrap">
+	                                <table className="data-table compact-table">
+	                                  <thead>
+	                                    <tr>
+	                                      <th>排出順</th>
+	                                      <th>景品</th>
+	                                      <th>数量</th>
+	                                      <th>固定ランク画像</th>
+	                                      <th>固定ガチャ動画</th>
+	                                      <th>操作</th>
+	                                    </tr>
+	                                  </thead>
+	                                  <tbody>
+	                                    {qaDrawPlanCreateItems.map((row, index) => (
+	                                      <tr key={row.localId}>
+	                                        <td>
+	                                          <input
+	                                            aria-label="sort_order"
+	                                            type="number"
+	                                            min="1"
+	                                            step="1"
+	                                            value={row.sortOrder}
+	                                            onChange={(event) => updateQaDrawPlanItemIntegerField(row.localId, "sortOrder", event.target.value)}
+	                                          />
+	                                        </td>
+	                                        <td>
+	                                          <select
+	                                            value={row.gachaPrizeId}
+	                                            onChange={(event) => updateQaDrawPlanItemRow(row.localId, { gachaPrizeId: event.target.value })}
+	                                            disabled={!qaDrawPlanCreateForm.gachaId || qaDrawPlanPrizeLoading}
+	                                          >
+	                                            <option value="">
+	                                              {qaDrawPlanPrizeLoading ? "景品データ取得中" : "景品を選択"}
+	                                            </option>
+	                                            {qaDrawPlanPrizeCandidates.map((prize) => (
+	                                              <option key={prize.id} value={prize.id}>
+	                                                #{prize.id} {prize.name} / {prize.rank?.display_name ?? "ランク未設定"} / {prize.is_active ? "有効" : "無効"} / max {prize.max_win_count} / won {prize.won_count} / remaining {prize.remaining_win_count}
+	                                              </option>
+	                                            ))}
+	                                          </select>
+	                                        </td>
+	                                        <td>
+	                                          <input
+	                                            aria-label="quantity"
+	                                            type="number"
+	                                            min="1"
+	                                            step="1"
+	                                            value={row.quantity}
+	                                            onChange={(event) => updateQaDrawPlanItemIntegerField(row.localId, "quantity", event.target.value)}
+	                                          />
+	                                        </td>
+	                                        <td>
+	                                          <select value={row.rankImageAssetId} onChange={(event) => updateQaDrawPlanItemRow(row.localId, { rankImageAssetId: event.target.value })}>
+	                                            <option value="">通常演出</option>
+	                                            {qaRankImageAssetOptions.map((asset) => (
+	                                              <option key={asset.id} value={asset.id}>#{asset.id} {asset.title}</option>
+	                                            ))}
+	                                          </select>
+	                                          {row.rankImageAssetId ? <small><a href={qaRankImageAssetOptions.find((asset) => asset.id === Number(row.rankImageAssetId))?.url ?? "#"} target="_blank" rel="noreferrer">画像を確認</a></small> : null}
+	                                        </td>
+	                                        <td>
+	                                          <select value={row.drawVideoAssetId} onChange={(event) => updateQaDrawPlanItemRow(row.localId, { drawVideoAssetId: event.target.value })}>
+	                                            <option value="">通常演出</option>
+	                                            {qaDrawVideoAssetOptions.map((asset) => (
+	                                              <option key={asset.id} value={asset.id}>#{asset.id} {asset.title}</option>
+	                                            ))}
+	                                          </select>
+	                                          {row.drawVideoAssetId ? <small><a href={qaDrawVideoAssetOptions.find((asset) => asset.id === Number(row.drawVideoAssetId))?.url ?? "#"} target="_blank" rel="noreferrer">動画を確認</a></small> : null}
+	                                        </td>
+	                                        <td>
+	                                          <div className="table-actions">
+	                                            <button className="secondary-button small" type="button" onClick={() => moveQaDrawPlanItemRow(row.localId, -1)} disabled={index === 0}>上へ</button>
+	                                            <button className="secondary-button small" type="button" onClick={() => moveQaDrawPlanItemRow(row.localId, 1)} disabled={index === qaDrawPlanCreateItems.length - 1}>下へ</button>
+	                                            <button className="danger-button small" type="button" onClick={() => removeQaDrawPlanItemRow(row.localId)} disabled={qaDrawPlanCreateItems.length <= 1}>削除</button>
+	                                          </div>
+	                                        </td>
+	                                      </tr>
+	                                    ))}
+	                                  </tbody>
+	                                </table>
+	                              </div>
+	                              <div className="toolbar-actions">
+	                                <button className="secondary-button" type="button" onClick={addQaDrawPlanItemRow}>景品設定行を追加</button>
+	                              </div>
+	                            </div>
+	                            <div className="toolbar-actions">
+	                              <button className="primary-button" type="button" onClick={() => void submitQaDrawPlanCreateForm()} disabled={qaDrawPlanCreateSaving || qaDrawPlanPrizeLoading || qaDrawPlanAssetLoading}>
+	                                {qaDrawPlanCreateSaving ? "保存中" : "QA排出プランを保存"}
+	                              </button>
+	                              <button className="secondary-button" type="button" onClick={cancelQaDrawPlanCreateForm}>
+	                                キャンセル
+	                              </button>
+	                            </div>
+	                          </div>
+	                        )}
+	                      </div>
+	                    )}
+		                    <div className="profile-detail-grid">
                       <DetailItem label="氏名" value={`${selectedUser.profile?.last_name ?? ""} ${selectedUser.profile?.first_name ?? ""}`.trim() || selectedUser.name} />
                       <DetailItem label="カナ" value={`${selectedUser.profile?.last_name_kana ?? ""} ${selectedUser.profile?.first_name_kana ?? ""}`.trim()} />
                       <DetailItem label="電話番号" value={selectedUser.profile?.phone_number ?? ""} />
@@ -3556,11 +4816,19 @@ export default function AdminDashboard({
               dailyPointsMeta={salesDailyPointsMeta}
               selectedPointRow={selectedSalesPointRow}
               drawDetail={salesDrawDetail}
+              refundEligibility={refundEligibility}
+              paymentReversals={paymentReversals}
+              paymentReversalsMeta={paymentReversalsMeta}
+              paymentReversalDateFrom={paymentReversalDateFrom}
+              paymentReversalDateTo={paymentReversalDateTo}
+              selectedPaymentReversal={selectedPaymentReversal}
               loading={salesLoading}
+              csvDownloading={salesCsvDownloading}
               onChangeView={(view) => {
                 setSalesView(view);
                 setSalesDrawDetail(null);
                 setSelectedSalesPointRow(null);
+                setSelectedPaymentReversal(null);
               }}
               onChangeMonth={(value) => {
                 setSalesMonth(value);
@@ -3595,10 +4863,35 @@ export default function AdminDashboard({
                 if (salesView === "daily-points") {
                   void loadSalesDailyPoints(salesDate, salesDailyPointsMeta?.current_page ?? 1);
                 }
+                if (salesView === "reversals") {
+                  void loadPaymentReversals(paymentReversalsMeta?.current_page ?? 1);
+                }
               }}
               onDailyPaymentPage={(page) => void loadSalesDailyPayments(salesDate, page)}
               onDailyPointPage={(page) => void loadSalesDailyPoints(salesDate, page)}
               onShowDrawDetail={(row) => void loadSalesDrawDetail(row)}
+              onCheckRefundEligibility={(paymentId) => void loadRefundEligibility(paymentId)}
+              onRefundPayment={(payment) => void handleRefundPayment(payment)}
+              onChargebackPayment={(payment) => void handleChargebackPayment(payment)}
+              onDownloadCsv={(kind) => void handleDownloadSalesCsv(kind)}
+              onChangeReversalDateFrom={setPaymentReversalDateFrom}
+              onChangeReversalDateTo={setPaymentReversalDateTo}
+              onSearchReversals={() => {
+                setSelectedPaymentReversal(null);
+                void loadPaymentReversals(1);
+              }}
+              onClearReversalSearch={() => {
+                setPaymentReversalDateFrom("");
+                setPaymentReversalDateTo("");
+                setSelectedPaymentReversal(null);
+                void loadPaymentReversals(1, undefined, { dateFrom: "", dateTo: "" });
+              }}
+              onReversalPage={(page) => void loadPaymentReversals(page)}
+              onShowReversalDetail={(reversal) => void loadPaymentReversalDetail(reversal.id)}
+              onCloseReversalDetail={() => setSelectedPaymentReversal(null)}
+              onReleaseHolds={(reversal) => void handleReleaseHolds(reversal)}
+              onMarkReturned={(action) => void handleMarkReturned(action)}
+              onSendReturnRequestMail={(reversal) => void handleSendReturnRequestMail(reversal)}
               onCloseDrawDetail={() => {
                 setSalesDrawDetail(null);
                 setSelectedSalesPointRow(null);
@@ -6680,7 +7973,14 @@ function SalesManagementPanel({
   dailyPointsMeta,
   selectedPointRow,
   drawDetail,
+  refundEligibility,
+  paymentReversals,
+  paymentReversalsMeta,
+  paymentReversalDateFrom,
+  paymentReversalDateTo,
+  selectedPaymentReversal,
   loading,
+  csvDownloading,
   onChangeView,
   onChangeMonth,
   onChangeDate,
@@ -6690,6 +7990,20 @@ function SalesManagementPanel({
   onDailyPaymentPage,
   onDailyPointPage,
   onShowDrawDetail,
+  onCheckRefundEligibility,
+  onRefundPayment,
+  onChargebackPayment,
+  onDownloadCsv,
+  onChangeReversalDateFrom,
+  onChangeReversalDateTo,
+  onSearchReversals,
+  onClearReversalSearch,
+  onReversalPage,
+  onShowReversalDetail,
+  onCloseReversalDetail,
+  onReleaseHolds,
+  onMarkReturned,
+  onSendReturnRequestMail,
   onCloseDrawDetail,
 }: {
   view: SalesView;
@@ -6705,7 +8019,14 @@ function SalesManagementPanel({
   dailyPointsMeta: PaginationMeta | null;
   selectedPointRow: SalesDailyPointConsumption | null;
   drawDetail: SalesDrawRequestDetail | null;
+  refundEligibility: Record<number, RefundEligibility>;
+  paymentReversals: PaymentReversal[];
+  paymentReversalsMeta: PaginationMeta | null;
+  paymentReversalDateFrom: string;
+  paymentReversalDateTo: string;
+  selectedPaymentReversal: PaymentReversal | null;
   loading: boolean;
+  csvDownloading: SalesCsvKind | null;
   onChangeView: (view: SalesView) => void;
   onChangeMonth: (value: string) => void;
   onChangeDate: (value: string) => void;
@@ -6715,6 +8036,20 @@ function SalesManagementPanel({
   onDailyPaymentPage: (page: number) => void;
   onDailyPointPage: (page: number) => void;
   onShowDrawDetail: (row: SalesDailyPointConsumption) => void;
+  onCheckRefundEligibility: (paymentId: number) => void;
+  onRefundPayment: (payment: SalesDailyPayment) => void;
+  onChargebackPayment: (payment: SalesDailyPayment) => void;
+  onDownloadCsv: (kind: SalesCsvKind) => void;
+  onChangeReversalDateFrom: (value: string) => void;
+  onChangeReversalDateTo: (value: string) => void;
+  onSearchReversals: () => void;
+  onClearReversalSearch: () => void;
+  onReversalPage: (page: number) => void;
+  onShowReversalDetail: (reversal: PaymentReversal) => void;
+  onCloseReversalDetail: () => void;
+  onReleaseHolds: (reversal: PaymentReversal) => void;
+  onMarkReturned: (action: PaymentReversalPrizeAction) => void;
+  onSendReturnRequestMail: (reversal: PaymentReversal) => void;
   onCloseDrawDetail: () => void;
 }) {
   return (
@@ -6745,6 +8080,21 @@ function SalesManagementPanel({
               <span>対象年月</span>
               <input type="month" value={month} onChange={(event) => onChangeMonth(event.target.value)} />
             </label>
+          ) : view === "reversals" ? (
+            <div className="inline-filter-group">
+              <label>
+                <span>開始日</span>
+                <input type="date" value={paymentReversalDateFrom} onChange={(event) => onChangeReversalDateFrom(event.target.value)} />
+              </label>
+              <label>
+                <span>終了日</span>
+                <input type="date" value={paymentReversalDateTo} onChange={(event) => onChangeReversalDateTo(event.target.value)} />
+              </label>
+              <div className="toolbar-actions">
+                <button className="primary-button" type="button" onClick={onSearchReversals} disabled={loading}>検索</button>
+                <button className="secondary-button" type="button" onClick={onClearReversalSearch} disabled={loading}>クリア</button>
+              </div>
+            </div>
           ) : (
             <label>
               <span>対象日</span>
@@ -6757,7 +8107,17 @@ function SalesManagementPanel({
       {loading && <div className="empty-detail compact">売上管理データを読み込んでいます。</div>}
 
       {view === "monthly-sales" && (
-        <MonthlySalesCalendar report={monthlySales} onSelectDate={onSelectSalesDate} />
+        <>
+          <div className="subpage-surface compact-toolbar-surface">
+            <div className="subsection-title">
+              <strong>月別売上CSV</strong>
+              <button className="secondary-button small-button" type="button" onClick={() => onDownloadCsv("monthly-sales")} disabled={csvDownloading === "monthly-sales"}>
+                {csvDownloading === "monthly-sales" ? "CSV作成中" : "CSVダウンロード"}
+              </button>
+            </div>
+          </div>
+          <MonthlySalesCalendar report={monthlySales} onSelectDate={onSelectSalesDate} />
+        </>
       )}
 
       {view === "daily-sales" && (
@@ -6772,15 +8132,31 @@ function SalesManagementPanel({
           <div className="subpage-surface">
             <div className="subsection-title">
               <strong>決済一覧</strong>
-              <span>paid_at基準</span>
+              <div className="toolbar-actions">
+                <span>paid_at基準</span>
+                <button className="secondary-button small-button" type="button" onClick={() => onDownloadCsv("daily-payments")} disabled={csvDownloading === "daily-payments"}>
+                  {csvDownloading === "daily-payments" ? "CSV作成中" : "CSVダウンロード"}
+                </button>
+              </div>
             </div>
-            <DailySalesTable rows={dailyPayments} />
+            <DailySalesTable
+              rows={dailyPayments}
+              refundEligibility={refundEligibility}
+              onCheckRefundEligibility={onCheckRefundEligibility}
+              onRefundPayment={onRefundPayment}
+              onChargebackPayment={onChargebackPayment}
+            />
             <Pagination meta={dailyPaymentsMeta} onPage={onDailyPaymentPage} />
           </div>
           <div className="subpage-surface">
             <div className="subsection-title">
               <strong>返金・チャージバック一覧</strong>
-              <span>refunded_at / chargeback_at基準</span>
+              <div className="toolbar-actions">
+                <span>refunded_at / chargeback_at基準</span>
+                <button className="secondary-button small-button" type="button" onClick={() => onDownloadCsv("daily-adjustments")} disabled={csvDownloading === "daily-adjustments"}>
+                  {csvDownloading === "daily-adjustments" ? "CSV作成中" : "CSVダウンロード"}
+                </button>
+              </div>
             </div>
             <DailySalesAdjustmentTable rows={dailyAdjustments} />
           </div>
@@ -6788,22 +8164,58 @@ function SalesManagementPanel({
       )}
 
       {view === "monthly-points" && (
-        <MonthlyPointConsumptionCalendar report={monthlyPoints} onSelectDate={onSelectPointDate} />
+        <>
+          <div className="subpage-surface compact-toolbar-surface">
+            <div className="subsection-title">
+              <strong>月別ポイント消費CSV</strong>
+              <button className="secondary-button small-button" type="button" onClick={() => onDownloadCsv("monthly-points")} disabled={csvDownloading === "monthly-points"}>
+                {csvDownloading === "monthly-points" ? "CSV作成中" : "CSVダウンロード"}
+              </button>
+            </div>
+          </div>
+          <MonthlyPointConsumptionCalendar report={monthlyPoints} onSelectDate={onSelectPointDate} />
+        </>
       )}
 
       {view === "daily-points" && (
         <div className="subpage-surface">
           <div className="subsection-title">
             <strong>日別ポイント消費一覧</strong>
-            <span>{date}</span>
+            <div className="toolbar-actions">
+              <span>{date}</span>
+              <button className="secondary-button small-button" type="button" onClick={() => onDownloadCsv("daily-points")} disabled={csvDownloading === "daily-points"}>
+                {csvDownloading === "daily-points" ? "CSV作成中" : "CSVダウンロード"}
+              </button>
+            </div>
           </div>
           <DailyPointConsumptionTable rows={dailyPoints} onDetail={onShowDrawDetail} />
           <Pagination meta={dailyPointsMeta} onPage={onDailyPointPage} />
         </div>
       )}
 
+      {view === "reversals" && (
+        <div className="subpage-surface">
+          <div className="subsection-title">
+            <strong>返金・チャージバック履歴</strong>
+            <span>{paymentReversals.length.toLocaleString("ja-JP")}件</span>
+          </div>
+          <PaymentReversalTable rows={paymentReversals} onDetail={onShowReversalDetail} />
+          <Pagination meta={paymentReversalsMeta} onPage={onReversalPage} />
+        </div>
+      )}
+
       {drawDetail && (
         <SalesDrawDetailPanel detail={drawDetail} pointRow={selectedPointRow} onClose={onCloseDrawDetail} />
+      )}
+
+      {selectedPaymentReversal && (
+        <PaymentReversalDetailPanel
+          reversal={selectedPaymentReversal}
+          onClose={onCloseReversalDetail}
+          onReleaseHolds={onReleaseHolds}
+          onMarkReturned={onMarkReturned}
+          onSendReturnRequestMail={onSendReturnRequestMail}
+        />
       )}
     </div>
   );
@@ -6814,6 +8226,7 @@ const salesViews: { key: SalesView; label: string }[] = [
   { key: "daily-sales", label: "日別売上" },
   { key: "monthly-points", label: "月別ポイント消費" },
   { key: "daily-points", label: "日別ポイント消費" },
+  { key: "reversals", label: "返金/CB履歴" },
 ];
 
 function MonthlySalesCalendar({
@@ -6969,22 +8382,70 @@ function DailySalesSummaryCards({ summary }: { summary: SalesDailySummary | null
   );
 }
 
-function DailySalesTable({ rows }: { rows: SalesDailyPayment[] }) {
+function DailySalesTable({
+  rows,
+  refundEligibility,
+  onCheckRefundEligibility,
+  onRefundPayment,
+  onChargebackPayment,
+}: {
+  rows: SalesDailyPayment[];
+  refundEligibility: Record<number, RefundEligibility>;
+  onCheckRefundEligibility: (paymentId: number) => void;
+  onRefundPayment: (payment: SalesDailyPayment) => void;
+  onChargebackPayment: (payment: SalesDailyPayment) => void;
+}) {
   return (
     <DataTable
-      headers={["決済日時", "決済種別", "購入プラン", "決済金額", "状態", "ユーザー", "返金日", "CB日", "Provider"]}
-      rows={rows.map((row) => [
-        formatDate(row.paid_at),
-        row.payment_method,
-        row.purchase_plan ? `${row.purchase_plan.name}${row.purchase_plan.deleted ? " / 削除済み" : ""}` : "-",
-        moneyLabel(row.amount),
-        <StatusBadge key="status" value={row.status} />,
-        row.user ? `${row.user.name} / ${row.user.email}` : "-",
-        formatDate(row.refunded_at),
-        formatDate(row.chargeback_at),
-        row.provider,
-      ])}
+      headers={["決済日時", "決済種別", "購入プラン", "決済金額", "状態", "ユーザー", "返金可否", "返金日", "CB日", "操作"]}
+      rows={rows.map((row) => {
+        const eligibility = refundEligibility[row.id];
+        const isSucceeded = row.status === "succeeded";
+
+        return [
+          formatDate(row.paid_at),
+          row.payment_method,
+          row.purchase_plan ? `${row.purchase_plan.name}${row.purchase_plan.deleted ? " / 削除済み" : ""}` : "-",
+          moneyLabel(row.amount),
+          <StatusBadge key="status" value={row.status} />,
+          row.user ? `${row.user.name} / ${row.user.email}` : "-",
+          <RefundEligibilityCell key="eligibility" eligibility={eligibility} />,
+          formatDate(row.refunded_at),
+          formatDate(row.chargeback_at),
+          <div className="table-actions" key="actions">
+            <button className="secondary-button small-button" type="button" onClick={() => onCheckRefundEligibility(row.id)}>
+              可否確認
+            </button>
+            <button className="secondary-button small-button" type="button" onClick={() => onRefundPayment(row)} disabled={!isSucceeded || eligibility?.eligible === false}>
+              通常返金
+            </button>
+            <button className="danger-button small-button" type="button" onClick={() => onChargebackPayment(row)} disabled={!isSucceeded}>
+              CB登録
+            </button>
+          </div>,
+        ];
+      })}
     />
+  );
+}
+
+function RefundEligibilityCell({ eligibility }: { eligibility?: RefundEligibility }) {
+  if (!eligibility) {
+    return <span className="inline-note">未確認</span>;
+  }
+
+  if (eligibility.eligible) {
+    return (
+      <span className="status-pill success">
+        返金可 / {pointLabel(eligibility.refundable_amount)}
+      </span>
+    );
+  }
+
+  return (
+    <span className="status-pill danger">
+      返金不可 / 使用済み{pointLabel(eligibility.used_amount)}
+    </span>
   );
 }
 
@@ -7009,6 +8470,136 @@ function DailySalesAdjustmentTable({ rows }: { rows: SalesDailyAdjustment[] }) {
       ])}
     />
   );
+}
+
+function PaymentReversalTable({ rows, onDetail }: { rows: PaymentReversal[]; onDetail: (reversal: PaymentReversal) => void }) {
+  if (rows.length === 0) {
+    return <div className="empty-detail compact">返金・チャージバック履歴はありません。</div>;
+  }
+
+  return (
+    <DataTable
+      headers={["ID", "種別", "状態", "決済ID", "ユーザー", "決済金額", "取消P", "不足P", "発生日", "操作"]}
+      rows={rows.map((row) => [
+        <span className="mono-id" key="id">#{row.id}</span>,
+        row.type === "refund" ? "返金" : "チャージバック",
+        <StatusBadge key="status" value={row.status} />,
+        <span className="mono-id" key="payment">#{row.payment_id}</span>,
+        row.user ? `${row.user.name} / ${row.user.email}` : row.payment?.user ? `${row.payment.user.name} / ${row.payment.user.email}` : "-",
+        moneyLabel(row.payment_amount),
+        `有償${pointLabel(row.paid_reversed_amount)} / 無償${pointLabel(row.free_reversed_amount)}`,
+        `有償${pointLabel(row.shortfall_paid_amount)} / 無償${pointLabel(row.shortfall_free_amount)}`,
+        formatDate(row.occurred_at),
+        <button className="secondary-button small-button" type="button" key="detail" onClick={() => onDetail(row)}>詳細</button>,
+      ])}
+    />
+  );
+}
+
+function PaymentReversalDetailPanel({
+  reversal,
+  onClose,
+  onReleaseHolds,
+  onMarkReturned,
+  onSendReturnRequestMail,
+}: {
+  reversal: PaymentReversal;
+  onClose: () => void;
+  onReleaseHolds: (reversal: PaymentReversal) => void;
+  onMarkReturned: (action: PaymentReversalPrizeAction) => void;
+  onSendReturnRequestMail: (reversal: PaymentReversal) => void;
+}) {
+  const holdActions = reversal.prize_actions?.filter((action) => action.action_type === "hold" && action.status === "pending") ?? [];
+  const returnActions = reversal.prize_actions?.filter((action) => action.action_type === "return_requested") ?? [];
+
+  return (
+    <div className="subpage-surface wide">
+      <div className="subpage-title">
+        <div>
+          <h3>返金・チャージバック詳細</h3>
+          <p>#{reversal.id} / {reversal.type === "refund" ? "通常返金" : "チャージバック"}</p>
+        </div>
+        <div className="toolbar-actions">
+          {holdActions.length > 0 && (
+            <button className="secondary-button" type="button" onClick={() => onReleaseHolds(reversal)}>hold解除</button>
+          )}
+          <button className="secondary-button" type="button" onClick={onClose}>閉じる</button>
+        </div>
+      </div>
+
+      <div className="profile-detail-grid">
+        <DetailItem label="状態" value={reversal.status} />
+        <DetailItem label="決済ID" value={`#${reversal.payment_id}`} />
+        <DetailItem label="ユーザー" value={reversal.user ? `${reversal.user.name} / ${reversal.user.email}` : "-"} />
+        <DetailItem label="決済金額" value={moneyLabel(reversal.payment_amount)} />
+        <DetailItem label="有償取消" value={pointLabel(reversal.paid_reversed_amount)} />
+        <DetailItem label="無償取消" value={pointLabel(reversal.free_reversed_amount)} />
+        <DetailItem label="有償不足" value={pointLabel(reversal.shortfall_paid_amount)} />
+        <DetailItem label="無償不足" value={pointLabel(reversal.shortfall_free_amount)} />
+        <DetailItem label="理由" value={reversal.reason ?? "-"} />
+        <DetailItem label="発生日" value={formatDate(reversal.occurred_at)} />
+      </div>
+
+      <div className="subsection-title">
+        <strong>ポイント取消明細</strong>
+        <span>{(reversal.point_entries?.length ?? 0).toLocaleString("ja-JP")}件</span>
+      </div>
+      <DataTable
+        headers={["ID", "種別", "bucket", "取消P", "不足P", "lot", "ledger", "日時"]}
+        rows={(reversal.point_entries ?? []).map((entry) => [
+          <span className="mono-id" key="id">#{entry.id}</span>,
+          entry.point_type,
+          entry.bucket,
+          pointLabel(entry.amount),
+          pointLabel(entry.shortfall_amount),
+          entry.point_lot_id ? `#${entry.point_lot_id}` : "-",
+          entry.point_ledger_id ? `#${entry.point_ledger_id}` : "-",
+          formatDate(entry.created_at),
+        ])}
+      />
+
+      <div className="subsection-title">
+        <strong>景品hold・返送依頼</strong>
+        <span>hold {holdActions.length.toLocaleString("ja-JP")}件 / 返送依頼 {returnActions.length.toLocaleString("ja-JP")}件</span>
+      </div>
+      <DataTable
+        headers={["ID", "操作", "状態", "景品", "配送item", "メール状態", "最終試行", "エラー", "メモ", "操作"]}
+        rows={(reversal.prize_actions ?? []).map((action) => [
+          <span className="mono-id" key="id">#{action.id}</span>,
+          action.action_type,
+          <StatusBadge key="status" value={action.status} />,
+          action.user_prize?.prize?.name ?? `#${action.user_prize_id}`,
+          action.shipping_item_id ? `#${action.shipping_item_id}` : "-",
+          action.action_type === "return_requested" ? returnRequestMailStatusLabel(action) : "-",
+          action.action_type === "return_requested" ? formatDate(action.mail_last_attempted_at ?? action.mail_sent_at) : "-",
+          action.mail_last_error ?? "-",
+          action.note ?? "-",
+          <div className="table-actions" key="actions">
+            {action.action_type === "return_requested" && !action.mail_sent_at && (
+              <button className="secondary-button small-button" type="button" onClick={() => onSendReturnRequestMail(reversal)}>
+                {action.mail_last_error ? "再送" : "返送依頼メール送信"}
+              </button>
+            )}
+            {action.action_type === "return_requested" && action.status !== "completed" && (
+              <button className="secondary-button small-button" type="button" onClick={() => onMarkReturned(action)}>返送済み</button>
+            )}
+          </div>,
+        ])}
+      />
+    </div>
+  );
+}
+
+function returnRequestMailStatusLabel(action: PaymentReversalPrizeAction): string {
+  if (action.mail_sent_at) {
+    return "送信済み";
+  }
+
+  if (action.mail_last_error) {
+    return "送信失敗";
+  }
+
+  return "未送信";
 }
 
 function MonthlyPointConsumptionCalendar({
@@ -7336,6 +8927,110 @@ function StatusBadge({ value }: { value: string }) {
   return <span className={`status-badge status-${value.replaceAll("_", "-")}`}>{statusLabel(value)}</span>;
 }
 
+function qaPlanStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    active: "有効",
+    paused: "一時停止",
+    completed: "完了",
+    disabled: "無効",
+  };
+
+  return labels[value] ?? value;
+}
+
+function QaPlanStatusBadge({ value }: { value: string }) {
+  return <span className={`status-badge status-${value.replaceAll("_", "-")}`}>{qaPlanStatusLabel(value)}</span>;
+}
+
+function qaDrawPlanTotals(plan: QaDrawPlan) {
+  return plan.items.reduce(
+    (totals, item) => ({
+      rows: totals.rows + 1,
+      quantity: totals.quantity + item.quantity,
+      consumed: totals.consumed + item.consumed_count,
+      remaining: totals.remaining + item.remaining_count,
+    }),
+    { rows: 0, quantity: 0, consumed: 0, remaining: 0 },
+  );
+}
+
+function makeQaDrawPlanItemRow(localId: number, sortOrder: number): QaDrawPlanCreateItemForm {
+  return {
+    localId,
+    sortOrder: String(sortOrder),
+    gachaPrizeId: "",
+    quantity: "1",
+    rankImageAssetId: "",
+    drawVideoAssetId: "",
+  };
+}
+
+function normalizeQaDrawPlanItemRows(rows: QaDrawPlanCreateItemForm[]) {
+  return rows.map((row, index) => ({ ...row, sortOrder: String(index + 1) }));
+}
+
+function qaDrawPlanItemRowsHaveInput(rows: QaDrawPlanCreateItemForm[]) {
+  return rows.some((row) => row.gachaPrizeId || row.quantity !== "1" || row.rankImageAssetId || row.drawVideoAssetId);
+}
+
+function formatNullableDate(value: string | null) {
+  return value ? formatDate(value) : "未設定";
+}
+
+function qaAssetLabel(asset: QaDrawPlanAsset | null | undefined, fallbackId: number | null) {
+  if (asset?.title) {
+    return asset.title;
+  }
+
+  if (fallbackId) {
+    return `#${fallbackId}`;
+  }
+
+  return "通常演出";
+}
+
+function QaDrawPlanItemsTable({ plan }: { plan: QaDrawPlan }) {
+  if (plan.items.length === 0) {
+    return <div className="empty-detail compact">景品設定は登録されていません</div>;
+  }
+
+  return (
+    <div className="table-wrap">
+      <table className="data-table compact-table">
+        <thead>
+          <tr>
+            <th>排出順</th>
+            <th>景品</th>
+            <th>gacha_prize_id</th>
+            <th>設定数</th>
+            <th>消費済み</th>
+            <th>残り</th>
+            <th>固定ランク画像</th>
+            <th>固定ガチャ動画</th>
+          </tr>
+        </thead>
+        <tbody>
+          {plan.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.sort_order}</td>
+              <td>
+                <strong>{item.gacha_prize?.name ?? "-"}</strong>
+                {item.gacha_prize?.rank_name ? <small>{item.gacha_prize.rank_name}</small> : null}
+              </td>
+              <td>#{item.gacha_prize_id}</td>
+              <td>{item.quantity}</td>
+              <td>{item.consumed_count}</td>
+              <td>{item.remaining_count}</td>
+              <td>{qaAssetLabel(item.rank_image_asset, item.rank_image_asset_id)}</td>
+              <td>{qaAssetLabel(item.draw_video_asset, item.draw_video_asset_id)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const adminDataCacheKey = "oripa_admin_dashboard_data_v1";
 const adminDataCacheTtlMs = 5 * 60 * 1000;
 
@@ -7442,6 +9137,70 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, token?: strin
   }
 
   return data as T;
+}
+
+async function adminBlobRequest(path: string, token?: string): Promise<{ blob: Blob; headers: Headers }> {
+  const headers = new Headers();
+  headers.set("accept", "text/csv");
+
+  if (token) {
+    headers.set("authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${adminApiBase}${path}`, { headers });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      if (token && typeof window !== "undefined") {
+        window.localStorage.removeItem("oripa_admin_session");
+        document.cookie = "oripa_admin_session=; path=/; max-age=0; SameSite=Lax; secure";
+        window.location.href = "/admin-logout?expired=1";
+        return await new Promise<never>(() => {});
+      }
+
+      throw new Error("ログインに失敗しました");
+    }
+
+    const data = await response.json().catch(() => null) as {
+      message?: string;
+      errors?: Record<string, string[]>;
+    } | null;
+    const details = data?.errors ? Object.values(data.errors).flat() : [];
+    const message = [data?.message, ...details].filter(Boolean).join(" / ");
+
+    throw new Error(message || `CSV API error: ${response.status}`);
+  }
+
+  return {
+    blob: await response.blob(),
+    headers: response.headers,
+  };
+}
+
+function filenameFromContentDisposition(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1].replace(/"/g, ""));
+  }
+
+  const match = value.match(/filename="?([^";]+)"?/i);
+
+  return match?.[1] ?? null;
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 function endpointFor(tab: TabKey, page: number, filters: FilterState) {
@@ -7981,6 +9740,49 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function toDatetimeLocalValue(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function qaModeStatusLabel(mode: QaTestUserMode | null) {
+  if (!mode) {
+    return "無効";
+  }
+
+  if (!mode.is_enabled || mode.disabled_at) {
+    return "無効";
+  }
+
+  const now = Date.now();
+  const startsAt = mode.starts_at ? new Date(mode.starts_at).getTime() : null;
+  const endsAt = mode.ends_at ? new Date(mode.ends_at).getTime() : null;
+
+  if (startsAt !== null && startsAt > now) {
+    return "開始前";
+  }
+
+  if (endsAt !== null && endsAt <= now) {
+    return "期限切れ";
+  }
+
+  return mode.is_active ? "有効" : "無効";
 }
 
 function currentMonthValue() {

@@ -43,4 +43,9 @@ class PointLedger extends Model
     {
         return $this->belongsTo(PointLot::class);
     }
+
+    public function paymentReversalPointEntries()
+    {
+        return $this->hasMany(PaymentReversalPointEntry::class);
+    }
 }

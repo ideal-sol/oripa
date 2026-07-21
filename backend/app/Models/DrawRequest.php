@@ -14,12 +14,16 @@ class DrawRequest extends Model
         'idempotency_key',
         'status',
         'consumed_point_total',
+        'is_qa_draw',
+        'qa_test_user_mode_id',
+        'qa_draw_plan_id',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => DrawRequestStatus::class,
+            'is_qa_draw' => 'boolean',
         ];
     }
 
@@ -36,5 +40,20 @@ class DrawRequest extends Model
     public function gacha()
     {
         return $this->belongsTo(Gacha::class);
+    }
+
+    public function qaTestUserMode()
+    {
+        return $this->belongsTo(QaTestUserMode::class);
+    }
+
+    public function qaDrawPlan()
+    {
+        return $this->belongsTo(QaDrawPlan::class);
+    }
+
+    public function qaDrawExecution()
+    {
+        return $this->hasOne(QaDrawExecution::class);
     }
 }

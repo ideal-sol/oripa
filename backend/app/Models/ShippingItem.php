@@ -34,4 +34,9 @@ class ShippingItem extends Model
     {
         return $this->belongsTo(UserPrize::class);
     }
+
+    public function paymentReversalPrizeActions()
+    {
+        return $this->hasMany(PaymentReversalPrizeAction::class);
+    }
 }

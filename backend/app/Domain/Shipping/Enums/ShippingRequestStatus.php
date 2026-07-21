@@ -10,4 +10,6 @@ enum ShippingRequestStatus: string
     case Delivered = 'delivered';
     case Returned = 'returned';
     case Canceled = 'canceled';
+    case Hold = 'hold';
+    case ReturnRequested = 'return_requested';
 }

@@ -75,4 +75,14 @@ class Gacha extends Model
     {
         return $this->belongsTo(GachaProbabilityVersion::class, 'current_probability_version_id');
     }
+
+    public function qaDrawPlans()
+    {
+        return $this->hasMany(QaDrawPlan::class);
+    }
+
+    public function qaDrawExecutions()
+    {
+        return $this->hasMany(QaDrawExecution::class);
+    }
 }

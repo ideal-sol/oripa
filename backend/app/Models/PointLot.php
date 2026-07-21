@@ -38,4 +38,9 @@ class PointLot extends Model
     {
         return $this->hasMany(PointLedger::class);
     }
+
+    public function paymentReversalPointEntries()
+    {
+        return $this->hasMany(PaymentReversalPointEntry::class);
+    }
 }

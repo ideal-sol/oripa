@@ -46,4 +46,9 @@ class UserPrize extends Model
     {
         return $this->belongsTo(DrawResult::class);
     }
+
+    public function paymentReversalPrizeActions()
+    {
+        return $this->hasMany(PaymentReversalPrizeAction::class);
+    }
 }

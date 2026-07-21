@@ -100,6 +100,26 @@ class User extends Authenticatable
         return $this->hasOne(LineFriendLink::class);
     }
 
+    public function paymentReversals()
+    {
+        return $this->hasMany(PaymentReversal::class);
+    }
+
+    public function qaTestUserMode()
+    {
+        return $this->hasOne(QaTestUserMode::class);
+    }
+
+    public function qaDrawPlans()
+    {
+        return $this->hasMany(QaDrawPlan::class);
+    }
+
+    public function qaDrawExecutions()
+    {
+        return $this->hasMany(QaDrawExecution::class);
+    }
+
     public static function generateReferralCode(): string
     {
         do {

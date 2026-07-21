@@ -36,4 +36,29 @@ class AdminUser extends Authenticatable
             'email_verified_at' => 'datetime',
         ];
     }
+
+    public function paymentReversals()
+    {
+        return $this->hasMany(PaymentReversal::class);
+    }
+
+    public function enabledQaTestUserModes()
+    {
+        return $this->hasMany(QaTestUserMode::class, 'enabled_by_admin_user_id');
+    }
+
+    public function disabledQaTestUserModes()
+    {
+        return $this->hasMany(QaTestUserMode::class, 'disabled_by_admin_user_id');
+    }
+
+    public function createdQaDrawPlans()
+    {
+        return $this->hasMany(QaDrawPlan::class, 'created_by_admin_user_id');
+    }
+
+    public function updatedQaDrawPlans()
+    {
+        return $this->hasMany(QaDrawPlan::class, 'updated_by_admin_user_id');
+    }
 }

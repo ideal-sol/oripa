@@ -24,12 +24,15 @@ class DrawResult extends Model
         'probability_version_stage_id',
         'selected_rank_image_url',
         'selected_draw_video_url',
+        'is_qa_draw',
+        'qa_draw_plan_item_id',
     ];
 
     protected function casts(): array
     {
         return [
             'result_type' => DrawResultType::class,
+            'is_qa_draw' => 'boolean',
         ];
     }
 
@@ -71,5 +74,10 @@ class DrawResult extends Model
     public function probabilityVersionStage()
     {
         return $this->belongsTo(GachaProbabilityVersionStage::class, 'probability_version_stage_id');
+    }
+
+    public function qaDrawPlanItem()
+    {
+        return $this->belongsTo(QaDrawPlanItem::class);
     }
 }

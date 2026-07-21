@@ -6,6 +6,9 @@ use App\Domain\Gacha\Enums\DrawRequestStatus;
 use App\Domain\Gacha\Enums\DrawResultType;
 use App\Domain\Gacha\Enums\GachaStatus;
 use App\Domain\Gacha\Enums\MinimumGuaranteeType;
+use App\Domain\Gacha\DTO\QaDrawSelectedItem;
+use App\Domain\Gacha\DTO\QaDrawSelection;
+use App\Domain\Gacha\Enums\QaDrawPlanStatus;
 use App\Domain\Gacha\Exceptions\DrawException;
 use App\Domain\Point\Enums\PointLedgerType;
 use App\Domain\Point\Enums\PointLotSourceType;
@@ -19,6 +22,7 @@ use App\Models\DrawResult;
 use App\Models\Gacha;
 use App\Models\GachaPrize;
 use App\Models\GachaRank;
+use App\Models\QaDrawExecution;
 use App\Models\User;
 use App\Models\UserPrize;
 use Carbon\CarbonImmutable;
@@ -31,6 +35,7 @@ class DrawService
         private readonly ProbabilityRangeBuilder $rangeBuilder,
         private readonly PointConsumptionService $pointConsumptionService,
         private readonly PointLotService $pointLotService,
+        private readonly QaDrawResolver $qaDrawResolver,
     ) {
     }
 
@@ -70,6 +75,8 @@ class DrawService
             // sold_count をロックした状態で採番することで、ガチャごとの通し番号に重複と欠番を出さない。
             $this->assertDrawable($lockedGacha, $drawCount);
             $this->assertWithinDailyDrawLimit($user, $lockedGacha, $drawCount);
+            $qaSelection = $this->qaDrawResolver->resolve($user, $lockedGacha, $drawCount);
+            $lockedQaPrizes = $qaSelection->active ? $this->lockAndValidateQaPrizes($lockedGacha, $qaSelection) : collect();
 
             $totalCost = $lockedGacha->price * $drawCount;
             $this->pointConsumptionService->assertSpendable($user, $totalCost);
@@ -81,6 +88,9 @@ class DrawService
                 'idempotency_key' => $idempotencyKey,
                 'status' => DrawRequestStatus::Processing,
                 'consumed_point_total' => $totalCost,
+                'is_qa_draw' => $qaSelection->active,
+                'qa_test_user_mode_id' => $qaSelection->modeId(),
+                'qa_draw_plan_id' => $qaSelection->planId(),
             ]);
 
             $this->pointConsumptionService->consume(
@@ -96,20 +106,17 @@ class DrawService
             for ($drawIndex = 1; $drawIndex <= $drawCount; $drawIndex++) {
                 $sequence = $soldCountBefore + $drawIndex;
                 $stage = $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
-                $range = $this->rangeBuilder->build($stage);
                 // 抽選乱数はフロントではなくバックエンドのCSPRNGで生成する。
                 $randomValue = random_int(0, 999_999);
-                $entry = $range->pick($randomValue);
 
                 $drawResult = null;
 
-                if ($entry->isPrize()) {
-                    $prize = GachaPrize::query()
-                        ->whereKey($entry->prizeId)
-                        ->lockForUpdate()
-                        ->firstOrFail();
+                if ($qaSelection->active) {
+                    /** @var QaDrawSelectedItem $qaItem */
+                    $qaItem = $qaSelection->items[$drawIndex - 1];
+                    /** @var GachaPrize $prize */
+                    $prize = $lockedQaPrizes->get($qaItem->prize->id);
 
-                    // 当選直前に景品在庫をロックし、同じ景品が上限を超えて当たらないようにする。
                     $this->assertPrizeAvailable($prize, $lockedGacha);
 
                     $prize->forceFill([
@@ -124,20 +131,54 @@ class DrawService
                         sequence: $sequence,
                         randomValue: $randomValue,
                         stageId: $stage->id,
+                        selectedRankImageUrl: $qaItem->fixedRankImageUrl(),
+                        selectedDrawVideoUrl: $qaItem->fixedDrawVideoUrl(),
+                        isQaDraw: true,
+                        qaDrawPlanItemId: $qaItem->planItem->id,
                     );
 
                     $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
+                    $this->incrementQaPlanItem($qaItem);
                 } else {
-                    $drawResult = $this->storePointBackResult(
-                        drawRequest: $drawRequest,
-                        user: $user,
-                        gacha: $lockedGacha,
-                        sequence: $sequence,
-                        randomValue: $randomValue,
-                        stageId: $stage->id,
-                    );
+                    $range = $this->rangeBuilder->build($stage);
+                    $entry = $range->pick($randomValue);
 
-                    $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
+                    if ($entry->isPrize()) {
+                        $prize = GachaPrize::query()
+                            ->whereKey($entry->prizeId)
+                            ->lockForUpdate()
+                            ->firstOrFail();
+
+                        // 当選直前に景品在庫をロックし、同じ景品が上限を超えて当たらないようにする。
+                        $this->assertPrizeAvailable($prize, $lockedGacha);
+
+                        $prize->forceFill([
+                            'won_count' => (int) $prize->won_count + 1,
+                        ])->save();
+
+                        $drawResult = $this->storePrizeResult(
+                            drawRequest: $drawRequest,
+                            user: $user,
+                            gacha: $lockedGacha,
+                            prize: $prize,
+                            sequence: $sequence,
+                            randomValue: $randomValue,
+                            stageId: $stage->id,
+                        );
+
+                        $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
+                    } else {
+                        $drawResult = $this->storePointBackResult(
+                            drawRequest: $drawRequest,
+                            user: $user,
+                            gacha: $lockedGacha,
+                            sequence: $sequence,
+                            randomValue: $randomValue,
+                            stageId: $stage->id,
+                        );
+
+                        $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
+                    }
                 }
 
                 $lockedGacha->forceFill([
@@ -156,8 +197,44 @@ class DrawService
                 'status' => DrawRequestStatus::Completed,
             ])->save();
 
+            if ($qaSelection->active) {
+                $this->completeQaPlanIfConsumed($qaSelection);
+                $this->createQaExecution($qaSelection, $drawRequest, $user, $lockedGacha, $drawCount);
+            }
+
             return $drawRequest->refresh()->load('results');
         });
+    }
+
+    private function lockAndValidateQaPrizes(Gacha $gacha, QaDrawSelection $selection)
+    {
+        $neededByPrize = collect($selection->items)
+            ->groupBy(fn (QaDrawSelectedItem $item): int => (int) $item->prize->id)
+            ->map(fn ($items): int => $items->count());
+
+        $prizes = GachaPrize::query()
+            ->whereIn('id', $neededByPrize->keys()->sort()->values()->all())
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        foreach ($neededByPrize as $prizeId => $needed) {
+            /** @var GachaPrize|null $prize */
+            $prize = $prizes->get($prizeId);
+
+            if (! $prize) {
+                throw new DrawException('QA draw plan prize was not found.');
+            }
+
+            $this->assertPrizeAvailable($prize, $gacha);
+
+            if ((int) $prize->max_win_count - (int) $prize->won_count < $needed) {
+                throw new DrawException('QA draw plan prize inventory is insufficient.');
+            }
+        }
+
+        return $prizes;
     }
 
     private function assertDrawable(Gacha $gacha, int $drawCount): void
@@ -219,6 +296,10 @@ class DrawService
         int $sequence,
         int $randomValue,
         int $stageId,
+        ?string $selectedRankImageUrl = null,
+        ?string $selectedDrawVideoUrl = null,
+        bool $isQaDraw = false,
+        ?int $qaDrawPlanItemId = null,
     ): DrawResult {
         $presentation = $this->selectRankPresentation($prize);
 
@@ -235,8 +316,63 @@ class DrawService
             'random_value' => $randomValue,
             'probability_version_id' => $gacha->current_probability_version_id,
             'probability_version_stage_id' => $stageId,
-            'selected_rank_image_url' => $presentation['image_url'],
-            'selected_draw_video_url' => $presentation['video_url'],
+            'selected_rank_image_url' => $selectedRankImageUrl ?? $presentation['image_url'],
+            'selected_draw_video_url' => $selectedDrawVideoUrl ?? $presentation['video_url'],
+            'is_qa_draw' => $isQaDraw,
+            'qa_draw_plan_item_id' => $qaDrawPlanItemId,
+        ]);
+    }
+
+    private function incrementQaPlanItem(QaDrawSelectedItem $qaItem): void
+    {
+        $qaItem->planItem->forceFill([
+            'consumed_count' => (int) $qaItem->planItem->consumed_count + 1,
+        ])->save();
+    }
+
+    private function completeQaPlanIfConsumed(QaDrawSelection $selection): void
+    {
+        $plan = $selection->plan?->refresh()->load('items');
+
+        if (! $plan || $plan->items->isEmpty()) {
+            return;
+        }
+
+        if ($plan->items->every(fn ($item): bool => (int) $item->consumed_count >= (int) $item->quantity)) {
+            $plan->forceFill([
+                'status' => QaDrawPlanStatus::Completed,
+            ])->save();
+        }
+    }
+
+    private function createQaExecution(
+        QaDrawSelection $selection,
+        DrawRequest $drawRequest,
+        User $user,
+        Gacha $gacha,
+        int $drawCount,
+    ): void {
+        QaDrawExecution::query()->create([
+            'qa_test_user_mode_id' => $selection->modeId(),
+            'qa_draw_plan_id' => $selection->planId(),
+            'draw_request_id' => $drawRequest->id,
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'draw_count' => $drawCount,
+            'reason' => $selection->plan?->reason ?? $selection->mode?->reason,
+            'metadata' => [
+                'mode_reason' => $selection->mode?->reason,
+                'plan_reason' => $selection->plan?->reason,
+                'items' => collect($selection->items)
+                    ->map(fn (QaDrawSelectedItem $item): array => [
+                        'qa_draw_plan_item_id' => $item->planItem->id,
+                        'gacha_prize_id' => $item->prize->id,
+                        'rank_image_asset_id' => $item->rankImageAsset?->id,
+                        'draw_video_asset_id' => $item->drawVideoAsset?->id,
+                    ])
+                    ->values()
+                    ->all(),
+            ],
         ]);
     }
 

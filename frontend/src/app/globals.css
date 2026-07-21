@@ -2739,6 +2739,51 @@ code {
   border-color: #b8c5c7;
 }
 
+.danger-button {
+  color: #991b1b;
+  background: #fff1f2;
+  border-color: #fecdd3;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+.danger-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.table-actions,
+.toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pill.success {
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.status-pill.danger {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
 .ghost-button {
   color: #594b3b;
   background: #fff7ed;
@@ -3362,6 +3407,10 @@ tbody tr:hover td {
   max-width: none;
 }
 
+.subpage-surface.compact-toolbar-surface {
+  padding: 12px 18px;
+}
+
 .subpage-title {
   display: flex;
   align-items: center;
@@ -3420,6 +3469,13 @@ tbody tr:hover td {
   color: #667085;
   font-size: 11px;
   font-weight: 800;
+}
+
+.inline-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
 }
 
 .segmented-control {

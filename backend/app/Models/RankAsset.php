@@ -35,4 +35,14 @@ class RankAsset extends Model
             ->wherePivot('usage_type', 'video')
             ->withTimestamps();
     }
+
+    public function qaRankImagePlanItems()
+    {
+        return $this->hasMany(QaDrawPlanItem::class, 'rank_image_asset_id');
+    }
+
+    public function qaDrawVideoPlanItems()
+    {
+        return $this->hasMany(QaDrawPlanItem::class, 'draw_video_asset_id');
+    }
 }

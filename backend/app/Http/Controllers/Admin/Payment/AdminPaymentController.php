@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Admin\Payment;
 
 use App\Domain\Audit\Services\AuditLogService;
-use App\Domain\Payment\Exceptions\PaymentOperationException;
-use App\Domain\Payment\Services\PaymentStatusService;
+use App\Domain\Payment\Services\ChargebackReversalService;
+use App\Domain\Payment\Services\PaymentRefundService;
+use App\Domain\Payment\Services\RefundEligibilityService;
 use App\Http\Requests\Admin\UpdatePaymentStatusRequest;
 use App\Http\Resources\PaymentResource;
+use App\Http\Resources\PaymentReversalResource;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class AdminPaymentController extends Controller
 {
@@ -44,39 +48,60 @@ class AdminPaymentController extends Controller
     public function refund(
         UpdatePaymentStatusRequest $request,
         Payment $payment,
-        PaymentStatusService $paymentStatusService,
+        PaymentRefundService $paymentRefundService,
         AuditLogService $auditLogService,
-    ): PaymentResource {
+    ): JsonResponse {
         $before = $this->statusSnapshot($payment);
 
         try {
-            $payment = $paymentStatusService->markRefunded($payment, $request->validated('reason'));
-        } catch (PaymentOperationException $exception) {
+            $reversal = $paymentRefundService->refund($payment, $request->user(), $request->validated('reason'));
+        } catch (RuntimeException $exception) {
             throw ValidationException::withMessages(['payment' => [$exception->getMessage()]]);
         }
 
+        $payment = $reversal->payment;
         $this->recordStatusAudit($auditLogService, $request, $payment, 'admin.payment.refunded', $before);
 
-        return new PaymentResource($payment);
+        return (new PaymentReversalResource($reversal->load('payment.user', 'user', 'adminUser', 'pointEntries')))
+            ->response()
+            ->setStatusCode(200);
     }
 
     public function chargeback(
         UpdatePaymentStatusRequest $request,
         Payment $payment,
-        PaymentStatusService $paymentStatusService,
+        ChargebackReversalService $chargebackReversalService,
         AuditLogService $auditLogService,
-    ): PaymentResource {
+    ): JsonResponse {
         $before = $this->statusSnapshot($payment);
 
         try {
-            $payment = $paymentStatusService->markChargeback($payment, $request->validated('reason'));
-        } catch (PaymentOperationException $exception) {
+            $reversal = $chargebackReversalService->chargeback($payment, $request->user(), $request->validated('reason'));
+        } catch (RuntimeException $exception) {
             throw ValidationException::withMessages(['payment' => [$exception->getMessage()]]);
         }
 
+        $payment = $reversal->payment;
         $this->recordStatusAudit($auditLogService, $request, $payment, 'admin.payment.chargeback', $before);
 
-        return new PaymentResource($payment);
+        return (new PaymentReversalResource($reversal->load('payment.user', 'user', 'adminUser', 'pointEntries', 'prizeActions')))
+            ->response()
+            ->setStatusCode(200);
+    }
+
+    public function refundEligibility(Payment $payment, RefundEligibilityService $refundEligibilityService): array
+    {
+        $result = $refundEligibilityService->check($payment);
+
+        return [
+            'data' => [
+                'payment_id' => $payment->id,
+                'eligible' => $result['eligible'],
+                'reason' => $result['reason'],
+                'used_amount' => $result['used_amount'],
+                'refundable_amount' => $result['refundable_amount'],
+            ],
+        ];
     }
     private function statusSnapshot(Payment $payment): array
     {

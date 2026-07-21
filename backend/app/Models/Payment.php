@@ -38,4 +38,14 @@ class Payment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function reversal()
+    {
+        return $this->hasOne(PaymentReversal::class);
+    }
+
+    public function reversals()
+    {
+        return $this->hasMany(PaymentReversal::class);
+    }
 }

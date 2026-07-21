@@ -652,3 +652,838 @@ git diff --stat
 - Did not change backend APIs, database, migrations, Docker, or point aggregation logic.
 - Verification:
   - `cd frontend && pnpm typecheck` passed.
+
+## 2026-06-29 Refund / Chargeback Design
+
+- Created design-only refund/chargeback documents.
+- No code, Migration, DB operation, Docker operation, dependency change, admin route refactor, or production payment connection was performed.
+- Created:
+  - `docs/design/REFUND_CHARGEBACK_DESIGN.md`
+  - `docs/review/REFUND_CHARGEBACK_IMPACT.md`
+  - `docs/review/REFUND_CHARGEBACK_MIGRATION_PLAN.md`
+  - `docs/review/REFUND_CHARGEBACK_TEST_PLAN.md`
+- Refined confirmed design points:
+  - Chargeback point cancellation order is paid purchase from paid lots, free bonus from free lots, then paid purchase shortfall from remaining free lots, then shortfall.
+  - `free_point_amount` must never be canceled from paid point lots.
+  - Bucket values are `paid_purchase_from_paid`, `free_bonus_from_free`, `paid_purchase_shortfall_from_free`, and `shortfall`.
+  - Chargeback holds all unshipped prizes for the target user.
+  - Recommended statuses are `user_prizes.status=held`, `shipping_items.status=hold`, and `shipping_items.status=return_requested`.
+  - Discord and return-request mail are sent after DB commit; failures do not rollback DB work and must be retryable from admin.
+
+## 2026-06-30 Refund / Chargeback Phase 1
+
+- Implemented Phase 1 only: Migration, Models, Enums, and Relations.
+- Added migration:
+  - `backend/database/migrations/2026_06_30_000001_create_payment_reversal_tables.php`
+- Added models:
+  - `PaymentReversal`
+  - `PaymentReversalPointEntry`
+  - `PaymentReversalPrizeAction`
+- Added payment reversal enums for type, status, point bucket, prize action type, and prize action status.
+- Added relations from Payment, User, AdminUser, PointLot, PointLedger, UserPrize, and ShippingItem.
+- Extended status enums and DB constraints for:
+  - `user_prizes.status=held`
+  - `shipping_items.status=hold`
+  - `shipping_items.status=return_requested`
+- Kept `shipping_requests.status` unchanged.
+- Kept `payment_reversals.payment_id` unique for the initial one-final-reversal-per-payment policy.
+- Not performed:
+  - Migration execution
+  - Service implementation
+  - API implementation
+  - Backend tests
+  - Admin UI
+  - Docker build
+  - Dependency changes
+
+## 2026-06-30 Refund / Chargeback Phase 2A
+
+- Implemented only the requested backend core services:
+  - `RefundEligibilityService`
+  - `PointReversalService`
+- Added unit tests:
+  - `backend/tests/Unit/RefundEligibilityServiceTest.php`
+  - `backend/tests/Unit/PointReversalServiceTest.php`
+- Covered rules:
+  - Normal refund requires all payment-origin purchase point lots to be unused.
+  - Normal refund is rejected if even 1 payment-origin point is used.
+  - Chargeback cancels `paid_point_amount` from paid lots first.
+  - Chargeback cancels `free_point_amount` from free lots only.
+  - Remaining paid purchase shortfall is canceled from remaining free lots.
+  - Remaining shortage is recorded as shortfall.
+  - Shortfall rows do not create point ledgers.
+  - `point_ledgers.related_type=payment_reversal`.
+- Verification:
+  - `php -l` passed for the added services and tests.
+  - Host `php artisan test` could not run because `backend/vendor/autoload.php` does not exist on host.
+  - After Docker state check, targeted tests were run inside the backend container only.
+  - `docker compose exec -T backend php artisan test tests/Unit/RefundEligibilityServiceTest.php` passed: 3 tests, 10 assertions.
+  - `docker compose exec -T backend php artisan test tests/Unit/PointReversalServiceTest.php` passed: 4 tests, 34 assertions.
+- Additional Phase 2A test reinforcement:
+  - Added explicit coverage that normal refund does not alter lots from other payments or campaign lots.
+  - Added explicit coverage for paid FIFO and free expiration-order lot reversal.
+  - Added explicit coverage that expired free lots are excluded from chargeback reversal.
+  - Re-ran `docker compose exec -T backend php artisan test tests/Unit/PointReversalServiceTest.php`; passed: 7 tests, 55 assertions.
+- Not performed:
+  - PaymentRefundService
+  - ChargebackReversalService
+  - ChargebackPrizeActionService
+  - Admin API
+  - Admin UI
+  - frontend changes
+  - Discord notification
+  - Mail sending
+  - Production payment webhook
+  - Docker build/restart
+  - Dependency changes
+
+## 2026-06-30 Refund / Chargeback Phase 2B
+
+- Implemented only the requested backend execution services:
+  - `PaymentRefundService`
+  - `ChargebackReversalService`
+  - `ChargebackPrizeActionService`
+- Added unit tests:
+  - `backend/tests/Unit/PaymentRefundServiceTest.php`
+  - `backend/tests/Unit/ChargebackReversalServiceTest.php`
+  - `backend/tests/Unit/ChargebackPrizeActionServiceTest.php`
+- Covered rules:
+  - Normal refund succeeds only when payment-origin points are fully unused.
+  - Normal refund rejects used payment-origin points.
+  - Normal refund marks payment as `refunded` and sets `refunded_at`.
+  - Chargeback marks payment as `chargeback`, sets `chargeback_at`, and suspends the user.
+  - Chargeback uses the Phase 2A current-balance point reversal rules.
+  - Unshipped stored/requested/packing prizes are held.
+  - Shipped/delivered items are marked return-requested.
+  - Draw results, draw sequence numbers, sold counts, and won counts are not modified.
+  - Completed refund and chargeback operations are idempotent.
+- Verification:
+  - `php -l` passed for the added services and tests.
+  - Docker state was checked before container test execution.
+  - `docker compose exec -T backend php artisan test tests/Unit/PaymentRefundServiceTest.php` passed: 3 tests, 13 assertions.
+  - `docker compose exec -T backend php artisan test tests/Unit/ChargebackPrizeActionServiceTest.php` passed: 2 tests, 13 assertions.
+  - `docker compose exec -T backend php artisan test tests/Unit/ChargebackReversalServiceTest.php` passed: 2 tests, 13 assertions.
+- Not performed:
+  - Admin API
+  - Admin UI
+  - frontend changes
+  - Discord notification actual sending
+  - Mail sending
+  - Production payment webhook
+  - Admin route refactor
+  - Docker build/restart
+  - Dependency changes
+
+## 2026-06-30 Refund / Chargeback Phase 3 Backend API
+
+- Implemented only the requested backend API layer:
+  - Admin Controllers
+  - Request classes
+  - Resource classes
+  - Backend Feature Tests
+- Added/updated endpoints:
+  - `GET /admin/api/payments/{payment}/refund-eligibility`
+  - `POST /admin/api/payments/{payment}/refund`
+  - `POST /admin/api/payments/{payment}/chargeback`
+  - `GET /admin/api/payment-reversals`
+  - `GET /admin/api/payment-reversals/{paymentReversal}`
+  - `POST /admin/api/payment-reversals/{paymentReversal}/release-holds`
+  - `POST /admin/api/payment-reversal-prize-actions/{action}/mark-returned`
+- Controller behavior:
+  - Refund/chargeback core logic remains in Services.
+  - Controllers convert domain/runtime failures to validation `422` where appropriate.
+  - Refund/chargeback POST APIs return `PaymentReversalResource` with HTTP 200.
+  - Admin auth remains the existing `auth:sanctum` + `EnsureAdminUser` group.
+- Verification:
+  - `php -l` passed for changed controllers, requests, resources, and new feature tests.
+  - Docker state was checked before container test execution.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminPaymentRefundChargebackApiTest.php` passed: 5 tests, 39 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminPaymentReversalApiTest.php` passed: 4 tests, 22 assertions.
+  - `docker compose exec -T backend php artisan route:list --path=admin/api` confirmed the new routes.
+- Not performed:
+  - Admin UI
+  - frontend changes
+  - Discord notification actual sending
+  - Mail sending
+  - Production payment webhook
+  - Admin route refactor
+  - Docker build/restart
+  - Dependency changes
+  - Real environment migration execution
+
+## 2026-06-30 Refund / Chargeback Phase 4 Admin UI
+
+- Executed real environment migration after user approval:
+  - `docker compose exec -T backend php artisan migrate --force`
+  - Migration completed: `2026_06_30_000001_create_payment_reversal_tables`
+- Implemented Admin UI only in the existing stable admin dashboard structure:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `frontend/src/app/globals.css`
+- Added sales management UI features:
+  - Refund eligibility display in daily sales payment rows.
+  - Per-payment refund eligibility fetch button.
+  - Normal refund action with confirmation and reason prompt.
+  - Chargeback registration action with danger confirmation and reason prompt.
+  - `返金/CB履歴` view.
+  - Payment reversal list.
+  - Payment reversal detail with point reversal entries and prize actions.
+  - Hold release action with confirmation.
+  - Return-requested action mark-returned operation with confirmation.
+- Kept reversal APIs out of `refreshAll()`.
+- Reversal APIs are called only from sales management view or explicit operations.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.
+- Not performed:
+  - Backend Service changes
+  - Backend API changes
+  - frontend route split/refactor
+  - Discord actual sending
+  - Mail sending
+  - Production payment webhook
+  - Docker build/restart
+  - Dependency changes
+  - Next.js build
+  - Browser/E2E manual verification
+
+## 2026-06-30 Refund / Chargeback History Period Search
+
+- Added period search for the sales management `返金/CB履歴` view.
+- Backend API:
+  - `GET /admin/api/payment-reversals` now accepts `date_from=YYYY-MM-DD` and `date_to=YYYY-MM-DD`.
+  - Filtering is based on `payment_reversals.occurred_at`.
+  - Date boundaries are evaluated as Asia/Tokyo calendar dates with range conditions.
+  - Invalid ranges such as `date_to < date_from` return validation errors.
+- Admin UI:
+  - Added start date and end date inputs to the `返金/CB履歴` tab.
+  - Added search and clear buttons.
+  - Search resets to page 1 and keeps reversal APIs out of `refreshAll()`.
+- Verification:
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminPaymentReversalApiTest.php` passed: 6 tests, 29 assertions.
+  - `cd frontend && pnpm typecheck` passed.
+- Not performed:
+  - Browser/E2E manual verification.
+  - Next.js build.
+  - Docker build/restart.
+
+## 2026-06-30 Refund / Chargeback Phase 5 Return Request Mail
+
+- Implemented chargeback return request mail.
+- Added:
+  - `backend/app/Mail/ChargebackReturnRequestMail.php`
+  - `backend/resources/views/mail/chargeback_return_request.blade.php`
+  - `backend/app/Domain/Payment/Services/PaymentReturnRequestMailService.php`
+- Updated chargeback processing:
+  - `ChargebackReversalService` now calls return request mail sending after the DB transaction commits.
+  - Mail failure does not roll back payment, point, prize, or shipping changes.
+- Added Admin API:
+  - `POST /admin/api/payment-reversals/{paymentReversal}/send-return-request-mail`
+  - Reversals without return-requested actions return `422`.
+  - Already sent return request mails are not sent twice.
+  - Unsent or failed actions can be sent/resend.
+- Updated Admin UI:
+  - Return-requested prize actions now show mail status, sent/attempted dates, last error, and send/resend button.
+  - Resend action has a confirmation dialog.
+  - Return request mail API is not added to `refreshAll()`.
+- Verification:
+  - `docker compose exec -T backend php artisan test tests/Unit/ChargebackReturnRequestMailTest.php` passed: 1 test, 6 assertions.
+  - `docker compose exec -T backend php artisan test tests/Unit/PaymentReturnRequestMailServiceTest.php` passed: 3 tests, 17 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminPaymentReturnRequestMailApiTest.php` passed: 4 tests, 16 assertions.
+  - `docker compose exec -T backend php artisan test tests/Unit/ChargebackReversalServiceTest.php` passed: 3 tests, 19 assertions.
+  - `cd frontend && pnpm typecheck` passed.
+- Not performed:
+  - Browser/E2E manual verification.
+  - Next.js build.
+  - Docker build/restart.
+  - Discord notification/resend.
+  - Normal refund completion mail.
+  - Production payment webhook.
+
+## 2026-07-01 Sales Management CSV Backend API
+
+- Implemented Backend CSV export API only.
+- No Admin UI changes were made.
+- Added:
+  - `backend/app/Domain/Admin/Services/SalesManagementCsvService.php`
+  - `backend/tests/Feature/AdminSalesCsvExportTest.php`
+- Updated:
+  - `backend/app/Http/Controllers/Admin/Sales/AdminSalesManagementController.php`
+  - `backend/routes/admin.php`
+  - `docs/md/spec_v1.6_draft.md`
+- Added endpoints:
+  - `GET /admin/api/sales/monthly.csv`
+  - `GET /admin/api/sales/daily-payments.csv`
+  - `GET /admin/api/sales/daily-adjustments.csv`
+  - `GET /admin/api/sales/monthly-point-consumption.csv`
+  - `GET /admin/api/sales/daily-point-consumption.csv`
+- CSV behavior:
+  - UTF-8 BOM is prepended.
+  - Japanese headers are used.
+  - Download filenames include the target month or date.
+  - Daily payment CSV uses `paid_at`.
+  - Daily refund/chargeback CSV uses `refunded_at` / `chargeback_at`.
+  - Daily point consumption CSV is grouped by `draw_request`.
+- Verification:
+  - `php -l` passed for the new CSV service, updated sales controller, and new CSV feature test.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesCsvExportTest.php` passed: 3 tests, 45 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminSalesManagementApiTest.php` passed: 8 tests, 77 assertions.
+- Not performed:
+  - Admin UI implementation.
+  - Frontend changes.
+  - Docker build/restart.
+  - Dependency changes.
+  - Migration/DB schema changes.
+
+## 2026-07-01 Sales Management CSV Admin UI
+
+- Implemented Admin UI CSV download buttons only.
+- Updated:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `frontend/src/app/globals.css`
+  - `docs/md/spec_v1.6_draft.md`
+- Added CSV download buttons to:
+  - Monthly sales
+  - Daily payment list
+  - Daily refund/chargeback list
+  - Monthly point consumption
+  - Daily point consumption
+- Download behavior:
+  - CSV APIs are called only when a CSV button is clicked.
+  - CSV APIs are not added to `refreshAll()`.
+  - The selected month or selected date is used.
+  - Buttons are disabled while the matching CSV request is running.
+  - Backend `Content-Disposition` filename is preferred.
+  - A frontend fallback filename is used if `Content-Disposition` is missing.
+  - Errors are shown through the existing admin notice message.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed.
+- Not performed:
+  - Backend changes.
+  - Admin route-split refactor.
+  - Browser manual verification.
+  - Next.js build.
+  - Docker build/restart.
+  - Dependency changes.
+
+## 2026-07-01 Sales Management Performance Review
+
+- Performed static performance review only.
+- Created:
+  - `docs/review/SALES_MANAGEMENT_PERFORMANCE_REVIEW.md`
+- Reviewed:
+  - `SalesManagementReportService`
+  - `SalesManagementCsvService`
+  - Sales management routes/controller
+  - Relevant migrations for `payments`, `point_ledgers`, `draw_requests`, `draw_results`, `gachas`, and `point_purchase_plans`
+- Findings:
+  - No obvious N+1 issue was found in the sales-management query paths.
+  - `payments` lacks reporting-oriented indexes for `paid_at`, `refunded_at`, and `chargeback_at` range scans.
+  - `point_ledgers` lacks a reporting-oriented index for global draw spend scans by `ledger_type`, `related_type`, and `created_at`.
+  - CSV output is generated in memory and daily payment / daily point CSVs currently request up to 10,000 rows.
+- Not performed:
+  - Production DB load testing.
+  - `EXPLAIN ANALYZE`.
+  - Index migration.
+  - Backend API changes.
+  - Admin UI changes.
+  - Docker build/restart.
+  - Dependency changes.
+
+## 2026-07-03 Point Balance Snapshot Admin Read API
+
+- Implemented backend read API only for daily point balance snapshots.
+- Added:
+  - `backend/app/Http/Controllers/Admin/Point/AdminPointBalanceSnapshotController.php`
+  - `backend/app/Http/Requests/Admin/IndexPointBalanceSnapshotRequest.php`
+  - `backend/app/Http/Requests/Admin/PointBalanceSnapshotBaseDateRequest.php`
+  - `backend/app/Http/Resources/PointBalanceSnapshotResource.php`
+  - `backend/tests/Feature/AdminPointBalanceSnapshotApiTest.php`
+- Updated:
+  - `backend/routes/admin.php`
+  - `docs/md/spec_v1.6_draft.md`
+- Added admin endpoints:
+  - `GET /admin/api/point-balance-snapshots/latest`
+  - `GET /admin/api/point-balance-snapshots`
+  - `GET /admin/api/point-balance-snapshots/base-dates`
+- Behavior:
+  - Latest API returns the newest `snapshot_date`, or `data=null` if no snapshot exists.
+  - List API supports `date_from`, `date_to`, `page`, and `per_page`.
+  - `per_page` is capped at 100.
+  - Base-date API returns March 31 and September 30 for the specified year.
+  - Missing base-date snapshots return `exists=false` and `snapshot=null`.
+  - API fields expose `paid_balance`, `free_balance`, and `total_balance` while preserving existing DB columns.
+  - `updated_at` is returned as `null` because the current table does not store it.
+- Verification:
+  - `php -l` passed for the new controller, requests, resource, and feature test.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminPointBalanceSnapshotApiTest.php` passed: 6 tests, 45 assertions.
+- Not performed:
+  - Admin UI implementation.
+  - Migration/DB schema changes.
+  - Docker build/restart.
+  - Dependency changes.
+
+## 2026-07-14 QA Test User Draw Design Update
+
+- Updated QA test user draw design documents only.
+- Updated:
+  - `docs/design/QA_TEST_USER_DRAW_DESIGN.md`
+  - `docs/review/QA_TEST_USER_DRAW_IMPACT.md`
+  - `docs/review/QA_TEST_USER_DRAW_MIGRATION_PLAN.md`
+  - `docs/review/QA_TEST_USER_DRAW_TEST_PLAN.md`
+- Confirmed design decisions:
+  - Normal draw fallback happens only when QA mode is disabled or expired.
+  - Active QA mode without a target-gacha active plan returns 422 before point consumption.
+  - Setting shortage, inventory shortage, and invalid QA configuration return 422 before point consumption.
+  - QA mode `ends_at` is required, with maximum 24 hours recommended for initial validation.
+  - `qa_draw_executions` is required.
+  - Fully consumed plans become `completed` automatically.
+  - Completed plans are not reactivated; a new sequence requires a new plan.
+  - Before new activation, expired or fully consumed active plans are completed.
+  - Initial QA setting and history read/write access is Owner-only.
+  - Admin draw history, management screens, and draw-request based CSV should expose QA identification.
+  - `user_prizes` can trace QA origin through `draw_result_id -> draw_results`, so no initial `user_prizes` QA column is required.
+- Not performed:
+  - Code changes.
+  - Migration creation.
+  - DB operations.
+  - Docker build/restart.
+
+## 2026-07-14 QA Test User Draw Phase 1
+
+- Implemented Migration, Model, Enum, and Relation layer only.
+- Added migration:
+  - `backend/database/migrations/2026_07_14_000001_create_qa_test_user_draw_tables.php`
+- Added enum:
+  - `backend/app/Domain/Gacha/Enums/QaDrawPlanStatus.php`
+- Added models:
+  - `backend/app/Models/QaTestUserMode.php`
+  - `backend/app/Models/QaDrawPlan.php`
+  - `backend/app/Models/QaDrawPlanItem.php`
+  - `backend/app/Models/QaDrawExecution.php`
+- Updated model relations:
+  - `AdminUser`
+  - `User`
+  - `Gacha`
+  - `GachaPrize`
+  - `RankAsset`
+  - `DrawRequest`
+  - `DrawResult`
+- Schema behavior:
+  - `qa_test_user_modes.ends_at` is required.
+  - `qa_test_user_modes.user_id` is unique.
+  - `qa_draw_plans` uses a PostgreSQL partial unique index to allow only one active plan per user/gacha.
+  - `draw_requests.is_qa_draw` and `draw_results.is_qa_draw` default to false.
+  - `qa_draw_executions.draw_request_id` is unique.
+  - `user_prizes` is unchanged; QA origin remains traceable through `draw_result_id -> draw_results`.
+  - QA-related foreign keys use restrictive delete behavior.
+- Not performed:
+  - Migration execution against the real environment.
+  - DrawService changes.
+  - QaDrawResolver implementation.
+  - Admin API/UI.
+  - Frontend changes.
+  - CSV changes.
+  - Docker build/restart.
+
+## 2026-07-14 QA Test User Draw Phase 2A
+
+- Implemented Owner-only Admin API for QA test user mode.
+- Added:
+  - `backend/app/Domain/Gacha/Services/QaTestUserModeService.php`
+  - `backend/app/Http/Controllers/Admin/User/AdminQaTestUserModeController.php`
+  - `backend/app/Http/Requests/Admin/UpsertQaTestUserModeRequest.php`
+  - `backend/app/Http/Resources/QaTestUserModeResource.php`
+  - `backend/tests/Unit/QaTestUserModeServiceTest.php`
+  - `backend/tests/Feature/AdminQaTestUserModeApiTest.php`
+- Updated:
+  - `backend/routes/admin.php`
+  - `docs/md/spec_v1.6_draft.md`
+- Added endpoints:
+  - `GET /admin/api/users/{user}/qa-test-mode`
+  - `PUT /admin/api/users/{user}/qa-test-mode`
+  - `DELETE /admin/api/users/{user}/qa-test-mode`
+- Behavior:
+  - All endpoints require Owner role.
+  - Admin/operator receive 403 for reads and writes.
+  - Unauthenticated requests receive 401.
+  - `PUT` creates or updates the existing row.
+  - `reason` and `ends_at` are required.
+  - `starts_at` is optional.
+  - `ends_at` must be after `starts_at` or current time.
+  - Duration is capped at 24 hours.
+  - `DELETE` disables the row without physical deletion.
+  - Expired or disabled rows are returned as `is_active=false`.
+  - Audit logs are recorded for enable/update/disable.
+- Verification:
+  - `php -l` passed for the new Service, Controller, Request, Resource, and test files.
+  - `docker compose exec -T backend php artisan test tests/Unit/QaTestUserModeServiceTest.php` passed: 4 tests, 22 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminQaTestUserModeApiTest.php` passed: 6 tests, 52 assertions.
+- Not performed:
+  - Real environment migration execution.
+  - QA draw plan API.
+  - QaDrawResolver.
+  - DrawService changes.
+  - Admin UI/frontend.
+  - CSV changes.
+  - Docker build/restart.
+
+## 2026-07-15 QA Test User Draw Phase 2B
+
+- Implemented Owner-only Admin API for QA draw plan management.
+- Added:
+  - `backend/app/Domain/Gacha/Services/QaDrawPlanService.php`
+  - `backend/app/Http/Controllers/Admin/User/AdminQaDrawPlanController.php`
+  - `backend/app/Http/Requests/Admin/StoreQaDrawPlanRequest.php`
+  - `backend/app/Http/Requests/Admin/UpdateQaDrawPlanRequest.php`
+  - `backend/app/Http/Resources/QaDrawPlanResource.php`
+  - `backend/app/Http/Resources/QaDrawPlanItemResource.php`
+  - `backend/tests/Unit/QaDrawPlanServiceTest.php`
+  - `backend/tests/Feature/AdminQaDrawPlanApiTest.php`
+- Updated:
+  - `backend/routes/admin.php`
+  - `docs/md/spec_v1.6_draft.md`
+- Added endpoints:
+  - `GET /admin/api/users/{user}/qa-draw-plans`
+  - `POST /admin/api/users/{user}/qa-draw-plans`
+  - `GET /admin/api/qa-draw-plans/{plan}`
+  - `PUT /admin/api/qa-draw-plans/{plan}`
+  - `DELETE /admin/api/qa-draw-plans/{plan}`
+  - `POST /admin/api/qa-draw-plans/{plan}/pause`
+  - `POST /admin/api/qa-draw-plans/{plan}/activate`
+- Behavior:
+  - All endpoints require Owner role.
+  - Admin/operator receive 403.
+  - Unauthenticated requests receive 401.
+  - `completed` plans cannot be activated again.
+  - Only one active plan is allowed per user/gacha.
+  - Expired or fully consumed active plans are completed before a new active plan is created or activated.
+  - `gacha_prize_id` must belong to the target gacha.
+  - `quantity` must be greater than zero.
+  - `sort_order` must be unique in a plan payload.
+  - `rank_image_asset_id` must be an image asset.
+  - `draw_video_asset_id` must be a video asset.
+  - `DELETE` changes status to `disabled` without deleting the plan row.
+  - Audit logs are recorded for create/update/pause/activate/disable/auto-complete.
+- Verification:
+  - `php -l` passed for the new Service, Controller, Request, Resource, and test files.
+  - `docker compose exec -T backend php artisan test tests/Unit/QaDrawPlanServiceTest.php` passed: 4 tests, 21 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/AdminQaDrawPlanApiTest.php` passed: 5 tests, 52 assertions.
+- Not performed:
+  - Real environment migration execution.
+  - QaDrawResolver.
+  - DrawService changes.
+  - Normal draw API changes.
+  - Point or inventory processing changes.
+  - Admin UI/frontend.
+  - CSV changes.
+  - Docker build/restart.
+
+## 2026-07-15 QA Test User Draw Phase 3A
+
+- Implemented QA draw resolver only.
+- Added:
+  - `backend/app/Domain/Gacha/DTO/QaDrawSelection.php`
+  - `backend/app/Domain/Gacha/DTO/QaDrawSelectedItem.php`
+  - `backend/app/Domain/Gacha/Services/QaDrawResolver.php`
+  - `backend/tests/Unit/QaDrawResolverTest.php`
+- Updated:
+  - `docs/md/spec_v1.6_draft.md`
+- Behavior:
+  - No active QA mode, disabled QA mode, and expired QA mode return inactive selection.
+  - Active QA mode with no active plan throws `DrawException`.
+  - Insufficient remaining configured items throws `DrawException`.
+  - Plan items are expanded by `sort_order`, `id`, `quantity`, and `consumed_count`.
+  - Mode, plan, and plan items can be read with `lockForUpdate()`.
+  - Prize gacha ownership, prize active state, aggregate inventory, image asset type, and video asset type are validated before point consumption.
+  - Invalid QA configuration does not fall back to normal probability draw.
+- Verification:
+  - `php -l` passed for the new DTO, Resolver, and test files.
+  - `docker compose exec -T backend php artisan test tests/Unit/QaDrawResolverTest.php` passed: 8 tests, 25 assertions.
+- Not performed:
+  - DrawService integration.
+  - Normal draw API changes.
+  - Point consumption changes.
+  - Inventory updates.
+  - QA plan `consumed_count` updates.
+  - `qa_draw_executions` creation.
+  - Admin API/UI changes.
+  - Frontend changes.
+  - CSV changes.
+  - Real environment migration execution.
+  - Docker build/restart.
+
+## 2026-07-15 QA Test User Draw Phase 3B
+
+- Integrated `QaDrawResolver` into the existing `DrawService`.
+- Added:
+  - `backend/tests/Feature/QaTestUserDrawApiTest.php`
+- Updated:
+  - `backend/app/Domain/Gacha/Services/DrawService.php`
+  - `docs/md/spec_v1.6_draft.md`
+- Integration points:
+  - Completed idempotency-key lookup remains before QA resolver execution.
+  - QA resolver runs inside the existing DB transaction after gacha lock, drawable checks, and daily limit checks.
+  - QA resolver runs before point spendability check and point consumption.
+  - QA active draw stores QA fields on `draw_requests` and `draw_results`.
+  - QA active draw creates `qa_draw_executions`.
+- QA draw behavior:
+  - Inactive, disabled, or expired QA mode uses the existing normal probability draw flow.
+  - Active QA mode with missing/invalid plan throws `DrawException` and does not fall back to normal probability draw.
+  - Selected QA prizes are locked by ID order and inventory is revalidated after lock.
+  - Probability stage is still resolved for each result.
+  - Normal probability `pick()` is not used for QA prize selection.
+  - `random_value` still uses backend CSPRNG.
+  - QA draw creates prize results only, no point-back result.
+  - Existing point consumption, `won_count`, `sold_count`, `draw_results`, and `user_prizes` flows are used.
+  - Fixed image/video asset URLs are stored when configured.
+  - `qa_draw_plan_items.consumed_count` updates inside the same transaction as result creation.
+  - Fully consumed QA plans are marked `completed`.
+  - Failed QA settings/inventory validation rolls back point, inventory, sold count, won count, consumed count, draw request/result, user prize, and QA execution changes.
+- Verification:
+  - `php -l` passed for `DrawService` and `QaTestUserDrawApiTest`.
+  - `docker compose exec -T backend php artisan test tests/Feature/QaTestUserDrawApiTest.php` passed: 6 tests, 53 assertions.
+  - `docker compose exec -T backend php artisan test tests/Feature/DrawApiTest.php` passed: 5 tests, 24 assertions.
+  - `backend/tests/Unit/DrawServiceTest.php` is not present in the repository.
+  - `docker compose exec -T backend php artisan test tests/Unit/QaDrawResolverTest.php` passed: 8 tests, 25 assertions.
+- Not performed:
+  - Admin UI/frontend changes.
+  - QA history browse API.
+  - CSV changes.
+  - Sales management UI changes.
+  - Additional migrations.
+  - Docker build/restart.
+  - Dependency changes.
+  - Full concurrent draw test.
+
+## 2026-07-15 QA Test User Draw Phase 4A
+
+- Implemented Owner-only QA test user mode UI in the existing stable admin dashboard user detail screen.
+- Migration pre-check:
+  - `docker compose exec -T backend php artisan migrate:status` confirmed `2026_07_14_000001_create_qa_test_user_draw_tables` is `[13] Ran`.
+- Updated:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `docs/md/spec_v1.6_draft.md`
+- UI location:
+  - Admin dashboard > ユーザー管理 > ユーザー詳細.
+- Behavior:
+  - QA section is shown only when `session.admin.role === "owner"`.
+  - Admin/operator do not see the section and do not call QA APIs.
+  - QA API is not added to `refreshAll()`.
+  - Owner fetches QA mode only when opening user detail.
+  - QA state is reset when selecting another user or leaving user detail.
+  - UI displays state, reason, start/end dates, enabled/disabled admin IDs, disabled date, created date, and updated date.
+  - Enable/update uses `PUT /admin/api/users/{user}/qa-test-mode`.
+  - Disable uses `DELETE /admin/api/users/{user}/qa-test-mode`.
+  - Enable/update/disable show confirmation dialogs.
+  - Save buttons are disabled while saving/loading.
+  - Existing admin message handling is used for API errors.
+  - Warning text states that QA mode is not mock behavior and affects real point, inventory, draw, prize, exchange, and shipping data.
+- Verification:
+  - Static search confirmed `qa-test-mode` calls are only in user-detail flow and not in `refreshAll()`.
+  - `cd frontend && pnpm typecheck` passed.
+- Not performed:
+  - Browser manual verification.
+  - QA draw plan UI.
+  - Prize setting UI.
+  - Fixed image/video selection UI.
+  - QA execution history UI.
+  - Backend API changes.
+  - DrawService changes.
+  - CSV changes.
+  - Sales management changes.
+  - Additional migrations.
+  - Docker build/restart.
+  - Admin route-split refactoring.
+
+## 2026-07-15 QA Test User Draw Phase 4B-1-1
+
+- Implemented Owner-only read-only QA draw plan list UI in the existing stable admin dashboard user detail screen.
+- Confirmed actual API response shape from:
+  - `backend/app/Http/Resources/QaDrawPlanResource.php`
+  - `backend/app/Http/Resources/QaDrawPlanItemResource.php`
+  - `backend/app/Http/Resources/RankAssetResource.php`
+- Updated:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `docs/md/spec_v1.6_draft.md`
+  - `worklogs/codex-main.md`
+- UI location:
+  - Admin dashboard > ユーザー管理 > ユーザー詳細 > QAテストユーザー section直下.
+- Behavior:
+  - QA draw plan list is shown only when `session.admin.role === "owner"`.
+  - Admin/operator do not see the list and do not call QA draw plan APIs.
+  - QA draw plan APIs are not added to `refreshAll()`.
+  - Owner fetches `GET /admin/api/users/{user}/qa-draw-plans` only when opening a user detail screen.
+  - Plan detail fetch `GET /admin/api/qa-draw-plans/{plan}` runs only when expanding a plan's prize setting row.
+  - QA draw plan list/detail state is reset when switching users or leaving user detail.
+  - A request id guard prevents stale responses from overwriting the currently selected user's state.
+  - The read-only list displays plan ID, gacha name/ID, status, title, reason, start/end, item row count, total quantity, consumed count, remaining count, created date, and updated date.
+  - The expanded prize settings display sort order, prize name, gacha prize ID, quantity, consumed count, remaining count, fixed rank image, and fixed draw video.
+  - No create/edit/pause/activate/disable/delete buttons were added.
+- Not performed:
+  - Backend API changes.
+  - DB or Migration changes.
+  - DrawService changes.
+  - QA draw plan creation/editing UI.
+  - Fixed image/video selection UI.
+  - QA execution history UI.
+  - CSV changes.
+  - Sales management changes.
+  - Docker build/restart.
+  - Admin route-split refactoring.
+
+## 2026-07-15 QA Test User Draw Phase 4B-1-2
+
+- Implemented Owner-only QA draw plan create form foundation in the existing stable admin dashboard user detail screen.
+- Start checks:
+  - `cd frontend && pnpm typecheck` passed before implementation.
+  - `git diff --check` passed before implementation.
+- Confirmed actual backend request/resource shape from:
+  - `backend/app/Http/Requests/Admin/StoreQaDrawPlanRequest.php`
+  - `backend/app/Domain/Gacha/Services/QaDrawPlanService.php`
+  - `backend/app/Http/Resources/QaDrawPlanResource.php`
+  - `backend/app/Http/Resources/QaDrawPlanItemResource.php`
+  - `backend/app/Http/Resources/AdminGachaPrizeResource.php`
+  - `backend/app/Http/Resources/RankAssetResource.php`
+  - `backend/app/Http/Controllers/Admin/Gacha/AdminGachaPrizeController.php`
+  - `backend/app/Http/Controllers/Admin/Gacha/AdminRankAssetController.php`
+- Updated:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `docs/md/spec_v1.6_draft.md`
+  - `worklogs/codex-main.md`
+- UI location:
+  - Admin dashboard > ユーザー管理 > ユーザー詳細 > QA排出プラン一覧 section下.
+- Behavior:
+  - The "QA排出プランを新規作成" button and create form are shown only when `session.admin.role === "owner"`.
+  - Admin/operator do not see the form and do not call QA draw plan option APIs.
+  - The form displays target gacha, title, reason, starts_at, and ends_at fields.
+  - `StoreQaDrawPlanRequest` allows nullable `status`, and `QaDrawPlanService` defaults omitted status to active; this phase does not add a status input because no POST is performed.
+  - Existing `gachas` state is used for target gacha choices.
+  - Existing `rankAssets` state is reused when present.
+  - If `rankAssets` is empty, `GET /admin/api/rank-assets?per_page=100` runs only when opening the create form.
+  - Active image assets and active video assets are counted separately.
+  - Existing `gachaPrizes` state is reused if it already contains rows for the selected gacha.
+  - If selected-gacha prizes are not cached, `GET /admin/api/gacha-prizes?gacha_id={gachaId}&per_page=100` runs only after target gacha selection.
+  - Gacha change clears current prize candidates and uses a request guard to avoid stale response overwrite.
+  - Switching users, leaving user detail, or canceling the form resets create form and option state.
+  - QA draw plan option API calls are not added to `refreshAll()`.
+  - Save API is not called in this phase.
+- Not performed:
+  - `POST /admin/api/users/{user}/qa-draw-plans`.
+  - Plan saving.
+  - Multiple prize setting rows.
+  - Prize row add/delete/sorting.
+  - Quantity input.
+  - Fixed image/video select controls.
+  - Existing plan editing.
+  - Pause/activate/disable operations.
+  - QA execution history UI.
+  - Backend API changes.
+  - DB or Migration changes.
+  - DrawService changes.
+  - CSV changes.
+  - Sales management changes.
+  - Docker build/restart.
+  - Admin route-split refactoring.
+
+## 2026-07-15 QA Test User Draw Phase 4B-1-3-1
+
+- Implemented Owner-only QA draw plan item input UI in the existing stable admin dashboard create form.
+- Required start checks:
+  - Read `docs/design/QA_TEST_USER_DRAW_DESIGN.md`.
+  - Read `docs/review/QA_TEST_USER_DRAW_IMPACT.md`.
+  - Read `docs/review/QA_TEST_USER_DRAW_TEST_PLAN.md`.
+  - Read `docs/md/spec_v1.6_draft.md`.
+  - Read `worklogs/codex-main.md`.
+  - `cd frontend && pnpm typecheck` passed before implementation.
+  - `git diff --check` passed before implementation.
+- Confirmed backend behavior:
+  - `StoreQaDrawPlanRequest` requires `items.*.sort_order`, `items.*.gacha_prize_id`, and `items.*.quantity`.
+  - `StoreQaDrawPlanRequest` allows nullable `items.*.rank_image_asset_id` and `items.*.draw_video_asset_id`.
+  - `quantity` has `min:1` and no explicit upper bound.
+  - `QaDrawPlanService` validates selected prize gacha ownership and fixed asset type.
+  - `QaDrawPlanService` does not add a create-time inactive-prize selection restriction, so the UI does not independently disable inactive prizes.
+- Updated:
+  - `frontend/src/app/admin-dashboard.tsx`
+  - `docs/md/spec_v1.6_draft.md`
+  - `worklogs/codex-main.md`
+- Behavior:
+  - Opening the QA draw plan create form shows one empty item row.
+  - Item rows include `sort_order`, `gacha_prize_id`, `quantity`, `rank_image_asset_id`, and `draw_video_asset_id`.
+  - Rows can be added.
+  - Rows can be moved up/down.
+  - Rows can be deleted except the last remaining row.
+  - Add/delete/move operations normalize `sort_order` to one-based consecutive numbers.
+  - `quantity` and `sort_order` inputs accept only positive integer strings.
+  - Target gacha change asks for confirmation when item rows have input.
+  - Confirmed target gacha change clears old prize candidates and resets item rows to one empty row.
+  - Prize select is disabled until a gacha is selected and while selected-gacha candidates are loading.
+  - Prize options show prize ID, name, rank name, active state, max win count, won count, and remaining win count.
+  - Fixed image select contains only active image assets plus normal presentation.
+  - Fixed video select contains only active video assets plus normal presentation.
+  - Form summary shows item row count, total configured quantity, selected gacha, fixed-image row count, and fixed-video row count.
+- Not performed:
+  - `POST /admin/api/users/{user}/qa-draw-plans`.
+  - Plan saving.
+  - Save confirmation dialog.
+  - List refresh after creation.
+  - Existing plan editing.
+  - Pause/activate/disable operations.
+  - QA execution history UI.
+  - Backend API changes.
+  - DB or Migration changes.
+  - DrawService changes.
+  - CSV changes.
+  - Sales management changes.
+  - Docker build/restart.
+  - Admin route-split refactoring.
+
+## 2026-07-16 QA Test User Draw Phase 4B-1-3-2
+
+- Implemented QA draw plan create form save flow in the existing stable admin dashboard.
+- Scope:
+  - Frontend only.
+  - `frontend/src/app/admin-dashboard.tsx` only.
+  - No backend/API/DB/Migration changes.
+- Required start checks:
+  - Read `docs/md/spec_v1.6_draft.md`.
+  - Read `docs/design/QA_TEST_USER_DRAW_DESIGN.md`.
+  - Read `worklogs/codex-main.md`.
+  - `cd frontend && pnpm typecheck` passed before implementation.
+  - `git diff --check` passed before implementation.
+- Behavior:
+  - Added save button to the QA draw plan create form.
+  - Added save-in-progress state and disables the save button while saving or while required option data is loading.
+  - Added pre-submit validation for selected gacha, required reason, and item rows with prize and positive quantity.
+  - Added confirmation dialog before saving.
+  - Connected save to `POST /admin/api/users/{user}/qa-draw-plans`.
+  - Payload uses existing backend field names:
+    - `gacha_id`
+    - `title`
+    - `reason`
+    - `starts_at`
+    - `ends_at`
+    - `items[].sort_order`
+    - `items[].gacha_prize_id`
+    - `items[].quantity`
+    - `items[].rank_image_asset_id`
+    - `items[].draw_video_asset_id`
+  - `status` is not sent; backend default remains responsible for the initial status.
+  - Uses existing `showMessage` notice/error handling.
+  - On success, resets the create form and option state.
+  - On success, reloads the selected user's QA draw plan list with `GET /admin/api/users/{user}/qa-draw-plans`.
+  - QA draw plan save API is not added to `refreshAll()`.
+- Verification:
+  - `cd frontend && pnpm typecheck` passed after implementation.
+  - `git diff --check` passed after implementation.
+  - Static search confirmed save API is called only from the submit handler and not from `refreshAll()`.
+- Not performed:
+  - Browser manual verification.
+  - Backend changes.
+  - DB or Migration changes.
+  - DrawService changes.
+  - Existing plan editing.
+  - Pause/activate/disable operations.
+  - QA execution history UI.
+  - CSV changes.
+  - Sales management changes.
+  - Docker build/restart.
+  - Admin route-split refactoring.
