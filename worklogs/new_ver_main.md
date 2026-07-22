@@ -897,3 +897,60 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 元`/var/www/oripa`の未追跡Worklogは削除・変更せず維持する。
 - 人間Reviewで修正が必要な場合に備え、専用Worktreeを残す。
 - 次Task候補: 人間によるGOV-001 Draft PR Review。GOV-002は本Taskでは開始しない。
+
+## GOV-001A／B／C GOV-001同期・Cleanup完了
+
+### Local main同期
+
+- `GOV-001A`でHuman Squash Merge済みPR #2を確認し、Local未追跡WorklogとRemote追跡版をRepository外Evidenceへ保全・比較した。
+- Remote版にLocal版の内容欠落がないことを確認後、`git merge --ff-only origin/main`でLocal `main`をSquash Commit `0e5815580e20cf5dd78ec3944527f718b7dc8644`へ同期した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-001A-local-sync-20260722T091711Z/`
+
+### Worktree／Branch Cleanup
+
+- `GOV-001B`でTask BranchとSquash Merge後の`main`のTree、`AGENTS.md`、Worklogが一致し、未統合内容と未Push Commitがないことを確認した。
+- Git標準CommandでGOV-001 Worktreeを削除し、同等性Evidence保存後にLocal Task Branchを削除した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-001B-cleanup-20260722T092150Z/`
+- `GOV-001C`でHumanがGitHub上から削除したRemote Task Branchを`git fetch origin --prune`とRemote Ref照合で確認した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-001C-remote-cleanup-20260722T093402Z/`
+- PR #2はMerged、Issue #1はClosed、Local／Remote BranchおよびTask Worktreeは削除済みで、GOV-001は完全終了した。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+## GOV-002 Nested AGENTS.md作成
+
+### 基本情報
+
+- Task ID: `GOV-002`
+- 実施日時: 2026-07-22T09:43:57Z／2026-07-22T18:43:57+09:00
+- Issue: `#3`
+- Risk: `R3`
+- Branch: `docs/GOV-002-nested-agents`
+- Worktree: `/var/www/oripa-worktrees/GOV-002-nested-agents`
+- Base SHA: `0e5815580e20cf5dd78ec3944527f718b7dc8644`
+
+### 変更内容
+
+- `apps/api/AGENTS.md`: Laravel Domain Authority、Surface／Realm分離、R3 Transaction／Idempotency／Concurrency、Forward-safe Migrationを定義する。
+- `apps/admin/AGENTS.md`: V2 Adminを空のAppから構築し、Admin API限定、MFA／Permission／noindex、品質Checkを定義する。
+- `packages/AGENTS.md`: 4つのFirst-party Package、Exact Version、薄いClient、生成物とBreaking Changeの規則を定義する。
+- `openapi/AGENTS.md`: OpenAPI 3.1.1、Surface分離、Contract-first順序、Disclosure／Compatibility規則を定義する。
+- `infrastructure/AGENTS.md`: Site完全分離、Build Once／Digest Promote、人間のProduction承認、Backup／Rollbackを定義する。
+- `docs/AGENTS.md`: Baseline／ADR／Runbook／Release文書の状態分離、正本保全、Markdown検証を定義する。
+- `legacy/v1/AGENTS.md`: V1をBehavioral Referenceと保全対象に限定し、新Feature、Archive変更、V2 Image混入を禁止する。
+- Application Code、既存Runtime Path、Root `AGENTS.md`、Migration、Docker、CI、Ruleset、V1 Refは変更しない。
+
+### 検証／GitHub
+
+- `git diff --check`、Markdown見出し、Root／Nested矛盾、Scope、Secret／PII、共有Runtime／Production操作の禁止を確認する。
+- Backend Test、Frontend Test、Build、Browser／E2EはDocumentation-only Taskのため未実行とする。
+- Commit Message: `docs(governance): define nested agent rules (GOV-002)`
+- Commit SHA: Worklogを含むCommit自身への自己参照を避け、Draft PRとTask完了報告へFull SHAを記録する。
+- Push: GitHub Appの`push-task-branch`によるFast-forward結果をDraft PRとTask完了報告へ記録する。
+- Draft PR: GitHub Appで作成し、URL、Author、Head、BaseをTask完了報告へ記録する。
+- CodexはReview、Merge、Stable Release、Production承認を行わない。
+
+### Risk／次Task
+
+- Migration Planの最終Frontend Pathは`legacy/v1-frontend`だが、GovernanceのNested指定は`legacy/v1/AGENTS.md`である。本Taskでは優先度の高いGovernance指定に従い、Frontendを移動しない。
+- 確定V2文書本体はRepository外のままで、本TaskではCopyしない。
+- 次Task候補: 人間によるGOV-002 Draft PR Review。GOV-003は本Taskでは開始しない。
