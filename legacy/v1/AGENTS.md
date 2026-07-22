@@ -1,0 +1,37 @@
+# V1 Legacy Preservation Rules
+
+## Scope
+
+These instructions apply to preserved V1 material under `legacy/v1/`. V1 is a
+behavioral reference and evidence source, not the V2 architecture authority.
+
+## Preservation
+
+- Do not add new product features to V1.
+- Do not move, delete, overwrite, or retarget the V1 Archive Branch or stable
+  annotated tag.
+- Do not alter or invalidate V1 Evidence Bundle files, checksums, schema evidence,
+  migration evidence, or inventories.
+- Do not include V1 code in a V2 Production image.
+- Do not treat V1 implementation structure as the V2 source of truth.
+- Do not combine a mechanical file move with behavior changes in one PR.
+
+## Exceptions
+
+- An emergency V1 correction requires an explicit human-approved hotfix Task,
+  dedicated Issue, branch, worktree, tests, and PR.
+- Preserve before/after evidence and keep the V2 implementation separate.
+- Never use a V1 hotfix to bypass V2 Release Gates or security policy.
+
+## Path Note
+
+The finalized Migration Plan currently names `legacy/v1-frontend` as the future
+Frontend destination, while Governance specifies this `legacy/v1/AGENTS.md` path.
+This file follows the Governance location only; it does not move Frontend code or
+resolve that path decision.
+
+## Verification
+
+- Confirm archive refs and evidence checksums remain unchanged for any approved
+  preservation Task.
+- Report all unexecuted runtime and Browser/E2E checks as not run.
