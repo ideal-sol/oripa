@@ -1,0 +1,284 @@
+# Project command policy. Rules apply when a command requests execution outside
+# the sandbox. Repository governance remains authoritative inside the sandbox.
+
+# Destructive Git operations.
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Preserve local work. Inspect status and ask for a scoped recovery task.",
+    match = ["git reset --hard", "git reset --hard HEAD~1"],
+    not_match = ["git reset --soft HEAD~1"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-fd", "-fdx"]],
+    decision = "forbidden",
+    justification = "Do not delete untracked evidence or work files.",
+    match = ["git clean -fd", "git clean -fdx"],
+    not_match = ["git clean -n"],
+)
+
+prefix_rule(
+    pattern = ["git", "checkout", "--", "."],
+    decision = "forbidden",
+    justification = "Do not discard the repository working tree.",
+    match = ["git checkout -- ."],
+    not_match = ["git checkout -- AGENTS.md"],
+)
+
+prefix_rule(
+    pattern = ["git", "restore", "."],
+    decision = "forbidden",
+    justification = "Do not discard the repository working tree.",
+    match = ["git restore ."],
+    not_match = ["git restore --staged AGENTS.md"],
+)
+
+# Protected refs and history.
+prefix_rule(
+    pattern = ["git", "push", ["--force", "--force-with-lease", "-f"]],
+    decision = "forbidden",
+    justification = "Force pushes are prohibited.",
+    match = ["git push --force origin task", "git push -f origin task"],
+    not_match = ["git push origin task"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", "origin", ["--force", "--force-with-lease", "-f"]],
+    decision = "forbidden",
+    justification = "Force pushes are prohibited.",
+    match = ["git push origin --force task", "git push origin -f task"],
+    not_match = ["git push origin task"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", "origin", ["main", "HEAD:main", "refs/heads/main", "main:main"]],
+    decision = "forbidden",
+    justification = "Use a task branch and pull request; never push directly to main.",
+    match = [
+        "git push origin main",
+        "git push origin HEAD:main",
+        "git push origin refs/heads/main",
+    ],
+    not_match = ["git push origin chore/GOV-007-codex-permissions"],
+)
+
+prefix_rule(
+    pattern = ["git", "tag", "-d"],
+    decision = "forbidden",
+    justification = "Stable and archive tags must not be deleted or moved.",
+    match = ["git tag -d v1-before-productization-2026-07-22"],
+    not_match = ["git tag --list"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", "--delete"],
+    decision = "forbidden",
+    justification = "Ref deletion is handled only by a task-policy GitHub App wrapper.",
+    match = ["git push --delete origin task"],
+    not_match = ["git push origin task"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", "origin", "--delete"],
+    decision = "forbidden",
+    justification = "Ref deletion is handled only by a task-policy GitHub App wrapper.",
+    match = ["git push origin --delete task"],
+    not_match = ["git push origin task"],
+)
+
+# Destructive Docker and database operations.
+prefix_rule(
+    pattern = ["docker", "system", "prune"],
+    decision = "forbidden",
+    justification = "Do not prune shared Docker state.",
+    match = ["docker system prune", "docker system prune -a --volumes"],
+    not_match = ["docker system df"],
+)
+
+prefix_rule(
+    pattern = ["docker", "volume", ["rm", "remove", "prune"]],
+    decision = "forbidden",
+    justification = "Do not delete Docker volumes.",
+    match = ["docker volume rm database", "docker volume prune"],
+    not_match = ["docker volume ls"],
+)
+
+prefix_rule(
+    pattern = ["php", "artisan", "migrate", "--force"],
+    decision = "forbidden",
+    justification = "Production-style forced migrations require an explicit human-approved operation.",
+    match = ["php artisan migrate --force"],
+    not_match = ["php artisan migrate:status"],
+)
+
+prefix_rule(
+    pattern = ["php", "artisan", ["db:wipe", "migrate:fresh"]],
+    decision = "forbidden",
+    justification = "Database reset commands are prohibited.",
+    match = ["php artisan db:wipe", "php artisan migrate:fresh"],
+    not_match = ["php artisan migrate:status"],
+)
+
+prefix_rule(
+    pattern = ["psql"],
+    decision = "forbidden",
+    justification = "Direct database sessions are not permitted from Codex.",
+    match = ["psql", "psql production"],
+    not_match = ["pg_dump --schema-only"],
+)
+
+# Credential internals are callable only through approved wrappers.
+prefix_rule(
+    pattern = ["/usr/local/libexec/ideal-sol-github-app-token"],
+    decision = "forbidden",
+    justification = "Use an approved GitHub App wrapper; never invoke the token broker directly.",
+    match = ["/usr/local/libexec/ideal-sol-github-app-token"],
+)
+
+prefix_rule(
+    pattern = ["/usr/local/libexec/ideal-sol-github-app-autonomy"],
+    decision = "forbidden",
+    justification = "Use the policy-enforced API wrapper; never invoke autonomy internals directly.",
+    match = ["/usr/local/libexec/ideal-sol-github-app-autonomy GOV-007 get-pr-checks 1"],
+)
+
+# Shell wrappers are blocked outside the sandbox. Run the intended executable
+# directly so every argument is visible to command policy.
+prefix_rule(
+    pattern = [["bash", "/bin/bash", "sh", "/bin/sh", "zsh", "/bin/zsh"], ["-c", "-lc"]],
+    decision = "forbidden",
+    justification = "Run explicit commands so command policy can evaluate every operation.",
+    match = [
+        "bash -lc git status",
+        "bash -lc git status && git reset --hard",
+        "sh -c echo value",
+    ],
+    not_match = ["git status"],
+)
+
+# Mutating or networked operations require automatic review.
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "prompt",
+    justification = "Review the exact staged scope before committing.",
+    match = ["git commit -m message"],
+    not_match = ["git status"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Use the task-policy GitHub App wrapper whenever possible.",
+    match = ["git push origin task"],
+    not_match = ["git status"],
+)
+
+prefix_rule(
+    pattern = ["git", "rebase"],
+    decision = "prompt",
+    justification = "Rebase changes history and requires review.",
+    match = ["git rebase main"],
+    not_match = ["git log --oneline"],
+)
+
+prefix_rule(
+    pattern = ["docker", "compose", ["build", "up"]],
+    decision = "prompt",
+    justification = "Container build and startup require task-specific review.",
+    match = ["docker compose build", "docker compose up -d"],
+    not_match = ["docker compose ps"],
+)
+
+prefix_rule(
+    pattern = ["composer", ["install", "update", "require"]],
+    decision = "prompt",
+    justification = "Dependency operations require explicit scope review.",
+    match = ["composer install", "composer require vendor/package"],
+    not_match = ["composer validate"],
+)
+
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn"], ["install", "add"]],
+    decision = "prompt",
+    justification = "Dependency operations require explicit scope review.",
+    match = ["pnpm install", "pnpm add package", "npm install package"],
+    not_match = ["pnpm typecheck"],
+)
+
+prefix_rule(
+    pattern = ["php", "artisan", "make:migration"],
+    decision = "prompt",
+    justification = "Migration creation is a schema-affecting task.",
+    match = ["php artisan make:migration create_examples_table"],
+    not_match = ["php artisan migrate:status"],
+)
+
+prefix_rule(
+    pattern = [["curl", "wget", "ssh", "scp"]],
+    decision = "prompt",
+    justification = "Outbound network operations require review and remain sandbox-restricted.",
+    match = ["curl https://example.com", "ssh example.com"],
+    not_match = ["git status"],
+)
+
+# Read-only inspection and verification.
+prefix_rule(
+    pattern = ["git", ["status", "diff", "log", "show", "rev-parse"]],
+    decision = "allow",
+    justification = "Read-only Git inspection is allowed.",
+    match = ["git status", "git diff --check", "git rev-parse HEAD"],
+    not_match = ["git commit -m message"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", "--show-current"],
+    decision = "allow",
+    justification = "Reading the current branch is allowed.",
+    match = ["git branch --show-current"],
+    not_match = ["git branch new-branch"],
+)
+
+prefix_rule(
+    pattern = [["rg", "ls", "cat"]],
+    decision = "allow",
+    justification = "Read-only workspace inspection is allowed; secret-handling rules still apply.",
+    match = ["rg pattern", "ls -la", "cat AGENTS.md"],
+)
+
+prefix_rule(
+    pattern = ["php", "artisan", "test"],
+    decision = "allow",
+    justification = "Backend tests are allowed.",
+    match = ["php artisan test", "php artisan test --filter ExampleTest"],
+)
+
+prefix_rule(
+    pattern = ["pnpm", ["test", "lint", "typecheck"]],
+    decision = "allow",
+    justification = "Frontend verification commands are allowed.",
+    match = ["pnpm test", "pnpm lint", "pnpm typecheck"],
+)
+
+# These wrappers enforce repository, task policy, branch, ref, and operation
+# allowlists and keep credentials out of process arguments and Git config.
+prefix_rule(
+    pattern = ["/usr/local/bin/oripa-github-app-api"],
+    decision = "allow",
+    justification = "Read-only GitHub App API wrapper is policy-approved.",
+    match = ["/usr/local/bin/oripa-github-app-api repository"],
+)
+
+prefix_rule(
+    pattern = ["/usr/local/bin/oripa-github-app-api-write"],
+    decision = "allow",
+    justification = "Write operations are constrained by a root-owned task policy.",
+    match = ["/usr/local/bin/oripa-github-app-api-write GOV-007 get-pr-checks 1"],
+)
+
+prefix_rule(
+    pattern = ["/usr/local/bin/oripa-github-app-git"],
+    decision = "allow",
+    justification = "Git operations are constrained by a root-owned task policy.",
+    match = ["/usr/local/bin/oripa-github-app-git ls-remote"],
+)
