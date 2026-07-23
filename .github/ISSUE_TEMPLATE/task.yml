@@ -1,0 +1,128 @@
+name: V2 Platform task
+description: Create a scoped V2 Platform implementation or governance task.
+title: "[TASK-ID] "
+labels: []
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use one Issue, one Branch, one Worktree and one Pull Request per task.
+        Do not include secrets, credentials, production data or personal information.
+
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      description: Enter the approved task ID.
+      placeholder: GOV-004
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - R1
+        - R2
+        - R3
+        - R4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: codex_role
+    attributes:
+      label: Responsible role
+      options:
+        - Platform Codex
+        - Site Codex
+        - Human-only operation
+    validations:
+      required: true
+
+  - type: input
+    id: base_sha
+    attributes:
+      label: Base SHA
+      description: Use a full Git commit SHA.
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Purpose
+      description: State the exact result this task must produce.
+    validations:
+      required: true
+
+  - type: textarea
+    id: specification_sources
+    attributes:
+      label: Specification sources
+      description: List finalized documents, ADRs and explicit human decisions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Allowed paths
+      description: List paths that may be changed.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden_paths
+    attributes:
+      label: Forbidden paths
+      description: List paths and systems that must not be changed.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: List objective completion conditions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: required_verification
+    attributes:
+      label: Required verification
+      description: List tests, checks and reviews that must run.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: State adjacent work that must not be included.
+    validations:
+      required: true
+
+  - type: textarea
+    id: human_decisions
+    attributes:
+      label: Human decisions and exceptions
+      description: Record explicit decisions that override earlier defaults.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Safety acknowledgements
+      options:
+        - label: I will not include secrets, credentials, production data or personal information.
+          required: true
+        - label: I will stop if unexpected local or remote changes are found.
+          required: true
+        - label: Codex will not approve, merge, release or authorize production deployment.
+          required: true

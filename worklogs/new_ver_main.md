@@ -1015,3 +1015,101 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Human OwnerのRepository `admin`権限は確認済みだが、Organization上のOwner／Maintainer Role自体はAPI権限制約により未確認である。
 - CODEOWNERS追加だけではRequired Code Owner Reviewは有効にならず、後続Ruleset設定が必要である。
 - 次Task候補: 人間によるGOV-003 Draft PR Review。GOV-004は本Taskでは開始しない。
+
+## GOV-003A／B GOV-003同期・Cleanup完了
+
+### Local main同期
+
+- `GOV-003A`でPR #6のHuman Squash MergeとIssue #5のCloseを確認し、Local `main`をSquash Commit `4ba5838c0593c0f595e81b6da86aa9042ba0297c`へ`git merge --ff-only`で同期した。
+- Squash Commitの変更は`.github/CODEOWNERS`と`worklogs/new_ver_main.md`の2 Fileだけで、Application、Migration、Docker、CI、Ruleset、Root／Nested `AGENTS.md`、V1保全Refへの変更がないことを確認した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-003A-local-sync-20260723T002259Z/`
+
+### Worktree／Branch Cleanup
+
+- `GOV-003B`でHumanが削除したRemote Task Branchを`git fetch origin --prune`とRemote Ref照合で確認した。
+- Task BranchとSquash Merge後の`main`はTreeと対象2 Fileの内容が一致し、未反映内容、未追跡File、未Commit変更、未Push Commitがないことを確認した。
+- Git標準CommandでGOV-003 Worktreeを削除し、同等性Evidence保存後にLocal Task Branchを削除した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-003B-cleanup-20260723T004006Z/`
+- Local／Remote Task BranchとTask Worktreeは削除済みで、GOV-003は完全終了した。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+## GOV-004 Issue／PR Template作成
+
+### 基本情報
+
+- Task ID: `GOV-004`
+- 実施日時: 2026-07-23T00:54:16Z／2026-07-23T09:54:16+09:00
+- Issue: `#7`
+- Risk: `R3`
+- Branch: `docs/GOV-004-issue-pr-templates`
+- Worktree: `/var/www/oripa-worktrees/GOV-004-issue-pr-templates`
+- Base SHA: `4ba5838c0593c0f595e81b6da86aa9042ba0297c`
+
+### 変更内容
+
+- `.github/ISSUE_TEMPLATE/task.yml`: V2 Platform Task用のIssue Formを追加する。
+- 必須FieldとしてTask ID、Risk、Responsible role、Base SHA、Purpose、Specification sources、Allowed／Forbidden paths、Acceptance criteria、Required verification、Out of scopeを定義する。
+- Human decisions and exceptions欄と、Secret／PII禁止、想定外変更時の停止、CodexによるApprove／Merge／Release／Production承認禁止のAcknowledgementを定義する。
+- `.github/ISSUE_TEMPLATE/config.yml`: Blank Issueを無効化し、未確定のSupport／Security URLは追加しない。
+- `.github/pull_request_template.md`: Task、仕様根拠、Scope、Technical impact、Migration state、実行／未実行Verification、Security／Privacy、Deploy／Rollback、Known risk、Human review、Checklistを標準化する。
+- Application Code、Backend、Frontend、Migration、Docker、Infrastructure、GitHub Actions、CODEOWNERS、Ruleset、Branch Protection、Root／Nested `AGENTS.md`、V1 Archive Refは変更しない。
+
+### 検証／GitHub
+
+- `git diff --check`、YAML Parse／Indent／一意ID／必須Validation、Markdown見出し、Root／Nested `AGENTS.md`との整合、Scope、Secret／PII、Binary／Submoduleを確認する。
+- GitHub Issue Form固有SchemaはRepositoryへMergeする前にGitHub側の完全Validationを取得できないため、既存ToolによるYAML Parseと手動構造Reviewの範囲を明記する。
+- Backend Test、Frontend Test、Build、Browser／E2EはGovernance-only TaskでApplication Behavior変更がないため未実行とする。
+- Commit Message: `chore(governance): add issue and PR templates (GOV-004)`
+- Commit SHA: Worklogを含むCommit自身への自己参照を避け、Draft PRとTask完了報告へFull SHAを記録する。
+- Push: GitHub Appの`push-task-branch`によるFast-forward結果をDraft PRとTask完了報告へ記録する。
+- Draft PR: GitHub Appで作成し、URL、Author、Head、BaseをTask完了報告へ記録する。
+- CodexはApprove、Review、Merge、Stable Release、Production承認を行わない。
+
+### Risk／次Task
+
+- Blank Issueは無効化するが、Security Reporting Policyの正式URLまたは`SECURITY.md`が未確定のため、`contact_links`は空とする。
+- Ruleset、Required Review、CIによるTemplate／Scope強制は本Taskでは設定しない。
+- 次Task候補: 人間によるGOV-004 Draft PR Review。GOV-005は本Taskでは開始しない。
+
+## GOV-004 Fast Track継続・GitHub App Wrapper汎用化
+
+### 継続決定
+
+- 実施日時: 2026-07-23T01:24:01Z／2026-07-23T10:24:01+09:00
+- 人間の明示決定により、既存Issue `#7`、Branch `docs/GOV-004-issue-pr-templates`、Worktree、PR `#8`をGOV-004 Fast Trackとして継続利用した。
+- 新しいIssue、Branch、Worktree、PRは作成していない。
+- 継続開始時のLocal／Remote Task SHAは`aa550142d6db0ca7cf3516cf6f4c170f8ad24348`で一致し、Task Worktreeはclean、Local／Remote `main`はBase SHAのままであることを確認した。
+
+### Repository外Tool
+
+- `/usr/local/bin/oripa-github-app-api-write`と`/usr/local/bin/oripa-github-app-git`を、Taskごとの固定値ではなくTask Policyを読み込む汎用方式へ変更した。
+- Task Policy Directory: `/etc/ideal-sol/github-app/task-policies/`、`root:root`、mode `700`。
+- GOV-004 Policy: `/etc/ideal-sol/github-app/task-policies/GOV-004.json`、`root:root`、mode `600`。
+- PolicyはTask ID、Issue／PR Title、Branch、Base Branch／SHA、Risk、Allowed Paths、Allowed Operationsを定義する。
+- 今後のTask切替はPolicy Fileの追加または承認済み変更で行い、Wrapper本体をTaskごとに書き換えない。
+- PR `#8`本文の補足に限り、PolicyのBranch／Base／Titleへ一致する単一Open PRだけを更新する`update-pr-body`をGOV-004 Policyへ追加した。任意PR番号、Repository、URLは受け付けない。
+- WrapperとPolicyはRepository外の運用Toolであり、Git CommitおよびPRの変更Fileには含めない。
+
+### 安全性／検証
+
+- Wrapper Syntax、Policy JSON Parse、Owner／Permission、Policy読込、GitHub App Read-only認証: PASS。
+- Policy Symlink、Policy Directory外Task ID、絶対Path／不正Allowed Path: 拒否PASS。
+- `main`、`release/**`、`archive/**`、Tag、Force、Delete、任意Repository／URL／Refspec／Git Option、Short SHA、Non-fast-forward: 拒否PASS。
+- Expected Remote SHA、Fast-forward、Policy Allowed Paths、Submodule、高確度Secret候補をPush前に検証する。
+- Token、JWT、Private Key、Config値、Authorization Headerは表示、Worklog記録、Repository保存、Git Config保存していない。
+- AskPass一時Directoryと検証用一時Fileは削除し、TokenをProcess引数またはRemote URLへ含めていない。
+
+### Repository／GitHub
+
+- Repository内の追加変更は`worklogs/new_ver_main.md`だけで、PR全体の変更Fileは既存3 TemplateとWorklogの4件を維持する。
+- 追加Commit Message: `chore(governance): generalize GitHub App task policy (GOV-004)`。
+- 追加Commit SHAはWorklog自身への循環参照を避け、PR `#8`本文とTask完了報告へFull SHAを記録する。
+- 汎用Wrapperの`push-task-branch`によるFast-forward Push結果とPR `#8`のHead更新結果は、PR本文とTask完了報告へ記録する。
+- PR `#8`本文へWrapper汎用化、Task Policy方式、Repository外Tool、Worklog Evidenceを補足する。CodexはApproveまたはMergeしない。
+- Application、API、Database、Migration、Authentication、Point、Payment、Draw、Docker、Infrastructure、CI、Ruleset、Branch Protectionは変更していない。
+- Backend Test、Frontend Test、Build、Browser／E2EはGovernance運用ToolとWorklogだけの変更であるため未実行とする。
+
+### 次Task
+
+- 人間がPR `#8`を再Reviewし、承認後にSquash Mergeする。
+- GOV-005は本Taskでは開始しない。
