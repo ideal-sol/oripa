@@ -43,11 +43,12 @@ Main Codex owns backend, infrastructure, and domain logic.
 
 ## Frontend Sub Codex Scope
 
-Frontend Sub Codex may edit only:
+Historical Frontend Sub Codex scope is preserved at:
 
-- `frontend/*`
+- `legacy/v1-frontend/*`
 
-Frontend Sub Codex should focus on:
+This scope is now reference-only. New V1 features and routine fixes are
+forbidden; an emergency correction requires a separate approved Hotfix Task.
 
 - Next.js UI
 - page layout
@@ -118,10 +119,10 @@ If one of these commands appears necessary, Frontend Sub Codex must stop, write 
 - Reason: Next.js dev server compile/cache load after route splitting caused 504 timeouts under the current server specs.
 - Route conflict was fixed, but 504 continued.
 - Current policy is to prioritize the stable admin structure.
-- Current active admin structure: stable pre-refactor admin dashboard using `frontend/src/app/admin-dashboard.tsx` and `frontend/src/app/admin/[[...segments]]/page.tsx`.
+- Preserved admin reference: stable pre-refactor admin dashboard using `legacy/v1-frontend/src/app/admin-dashboard.tsx` and `legacy/v1-frontend/src/app/admin/[[...segments]]/page.tsx`.
 - Do not restart ADMIN-REF-001 or edit route-split admin files until the project owner explicitly reopens the refactor.
 - Full admin refactoring should be retried after all feature additions are complete and the server specs are upgraded.
-- New admin features should be added to the current stable admin structure for now.
+- Do not add new admin features to the preserved V1 Frontend.
 
 ## Next Backend Task
 

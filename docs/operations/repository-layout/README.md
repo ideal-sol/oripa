@@ -12,7 +12,7 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 - `deployments/`、Root `package.json`、`pnpm-workspace.yaml`、Manifest Schemaは
   存在しなかった。
 - Nodeは`22.22.3`、pnpmは`10.12.1`だった。
-- LockfileはV1 `frontend/pnpm-lock.yaml`と`backend/composer.lock`だけだった。
+- Lockfileは当時V1 `frontend/pnpm-lock.yaml`と`backend/composer.lock`だけだった。
 
 ## Responsibility Map
 
@@ -32,16 +32,19 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 - Platform Versionの開始値は`2.0.0-alpha.1`とする。
 - Node `22.22.3`、pnpm `10.12.1`はInventoryとして確認したが、Root
   `package.json`と`pnpm-workspace.yaml`は本Taskでは作成しない。
-- Root Workspace設定を置くとV1 `frontend/pnpm-lock.yaml`を使用する既存CIの
+- Root Workspace設定を置くとV1 Frontend Lockfileを使用する既存CIの
   install／audit解決が変わることをGitHub Checkで確認したため、V1 Lockfileを
   変更せず設定を取り下げた。
-- 実Package、Dependency、Root Lockfile、V1分離後のCI Commandを同一の後続Taskで
-  確定する。それまではV1 `frontend`をV2 Workspaceに含めない。
+- 実Package、Dependency、Root Lockfile、V1分離後のCI Commandは後続Taskで
+  確定する。V1 `legacy/v1-frontend`はV2 Workspaceに含めない。
 - 本TaskではDependencyを追加せず、`pnpm install`を実行しない。
 - First-party Packageの公開時VersionはCompatibility Policyに従い完全固定する。
 
 ## Migration Boundary
 
-`MIG-021`で`backend`を`apps/api`へ内容不変でMechanical Moveした。`frontend`は
-Rootに維持し、後続TaskでもMechanical MoveとBehavior変更を分離する。同一内容を
-旧PathとV2 Pathへ重複配置しない。
+`MIG-021`で`backend`を`apps/api`へ、`MIG-022`で`frontend`を
+`legacy/v1-frontend`へ内容不変でMechanical Moveした。後続TaskでもMechanical
+MoveとBehavior変更を分離し、同一内容を旧PathとV2 Pathへ重複配置しない。
+
+`legacy/v1-frontend`はV1 Behavioral Referenceであり、V2 Production Image、
+V2 Runtime Dependency、V2 Admin App、Site Templateへ組み込まない。

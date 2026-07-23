@@ -105,8 +105,8 @@ def validate_manifests(repository: Path, paths: list[str]) -> None:
     required = {
         "apps/api/composer.json",
         "apps/api/composer.lock",
-        "frontend/package.json",
-        "frontend/pnpm-lock.yaml",
+        "legacy/v1-frontend/package.json",
+        "legacy/v1-frontend/pnpm-lock.yaml",
     }
     missing = sorted(required - set(paths))
     if missing:

@@ -34,6 +34,8 @@ REQUIRED_REPOSITORY_FILES = {
     "infrastructure/AGENTS.md",
     "docs/AGENTS.md",
     "legacy/v1/AGENTS.md",
+    "legacy/v1-frontend/AGENTS.md",
+    "legacy/v1-frontend/README.md",
     "docs/architecture/README.md",
 }
 WORKSPACE_REQUIRED_FILES = {
@@ -71,6 +73,16 @@ API_APPLICATION_REQUIRED_FILES = {
     "apps/api/phpunit.xml",
     "apps/api/routes/api.php",
     "apps/api/tests/TestCase.php",
+}
+LEGACY_FRONTEND_REQUIRED_FILES = {
+    "legacy/v1-frontend/.env.example",
+    "legacy/v1-frontend/AGENTS.md",
+    "legacy/v1-frontend/README.md",
+    "legacy/v1-frontend/package.json",
+    "legacy/v1-frontend/pnpm-lock.yaml",
+    "legacy/v1-frontend/next.config.ts",
+    "legacy/v1-frontend/tsconfig.json",
+    "legacy/v1-frontend/src/app/page.tsx",
 }
 BOUNDARY_READMES = {
     "apps/README.md",
@@ -395,7 +407,10 @@ def validate_workspace_configuration(repository: Path) -> None:
         raise PolicyFailure(
             "pnpm-workspace.yaml: workspace members must be apps/admin and packages/*"
         )
-    if re.search(r"(?:^|/)(?:backend|frontend)(?:/|$)", "\n".join(members)):
+    if re.search(
+        r"(?:^|/)(?:backend|frontend|legacy/v1-frontend)(?:/|$)",
+        "\n".join(members),
+    ):
         raise PolicyFailure("pnpm-workspace.yaml: V1 paths must not enter V2 workspace")
 
 
@@ -533,7 +548,7 @@ def validate_no_v1_copy(repository: Path, paths: Iterable[str]) -> None:
     source_paths = [
         path
         for path in path_set
-        if path.startswith(("backend/", "frontend/"))
+        if path.startswith(("backend/", "frontend/", "legacy/v1-frontend/"))
         and not path.endswith((".md", ".lock"))
         and (repository / path).is_file()
     ]
@@ -569,6 +584,36 @@ def validate_api_application_layout(paths: Iterable[str]) -> None:
     legacy_paths = sorted(path for path in path_set if path.startswith("backend/"))
     if legacy_paths:
         raise PolicyFailure("legacy backend path remains tracked")
+
+
+def validate_legacy_frontend_layout(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(LEGACY_FRONTEND_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required legacy frontend files missing: " + ", ".join(missing)
+        )
+    old_paths = sorted(path for path in path_set if path.startswith("frontend/"))
+    if old_paths:
+        raise PolicyFailure("legacy frontend source path remains tracked")
+    nested = sorted(
+        path
+        for path in path_set
+        if path.startswith("legacy/v1-frontend/frontend/")
+    )
+    if nested:
+        raise PolicyFailure("legacy frontend was moved into a nested frontend directory")
+
+    for relative in paths:
+        if not relative.endswith(("Dockerfile", ".dockerfile")):
+            continue
+        if relative == "infra/docker/frontend/Dockerfile":
+            continue
+        text = (repository / relative).read_text(encoding="utf-8", errors="replace")
+        if "legacy/v1-frontend" in text:
+            raise PolicyFailure(
+                f"{relative}: V2 Production image must not copy legacy frontend"
+            )
 
 
 def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
@@ -653,6 +698,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_basic_structures(repository, paths)
     validate_workspace_skeleton(repository, paths)
     validate_api_application_layout(paths)
+    validate_legacy_frontend_layout(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     for relative in paths:

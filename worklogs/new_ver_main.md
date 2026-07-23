@@ -1914,3 +1914,88 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PRは`#42` (`https://github.com/ideal-sol/oripa/pull/42`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
 - PR本文へ473 Changed Fileを省略せず記載し、453 Pure Renameと20件のPath Reference／Documentation／CI／Worklog変更を分離した。
 - 本追記を含むFinal Headで5 Required Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+
+### MIG-021 Closeout
+
+- PR `#42`のFinal Headは`bffa6c7c0fb922c431022f76a86fdc7149aa10a8`で、Required 5 Check、CodeQL、Dependency Reviewを含む13 Checkが成功した。
+- GitHub AppがSquash Mergeし、Squash Commitは`a54d16f6727437e9261b1bb64f35ddee32b55b51`、Issue `#41`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- Backend移動前後のApplication Tree、Migration、Composer Lock、Route、Test、Config、Public Asset Checksumは一致した。
+- Full Backend Testは移動前後とも334件中332 PASS、既存Baseline 2 Failed、Warning 0、Skipped 0で、Failure Fingerprintも一致した。
+- V1 FrontendのLegacy隔離、Root Workspace、V2 Package／Contract実装が残っていたため、Gate G2は`NOT COMPLETE`だった。
+
+## MIG-022 frontend → legacy/v1-frontend Mechanical Move
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `MIG-022`
+- Risk: `R3`
+- Issue: `#43` (`https://github.com/ideal-sol/oripa/issues/43`)
+- Branch: `migration/MIG-022-frontend-to-legacy`
+- Worktree: `/var/www/oripa-worktrees/MIG-022-frontend-to-legacy`
+- Base SHA: `a54d16f6727437e9261b1bb64f35ddee32b55b51`
+
+### Active Runtime／Inventory
+
+- `frontend`のTracked Fileは62件、Pageは21件、Route Handlerは4件、Public Assetは10件、Frontend Test Fileは0件だった。
+- modeは62件すべて`100644`で、Symlink、Submodule、10 MiB以上のFile、Case-sensitive衝突、移動先衝突はなかった。
+- `package.json`は`oripa-frontend` `0.1.0`、`packageManager`は`pnpm@10.12.1`で、Nodeは22系を使用する既存CIと一致した。
+- systemd、Process CWD、Running Container、Docker Bind Mount、Nginx／Apache、Supervisor、PM2、CronをRead-only確認し、`/var/www/oripa/frontend`を参照するActive Production Runtimeはなかった。
+- `frontend`をBind MountするDocker Containerは停止中の開発用`oripa-frontend-1`だけだった。Production Serviceの停止、再起動、設定変更は行っていない。
+- 元Main WorktreeにはGit管理外の`.env.local`、`node_modules`、`.pnpm-store`、`.next`、`tsconfig.tsbuildinfo`が存在した。内容を開かず、移動、削除、Commitを行わず、旧PathのignoreをLocal残置保護として維持した。
+
+### 移動前Checksum／Baseline
+
+- Frontend Tree SHA-256: `309ee6974723df99cbf0a14ca97683d9f97d054dcbaa55c9b98ab45b56a678c1`
+- Source Tree SHA-256: `160031da0688ceb1a873bf1ba3d1460329ffdbaa6c8f0b2609b7c846553136da`
+- Page／Route Tree SHA-256: `125c54aa5dd3b8cba28f5fcb79754fad250341a4d8c0f5230bdf379f4f8c4607`
+- Route Inventory SHA-256: `53809a3f9baa6dca8b787548e78a21d5ae9e647bbae34a25e24fc669370075dc`
+- Public Asset Tree SHA-256: `9d54fb60935068e94d3cb76e187ca55f1e67e97b23510d0af3568dfd9aaa7ece`
+- Package Manifest SHA-256: `2736b5097f5cdcf3c12dcb11fab531787e7a12e0f16447df6a73e0dc7a8d3ad0`
+- pnpm Lockfile SHA-256: `55171c1b7dd2f1988b77bdcb8906ce4401cb860a6b6c8c0bfc36dc76f6cb8bfd`
+- TypeScript設定SHA-256: `32f0a59b5e4ca1d51ffe5346573b4808e14d261d1c4e49382f8edd139f7bb6b2`
+- Repository外の隔離DirectoryでNode 22、pnpm 10.12.1、`pnpm install --frozen-lockfile`、Typecheck、ESLint、Production Buildを実行した。
+- Install、Typecheck、Buildは成功した。ESLintはRaw Exit 1、8 Error／1 Warningだったが、期限`2026-08-31`の既存完全一致BaselineでPASSした。
+- `package.json`にFrontend Test Scriptは存在しないため、Frontend Testは未実行であり、PASSとは記録しない。
+- `policy-gate`、Policy Unit Test 16件、`quality-gate`、Quality Unit Test 5件、`security-gate`、Docker Compose ConfigはPASSした。
+- Dependency AuditはComposer 10件、pnpm 14件の期限付き既存完全Baselineと一致し、Baselineを拡張していない。
+- MIG-021 Final Headの13 Check成功を、移動前のGitHub `integration-gate`を含む正本Baselineとして確認した。
+
+### Mechanical Move／Governance
+
+- `git mv`でTracked File 62件を`frontend/`から`legacy/v1-frontend/`へ欠落なく移動し、`legacy/v1-frontend/frontend/**`の誤った二重入れ子はない。
+- 移動対象のSource、Route、Component、CSS、Asset、Package Manifest、Lockfile、Environment Variable名、API Call、Test Assertionは変更していない。
+- `legacy/v1-frontend/AGENTS.md`を追加し、V1参照専用、新機能／通常修正禁止、V2への直接Copy禁止、V2 Production Image禁止を明示した。
+- `legacy/v1-frontend/README.md`へ非Production参照用途、Node／pnpm、Install、Typecheck、Lint、Build、Start、Environment Template、Test Script不在を記録した。
+- Docker ComposeのV1 Frontend Build ContextとBind Sourceを`legacy/v1-frontend`へ限定し、`.dockerignore`でGit管理外生成物を除外した。Service名、Container内Path、Port、API URL、Environment Variable名は変更していない。
+
+### Path Reference／CI Update
+
+- GitHub ActionsのInstall、Typecheck、Lint、Audit、Buildを`legacy/v1-frontend`から実行するよう更新した。
+- Dependabot npm Directory、CODEOWNERS、Docker開発構成、Makefile、README、TASK_BOARD、Repository Layout、CI運用文書を新Pathへ更新した。
+- `.gitignore`とRoot `.dockerignore`は旧PathのGit管理外残置物を保護し、新Pathの生成物も追跡／Build Contextから除外する。
+- Lint BaselineはPath PrefixとPath依存Fingerprintだけを更新した。Finding数、Rule、Severity、Line／Column、Message Hash、期限、Owner、修正Taskは変更していない。
+- `policy-gate`へTracked `frontend/**`禁止、Legacy Frontend必須File、二重入れ子禁止、V2 DockerfileによるLegacy Copy禁止を追加した。
+- Positive Testに加え、旧Path残存、二重入れ子、V2 Dockerfile CopyのNegative Testを追加し、Policy Unit Testは20件すべてPASSした。
+- 過去Worklog、確定Architecture、V1仕様、Review／Audit文書の旧Pathは歴史的記録として書き換えていない。
+- Root `package.json`、`pnpm-workspace.yaml`、Root Lockfileは追加していない。Root Workspace導入可否はMIG-022完了後の別Taskで判断する。
+
+### 移動後検証
+
+- 移動対象62件の内部相対Path、mode、内容SHA-256を比較し、Frontend Tree、Source、Page／Route、Public Asset、Package Manifest、pnpm Lockfile、TypeScript設定は移動前と全件一致した。
+- 同一Node／pnpm、同一Command、同一非Production API設定でInstall、Typecheck、ESLint、Buildを再実行した。
+- Install、Typecheck、Buildは成功し、ESLintは移動前と同じ8 Error／1 WarningでExact Baseline PASSだった。
+- LintのRule、Severity、Line／Column、正規化Message Hashは移動前後で完全一致した。
+- Frontend Test Scriptは移動後も存在せず、Frontend Testは未実行である。
+- `security-gate`はComposer 10件、pnpm 14件の既存Baselineと一致し、Secret Candidateは0件だった。
+- `policy-gate`、`quality-gate`、`security-gate`、Docker Compose Config、`git diff --check`はPASSした。
+- Application Runtime、Browser／E2E、Production Deployは未実行であり、PASSとは記録しない。
+
+### GitHub／Gate G2
+
+- Commit Messageは`構造: frontendをlegacy/v1-frontendへ機械的に移動する (MIG-022)`とし、GitHub App WrapperだけでFast-forward Pushする。
+- PRは`[MIG-022] frontendをlegacy/v1-frontendへ移動する`として作成し、5 Required Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge ConflictなしをMerge条件とする。
+- Gate G2ではLaravelの`apps/api`移動、V1 Frontendの`legacy/v1-frontend`隔離、前後Checksum／Test一致、CIの新Path対応を完了対象とする。
+- Root Workspace、V2 Admin／Storefront、First-party Package、OpenAPI Contractは未実装であり、Gate G2は`NOT COMPLETE`とする。
+- 次Task候補は`MIG-023`だが、MIG-022完了後には開始しない。

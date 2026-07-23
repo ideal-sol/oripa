@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN corepack enable
 
-COPY frontend/ ./
+COPY . ./
 
 RUN pnpm install
 
