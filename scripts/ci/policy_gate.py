@@ -38,6 +38,24 @@ REQUIRED_REPOSITORY_FILES = {
     "legacy/v1-frontend/README.md",
     "docs/architecture/README.md",
 }
+STOREFRONT_CLIENT_REQUIRED_FILES = {
+    "packages/storefront-client/.gitignore",
+    "packages/storefront-client/README.md",
+    "packages/storefront-client/package.json",
+    "packages/storefront-client/eslint.config.mjs",
+    "packages/storefront-client/tsconfig.json",
+    "packages/storefront-client/tsconfig.build.json",
+    "packages/storefront-client/scripts/check-generated.mjs",
+    "packages/storefront-client/src/browser.ts",
+    "packages/storefront-client/src/constants.ts",
+    "packages/storefront-client/src/errors.ts",
+    "packages/storefront-client/src/generated/public.ts",
+    "packages/storefront-client/src/index.ts",
+    "packages/storefront-client/src/server.ts",
+    "packages/storefront-client/src/transport.ts",
+    "packages/storefront-client/src/types.ts",
+    "packages/storefront-client/test/client.test.mjs",
+}
 WORKSPACE_REQUIRED_FILES = {
     ".dockerignore",
     ".github/dependabot.yml",
@@ -61,8 +79,7 @@ WORKSPACE_REQUIRED_FILES = {
     "packages/README.md",
     "packages/platform/README.md",
     "packages/platform/package.json",
-    "packages/storefront-client/README.md",
-    "packages/storefront-client/package.json",
+    *STOREFRONT_CLIENT_REQUIRED_FILES,
     "packages/site-schema/README.md",
     "packages/site-schema/package.json",
     "packages/storefront-testkit/README.md",
@@ -127,7 +144,6 @@ ADMIN_SKELETON_FILES = {
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
-    "packages/storefront-client/package.json": "@oripa/storefront-client",
     "packages/site-schema/package.json": "@oripa/site-schema",
     "packages/storefront-testkit/package.json": "@oripa/storefront-testkit",
 }
@@ -146,6 +162,12 @@ ADMIN_DEV_DEPENDENCY_VERSIONS = {
 }
 ROOT_DEV_DEPENDENCY_VERSIONS = {
     "@redocly/cli": "2.40.0",
+}
+STOREFRONT_CLIENT_DEV_DEPENDENCY_VERSIONS = {
+    "eslint": "9.39.4",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
 }
 BOUNDARY_READMES = {
     "apps/README.md",
@@ -466,7 +488,11 @@ def validate_workspace_configuration(repository: Path) -> None:
             "package.json: only the pinned OpenAPI validation tool is allowed"
         )
     if package.get("pnpm") != {
-        "overrides": {"postcss": "8.5.10", "sharp": "0.35.0"}
+        "overrides": {
+            "js-yaml": "4.3.0",
+            "postcss": "8.5.10",
+            "sharp": "0.35.0",
+        }
     }:
         raise PolicyFailure("package.json: audited exact pnpm overrides are invalid")
 
@@ -528,9 +554,9 @@ def validate_exact_dependency_versions(
     expected_dev_dependencies: dict[str, str],
     relative: str,
 ) -> None:
-    if package.get("dependencies") != expected_dependencies:
+    if package.get("dependencies", {}) != expected_dependencies:
         raise PolicyFailure(f"{relative}: exact runtime dependencies are invalid")
-    if package.get("devDependencies") != expected_dev_dependencies:
+    if package.get("devDependencies", {}) != expected_dev_dependencies:
         raise PolicyFailure(f"{relative}: exact development dependencies are invalid")
     for section in ("dependencies", "devDependencies"):
         for name, version in package.get(section, {}).items():
@@ -633,6 +659,135 @@ def validate_package_skeletons(repository: Path) -> None:
             )
 
 
+def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(STOREFRONT_CLIENT_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "Storefront Client files missing: " + ", ".join(missing)
+        )
+
+    package = load_json(repository, "packages/storefront-client/package.json")
+    identity = {
+        "name": package.get("name"),
+        "version": package.get("version"),
+        "private": package.get("private"),
+        "type": package.get("type"),
+        "sideEffects": package.get("sideEffects"),
+        "packageManager": package.get("packageManager"),
+        "engines": package.get("engines"),
+        "files": package.get("files"),
+    }
+    if identity != {
+        "name": "@oripa/storefront-client",
+        "version": "2.0.0-alpha.1",
+        "private": True,
+        "type": "module",
+        "sideEffects": False,
+        "packageManager": "pnpm@10.12.1",
+        "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+        "files": ["dist"],
+    }:
+        raise PolicyFailure(
+            "packages/storefront-client/package.json: Alpha identity is invalid"
+        )
+    validate_exact_dependency_versions(
+        package,
+        {},
+        STOREFRONT_CLIENT_DEV_DEPENDENCY_VERSIONS,
+        "packages/storefront-client/package.json",
+    )
+    expected_scripts = {
+        "build",
+        "generate",
+        "generate:check",
+        "lint",
+        "test",
+        "typecheck",
+    }
+    if set(package.get("scripts", {})) != expected_scripts:
+        raise PolicyFailure(
+            "packages/storefront-client/package.json: scripts are invalid"
+        )
+    if set(package.get("exports", {})) != {
+        ".",
+        "./browser",
+        "./server",
+        "./types",
+    }:
+        raise PolicyFailure(
+            "packages/storefront-client/package.json: public exports are invalid"
+        )
+    if package.get("oripaCompatibility") != {
+        "family": 2,
+        "apiMajor": 2,
+        "minimumPublicApiContract": "2.0.0-alpha.1",
+        "requiredCapabilities": [],
+    }:
+        raise PolicyFailure(
+            "packages/storefront-client/package.json: compatibility metadata is invalid"
+        )
+    if (
+        repository / "packages/storefront-client/.gitignore"
+    ).read_text(encoding="utf-8").strip() != "/dist/":
+        raise PolicyFailure(
+            "packages/storefront-client/.gitignore: only dist output must be ignored"
+        )
+
+    generated = (
+        repository / "packages/storefront-client/src/generated/public.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "This file was auto-generated by openapi-typescript.",
+        "export type paths = Record<string, never>;",
+        "export type operations = Record<string, never>;",
+    ):
+        if required not in generated:
+            raise PolicyFailure(
+                "packages/storefront-client: generated Public API types are invalid"
+            )
+
+    public_surface = "\n".join(
+        (repository / relative).read_text(encoding="utf-8")
+        for relative in (
+            "packages/storefront-client/src/index.ts",
+            "packages/storefront-client/src/types.ts",
+            "packages/storefront-client/src/browser.ts",
+            "packages/storefront-client/src/server.ts",
+        )
+    )
+    if re.search(r"\b(?:Admin|Webhook)", public_surface):
+        raise PolicyFailure(
+            "packages/storefront-client: Admin or Webhook type is publicly exported"
+        )
+
+    browser = (
+        repository / "packages/storefront-client/src/browser.ts"
+    ).read_text(encoding="utf-8")
+    if 'credentials: "include"' not in browser:
+        raise PolicyFailure(
+            "packages/storefront-client: Browser credentials must be include"
+        )
+    transport = (
+        repository / "packages/storefront-client/src/transport.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "X-Oripa-Client-Version",
+        "X-Oripa-Site-Version",
+        "Idempotency-Key",
+        "AbortSignal",
+        "RETRYABLE_STATUS",
+        "csrf_initializer",
+        "application/problem+json",
+    ):
+        if required not in transport and required not in (
+            repository / "packages/storefront-client/src/constants.ts"
+        ).read_text(encoding="utf-8"):
+            raise PolicyFailure(
+                f"packages/storefront-client: transport boundary missing {required}"
+            )
+
+
 def validate_compose_skeletons(repository: Path) -> None:
     v1 = (repository / "docker-compose.yml").read_text(encoding="utf-8")
     for required in ("./apps/api", "./legacy/v1-frontend", "postgres:", "redis:"):
@@ -666,7 +821,12 @@ def validate_boundary_readmes(repository: Path) -> None:
             raise PolicyFailure(
                 f"{relative}: responsibility headings missing: {', '.join(missing)}"
             )
-        for statement in ("AGENTS.md", "Skeleton", "Production", "V1"):
+        status_statement = (
+            "Alpha"
+            if relative == "packages/storefront-client/README.md"
+            else "Skeleton"
+        )
+        for statement in ("AGENTS.md", status_statement, "Production", "V1"):
             if statement not in text:
                 raise PolicyFailure(
                     f"{relative}: required boundary statement missing: {statement}"
@@ -867,6 +1027,7 @@ def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     validate_workspace_configuration(repository)
     validate_admin_skeleton(repository, paths)
     validate_package_skeletons(repository)
+    validate_storefront_client(repository, paths)
     validate_compose_skeletons(repository)
     validate_boundary_readmes(repository)
     release_schema = validate_manifest_schema(

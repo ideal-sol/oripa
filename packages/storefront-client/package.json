@@ -2,6 +2,54 @@
   "name": "@oripa/storefront-client",
   "version": "2.0.0-alpha.1",
   "private": true,
-  "description": "V2 Storefront Client Package Skeleton。Production利用不可。",
-  "license": "UNLICENSED"
+  "description": "Public API v2向けの薄い型付きStorefront Client Alpha。",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": false,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": "22.22.3",
+    "pnpm": "10.12.1"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "generate": "openapi-typescript ../../openapi/bundled/public.openapi.json --output src/generated/public.ts",
+    "generate:check": "node scripts/check-generated.mjs",
+    "lint": "eslint 'src/**/*.ts' && node --check scripts/check-generated.mjs && node --check test/client.test.mjs",
+    "test": "node --test test/client.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "eslint": "9.39.4",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0"
+  },
+  "oripaCompatibility": {
+    "family": 2,
+    "apiMajor": 2,
+    "minimumPublicApiContract": "2.0.0-alpha.1",
+    "requiredCapabilities": []
+  }
 }
