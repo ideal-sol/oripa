@@ -26,18 +26,16 @@ Resolve conflicts in this order:
 2. `docs/architecture/V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md`
 3. `docs/architecture/V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md`
 4. `docs/architecture/V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md`
-5. `V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
-6. `V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
-7. `V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
-8. `V2_DATA_POINT_PAYMENT_BASELINE_FINAL_2026-07-22.md`
-9. `API_V2_AND_STOREFRONT_CLIENT_CONTRACT_FINAL_2026-07-21.md`
+5. `docs/architecture/V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
+6. `docs/architecture/V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
+7. `docs/architecture/V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
+8. `docs/architecture/V2_DATA_POINT_PAYMENT_BASELINE_FINAL_2026-07-22.md`
+9. `docs/architecture/API_V2_AND_STOREFRONT_CLIENT_CONTRACT_FINAL_2026-07-21.md`
 10. Approved feature ADRs
 11. V1 specifications and implementation as behavioral references
 
-The Governance Rev2, Release Gates Rev1, and autonomous operations ADR are
-committed Repository authorities. Other finalized V2 documents remain outside
-the Repository until a later migration task places them; use their exact
-filenames and do not create broken links or unofficial copies.
+The current finalized V2 authorities are committed under `docs/architecture/`.
+Use `docs/architecture/README.md` as the architecture reading index.
 
 The 2026-07-22 Governance and Release Gates files are superseded historical
 documents. Do not apply their human-only PR approval, human-only merge,
