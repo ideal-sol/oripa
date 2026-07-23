@@ -1605,3 +1605,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Unit TestでDirect `/api/v2` Fetch、First-party非Exact Version、Sensitive環境名、Platform Directory Copyを個別に拒否した。
 - `quality-gate`、`policy-gate`、`git diff --check`、JSON Parse、Markdown構造、Allowed Paths、Secret／PII確認はPASSした。
 - Backend／Frontend Runtime Test、Migration、Frontend Build、Browser／E2EはLocalでは未実行であり、PASSとは記録しない。既存の5 GitHub GateでRuntime範囲を再実行する。
+
+### GitHub／Gate G1
+
+- Task Commit: `08b67904985cca1e43687b7e810b699fc46fc04f`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- PR: `#26` (`https://github.com/ideal-sol/oripa/pull/26`)
+- Initial HeadでRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`がすべて成功し、Required CheckのRuleset強制が実際に作動した。
+- `integration-gate`はBackend全Testの期限付き完全Baseline、Frontend Build／Typecheck、Ephemeral Migration、Compose、Site Template Positive／Negative Fixtureを実行した。
+- Final Headを固定後、5 Check、Fresh Machine-readable Self-review、SEV-0／SEV-1なし、Scope、Secret／PII、Merge Conflictなしを再確認してGitHub AppがSquash Mergeする。
+- Gate G1ではPlatform Governance、Architecture Baseline、5 Required Check、Site Template Gate実装まで完了した。
+- Canonical Site Template、実First-party Package、OpenAPI／JSON Schema Contract、実Site Build／Contract Testは未作成であり、Gate G1は`NOT COMPLETE`のまま維持する。
