@@ -1400,3 +1400,67 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - JSON Parse、`git diff --check`、Markdown見出し／Internal Link、Access Matrix矛盾、Allowed Paths、Secret／PIIを検証する。
 - Backend／Frontend Runtime Test、Build、Browser／E2EはGovernance Documentation-only Taskのため未実行とする。
+
+### GOV-006完了
+
+- PR: `#18` (`https://github.com/ideal-sol/oripa/pull/18`)
+- Task Head: `8dcbafb32c51fba715932cc4badc6a5e0b6806ee`
+- Machine-readable Self-reviewはAllowed Paths、Access Scope、root Trust Exception、Secret／PII、SEV-0／SEV-1なしをFinal Headへ固定してPASSした。
+- GitHub CheckはGOV-009前BootstrapでRequired 0件、Run 0件、Status 0件、Failure 0件、Missing 0件だった。
+- GitHub AppがSquash Mergeし、Squash Commitは`769d27de28cdfa76e3d14e35181bb90012481128`である。
+- Issue `#17`はClosed、Remote Task Branchは自動削除済みである。
+- Local Task BranchとWorktreeはTree同等性確認後に削除した。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Working Treeはcleanだった。
+- V1 Archive BranchとAnnotated Tagは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更していない。
+
+## GOV-007 Codex Permission／Command Rules
+
+### Task
+
+- 実施開始: 2026-07-23T04:11:01Z／2026-07-23T13:11:01+09:00
+- Task ID: `GOV-007`
+- Risk: `R3`
+- Issue: `#19` (`https://github.com/ideal-sol/oripa/issues/19`)
+- Branch: `chore/GOV-007-codex-permissions`
+- Worktree: `/var/www/oripa-worktrees/GOV-007-codex-permissions`
+- Base SHA: `769d27de28cdfa76e3d14e35181bb90012481128`
+
+### Configuration／Trust
+
+- Installed Codexは`codex-cli 0.144.4`である。
+- `/var/www/oripa`は既存Global Configで`trusted`として明示されており、本TaskでTrust範囲を変更していない。
+- Strict Config Probeで`model`、`model_reasoning_effort`、`sandbox_mode`、`approval_policy`、`approvals_reviewer`、`web_search`、`sandbox_workspace_write`の指定Keyを受理することを確認した。
+- Project Configは`gpt-5.6`、Reasoning `high`、`workspace-write`、Approval `on-request`、Reviewer `auto_review`、Web Search `cached`を指定する。
+- Sandbox内Network Accessを無効化し、`/tmp`と`TMPDIR`を追加Writable Rootから除外する。
+- `danger-full-access`、Approval `never`、`--yolo`をDefaultにしない。
+
+### Rules／Verification
+
+- Rulesは`forbidden`、`prompt`、`allow`へ分類し、最も厳しい一致を適用する。
+- 破壊的Git、Direct main／Force Push、Stable Tag削除、Docker／DB破壊操作、Token Broker／Autonomy Libexec直接実行を`forbidden`とする。
+- Commit、通常Push、Rebase、Container Build／Start、Dependency操作、Migration作成、Network操作を`prompt`とする。
+- Read-only Git／Workspace確認、Test／Lint／Typecheck、Task Policy検証済みGitHub App Wrapperを`allow`とする。
+- Sandbox外ではShell Wrapper自体を禁止し、Compound Commandによる危険Commandの混入とShell経由の迂回を拒否する。
+- `codex execpolicy check`でAllow／Prompt／Forbidden、Compound、Shell Bypass、Direct main、Force、Package、Migration、Docker、Broker、Safe Wrapperを検証する。
+- 変更は`.codex/config.toml`、`.codex/rules/governance.rules`、`.codex/README.md`、本Worklogの4件だけに限定する。
+- Application、CI、Ruleset、Migration、Docker、Productionへ変更はない。
+- Backend／Frontend Runtime Test、Build、Browser／E2EはGovernance-only Taskのため未実行とし、PASSとは記録しない。
+
+### Local Verification
+
+- `TERM=xterm codex --strict-config doctor --json`はOverall、Config Load、Sandbox HelperのすべてでPASSした。
+- Effective Modelは`gpt-5.6`、Approvalは`OnRequest`、Filesystem SandboxとNetwork Sandboxはいずれも`restricted`だった。
+- Rules FileのStarlark ParseとInline `match`／`not_match` TestはPASSした。
+- `codex execpolicy check`はAllow 7件、Prompt 8件、Forbidden 16件の合計31件を検証し、不一致は0件だった。
+- Compound CommandとComplex Shell Wrapper、Direct main Push、Force Push、Token Broker／Autonomy Libexec直接実行は`forbidden`だった。
+- 通常Push、Commit、Rebase、Dependency Install、Migration作成、Container Build、Network Accessは`prompt`だった。
+- Safe GitHub App Wrapper、Read-only Git、`rg`／`ls`／`cat`、Test／Lint／Typecheckは`allow`だった。
+
+### GitHub
+
+- Task Commit: `e8c359311fe244f671fb9ab93af1540b3aa01d7d`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- PR: `#20` (`https://github.com/ideal-sol/oripa/pull/20`)
+- PR Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`、Headは`chore/GOV-007-codex-permissions`である。
+- 本追記を含むFinal Headへ更新後、Strict Config、Execpolicy、Allowed Paths、Secret／PII、GitHub Checks、Fresh Self-review、Head不変、Merge Conflictなしを再検証して自律Squash Mergeする。
+- GOV-008は本Task完了後も開始しない。
