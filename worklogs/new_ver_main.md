@@ -1818,3 +1818,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V2 Workspace責任境界、Version起点、Manifest Schema、継続Policy検査を追加する。
 - 実Laravel V2 App、Admin App、First-party Package、OpenAPI Contract、Canonical Site Template、Root Lockfileは未実装であり、Gate G1は`NOT COMPLETE`のまま維持する。
 - 次Task候補は`MIG-021`だが、本Task完了後には開始しない。
+
+### Local Verification／GitHub
+
+- `git diff --check`、JSON Parse、Markdown見出し、Internal Link、Workspace設定、Schema／Example整合、Allowed Paths、Binary／Submodule、V1 Code移動なしを確認した。
+- `policy-gate`、`quality-gate`、`security-gate`はLocalでPASSした。Security Gateは期限付きの既存Dependency Advisory完全Baselineと一致し、新規Secret Candidateは0件だった。
+- Policy Gate Unit Test 11件はPASSした。Positive Workspace FixtureはPASSし、README欠落、V1 Workspace混入、Manifest必須Field欠落、V1 Code CopyのNegative Fixtureは期待どおり拒否された。
+- Task Commitは`290a6b484bcd5952aa68a943675f9412a6eeb326`で、ParentはBase SHA `a0f3412ab987782294ace25ad28c77a3fc724150`である。
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、V1 Archive Ref変更は行っていない。
+- PRは`#40` (`https://github.com/ideal-sol/oripa/pull/40`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
+- 本追記を含むFinal HeadでRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`、Fresh Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+- Backend／Frontend Runtime Test、Application Build、Browser／E2EはLocalでは未実行であり、GitHub `integration-gate`の実行結果と混同しない。
