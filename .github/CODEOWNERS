@@ -1,0 +1,27 @@
+# Repository-wide human ownership.
+* @myong-ideal
+
+# Governance and review controls.
+/.github/ @myong-ideal
+/AGENTS.md @myong-ideal
+/apps/api/AGENTS.md @myong-ideal
+/apps/admin/AGENTS.md @myong-ideal
+/packages/AGENTS.md @myong-ideal
+/openapi/AGENTS.md @myong-ideal
+/infrastructure/AGENTS.md @myong-ideal
+/docs/AGENTS.md @myong-ideal
+/legacy/v1/AGENTS.md @myong-ideal
+/worklogs/ @myong-ideal
+
+# Platform application and contracts.
+/apps/api/ @myong-ideal
+/apps/admin/ @myong-ideal
+/packages/ @myong-ideal
+/openapi/ @myong-ideal
+/infrastructure/ @myong-ideal
+/docs/ @myong-ideal
+
+# V1 behavioral reference and current legacy paths.
+/legacy/ @myong-ideal
+/backend/ @myong-ideal
+/frontend/ @myong-ideal
