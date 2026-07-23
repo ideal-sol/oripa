@@ -1232,3 +1232,15 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Commit、GitHub App Fast-forward Push、Draft PR、Repository設定／Ruleset適用、Readback、固定Head Self-review、Ready化、CI確認、Squash Mergeを順番に行う。
 - Merge後はRemote Task Branch、Local Worktree／BranchをCleanupし、Local `main`を`origin/main`へFast-forward同期する。
 - GOV-005R1完了後は人間PR操作を待たず、MIG-010 V2 Repository Baselineを開始する。
+
+### GitHub適用結果
+
+- Initial Commit: `01908dcf63a8d8d451a12b5711e22b7ad081cefd`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- Draft PR: `#12` (`https://github.com/ideal-sol/oripa/pull/12`)、Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`。
+- Repository General設定はSquash ON、Merge Commit OFF、Rebase OFF、Auto Merge ON、Merged Head Branch自動削除ONとしてAPI Responseを確認した。
+- `main-protection`、`release-branch-protection`、`v1-archive-lock`、`stable-tag-immutability`、`stable-tag-creation`の5 RulesetをActiveで作成した。
+- Main／Release／Archive／Stable immutabilityのBypassは空であり、Stable creationだけがIntegrationのAlways Bypassである。Actor IDは出力・記録していない。
+- Main／ReleaseはApproval 0、Code Owner Review OFF、最新Push Approval OFF、Conversation Resolution ON、Squashのみ、Linear History／削除禁止／Force Push禁止をReadbackした。
+- PR `#12`のInitial Headに対するGitHub Checkは0件、Required Check 0件、Failure 0件で、GOV-009前のBootstrapとして記録した。
+- 本追記を含むFinal Headは別CommitとしてFast-forward Pushし、PR本文、Checks、Self-review EvidenceをFinal Headへ更新する。
