@@ -2009,4 +2009,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PR本文で62 Pure Rename、Path Reference、Governance、Documentation、CI、Worklog Updateを分離し、移動前後Checksum／Test結果を記録した。
 - Initial GitHub CheckではPR本文のChanged File完全列挙不足により`policy-gate`が失敗し、Lockfile Renameを新規Dependencyと判定した`dependency-review`が既存High Advisoryを再検出した。PR本文を85件の完全列挙へ更新し、既存Exact BaselineだけをDependency Reviewへ接続してFinal Headで再検証する。
 - 同時実行した`quality-gate`の1 Runは`corepack prepare`で一時失敗したが、同Headの別Runでは同Step以降が成功した。Final Headで再実行し、失敗RunをBypassしない。
+- Dependency Review Workflow追加後の86 Changed PathをPR本文へ完全列挙し、修正済み本文を読む新Headで全Checkを再実行する。
 - 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
