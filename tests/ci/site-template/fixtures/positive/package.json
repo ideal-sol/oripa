@@ -1,0 +1,14 @@
+{
+  "name": "@site/example-storefront",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test:contract": "node scripts/contract-test.mjs"
+  },
+  "dependencies": {
+    "@oripa/site-schema": "2.0.0-alpha.1",
+    "@oripa/storefront-client": "2.0.0-alpha.1"
+  }
+}

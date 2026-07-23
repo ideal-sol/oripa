@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "site_id": "customer-a",
+  "repository_role": "site",
+  "platform_source": "copied",
+  "packages": {
+    "@oripa/site-schema": "workspace:*",
+    "@oripa/storefront-client": "^2.0.0"
+  }
+}

@@ -252,6 +252,18 @@ jobs:
             --report "$RUNNER_TEMP/backend-tests.xml" \
             --baseline .ci/baselines/backend-tests.json
 
+      - name: Validate Site Template policy
+        run: |
+          python3 -m unittest discover -s tests/ci/site-template -p 'test_*.py'
+          python3 scripts/ci/site_template_gate.py \
+            --template tests/ci/site-template/fixtures/positive
+          if python3 scripts/ci/site_template_gate.py \
+            --template tests/ci/site-template/fixtures/negative; then
+            echo "Negative Site Template fixture unexpectedly passed"
+            exit 1
+          fi
+          echo "Negative Site Template fixture failed as required"
+
       - name: Build and typecheck frontend
         run: |
           pnpm --dir frontend typecheck
