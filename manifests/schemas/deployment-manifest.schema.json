@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Oripa V2 Deployment Manifest",
+  "description": "Deployment metadata schema. It contains no secret or deployment credential.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "site_id",
+    "environment",
+    "platform_version",
+    "package_versions",
+    "image_digest",
+    "migration_revision",
+    "deployed_at",
+    "approved_by",
+    "source_release_manifest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "deployment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+    },
+    "environment": {
+      "enum": [
+        "platform-staging",
+        "platform-production"
+      ]
+    },
+    "platform_version": {
+      "$ref": "#/$defs/semantic_version"
+    },
+    "package_versions": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/semantic_version"
+      }
+    },
+    "image_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "migration_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deployed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "approved_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_release_manifest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "example-not-deployed",
+        "pending",
+        "succeeded",
+        "failed",
+        "rolled-back"
+      ]
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "previous_release_id",
+        "validated"
+      ],
+      "properties": {
+        "previous_release_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checks_verified"
+      ],
+      "properties": {
+        "checks_verified": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semantic_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+    }
+  }
+}

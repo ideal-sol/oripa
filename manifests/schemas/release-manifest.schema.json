@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Oripa V2 Release Manifest",
+  "description": "Release metadata schema. It contains no secret or deployment credential.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "platform_version",
+    "package_versions",
+    "api_contract_version",
+    "migration_revision",
+    "source_commit",
+    "image_digest",
+    "sbom_reference",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "release_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_class": {
+      "enum": [
+        "alpha",
+        "beta",
+        "stable"
+      ]
+    },
+    "platform_version": {
+      "$ref": "#/$defs/semantic_version"
+    },
+    "package_versions": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/semantic_version"
+      }
+    },
+    "api_contract_version": {
+      "$ref": "#/$defs/semantic_version"
+    },
+    "migration_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "image_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sbom_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "required_checks": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "production_go": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "approved"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "approved": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semantic_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+    }
+  }
+}
