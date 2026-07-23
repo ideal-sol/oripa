@@ -1353,3 +1353,50 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V2確定文書本文、Application、Backend／Frontend、Migration、Docker、CI、Ruleset、GitHub App Permission、Infrastructure、V1 Archive Refは変更しない。
 - `git diff --check`、Markdown見出し／Internal Link、正本文書名、Superseded関係、Allowed Paths、Secret／PIIを検証する。
 - Backend／Frontend Test、Build、Browser／E2EはDocumentation-only補完のため未実行とする。
+
+### MIG-010A Closeout
+
+- PR: `#16` (`https://github.com/ideal-sol/oripa/pull/16`)
+- Task Head: `ba69484f4f5a479517eecb481265a98b2e1073f2`
+- Machine-readable Self-reviewはAllowed Paths、Checksum、Markdown、Internal Link、Secret／PII、SEV-0／SEV-1なしをFinal Headへ固定してPASSした。
+- GitHub CheckはGOV-009前BootstrapでRequired 0件、Run 0件、Status 0件、Failure 0件、Missing 0件だった。
+- GitHub AppがSquash Mergeし、Squash Commitは`a8556f915e7830169e8371ed355dcd30dcf40bd8`である。
+- Issue `#15`はClosed、Remote Task Branchは自動削除済みである。
+- Local Task BranchとWorktreeはTree同等性確認後に削除した。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Working Treeはcleanだった。
+- Gate G1はCI Skeleton、5つの標準Check、V1資産のLegacy実隔離が未完了のため`G1 NOT COMPLETE`である。
+
+## GOV-006 Codex Environment／Repository Access分離
+
+### Task
+
+- 実施開始: 2026-07-23T03:59:48Z／2026-07-23T12:59:48+09:00
+- Task ID: `GOV-006`
+- Risk: `R3`
+- Issue: `#17` (`https://github.com/ideal-sol/oripa/issues/17`)
+- Branch: `chore/GOV-006-codex-access-separation`
+- Worktree: `/var/www/oripa-worktrees/GOV-006-codex-access-separation`
+- Base SHA: `a8556f915e7830169e8371ed355dcd30dcf40bd8`
+
+### Access Verification
+
+- Token BrokerからCacheを使わず新規Installation Tokenを発行した。
+- Installation selectionは`selected`で、Access対象Repositoryは`ideal-sol/oripa`の1件だけだった。
+- Installation metadataと新規TokenのAdministration Permissionはいずれも、選択済みRepository Scope内で`write`だった。
+- Organization全Repository Accessではなく、想定外Repository Accessは0件だった。
+- 他Repositoryへの試験Write、Production Environment／Secret／DB／NetworkへのAccessは実施していない。
+- App ID、Installation ID、JWT、Token、Private Key、Authorization Headerを表示または記録していない。
+
+### Baseline
+
+- Platform CodexのGitHub Repository Access分離は実施済みとして記録する。
+- Platform Codexはroot実行を継続し、Private Keyへ到達可能なTrust Modelは人間承認済み例外である。
+- OS User分離とPrivate KeyのFilesystem分離は未実施であり、完全分離済みとは記録しない。
+- Production Secret、Database、Network Accessは許可しない。
+- Future Site Codexは1 Site＝1 Repository＝1 Environment＝1専用Credential境界をActivation Gateとし、現時点では未作成である。
+- Application、CI、`.codex/**`、Ruleset、Migration、Docker、Infrastructure実装は変更しない。
+
+### Verification
+
+- JSON Parse、`git diff --check`、Markdown見出し／Internal Link、Access Matrix矛盾、Allowed Paths、Secret／PIIを検証する。
+- Backend／Frontend Runtime Test、Build、Browser／E2EはGovernance Documentation-only Taskのため未実行とする。
