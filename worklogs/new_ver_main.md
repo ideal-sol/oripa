@@ -1702,3 +1702,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - JSON Parse、Markdown構造、Internal Link、Allowed Paths、Secret／PII、Infrastructure Ruleとの整合を確認する。
 - 5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge ConflictなしをMerge条件とする。
 - Documentation-only TaskのためBackend／Frontend Runtime Test、Build、Browser／E2E、実Cloud Loginは未実行であり、PASSとは記録しない。
+
+### Local Verification／GitHub
+
+- JSON Parse、Markdown見出し／Internal Link、`git diff --check`、`policy-gate`、`quality-gate`、`security-gate`、Allowed Paths、Secret／PII確認はPASSした。
+- 汎用Git Wrapperが`site-credential-boundary.md`の文書名を秘密File Pathとして誤検出したため、Markdownと明示的ExampleはPath名だけで拒否せず、内容の高確度Secret Scanを維持する一般則へ修正した。
+- Wrapperはroot所有mode `700`、Syntax PASSであり、Task固有Branch／Refspec／Repositoryの制限は変更していない。Repository外ToolのためCommit対象外である。
+- Task Commitは`b3e67544ba4f713095d25b27c182a1304e11277c`で、GitHub App WrapperによりFast-forward Pushした。
+- PRは`#30` (`https://github.com/ideal-sol/oripa/pull/30`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
+- 本追記を含むFinal Headで5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
