@@ -99,6 +99,9 @@ jobs:
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
             policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
 
+    def test_dependency_review_allowlist_matches_exact_security_baseline(self):
+        policy_gate.validate_dependency_review_allowlist(ROOT)
+
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
         paths.update({"package.json", "pnpm-workspace.yaml"})

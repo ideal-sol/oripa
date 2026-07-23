@@ -1976,6 +1976,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Dependabot npm Directory、CODEOWNERS、Docker開発構成、Makefile、README、TASK_BOARD、Repository Layout、CI運用文書を新Pathへ更新した。
 - `.gitignore`とRoot `.dockerignore`は旧PathのGit管理外残置物を保護し、新Pathの生成物も追跡／Build Contextから除外する。
 - Lint BaselineはPath PrefixとPath依存Fingerprintだけを更新した。Finding数、Rule、Severity、Line／Column、Message Hash、期限、Owner、修正Taskは変更していない。
+- Dependency ReviewがLockfileのPath移動を依存関係の新規追加として扱うため、既存Dependency BaselineにあるHigh Severity GHSAだけを`allow-ghsas`へ完全一致で接続した。Package／Version／Path／期限は`security-gate`のExact Baselineで引き続き強制し、新規／悪化Findingを許可しない。
 - `policy-gate`へTracked `frontend/**`禁止、Legacy Frontend必須File、二重入れ子禁止、V2 DockerfileによるLegacy Copy禁止を追加した。
 - Positive Testに加え、旧Path残存、二重入れ子、V2 Dockerfile CopyのNegative Testを追加し、Policy Unit Testは20件すべてPASSした。
 - 過去Worklog、確定Architecture、V1仕様、Review／Audit文書の旧Pathは歴史的記録として書き換えていない。
@@ -2006,4 +2007,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、Archive Ref変更は行っていない。
 - PRは`#45` (`https://github.com/ideal-sol/oripa/pull/45`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
 - PR本文で62 Pure Rename、Path Reference、Governance、Documentation、CI、Worklog Updateを分離し、移動前後Checksum／Test結果を記録した。
+- Initial GitHub CheckではPR本文のChanged File完全列挙不足により`policy-gate`が失敗し、Lockfile Renameを新規Dependencyと判定した`dependency-review`が既存High Advisoryを再検出した。PR本文を85件の完全列挙へ更新し、既存Exact BaselineだけをDependency Reviewへ接続してFinal Headで再検証する。
+- 同時実行した`quality-gate`の1 Runは`corepack prepare`で一時失敗したが、同Headの別Runでは同Step以降が成功した。Final Headで再実行し、失敗RunをBypassしない。
 - 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。

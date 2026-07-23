@@ -689,6 +689,26 @@ def validate_governance_statements(repository: Path, paths: Iterable[str]) -> No
             )
 
 
+def validate_dependency_review_allowlist(repository: Path) -> None:
+    baseline = load_json(repository, ".ci/baselines/dependency-advisories.json")
+    expected = {
+        item.get("advisory_id")
+        for item in baseline.get("pnpm", [])
+        if item.get("severity") in {"high", "critical"}
+    }
+    if None in expected:
+        raise PolicyFailure("dependency advisory baseline has an invalid advisory ID")
+    workflow = (
+        repository / ".github/workflows/dependency-review.yml"
+    ).read_text(encoding="utf-8")
+    actual = set(re.findall(r"GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}", workflow))
+    if actual != expected:
+        raise PolicyFailure(
+            "dependency-review allow-ghsas must exactly match the expiring "
+            "high-severity pnpm baseline"
+        )
+
+
 def validate_repository(repository: Path) -> list[str]:
     paths = tracked_paths(repository)
     missing = sorted(REQUIRED_REPOSITORY_FILES - set(paths))
@@ -701,6 +721,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_legacy_frontend_layout(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
+    validate_dependency_review_allowlist(repository)
     for relative in paths:
         if relative.startswith(".github/workflows/") and relative.endswith(
             (".yml", ".yaml")
