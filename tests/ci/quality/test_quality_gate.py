@@ -19,6 +19,9 @@ def load(name, relative):
 
 quality_gate = load("quality_gate", "scripts/ci/quality_gate.py")
 lint_baseline = load("lint_baseline", "scripts/ci/lint_baseline.py")
+backend_test_baseline = load(
+    "backend_test_baseline", "scripts/ci/backend_test_baseline.py"
+)
 
 
 class QualityGateTest(unittest.TestCase):
@@ -61,6 +64,59 @@ class QualityGateTest(unittest.TestCase):
             lint_baseline.validate_baseline(
                 report, baseline, datetime.date(2026, 7, 23)
             )
+
+    def test_new_backend_failure_fails_exact_baseline(self):
+        report = backend_test_baseline.ET.fromstring(
+            """
+            <testsuites>
+              <testsuite>
+                <testcase class="Tests\\Feature\\ExampleTest" name="test_example">
+                  <failure type="PHPUnit\\Framework\\ExpectationFailedException" />
+                </testcase>
+              </testsuite>
+            </testsuites>
+            """
+        )
+        baseline = {
+            "schema_version": "1.0",
+            "management": {
+                "owner": "platform-maintainers",
+                "reason": "fixture",
+                "removal_condition": "fixture",
+                "expires_at": "2099-01-01",
+                "tracking_task": "FIXTURE-002",
+            },
+            "failures": [],
+        }
+        with self.assertRaises(backend_test_baseline.BaselineFailure):
+            backend_test_baseline.validate_baseline(
+                report, baseline, datetime.date(2026, 7, 23)
+            )
+
+    def test_known_backend_failures_match_exact_baseline(self):
+        report = backend_test_baseline.ET.fromstring(
+            r"""
+            <testsuites>
+              <testsuite>
+                <testcase class="Tests\Feature\AdminPaymentApiTest"
+                  name="test_admin_can_mark_chargeback_and_user_is_suspended">
+                  <failure type="PHPUnit\Framework\ExpectationFailedException" />
+                </testcase>
+                <testcase class="Tests\Feature\AdminPaymentApiTest"
+                  name="test_admin_can_mark_succeeded_payment_as_refunded_and_audit_log_is_recorded">
+                  <failure type="PHPUnit\Framework\ExpectationFailedException" />
+                </testcase>
+              </testsuite>
+            </testsuites>
+            """
+        )
+        baseline = json.loads(
+            (ROOT / ".ci/baselines/backend-tests.json").read_text(encoding="utf-8")
+        )
+        summary = backend_test_baseline.validate_baseline(
+            report, baseline, datetime.date(2026, 7, 23)
+        )
+        self.assertEqual(summary["failures"], 2)
 
 
 if __name__ == "__main__":

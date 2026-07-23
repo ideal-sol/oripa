@@ -24,6 +24,7 @@ rejects failed, cancelled, or skipped dependency results.
 
 - `quality_gate.py` validates tracked source and structured file quality.
 - `lint_baseline.py` requires an exact, unexpired ESLint fingerprint set.
+- `backend_test_baseline.py` requires an exact, unexpired PHPUnit failure set.
 - `security_gate.py` performs repository security checks and requires exact,
   unexpired Composer and pnpm advisory baselines.
 

@@ -24,6 +24,13 @@ The V1 ESLint baseline is exact and expires on 2026-08-31. It contains eight
 errors and one warning. A new, changed, missing, or expired fingerprint fails.
 The baseline does not apply to future V2 application paths.
 
+The V1 backend test baseline is exact and expires on 2026-08-15. It contains
+two `AdminPaymentApiTest` fixture failures. The current refund and chargeback
+behavior requires payment-origin point lots and a wallet, while these two
+legacy fixtures create only a succeeded payment. A new, changed, missing, or
+expired failure fails. The baseline is removed when `QUALITY-002` updates the
+fixtures without weakening the approved payment behavior.
+
 ## Security gate
 
 The security job performs high-confidence secret and dangerous-path scans,
@@ -44,6 +51,8 @@ typechecks the frontend, parses available contracts/manifests, validates Docker
 Compose configuration, and rejects generated tracked changes.
 
 It does not use production secrets, production data, or a production database.
+Known backend failures are evaluated only through the exact, expiring baseline;
+the complete backend suite still runs on every integration job.
 
 ## Local reproduction
 

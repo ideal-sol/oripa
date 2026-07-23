@@ -1556,3 +1556,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `policy-gate`、`git diff --check`、Ruleset JSON Parse、Allowed Paths、Workflow Permission／Action Pin確認はPASSした。
 - Host PHPは8.3でRepository要求PHP 8.4を満たさないため、Backend Migration／TestをLocalで実行しておらずPASSとは記録しない。
 - Backend Migration／Test、Frontend Build、Ephemeral PostgreSQL／Redis、Compose ConfigはGitHub `integration-gate`で実行する。
+
+### Initial Checkと既知Backend Test Baseline
+
+- Initial Head `ffe083d55252721b4c4dd8add402962f8aea9486`では`policy-gate`と`security-gate`が成功し、`quality-gate`と`integration-gate`が失敗した。`ci-gate`は依存Gate失敗を正しく拒否した。
+- `quality-gate`はESLintの実行DirectoryがLocal Baseline作成時と異なっていたため、`frontend`をCurrent Directoryにして同じCommandを実行するよう修正した。
+- Ephemeral PostgreSQL／RedisとPHP 8.4でBackend全332 Testを再現し、MigrationはPASS、Testは2 Failure／332 Warningだった。
+- 既知Failureは`Tests\Feature\AdminPaymentApiTest`の返金とChargebackの2件だけで、旧Fixtureが現在必須のPayment-origin Point LotとWalletを作成していないことによる。
+- ApplicationやAssertionを変更せず、Class、Method、Exception Typeの完全一致Baselineとして2026-08-15まで`QUALITY-002`で管理する。新規、欠落、変更、期限切れは`integration-gate`を失敗させる。
+- BaselineはV1の既知状態だけに適用し、Backend全Testの実行自体は省略しない。

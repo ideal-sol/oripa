@@ -89,7 +89,10 @@ jobs:
       - name: Compare frontend lint findings with the exact baseline
         run: |
           set +e
-          pnpm --dir frontend exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
+          (
+            cd frontend
+            pnpm exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
+          )
           eslint_status=$?
           set -e
           echo "eslint raw exit status: $eslint_status"
@@ -235,8 +238,16 @@ jobs:
       - name: Apply migrations to the ephemeral database
         run: php backend/artisan migrate --no-interaction
 
-      - name: Run backend tests
-        run: php backend/artisan test
+      - name: Run backend tests against the exact legacy baseline
+        run: |
+          set +e
+          php backend/artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
+          backend_status=$?
+          set -e
+          echo "backend test raw exit status: $backend_status"
+          python3 scripts/ci/backend_test_baseline.py \
+            --report "$RUNNER_TEMP/backend-tests.xml" \
+            --baseline .ci/baselines/backend-tests.json
 
       - name: Build and typecheck frontend
         run: |
