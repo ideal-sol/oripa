@@ -1015,3 +1015,58 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Human OwnerのRepository `admin`権限は確認済みだが、Organization上のOwner／Maintainer Role自体はAPI権限制約により未確認である。
 - CODEOWNERS追加だけではRequired Code Owner Reviewは有効にならず、後続Ruleset設定が必要である。
 - 次Task候補: 人間によるGOV-003 Draft PR Review。GOV-004は本Taskでは開始しない。
+
+## GOV-003A／B GOV-003同期・Cleanup完了
+
+### Local main同期
+
+- `GOV-003A`でPR #6のHuman Squash MergeとIssue #5のCloseを確認し、Local `main`をSquash Commit `4ba5838c0593c0f595e81b6da86aa9042ba0297c`へ`git merge --ff-only`で同期した。
+- Squash Commitの変更は`.github/CODEOWNERS`と`worklogs/new_ver_main.md`の2 Fileだけで、Application、Migration、Docker、CI、Ruleset、Root／Nested `AGENTS.md`、V1保全Refへの変更がないことを確認した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-003A-local-sync-20260723T002259Z/`
+
+### Worktree／Branch Cleanup
+
+- `GOV-003B`でHumanが削除したRemote Task Branchを`git fetch origin --prune`とRemote Ref照合で確認した。
+- Task BranchとSquash Merge後の`main`はTreeと対象2 Fileの内容が一致し、未反映内容、未追跡File、未Commit変更、未Push Commitがないことを確認した。
+- Git標準CommandでGOV-003 Worktreeを削除し、同等性Evidence保存後にLocal Task Branchを削除した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-003B-cleanup-20260723T004006Z/`
+- Local／Remote Task BranchとTask Worktreeは削除済みで、GOV-003は完全終了した。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+## GOV-004 Issue／PR Template作成
+
+### 基本情報
+
+- Task ID: `GOV-004`
+- 実施日時: 2026-07-23T00:54:16Z／2026-07-23T09:54:16+09:00
+- Issue: `#7`
+- Risk: `R3`
+- Branch: `docs/GOV-004-issue-pr-templates`
+- Worktree: `/var/www/oripa-worktrees/GOV-004-issue-pr-templates`
+- Base SHA: `4ba5838c0593c0f595e81b6da86aa9042ba0297c`
+
+### 変更内容
+
+- `.github/ISSUE_TEMPLATE/task.yml`: V2 Platform Task用のIssue Formを追加する。
+- 必須FieldとしてTask ID、Risk、Responsible role、Base SHA、Purpose、Specification sources、Allowed／Forbidden paths、Acceptance criteria、Required verification、Out of scopeを定義する。
+- Human decisions and exceptions欄と、Secret／PII禁止、想定外変更時の停止、CodexによるApprove／Merge／Release／Production承認禁止のAcknowledgementを定義する。
+- `.github/ISSUE_TEMPLATE/config.yml`: Blank Issueを無効化し、未確定のSupport／Security URLは追加しない。
+- `.github/pull_request_template.md`: Task、仕様根拠、Scope、Technical impact、Migration state、実行／未実行Verification、Security／Privacy、Deploy／Rollback、Known risk、Human review、Checklistを標準化する。
+- Application Code、Backend、Frontend、Migration、Docker、Infrastructure、GitHub Actions、CODEOWNERS、Ruleset、Branch Protection、Root／Nested `AGENTS.md`、V1 Archive Refは変更しない。
+
+### 検証／GitHub
+
+- `git diff --check`、YAML Parse／Indent／一意ID／必須Validation、Markdown見出し、Root／Nested `AGENTS.md`との整合、Scope、Secret／PII、Binary／Submoduleを確認する。
+- GitHub Issue Form固有SchemaはRepositoryへMergeする前にGitHub側の完全Validationを取得できないため、既存ToolによるYAML Parseと手動構造Reviewの範囲を明記する。
+- Backend Test、Frontend Test、Build、Browser／E2EはGovernance-only TaskでApplication Behavior変更がないため未実行とする。
+- Commit Message: `chore(governance): add issue and PR templates (GOV-004)`
+- Commit SHA: Worklogを含むCommit自身への自己参照を避け、Draft PRとTask完了報告へFull SHAを記録する。
+- Push: GitHub Appの`push-task-branch`によるFast-forward結果をDraft PRとTask完了報告へ記録する。
+- Draft PR: GitHub Appで作成し、URL、Author、Head、BaseをTask完了報告へ記録する。
+- CodexはApprove、Review、Merge、Stable Release、Production承認を行わない。
+
+### Risk／次Task
+
+- Blank Issueは無効化するが、Security Reporting Policyの正式URLまたは`SECURITY.md`が未確定のため、`contact_links`は空とする。
+- Ruleset、Required Review、CIによるTemplate／Scope強制は本Taskでは設定しない。
+- 次Task候補: 人間によるGOV-004 Draft PR Review。GOV-005は本Taskでは開始しない。
