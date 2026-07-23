@@ -1287,3 +1287,69 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Application、API、DB、Migration、Auth、Point、Payment、Draw、CI、Infrastructure、Ruleset、Productionへ変更はない。
 - MIG-010完了後、Phase 1の残作業とGate G1を評価する。Workspace SkeletonやMechanical Moveは本Taskに含めない。
+
+### MIG-010正式完了記録
+
+- 完了確認日時: 2026-07-23T03:25:17Z／2026-07-23T12:25:17+09:00
+- 配置文書:
+  - `API_V2_AND_STOREFRONT_CLIENT_CONTRACT_FINAL_2026-07-21.md`
+  - `V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
+  - `V2_DATA_POINT_PAYMENT_BASELINE_FINAL_2026-07-22.md`
+  - `V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
+  - `V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
+  - `release-gate.example.yaml`
+- 除外文書:
+  - Chat HandoffとProject StatusはContext-onlyのため正本へ含めていない。
+  - 旧2026-07-22 Governance／Release GatesはRevision 2／Revision 1にSupersededされたため新正本へ含めていない。
+  - 旧非Revision Security文書は使用せず、`REV1`だけを正本とした。
+- 上記6 FileはRepository外原本とRepository配置先のSHA-256が全件一致した。
+- `docs/architecture/README.md`をArchitecture Indexとして作成し、Root `AGENTS.md`のReading OrderをRepository内の実在Pathへ更新した。
+- MIG-010の変更Fileは`AGENTS.md`、Architecture Index、確定文書5件、Release Gate Example、本Worklogの9件だけだった。
+- `git diff --check`、YAML Parse、Markdown見出し／Internal Link、文書名、Reading Order、Allowed Paths、Secret／PII、Binary／Submoduleを確認し、すべてPASSした。
+- Backend／Frontend Runtime Test、Build、Browser／E2EはDocumentation-only Taskのため未実行であり、PASSとは記録しない。
+- Task Commit: `3abbc2d57c96e9b2224966b54800525cfa138f5f`
+- GitHub App WrapperでTask BranchへFast-forward Pushした。
+- PR: `#14` (`https://github.com/ideal-sol/oripa/pull/14`)
+- Final HeadをTask Commitへ固定し、Machine-readable Self-review EvidenceをPRへ保存した。
+- GitHub CheckはGOV-009前BootstrapでRequired 0件、Run 0件、Status 0件、Failure 0件、Missing 0件だった。
+- Allowed Paths、Secret／PIIなし、SEV-0／SEV-1なし、Head不変、Merge Conflictなしを再確認し、GitHub AppがSquash Mergeした。
+- Squash Commit: `d597a605e1bd3e00a9044821a54bfec93869b2e9`
+- Issue `#13`はClosed、Remote Task Branchは自動削除済みである。
+- Task WorktreeとLocal Task BranchはTree同等性確認後に削除した。
+- Local `main`を`origin/main`へ`--ff-only`同期し、両者はSquash Commitで一致、Working Treeはcleanだった。
+- V1 Archive BranchとAnnotated Tagは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更していない。
+
+### MIG-010時点のGate G1
+
+- 完了:
+  - 現行V2 Architecture文書のRepository正本化
+  - Architecture Index
+  - Root／Nested `AGENTS.md`によるPlatform／Site CodexのPath境界
+  - CODEOWNERS、Issue／PR Template、Repository Ruleset基準
+  - Version `2.0.0-alpha.1`方針を含むVersion／Compatibility Policy
+- 未完了:
+  - CI Skeletonの実装とPASS
+  - `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`の実Check化
+  - V1仕様／実装のLegacy構造への実隔離
+- 判定: `G1 NOT COMPLETE`。MIG-010完了はArchitecture文書正本化の完了であり、Gate G1全体の完了ではない。
+
+## MIG-010A V2 Repository Baseline記録補完
+
+### Task
+
+- 実施開始: 2026-07-23T03:25:17Z／2026-07-23T12:25:17+09:00
+- Task ID: `MIG-010A`
+- Risk: `R3`
+- Issue: `#15` (`https://github.com/ideal-sol/oripa/issues/15`)
+- Branch: `docs/MIG-010A-complete-v2-baseline`
+- Worktree: `/var/www/oripa-worktrees/MIG-010A-complete-v2-baseline`
+- Base SHA: `d597a605e1bd3e00a9044821a54bfec93869b2e9`
+
+### Scope／Verification
+
+- Architecture Indexへ文書ID、Status、優先順位、適用範囲、上書き関係、Checksumを補完する。
+- 本WorklogへMIG-010のCommit、Push、PR、Self-review、Checks、Squash Merge、Issue Close、Cleanup、Local同期、Gate G1判定を記録する。
+- 変更は`docs/architecture/README.md`と本Worklogだけに限定する。
+- V2確定文書本文、Application、Backend／Frontend、Migration、Docker、CI、Ruleset、GitHub App Permission、Infrastructure、V1 Archive Refは変更しない。
+- `git diff --check`、Markdown見出し／Internal Link、正本文書名、Superseded関係、Allowed Paths、Secret／PIIを検証する。
+- Backend／Frontend Test、Build、Browser／E2EはDocumentation-only補完のため未実行とする。
