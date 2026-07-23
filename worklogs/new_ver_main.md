@@ -1505,3 +1505,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - WorkflowはRead-only Permission、Secret不使用、Full SHA Action Pin、Timeout、Concurrency、`pull_request_target`不使用を確認した。
 - `git diff --check`、Allowed Paths、Basic YAML、Secret／PII、Binary／Submodule確認はPASSした。
 - Backend／Frontend Runtime Test、Build、Browser／E2EはPolicy CI Taskでは未実行であり、PASSとは記録しない。
+
+### GitHub
+
+- Task Commit: `6d24b7c16f155913633e37c2fae95aac1ba02222`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- PR: `#22` (`https://github.com/ideal-sol/oripa/pull/22`)
+- Initial HeadでGitHub上の`policy-gate`と`ci-gate`が実Contextとして成功した。
+- 本追記を含むFinal Headへ更新後、両Check、Fresh Self-review、Scope、Secret／PII、Head不変、Merge Conflictなしを再確認してSquash Mergeする。
+- GOV-008 Merge後の`main` Pushでも同じ2 Checkが成功することを確認してからGOV-009を開始する。
