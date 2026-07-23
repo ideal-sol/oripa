@@ -29,12 +29,15 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 
 ## Workspace
 
-- Root Packageは`private: true`、Versionは`2.0.0-alpha.1`。
-- `packageManager`は既存環境と一致する`pnpm@10.12.1`。
-- Workspace対象は`apps/admin`と`packages/*`だけで、V1 `frontend`を含めない。
-- Dependencyを追加せず、`pnpm install`を実行しない。
-- Root Lockfileは実Package／Dependency導入Taskで初めて生成・検証する。
-  本Taskでは根拠なく作成しない。
+- Platform Versionの開始値は`2.0.0-alpha.1`とする。
+- Node `22.22.3`、pnpm `10.12.1`はInventoryとして確認したが、Root
+  `package.json`と`pnpm-workspace.yaml`は本Taskでは作成しない。
+- Root Workspace設定を置くとV1 `frontend/pnpm-lock.yaml`を使用する既存CIの
+  install／audit解決が変わることをGitHub Checkで確認したため、V1 Lockfileを
+  変更せず設定を取り下げた。
+- 実Package、Dependency、Root Lockfile、V1分離後のCI Commandを同一の後続Taskで
+  確定する。それまではV1 `frontend`をV2 Workspaceに含めない。
+- 本TaskではDependencyを追加せず、`pnpm install`を実行しない。
 - First-party Packageの公開時VersionはCompatibility Policyに従い完全固定する。
 
 ## Migration Boundary

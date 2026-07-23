@@ -37,8 +37,6 @@ REQUIRED_REPOSITORY_FILES = {
     "docs/architecture/README.md",
 }
 WORKSPACE_REQUIRED_FILES = {
-    "package.json",
-    "pnpm-workspace.yaml",
     "apps/README.md",
     "apps/api/README.md",
     "apps/admin/README.md",
@@ -548,7 +546,14 @@ def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     missing = sorted(WORKSPACE_REQUIRED_FILES - path_set)
     if missing:
         raise PolicyFailure("required workspace files missing: " + ", ".join(missing))
-    validate_workspace_configuration(repository)
+    configuration_files = {"package.json", "pnpm-workspace.yaml"} & path_set
+    if configuration_files and configuration_files != {
+        "package.json",
+        "pnpm-workspace.yaml",
+    }:
+        raise PolicyFailure("root workspace configuration must be introduced together")
+    if configuration_files:
+        validate_workspace_configuration(repository)
     validate_boundary_readmes(repository)
     release_schema = validate_manifest_schema(
         repository,

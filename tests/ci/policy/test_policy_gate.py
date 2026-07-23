@@ -87,6 +87,7 @@ jobs:
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
+        paths.update({"package.json", "pnpm-workspace.yaml"})
         for relative in paths:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,6 +234,15 @@ This is a non-Production Skeleton and contains no application implementation.
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.make_workspace(root)
+            policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_deferred_root_workspace_configuration_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            for relative in ("package.json", "pnpm-workspace.yaml"):
+                (root / relative).unlink()
+                paths.remove(relative)
             policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_workspace_missing_readme_fails(self):

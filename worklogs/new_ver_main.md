@@ -1789,12 +1789,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### Workspace／Responsibility Boundary
 
-- Root PackageをPrivateな`@oripa/platform-workspace`、Version `2.0.0-alpha.1`、`packageManager` `pnpm@10.12.1`として定義した。
-- `pnpm-workspace.yaml`は`apps/admin`と`packages/*`だけを対象とし、V1 `frontend`と`backend`をWorkspaceへ含めていない。
+- Platform Versionの開始値は`2.0.0-alpha.1`としたが、Root `package.json`と`pnpm-workspace.yaml`は最終成果物へ含めていない。
+- 初期案のRoot Workspace設定によりV1 `frontend/pnpm-lock.yaml`を使用する既存CIのinstall／audit解決が変わり、`quality-gate`と`security-gate`が失敗することを確認した。V1 Code、Lockfile、Gate、Baselineを変更せずRoot設定を取り下げた。
 - `apps/api`、`apps/admin`、`packages/platform`、`packages/storefront-client`、`packages/site-schema`、`packages/storefront-testkit`、`openapi`、`infrastructure`、`deployments`、`manifests`、`legacy/v1`の責任境界をREADMEで定義した。
 - 各READMEはOwner、配置予定Component、Allowed／Forbidden Scope、Nested `AGENTS.md`、Skeleton状態、Production利用不可、V1 CodeをCopyしない方針を明示した。
 - Application Code、Package実装、OpenAPI実Contract、Next.js App、Migration、Docker Runtime、Production設定は作成していない。
-- Dependencyを追加せず、`pnpm install`を実行せず、Root Lockfileを生成していない。実PackageとDependencyを追加する後続TaskでRoot Lockfileを同時に確定する。
+- Dependencyを追加せず、`pnpm install`を実行せず、Root Lockfileを生成していない。実Package、Dependency、Root Lockfile、V1分離後のCI Commandを同一の後続Taskで確定する。
 
 ### Manifest Schema／CI
 
@@ -1802,13 +1802,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Release SchemaはPlatform／Package／API Contract Version、Migration Revision、Source Commit、Image Digest、SBOM、作成日時を必須化した。
 - Deployment SchemaはSite、Environment、Platform／Package Version、Image Digest、Migration Revision、Deployment日時、承認参照、Source Release Manifestを必須化した。
 - GOV-011のExample ManifestをSchemaへ整合させた。値は非秘密の構造例であり、実Release、実Deployment、実承認を表さない。
-- `policy-gate`へ必須Workspace File、README責任境界、Root Workspace設定、Schema／Example整合、V1 Code複製検出を追加した。
+- `policy-gate`へ必須Workspace File、README責任境界、Root Workspace設定を将来一括導入する制約、Schema／Example整合、V1 Code複製検出を追加した。
 - Positive Fixtureと、README欠落、V1 Workspace混入、Manifest必須Field欠落、V1 Code CopyのNegative FixtureをUnit Testへ追加した。
 
 ### Verification
 
 - Python SyntaxとPolicy Gate Unit Test 11件はPASSした。
-- Positive Workspace FixtureはPASSし、各Negative Fixtureは意図したPolicy違反でFAILした。
+- Positive Workspace FixtureとRoot Workspace設定を延期したFixtureはPASSし、各Negative Fixtureは意図したPolicy違反でFAILした。
 - Hostの`jsonschema`は3.2.0でDraft 2020-12 Validatorを持たないため、新しいPackageを導入せず、Draft宣言、Required Field、Strict Object、SemVer、Digest、UTC日時、Example整合を標準Libraryの`policy-gate`で検証した。
 - Backend／Frontend Runtime Test、Application Build、Browser／E2Eは本Taskでは未実行であり、PASSとは記録しない。
 - Final Local Verification、Commit、GitHub App Push、PR、Required Check、Self-review、Squash Merge、Cleanup、Local `main`同期を続行する。
@@ -1821,9 +1821,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### Local Verification／GitHub
 
-- `git diff --check`、JSON Parse、Markdown見出し、Internal Link、Workspace設定、Schema／Example整合、Allowed Paths、Binary／Submodule、V1 Code移動なしを確認した。
+- `git diff --check`、JSON Parse、Markdown見出し、Internal Link、Workspace設定延期判断、Schema／Example整合、Allowed Paths、Binary／Submodule、V1 Code移動なしを確認した。
 - `policy-gate`、`quality-gate`、`security-gate`はLocalでPASSした。Security Gateは期限付きの既存Dependency Advisory完全Baselineと一致し、新規Secret Candidateは0件だった。
-- Policy Gate Unit Test 11件はPASSした。Positive Workspace FixtureはPASSし、README欠落、V1 Workspace混入、Manifest必須Field欠落、V1 Code CopyのNegative Fixtureは期待どおり拒否された。
+- Policy Gate Unit TestはRoot Workspace延期Fixtureを含めてPASSした。Positive FixtureはPASSし、README欠落、V1 Workspace混入、Manifest必須Field欠落、V1 Code CopyのNegative Fixtureは期待どおり拒否された。
 - Task Commitは`290a6b484bcd5952aa68a943675f9412a6eeb326`で、ParentはBase SHA `a0f3412ab987782294ace25ad28c77a3fc724150`である。
 - GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、V1 Archive Ref変更は行っていない。
 - PRは`#40` (`https://github.com/ideal-sol/oripa/pull/40`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
