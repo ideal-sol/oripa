@@ -325,7 +325,7 @@ jobs:
             curl --fail --silent http://localhost:8000/api/health \
             > "$RUNNER_TEMP/v2-api-health.json"
           wait_for_endpoint admin \
-            wget --quiet --output-document=- http://localhost:3000/api/health \
+            wget --quiet --output-document=- http://127.0.0.1:3000/api/health \
             > "$RUNNER_TEMP/v2-admin-health.json"
           for service in api admin postgres redis; do
             container="$("${compose[@]}" ps -q "$service")"

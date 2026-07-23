@@ -2069,6 +2069,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Root Workspaceの初回Auditで検出した新規Transitive Advisoryは、修正版が存在するExact Versionへ固定し、最終Root Auditは0 Findingとなった。Legacy Dependency Baselineは変更していない。
 - 初回PR Runの`policy-gate`はPR本文のAllowed Pathsが説明文だったため失敗し、Task Policyと一致する実Path Patternへ修正した同一Headの再実行でPASSした。
 - GitHub Runner上の`docker compose up --wait`を含むSmoke Stepが2回失敗した一方、同一ComposeのLocal Smokeは再現せずPASSした。Gateを弱めず、API／Admin Endpointの最大300秒Bounded Pollingと4 ServiceのDocker Health検査へ置き換え、失敗時のTask専用診断を追加した。
+- 診断付きRunでAPI／PostgreSQL／Redisは正常、AdminはNext.js起動済みだが`localhost` Requestを受信していないことを確認した。Alpine `wget`とIPv4 Bindの差を排除するため、Admin Health URLを`127.0.0.1`へ固定して再検証する。
 
 ### Local Verification
 

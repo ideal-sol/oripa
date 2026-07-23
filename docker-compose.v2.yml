@@ -45,7 +45,7 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: production
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 5s
       timeout: 5s
       retries: 24
