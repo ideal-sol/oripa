@@ -1711,3 +1711,47 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task Commitは`b3e67544ba4f713095d25b27c182a1304e11277c`で、GitHub App WrapperによりFast-forward Pushした。
 - PRは`#30` (`https://github.com/ideal-sol/oripa/pull/30`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
 - 本追記を含むFinal Headで5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
+
+### GOV-012 Closeout
+
+- PR `#30`のFinal Head `36a658d4d67e272a0b7d0db29e54be832cd72b66`で5 Required Checkがすべて成功した。
+- 日本語説明を含むMachine-readable Self-review EvidenceはOIDC Claim境界、Scope、Secret／PII、SEV-0／SEV-1なしでPASSした。
+- GitHub AppがSquash Mergeし、Squash Commitは`7125eec84afdda2b7acd93b751dd1d7ac20df1c3`である。
+- Issue `#29`はClosed、Remote／Local Task BranchとWorktreeは削除済みである。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Working Treeはcleanだった。
+- Provider固有Role、実Credential、実Cloud Login、Production Deploymentは未実装・未実行である。
+
+## GOV-013 セキュリティスキャン基盤
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-013`
+- Risk: `R3`
+- Issue: `#31` (`https://github.com/ideal-sol/oripa/issues/31`)
+- Branch: `security/GOV-013-github-security-scanning`
+- Worktree: `/var/www/oripa-worktrees/GOV-013-github-security-scanning`
+- Base SHA: `7125eec84afdda2b7acd93b751dd1d7ac20df1c3`
+
+### Before／Design
+
+- 開始時ReadbackはDependency Graph、Dependabot Security Updates、Private Vulnerability Reportingが無効、Secret Scanning／Push Protectionがdisabledだった。
+- `code_security`と`advanced_security`の設定KeyはPublic Repository API Readbackで`unavailable`だった。Code ScanningはPublic RepositoryのWorkflow方式で検証する。
+- CodeQLはRepository実態に合わせ`javascript-typescript`を対象とする。PHPはCodeQL対応Languageではないため解析済みと記録しない。
+- Dependency ReviewはPull Requestだけで実行し、High Severity以上を拒否する。
+- Dependabotは`/backend`のComposer、`/frontend`のnpm、Repository RootのGitHub Actionsを週次確認する。
+- 既存`security-gate`をNo-op化せず、CodeQL／Dependency Reviewと併用する。
+- Existing AlertをDismiss／Closeせず、期限・Owner・修正Task・EvidenceのないBaselineを作らない。
+
+### Local Verification／GitHub Security
+
+- Workflow／Dependabot YAML Parse、Markdown見出し／Internal Link、Action Full SHA Pin、Permission最小化、`git diff --check`はPASSした。
+- Policy Gate Unit Test 6件、`policy-gate`、`quality-gate`、`security-gate`、Allowed Paths、Secret／PII確認はPASSした。
+- CodeQLに必要なJob-level `security-events: write`だけを`codeql.yml`で許可し、他WorkflowとWorkflow全体のWrite Permissionは引き続き拒否する。
+- Dependency Graph、Dependabot Alerts／Security Updates、Secret Scanning、Push Protection、Private Vulnerability Reportingを有効化し、API Readbackで確認した。
+- `code_security`／`advanced_security`設定KeyはPublic Repository APIで`unavailable`である。CodeQLの実AnalysisとSARIF Upload成功をCode Scanningの検証Evidenceとする。
+- Environment Secret、Alert本文、検出Credential、実PIIは取得・表示・記録していない。Existing FindingをDismiss／Closeしていない。
+- Task Commitは`41bf40e57c5d2baa32c2e8e52fc8601c17fc6139`で、GitHub App WrapperによりFast-forward Pushした。
+- PRは`#32` (`https://github.com/ideal-sol/oripa/pull/32`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
+- Initial Headでは`policy-gate`、`security-gate`、`dependency-review`、CodeQL Setupが成功し、CodeQL Analysis／SARIF Upload、`quality-gate`、`integration-gate`は実行中だった。
+- 本追記を含むFinal Headで5 Required Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
