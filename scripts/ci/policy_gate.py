@@ -17,6 +17,7 @@ FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(r"^[A-Z]+-[0-9]+[A-Z]?$")
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
+    r"(?:/[A-Za-z0-9_.-]+)*"
     r"@([0-9a-f]{40})(?:\s+#.*)?$"
 )
 REQUIRED_REPOSITORY_FILES = {
@@ -184,13 +185,21 @@ def validate_workflow_text(path: str, text: str) -> None:
         raise PolicyFailure(f"{path}: pull_request_target is prohibited")
     if re.search(r"^\s*permissions:\s*(?:write-all|read-all)\s*$", text, re.MULTILINE):
         raise PolicyFailure(f"{path}: workflow permissions must be explicit")
-    if re.search(
-        r"^\s+(?:actions|checks|contents|deployments|id-token|issues|packages|"
+    for match in re.finditer(
+        r"^(\s+)(actions|checks|contents|deployments|id-token|issues|packages|"
         r"pull-requests|security-events|statuses):\s*write\s*$",
         text,
         re.MULTILINE,
     ):
-        raise PolicyFailure(f"{path}: write workflow permission is prohibited")
+        indent, permission = match.groups()
+        codeql_job_upload = (
+            path == ".github/workflows/codeql.yml"
+            and permission == "security-events"
+            and len(indent) >= 6
+            and "github/codeql-action/analyze@" in text
+        )
+        if not codeql_job_upload:
+            raise PolicyFailure(f"{path}: write workflow permission is prohibited")
     if "permissions:" not in text or not re.search(
         r"^\s+contents:\s*read\s*$", text, re.MULTILINE
     ):

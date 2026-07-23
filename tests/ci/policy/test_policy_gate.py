@@ -49,6 +49,41 @@ class PolicyGateTest(unittest.TestCase):
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "dangerous tracked"):
             policy_gate.validate_dangerous_paths(data["tracked_paths"])
 
+    def test_codeql_job_can_upload_security_events(self):
+        workflow = """\
+permissions:
+  contents: read
+concurrency:
+  group: codeql
+jobs:
+  analyze:
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+"""
+        policy_gate.validate_workflow_text(".github/workflows/codeql.yml", workflow)
+
+    def test_non_codeql_security_events_write_fails(self):
+        workflow = """\
+permissions:
+  contents: read
+concurrency:
+  group: unsafe
+jobs:
+  analyze:
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+"""
+        with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
+            policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
