@@ -1616,3 +1616,53 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Final Headを固定後、5 Check、Fresh Machine-readable Self-review、SEV-0／SEV-1なし、Scope、Secret／PII、Merge Conflictなしを再確認してGitHub AppがSquash Mergeする。
 - Gate G1ではPlatform Governance、Architecture Baseline、5 Required Check、Site Template Gate実装まで完了した。
 - Canonical Site Template、実First-party Package、OpenAPI／JSON Schema Contract、実Site Build／Contract Testは未作成であり、Gate G1は`NOT COMPLETE`のまま維持する。
+
+### GOV-010 Closeout
+
+- PR `#26`はFinal Headの5 Required CheckとMachine-readable Self-reviewが成功した後、GitHub AppがSquash Mergeした。
+- Squash Commitは`5616207ef1cc8d15353a9722b0c9137cfbb718f3`、Issue `#25`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済みである。
+- Working Treeはclean、V1 Archive BranchとAnnotated Tagは変更していない。
+
+## Governance Wave 4 Language Policy
+
+- 2026-07-23以降に新規作成するGitHub Issue／PR、Commit Message、Self-review説明、GitHub Comment、Worklog実行内容、Task完了報告は日本語で記録する。
+- Task ID、Branch、File／Directory、Check、Command、API、JSON／YAML／TOML Key、Class／Method／Package等の技術識別子は英語表記を維持する。
+- 過去の英語記録は遡って翻訳しない。
+
+## GOV-011 リリース・環境保護
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-011`
+- Risk: `R3`
+- Issue: `#27` (`https://github.com/ideal-sol/oripa/issues/27`)
+- Branch: `chore/GOV-011-release-environment-protection`
+- Worktree: `/var/www/oripa-worktrees/GOV-011-release-environment-protection`
+- Base SHA: `5616207ef1cc8d15353a9722b0c9137cfbb718f3`
+
+### Scope／Design
+
+- `platform-staging`はCodexの自律Deploymentを許容し、`main`、`release/*`、Alpha／Beta TagへDeployment元を限定する。
+- `platform-production`は正式な`platform-v*` Tagだけを対象とし、人間OwnerのRequired Reviewerと自己承認防止を維持する。
+- Environment設定とRuntime稼働、Secret配置、Deployment成功を分離し、未構築環境を稼働済みと記録しない。
+- Alpha／Beta／Stable、Build Once／Digest Promote、Release／Deployment Manifest、SBOM、Migration Revision、Rollback基準を文書化する。
+- Example Manifestは非秘密・非Productionの構造例であり、実Releaseや実Deploymentを表さない。
+- Application、Migration、CI Workflow、Ruleset、Production Secret、V1 Archive Refは変更しない。
+
+### Verification Plan
+
+- JSON Parse、Markdown構造、Internal Link、Manifest項目、Allowed Paths、Secret／PII、Environment API Readbackを確認する。
+- Required `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`と固定Head Self-reviewをMerge条件とする。
+- Documentation-only TaskのためBackend／Frontend Runtime Test、Build、Browser／E2Eは実行せず、PASSとは記録しない。
+
+### Environment／GitHub
+
+- `platform-staging`をCustom Deployment Policyで`main`、`release/*`、`platform-v*-alpha*`、`platform-v*-beta*`へ限定した。
+- `platform-production`を正式な`platform-v*` Tagだけに限定し、Required Reviewer `myong-ideal`と`prevent_self_review`を有効にした。
+- 両EnvironmentのWait Timerは`0`である。Environment URL、Environment Secret、Credentialは作成・取得していない。
+- Environment API ReadbackはEnvironment名、Protection、Reviewer、Branch／Tag Policyについて設定値と一致した。
+- Task Commitは`5bedb258e551d620223bee4cec9400542132896b`、PRは`#28` (`https://github.com/ideal-sol/oripa/pull/28`)である。
+- Initial Headの`security-gate`は成功した。`policy-gate`はPR本文の`Changed files`省略表現を拒否したため、実File名7件へ修正した。GateやAssertionは変更していない。
+- 本追記のCommitをFast-forward Pushし、5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
