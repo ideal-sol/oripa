@@ -1831,5 +1831,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PR eventでCheck Suiteが生成されない場合もRequired Checkを省略しないため、Repository外の汎用WrapperへTask Policy固定Branchの`platform-ci.yml`だけを`workflow_dispatch`するOperationを追加した。任意Workflow、Ref、Repositoryは指定できない。
 - 新規Tokenの`actions` Permissionがreadのため`workflow_dispatch`はHTTP 403で拒否され、WorkflowやRepository状態の変更は発生しなかった。Permissionは拡張していない。
 - 代替として同じTask PR、Branch、固定HeadだけをClose後に即ReopenするPolicy限定Operationを追加し、標準`pull_request: reopened` eventでRequired Checkを再起動する。新しいIssue、Branch、PRは作成しない。
+- GitHub App由来のPR eventではWorkflowが発火しなかったため、登録／Installationで承認済みの`actions: write`を新規Tokenにも最小要求し、固定Workflow／Branchの`workflow_dispatch`を使用する。Token、ID、Authorization Headerは表示・保存しない。
 - 本追記を含むFinal HeadでRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`、Fresh Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
 - Backend／Frontend Runtime Test、Application Build、Browser／E2EはLocalでは未実行であり、GitHub `integration-gate`の実行結果と混同しない。
