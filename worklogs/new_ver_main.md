@@ -1567,3 +1567,52 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 既知Failureは`Tests\Feature\AdminPaymentApiTest`の返金とChargebackの2件だけで、旧Fixtureが現在必須のPayment-origin Point LotとWalletを作成していないことによる。
 - ApplicationやAssertionを変更せず、Class、Method、Exception Typeの完全一致Baselineとして2026-08-15まで`QUALITY-002`で管理する。新規、欠落、変更、期限切れは`integration-gate`を失敗させる。
 - BaselineはV1の既知状態だけに適用し、Backend全Testの実行自体は省略しない。
+
+### GOV-009完了
+
+- PR `#24`のFinal Head `5c00861dc74223e7e9dc6bd28f44c57b6d7bbc37`で`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`がすべて成功した。
+- Machine-readable Self-reviewはScope、Secret／PII、Migration／Security、SEV-0／SEV-1なしでPASSした。
+- GitHub AppがSquash Mergeし、Squash Commitは`701d27c9e738fe7551440a25d7837b73a5b5f572`である。
+- Issue `#23`はClosed、Remote／Local Task BranchとWorktreeは削除済みである。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Merge後`main`でも5 Gateすべてが成功した。
+- `main-protection`と`release-branch-protection`へ実在する5 CheckをRequired Contextとして追加し、Readbackで完全一致を確認した。GOV-009前Bootstrap例外は失効した。
+
+## GOV-010 Site Template CI
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-010`
+- Risk: `R3`
+- Issue: `#25` (`https://github.com/ideal-sol/oripa/issues/25`)
+- Branch: `ci/GOV-010-site-template-gate`
+- Worktree: `/var/www/oripa-worktrees/GOV-010-site-template-gate`
+- Base SHA: `701d27c9e738fe7551440a25d7837b73a5b5f572`
+
+### Design
+
+- Site／Platform Repository責任境界、First-party Package Exact Version、Site Schema、環境Template、薄いStorefront Client経由、Build／Typecheck／Lint／Contract Scriptを検証する。
+- `/api/v2`への直接`fetch`、Platform Source Directory、Laravel／Admin／Payment／Point／Draw Logic、他Site設定、Secret-bearing環境名を拒否する。
+- Positive FixtureはPASS、Negative FixtureはFAILすることをUnit Testと`integration-gate`で確認する。
+- Site Template検証失敗は`integration-gate`と`ci-gate`を失敗させ、Required Check名5件は変更しない。
+- Canonical Site Templateは現時点で存在しない。FixtureはGate実装の検証用であり、実Template完成またはGate G1完了とは記録しない。
+- Application、Migration、Docker、Ruleset、V1 Archive Refは変更しない。
+
+### Local Verification
+
+- Python SyntaxとSite Template Unit Test 6件はPASSした。
+- Positive FixtureはPASSし、Negative FixtureはExact Version違反で期待どおりFAILした。
+- Unit TestでDirect `/api/v2` Fetch、First-party非Exact Version、Sensitive環境名、Platform Directory Copyを個別に拒否した。
+- `quality-gate`、`policy-gate`、`git diff --check`、JSON Parse、Markdown構造、Allowed Paths、Secret／PII確認はPASSした。
+- Backend／Frontend Runtime Test、Migration、Frontend Build、Browser／E2EはLocalでは未実行であり、PASSとは記録しない。既存の5 GitHub GateでRuntime範囲を再実行する。
+
+### GitHub／Gate G1
+
+- Task Commit: `08b67904985cca1e43687b7e810b699fc46fc04f`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- PR: `#26` (`https://github.com/ideal-sol/oripa/pull/26`)
+- Initial HeadでRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`がすべて成功し、Required CheckのRuleset強制が実際に作動した。
+- `integration-gate`はBackend全Testの期限付き完全Baseline、Frontend Build／Typecheck、Ephemeral Migration、Compose、Site Template Positive／Negative Fixtureを実行した。
+- Final Headを固定後、5 Check、Fresh Machine-readable Self-review、SEV-0／SEV-1なし、Scope、Secret／PII、Merge Conflictなしを再確認してGitHub AppがSquash Mergeする。
+- Gate G1ではPlatform Governance、Architecture Baseline、5 Required Check、Site Template Gate実装まで完了した。
+- Canonical Site Template、実First-party Package、OpenAPI／JSON Schema Contract、実Site Build／Contract Testは未作成であり、Gate G1は`NOT COMPLETE`のまま維持する。

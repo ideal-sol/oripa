@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "site_id": "example-site",
+  "repository_role": "site",
+  "platform_source": "package-only",
+  "packages": {
+    "@oripa/site-schema": "2.0.0-alpha.1",
+    "@oripa/storefront-client": "2.0.0-alpha.1"
+  }
+}
