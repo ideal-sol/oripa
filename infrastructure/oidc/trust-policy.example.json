@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "status": "example-not-provider-config",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "allow": {
+    "repository_equals": "ideal-sol/oripa",
+    "environment_in": [
+      "platform-staging",
+      "platform-production"
+    ],
+    "subject_matches_environment": true,
+    "audience_equals_selected_environment": true,
+    "ref_matches_environment_policy": true
+  },
+  "deny": {
+    "pull_request_context": true,
+    "fork_repository": true,
+    "repository_mismatch": true,
+    "environment_mismatch": true,
+    "audience_mismatch": true,
+    "ref_mismatch": true
+  },
+  "session": {
+    "credential_type": "short-lived",
+    "maximum_duration_seconds": 3600
+  }
+}

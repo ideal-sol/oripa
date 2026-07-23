@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "purpose": "provider-neutral OIDC claim constraints",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "repository": "ideal-sol/oripa",
+  "environments": {
+    "staging": {
+      "environment": "platform-staging",
+      "subject": "repo:ideal-sol/oripa:environment:platform-staging",
+      "allowed_ref_patterns": [
+        "refs/heads/main",
+        "refs/heads/release/*",
+        "refs/tags/platform-v*-alpha*",
+        "refs/tags/platform-v*-beta*"
+      ],
+      "pull_request_allowed": false
+    },
+    "production": {
+      "environment": "platform-production",
+      "subject": "repo:ideal-sol/oripa:environment:platform-production",
+      "allowed_ref_patterns": [
+        "refs/tags/platform-v*"
+      ],
+      "pull_request_allowed": false
+    }
+  },
+  "audience": {
+    "staging": "provider-defined-staging-audience",
+    "production": "provider-defined-production-audience",
+    "must_be_distinct": true
+  }
+}

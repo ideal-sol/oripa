@@ -1666,3 +1666,39 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task Commitは`5bedb258e551d620223bee4cec9400542132896b`、PRは`#28` (`https://github.com/ideal-sol/oripa/pull/28`)である。
 - Initial Headの`security-gate`は成功した。`policy-gate`はPR本文の`Changed files`省略表現を拒否したため、実File名7件へ修正した。GateやAssertionは変更していない。
 - 本追記のCommitをFast-forward Pushし、5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
+
+### GOV-011 Closeout
+
+- PR `#28`のFinal Head `a119b498e64f6a8a7f94fd3dee6f48ecb9f30645`で5 Required Checkがすべて成功した。
+- 日本語説明を含むMachine-readable Self-review EvidenceはScope、Environment Readback、Secret／PII、SEV-0／SEV-1なしでPASSした。
+- GitHub AppがSquash Mergeし、Squash Commitは`e4a42fddfc7487bcdb662e8f8810cccf6480df50`である。
+- Issue `#27`はClosed、Remote／Local Task BranchとWorktreeは削除済みである。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Working Treeはcleanだった。
+- `platform-staging`と`platform-production`のEnvironment ProtectionはAPI Readbackで確認済みだが、Runtime、Secret、実Deploymentは未構築・未実行である。
+
+## GOV-012 OIDC／Deploy Credential Baseline
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-012`
+- Risk: `R3`
+- Issue: `#29` (`https://github.com/ideal-sol/oripa/issues/29`)
+- Branch: `chore/GOV-012-oidc-deploy-credentials`
+- Worktree: `/var/www/oripa-worktrees/GOV-012-oidc-deploy-credentials`
+- Base SHA: `e4a42fddfc7487bcdb662e8f8810cccf6480df50`
+
+### Scope／Design
+
+- OIDCを第一選択とし、Providerが非対応の場合だけSite別の期限付きCredentialを例外利用する。
+- Repository、Environment、Ref、Audience、Subjectを限定し、Pull Request／ForkからProduction Credentialを発行しない。
+- 一つのSiteごとにRepository、Codex Environment、GitHub Environment、Deploy Identity、Provider境界を分離する。
+- Rotation、Revocation、Incident時の即時停止とProvider Onboarding Checklistを定義する。
+- JSON ExampleはProvider-neutralであり、実Role、実Audience、実Credential、実Cloud Loginを表さない。
+- Application、Migration、CI Workflow、Ruleset、Environment Secret、V1 Archive Refは変更しない。
+
+### Verification Plan
+
+- JSON Parse、Markdown構造、Internal Link、Allowed Paths、Secret／PII、Infrastructure Ruleとの整合を確認する。
+- 5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge ConflictなしをMerge条件とする。
+- Documentation-only TaskのためBackend／Frontend Runtime Test、Build、Browser／E2E、実Cloud Loginは未実行であり、PASSとは記録しない。
