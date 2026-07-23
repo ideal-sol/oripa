@@ -1,0 +1,139 @@
+schema_version: 1
+
+release:
+  decision_id: ""
+  type: platform_stable # platform_alpha | platform_beta | platform_rc | platform_stable | site_staging | site_production | hotfix
+  version: ""
+  site_id: null
+  environment: null
+  git_sha: ""
+  image_digests:
+    api: ""
+    admin: ""
+    storefront: ""
+  decision: NO-GO # GO | NO-GO
+
+compatibility:
+  family: 2
+  public_api_contract: ""
+  admin_api_contract: ""
+  webhook_api_contract: ""
+  storefront_client: ""
+  site_schema: ""
+  storefront_testkit: ""
+  database_schema_revision: ""
+  required_capabilities: []
+
+severity:
+  sev0_open: 0
+  sev1_open: 0
+  sev2_open: 0
+  sev3_open: 0
+
+gates:
+  governance:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  compatibility:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  contracts:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  database:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  point_draw_inventory:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  payment_refund_chargeback:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  identity_security:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  quality_e2e:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  performance:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  operations:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  legal_accounting:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+  artifacts:
+    required: true
+    status: NOT_STARTED
+    evidence: []
+    notes: ""
+
+waivers: []
+# - waiver_id: ""
+#   issue: ""
+#   severity: SEV-2
+#   owner: ""
+#   expires_at: ""
+#   affected_sites: []
+#   reason: ""
+#   workaround: ""
+#   monitoring: ""
+#   evidence: []
+
+rollback:
+  classification: "" # application_only | feature_disable | forward_fix | backup_restore | not_applicable
+  tested: false
+  evidence: []
+
+backup:
+  created: false
+  restore_tested: false
+  evidence: []
+
+approval:
+  release_owner: ""
+  security_approval: ""
+  legal_approval: ""
+  accounting_approval: ""
+  approved_at: null
+  comment: ""
+
+post_release:
+  monitoring_window_hours: 0
+  closure_status: NOT_STARTED
+  closure_evidence: []

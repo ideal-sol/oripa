@@ -1244,3 +1244,46 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Main／ReleaseはApproval 0、Code Owner Review OFF、最新Push Approval OFF、Conversation Resolution ON、Squashのみ、Linear History／削除禁止／Force Push禁止をReadbackした。
 - PR `#12`のInitial Headに対するGitHub Checkは0件、Required Check 0件、Failure 0件で、GOV-009前のBootstrapとして記録した。
 - 本追記を含むFinal Headは別CommitとしてFast-forward Pushし、PR本文、Checks、Self-review EvidenceをFinal Headへ更新する。
+
+### GOV-005R1完了
+
+- Final Head `2c425269fcc5d08863fa8b989a7aa83845a9399f`へ固定したMachine-readable Self-review EvidenceをPR `#12`へ保存した。
+- GOV-009前Bootstrapとして、GitHubが実際に発行したCheck 0件、Failure 0件、Missing 0件を確認した。未実行のRuntime TestをPASSとは扱っていない。
+- PR `#12`をReady化し、Head不変、Allowed Paths、Check、Fresh Evidence、SEV-0／SEV-1なし、Merge Conflictなしを再検証してGitHub AppがSquash Mergeした。
+- Squash Commitは`01ac1521bbb1b0d08405ddcf9be1a859135ede6a`、Issue `#11`はClosedである。
+- Remote Task BranchはRepository設定により自動削除され、Local Task Worktree／BranchもTree同等性確認後に削除した。
+- Local `main`を`origin/main`へFast-forward同期し、両者はSquash Commitで一致、Working Treeはcleanである。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+## MIG-010 V2 Repository Baseline
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `MIG-010`
+- Risk: `R3`
+- Issue: `#13` (`https://github.com/ideal-sol/oripa/issues/13`)
+- Branch: `docs/MIG-010-v2-repository-baseline`
+- Worktree: `/var/www/oripa-worktrees/MIG-010-v2-repository-baseline`
+- Base SHA: `01ac1521bbb1b0d08405ddcf9be1a859135ede6a`
+
+### Scope
+
+- Repository外の確定文書Directoryを再確認し、未配置の現行FINAL文書5件を`docs/architecture/`へ内容不変で配置する。
+- `release-gate.example.yaml`を非秘密の例示Artifactとして配置する。
+- `docs/architecture/README.md`をArchitecture Indexとして追加する。
+- Root `AGENTS.md`のReading OrderをRepository内の実在Pathへ更新する。
+- Context-onlyのChat Handoff／Project Statusと、Superseded済みの旧Governance／Release Gatesは正本として配置しない。
+- 旧非Revision Security文書は使用せず、`REV1`だけを正本とする。
+
+### Verification
+
+- 外部原本とRepository配置後FileのSHA-256一致を確認する。
+- `git diff --check`、YAML Parse、Markdown見出し／Internal Link、Allowed Paths、Secret／PII、Binary／Submoduleを確認する。
+- Documentation-only TaskのためBackend／Frontend Runtime Test、Build、Browser／E2Eは未実行とする。
+- GitHubが発行する全Check、固定Head Self-review、SEV-0／SEV-1なしを確認してから自律Squash Mergeする。
+
+### Impact／Next
+
+- Application、API、DB、Migration、Auth、Point、Payment、Draw、CI、Infrastructure、Ruleset、Productionへ変更はない。
+- MIG-010完了後、Phase 1の残作業とGate G1を評価する。Workspace SkeletonやMechanical Moveは本Taskに含めない。
