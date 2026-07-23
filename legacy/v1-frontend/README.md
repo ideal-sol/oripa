@@ -44,15 +44,17 @@ Use Node 22 and pnpm 10.12.1. The locked dependency graph remains unchanged.
 
 ```bash
 cd legacy/v1-frontend
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm lint
-pnpm build
-pnpm start
+pnpm --ignore-workspace install --frozen-lockfile
+pnpm --ignore-workspace typecheck
+pnpm --ignore-workspace lint
+pnpm --ignore-workspace build
+pnpm --ignore-workspace start
 ```
 
-`package.json` has no Frontend Test Script. Do not report Frontend Tests as
-PASS unless an approved Test Script is added in a separate Task.
+`--ignore-workspace` keeps this V1 dependency graph and Lockfile independent
+from the Root V2 Workspace. `package.json` has no Frontend Test Script. Do not
+report Frontend Tests as PASS unless an approved Test Script is added in a
+separate Task.
 
 For development comparison, copy the non-secret template manually:
 

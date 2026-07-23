@@ -1,0 +1,91 @@
+# V2 structural smoke environment. This file is never a Production deployment.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      APP_DEBUG: "false"
+      APP_ENV: local
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_URL: http://api:8000
+      CACHE_STORE: redis
+      DB_CONNECTION: pgsql
+      DB_DATABASE: v2_skeleton
+      DB_HOST: postgres
+      DB_PASSWORD: v2_skeleton_only
+      DB_PORT: 5432
+      DB_USERNAME: v2_skeleton
+      FILESYSTEM_DISK: local
+      LOG_CHANNEL: stderr
+      QUEUE_CONNECTION: sync
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SESSION_DRIVER: array
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+    networks:
+      - v2_skeleton
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    networks:
+      - v2_skeleton
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: v2_skeleton
+      POSTGRES_PASSWORD: v2_skeleton_only
+      POSTGRES_USER: v2_skeleton
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U v2_skeleton -d v2_skeleton"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - v2_postgres:/var/lib/postgresql/data
+    networks:
+      - v2_skeleton
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - v2_redis:/data
+    networks:
+      - v2_skeleton
+
+networks:
+  v2_skeleton:
+    internal: true
+
+volumes:
+  v2_postgres:
+  v2_redis:

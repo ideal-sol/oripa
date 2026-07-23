@@ -148,6 +148,14 @@ def validate_dependency_baseline(
     }
 
 
+def validate_workspace_pnpm_audit(pnpm: list[dict]) -> int:
+    if pnpm:
+        raise SecurityFailure(
+            "V2 workspace pnpm audit contains findings; do not extend the V1 baseline"
+        )
+    return 0
+
+
 def load_policy_gate(repository: Path):
     path = repository / "scripts/ci/policy_gate.py"
     spec = importlib.util.spec_from_file_location("policy_gate_for_security", path)
@@ -219,6 +227,7 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--composer-audit", type=Path, required=True)
     parser.add_argument("--pnpm-audit", type=Path, required=True)
+    parser.add_argument("--workspace-pnpm-audit", type=Path, required=True)
     arguments = parser.parse_args()
     repository = arguments.repository.resolve()
     try:
@@ -239,6 +248,9 @@ def main() -> int:
         validate_remote(repository)
         composer_audit = json.loads(arguments.composer_audit.read_text(encoding="utf-8"))
         pnpm_audit = json.loads(arguments.pnpm_audit.read_text(encoding="utf-8"))
+        workspace_pnpm_audit = json.loads(
+            arguments.workspace_pnpm_audit.read_text(encoding="utf-8")
+        )
         composer_lock = json.loads(
             (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
         )
@@ -248,6 +260,9 @@ def main() -> int:
             pnpm_findings(pnpm_audit),
             baseline,
             datetime.date.today(),
+        )
+        dependency_summary["workspace_pnpm_findings"] = (
+            validate_workspace_pnpm_audit(pnpm_findings(workspace_pnpm_audit))
         )
     except (
         OSError,

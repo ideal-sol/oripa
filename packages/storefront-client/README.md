@@ -22,4 +22,5 @@ Draw／Point／Payment／Auth判断、大型SDK、直接Contract推測、V1 Code
 
 ## Status
 
-現時点はREADMEだけのSkeleton。Package実装・公開済みではなくProduction利用不可。
+現時点はREADMEと非公開`package.json`だけのSkeleton。Package実装・公開済みではなく
+Production利用不可。ExportとDependencyは定義していない。

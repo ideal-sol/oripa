@@ -49,6 +49,24 @@ class SecurityGateTest(unittest.TestCase):
                 [finding], [], baseline, datetime.date(2026, 7, 23)
             )
 
+    def test_v2_workspace_advisory_cannot_enter_v1_baseline(self):
+        finding = {
+            "source": "pnpm",
+            "advisory_id": "GHSA-fixture",
+            "audit_id": "1",
+            "package": "fixture",
+            "version": "1.0.0",
+            "severity": "high",
+            "path": "apps__admin>fixture",
+        }
+        with self.assertRaisesRegex(
+            security_gate.SecurityFailure, "do not extend the V1 baseline"
+        ):
+            security_gate.validate_workspace_pnpm_audit([finding])
+
+    def test_clean_v2_workspace_audit_passes(self):
+        self.assertEqual(security_gate.validate_workspace_pnpm_audit([]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

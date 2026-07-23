@@ -19,4 +19,6 @@ frontend/.next
 frontend/node_modules
 legacy/v1-frontend/.next
 legacy/v1-frontend/node_modules
+# V2 root-context images must never receive the V1 behavioral reference.
+legacy/v1-frontend
 infra/data

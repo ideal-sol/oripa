@@ -39,16 +39,34 @@ REQUIRED_REPOSITORY_FILES = {
     "docs/architecture/README.md",
 }
 WORKSPACE_REQUIRED_FILES = {
+    ".dockerignore",
+    ".github/dependabot.yml",
+    "package.json",
+    "pnpm-workspace.yaml",
+    "pnpm-lock.yaml",
     "apps/README.md",
     "apps/api/README.md",
     "apps/admin/README.md",
+    "apps/admin/Dockerfile",
+    "apps/admin/package.json",
+    "apps/admin/next.config.ts",
+    "apps/admin/tsconfig.json",
+    "apps/admin/eslint.config.mjs",
+    "apps/admin/next-env.d.ts",
+    "apps/admin/src/app/layout.tsx",
+    "apps/admin/src/app/page.tsx",
+    "apps/admin/src/app/api/health/route.ts",
     "apps/api/AGENTS.md",
     "apps/admin/AGENTS.md",
     "packages/README.md",
     "packages/platform/README.md",
+    "packages/platform/package.json",
     "packages/storefront-client/README.md",
+    "packages/storefront-client/package.json",
     "packages/site-schema/README.md",
+    "packages/site-schema/package.json",
     "packages/storefront-testkit/README.md",
+    "packages/storefront-testkit/package.json",
     "packages/AGENTS.md",
     "openapi/README.md",
     "openapi/AGENTS.md",
@@ -64,6 +82,8 @@ WORKSPACE_REQUIRED_FILES = {
     "legacy/v1/README.md",
     "legacy/v1/AGENTS.md",
     "docs/operations/repository-layout/README.md",
+    "docker-compose.yml",
+    "docker-compose.v2.yml",
 }
 API_APPLICATION_REQUIRED_FILES = {
     "apps/api/.env.example",
@@ -83,6 +103,38 @@ LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/next.config.ts",
     "legacy/v1-frontend/tsconfig.json",
     "legacy/v1-frontend/src/app/page.tsx",
+}
+ADMIN_SKELETON_FILES = {
+    "apps/admin/AGENTS.md",
+    "apps/admin/README.md",
+    "apps/admin/Dockerfile",
+    "apps/admin/package.json",
+    "apps/admin/next.config.ts",
+    "apps/admin/tsconfig.json",
+    "apps/admin/eslint.config.mjs",
+    "apps/admin/next-env.d.ts",
+    "apps/admin/src/app/layout.tsx",
+    "apps/admin/src/app/page.tsx",
+    "apps/admin/src/app/api/health/route.ts",
+}
+PACKAGE_SKELETONS = {
+    "packages/platform/package.json": "@oripa/platform",
+    "packages/storefront-client/package.json": "@oripa/storefront-client",
+    "packages/site-schema/package.json": "@oripa/site-schema",
+    "packages/storefront-testkit/package.json": "@oripa/storefront-testkit",
+}
+ADMIN_DEPENDENCY_VERSIONS = {
+    "next": "16.2.11",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+}
+ADMIN_DEV_DEPENDENCY_VERSIONS = {
+    "@types/node": "25.9.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.11",
+    "typescript": "6.0.3",
 }
 BOUNDARY_READMES = {
     "apps/README.md",
@@ -394,8 +446,14 @@ def validate_workspace_configuration(repository: Path) -> None:
         raise PolicyFailure("package.json: root workspace must be private")
     if package.get("packageManager") != "pnpm@10.12.1":
         raise PolicyFailure("package.json: packageManager must match the V1 lockfile")
+    if package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}:
+        raise PolicyFailure("package.json: Node and pnpm engines must be exact")
     if package.get("dependencies") or package.get("devDependencies"):
         raise PolicyFailure("package.json: skeleton must not add dependencies")
+    if package.get("pnpm") != {
+        "overrides": {"postcss": "8.5.10", "sharp": "0.35.0"}
+    }:
+        raise PolicyFailure("package.json: audited exact pnpm overrides are invalid")
 
     workspace_text = (repository / "pnpm-workspace.yaml").read_text(encoding="utf-8")
     members = {
@@ -408,10 +466,180 @@ def validate_workspace_configuration(repository: Path) -> None:
             "pnpm-workspace.yaml: workspace members must be apps/admin and packages/*"
         )
     if re.search(
-        r"(?:^|/)(?:backend|frontend|legacy/v1-frontend)(?:/|$)",
+        r"(?:^|/)(?:apps/api|backend|frontend|legacy/v1-frontend)(?:/|$)",
         "\n".join(members),
     ):
-        raise PolicyFailure("pnpm-workspace.yaml: V1 paths must not enter V2 workspace")
+        raise PolicyFailure(
+            "pnpm-workspace.yaml: API and V1 paths must not enter V2 workspace"
+        )
+
+    lock_text = (repository / "pnpm-lock.yaml").read_text(encoding="utf-8")
+    if not lock_text.startswith("lockfileVersion: '9.0'\n"):
+        raise PolicyFailure("pnpm-lock.yaml: lockfileVersion 9.0 is required")
+    importer_text = lock_text.split("\npackages:\n", 1)[0]
+    importers = set(
+        re.findall(r"^  ([A-Za-z0-9@._/-]+):(?: \{\})?$", importer_text, re.MULTILINE)
+    )
+    expected_importers = {
+        ".",
+        "apps/admin",
+        "packages/platform",
+        "packages/site-schema",
+        "packages/storefront-client",
+        "packages/storefront-testkit",
+    }
+    if importers != expected_importers:
+        raise PolicyFailure("pnpm-lock.yaml: workspace importers are invalid")
+    if "legacy/v1-frontend" in importer_text or "apps/api" in importer_text:
+        raise PolicyFailure("pnpm-lock.yaml: excluded paths entered the V2 lockfile")
+
+    dependabot = (repository / ".github/dependabot.yml").read_text(encoding="utf-8")
+    npm_directories = set(
+        re.findall(
+            r"package-ecosystem:\s*npm\s+directory:\s*([^ \n]+)",
+            dependabot,
+            re.MULTILINE,
+        )
+    )
+    if npm_directories != {"/", "/legacy/v1-frontend"}:
+        raise PolicyFailure(
+            ".github/dependabot.yml: Root and Legacy npm scopes must remain separate"
+        )
+
+
+def validate_exact_dependency_versions(
+    package: dict,
+    expected_dependencies: dict[str, str],
+    expected_dev_dependencies: dict[str, str],
+    relative: str,
+) -> None:
+    if package.get("dependencies") != expected_dependencies:
+        raise PolicyFailure(f"{relative}: exact runtime dependencies are invalid")
+    if package.get("devDependencies") != expected_dev_dependencies:
+        raise PolicyFailure(f"{relative}: exact development dependencies are invalid")
+    for section in ("dependencies", "devDependencies"):
+        for name, version in package.get(section, {}).items():
+            if not SEMANTIC_VERSION.fullmatch(version):
+                raise PolicyFailure(
+                    f"{relative}: dependency {name} must use an exact version"
+                )
+
+
+def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    actual = {path for path in path_set if path.startswith("apps/admin/")}
+    unexpected = sorted(actual - ADMIN_SKELETON_FILES)
+    missing = sorted(ADMIN_SKELETON_FILES - actual)
+    if missing:
+        raise PolicyFailure("Admin Skeleton files missing: " + ", ".join(missing))
+    if unexpected:
+        raise PolicyFailure(
+            "Admin Skeleton contains unapproved application files: "
+            + ", ".join(unexpected)
+        )
+
+    package = load_json(repository, "apps/admin/package.json")
+    if (
+        package.get("name") != "@oripa/admin"
+        or package.get("version") != "2.0.0-alpha.1"
+        or package.get("private") is not True
+        or package.get("packageManager") != "pnpm@10.12.1"
+        or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
+    ):
+        raise PolicyFailure("apps/admin/package.json: Skeleton identity is invalid")
+    validate_exact_dependency_versions(
+        package,
+        ADMIN_DEPENDENCY_VERSIONS,
+        ADMIN_DEV_DEPENDENCY_VERSIONS,
+        "apps/admin/package.json",
+    )
+    required_scripts = {"build", "dev", "lint", "start", "typecheck"}
+    if set(package.get("scripts", {})) != required_scripts:
+        raise PolicyFailure("apps/admin/package.json: required scripts are invalid")
+
+    source = "\n".join(
+        (repository / relative).read_text(encoding="utf-8", errors="replace")
+        for relative in sorted(actual)
+        if relative.endswith((".ts", ".tsx", ".mjs"))
+    )
+    for prohibited in (
+        "admin-dashboard",
+        "legacy/v1-frontend",
+        "Math.random",
+        "/api/v2",
+        "fetch(",
+        "cookies(",
+    ):
+        if prohibited in source:
+            raise PolicyFailure(
+                f"apps/admin: Skeleton contains prohibited implementation: {prohibited}"
+            )
+    layout = (repository / "apps/admin/src/app/layout.tsx").read_text(
+        encoding="utf-8"
+    )
+    if "index: false" not in layout or "follow: false" not in layout:
+        raise PolicyFailure("apps/admin: noindex and nofollow metadata are required")
+    health = (repository / "apps/admin/src/app/api/health/route.ts").read_text(
+        encoding="utf-8"
+    )
+    if (
+        "export function GET" not in health
+        or 'status: "ok"' not in health
+        or "production_ready: false" not in health
+    ):
+        raise PolicyFailure("apps/admin: deterministic Skeleton health is required")
+
+
+def validate_package_skeletons(repository: Path) -> None:
+    for relative, expected_name in PACKAGE_SKELETONS.items():
+        package = load_json(repository, relative)
+        if (
+            package.get("name") != expected_name
+            or package.get("version") != "2.0.0-alpha.1"
+            or package.get("private") is not True
+        ):
+            raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
+        forbidden = {
+            "bin",
+            "dependencies",
+            "devDependencies",
+            "exports",
+            "main",
+            "module",
+            "optionalDependencies",
+            "peerDependencies",
+            "scripts",
+        }
+        present = sorted(forbidden & set(package))
+        if present:
+            raise PolicyFailure(
+                f"{relative}: Skeleton must not define implementation: "
+                + ", ".join(present)
+            )
+
+
+def validate_compose_skeletons(repository: Path) -> None:
+    v1 = (repository / "docker-compose.yml").read_text(encoding="utf-8")
+    for required in ("./apps/api", "./legacy/v1-frontend", "postgres:", "redis:"):
+        if required not in v1:
+            raise PolicyFailure(f"docker-compose.yml: V1 reference missing {required}")
+    if "non-production characterization only" not in v1:
+        raise PolicyFailure("docker-compose.yml: V1 non-Production purpose is missing")
+
+    v2 = (repository / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    for required in ("api:", "admin:", "postgres:", "redis:", "healthcheck:"):
+        if required not in v2:
+            raise PolicyFailure(f"docker-compose.v2.yml: required value missing {required}")
+    for prohibited in ("legacy/v1-frontend", "container_name:"):
+        if prohibited in v2:
+            raise PolicyFailure(
+                f"docker-compose.v2.yml: prohibited value present {prohibited}"
+            )
+    if "non-production-skeleton" not in v2 and "never a Production" not in v2:
+        raise PolicyFailure("docker-compose.v2.yml: non-Production purpose is missing")
+    dockerignore = (repository / ".dockerignore").read_text(encoding="utf-8")
+    if not re.search(r"^legacy/v1-frontend$", dockerignore, re.MULTILINE):
+        raise PolicyFailure(".dockerignore: Legacy Frontend root-context exclusion missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -621,14 +849,10 @@ def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     missing = sorted(WORKSPACE_REQUIRED_FILES - path_set)
     if missing:
         raise PolicyFailure("required workspace files missing: " + ", ".join(missing))
-    configuration_files = {"package.json", "pnpm-workspace.yaml"} & path_set
-    if configuration_files and configuration_files != {
-        "package.json",
-        "pnpm-workspace.yaml",
-    }:
-        raise PolicyFailure("root workspace configuration must be introduced together")
-    if configuration_files:
-        validate_workspace_configuration(repository)
+    validate_workspace_configuration(repository)
+    validate_admin_skeleton(repository, paths)
+    validate_package_skeletons(repository)
+    validate_compose_skeletons(repository)
     validate_boundary_readmes(repository)
     release_schema = validate_manifest_schema(
         repository,

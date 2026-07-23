@@ -1,3 +1,5 @@
+# V1 reference environment for non-production characterization only.
+# Use a unique Compose project name for every task execution.
 services:
   backend:
     build:
@@ -170,7 +172,7 @@ services:
   postgres:
     image: postgres:17-alpine
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-oripa}
       POSTGRES_USER: ${POSTGRES_USER:-oripa}
@@ -188,7 +190,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:

@@ -104,7 +104,6 @@ jobs:
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
-        paths.update({"package.json", "pnpm-workspace.yaml"})
         for relative in paths:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +139,8 @@ This is a non-Production Skeleton and contains no application implementation.
                 )
             elif relative.endswith("AGENTS.md"):
                 path.write_text("# Fixture AGENTS\n", encoding="utf-8")
+            else:
+                path.write_text("fixture\n", encoding="utf-8")
 
         (root / "package.json").write_text(
             json.dumps(
@@ -148,12 +149,131 @@ This is a non-Production Skeleton and contains no application implementation.
                     "version": "2.0.0-alpha.1",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
+                    "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+                    "pnpm": {
+                        "overrides": {
+                            "postcss": "8.5.10",
+                            "sharp": "0.35.0",
+                        }
+                    },
                 }
             ),
             encoding="utf-8",
         )
         (root / "pnpm-workspace.yaml").write_text(
             "packages:\n  - apps/admin\n  - packages/*\n",
+            encoding="utf-8",
+        )
+        (root / ".github/dependabot.yml").write_text(
+            """version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+  - package-ecosystem: npm
+    directory: /legacy/v1-frontend
+""",
+            encoding="utf-8",
+        )
+        (root / "pnpm-lock.yaml").write_text(
+            """lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  apps/admin: {}
+
+  packages/platform: {}
+
+  packages/site-schema: {}
+
+  packages/storefront-client: {}
+
+  packages/storefront-testkit: {}
+
+packages:
+""",
+            encoding="utf-8",
+        )
+        (root / "apps/admin/package.json").write_text(
+            json.dumps(
+                {
+                    "name": "@oripa/admin",
+                    "version": "2.0.0-alpha.1",
+                    "private": True,
+                    "packageManager": "pnpm@10.12.1",
+                    "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+                    "scripts": {
+                        "build": "next build",
+                        "dev": "next dev",
+                        "lint": "eslint .",
+                        "start": "next start",
+                        "typecheck": "tsc --noEmit",
+                    },
+                    "dependencies": policy_gate.ADMIN_DEPENDENCY_VERSIONS,
+                    "devDependencies": policy_gate.ADMIN_DEV_DEPENDENCY_VERSIONS,
+                }
+            ),
+            encoding="utf-8",
+        )
+        for relative, name in policy_gate.PACKAGE_SKELETONS.items():
+            (root / relative).write_text(
+                json.dumps(
+                    {
+                        "name": name,
+                        "version": "2.0.0-alpha.1",
+                        "private": True,
+                        "description": "Fixture Skeleton",
+                        "license": "UNLICENSED",
+                    }
+                ),
+                encoding="utf-8",
+            )
+        (root / "apps/admin/src/app/layout.tsx").write_text(
+            "export const metadata = { robots: { index: false, follow: false } };\n",
+            encoding="utf-8",
+        )
+        (root / "apps/admin/src/app/page.tsx").write_text(
+            "export default function Page() { return <main>Skeleton</main>; }\n",
+            encoding="utf-8",
+        )
+        (root / "apps/admin/src/app/api/health/route.ts").write_text(
+            'export function GET() { return { status: "ok", production_ready: false }; }\n',
+            encoding="utf-8",
+        )
+        (root / ".dockerignore").write_text(
+            "legacy/v1-frontend\n",
+            encoding="utf-8",
+        )
+        (root / "docker-compose.yml").write_text(
+            """# V1 reference for non-production characterization only.
+services:
+  api:
+    volumes:
+      - ./apps/api:/app
+  frontend:
+    build: ./legacy/v1-frontend
+  postgres:
+    image: postgres:17-alpine
+  redis:
+    image: redis:7-alpine
+""",
+            encoding="utf-8",
+        )
+        (root / "docker-compose.v2.yml").write_text(
+            """# This is never a Production deployment.
+services:
+  api:
+    healthcheck:
+      test: health
+  admin:
+    healthcheck:
+      test: health
+  postgres:
+    image: postgres:17-alpine
+  redis:
+    image: redis:7-alpine
+""",
             encoding="utf-8",
         )
         semantic_version = {
@@ -253,14 +373,16 @@ This is a non-Production Skeleton and contains no application implementation.
             paths = self.make_workspace(root)
             policy_gate.validate_workspace_skeleton(root, paths)
 
-    def test_deferred_root_workspace_configuration_passes(self):
+    def test_missing_root_lockfile_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.make_workspace(root)
-            for relative in ("package.json", "pnpm-workspace.yaml"):
-                (root / relative).unlink()
-                paths.remove(relative)
-            policy_gate.validate_workspace_skeleton(root, paths)
+            (root / "pnpm-lock.yaml").unlink()
+            paths.remove("pnpm-lock.yaml")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "required workspace files missing"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_workspace_missing_readme_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -281,6 +403,69 @@ This is a non-Production Skeleton and contains no application implementation.
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "workspace members"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_api_workspace_member_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            (root / "pnpm-workspace.yaml").write_text(
+                "packages:\n  - apps/admin\n  - packages/*\n  - apps/api\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "workspace members"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_dependency_range_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "apps/admin/package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["dependencies"]["next"] = "^16.2.9"
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "exact runtime dependencies"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_health_endpoint_missing_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            relative = "apps/admin/src/app/api/health/route.ts"
+            (root / relative).unlink()
+            paths.remove(relative)
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "required workspace files missing"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_business_logic_file_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            relative = "apps/admin/src/domain/point-ledger.ts"
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("export const calculatePoints = () => 1;\n", encoding="utf-8")
+            paths.add(relative)
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "unapproved application files"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_with_legacy_frontend_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8")
+                + "\n# COPY legacy/v1-frontend into V2\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited value"):
                 policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_api_application_layout_passes(self):
@@ -331,7 +516,7 @@ This is a non-Production Skeleton and contains no application implementation.
                 path.write_text(content, encoding="utf-8")
                 paths.add(relative)
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "V1 content copied"):
-                policy_gate.validate_workspace_skeleton(root, paths)
+                policy_gate.validate_no_v1_copy(root, paths)
 
     def test_legacy_frontend_layout_passes(self):
         policy_gate.validate_legacy_frontend_layout(

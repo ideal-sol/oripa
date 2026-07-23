@@ -22,4 +22,5 @@ Laravel Domain Authority、顧客設定、Secret、推測実装、V1 CodeをCopy
 
 ## Status
 
-現時点はREADMEだけのSkeleton。Package実装済みではなくProduction利用不可。
+現時点はREADMEと非公開`package.json`だけのSkeleton。Package実装済みではなく
+Production利用不可。ExportとDependencyは定義していない。
