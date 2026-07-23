@@ -1,18 +1,26 @@
 {
   "schema_version": "1.0",
   "deployment_id": "deployment-example",
-  "release_id": "platform-v2.0.0-example",
+  "site_id": "example-site",
   "environment": "platform-staging",
-  "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "platform_version": "2.0.0-alpha.1",
+  "package_versions": {
+    "@oripa/platform": "2.0.0-alpha.1",
+    "@oripa/site-schema": "2.0.0-alpha.1",
+    "@oripa/storefront-client": "2.0.0-alpha.1",
+    "@oripa/storefront-testkit": "2.0.0-alpha.1"
+  },
+  "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   "migration_revision": "example-revision",
-  "source_ref": "refs/tags/platform-v2.0.0-example",
+  "deployed_at": "1970-01-01T00:00:00Z",
+  "approved_by": "example-not-approved",
+  "source_release_manifest": "manifests/examples/release-manifest.example.json",
   "status": "example-not-deployed",
   "rollback": {
     "previous_release_id": "platform-v1.9.0-example",
     "validated": false
   },
   "evidence": {
-    "release_manifest": "release-manifest.example.json",
     "checks_verified": false
   }
 }

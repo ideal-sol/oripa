@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,85 @@ REQUIRED_REPOSITORY_FILES = {
     "legacy/v1/AGENTS.md",
     "docs/architecture/README.md",
 }
+WORKSPACE_REQUIRED_FILES = {
+    "package.json",
+    "pnpm-workspace.yaml",
+    "apps/README.md",
+    "apps/api/README.md",
+    "apps/admin/README.md",
+    "apps/api/AGENTS.md",
+    "apps/admin/AGENTS.md",
+    "packages/README.md",
+    "packages/platform/README.md",
+    "packages/storefront-client/README.md",
+    "packages/site-schema/README.md",
+    "packages/storefront-testkit/README.md",
+    "packages/AGENTS.md",
+    "openapi/README.md",
+    "openapi/AGENTS.md",
+    "infrastructure/README.md",
+    "infrastructure/AGENTS.md",
+    "deployments/README.md",
+    "manifests/README.md",
+    "manifests/schemas/release-manifest.schema.json",
+    "manifests/schemas/deployment-manifest.schema.json",
+    "manifests/examples/release-manifest.example.json",
+    "manifests/examples/deployment-manifest.example.json",
+    "legacy/README.md",
+    "legacy/v1/README.md",
+    "legacy/v1/AGENTS.md",
+    "docs/operations/repository-layout/README.md",
+}
+BOUNDARY_READMES = {
+    "apps/README.md",
+    "apps/api/README.md",
+    "apps/admin/README.md",
+    "packages/README.md",
+    "packages/platform/README.md",
+    "packages/storefront-client/README.md",
+    "packages/site-schema/README.md",
+    "packages/storefront-testkit/README.md",
+    "openapi/README.md",
+    "infrastructure/README.md",
+    "deployments/README.md",
+    "manifests/README.md",
+    "legacy/README.md",
+    "legacy/v1/README.md",
+}
+BOUNDARY_HEADINGS = {
+    "Responsibility",
+    "Ownership",
+    "Planned Components",
+    "Allowed Scope",
+    "Forbidden Scope",
+    "Status",
+}
+RELEASE_MANIFEST_REQUIRED = {
+    "schema_version",
+    "platform_version",
+    "package_versions",
+    "api_contract_version",
+    "migration_revision",
+    "source_commit",
+    "image_digest",
+    "sbom_reference",
+    "created_at",
+}
+DEPLOYMENT_MANIFEST_REQUIRED = {
+    "schema_version",
+    "site_id",
+    "environment",
+    "platform_version",
+    "package_versions",
+    "image_digest",
+    "migration_revision",
+    "deployed_at",
+    "approved_by",
+    "source_release_manifest",
+}
+SEMANTIC_VERSION = re.compile(
+    r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$"
+)
 REQUIRED_PR_HEADINGS = {
     "Task",
     "Summary",
@@ -266,6 +346,233 @@ def validate_basic_structures(repository: Path, paths: Iterable[str]) -> None:
                 raise PolicyFailure(f"{relative}: empty Markdown")
 
 
+def load_json(repository: Path, relative: str) -> dict:
+    try:
+        value = json.loads((repository / relative).read_text(encoding="utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise PolicyFailure(f"{relative}: invalid JSON") from error
+    if not isinstance(value, dict):
+        raise PolicyFailure(f"{relative}: top-level value must be an object")
+    return value
+
+
+def validate_workspace_configuration(repository: Path) -> None:
+    package = load_json(repository, "package.json")
+    if package.get("name") != "@oripa/platform-workspace":
+        raise PolicyFailure("package.json: workspace name is invalid")
+    if package.get("version") != "2.0.0-alpha.1":
+        raise PolicyFailure("package.json: V2 workspace version is invalid")
+    if package.get("private") is not True:
+        raise PolicyFailure("package.json: root workspace must be private")
+    if package.get("packageManager") != "pnpm@10.12.1":
+        raise PolicyFailure("package.json: packageManager must match the V1 lockfile")
+    if package.get("dependencies") or package.get("devDependencies"):
+        raise PolicyFailure("package.json: skeleton must not add dependencies")
+
+    workspace_text = (repository / "pnpm-workspace.yaml").read_text(encoding="utf-8")
+    members = {
+        match.group(1).strip().strip("'\"")
+        for match in re.finditer(r"^\s*-\s+(.+?)\s*$", workspace_text, re.MULTILINE)
+    }
+    expected = {"apps/admin", "packages/*"}
+    if members != expected:
+        raise PolicyFailure(
+            "pnpm-workspace.yaml: workspace members must be apps/admin and packages/*"
+        )
+    if re.search(r"(?:^|/)(?:backend|frontend)(?:/|$)", "\n".join(members)):
+        raise PolicyFailure("pnpm-workspace.yaml: V1 paths must not enter V2 workspace")
+
+
+def validate_boundary_readmes(repository: Path) -> None:
+    for relative in sorted(BOUNDARY_READMES):
+        text = (repository / relative).read_text(encoding="utf-8")
+        headings = markdown_headings(text)
+        missing = sorted(BOUNDARY_HEADINGS - headings)
+        if missing:
+            raise PolicyFailure(
+                f"{relative}: responsibility headings missing: {', '.join(missing)}"
+            )
+        for statement in ("AGENTS.md", "Skeleton", "Production", "V1"):
+            if statement not in text:
+                raise PolicyFailure(
+                    f"{relative}: required boundary statement missing: {statement}"
+                )
+        if len(text.strip()) < 300:
+            raise PolicyFailure(f"{relative}: skeleton boundary is not substantive")
+
+
+def validate_manifest_schema(
+    repository: Path,
+    relative: str,
+    expected_required: set[str],
+) -> dict:
+    schema = load_json(repository, relative)
+    if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise PolicyFailure(f"{relative}: JSON Schema Draft 2020-12 is required")
+    if schema.get("type") != "object" or schema.get("additionalProperties") is not False:
+        raise PolicyFailure(f"{relative}: strict object schema is required")
+    required = schema.get("required")
+    properties = schema.get("properties")
+    if not isinstance(required, list) or not expected_required.issubset(required):
+        raise PolicyFailure(f"{relative}: required manifest fields are missing")
+    if not isinstance(properties, dict) or not expected_required.issubset(properties):
+        raise PolicyFailure(f"{relative}: manifest properties are missing")
+    semantic_version = schema.get("$defs", {}).get("semantic_version", {})
+    if semantic_version.get("pattern") != SEMANTIC_VERSION.pattern:
+        raise PolicyFailure(f"{relative}: semantic version policy is invalid")
+    return schema
+
+
+def validate_schema_value(
+    value: object,
+    schema: dict,
+    root_schema: dict,
+    location: str,
+) -> None:
+    reference = schema.get("$ref")
+    if reference:
+        if not isinstance(reference, str) or not reference.startswith("#/$defs/"):
+            raise PolicyFailure(f"{location}: unsupported JSON Schema reference")
+        definition = reference.removeprefix("#/$defs/")
+        target = root_schema.get("$defs", {}).get(definition)
+        if not isinstance(target, dict):
+            raise PolicyFailure(f"{location}: unresolved JSON Schema reference")
+        validate_schema_value(value, target, root_schema, location)
+        return
+
+    if "const" in schema and value != schema["const"]:
+        raise PolicyFailure(f"{location}: value does not match const")
+    if "enum" in schema and value not in schema["enum"]:
+        raise PolicyFailure(f"{location}: value is outside enum")
+
+    expected_type = schema.get("type")
+    type_matches = {
+        "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "string": isinstance(value, str),
+        "boolean": isinstance(value, bool),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+    }
+    if expected_type and not type_matches.get(expected_type, False):
+        raise PolicyFailure(f"{location}: value is not {expected_type}")
+
+    if isinstance(value, str):
+        if len(value) < int(schema.get("minLength", 0)):
+            raise PolicyFailure(f"{location}: string is too short")
+        pattern = schema.get("pattern")
+        if pattern and not re.fullmatch(pattern, value):
+            raise PolicyFailure(f"{location}: string does not match pattern")
+        if schema.get("format") == "date-time" and not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value
+        ):
+            raise PolicyFailure(f"{location}: string is not UTC date-time")
+
+    if isinstance(value, dict):
+        required = schema.get("required", [])
+        missing = sorted(set(required) - set(value))
+        if missing:
+            raise PolicyFailure(
+                f"{location}: required fields missing: {', '.join(missing)}"
+            )
+        if len(value) < int(schema.get("minProperties", 0)):
+            raise PolicyFailure(f"{location}: object has too few properties")
+        properties = schema.get("properties", {})
+        additional = schema.get("additionalProperties", True)
+        for key, item in value.items():
+            child_schema = properties.get(key)
+            if child_schema is None:
+                if additional is False:
+                    raise PolicyFailure(f"{location}: unexpected field: {key}")
+                if isinstance(additional, dict):
+                    child_schema = additional
+            if isinstance(child_schema, dict):
+                validate_schema_value(
+                    item, child_schema, root_schema, f"{location}.{key}"
+                )
+
+    if isinstance(value, list):
+        if schema.get("uniqueItems"):
+            serialized = [json.dumps(item, sort_keys=True) for item in value]
+            if len(serialized) != len(set(serialized)):
+                raise PolicyFailure(f"{location}: array items must be unique")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                validate_schema_value(
+                    item, item_schema, root_schema, f"{location}[{index}]"
+                )
+
+
+def validate_manifest_example(
+    repository: Path,
+    relative: str,
+    schema: dict,
+) -> None:
+    value = load_json(repository, relative)
+    validate_schema_value(value, schema, schema, relative)
+
+
+def validate_no_v1_copy(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    source_paths = [
+        path
+        for path in path_set
+        if path.startswith(("backend/", "frontend/"))
+        and not path.endswith((".md", ".lock"))
+        and (repository / path).is_file()
+    ]
+    target_paths = [
+        path
+        for path in path_set
+        if path.startswith(("apps/api/", "apps/admin/", "packages/"))
+        and not path.endswith((".md", ".lock"))
+        and (repository / path).is_file()
+    ]
+    source_hashes = {}
+    for relative in source_paths:
+        content = (repository / relative).read_bytes()
+        if len(content) >= 64:
+            source_hashes.setdefault(hashlib.sha256(content).digest(), relative)
+    copied = []
+    for relative in target_paths:
+        content = (repository / relative).read_bytes()
+        source = source_hashes.get(hashlib.sha256(content).digest())
+        if len(content) >= 64 and source:
+            copied.append(f"{source} -> {relative}")
+    if copied:
+        raise PolicyFailure("V1 content copied into V2 workspace: " + ", ".join(copied))
+
+
+def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(WORKSPACE_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("required workspace files missing: " + ", ".join(missing))
+    validate_workspace_configuration(repository)
+    validate_boundary_readmes(repository)
+    release_schema = validate_manifest_schema(
+        repository,
+        "manifests/schemas/release-manifest.schema.json",
+        RELEASE_MANIFEST_REQUIRED,
+    )
+    deployment_schema = validate_manifest_schema(
+        repository,
+        "manifests/schemas/deployment-manifest.schema.json",
+        DEPLOYMENT_MANIFEST_REQUIRED,
+    )
+    validate_manifest_example(
+        repository,
+        "manifests/examples/release-manifest.example.json",
+        release_schema,
+    )
+    validate_manifest_example(
+        repository,
+        "manifests/examples/deployment-manifest.example.json",
+        deployment_schema,
+    )
+    validate_no_v1_copy(repository, paths)
+
+
 def validate_architecture_index(repository: Path) -> None:
     index_path = repository / "docs/architecture/README.md"
     text = index_path.read_text(encoding="utf-8")
@@ -309,6 +616,7 @@ def validate_repository(repository: Path) -> list[str]:
         raise PolicyFailure("required governance files missing: " + ", ".join(missing))
     validate_dangerous_paths(paths)
     validate_basic_structures(repository, paths)
+    validate_workspace_skeleton(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     for relative in paths:

@@ -1755,3 +1755,66 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PRは`#32` (`https://github.com/ideal-sol/oripa/pull/32`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
 - Initial Headでは`policy-gate`、`security-gate`、`dependency-review`、CodeQL Setupが成功し、CodeQL Analysis／SARIF Upload、`quality-gate`、`integration-gate`は実行中だった。
 - 本追記を含むFinal Headで5 Required Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
+
+### GOV-013 Closeout
+
+- PR `#32`のFinal Head `0226fd2e80b0f605f8aec0371eb4c7ac69462322`でRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`が成功した。
+- CodeQL Setupと`CodeQL (javascript-typescript)`、`dependency-review`を含む合計8 Checkが成功した。PHPはCodeQL対応Languageではないため解析済みとは記録しない。
+- 日本語説明を含むMachine-readable Self-review EvidenceはScope、Workflow Permission、Secret／PII、SEV-0／SEV-1なしでPASSした。
+- GitHub AppがSquash Mergeし、Squash Commitは`a0f3412ab987782294ace25ad28c77a3fc724150`、Issue `#31`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- Dependency Graph、Dependabot Alerts／Security Updates、Secret Scanning、Push Protection、Private Vulnerability Reportingは有効である。Code ScanningはCodeQL Analysis／SARIF Upload成功で確認した。
+- Existing FindingはDismiss／Closeしていない。Environment Secret、Alert本文、検出Credential、実PIIは取得・表示・記録していない。
+
+## MIG-020 V2ワークスペース骨格
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `MIG-020`
+- Risk: `R3`
+- Issue: `#39` (`https://github.com/ideal-sol/oripa/issues/39`)
+- Branch: `migration/MIG-020-workspace-skeleton`
+- Worktree: `/var/www/oripa-worktrees/MIG-020-workspace-skeleton`
+- Base SHA: `a0f3412ab987782294ace25ad28c77a3fc724150`
+
+### Existing Inventory
+
+- 開始時のTop-levelには`backend`、`frontend`、`apps`、`packages`、`openapi`、`infrastructure`、`legacy`、`manifests`があり、`deployments`とRoot Workspace設定は存在しなかった。
+- `apps/api`と`apps/admin`、`packages`、`openapi`、`infrastructure`、`legacy/v1`には既存のNested `AGENTS.md`があり、これを責任境界の正本として再利用した。
+- Root `package.json`、`pnpm-workspace.yaml`、Root Lockfileは存在しなかった。既存Lockfileは`backend/composer.lock`とV1 `frontend/pnpm-lock.yaml`である。
+- Nodeは`v22.22.3`、pnpmは`10.12.1`であり、V1 `frontend/package.json`の`packageManager`も`pnpm@10.12.1`だった。
+- Release／Deployment Example ManifestはGOV-011で作成済みだったが、対応する正式JSON Schemaは存在しなかった。
+- Existing 5 Required Checkと`policy-gate`の必須Pathを確認し、新しいCheck名を増やさず既存`policy-gate`を拡張する方針とした。
+
+### Workspace／Responsibility Boundary
+
+- Root PackageをPrivateな`@oripa/platform-workspace`、Version `2.0.0-alpha.1`、`packageManager` `pnpm@10.12.1`として定義した。
+- `pnpm-workspace.yaml`は`apps/admin`と`packages/*`だけを対象とし、V1 `frontend`と`backend`をWorkspaceへ含めていない。
+- `apps/api`、`apps/admin`、`packages/platform`、`packages/storefront-client`、`packages/site-schema`、`packages/storefront-testkit`、`openapi`、`infrastructure`、`deployments`、`manifests`、`legacy/v1`の責任境界をREADMEで定義した。
+- 各READMEはOwner、配置予定Component、Allowed／Forbidden Scope、Nested `AGENTS.md`、Skeleton状態、Production利用不可、V1 CodeをCopyしない方針を明示した。
+- Application Code、Package実装、OpenAPI実Contract、Next.js App、Migration、Docker Runtime、Production設定は作成していない。
+- Dependencyを追加せず、`pnpm install`を実行せず、Root Lockfileを生成していない。実PackageとDependencyを追加する後続TaskでRoot Lockfileを同時に確定する。
+
+### Manifest Schema／CI
+
+- `release-manifest.schema.json`と`deployment-manifest.schema.json`をJSON Schema Draft 2020-12のStrict Objectとして作成した。
+- Release SchemaはPlatform／Package／API Contract Version、Migration Revision、Source Commit、Image Digest、SBOM、作成日時を必須化した。
+- Deployment SchemaはSite、Environment、Platform／Package Version、Image Digest、Migration Revision、Deployment日時、承認参照、Source Release Manifestを必須化した。
+- GOV-011のExample ManifestをSchemaへ整合させた。値は非秘密の構造例であり、実Release、実Deployment、実承認を表さない。
+- `policy-gate`へ必須Workspace File、README責任境界、Root Workspace設定、Schema／Example整合、V1 Code複製検出を追加した。
+- Positive Fixtureと、README欠落、V1 Workspace混入、Manifest必須Field欠落、V1 Code CopyのNegative FixtureをUnit Testへ追加した。
+
+### Verification
+
+- Python SyntaxとPolicy Gate Unit Test 11件はPASSした。
+- Positive Workspace FixtureはPASSし、各Negative Fixtureは意図したPolicy違反でFAILした。
+- Hostの`jsonschema`は3.2.0でDraft 2020-12 Validatorを持たないため、新しいPackageを導入せず、Draft宣言、Required Field、Strict Object、SemVer、Digest、UTC日時、Example整合を標準Libraryの`policy-gate`で検証した。
+- Backend／Frontend Runtime Test、Application Build、Browser／E2Eは本Taskでは未実行であり、PASSとは記録しない。
+- Final Local Verification、Commit、GitHub App Push、PR、Required Check、Self-review、Squash Merge、Cleanup、Local `main`同期を続行する。
+
+### Gate G1
+
+- V2 Workspace責任境界、Version起点、Manifest Schema、継続Policy検査を追加する。
+- 実Laravel V2 App、Admin App、First-party Package、OpenAPI Contract、Canonical Site Template、Root Lockfileは未実装であり、Gate G1は`NOT COMPLETE`のまま維持する。
+- 次Task候補は`MIG-021`だが、本Task完了後には開始しない。

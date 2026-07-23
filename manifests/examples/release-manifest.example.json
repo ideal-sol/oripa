@@ -1,18 +1,20 @@
 {
   "schema_version": "1.0",
   "release_id": "platform-v2.0.0-example",
-  "release_class": "stable",
-  "source": {
-    "repository": "ideal-sol/oripa",
-    "commit_sha": "0000000000000000000000000000000000000000",
-    "tag": "platform-v2.0.0-example"
+  "release_class": "alpha",
+  "platform_version": "2.0.0-alpha.1",
+  "package_versions": {
+    "@oripa/platform": "2.0.0-alpha.1",
+    "@oripa/site-schema": "2.0.0-alpha.1",
+    "@oripa/storefront-client": "2.0.0-alpha.1",
+    "@oripa/storefront-testkit": "2.0.0-alpha.1"
   },
-  "artifact": {
-    "name": "oripa-platform",
-    "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "sbom_reference": "https://example.invalid/sbom/platform-v2.0.0-example.json"
-  },
+  "api_contract_version": "2.0.0-alpha.1",
   "migration_revision": "example-revision",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "sbom_reference": "https://example.invalid/sbom/platform-v2.0.0-alpha.1.json",
+  "created_at": "1970-01-01T00:00:00Z",
   "required_checks": [
     "policy-gate",
     "quality-gate",
