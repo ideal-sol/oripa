@@ -2,12 +2,19 @@
 .env
 .env.*
 !*.env.example
+# Local pre-MIG-021 residue is not copied or deleted by the mechanical move.
 backend/vendor
 backend/storage/logs/*
 backend/storage/framework/cache/*
 backend/storage/framework/sessions/*
 backend/storage/framework/views/*
 backend/bootstrap/cache/*
+apps/api/vendor
+apps/api/storage/logs/*
+apps/api/storage/framework/cache/*
+apps/api/storage/framework/sessions/*
+apps/api/storage/framework/views/*
+apps/api/bootstrap/cache/*
 frontend/.next
 frontend/node_modules
 infra/data

@@ -6,7 +6,7 @@ services:
     working_dir: /var/www/backend
     command: php artisan serve --host=0.0.0.0 --port=8000
     volumes:
-      - ./backend:/var/www/backend
+      - ./apps/api:/var/www/backend
       - backend_vendor:/var/www/backend/vendor
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -74,7 +74,7 @@ services:
     working_dir: /var/www/backend
     command: php artisan queue:work --sleep=3 --tries=3 --verbose
     volumes:
-      - ./backend:/var/www/backend
+      - ./apps/api:/var/www/backend
       - backend_vendor:/var/www/backend/vendor
     environment:
       APP_ENV: local
@@ -114,7 +114,7 @@ services:
     working_dir: /var/www/backend
     command: sh -c 'while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done'
     volumes:
-      - ./backend:/var/www/backend
+      - ./apps/api:/var/www/backend
       - backend_vendor:/var/www/backend/vendor
     environment:
       APP_ENV: local

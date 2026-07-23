@@ -1834,3 +1834,83 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub App由来のPR eventではWorkflowが発火しなかったため、登録／Installationで承認済みの`actions: write`を新規Tokenにも最小要求し、固定Workflow／Branchの`workflow_dispatch`を使用する。Token、ID、Authorization Headerは表示・保存しない。
 - 本追記を含むFinal HeadでRequired `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`、Fresh Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
 - Backend／Frontend Runtime Test、Application Build、Browser／E2EはLocalでは未実行であり、GitHub `integration-gate`の実行結果と混同しない。
+
+### MIG-020 Closeout
+
+- PR `#40`のFinal Headは`d3288db7fb7ce3653b19f6853bcd7cdc8cea237c`で、Required 5 Check、CodeQL、Dependency Reviewを含む13 Checkが成功した。
+- GitHub AppがSquash Mergeし、Squash Commitは`333f49000168a75917d1249b947cb53f0d28ffa9`、Issue `#39`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- Root Workspaceは、Root設定がV1 `frontend/pnpm-lock.yaml`を利用する既存install／auditへ影響するため、`MIG-022`のFrontend隔離前には導入しない判断を維持した。
+- V2 Application、Package、OpenAPI Contract、Canonical Site Template、Root Lockfileは未実装であり、Gate G1は`NOT COMPLETE`である。
+
+## MIG-021 backend → apps/api Mechanical Move
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `MIG-021`
+- Risk: `R3`
+- Issue: `#41` (`https://github.com/ideal-sol/oripa/issues/41`)
+- Branch: `migration/MIG-021-backend-to-apps-api`
+- Worktree: `/var/www/oripa-worktrees/MIG-021-backend-to-apps-api`
+- Base SHA: `333f49000168a75917d1249b947cb53f0d28ffa9`
+
+### 移動前Inventory／Runtime
+
+- `backend`のTracked Fileは453件、Migrationは40件、Testは69件、Route Fileは3件だった。
+- modeは`100644`が452件、`100755`が1件で、symlink、submodule、binary、1 MiB以上のFile、case-sensitive衝突はなかった。
+- `apps/api`には既存の`AGENTS.md`と`README.md`だけがあり、移動元との同名File衝突はなかった。
+- systemd、Nginx／Apache、Supervisor、Cron、Process CWD、Running ContainerをRead-only確認し、`backend`を参照するActive Production Runtimeはなかった。
+- `backend`をBind MountするContainerは停止中の開発用`backend`／`queue`／`scheduler`だけだった。Production Serviceの停止、再起動、設定変更は行っていない。
+- 元Main WorktreeにはGit管理外の`.env` 1件、Storage 46件、Cache 3件が存在した。内容を開かず、移動、削除、Commitを行わず、旧PathのignoreをLocal残置保護として維持した。
+
+### 移動前Checksum／Test
+
+- Backend Tree SHA-256: `12eba8037e922ca9f97981f8d475b88c38edfa6d2158029c51ba4c0d659ee468`
+- Migration Set SHA-256: `1598f7074e890b59216f41534d6dd6e7a3c2614160825e281a8ec31ce0fc137e`
+- Composer Lock SHA-256: `2302cbfd97acc5f63135e9a24b71206c41ba0db979fd3ee04fdc827a7d01b4f4`
+- Route Tree SHA-256: `d71d1187d95976bb57fe63656a9c741bd02d188c2a27bcde8824e5f9b3bae2c9`
+- Test Tree SHA-256: `fda729ea742a574c2bd9f0b43d8baf5c7c470e805551a948f770af06a3dab655`
+- Config Tree SHA-256: `d3785b82766e30c29d6bf18aac0958124bfc82e645edb568344136c5be18546a`
+- Public Tree SHA-256: `9c98379c3e8254c4dbaa7a49c439fb747382fb82a8e94ad53a052e6f9c3b1ea6`
+- PHP 8.4、PostgreSQL 17、Redis 7のTask専用Ephemeral環境でComposer Validate、PHP Syntax、Migration適用、Full Backend Test、Route Inventoryを実行した。
+- Full Backend Testは334件中332 PASS、2 Failed、Warning 0、Skipped 0だった。2件は期限`2026-08-15`の既存完全一致Baselineで、Classは`Tests\Feature\AdminPaymentApiTest`、Exceptionは`PHPUnit\Framework\ExpectationFailedException`だった。
+- Route Inventoryは150件、正規化SHA-256は`11be8fca8e3ee1212c7badac50902d8a94a80412a8f98d9004a0fee2f6eb465d`だった。
+- 移動前の`policy-gate`、`quality-gate`、`security-gate`、Site Template Positive／Negative、Docker Compose Configは期待どおりPASSした。Dependency Auditの既存Findingは期限付きBaselineと一致し、拡張していない。
+
+### Mechanical Move／Path参照
+
+- `git mv`でTracked File 453件を`backend/`から`apps/api/`へ移動し、既存`apps/api/AGENTS.md`と`apps/api/README.md`は上書きしていない。
+- Pure Renameは453件で、mode、line ending、Application Source、Migration、Test Assertion、Composer Manifest／Lock、Namespace、Class名を変更していない。
+- Path Reference Updateは`.github/workflows/platform-ci.yml`、`.github/dependabot.yml`、Docker Compose Bind Source、Dockerfile Copy Source、Quality／Security Gate、ignore、CODEOWNERS、Makefile、README、TASK_BOARDへ限定した。
+- Documentation Updateは`apps/README.md`、`apps/api/README.md`、`docs/operations/ci/README.md`、`docs/operations/repository-layout/README.md`へ限定した。
+- CI Updateとして`apps/api`からComposer Validate／Audit／Install、Migration、Full Backend Test、PHP Syntax、Dependency Baselineを実行するよう変更した。
+- `policy-gate`へ`apps/api`必須Application FileとTracked `backend/`禁止を追加し、Positive Test、旧Path残存、必須File欠落のNegative Testを追加した。
+- Container service名、Container内`/var/www/backend`、API URL、DB名、Table名、Cookie名、Queue名、Cache Key、Environment Variable名は変更していない。
+- 過去Worklog、確定Architecture文書、V1設計記録の`backend`表記は歴史的記録として書き換えていない。
+
+### 移動後検証
+
+- 移動後のBackend Tree、Migration、Composer Lock、Route Tree、Test Tree、Config Tree、Public TreeのSHA-256は移動前と全件一致した。
+- 同一Versionの新規Ephemeral環境でComposer Validate、PHP Syntax、Migration適用、Full Backend Test、Route Inventoryを再実行した。
+- Full Backend Testは334件中332 PASS、2 Failed、Warning 0、Skipped 0で、Failure Class／Method／Exception／正規化Fingerprintは移動前と完全一致した。
+- Route Inventoryは150件、正規化SHA-256も移動前と一致し、API／Route Behaviorの変化は検出されなかった。
+- `policy-gate` Unit Test 15件、`policy-gate`、`quality-gate`、`security-gate`、Site Template Positive／Negative、Docker Compose Config、`git diff --check`はPASSした。
+- Test用Container／Networkは正常・異常終了の両方でTask専用名だけを削除した。Production DB、Production Redis、Production Secretは使用していない。
+- Root `package.json`、`pnpm-workspace.yaml`、Root Lockfileは追加せず、V1 `frontend`とLockfileを変更していない。
+
+### GitHub／Gate G2
+
+- Commit Messageは`構造: backendをapps/apiへ機械的に移動する (MIG-021)`とし、GitHub App WrapperだけでFast-forward Pushする。
+- PRは`[MIG-021] Laravelバックエンドをapps/apiへ移動する`として作成し、5 Required Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge ConflictなしをMerge条件とする。
+- Gate G2ではLaravel ApplicationのPath移動、Path非依存Checksum一致、移動前後Test／Route一致、CIの新Path対応を完了対象とする。
+- V1 `frontend`のLegacy隔離、Root Workspace、V2 Package／Contract実装は残項目であり、Gate G2は`NOT COMPLETE`とする。
+- 次Task候補は`MIG-022`だが、MIG-021完了後には開始しない。
+
+### Commit／Push／PR
+
+- Implementation Commitは`18196872ca720b7e892c85a7286034c5f7473cf3`で、ParentはBase SHA `333f49000168a75917d1249b947cb53f0d28ffa9`である。
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、Archive Ref変更は行っていない。
+- PRは`#42` (`https://github.com/ideal-sol/oripa/pull/42`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
+- PR本文へ473 Changed Fileを省略せず記載し、453 Pure Renameと20件のPath Reference／Documentation／CI／Worklog変更を分離した。
+- 本追記を含むFinal Headで5 Required Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。

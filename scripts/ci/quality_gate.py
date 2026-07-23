@@ -86,7 +86,7 @@ def validate_php(repository: Path, paths: list[str]) -> int:
     php_paths = [
         relative
         for relative in paths
-        if relative.startswith("backend/") and relative.endswith(".php")
+        if relative.startswith("apps/api/") and relative.endswith(".php")
     ]
     for relative in php_paths:
         result = subprocess.run(
@@ -103,8 +103,8 @@ def validate_php(repository: Path, paths: list[str]) -> int:
 
 def validate_manifests(repository: Path, paths: list[str]) -> None:
     required = {
-        "backend/composer.json",
-        "backend/composer.lock",
+        "apps/api/composer.json",
+        "apps/api/composer.lock",
         "frontend/package.json",
         "frontend/pnpm-lock.yaml",
     }

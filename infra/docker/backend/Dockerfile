@@ -17,7 +17,7 @@ RUN apt-get update \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY infra/docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
-COPY backend/ ./
+COPY apps/api/ ./
 
 RUN composer install --no-interaction --prefer-dist
 

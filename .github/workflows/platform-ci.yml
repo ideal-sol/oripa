@@ -75,7 +75,7 @@ jobs:
 
       - name: Verify manifests and install frontend dependencies
         run: |
-          composer --working-dir=backend validate --strict --no-check-publish
+          composer --working-dir=apps/api validate --strict --no-check-publish
           pnpm --dir frontend install --frozen-lockfile
 
       - name: Run quality structure and unit checks
@@ -141,7 +141,7 @@ jobs:
       - name: Collect dependency audits
         run: |
           set +e
-          composer --working-dir=backend audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
+          composer --working-dir=apps/api audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
           composer_status=$?
           pnpm --dir frontend audit --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
           pnpm_status=$?
@@ -232,17 +232,17 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
-          composer --working-dir=backend install --no-interaction --prefer-dist --no-progress
+          composer --working-dir=apps/api install --no-interaction --prefer-dist --no-progress
           pnpm --dir frontend install --frozen-lockfile
 
       - name: Apply migrations to the ephemeral database
-        run: php backend/artisan migrate --no-interaction
+        run: php apps/api/artisan migrate --no-interaction
 
       - name: Run backend tests against the exact legacy baseline
         run: |
           set +e
           (
-            cd backend
+            cd apps/api
             php artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
           )
           backend_status=$?

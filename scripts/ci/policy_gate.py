@@ -63,6 +63,15 @@ WORKSPACE_REQUIRED_FILES = {
     "legacy/v1/AGENTS.md",
     "docs/operations/repository-layout/README.md",
 }
+API_APPLICATION_REQUIRED_FILES = {
+    "apps/api/.env.example",
+    "apps/api/artisan",
+    "apps/api/composer.json",
+    "apps/api/composer.lock",
+    "apps/api/phpunit.xml",
+    "apps/api/routes/api.php",
+    "apps/api/tests/TestCase.php",
+}
 BOUNDARY_READMES = {
     "apps/README.md",
     "apps/api/README.md",
@@ -204,6 +213,15 @@ def section_bullets(body: str, heading: str) -> list[str]:
     return values
 
 
+def declared_path_allowed(path: str, declared_paths: Iterable[str]) -> bool:
+    for declared in declared_paths:
+        if path == declared:
+            return True
+        if declared.endswith("/**") and path.startswith(f"{declared[:-3]}/"):
+            return True
+    return False
+
+
 def validate_pr_body(
     body: str,
     title: str,
@@ -232,7 +250,7 @@ def validate_pr_body(
     actual = set(actual_changed_paths)
     if declared_changed != actual:
         raise PolicyFailure("declared Changed files do not match the Git diff")
-    if not actual.issubset(allowed):
+    if not all(declared_path_allowed(path, allowed) for path in actual):
         raise PolicyFailure("Git diff includes a path outside declared Allowed paths")
 
 
@@ -541,6 +559,18 @@ def validate_no_v1_copy(repository: Path, paths: Iterable[str]) -> None:
         raise PolicyFailure("V1 content copied into V2 workspace: " + ", ".join(copied))
 
 
+def validate_api_application_layout(paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(API_APPLICATION_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required API application files missing: " + ", ".join(missing)
+        )
+    legacy_paths = sorted(path for path in path_set if path.startswith("backend/"))
+    if legacy_paths:
+        raise PolicyFailure("legacy backend path remains tracked")
+
+
 def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     path_set = set(paths)
     missing = sorted(WORKSPACE_REQUIRED_FILES - path_set)
@@ -622,6 +652,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_dangerous_paths(paths)
     validate_basic_structures(repository, paths)
     validate_workspace_skeleton(repository, paths)
+    validate_api_application_layout(paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     for relative in paths:

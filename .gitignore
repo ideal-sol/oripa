@@ -4,7 +4,10 @@
 !.env.example
 backend/.env
 backend/.env.*
-!backend/.env.example
+# Keep pre-MIG-021 local credentials ignored until operators remove them manually.
+apps/api/.env
+apps/api/.env.*
+!apps/api/.env.example
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
@@ -13,10 +16,12 @@ frontend/.env.*
 node_modules/
 vendor/
 backend/vendor/
+apps/api/vendor/
 frontend/node_modules/
 frontend/.pnpm-store/
 
 # Laravel generated files
+# Keep pre-MIG-021 local runtime residue ignored until operators remove it manually.
 backend/.phpunit.result.cache
 backend/storage/app/*
 !backend/storage/app/.gitkeep
@@ -32,6 +37,21 @@ backend/storage/logs/*
 !backend/storage/logs/.gitkeep
 backend/bootstrap/cache/*
 !backend/bootstrap/cache/.gitkeep
+apps/api/.phpunit.result.cache
+apps/api/storage/app/*
+!apps/api/storage/app/.gitkeep
+apps/api/storage/framework/cache/*
+!apps/api/storage/framework/cache/.gitkeep
+apps/api/storage/framework/sessions/*
+!apps/api/storage/framework/sessions/.gitkeep
+apps/api/storage/framework/testing/*
+!apps/api/storage/framework/testing/.gitkeep
+apps/api/storage/framework/views/*
+!apps/api/storage/framework/views/.gitkeep
+apps/api/storage/logs/*
+!apps/api/storage/logs/.gitkeep
+apps/api/bootstrap/cache/*
+!apps/api/bootstrap/cache/.gitkeep
 
 # Next.js / frontend generated files
 frontend/.next/

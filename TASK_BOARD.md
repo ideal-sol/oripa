@@ -24,7 +24,7 @@ Use the following order when requirements conflict:
 Main Codex owns backend, infrastructure, and domain logic.
 
 - Laravel API
-- `backend/`
+- `apps/api/`
 - `database/`
 - migrations
 - Models
@@ -60,7 +60,7 @@ Frontend Sub Codex must not implement lottery, point consumption, payment webhoo
 
 ## Frontend Sub Codex Must Not Touch
 
-- `backend/`
+- `apps/api/`
 - `database/`
 - `routes/api.php`
 - Laravel Controllers

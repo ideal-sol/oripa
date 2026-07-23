@@ -62,7 +62,7 @@ python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
 python3 scripts/ci/quality_gate.py --repository .
 cd frontend && pnpm typecheck
 cd frontend && pnpm exec eslint . --format json
-cd backend && composer validate --strict --no-check-publish
+cd apps/api && composer validate --strict --no-check-publish
 docker compose config --quiet
 git diff --check
 ```
