@@ -2095,3 +2095,79 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PRは`#50` (`https://github.com/ideal-sol/oripa/pull/50`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
 - PR本文へ36 Changed Pathを完全列挙し、Root Workspace、Admin／Package Skeleton、Compose、CI／Policy、Worklogを分離して記録した。
 - 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+
+### MIG-023 Closeout
+
+- PR `#50`のFinal Headは`d4df803536d845893db59549d727a6bf698cc2f1`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub AppがSquash Mergeし、Squash Commitは`0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`、Issue `#49`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- Root Workspace／Lockfile、Build可能な`apps/admin` Skeleton、4つのFirst-party Package Skeleton、V1／V2 Compose、API／Admin Health、CI継続検査が成立した。
+- Backend移動前後Test一致、Legacy Frontend隔離、V1／V2 Skeleton起動、Admin Build／Health、Root Workspace、Package Skeleton、Business Logic不変、Required Check成功を確認し、Gate G2は`COMPLETE`と判定した。
+
+## MIG-030 OpenAPI Contract Skeleton
+
+### Task
+
+- 実施開始: `2026-07-23T12:39:45Z`
+- Task ID: `MIG-030`
+- Risk: `R3`
+- Issue: `#55` (`https://github.com/ideal-sol/oripa/issues/55`)
+- Branch: `migration/MIG-030-openapi-contract-skeleton`
+- Worktree: `/var/www/oripa-worktrees/MIG-030-openapi-contract-skeleton`
+- Base SHA: `0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`
+
+### Existing Inventory／仕様根拠
+
+- 開始時の`openapi/`は`AGENTS.md`とREADMEだけで、OpenAPI Entry Point、Component、Lint設定、Bundleは存在しなかった。
+- 正本はOpenAPI 3.1.1、Public `/api/v2`、Admin `/admin/api/v2`、Webhook `/webhooks/v2`の完全分離、RFC 9457 Problem Details、共通Header、各Contractの独立SemVerを規定している。
+- 移行計画の順序はOpenAPI共通Primitiveを先頭とし、Public Read-only、Auth、Draw、Payment、Admin、Webhookの業務Endpointは後続Taskで段階的に定義する。
+- MIG-030では業務Endpointを推測せず、3 Contractとも`paths: {}`のSkeletonとした。Laravel Route／Controller、DB、Migration、Generated Clientは変更していない。
+
+### OpenAPI 3.1.1 Skeleton
+
+- `openapi/public/openapi.yaml`、`openapi/admin/openapi.yaml`、`openapi/webhook/openapi.yaml`を独立Entry Pointとして作成した。
+- 各ContractはOpenAPI `3.1.1`、JSON Schema Draft 2020-12、Contract Version `2.0.0-alpha.1`、`x-status: skeleton`、Surface固有Server Prefixを持つ。
+- `openapi/components/common.yaml`へ`OpaqueId`、`SemanticVersion`、`UtcDateTime`、`BusinessDate`、`ProblemDetails`、`CursorPageMeta`、共通Header／Parameter／Problem Responseを定義した。
+- `ProblemDetails`は`type`、`title`、`status`、`code`、`request_id`、`retryable`を必須とし、Stack Trace、内部Field、Secret、実PIIを含めない。
+- Public Schema Leak検査は`password_hash`、`provider_secret`、`cost_price`、`individual_ppm`等の内部Fieldを拒否する。
+- Cookie名、Provider署名Header、Provider Payload、業務Request／Responseは未確定値を推測せず定義していない。
+
+### Lint／Bundle／Breaking Change
+
+- Root Dev Dependencyへ`@redocly/cli` `2.40.0`だけをExact Versionで追加し、pnpm `10.12.1`の実InstallでRoot Lockfileを更新した。
+- `openapi/redocly.yaml`は3 APIを登録し、Redocly Recommended Rule、`operationId`、曖昧Path、Security定義を検査する。Lintは3 ContractともWarning 0でPASSした。
+- `scripts/ci/openapi_contract_gate.py`はLint、deterministic Bundle生成、Commit済みBundleとのByte比較、3 Surfaceの識別／Version／Prefix／共通Schema、global `operationId`重複、Public Leakを検査する。
+- Pull RequestではEvent Base SHAの既存Bundleと比較し、Path／Operation／Response／Schema削除、`operationId`／認証／冪等性／型変更、Required Field追加、Enum値削除をBreaking Changeとして拒否する。
+- MIG-030以前にBundleが存在しない初回導入ではPrevious Bundleなしとして開始し、以後のPull Requestで比較を必須化する。
+- `openapi/bundled/public.openapi.json`、`admin.openapi.json`、`webhook.openapi.json`を生成し、再生成Bundleとの差分なしを確認した。各BundleのOperation数は0件である。
+
+### Positive／Negative Test
+
+- Positive FixtureはOptional Field追加だけを含み、Breaking Finding 0件でPASSした。
+- Negative Fixtureは`operationId`変更、Required Field追加、Property削除、型変更をすべて検出した。
+- Public Internal Field Leakと、Skeletonへの業務Endpoint混入をNegative Testで拒否した。
+- OpenAPI Unit Test 4件、Policy Unit Test 27件、Quality Unit Test 5件、Security Unit Test 4件はPASSした。
+
+### CI／Local Verification
+
+- `quality-gate`へOpenAPI Unit Test、3 Contract Lint、Bundle差分、Breaking Change検査を追加した。
+- `integration-gate`へ同じCommitted Bundle検証を追加し、Application接続前でもContract Artifactの差分を継続検査する。
+- Check名`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`は変更していない。
+- Local `policy-gate`、`quality-gate`、`security-gate`、`git diff --check`、Admin Typecheck／Lint／BuildはPASSした。
+- Root pnpm Auditは0 Finding、Composer 10件とLegacy pnpm 14件は既存期限付きExact Baselineと一致し、Secret Candidateは0件だった。Baselineは拡張していない。
+- Backend Test、Migration適用、Docker Compose Smoke、Legacy Frontend Build、Browser／E2E、Generated Client、Laravel Route差分、Production DeployはMIG-030では未実行であり、PASSとは記録しない。GitHubの既存`integration-gate`で既存Application検証を省略せず実行する。
+
+### Commit／Push／PR
+
+- Commit Messageは`契約: OpenAPI Skeletonと検証基盤を整備する (MIG-030)`とする。
+- GitHub App Task Policy WrapperだけでFast-forward Pushし、Draft PR、Required／Available Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
+- Direct main Push、Force Push、Gate Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
+- 次Task候補は`MIG-031`だが、MIG-030完了後には開始しない。
+
+### Commit／Push／PR
+
+- Implementation Commitは`be58b9ab21cbaf17cb3634ae127c3c2e491b6427`で、ParentはBase SHA `0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`である。
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、Archive Ref変更は行っていない。
+- PRは`#56` (`https://github.com/ideal-sol/oripa/pull/56`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
+- PR本文へ23 Changed Fileを完全列挙し、Contract Skeleton、共通Component、Lint／Bundle／Breaking Change、CI／Policy、Worklogを分離して記録した。
+- 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。

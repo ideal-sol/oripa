@@ -18,8 +18,8 @@ Cancelled and skipped dependency jobs are failures.
 The quality job validates PHP syntax, Composer manifest/lock consistency,
 the Root V2 Workspace and independent Legacy lock installations, V2 Admin
 typecheck/lint/build, Legacy typecheck and exact ESLint findings, JSON, XML,
-YAML, TOML, available OpenAPI/JSON Schema files, generated tracked output, and
-whitespace.
+YAML, TOML, Public／Admin／Webhook OpenAPI 3.1.1、deterministic Bundle、
+Breaking Change、generated tracked output、whitespace。
 
 The V1 ESLint baseline is exact and expires on 2026-08-31. It contains eight
 errors and one warning. A new, changed, missing, or expired fingerprint fails.
@@ -61,6 +61,16 @@ It does not use production secrets, production data, or a production database.
 Known backend failures are evaluated only through the exact, expiring baseline;
 the complete backend suite still runs on every integration job.
 
+## OpenAPI contract gate
+
+`openapi_contract_gate.py`はRedocly `2.40.0`で3 SurfaceをLint／Bundleし、
+Commit済みBundleとの差分を拒否する。Pull RequestではBase SHAの既存Bundleと
+比較し、Path／Operation／Response／Schema削除、`operationId`／認証／冪等性／型の
+変更、Required Field追加をBreaking Changeとして拒否する。
+
+MIG-030は共通Primitiveと空の`paths`だけを作成する。業務Endpoint、Laravel Route、
+Generated Clientは後続のContract-first Taskまで検証済み扱いにしない。
+
 ## Local reproduction
 
 ```text
@@ -68,6 +78,8 @@ python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
 python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
 python3 scripts/ci/quality_gate.py --repository .
 pnpm install --frozen-lockfile
+pnpm openapi:test
+pnpm openapi:check
 pnpm admin:typecheck
 pnpm admin:lint
 pnpm admin:build

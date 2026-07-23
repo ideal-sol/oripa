@@ -1,0 +1,36 @@
+{
+  "openapi": "3.1.1",
+  "paths": {
+    "/resources": {
+      "get": {
+        "operationId": "getResources",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-idempotency": "not-required"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Resource": {
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

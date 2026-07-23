@@ -1,0 +1,38 @@
+openapi: 3.1.1
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: Oripa Webhook API
+  version: 2.0.0-alpha.1
+  license:
+    name: UNLICENSED
+    identifier: LicenseRef-Proprietary
+  description: >-
+    外部Provider向けWebhook API v2のContract Skeleton。Provider固有Header、
+    Payload、Endpointは仕様確定後のContract-first Taskで追加する。
+  x-status: skeleton
+x-oripa-surface: webhook
+servers:
+  - url: /webhooks/v2
+paths: {}
+components:
+  schemas:
+    OpaqueId:
+      $ref: ../components/common.yaml#/schemas/OpaqueId
+    SemanticVersion:
+      $ref: ../components/common.yaml#/schemas/SemanticVersion
+    UtcDateTime:
+      $ref: ../components/common.yaml#/schemas/UtcDateTime
+    BusinessDate:
+      $ref: ../components/common.yaml#/schemas/BusinessDate
+    ProblemDetails:
+      $ref: ../components/common.yaml#/schemas/ProblemDetails
+  headers:
+    XRequestId:
+      $ref: ../components/common.yaml#/headers/XRequestId
+    XOripaApiVersion:
+      $ref: ../components/common.yaml#/headers/XOripaApiVersion
+    RetryAfter:
+      $ref: ../components/common.yaml#/headers/RetryAfter
+  responses:
+    Problem:
+      $ref: ../components/common.yaml#/responses/Problem

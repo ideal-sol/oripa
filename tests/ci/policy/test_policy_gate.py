@@ -156,6 +156,7 @@ This is a non-Production Skeleton and contains no application implementation.
                             "sharp": "0.35.0",
                         }
                     },
+                    "devDependencies": policy_gate.ROOT_DEV_DEPENDENCY_VERSIONS,
                 }
             ),
             encoding="utf-8",
@@ -426,6 +427,20 @@ services:
             package_path.write_text(json.dumps(package), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "exact runtime dependencies"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_unapproved_root_tool_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["devDependencies"]["unapproved-tool"] = "1.0.0"
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "only the pinned OpenAPI validation tool",
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 

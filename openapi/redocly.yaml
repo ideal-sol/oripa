@@ -1,0 +1,18 @@
+apis:
+  public@v2:
+    root: public/openapi.yaml
+  admin@v2:
+    root: admin/openapi.yaml
+  webhook@v2:
+    root: webhook/openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  info-license: error
+  no-unused-components: off
+  operation-operationId: error
+  operation-operationId-unique: error
+  no-ambiguous-paths: error
+  security-defined: error
