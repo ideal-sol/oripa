@@ -954,3 +954,64 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration Planの最終Frontend Pathは`legacy/v1-frontend`だが、GovernanceのNested指定は`legacy/v1/AGENTS.md`である。本Taskでは優先度の高いGovernance指定に従い、Frontendを移動しない。
 - 確定V2文書本体はRepository外のままで、本TaskではCopyしない。
 - 次Task候補: 人間によるGOV-002 Draft PR Review。GOV-003は本Taskでは開始しない。
+
+## GOV-002A／B GOV-002同期・Cleanup完了
+
+### Local main同期
+
+- `GOV-002A`でPR #4のHuman Squash MergeとIssue #3のCloseを確認し、Local `main`をSquash Commit `678c980473869dfac821b95ec7eb245d7ac4b0e0`へ`git merge --ff-only`で同期した。
+- Squash Commitの変更は7つのNested `AGENTS.md`と`worklogs/new_ver_main.md`の8 Fileだけで、Application、Migration、Docker、CI、V1保全Refへの変更がないことを確認した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-002A-local-sync-20260722T095603Z/`
+
+### Worktree／Branch Cleanup
+
+- `GOV-002B`でRemote Task Branch削除を`git fetch origin --prune`とGitHub Ref照合で確認した。
+- Task BranchとSquash Merge後の`main`はTree SHAおよび8 FileのBlob SHAが一致し、未反映内容、未追跡File、未Commit変更がないことを確認した。
+- Git標準CommandでGOV-002 Worktreeを削除し、同等性Evidence保存後にLocal Task Branchを削除した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-002B-cleanup-20260722T100037Z/`
+- Local／Remote Task BranchとTask Worktreeは削除済みで、GOV-002は完全終了した。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+## GOV-003 CODEOWNERS作成
+
+### 基本情報
+
+- Task ID: `GOV-003`
+- 実施日時: 2026-07-23T00:08:35Z／2026-07-23T09:08:35+09:00
+- Issue: `#5`
+- Risk: `R3`
+- Branch: `docs/GOV-003-codeowners`
+- Worktree: `/var/www/oripa-worktrees/GOV-003-codeowners`
+- Base SHA: `678c980473869dfac821b95ec7eb245d7ac4b0e0`
+
+### Human Code Owner
+
+- Default Code Owner: `@myong-ideal`
+- GitHub Userの存在とAccount Type `User`を公開APIで確認し、GitHub App／Bot Accountではないことを確認した。
+- `ideal-sol/oripa`のRepository PermissionはGitHub App認証下のAPIで`admin`と確認した。
+- Organization RoleはAPI権限制約により`UNKNOWN`であり、Repository Permission確認をReview可能性の根拠とする。
+- `ideal-sol-oripa-codex[bot]`、Organization名だけのOwner、未作成Team、Email AddressはCODEOWNERSへ指定しない。
+
+### CODEOWNERS
+
+- `.github/CODEOWNERS`へRepository全体のDefault Ruleを最初に置き、すべて`@myong-ideal`へ割り当てる。
+- Governance、Root／Nested `AGENTS.md`、Worklog、Platform Application／Contract、V1 Legacy／現行`backend`／`frontend` Pathへ詳細Ruleを後置する。
+- Generated CodeやDependencyを除外せず、否定Pattern、空Owner Pattern、後勝ちによるOwner欠落を作らない。
+- GitHub AppはPR作成者でありCode OwnerまたはApproval主体にしない。
+- Required Code Owner Review、Ruleset、Branch Protectionは本Taskでは設定せず、後続`GOV-005`の対象とする。
+
+### 検証／GitHub
+
+- `git diff --check`、CODEOWNERS Pattern／Owner、Root／Nested矛盾、Scope、Secret／PII、Binary／Submoduleを確認する。
+- Backend Test、Frontend Test、Build、Browser／E2EはDocumentation／Governance-only Taskのため未実行とする。
+- Commit Message: `chore(governance): define code ownership (GOV-003)`
+- Commit SHA: Worklogを含むCommit自身への自己参照を避け、Draft PRとTask完了報告へFull SHAを記録する。
+- Push: GitHub Appの`push-task-branch`によるFast-forward結果をDraft PRとTask完了報告へ記録する。
+- Draft PR: GitHub Appで作成し、URL、Author、Head、BaseをTask完了報告へ記録する。
+- CodexはApprove、Review、Merge、Stable Release、Production承認を行わない。
+
+### Risk／次Task
+
+- Human OwnerのRepository `admin`権限は確認済みだが、Organization上のOwner／Maintainer Role自体はAPI権限制約により未確認である。
+- CODEOWNERS追加だけではRequired Code Owner Reviewは有効にならず、後続Ruleset設定が必要である。
+- 次Task候補: 人間によるGOV-003 Draft PR Review。GOV-004は本Taskでは開始しない。
