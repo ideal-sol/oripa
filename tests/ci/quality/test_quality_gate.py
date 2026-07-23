@@ -65,6 +65,21 @@ class QualityGateTest(unittest.TestCase):
                 report, baseline, datetime.date(2026, 7, 23)
             )
 
+    def test_lint_message_path_is_workspace_independent(self):
+        message = (
+            "Error: fixture\n"
+            "/home/runner/work/oripa/oripa/frontend/src/example.tsx:1:1\n"
+            "detail"
+        )
+        local = message.replace(
+            "/home/runner/work/oripa/oripa",
+            "/var/www/oripa-worktrees/GOV-009",
+        )
+        self.assertEqual(
+            lint_baseline.normalize_message(message),
+            lint_baseline.normalize_message(local),
+        )
+
     def test_new_backend_failure_fails_exact_baseline(self):
         report = backend_test_baseline.ET.fromstring(
             """

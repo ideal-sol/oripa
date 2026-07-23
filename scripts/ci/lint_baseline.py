@@ -8,6 +8,7 @@ import datetime
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 
@@ -21,6 +22,11 @@ def normalize_path(value: str) -> str:
         return "frontend/" + value.split(marker, 1)[1]
     value = value.replace("\\", "/")
     return value if value.startswith("frontend/") else "frontend/" + value.lstrip("/")
+
+
+def normalize_message(value: str) -> str:
+    normalized = value.replace("\\", "/")
+    return re.sub(r"(?m)^.*?/frontend/", "frontend/", normalized)
 
 
 def normalize_findings(report: list[dict]) -> list[dict]:
@@ -37,7 +43,7 @@ def normalize_findings(report: list[dict]) -> list[dict]:
                 "rule_id": message.get("ruleId"),
                 "severity": message.get("severity"),
                 "message_sha256": hashlib.sha256(
-                    str(message.get("message", "")).encode()
+                    normalize_message(str(message.get("message", ""))).encode()
                 ).hexdigest(),
             }
             item["fingerprint"] = hashlib.sha256(
