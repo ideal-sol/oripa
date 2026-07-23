@@ -1,0 +1,43 @@
+{
+  "name": "stable-tag-protection",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [
+    {
+      "actor_id": 0,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always"
+    }
+  ],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/platform-v*",
+        "refs/tags/storefront-client-v*",
+        "refs/tags/site-schema-v*",
+        "refs/tags/storefront-testkit-v*",
+        "refs/tags/site-template-v*",
+        "refs/tags/*-site-v*",
+        "refs/tags/v1-before-productization-*"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "creation"
+    },
+    {
+      "type": "update",
+      "parameters": {
+        "update_allows_fetch_and_merge": false
+      }
+    },
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    }
+  ]
+}

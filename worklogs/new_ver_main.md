@@ -1113,3 +1113,65 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - 人間がPR `#8`を再Reviewし、承認後にSquash Mergeする。
 - GOV-005は本Taskでは開始しない。
+
+## GOV-004完了／GOV-005 Repository Ruleset基準作成
+
+### GOV-004完了処理
+
+- 実施日時: 2026-07-23T01:44:08Z／2026-07-23T10:44:08+09:00
+- PR `#8`のHuman Squash MergeとIssue `#7`のCloseをGitHub APIで確認した。
+- GOV-004 Squash Commitは`5a8eedef37b0fe8ba890e9e942a4c60860177151`で、変更Pathが3つのTemplateと本Worklogの4件だけであることを確認した。
+- Local `main`を`git merge --ff-only`で`origin/main`へ同期し、Local Merge Commitを作成していない。
+- GOV-004 Task BranchとSquash後の`main`は最終Treeが同一で、未反映内容、未追跡File、未Commit／未Push Commitがないことを確認した。
+- Git標準CommandでGOV-004 Worktreeを削除し、同等性Evidence保存後にLocal Task Branchを削除した。
+- Evidence: `/var/www/oripa-v1-evidence/GOV-004-closeout-20260723T013823Z/`
+- Remote `docs/GOV-004-issue-pr-templates`は残存している。Codexは削除せず、人間がPR `#8`画面から削除する。
+- V1 Archive Branch、Annotated Tag、Local backup Branchは変更していない。
+
+### GOV-005基本情報
+
+- Task ID: `GOV-005`
+- Risk: `R3`
+- Issue: `#9` (`https://github.com/ideal-sol/oripa/issues/9`)
+- Branch: `chore/GOV-005-rulesets`
+- Worktree: `/var/www/oripa-worktrees/GOV-005-rulesets`
+- Base SHA: `5a8eedef37b0fe8ba890e9e942a4c60860177151`
+- Task Policy: `/etc/ideal-sol/github-app/task-policies/GOV-005.json`、`root:root`、mode `600`。
+- 既存の汎用GitHub App Wrapperを利用し、Wrapper本体へTask固有変更を行っていない。
+
+### Read-only監査
+
+- RepositoryはPublic、Default Branchは`main`、CODEOWNERSは追跡済みである。
+- Repository Ruleset一覧は0件だった。
+- `main`と`archive/v1-current`のBranch metadataは`protected=false`だった。詳細なClassic Branch Protection APIは403のため、詳細設定は`UNKNOWN`として推測しない。
+- Squash Merge、Merge Commit、Rebase Mergeは有効、Auto Mergeは無効、Merged Head Branch自動削除は無効だった。
+- GitHub Appに`Administration`権限はなく、CodexはRulesetまたはRepository General設定を変更していない。
+
+### Ruleset設定案
+
+- `main-protection`: `main`へPR、Human Approval 1件、CODEOWNERS Review、Stale Approval破棄、最新Push承認、Conversation解決、Linear History、削除／Force Push禁止を提案する。
+- `release-branch-protection`: `release/**`へ`main`と同等の保護を提案する。
+- `v1-archive-lock`: `archive/v1-current`へBypassなしの更新／削除／Force Push禁止を提案する。
+- `stable-tag-protection`: Stable Tag Patternの作成／更新／削除／Force PushをRepository Administrator以外へ禁止する。
+- GitHub App、Codex、GitHub ActionsをBypass Actorへ含めない。
+- Repository General設定はSquashのみ有効、Merge Commit／Rebase／Auto Merge無効、Merged Head Branch自動削除有効を提案する。
+- Required Status Checksは`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`がGOV-008／009で実行成功した後に追加する。本Taskでは設定案へ含めない。
+- 現行Repository Ruleset REST Schemaに独立した`lock_branch` Rule Typeはないため、Archive lockは`Restrict updates`の`update` Ruleとして表現する。存在しないSchemaを推測しない。
+- JSON内のRepository Administrator用`actor_id: 0`はHuman UI適用向けの明示的Placeholderであり、直接API送信用とは断定しない。
+
+### Scope／検証／GitHub
+
+- 変更対象はRuleset Baseline、4つのJSON設定案、本Worklogの6 Fileだけとする。
+- Application、API、DB、Migration、Authentication、Point、Payment、Draw、Docker、Infrastructure、CI、CODEOWNERS、Root／Nested `AGENTS.md`を変更しない。
+- `git diff --check`、JSON Parse、Markdown構造、Target Pattern、Bypass、Approval、CODEOWNERS、Archive／Tag保護、Scope、Secret／PIIを検証する。
+- Backend Test、Frontend Test、Build、Browser／E2EはGovernance Documentation-only Taskのため未実行とする。
+- Commit Message: `chore(governance): define repository ruleset baseline (GOV-005)`。
+- Commit SHAとGitHub App WrapperによるFast-forward Push結果は、Worklog自身への循環参照を避けてDraft PRとTask完了報告へ記録する。
+- Draft PRはGitHub App名義で作成し、CodexはApprove、Merge、Ruleset適用、Release、Production承認を行わない。
+
+### Risk／次Task
+
+- 人間Repository AdministratorがGitHub Settingsで4 RulesetとGeneral設定を適用し、適用後Evidenceを確認する必要がある。
+- Required Status Checksは実在Check未確認のため延期している。
+- 詳細Classic Branch ProtectionはAPI権限制約で`UNKNOWN`である。
+- 次Taskは人間によるGOV-005 Draft PR ReviewとRuleset手動適用であり、GOV-006は本Taskでは開始しない。
