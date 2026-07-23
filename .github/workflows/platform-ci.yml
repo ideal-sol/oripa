@@ -40,19 +40,258 @@ jobs:
           POLICY_EVENT_PATH: ${{ github.event_path }}
         run: python3 scripts/ci/policy_gate.py --repository .
 
+  quality-gate:
+    name: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          coverage: none
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+
+      - name: Verify manifests and install frontend dependencies
+        run: |
+          composer --working-dir=backend validate --strict --no-check-publish
+          pnpm --dir frontend install --frozen-lockfile
+
+      - name: Run quality structure and unit checks
+        run: |
+          python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
+          python3 scripts/ci/quality_gate.py --repository .
+
+      - name: Typecheck frontend
+        run: pnpm --dir frontend typecheck
+
+      - name: Compare frontend lint findings with the exact baseline
+        run: |
+          set +e
+          (
+            cd frontend
+            pnpm exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
+          )
+          eslint_status=$?
+          set -e
+          echo "eslint raw exit status: $eslint_status"
+          python3 scripts/ci/lint_baseline.py \
+            --report "$RUNNER_TEMP/eslint.json" \
+            --baseline .ci/baselines/frontend-eslint.json
+
+      - name: Verify tracked generated output and whitespace
+        run: |
+          git diff --check
+          git diff --exit-code
+
+  security-gate:
+    name: security-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          coverage: none
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+
+      - name: Collect dependency audits
+        run: |
+          set +e
+          composer --working-dir=backend audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
+          composer_status=$?
+          pnpm --dir frontend audit --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
+          pnpm_status=$?
+          set -e
+          echo "composer audit raw exit status: $composer_status"
+          echo "pnpm audit raw exit status: $pnpm_status"
+
+      - name: Run security checks
+        run: |
+          python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
+          python3 scripts/ci/security_gate.py \
+            --repository . \
+            --baseline .ci/baselines/dependency-advisories.json \
+            --composer-audit "$RUNNER_TEMP/composer-audit.json" \
+            --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json"
+
+  integration-gate:
+    name: integration-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: oripa_test
+          POSTGRES_USER: oripa_test
+          POSTGRES_PASSWORD: integration_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oripa_test -d oripa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: oripa_test
+      DB_USERNAME: oripa_test
+      DB_PASSWORD: integration_test_password
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      FILESYSTEM_DISK: local
+      MAIL_MAILER: array
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000/api
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql
+          tools: composer:v2
+          coverage: none
+
+      - name: Install locked dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+          composer --working-dir=backend install --no-interaction --prefer-dist --no-progress
+          pnpm --dir frontend install --frozen-lockfile
+
+      - name: Apply migrations to the ephemeral database
+        run: php backend/artisan migrate --no-interaction
+
+      - name: Run backend tests against the exact legacy baseline
+        run: |
+          set +e
+          (
+            cd backend
+            php artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
+          )
+          backend_status=$?
+          set -e
+          echo "backend test raw exit status: $backend_status"
+          python3 scripts/ci/backend_test_baseline.py \
+            --report "$RUNNER_TEMP/backend-tests.xml" \
+            --baseline .ci/baselines/backend-tests.json
+
+      - name: Build and typecheck frontend
+        run: |
+          pnpm --dir frontend typecheck
+          pnpm --dir frontend build
+
+      - name: Validate contracts, manifests, and Compose
+        run: |
+          python3 scripts/ci/quality_gate.py --repository .
+          docker compose config --quiet
+
+      - name: Verify no tracked generated changes
+        run: |
+          git diff --check
+          git diff --exit-code
+
   ci-gate:
     name: ci-gate
     if: always()
     needs:
       - policy-gate
+      - quality-gate
+      - security-gate
+      - integration-gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require policy-gate success
         env:
           POLICY_GATE_RESULT: ${{ needs.policy-gate.result }}
+          QUALITY_GATE_RESULT: ${{ needs.quality-gate.result }}
+          SECURITY_GATE_RESULT: ${{ needs.security-gate.result }}
+          INTEGRATION_GATE_RESULT: ${{ needs.integration-gate.result }}
         run: |
-          if [ "$POLICY_GATE_RESULT" != "success" ]; then
-            echo "policy-gate did not succeed"
-            exit 1
-          fi
+          for result in \
+            "$POLICY_GATE_RESULT" \
+            "$QUALITY_GATE_RESULT" \
+            "$SECURITY_GATE_RESULT" \
+            "$INTEGRATION_GATE_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "A required gate did not succeed"
+              exit 1
+            fi
+          done

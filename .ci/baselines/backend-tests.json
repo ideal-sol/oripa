@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "management": {
+    "owner": "platform-maintainers",
+    "reason": "Two V1 admin payment tests create succeeded payments without the payment-origin point lots and wallet now required by the approved refund and chargeback behavior. Application or test fixture changes are outside GOV-009.",
+    "removal_condition": "Remove this baseline after an approved application task updates these legacy fixtures to create complete payment-origin state and both tests pass.",
+    "expires_at": "2026-08-15",
+    "tracking_task": "QUALITY-002"
+  },
+  "failures": [
+    {
+      "class": "Tests\\Feature\\AdminPaymentApiTest",
+      "name": "test_admin_can_mark_chargeback_and_user_is_suspended",
+      "type": "PHPUnit\\Framework\\ExpectationFailedException"
+    },
+    {
+      "class": "Tests\\Feature\\AdminPaymentApiTest",
+      "name": "test_admin_can_mark_succeeded_payment_as_refunded_and_audit_log_is_recorded",
+      "type": "PHPUnit\\Framework\\ExpectationFailedException"
+    }
+  ]
+}

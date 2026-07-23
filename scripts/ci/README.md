@@ -17,9 +17,19 @@ For pull request metadata validation, GitHub Actions supplies
 `POLICY_EVENT_NAME=pull_request` and `POLICY_EVENT_PATH`. The script reads the
 event JSON directly. It does not interpolate pull request text into a shell.
 
-The bootstrap `ci-gate` depends on `policy-gate` and rejects failed, cancelled,
-or skipped dependency results. GOV-009 replaces this bootstrap aggregation with
-the complete policy, quality, security, and integration gate set.
+The `ci-gate` depends on policy, quality, security, and integration jobs and
+rejects failed, cancelled, or skipped dependency results.
+
+## Quality, security, and integration
+
+- `quality_gate.py` validates tracked source and structured file quality.
+- `lint_baseline.py` requires an exact, unexpired ESLint fingerprint set.
+- `backend_test_baseline.py` requires an exact, unexpired PHPUnit failure set.
+- `security_gate.py` performs repository security checks and requires exact,
+  unexpired Composer and pnpm advisory baselines.
+
+Operational commands and baseline policy are documented in
+`docs/operations/ci/README.md`.
 
 ## Dependency policy
 

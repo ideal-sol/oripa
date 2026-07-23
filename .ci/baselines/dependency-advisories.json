@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "management": {
+    "owner": "security-owners",
+    "reason": "Pre-existing locked dependency advisories discovered by GOV-009; dependency changes are forbidden from this CI-only task.",
+    "removal_condition": "Upgrade locked dependencies in SEC-001 and remove only findings absent from fresh Composer and pnpm audits.",
+    "expires_at": "2026-07-30",
+    "tracking_task": "SEC-001"
+  },
+  "composer": [
+    {"source":"composer","advisory_id":"PKSA-93qv-9n9h-6k6p","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":"CVE-2026-55767"},
+    {"source":"composer","advisory_id":"PKSA-bbs6-q5q9-f3t4","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":null},
+    {"source":"composer","advisory_id":"PKSA-bcdd-5xc7-gwfb","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":"CVE-2026-59883"},
+    {"source":"composer","advisory_id":"PKSA-fy2t-3c5f-827y","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":null},
+    {"source":"composer","advisory_id":"PKSA-k22t-f949-t9g6","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":"CVE-2026-55568"},
+    {"source":"composer","advisory_id":"PKSA-pwsk-hy21-4gby","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":null},
+    {"source":"composer","advisory_id":"PKSA-qxvb-2bpp-dnk6","package":"guzzlehttp/guzzle","version":"7.11.1","severity":"medium","cve":null},
+    {"source":"composer","advisory_id":"PKSA-7qs6-zvnz-h66r","package":"guzzlehttp/psr7","version":"2.11.0","severity":"medium","cve":"CVE-2026-55766"},
+    {"source":"composer","advisory_id":"PKSA-vznr-tgp9-fd7d","package":"guzzlehttp/psr7","version":"2.11.0","severity":"medium","cve":"CVE-2026-59882"},
+    {"source":"composer","advisory_id":"PKSA-mnyp-475s-ywph","package":"mtdowling/jmespath.php","version":"2.8.0","severity":"unknown","cve":"CVE-2026-54133"}
+  ],
+  "pnpm": [
+    {"source":"pnpm","advisory_id":"GHSA-qx2v-qp2m-jg93","audit_id":"1117015","package":"postcss","version":"8.4.31","severity":"moderate","path":".>next>postcss"},
+    {"source":"pnpm","advisory_id":"GHSA-3jxr-9vmj-r5cp","audit_id":"1123897","package":"brace-expansion","version":"1.1.15","severity":"high","path":".>eslint>minimatch>brace-expansion"},
+    {"source":"pnpm","advisory_id":"GHSA-3jxr-9vmj-r5cp","audit_id":"1123898","package":"brace-expansion","version":"5.0.6","severity":"high","path":".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion"},
+    {"source":"pnpm","advisory_id":"GHSA-52cp-r559-cp3m","audit_id":"1123911","package":"js-yaml","version":"4.2.0","severity":"high","path":".>eslint>@eslint/eslintrc>js-yaml"},
+    {"source":"pnpm","advisory_id":"GHSA-f88m-g3jw-g9cj","audit_id":"1124066","package":"sharp","version":"0.34.5","severity":"high","path":".>next>sharp"},
+    {"source":"pnpm","advisory_id":"GHSA-6gpp-xcg3-4w24","audit_id":"1124170","package":"next","version":"16.2.9","severity":"high","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-m99w-x7hq-7vfj","audit_id":"1124171","package":"next","version":"16.2.9","severity":"high","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-89xv-2m56-2m9x","audit_id":"1124184","package":"next","version":"16.2.9","severity":"high","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-68g3-v927-f742","audit_id":"1124186","package":"next","version":"16.2.9","severity":"moderate","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-4633-3j49-mh5q","audit_id":"1124188","package":"next","version":"16.2.9","severity":"moderate","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-4c39-4ccg-62r3","audit_id":"1124190","package":"next","version":"16.2.9","severity":"moderate","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-p9j2-gv94-2wf4","audit_id":"1124192","package":"next","version":"16.2.9","severity":"high","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-q8wf-6r8g-63ch","audit_id":"1124194","package":"next","version":"16.2.9","severity":"moderate","path":".>next"},
+    {"source":"pnpm","advisory_id":"GHSA-955p-x3mx-jcvp","audit_id":"1124196","package":"next","version":"16.2.9","severity":"moderate","path":".>next"}
+  ]
+}
