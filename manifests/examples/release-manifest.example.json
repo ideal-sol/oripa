@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "release_id": "platform-v2.0.0-example",
+  "release_class": "stable",
+  "source": {
+    "repository": "ideal-sol/oripa",
+    "commit_sha": "0000000000000000000000000000000000000000",
+    "tag": "platform-v2.0.0-example"
+  },
+  "artifact": {
+    "name": "oripa-platform",
+    "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "sbom_reference": "https://example.invalid/sbom/platform-v2.0.0-example.json"
+  },
+  "migration_revision": "example-revision",
+  "required_checks": [
+    "policy-gate",
+    "quality-gate",
+    "security-gate",
+    "integration-gate",
+    "ci-gate"
+  ],
+  "production_go": {
+    "required": true,
+    "approved": false
+  }
+}
