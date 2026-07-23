@@ -240,7 +240,7 @@ def main() -> int:
         composer_audit = json.loads(arguments.composer_audit.read_text(encoding="utf-8"))
         pnpm_audit = json.loads(arguments.pnpm_audit.read_text(encoding="utf-8"))
         composer_lock = json.loads(
-            (repository / "backend/composer.lock").read_text(encoding="utf-8")
+            (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
         )
         baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
         dependency_summary = validate_dependency_baseline(

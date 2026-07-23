@@ -4,7 +4,7 @@ This repository follows `docs/md/spec_v1.4.md` as the master specification.
 
 The local environment is intentionally split into:
 
-- `backend/`: Laravel API
+- `apps/api/`: Laravel API
 - `frontend/`: Next.js App Router
 - PostgreSQL
 - Redis
@@ -45,7 +45,7 @@ The host does not need PHP, Composer, Node.js, pnpm, PostgreSQL, Redis, or MinIO
 
 ```bash
 cp .env.example .env
-cp backend/.env.example backend/.env
+cp apps/api/.env.example apps/api/.env
 cp frontend/.env.example frontend/.env.local
 COMPOSE_BAKE=false docker compose build
 docker compose run --rm backend php artisan key:generate
@@ -109,7 +109,7 @@ The Laravel API uses:
 - MinIO through the S3 filesystem disk
 - Mailpit through SMTP
 
-Domain placeholders are under `backend/app/Domain`.
+Domain placeholders are under `apps/api/app/Domain`.
 
 Business logic must be added to Laravel service/action classes, not controllers and not Next.js.
 

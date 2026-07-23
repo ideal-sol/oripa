@@ -6,7 +6,7 @@
   ],
   "tracked_paths": [
     "AGENTS.md",
-    "backend/.env.example",
+    "apps/api/.env.example",
     "scripts/ci/policy_gate.py"
   ],
   "workflow": "permissions:\n  contents: read\nconcurrency:\n  group: fixture\njobs:\n  policy:\n    timeout-minutes: 5\n    steps:\n      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2\n",

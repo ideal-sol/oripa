@@ -2,7 +2,7 @@
 
 setup:
 	cp .env.example .env || true
-	cp backend/.env.example backend/.env || true
+	cp apps/api/.env.example apps/api/.env || true
 	cp frontend/.env.example frontend/.env.local || true
 	COMPOSE_BAKE=false docker compose build
 	docker compose run --rm backend composer install

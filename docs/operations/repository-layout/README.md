@@ -42,5 +42,6 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 
 ## Migration Boundary
 
-`backend`／`frontend`は変更もCopyもしていない。`MIG-021`以降はMechanical Moveと
-Behavior変更を分離し、同一内容をV1とV2へ重複配置しない。
+`MIG-021`で`backend`を`apps/api`へ内容不変でMechanical Moveした。`frontend`は
+Rootに維持し、後続TaskでもMechanical MoveとBehavior変更を分離する。同一内容を
+旧PathとV2 Pathへ重複配置しない。

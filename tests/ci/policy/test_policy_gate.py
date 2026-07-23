@@ -50,6 +50,20 @@ class PolicyGateTest(unittest.TestCase):
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "dangerous tracked"):
             policy_gate.validate_dangerous_paths(data["tracked_paths"])
 
+    def test_declared_directory_prefix_allows_nested_path(self):
+        self.assertTrue(
+            policy_gate.declared_path_allowed(
+                "apps/api/app/Models/User.php",
+                ["apps/api/**"],
+            )
+        )
+        self.assertFalse(
+            policy_gate.declared_path_allowed(
+                "frontend/src/app/page.tsx",
+                ["apps/api/**"],
+            )
+        )
+
     def test_codeql_job_can_upload_security_events(self):
         workflow = """\
 permissions:
@@ -265,6 +279,27 @@ This is a non-Production Skeleton and contains no application implementation.
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "workspace members"):
                 policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_api_application_layout_passes(self):
+        policy_gate.validate_api_application_layout(
+            policy_gate.API_APPLICATION_REQUIRED_FILES
+        )
+
+    def test_legacy_backend_path_fails(self):
+        paths = set(policy_gate.API_APPLICATION_REQUIRED_FILES)
+        paths.add("backend/artisan")
+        with self.assertRaisesRegex(
+            policy_gate.PolicyFailure, "legacy backend path remains tracked"
+        ):
+            policy_gate.validate_api_application_layout(paths)
+
+    def test_missing_api_application_file_fails(self):
+        paths = set(policy_gate.API_APPLICATION_REQUIRED_FILES)
+        paths.remove("apps/api/composer.lock")
+        with self.assertRaisesRegex(
+            policy_gate.PolicyFailure, "required API application files missing"
+        ):
+            policy_gate.validate_api_application_layout(paths)
 
     def test_manifest_required_field_removal_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
