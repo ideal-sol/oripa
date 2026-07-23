@@ -1561,6 +1561,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Initial Head `ffe083d55252721b4c4dd8add402962f8aea9486`では`policy-gate`と`security-gate`が成功し、`quality-gate`と`integration-gate`が失敗した。`ci-gate`は依存Gate失敗を正しく拒否した。
 - `quality-gate`はESLintの実行DirectoryがLocal Baseline作成時と異なっていたため、`frontend`をCurrent Directoryにして同じCommandを実行するよう修正した。
+- `integration-gate`の初回修正後失敗はRepository Rootから`artisan test`を呼んだことでPHPUnit実行Fileの相対Path解決が崩れたためで、`backend` Directory内実行へ修正した。
 - Ephemeral PostgreSQL／RedisとPHP 8.4でBackend全332 Testを再現し、MigrationはPASS、Testは2 Failure／332 Warningだった。
 - 既知Failureは`Tests\Feature\AdminPaymentApiTest`の返金とChargebackの2件だけで、旧Fixtureが現在必須のPayment-origin Point LotとWalletを作成していないことによる。
 - ApplicationやAssertionを変更せず、Class、Method、Exception Typeの完全一致Baselineとして2026-08-15まで`QUALITY-002`で管理する。新規、欠落、変更、期限切れは`integration-gate`を失敗させる。

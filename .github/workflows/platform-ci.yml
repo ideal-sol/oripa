@@ -241,7 +241,10 @@ jobs:
       - name: Run backend tests against the exact legacy baseline
         run: |
           set +e
-          php backend/artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
+          (
+            cd backend
+            php artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
+          )
           backend_status=$?
           set -e
           echo "backend test raw exit status: $backend_status"

@@ -67,10 +67,36 @@ def validate_baseline(report: list[dict], baseline: dict, today: datetime.date) 
     if actual != expected:
         actual_ids = {item["fingerprint"] for item in actual}
         expected_ids = {item.get("fingerprint") for item in expected}
-        added = sorted(actual_ids - expected_ids)
-        missing = sorted(expected_ids - actual_ids)
+        added_ids = actual_ids - expected_ids
+        missing_ids = expected_ids - actual_ids
+        added = [
+            {
+                "path": item["path"],
+                "line": item["line"],
+                "column": item["column"],
+                "rule_id": item["rule_id"],
+                "severity": item["severity"],
+                "message_sha256": item["message_sha256"],
+            }
+            for item in actual
+            if item["fingerprint"] in added_ids
+        ]
+        missing = [
+            {
+                "path": item.get("path"),
+                "line": item.get("line"),
+                "column": item.get("column"),
+                "rule_id": item.get("rule_id"),
+                "severity": item.get("severity"),
+                "message_sha256": item.get("message_sha256"),
+            }
+            for item in expected
+            if item.get("fingerprint") in missing_ids
+        ]
         raise BaselineFailure(
-            f"ESLint baseline mismatch: new={len(added)} missing={len(missing)}"
+            "ESLint baseline mismatch: "
+            f"new={json.dumps(added, sort_keys=True)} "
+            f"missing={json.dumps(missing, sort_keys=True)}"
         )
     return {
         "findings": len(actual),
