@@ -31,3 +31,6 @@ These instructions apply to documentation under `docs/`. They refine the Root
 - Run Markdown structure, internal-link, filename, contradiction, secret, PII,
   and scope reviews applicable to the task.
 - Record documentation-only test omissions explicitly.
+- Follow the Root autonomous GitHub lifecycle. Governance documents require
+  fixed-head self-review and contradiction review but do not require GitHub
+  Approval or Code Owner Review before a gate-compliant squash merge.

@@ -1175,3 +1175,72 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Required Status Checksは実在Check未確認のため延期している。
 - 詳細Classic Branch ProtectionはAPI権限制約で`UNKNOWN`である。
 - 次Taskは人間によるGOV-005 Draft PR ReviewとRuleset手動適用であり、GOV-006は本Taskでは開始しない。
+
+## GOV-005R1 Codex完全自律GitHub運用
+
+### 基本情報
+
+- 実施開始: 2026-07-23T02:53:50Z／2026-07-23T11:53:50+09:00
+- Task ID: `GOV-005R1`
+- Risk: `R3`
+- Issue: `#11` (`https://github.com/ideal-sol/oripa/issues/11`)
+- Branch: `chore/GOV-005R1-autonomous-github`
+- Worktree: `/var/www/oripa-worktrees/GOV-005R1-autonomous-github`
+- Base SHA: `2f74971a34e64e948748aa53c831b556943f20c8`
+- GOV-005 PR `#10`はSquash Merge済みで、Local `main`同期、Remote／Local Branch、Worktree Cleanupを完了した。
+
+### GitHub App権限再検証
+
+- App登録／Installation側の`administration: write`をInstallation metadataで確認した。
+- Brokerの固定Permission ProfileへAdministration、Actions read、Checks read、Deployments／Environments write、Statuses read、Workflows writeを追加した。
+- 新規発行Token Responseでも`administration: write`を確認し、古いTokenやCacheを再利用していない。
+- Access対象は`ideal-sol/oripa`だけである。
+- 認証付き`GET /repos/ideal-sol/oripa/rulesets`はHTTP 200だった。
+- 無効PayloadによるCreate Endpoint事前判定はHTTP 422 `validation_error`で、前後のRuleset件数は0件のまま、実変更がないことを確認した。
+- App ID、Installation ID、JWT、Token、Authorization Header、Private Key、Config値を表示または記録していない。
+
+### 正式文書／Governance
+
+- `V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md`を新正本として作成し、旧2026-07-22 GovernanceをSupersededとした。
+- `V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md`を新正本として作成し、旧2026-07-22 Release GatesをSupersededとした。
+- `V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md`へ自律運用のDecision、固定Head Self-review、Bootstrap、Ruleset、Risk／Mitigationを記録した。
+- Root／7つのNested `AGENTS.md`、Issue Form、PR Templateを自律Review／Squash Merge方針へ更新した。
+- GitHub ApprovalとRequired Code Owner ReviewをMerge条件から外し、PR、CI、Scope、Secret／PII、固定Head、Self-review、SEV-0／1なしを必須とした。
+- 初回商用Production最終GO、法務、会計、未確定Provider判断は自律化対象外のままとした。
+
+### Ruleset／Repository設定
+
+- `main`／`release/**`: PR必須、Approval 0、Code Owner Review OFF、最新Push Approval OFF、Conversation解決、Linear History、削除／Force Push禁止、Bypassなしとする。
+- `archive/v1-current`: Bypassなしで更新、削除、Force Pushを禁止する。
+- Stable Tagは`stable-tag-creation`と`stable-tag-immutability`へ分離する。GitHub AppだけがRelease Gate後に新規作成でき、Appを含む全Actorの更新／削除を禁止する。
+- Repository設定はSquash ON、Merge Commit OFF、Rebase OFF、Auto Merge ON、Merged Branch自動削除ONとする。
+- GOV-009前は全Local ValidationとGitHubが実際に出す全Checkを必須とし、GOV-009後は5つの標準GateをRulesetへ必須設定してBootstrap例外を失効させる。
+
+### Repository外Wrapper
+
+- BrokerはOperationごとに新規短期Installation Tokenを発行し、必要Permissionだけを固定要求する。
+- `/usr/local/libexec/ideal-sol-github-app-autonomy`を追加し、既存Policy Wrapperから固定Operationとして呼び出す。
+- 追加Operation: `mark-pr-ready`、`get-pr-checks`、`create-self-review-evidence`、`merge-pr-squash`、`delete-merged-branch`、`update-repository-settings`、`create-ruleset`、`update-ruleset`、`get-rulesets`、`create-release`、`create-protected-tag`。
+- MergeはExpected Head SHA、Policy Scope、GitHub Checks、Fresh Self-review Evidence、SEV-0／1なし、Merge Conflictなしを再確認し、Squashだけを許可する。
+- Stable Tag作成とRelease Operationは実装するが、本Task Policyでは許可せず誤実行を防止する。
+- Wrapper／PolicyはRepository外でroot所有、mode 700／600とし、秘密値を出力・保存しない。
+
+### 検証／完了手順
+
+- JSON／YAML／Markdown、Root／Nested矛盾、Allowed Paths、Secret／PII、Wrapper Syntax／拒否経路を検証する。
+- Governance-only変更のためBackend／Frontend Runtime Test、Build、Browser／E2Eは未実行とし、静的／構造検証を必須にする。
+- Commit、GitHub App Fast-forward Push、Draft PR、Repository設定／Ruleset適用、Readback、固定Head Self-review、Ready化、CI確認、Squash Mergeを順番に行う。
+- Merge後はRemote Task Branch、Local Worktree／BranchをCleanupし、Local `main`を`origin/main`へFast-forward同期する。
+- GOV-005R1完了後は人間PR操作を待たず、MIG-010 V2 Repository Baselineを開始する。
+
+### GitHub適用結果
+
+- Initial Commit: `01908dcf63a8d8d451a12b5711e22b7ad081cefd`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- Draft PR: `#12` (`https://github.com/ideal-sol/oripa/pull/12`)、Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`。
+- Repository General設定はSquash ON、Merge Commit OFF、Rebase OFF、Auto Merge ON、Merged Head Branch自動削除ONとしてAPI Responseを確認した。
+- `main-protection`、`release-branch-protection`、`v1-archive-lock`、`stable-tag-immutability`、`stable-tag-creation`の5 RulesetをActiveで作成した。
+- Main／Release／Archive／Stable immutabilityのBypassは空であり、Stable creationだけがIntegrationのAlways Bypassである。Actor IDは出力・記録していない。
+- Main／ReleaseはApproval 0、Code Owner Review OFF、最新Push Approval OFF、Conversation Resolution ON、Squashのみ、Linear History／削除禁止／Force Push禁止をReadbackした。
+- PR `#12`のInitial Headに対するGitHub Checkは0件、Required Check 0件、Failure 0件で、GOV-009前のBootstrapとして記録した。
+- 本追記を含むFinal Headは別CommitとしてFast-forward Pushし、PR本文、Checks、Self-review EvidenceをFinal Headへ更新する。

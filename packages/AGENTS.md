@@ -38,3 +38,6 @@ Compatibility Policy.
 - Run package build, typecheck, unit tests, export-surface checks, and generated
   diff checks applicable to the task.
 - Record compatibility and downstream Site impact explicitly.
+- Follow the Root autonomous GitHub lifecycle. Package publication and Stable
+  Tag creation require the Release Gate; Platform Codex may never move or
+  delete an existing Stable Tag.

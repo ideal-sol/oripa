@@ -1,134 +1,64 @@
-# GOV-005 Repository Ruleset Baseline
+# GOV-005R1 Autonomous Repository Ruleset Baseline
 
 ## Status
 
-This document is a human-reviewed configuration proposal for
-`ideal-sol/oripa`. Codex did not apply a ruleset or change a repository
-setting. A human repository administrator must apply and verify every setting
-in GitHub.
+This is the active baseline for `ideal-sol/oripa`. It supersedes the
+human-approval proposal committed by GOV-005.
 
-The JSON files in this directory follow the current repository ruleset REST
-shape documented by GitHub, but they are review artifacts rather than payloads
-approved for direct API submission. In particular, `actor_id: 0` is an explicit
-placeholder for the Repository Administrator role and must not be submitted.
+Platform Codex applies and verifies these settings through a fixed,
+policy-constrained GitHub App wrapper. Application does not authorize bypassing
+CI, direct push to `main`, force push, Archive mutation, or Stable Tag mutation.
 
 Reference: [GitHub REST API endpoints for repository rules](https://docs.github.com/en/rest/repos/rules)
 
-## Purpose
+## Governance Decision
 
-- Require human-reviewed pull requests for `main` and `release/**`.
-- Prevent force pushes and deletion of protected branches.
-- Make the V1 archive immutable.
-- Prevent unauthorized creation, movement, or deletion of stable tags.
-- Establish the baseline before required CI checks are enabled in GOV-008 and
-  GOV-009.
+- GitHub Approval count: zero
+- Code Owner review: not required
+- latest-push approval: not required
+- pull request: required
+- current-head self-review evidence: required
+- available required CI: required
+- scope and secret/PII validation: required
+- squash merge: required
+- direct `main` push: prohibited
+- force push: prohibited
+- branch deletion for protected refs: prohibited
 
-## Before
+## Rulesets
 
-Read-only audit performed on 2026-07-23 UTC:
-
-| Setting | Observed state | Evidence limitation |
-| --- | --- | --- |
-| Repository visibility | Public | Repository API |
-| Default branch | `main` | Repository API |
-| Repository rulesets | None | Rulesets list returned an empty array |
-| `main` protection | Not protected | Branch metadata; detailed endpoint returned 403 |
-| `archive/v1-current` protection | Not protected | Branch metadata; detailed endpoint returned 403 |
-| Squash merge | Enabled | Repository API |
-| Merge commits | Enabled | Repository API |
-| Rebase merge | Enabled | Repository API |
-| Auto merge | Disabled | Repository API |
-| Delete head branches after merge | Disabled | Repository API |
-| CODEOWNERS | Present | `.github/CODEOWNERS` |
-| GOV-004 remote branch | Present | Remote ref audit |
-
-The 403 responses mean the detailed classic branch-protection configuration is
-`UNKNOWN`; they do not authorize inferring hidden settings. The effective
-branch metadata reports both audited branches as unprotected.
-
-## Proposed After State
-
-| Ruleset | Target | Bypass | Main controls |
+| Name | Target | Bypass | Purpose |
 | --- | --- | --- | --- |
-| `main-protection` | `main` | Repository administrators, pull requests only | PR, one approval, CODEOWNERS, stale dismissal, latest-push approval, resolved conversations, linear history, no deletion or force push |
-| `release-branch-protection` | `release/**` | Repository administrators, pull requests only | Same controls as `main` |
-| `v1-archive-lock` | `archive/v1-current` | None | No updates, deletion, or force push |
-| `stable-tag-protection` | Stable tag patterns | Repository administrators, always | Only bypass actors may create, update, or delete; no force update |
+| `main-protection` | `main` | None | PR-only linear merge, conversations resolved, no deletion/force push |
+| `release-branch-protection` | `release/**` | None | Same branch controls as `main` |
+| `v1-archive-lock` | `archive/v1-current` | None | No update, deletion, or force push |
+| `stable-tag-immutability` | Stable tag patterns | None | No update, deletion, or force update |
+| `stable-tag-creation` | Stable tag patterns | GitHub App, always | Only the gated GitHub App may create a new Stable Tag |
 
-Do not add the GitHub App, Codex, or GitHub Actions to any bypass list.
+The GitHub App is not a bypass actor for `main`, `release/**`, Archive, or
+Stable Tag immutability.
 
-## Main Ruleset
+## Main and Release
 
-Use [main-ruleset.json](main-ruleset.json) as the review artifact.
+Use [main-ruleset.json](main-ruleset.json) and
+[release-ruleset.json](release-ruleset.json).
 
-- Name: `main-protection`
-- Target: branch `main`
-- Enforcement: Active
-- Bypass: Repository administrators, for pull requests only
-- Restrict deletions
-- Require linear history
-- Require a pull request before merging
-- Require one approval
-- Dismiss stale approvals on new reviewable pushes
-- Require review from Code Owners
-- Require approval of the most recent reviewable push
-- Require conversation resolution
-- Block force pushes
+- enforcement: Active
+- require a pull request before merging
+- allowed merge method: squash
+- required approvals: 0
+- dismiss stale approvals: off
+- Code Owner review: off
+- approval of most recent push: off
+- conversation resolution: on
+- linear history: on
+- deletion: restricted
+- non-fast-forward update: blocked
+- bypass: none
 
-Do not enable required status checks, strict/up-to-date branches, merge queue,
-required deployments, or signed commits in GOV-005.
-
-## Release Ruleset
-
-Use [release-ruleset.json](release-ruleset.json) as the review artifact.
-
-- Name: `release-branch-protection`
-- Target: `release/**`
-- Enforcement, bypass, and rules: same as `main-protection`
-- Do not add the GitHub App to bypass
-
-## V1 Archive Ruleset
-
-Use [archive-v1-ruleset.json](archive-v1-ruleset.json) as the review artifact.
-
-- Name: `v1-archive-lock`
-- Target: `archive/v1-current`
-- Enforcement: Active
-- Bypass: none
-- Restrict updates
-- Restrict deletions
-- Block force pushes
-
-The current repository ruleset REST schema has an `update` rule, not a separate
-`lock_branch` rule type. This proposal implements the requested archive lock as
-`Restrict updates` with no bypass, together with deletion and non-fast-forward
-restrictions. Do not invent or submit a `lock_branch` rule type.
-
-## Stable Tag Ruleset
-
-Use [stable-tags-ruleset.json](stable-tags-ruleset.json) as the review artifact.
-
-- Name: `stable-tag-protection`
-- Enforcement: Active
-- Bypass: Repository administrators, always
-- Restrict creations, updates, and deletions
-- Block force pushes
-- Target patterns:
-  - `platform-v*`
-  - `storefront-client-v*`
-  - `site-schema-v*`
-  - `storefront-testkit-v*`
-  - `site-template-v*`
-  - `*-site-v*`
-  - `v1-before-productization-*`
-
-Only a human Repository Administrator may create matching tags until a later,
-approved release identity is introduced.
-
-## Required Status Checks
-
-Required status checks are intentionally absent. Add them only after GOV-008
-and GOV-009 have created and successfully executed these exact checks:
+No check name is configured until GitHub has emitted it. Before GOV-009,
+Platform Codex requires all available local validation and all checks emitted
+for the exact PR head. After GOV-009, update both Rulesets to require:
 
 - `policy-gate`
 - `quality-gate`
@@ -136,104 +66,127 @@ and GOV-009 have created and successfully executed these exact checks:
 - `integration-gate`
 - `ci-gate`
 
-At that time, separately decide whether branches must be up to date before
-merge. Do not configure a required check name before GitHub has observed it.
+GOV-009 removes the Bootstrap exception.
 
-## General Repository Settings
+## V1 Archive
 
-A human must set:
+Use [archive-v1-ruleset.json](archive-v1-ruleset.json).
 
-| Pull request setting | Required value |
+- no bypass
+- restrict updates
+- restrict deletions
+- block force pushes
+
+The REST Ruleset schema represents the lock with the `update` rule. Do not
+invent a `lock_branch` rule type.
+
+## Stable Tags
+
+Use [stable-tags-ruleset.json](stable-tags-ruleset.json) for immutability and
+[stable-tag-creation-ruleset.json](stable-tag-creation-ruleset.json) for
+creation.
+
+Patterns:
+
+- `platform-v*`
+- `storefront-client-v*`
+- `site-schema-v*`
+- `storefront-testkit-v*`
+- `site-template-v*`
+- `*-site-v*`
+- `v1-before-productization-*`
+
+The split is mandatory. A single Ruleset with the GitHub App in its bypass list
+would also let the App bypass update/deletion protection.
+
+The committed creation JSON uses `actor_id: 0` as a non-submit placeholder.
+The administration wrapper replaces it in memory with the App identity while
+applying the Ruleset and never prints or records that ID.
+
+The protected-tag wrapper requires:
+
+- a policy-allowed tag pattern;
+- a full source commit SHA reachable from `main`;
+- a passing Release Gate evidence file for that exact commit;
+- no existing tag with that name;
+- no direct update or delete operation.
+
+## Repository Settings
+
+The GitHub App applies:
+
+| Setting | Value |
 | --- | --- |
 | Allow squash merging | On |
 | Allow merge commits | Off |
 | Allow rebase merging | Off |
-| Allow auto-merge | Off |
+| Allow auto-merge | On |
 | Automatically delete head branches | On |
 
-If `docs/GOV-004-issue-pr-templates` remains after PR #8, delete it from the
-merged PR page. Codex must not delete that remote branch in GOV-005.
+Autonomous merge still uses the fixed-head wrapper after all gates pass.
 
-## Human Application Procedure
+## Application Procedure
 
-1. Open `ideal-sol/oripa` in GitHub and confirm `main` still points to the
-   GOV-004 squash commit recorded in the GOV-005 PR.
-2. Open **Settings > Rules > Rulesets**.
-3. Create each of the four rulesets above using the UI. Treat the JSON files as
-   comparison aids, not upload-ready authorization.
-4. For `main` and `release/**`, select Repository administrators as bypass and
-   limit bypass to pull requests.
-5. For the archive ruleset, configure no bypass actor and enable Restrict
-   updates, Restrict deletions, and Block force pushes.
-6. For the stable tag ruleset, allow only Repository administrators to bypass,
-   with Always mode.
-7. Confirm the GitHub App, Codex, and Actions are absent from all bypass lists.
-8. Leave required status checks and every deferred rule disabled.
-9. Apply the General Repository Settings table.
-10. Delete the merged GOV-004 remote branch from PR #8 if it remains.
+1. Confirm the task policy, expected base SHA, and clean main.
+2. Read current settings and Rulesets through authenticated API calls.
+3. Validate every JSON file and replace only the approved internal App actor
+   placeholder.
+4. Create or update Rulesets by exact name; do not delete an unknown Ruleset.
+5. Update only the five approved Repository General settings.
+6. Read back every Rule, target, enforcement state, bypass actor type/mode, and
+   General setting.
+7. Redact actor IDs and all authentication material from output and evidence.
+8. Refuse any mismatch rather than weakening protection.
 
-## Post-application Verification
+## Merge Verification
 
-Record screenshots or exported settings without credentials, actor IDs, or
-tokens, then verify:
+Before each merge:
 
-- Four active rulesets exist with the exact names and targets above.
-- Direct non-bypass updates to `main` and `release/**` require a PR.
-- One human approval and CODEOWNERS review are required.
-- A new reviewable push dismisses stale approval and requires latest-push
-  approval.
-- Conversations must be resolved.
-- Deletion and force push are blocked.
-- The archive has no bypass actor and cannot be updated or deleted.
-- Stable tags cannot be created, moved, or deleted by the GitHub App.
-- Required status checks remain absent.
-- Only squash merge is enabled, auto-merge is disabled, and merged head
-  branches are automatically deleted.
+- PR Task ID, branch, base, and head match policy;
+- current head equals expected reviewed head;
+- changed files are in allowed paths;
+- every available required check passes;
+- local required validation passes;
+- no secret/PII candidate remains;
+- applicable migration/contract/security tests pass;
+- fixed-head self-review evidence is fresh;
+- SEV-0 and SEV-1 counts are zero;
+- conversations are resolved;
+- mergeability is clean;
+- merge method is squash.
 
-Do not perform destructive test pushes against `main`, the archive, or stable
-tags. Use GitHub's displayed rule configuration and later controlled task-branch
-tests.
+## Emergency Handling
 
-## Emergency Bypass
+Do not bypass Rulesets or checks. If governance configuration prevents safe
+recovery:
 
-- Routine work never uses bypass.
-- Main and release bypass is limited to a Repository Administrator acting
-  through a pull request.
-- Archive has no emergency bypass in this baseline.
-- Stable tags allow Repository Administrators only so a human can perform an
-  approved release operation.
-- Every emergency use requires an Issue, reason, actor, timestamp, affected ref,
-  verification, and follow-up review.
-- Codex and the GitHub App never receive emergency bypass.
+1. stop automated merge and release operations;
+2. preserve redacted before-state evidence;
+3. create a dedicated recovery Issue and policy;
+4. change only the minimum affected configuration;
+5. restore and verify the baseline immediately.
+
+Archive and Stable Tag immutability cannot be waived by Codex.
 
 ## Rollback
 
-1. Preserve an audit record of the current settings and the reason for rollback.
-2. Prefer disabling one affected ruleset temporarily instead of deleting it.
-3. Do not relax archive or stable-tag rules without a separate explicit human
-   decision.
-4. Restore the approved settings as soon as the incident is resolved.
-5. Re-run the post-application verification and record the final state.
+- Repository settings may be restored to a prior recorded safe value through a
+  dedicated task.
+- A newly created incorrect Ruleset may be disabled, not silently deleted,
+  pending investigation.
+- Never rollback by force push, direct `main` push, Archive update, or Stable Tag
+  movement/deletion.
+- Record before/after JSON and rule identifiers without IDs, tokens, or secrets.
 
-Rollback does not authorize force pushes, tag movement, Archive changes, or
-Production operations.
+## Audit Evidence
 
-## Audit Checklist
+Record:
 
-- Human administrator and timestamp recorded
-- Before and after ruleset exports or screenshots retained securely
-- Exact target patterns reviewed
-- Bypass actors and modes reviewed
-- GitHub App absent from bypass
-- Required checks still deferred
-- General merge settings verified
-- GOV-004 remote branch disposition recorded
-- No secret, token, credential, or PII captured
-
-## GitHub App Administration
-
-The GitHub App intentionally has no `Administration` repository permission.
-Ruleset creation requires repository Administration write access, and granting
-that permission would allow Codex automation to change repository protection.
-The App remains limited to approved Issue, task-branch push, and Draft PR
-operations; a human applies this baseline.
+- Task, Issue, PR, branch, base, and head SHA;
+- redacted before/after Ruleset summaries;
+- Repository setting results;
+- local and GitHub checks;
+- self-review evidence identifier;
+- squash commit and merge actor;
+- Remote/local branch cleanup and local `main` synchronization;
+- Bootstrap or post-GOV-009 mode.

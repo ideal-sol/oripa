@@ -22,7 +22,9 @@ These instructions apply to future infrastructure definitions under
 - Use OIDC or separately scoped Site deployment credentials.
 - Never provide Production secrets to Codex or store them in Repository files,
   Issues, PRs, logs, or build output.
-- Production deployment approval belongs to humans only.
+- Platform Codex may manage approved environments and execute a deployment only
+  after the applicable Release and Site Deployment Gates pass.
+- The final GO for initial commercial Production remains human-only.
 
 ## Operational Safety
 
@@ -38,3 +40,5 @@ These instructions apply to future infrastructure definitions under
   environment separation without using Production credentials.
 - Keep test deployment, Staging deployment, and Production deployment status
   distinct.
+- Follow the Root autonomous GitHub lifecycle. Infrastructure PR merge does not
+  authorize Production deployment, migration, or commercial GO.
