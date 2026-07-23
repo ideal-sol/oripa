@@ -89,6 +89,9 @@ jobs:
           pnpm openapi:test
           pnpm openapi:check
 
+      - name: Validate Storefront Client Alpha
+        run: pnpm storefront:check
+
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
@@ -292,6 +295,9 @@ jobs:
           pnpm admin:typecheck
           pnpm admin:lint
           pnpm admin:build
+
+      - name: Generate, build, and test Storefront Client Alpha
+        run: pnpm storefront:check
 
       - name: Validate contracts, manifests, and Compose
         run: |

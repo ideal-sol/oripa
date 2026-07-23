@@ -2164,6 +2164,65 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Direct main Push、Force Push、Gate Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
 - 次Task候補は`MIG-031`だが、MIG-030完了後には開始しない。
 
+### MIG-030 Closeout
+
+- PR `#56`のFinal Headは`3fc880c87316bc77f5ebdd8508b3c1021f9ea41e`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub AppがSquash Mergeし、Squash Commitは`9793f1089fdff981d2433731ff224bae87f2c2e6`、Issue `#55`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- Public／Admin／WebhookのOpenAPI 3.1.1 Skeleton、共通Component、Lint、deterministic Bundle、Breaking Change検査が`main`へ反映された。
+- 3 SurfaceのOperation数は0件で、Laravel、DB、Migration、業務Endpoint、Generated ClientはMIG-030では変更していない。
+- V1 Archive BranchとAnnotated Tagは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+
+## MIG-031 Storefront Client Alpha
+
+### Task
+
+- 実施開始: `2026-07-23T13:54:39Z`
+- Task ID: `MIG-031`
+- Risk: `R3`
+- Issue: `#57` (`https://github.com/ideal-sol/oripa/issues/57`)
+- Branch: `feat/MIG-031-storefront-client`
+- Worktree: `/var/www/oripa-worktrees/MIG-031-storefront-client`
+- Base SHA: `9793f1089fdff981d2433731ff224bae87f2c2e6`
+
+### Public API／生成
+
+- Public OpenAPI Bundle `openapi/bundled/public.openapi.json`だけを型の正本とし、`openapi-typescript` `7.13.0`で`packages/storefront-client/src/generated/public.ts`を決定的に生成した。
+- 生成ToolのPeer範囲へ合わせ、Client PackageのTypeScriptはExact Version `5.9.3`とした。Root WorkspaceのTypeScript `6.0.3`、Admin Dependency、Legacy Dependencyは変更していない。
+- `generate:check`はRepository外の一時Directoryへ再生成し、Commit済み生成物とのByte差分を拒否する。生成物は手動編集禁止である。
+- Public API Operationは0件であり、Generated `paths`／`operations`は`Record<string, never>`である。Fake Endpoint Method、架空の業務型、Admin／Webhook型は追加していない。
+- 公開Entry PointはPackage Root、`browser`、`server`、`types`だけである。`types`はPublic `paths`、`components`、`operations`だけを再Exportする。
+
+### Transport／Error／Retry
+
+- Package Versionは`2.0.0-alpha.1`で、Browser Clientは`credentials: include`、JSON、`X-Oripa-Client-Version`、`X-Oripa-Site-Version`、Request ID／API Version等のResponse Metadataを扱う。
+- TimeoutはClient Configの`default_timeout_ms`を既定値としてRequest単位で上書きでき、外部`AbortSignal`とTimeoutを別Error Codeへ変換する。
+- `createIdempotencyKey()`、16～128文字の`Idempotency-Key`検証、同一Keyを保持するMutation Retry境界を実装した。
+- GET／HEADはNetwork Errorと502／503／504だけを最大2回、Idempotency-Key付きMutationは同条件で最大1回Retryする。KeyなしMutation、409、422、429はRetryしない。
+- RFC 9457拡張の`application/problem+json`を`ApiProblemError`へ変換し、`request_id`、`retryable`、`retry_after_seconds`、Field Errorを保持する。
+- CSRF Endpoint、Cookie名、Header名は推測せず、必要なMutationだけが呼ぶ設定可能な`csrf_initializer`境界を設けた。
+- Server ClientはRequest単位のCookie Header転送とGET／HEADだけを許可する。Authorization Header、LocalStorage Token、Cache、React State、UI、Business Logic、Draw／Point／Payment判断、Provider固有処理は持たない。
+
+### CI／検証
+
+- Root Scriptと`quality-gate`／`integration-gate`へ生成差分、Typecheck、Lint、Build、Unit Testを統合し、既存Check名は変更していない。
+- `policy-gate`はStorefront ClientをSkeleton扱いからAlpha Package検証へ移し、Package identity、Exact Version、公開面、Generated Operation 0件、Browser Cookie、Transport境界を継続検査する。
+- Positive Fixtureに加え、Admin型公開、Fake Operation、`credentials: omit`を拒否するNegative Testを追加した。Policy Unit Test 30件はPASSした。
+- `pnpm install --frozen-lockfile`、生成差分、Typecheck、Lint、Build、Unit Test 9件、OpenAPI Unit Test 4件、3 Contract Lint／Bundle、Quality Unit Test 5件、Admin Typecheck／Lint／BuildはPASSした。
+- Unit TestはCookie通信、Version Header、Request ID、Timeout／Abort、Idempotency、RFC 9457 Problem Details、限定Retry、409／422／429非Retry、CSRF境界、Server GET／HEAD、Admin／Webhook型非公開、Fake Operationなしを検証した。
+- 生成Toolが導入した`js-yaml` AdvisoryはPatched Version `4.3.0`へExact Overrideし、Root Auditは0 Findingである。Composer 10件とLegacy pnpm 14件は既存期限付きExact Baselineと一致し、Baselineを拡張していない。
+- Local `policy-gate`、`quality-gate`、`security-gate`、`git diff --check`はPASSし、Secret Candidateは0件だった。
+- Laravel／DB／Migration、Backend Test、Legacy Frontend Build、Docker Compose Smoke、Browser／E2E、Production DeployはMIG-031の変更対象ではなくLocalでは未実行であり、PASSとは記録しない。GitHubの`integration-gate`では既存検証を省略しない。
+
+### Gate G3／GitHub
+
+- Gate G3のOpenAPI LintとGenerated Client cleanを進めた。Public業務Operationが0件のため、実OperationのContract Testは未完了である。
+- `migrate:fresh`、User／Admin Realm分離、Constraint Test、Backup／Restore初回確認、`2.0.0-alpha.1` Artifact作成、Site Schema、Storefront Testkitは後続Taskであり、Gate G3は`NOT COMPLETE`である。
+- Commit Messageは`実装: Storefront Client Alpha基盤を整備する (MIG-031)`とする。
+- GitHub App Task Policy WrapperだけでFast-forward Pushし、Draft PR、Required／Available Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
+- Direct main Push、Force Push、Gate Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
+- 次Task候補は`MIG-032`だが、MIG-031完了後には開始しない。
+
 ### Commit／Push／PR
 
 - Implementation Commitは`be58b9ab21cbaf17cb3634ae127c3c2e491b6427`で、ParentはBase SHA `0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`である。

@@ -19,7 +19,8 @@ The quality job validates PHP syntax, Composer manifest/lock consistency,
 the Root V2 Workspace and independent Legacy lock installations, V2 Admin
 typecheck/lint/build, Legacy typecheck and exact ESLint findings, JSON, XML,
 YAML, TOML, Public／Admin／Webhook OpenAPI 3.1.1、deterministic Bundle、
-Breaking Change、generated tracked output、whitespace。
+Breaking Change、`@oripa/storefront-client`の生成差分／Typecheck／Lint／Build／
+Unit Test、generated tracked output、whitespace。
 
 The V1 ESLint baseline is exact and expires on 2026-08-31. It contains eight
 errors and one warning. A new, changed, missing, or expired fingerprint fails.
@@ -44,7 +45,7 @@ The Legacy dependency baseline is exact and expires on 2026-07-30. It is tracked
 baseline and locked dependencies are reviewed together.
 
 The V2 Root Workspace uses exact patched overrides for transitive `postcss` and
-`sharp` versions identified by a Fresh Audit. Its audit must remain at zero
+`sharp`、`js-yaml` versions identified by a Fresh Audit. Its audit must remain at zero
 findings and cannot inherit or extend the V1 baseline.
 
 ## Integration gate
@@ -69,7 +70,19 @@ Commit済みBundleとの差分を拒否する。Pull RequestではBase SHAの既
 変更、Required Field追加をBreaking Changeとして拒否する。
 
 MIG-030は共通Primitiveと空の`paths`だけを作成する。業務Endpoint、Laravel Route、
-Generated Clientは後続のContract-first Taskまで検証済み扱いにしない。
+業務Operationは後続のContract-first Taskまで検証済み扱いにしない。
+
+## Storefront Client gate
+
+`@oripa/storefront-client`はPublic OpenAPI Bundleだけから
+`src/generated/public.ts`を決定的に生成する。`generate:check`は再生成結果と
+Commit済みFileのByte差分を拒否し、Admin／Webhook SurfaceをExportしない。
+MIG-031時点のPublic API Operationは0件であり、Fake Endpoint Methodは持たない。
+
+`quality-gate`と`integration-gate`は、生成差分、Typecheck、Lint、Build、
+Unit Testを実行する。Unit Testは`credentials: include`、Version Header、
+Request ID、Timeout／AbortSignal、Idempotency-Key、RFC 9457 Problem Details、
+安全なRequestだけのRetry、設定可能なCSRF初期化境界を検証する。
 
 ## Local reproduction
 
@@ -80,6 +93,7 @@ python3 scripts/ci/quality_gate.py --repository .
 pnpm install --frozen-lockfile
 pnpm openapi:test
 pnpm openapi:check
+pnpm storefront:check
 pnpm admin:typecheck
 pnpm admin:lint
 pnpm admin:build

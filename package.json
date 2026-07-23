@@ -9,6 +9,7 @@
   },
   "pnpm": {
     "overrides": {
+      "js-yaml": "4.3.0",
       "postcss": "8.5.10",
       "sharp": "0.35.0"
     }
@@ -19,7 +20,14 @@
     "admin:typecheck": "pnpm --filter @oripa/admin typecheck",
     "openapi:bundle": "python3 scripts/ci/openapi_contract_gate.py --repository . --write-bundles",
     "openapi:check": "python3 scripts/ci/openapi_contract_gate.py --repository . --check-bundles",
-    "openapi:test": "python3 -m unittest discover -s tests/ci/openapi -p 'test_*.py'"
+    "openapi:test": "python3 -m unittest discover -s tests/ci/openapi -p 'test_*.py'",
+    "storefront:build": "pnpm --filter @oripa/storefront-client build",
+    "storefront:check": "pnpm storefront:generate:check && pnpm storefront:typecheck && pnpm storefront:lint && pnpm storefront:build && pnpm storefront:test",
+    "storefront:generate": "pnpm --filter @oripa/storefront-client generate",
+    "storefront:generate:check": "pnpm --filter @oripa/storefront-client generate:check",
+    "storefront:lint": "pnpm --filter @oripa/storefront-client lint",
+    "storefront:test": "pnpm --filter @oripa/storefront-client test",
+    "storefront:typecheck": "pnpm --filter @oripa/storefront-client typecheck"
   },
   "devDependencies": {
     "@redocly/cli": "2.40.0"
