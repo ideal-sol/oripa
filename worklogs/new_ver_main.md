@@ -1656,3 +1656,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - JSON Parse、Markdown構造、Internal Link、Manifest項目、Allowed Paths、Secret／PII、Environment API Readbackを確認する。
 - Required `policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`と固定Head Self-reviewをMerge条件とする。
 - Documentation-only TaskのためBackend／Frontend Runtime Test、Build、Browser／E2Eは実行せず、PASSとは記録しない。
+
+### Environment／GitHub
+
+- `platform-staging`をCustom Deployment Policyで`main`、`release/*`、`platform-v*-alpha*`、`platform-v*-beta*`へ限定した。
+- `platform-production`を正式な`platform-v*` Tagだけに限定し、Required Reviewer `myong-ideal`と`prevent_self_review`を有効にした。
+- 両EnvironmentのWait Timerは`0`である。Environment URL、Environment Secret、Credentialは作成・取得していない。
+- Environment API ReadbackはEnvironment名、Protection、Reviewer、Branch／Tag Policyについて設定値と一致した。
+- Task Commitは`5bedb258e551d620223bee4cec9400542132896b`、PRは`#28` (`https://github.com/ideal-sol/oripa/pull/28`)である。
+- Initial Headの`security-gate`は成功した。`policy-gate`はPR本文の`Changed files`省略表現を拒否したため、実File名7件へ修正した。GateやAssertionは変更していない。
+- 本追記のCommitをFast-forward Pushし、5 Required Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを再確認して自律Squash Mergeする。
