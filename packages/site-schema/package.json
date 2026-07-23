@@ -1,0 +1,7 @@
+{
+  "name": "@oripa/site-schema",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "V2 Site Schema Package Skeleton。Production利用不可。",
+  "license": "UNLICENSED"
+}

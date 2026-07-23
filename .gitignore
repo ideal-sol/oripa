@@ -78,6 +78,15 @@ legacy/v1-frontend/.turbo/
 legacy/v1-frontend/tsconfig.tsbuildinfo
 legacy/v1-frontend/next-env.d.ts
 
+# V2 Admin generated files
+apps/admin/.next/
+apps/admin/out/
+apps/admin/tsconfig.tsbuildinfo
+
+# Python test and CI bytecode
+__pycache__/
+*.py[cod]
+
 # Local Docker / service data
 infra/data/
 data/

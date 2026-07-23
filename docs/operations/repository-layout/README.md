@@ -30,15 +30,25 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 ## Workspace
 
 - Platform Versionの開始値は`2.0.0-alpha.1`とする。
-- Node `22.22.3`、pnpm `10.12.1`はInventoryとして確認したが、Root
-  `package.json`と`pnpm-workspace.yaml`は本Taskでは作成しない。
-- Root Workspace設定を置くとV1 Frontend Lockfileを使用する既存CIの
-  install／audit解決が変わることをGitHub Checkで確認したため、V1 Lockfileを
-  変更せず設定を取り下げた。
-- 実Package、Dependency、Root Lockfile、V1分離後のCI Commandは後続Taskで
-  確定する。V1 `legacy/v1-frontend`はV2 Workspaceに含めない。
-- 本TaskではDependencyを追加せず、`pnpm install`を実行しない。
+- MIG-023でNode `22.22.3`、pnpm `10.12.1`をRoot Manifestへ固定した。
+- Root Workspaceは`apps/admin`と`packages/*`だけを含む。
+- V1 `legacy/v1-frontend`は独立Manifest／Lockfileを維持し、Root Workspaceへ
+  含めない。Laravel `apps/api`もpnpm Workspace対象外とする。
+- Root `pnpm-lock.yaml`はpnpm `10.12.1`の実Install結果から生成し、CIでは
+  `pnpm install --frozen-lockfile`を必須とする。
+- `apps/admin`はBuild／Health確認用Skeletonだけで、Auth、MFA、API接続、
+  Business Logicは未実装である。
+- 4 First-party Packageは非公開Manifestだけを持ち、ExportとDependencyは
+  定義していない。
 - First-party Packageの公開時VersionはCompatibility Policyに従い完全固定する。
+
+## Compose Boundary
+
+- `docker-compose.yml`はV1 Behavioral Referenceを非Productionで起動する正本。
+- `docker-compose.v2.yml`はV2 API／Admin／PostgreSQL／Redisの構造Smoke専用。
+- V2 ComposeとRoot Build Contextへ`legacy/v1-frontend`を含めない。
+- Compose Project名でNetwork／VolumeをTaskごとに分離し、検証後は
+  `docker compose down -v`で破棄する。
 
 ## Migration Boundary
 

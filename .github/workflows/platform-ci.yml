@@ -59,7 +59,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "22.22.3"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
@@ -73,10 +73,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
 
-      - name: Verify manifests and install frontend dependencies
+      - name: Verify manifests and install locked workspace dependencies
         run: |
           composer --working-dir=apps/api validate --strict --no-check-publish
-          pnpm --dir legacy/v1-frontend install --frozen-lockfile
+          pnpm install --frozen-lockfile
+          pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Run quality structure and unit checks
         run: |
@@ -84,14 +85,20 @@ jobs:
           python3 scripts/ci/quality_gate.py --repository .
 
       - name: Typecheck legacy frontend
-        run: pnpm --dir legacy/v1-frontend typecheck
+        run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
+
+      - name: Validate V2 Admin Skeleton
+        run: |
+          pnpm admin:typecheck
+          pnpm admin:lint
+          pnpm admin:build
 
       - name: Compare legacy frontend lint findings with the exact baseline
         run: |
           set +e
           (
             cd legacy/v1-frontend
-            pnpm exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
+            pnpm --ignore-workspace exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
           )
           eslint_status=$?
           set -e
@@ -124,7 +131,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "22.22.3"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
@@ -143,10 +150,14 @@ jobs:
           set +e
           composer --working-dir=apps/api audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
           composer_status=$?
-          pnpm --dir legacy/v1-frontend audit --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
+          pnpm audit --audit-level low --json > "$RUNNER_TEMP/workspace-pnpm-audit.json"
+          workspace_pnpm_status=$?
+          pnpm --dir legacy/v1-frontend --ignore-workspace audit \
+            --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
           pnpm_status=$?
           set -e
           echo "composer audit raw exit status: $composer_status"
+          echo "workspace pnpm audit raw exit status: $workspace_pnpm_status"
           echo "pnpm audit raw exit status: $pnpm_status"
 
       - name: Run security checks
@@ -156,12 +167,13 @@ jobs:
             --repository . \
             --baseline .ci/baselines/dependency-advisories.json \
             --composer-audit "$RUNNER_TEMP/composer-audit.json" \
-            --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json"
+            --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json" \
+            --workspace-pnpm-audit "$RUNNER_TEMP/workspace-pnpm-audit.json"
 
   integration-gate:
     name: integration-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     services:
       postgres:
         image: postgres:17-alpine
@@ -218,7 +230,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "22.22.3"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
@@ -233,7 +245,8 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
           composer --working-dir=apps/api install --no-interaction --prefer-dist --no-progress
-          pnpm --dir legacy/v1-frontend install --frozen-lockfile
+          pnpm install --frozen-lockfile
+          pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Apply migrations to the ephemeral database
         run: php apps/api/artisan migrate --no-interaction
@@ -266,13 +279,54 @@ jobs:
 
       - name: Build and typecheck legacy frontend
         run: |
-          pnpm --dir legacy/v1-frontend typecheck
-          pnpm --dir legacy/v1-frontend build
+          pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
+          pnpm --dir legacy/v1-frontend --ignore-workspace build
+
+      - name: Build and validate V2 Admin Skeleton
+        run: |
+          pnpm admin:typecheck
+          pnpm admin:lint
+          pnpm admin:build
 
       - name: Validate contracts, manifests, and Compose
         run: |
           python3 scripts/ci/quality_gate.py --repository .
           docker compose config --quiet
+          docker compose -f docker-compose.v2.yml config --quiet
+
+      - name: Run ephemeral V2 Skeleton smoke test
+        run: |
+          project="mig023-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker compose -p "$project" -f docker-compose.v2.yml down \
+              -v --remove-orphans
+          }
+          trap cleanup EXIT
+          COMPOSE_BAKE=false docker compose -p "$project" -f docker-compose.v2.yml up \
+            --build --wait --wait-timeout 300 -d
+          docker compose -p "$project" -f docker-compose.v2.yml exec -T api \
+            curl --fail --silent http://localhost:8000/api/health \
+            > "$RUNNER_TEMP/v2-api-health.json"
+          docker compose -p "$project" -f docker-compose.v2.yml exec -T admin \
+            wget --quiet --output-document=- http://localhost:3000/api/health \
+            > "$RUNNER_TEMP/v2-admin-health.json"
+          cleanup
+          trap - EXIT
+          if docker ps -a --filter "label=com.docker.compose.project=$project" \
+            --format '{{.ID}}' | grep -q .; then
+            echo "V2 Skeleton container cleanup failed"
+            exit 1
+          fi
+          if docker network ls --filter "label=com.docker.compose.project=$project" \
+            --format '{{.ID}}' | grep -q .; then
+            echo "V2 Skeleton network cleanup failed"
+            exit 1
+          fi
+          if docker volume ls --filter "label=com.docker.compose.project=$project" \
+            --format '{{.Name}}' | grep -q .; then
+            echo "V2 Skeleton volume cleanup failed"
+            exit 1
+          fi
 
       - name: Verify no tracked generated changes
         run: |

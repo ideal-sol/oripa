@@ -22,4 +22,5 @@ Production Credential、実PII、Business Authority、No-op Test、V1 CodeをCop
 
 ## Status
 
-現時点はREADMEだけのSkeleton。Testkit実装・公開済みではなくProduction利用不可。
+現時点はREADMEと非公開`package.json`だけのSkeleton。Testkit実装・公開済みではなく
+Production利用不可。ExportとDependencyは定義していない。

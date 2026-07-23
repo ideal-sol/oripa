@@ -15,6 +15,20 @@ updates:
           - patch
 
   - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:15"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      workspace-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
     directory: /legacy/v1-frontend
     schedule:
       interval: weekly

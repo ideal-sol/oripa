@@ -2011,3 +2011,76 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 同時実行した`quality-gate`の1 Runは`corepack prepare`で一時失敗したが、同Headの別Runでは同Step以降が成功した。Final Headで再実行し、失敗RunをBypassしない。
 - Dependency Review Workflow追加後の86 Changed PathをPR本文へ完全列挙し、修正済み本文を読む新Headで全Checkを再実行する。
 - 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+
+### MIG-022 Closeout
+
+- PR `#45`のFinal Headは`261a2dcdf9b2f503e89700716dcd6805e4e8a0e0`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub AppがSquash Mergeし、Squash Commitは`0f008085ff7b3afb54fe1d6745f87979e979947e`、Issue `#43`はClosedである。
+- Remote／Local Task BranchとWorktreeは削除済みで、Local `main`は`origin/main`へ`--ff-only`同期済み、Working Treeはcleanだった。
+- V1 Frontend移動前後のTracked Tree、Source、Page／Route、Public Asset、Package Manifest、pnpm Lockfile、TypeScript設定のChecksumは一致した。
+- Install、Typecheck、Buildは移動前後とも成功し、ESLintは既存Baselineと完全一致する8 Error／1 Warningだった。Frontend Test Scriptは存在せず未実行である。
+- `legacy/v1-frontend`はV2 Workspace、V2 Production Image、V2 Build Contextから除外され、Production用途ではないV1 Referenceとして隔離された。
+- Root Workspace、`apps/admin`のBuild可能なSkeleton、First-party Package Skeleton、V2 Composeが未整備だったため、Gate G2は`NOT COMPLETE`だった。
+
+## MIG-023 V2 Admin／Workspace Skeleton
+
+### Task
+
+- 実施開始: `2026-07-23T10:23:30Z`
+- Task ID: `MIG-023`
+- Risk: `R3`
+- Issue: `#49` (`https://github.com/ideal-sol/oripa/issues/49`)
+- Branch: `migration/MIG-023-admin-workspace-skeleton`
+- Worktree: `/var/www/oripa-worktrees/MIG-023-admin-workspace-skeleton`
+- Base SHA: `0f008085ff7b3afb54fe1d6745f87979e979947e`
+
+### Existing Inventory
+
+- Root `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml`は存在せず、`apps/admin`と4つのFirst-party PackageはREADME／AGENTSだけのSkeletonだった。
+- `apps/api`はLaravel Application、`legacy/v1-frontend`は独立したV1 Next.js Referenceであり、それぞれの既存Dependency／Lockfileを維持した。
+- Repositoryで使用中のVersionはNode `22.22.3`、pnpm `10.12.1`で、既存CIとV1 Frontendの`packageManager`を根拠に固定した。
+- 既存`docker-compose.yml`は`apps/api`、`legacy/v1-frontend`、PostgreSQL、Redis、MinIO、Mailpitを含む非ProductionのV1 Referenceとして再利用した。
+
+### Root Workspace／Skeleton
+
+- Root Package `@oripa/platform-workspace`を`private: true`、Version `2.0.0-alpha.1`、`packageManager` `pnpm@10.12.1`、Node `22.22.3`で作成した。
+- Workspace対象は`apps/admin`と`packages/*`だけで、`legacy/**`と`apps/api`は含めていない。RootとLegacyのLockfileおよび依存解決は分離した。
+- Root `pnpm-lock.yaml`はpnpm `10.12.1`の実Installから生成し、手書きしていない。DependencyはExact Versionだけを使用した。
+- Root Workspace追加後に通常の`pnpm --dir legacy/v1-frontend install`が親Workspaceを探索することを実測し、CIと手順へ`--ignore-workspace`を追加してLegacyの独立Lockfile／依存解決を維持した。
+- `apps/admin`へNext.js `16.2.11`、React `19.2.7`の最小Skeleton、`noindex`／`nofollow`、`/api/health`、非Production表示を追加した。
+- `apps/admin`にはBusiness Logic、Laravel API接続、Auth、Session、Cookie、MFA、Mock業務Data、Site固有Design、Server Secretを実装していない。
+- `@oripa/platform`、`@oripa/storefront-client`、`@oripa/site-schema`、`@oripa/storefront-testkit`へVersion `2.0.0-alpha.1`のprivate Manifestだけを追加した。Export、Dependency、Fake API、Legacy Codeは追加していない。
+
+### Compose／Smoke Test
+
+- `docker-compose.yml`を非ProductionのV1 Referenceとして明示し、TaskごとのPort分離を可能にした。Service名、Application Behavior、Environment Variable名は変更していない。
+- `docker-compose.v2.yml`へ`apps/api`、`apps/admin`、PostgreSQL、Redisの非Production Skeletonを追加した。Legacy Frontend、Production Secret、固定Container名は含めていない。
+- V1 ReferenceをTask専用Project名でBuild／起動し、API HealthとFrontend Healthを確認した。停止後にTask専用Container／Network／Volumeは残存しなかった。
+- V2 SkeletonをTask専用Project名でBuild／起動し、API HealthとAdmin Healthを確認した。初回検証でRuntime Working Directory不備を検出してDockerfileだけを修正し、再検証後は全Serviceがhealthyとなった。
+- V2停止後にTask専用Container／Network／Volumeが残存しないことを確認した。Production Service、Production DB、Production Secretは使用していない。
+
+### CI／Policy
+
+- 既存Check名`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`を維持した。
+- CIへRoot frozen install、Admin Typecheck／Lint／Build、Root Dependency Audit、Workspace Manifest、V1／V2 Compose Config、Ephemeral V2 Smoke、API／Admin Health、Cleanup検査を追加した。
+- Legacy Frontendの独立Install／Typecheck／Lint／Buildと既存Baseline検証は維持し、DependabotのLegacy対象に加えてRoot Workspace対象を追加した。
+- `policy-gate`へRoot Workspace、Exact Version、Lockfile、Admin許可File、Health Endpoint、Package Skeleton、Compose境界、Legacy除外の継続検証を追加した。
+- Negative TestはLegacy Workspace混入、`apps/api`混入、Version Range、Root Lockfile欠落、Admin Health欠落、Business Logic混入、V2 ComposeへのLegacy混入を拒否する。
+- Root Workspaceの初回Auditで検出した新規Transitive Advisoryは、修正版が存在するExact Versionへ固定し、最終Root Auditは0 Findingとなった。Legacy Dependency Baselineは変更していない。
+
+### Local Verification
+
+- Root `pnpm install --frozen-lockfile`、Admin Typecheck、Lint、BuildはPASSした。
+- Legacy Frontend Install、Typecheck、BuildはPASSし、Lint Findingは既存完全一致Baselineから増加していない。
+- Package Manifest／Lockfile／JSON／YAML／Markdown、V1／V2 Compose Config、Policy Unit Test 26件、Quality Unit Test 5件、Security Unit Test 4件、`git diff --check`はPASSした。
+- `policy-gate`、`quality-gate`、`security-gate`はPASSした。Root Dependency Findingは0件、Legacyは既存Baselineと完全一致する14件、Composerは既存Baselineと完全一致する10件、Secret Candidateは0件だった。
+- V1／V2 Compose SmokeはPASSし、Cleanup後のContainer／Network／Volume残存は0件だった。
+- Application Business Logic、Migration、DB Schema、OpenAPI Contract、Storefront Client、Site Schema、Testkit、Admin Auth／MFAは変更していない。
+- Browser／E2E、Production Deployは未実行であり、PASSとは記録しない。
+
+### GitHub／Gate G2
+
+- Commit Messageは`構造: V2 AdminとWorkspace Skeletonを整備する (MIG-023)`とする。
+- GitHub App WrapperだけでFast-forward Pushし、Draft PR、Required／Available Check、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
+- Required Check成功、GitHub Cleanup、Local `main`同期後に、Backend Move一致、Legacy隔離、V1／V2 Skeleton起動、Admin Build／Health、Root Workspace／Lockfile、Package Skeleton、Business Logic不変を根拠としてGate G2を判定する。
+- 次Task候補は`MIG-030`だが、MIG-023完了後には開始しない。

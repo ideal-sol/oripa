@@ -22,4 +22,5 @@ Secret値、顧客PII、Provider Credential、Business Logic、V1 CodeをCopyし
 
 ## Status
 
-現時点はREADMEだけのSkeleton。Schema Package実装済みではなくProduction利用不可。
+現時点はREADMEと非公開`package.json`だけのSkeleton。Schema Package実装済みではなく
+Production利用不可。ExportとDependencyは定義していない。

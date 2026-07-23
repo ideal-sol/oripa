@@ -1,0 +1,21 @@
+{
+  "name": "@oripa/platform-workspace",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": "22.22.3",
+    "pnpm": "10.12.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.10",
+      "sharp": "0.35.0"
+    }
+  },
+  "scripts": {
+    "admin:build": "pnpm --filter @oripa/admin build",
+    "admin:lint": "pnpm --filter @oripa/admin lint",
+    "admin:typecheck": "pnpm --filter @oripa/admin typecheck"
+  }
+}

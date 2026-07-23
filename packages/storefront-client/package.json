@@ -1,0 +1,7 @@
+{
+  "name": "@oripa/storefront-client",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "V2 Storefront Client Package Skeleton。Production利用不可。",
+  "license": "UNLICENSED"
+}

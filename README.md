@@ -1,10 +1,12 @@
-# Oripa Local Development Environment
+# Oripa Platform Repository
 
 This repository follows `docs/md/spec_v1.4.md` as the master specification.
 
-The local environment is intentionally split into:
+Repository構造は次の責任境界へ分離している。
 
 - `apps/api/`: Laravel API
+- `apps/admin/`: V2 Admin Next.js Skeleton
+- `packages/*`: V2 First-party Package Skeleton
 - `legacy/v1-frontend/`: V1 Next.js App Router reference
 - PostgreSQL
 - Redis
@@ -27,13 +29,39 @@ Implemented in this setup task:
 - Environment examples
 - Domain directory placeholders for later Laravel implementation
 
-Not implemented yet:
+V2で未実装:
 
 - Lottery logic
 - Payment webhook handling
 - Point ledger and point lots
 - Probability versions
-- Admin UI or admin business flows
+- Admin business flow、Auth、MFA、API接続
+- First-party Package API
+
+## V2 Workspace Skeleton
+
+Root pnpm Workspaceは`apps/admin`と`packages/*`だけを対象とする。
+`legacy/v1-frontend`は独立Lockfileを維持し、`apps/api`もpnpm Workspaceへ含めない。
+
+```bash
+pnpm install --frozen-lockfile
+pnpm admin:typecheck
+pnpm admin:lint
+pnpm admin:build
+```
+
+非ProductionのV2構造Smoke TestはTask固有Project名で実行する。
+
+```bash
+docker compose -p oripa-v2-skeleton -f docker-compose.v2.yml up --build --wait -d
+docker compose -p oripa-v2-skeleton -f docker-compose.v2.yml exec -T api \
+  curl --fail --silent http://localhost:8000/api/health
+docker compose -p oripa-v2-skeleton -f docker-compose.v2.yml exec -T admin \
+  wget --quiet --output-document=- http://localhost:3000/api/health
+docker compose -p oripa-v2-skeleton -f docker-compose.v2.yml down -v
+```
+
+このSkeletonはProduction利用不可であり、Business Logicや実Credentialを含まない。
 
 ## Requirements
 
