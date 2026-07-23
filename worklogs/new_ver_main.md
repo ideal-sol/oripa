@@ -2067,6 +2067,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `policy-gate`へRoot Workspace、Exact Version、Lockfile、Admin許可File、Health Endpoint、Package Skeleton、Compose境界、Legacy除外の継続検証を追加した。
 - Negative TestはLegacy Workspace混入、`apps/api`混入、Version Range、Root Lockfile欠落、Admin Health欠落、Business Logic混入、V2 ComposeへのLegacy混入を拒否する。
 - Root Workspaceの初回Auditで検出した新規Transitive Advisoryは、修正版が存在するExact Versionへ固定し、最終Root Auditは0 Findingとなった。Legacy Dependency Baselineは変更していない。
+- 初回PR Runの`policy-gate`はPR本文のAllowed Pathsが説明文だったため失敗し、Task Policyと一致する実Path Patternへ修正した同一Headの再実行でPASSした。
+- GitHub Runner上の`docker compose up --wait`を含むSmoke Stepが2回失敗した一方、同一ComposeのLocal Smokeは再現せずPASSした。Gateを弱めず、API／Admin Endpointの最大300秒Bounded Pollingと4 ServiceのDocker Health検査へ置き換え、失敗時のTask専用診断を追加した。
 
 ### Local Verification
 

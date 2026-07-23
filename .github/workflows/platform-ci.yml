@@ -297,19 +297,43 @@ jobs:
       - name: Run ephemeral V2 Skeleton smoke test
         run: |
           project="mig023-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          compose=(docker compose -p "$project" -f docker-compose.v2.yml)
           cleanup() {
-            docker compose -p "$project" -f docker-compose.v2.yml down \
-              -v --remove-orphans
+            "${compose[@]}" down -v --remove-orphans
+          }
+          diagnostics() {
+            "${compose[@]}" ps
+            "${compose[@]}" logs --no-color --tail 100 |
+              sed 's/^/V2_SMOKE_ERROR_DIAGNOSTIC: /'
+          }
+          wait_for_endpoint() {
+            local service="$1"
+            shift
+            for _ in $(seq 1 60); do
+              if "${compose[@]}" exec -T "$service" "$@"; then
+                return 0
+              fi
+              sleep 5
+            done
+            diagnostics
+            return 1
           }
           trap cleanup EXIT
-          COMPOSE_BAKE=false docker compose -p "$project" -f docker-compose.v2.yml up \
-            --build --wait --wait-timeout 300 -d
-          docker compose -p "$project" -f docker-compose.v2.yml exec -T api \
+          COMPOSE_BAKE=false "${compose[@]}" up --build -d
+          wait_for_endpoint api \
             curl --fail --silent http://localhost:8000/api/health \
             > "$RUNNER_TEMP/v2-api-health.json"
-          docker compose -p "$project" -f docker-compose.v2.yml exec -T admin \
+          wait_for_endpoint admin \
             wget --quiet --output-document=- http://localhost:3000/api/health \
             > "$RUNNER_TEMP/v2-admin-health.json"
+          for service in api admin postgres redis; do
+            container="$("${compose[@]}" ps -q "$service")"
+            if [ -z "$container" ] ||
+              [ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" != "healthy" ]; then
+              diagnostics
+              exit 1
+            fi
+          done
           cleanup
           trap - EXIT
           if docker ps -a --filter "label=com.docker.compose.project=$project" \
