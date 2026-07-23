@@ -32,6 +32,20 @@
       }
     },
     {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {"context": "policy-gate"},
+          {"context": "quality-gate"},
+          {"context": "security-gate"},
+          {"context": "integration-gate"},
+          {"context": "ci-gate"}
+        ]
+      }
+    },
+    {
       "type": "non_fast_forward"
     }
   ]

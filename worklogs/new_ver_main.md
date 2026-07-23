@@ -1514,3 +1514,45 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Initial HeadでGitHub上の`policy-gate`と`ci-gate`が実Contextとして成功した。
 - 本追記を含むFinal Headへ更新後、両Check、Fresh Self-review、Scope、Secret／PII、Head不変、Merge Conflictなしを再確認してSquash Mergeする。
 - GOV-008 Merge後の`main` Pushでも同じ2 Checkが成功することを確認してからGOV-009を開始する。
+
+### GOV-008完了
+
+- PR `#22`のFinal Head `7eea694ece3a2f4e03908bc365a8a8d2c4f367a3`で`policy-gate`と`ci-gate`が成功した。
+- Machine-readable Self-reviewはScope、Workflow安全性、Secret／PII、SEV-0／SEV-1なしでPASSした。
+- GitHub AppがSquash Mergeし、Squash Commitは`da82bd5278aae58f3216a38d036bebc5a12e4d88`である。
+- Issue `#21`はClosed、Remote／Local Task BranchとWorktreeは削除済みである。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Merge後`main`でも`policy-gate`と`ci-gate`が成功した。
+
+## GOV-009 Platform Quality／Security／Integration CI
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-009`
+- Risk: `R3`
+- Issue: `#23` (`https://github.com/ideal-sol/oripa/issues/23`)
+- Branch: `ci/GOV-009-platform-quality-security-integration`
+- Worktree: `/var/www/oripa-worktrees/GOV-009-platform-quality-security-integration`
+- Base SHA: `da82bd5278aae58f3216a38d036bebc5a12e4d88`
+
+### Baseline／CI Design
+
+- Checkを`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`の5件へ完成させる。
+- V1 Frontend Lintの8 Error／1 WarningはFile、位置、Rule、Severity、Message Hashによる完全Fingerprintで2026-08-31まで管理する。
+- Composer 10件、pnpm 14件の既存Dependency FindingはPackage、Version、Advisory ID、Severityを完全一致で2026-07-30まで管理し、`SEC-001`で解消する。
+- 新規、欠落、変更、Severity悪化、期限切れはGate Failureとし、Blanket Ignoreは使用しない。
+- IntegrationはPHP 8.4、Ephemeral PostgreSQL／Redis、固定Test Credentialだけを使用し、Migration、Backend Test、Frontend Build／Typecheck、Compose Configを実行する。
+- Application Source、Migration、Manifest、Lockfile、Docker、V1 Archive Refは変更しない。
+
+### Local Verification
+
+- Python SyntaxとQuality／Security Unit Test 4件はPASSした。
+- `quality-gate`はPHP 435件、JSON 16件、YAML 6件、TOML 1件、XML 1件を検査してPASSした。OpenAPI／JSON Schema実体は現時点で0件であり、実行済みとは記録しない。
+- Frontend TypecheckはPASSした。
+- ESLintは8 Error／1 Warningで、9件すべてが期限付き完全Fingerprint Baselineと一致した。
+- Composer ValidateはPASSした。
+- Composer Audit 10件とpnpm Audit 14件は期限付きDependency Baselineと完全一致した。
+- `security-gate`はTracked File 610件、High-confidence Secret候補0件でPASSした。
+- `policy-gate`、`git diff --check`、Ruleset JSON Parse、Allowed Paths、Workflow Permission／Action Pin確認はPASSした。
+- Host PHPは8.3でRepository要求PHP 8.4を満たさないため、Backend Migration／TestをLocalで実行しておらずPASSとは記録しない。
+- Backend Migration／Test、Frontend Build、Ephemeral PostgreSQL／Redis、Compose ConfigはGitHub `integration-gate`で実行する。

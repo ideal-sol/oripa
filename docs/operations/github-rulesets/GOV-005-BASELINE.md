@@ -56,9 +56,7 @@ Use [main-ruleset.json](main-ruleset.json) and
 - non-fast-forward update: blocked
 - bypass: none
 
-No check name is configured until GitHub has emitted it. Before GOV-009,
-Platform Codex requires all available local validation and all checks emitted
-for the exact PR head. After GOV-009, update both Rulesets to require:
+GOV-009 verified and configured these required checks:
 
 - `policy-gate`
 - `quality-gate`
@@ -66,7 +64,9 @@ for the exact PR head. After GOV-009, update both Rulesets to require:
 - `integration-gate`
 - `ci-gate`
 
-GOV-009 removes the Bootstrap exception.
+The checks are added only after all five contexts succeed on the GOV-009 PR.
+`strict_required_status_checks_policy` remains false, while all five exact
+contexts are mandatory. GOV-009 removes the Bootstrap exception.
 
 ## V1 Archive
 

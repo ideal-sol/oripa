@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "management": {
+    "owner": "platform-maintainers",
+    "reason": "Exact V1 lint findings preserved during governance-only CI introduction; application fixes are outside GOV-009.",
+    "removal_condition": "Remove each fingerprint only with the approved application fix that makes the finding disappear.",
+    "expires_at": "2026-08-31",
+    "tracking_task": "QUALITY-001"
+  },
+  "findings": [
+    {
+      "column": 5,
+      "end_column": 16,
+      "end_line": 5806,
+      "fingerprint": "0e8292416db197905d4feaeb5617196d6e2cf4a935200414a975d563c4a73faf",
+      "line": 5806,
+      "message_sha256": "57abd8d2ae81c5eb5af9b7f82112af315c00ac9082474c19b5e27193a5f4521b",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 7,
+      "end_column": 27,
+      "end_line": 6581,
+      "fingerprint": "2c97eced8eb4effcbb28b5d0ca51493c497d90e9a3b4213d74c56bb4ec052f2c",
+      "line": 6581,
+      "message_sha256": "435498193c78bebe46f7c27d1529024771fb3a8a9ab8d8fbc532c12ffccbdaf1",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 10,
+      "end_column": 20,
+      "end_line": 156,
+      "fingerprint": "3e366e4059f9d51bcb172bee52cf431bc8dac59145a4bbcc641538b60e8347de",
+      "line": 156,
+      "message_sha256": "8daa58538d59e7ef377c796f805042e7a95b5701a9f982a2f235b3b9657cd50d",
+      "path": "frontend/src/app/points/purchase/point-purchase-client.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 5,
+      "end_column": 18,
+      "end_line": 5810,
+      "fingerprint": "5a47da39cf092b9219af3cb629b2f7acf29fbfaab7455418708561dd06ea3fcb",
+      "line": 5810,
+      "message_sha256": "1458c9e4b8780a125116355132d4b38c9ad41d9b48c906f4881608847184a2c1",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 5,
+      "end_column": 17,
+      "end_line": 5814,
+      "fingerprint": "b0d78674376b8e1c243e95a21fb49c2715b11b580cca5e3a7be8812ada26f32e",
+      "line": 5814,
+      "message_sha256": "0ecb3bf112ed8e146b679f7d82c94e0b776068f691950c139b35e2628b55ddc7",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 12,
+      "end_column": 28,
+      "end_line": 1823,
+      "fingerprint": "c2b9638052983d08552cfb14b79141ecdb76776c0adf363ba56a824b9650dd41",
+      "line": 1823,
+      "message_sha256": "0d7d9e61eff9fca8068281ae10a79cd8f0eb6f62dcb945524c6dda534a270f18",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 7,
+      "end_column": 22,
+      "end_line": 6588,
+      "fingerprint": "d94fe7958342c0718ddd4e1602330dc8974a620280e6bc704025d9e8f858ea63",
+      "line": 6588,
+      "message_sha256": "5ebccd82c4abdc78a51ad752929042321b28365d3d616ac7af76773d133dd9d4",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    },
+    {
+      "column": 6,
+      "end_column": 47,
+      "end_line": 5798,
+      "fingerprint": "ee6b1599d96a3aaa91f32938e2cb70b3ec8e5468731d8a2d5b51046b6c96efaf",
+      "line": 5798,
+      "message_sha256": "171a2d85133b74cc692747483c42298db605d53627927c04ba261cc12ce9fa67",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/exhaustive-deps",
+      "severity": 1
+    },
+    {
+      "column": 5,
+      "end_column": 17,
+      "end_line": 1193,
+      "fingerprint": "fd2c692285ac4f8915c85c199e828a665eb6077d4704f773a229945537b6ea61",
+      "line": 1193,
+      "message_sha256": "1fa189605bec8222352bb6d7b406781cb2acd01d47a8a0ef923a354071969be3",
+      "path": "frontend/src/app/admin-dashboard.tsx",
+      "rule_id": "react-hooks/set-state-in-effect",
+      "severity": 2
+    }
+  ]
+}
