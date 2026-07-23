@@ -1,0 +1,3 @@
+{
+  "workflow": "permissions:\n  contents: read\nconcurrency:\n  group: fixture\njobs:\n  policy:\n    timeout-minutes: 5\n    steps:\n      - uses: actions/checkout@v4\n"
+}

@@ -1,0 +1,8 @@
+{
+  "title": "[GOV-008] ci: add platform policy gate",
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "changed_paths": [
+    "scripts/ci/policy_gate.py"
+  ],
+  "pr_body": "## Task\n\n- Task ID: GOV-008\n- Base SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n## Summary\n\nFixture.\n\n## Specification sources\n\n- Governance.\n\n## Scope\n\n### Allowed paths\n\n- `scripts/ci/policy_gate.py`\n\n### Changed files\n\n- `scripts/ci/policy_gate.py`\n\n## Verification performed\n\n- Unit test.\n\n## Verification not performed\n\n- Runtime tests.\n"
+}

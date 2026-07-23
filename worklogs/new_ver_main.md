@@ -1464,3 +1464,44 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PR Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`、Headは`chore/GOV-007-codex-permissions`である。
 - 本追記を含むFinal Headへ更新後、Strict Config、Execpolicy、Allowed Paths、Secret／PII、GitHub Checks、Fresh Self-review、Head不変、Merge Conflictなしを再検証して自律Squash Mergeする。
 - GOV-008は本Task完了後も開始しない。
+
+### GOV-007 Closeout
+
+- PR `#20`のFinal Head `f784b63e22e3e4668ebe261c5b209613cf190ec0`へ固定したMachine-readable Self-review Evidenceは、Scope、Strict Config、Execpolicy、Secret／PII、SEV-0／SEV-1なしでPASSした。
+- GOV-009前BootstrapとしてGitHub CheckはRequired 0件、Run 0件、Status 0件、Failure 0件、Missing 0件だった。
+- GitHub AppがSquash Mergeし、Squash Commitは`ef73eab5d0cbb0cab1a34b2b5f9151fdd315fa89`である。
+- Issue `#19`はClosed、Remote Task Branchは自動削除済みである。
+- Local Task BranchとWorktreeはTree同等性確認後に削除した。
+- Local `main`を`origin/main`へ`--ff-only`同期し、Working Treeはcleanだった。
+- V1 Archive BranchとAnnotated Tagは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更していない。
+
+## GOV-008 Platform Policy CI
+
+### Task
+
+- 実施開始: 2026-07-23
+- Task ID: `GOV-008`
+- Risk: `R3`
+- Issue: `#21` (`https://github.com/ideal-sol/oripa/issues/21`)
+- Branch: `ci/GOV-008-platform-policy-gate`
+- Worktree: `/var/www/oripa-worktrees/GOV-008-platform-policy-gate`
+- Base SHA: `ef73eab5d0cbb0cab1a34b2b5f9151fdd315fa89`
+
+### Scope／Design
+
+- `.github/workflows/platform-ci.yml`へ`policy-gate`とBootstrap版`ci-gate`を追加する。
+- Pull Request、`main` Push、Manual Dispatchを対象とし、`pull_request_target`、Workflow Secret、Write Permissionを使用しない。
+- Official ActionはFull Commit SHAへPinし、Checkout Credentialを保持しない。
+- PR本文のTask ID、Risk、Base SHA、Allowed Paths、Changed Files、Verification見出しをGit差分と照合する。
+- Root／Nested `AGENTS.md`、CODEOWNERS、Issue／PR Template、Workflow安全性、危険Path、基本構造、Architecture Index、Security REV1とSuperseded関係を検証する。
+- Positive FixtureはPASS、Metadata欠落、Floating Action、秘密File PathのNegative FixtureはFAILさせる。
+- Application、Migration、Docker、Ruleset、Infrastructure、V1 Archive Refは変更しない。
+
+### Local Verification
+
+- Python Syntax CheckはPASSした。
+- `unittest`はPositive 1件とNegative 3件の計4件を実行し、Gate期待値との不一致は0件だった。
+- Staged Treeを対象にした`python3 scripts/ci/policy_gate.py --repository .`はTracked File 602件を検査してPASSした。
+- WorkflowはRead-only Permission、Secret不使用、Full SHA Action Pin、Timeout、Concurrency、`pull_request_target`不使用を確認した。
+- `git diff --check`、Allowed Paths、Basic YAML、Secret／PII、Binary／Submodule確認はPASSした。
+- Backend／Frontend Runtime Test、Build、Browser／E2EはPolicy CI Taskでは未実行であり、PASSとは記録しない。
