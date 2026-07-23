@@ -302,9 +302,9 @@ jobs:
             "${compose[@]}" down -v --remove-orphans
           }
           diagnostics() {
-            "${compose[@]}" ps
+            "${compose[@]}" ps >&2
             "${compose[@]}" logs --no-color --tail 100 |
-              sed 's/^/V2_SMOKE_ERROR_DIAGNOSTIC: /'
+              sed 's/^/V2_SMOKE_ERROR_DIAGNOSTIC: /' >&2
           }
           wait_for_endpoint() {
             local service="$1"
@@ -315,6 +315,7 @@ jobs:
               fi
               sleep 5
             done
+            echo "V2_SMOKE_ERROR_DIAGNOSTIC: endpoint timeout: $service" >&2
             diagnostics
             return 1
           }
