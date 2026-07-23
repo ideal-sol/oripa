@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "profile_id": "site-codex-access-template",
+  "status": "template_not_provisioned",
+  "site": {
+    "site_id": "<site-id>",
+    "repository": "<organization>/<site-repository>",
+    "codex_environment": "<dedicated-site-codex-environment>",
+    "credential_boundary": "<dedicated-github-app-or-credential>"
+  },
+  "required_isolation": {
+    "one_site_one_repository": true,
+    "one_site_one_codex_environment": true,
+    "one_site_one_credential_boundary": true,
+    "installation_selection": "selected_repositories",
+    "allowed_repository_count": 1,
+    "platform_repository_write": false,
+    "other_site_read": false,
+    "other_site_write": false,
+    "shared_site_secrets": false,
+    "shared_deploy_credentials": false
+  },
+  "platform_changes": {
+    "direct_platform_change": false,
+    "required_process": "Platform Change Request"
+  },
+  "activation_gate": {
+    "repository_exists": false,
+    "dedicated_environment_exists": false,
+    "dedicated_credential_exists": false,
+    "selected_repository_scope_verified": false,
+    "cross_site_access_denied": false,
+    "secret_separation_verified": false,
+    "status": "not_ready"
+  }
+}

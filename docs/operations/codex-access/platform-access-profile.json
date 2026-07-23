@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "profile_id": "platform-codex-access",
+  "status": "current",
+  "subject": {
+    "role": "Platform Codex",
+    "github_app": "ideal-sol-oripa-codex"
+  },
+  "github": {
+    "repository": "ideal-sol/oripa",
+    "installation_selection": "selected_repositories",
+    "allowed_repositories": [
+      "ideal-sol/oripa"
+    ],
+    "verified_repository_count": 1,
+    "administration_scope": "selected_repository_only"
+  },
+  "runtime_trust": {
+    "execution_user": "root",
+    "root_private_key_access": "human_approved_exception",
+    "os_user_isolation": "not_implemented",
+    "private_key_filesystem_isolation": "not_implemented"
+  },
+  "change_path": {
+    "direct_main_push": false,
+    "force_push": false,
+    "pull_request_required": true,
+    "fixed_head_self_review_required": true,
+    "available_checks_required": true,
+    "squash_merge": true,
+    "branch_cleanup": true
+  },
+  "stable_tags": {
+    "creation": "release_gate_only",
+    "update": "prohibited",
+    "deletion": "prohibited"
+  },
+  "production_access": {
+    "secrets": false,
+    "database": false,
+    "network": false,
+    "commercial_go": false
+  },
+  "verification": {
+    "verified_at": "2026-07-23",
+    "token_source": "newly_issued_not_cached",
+    "repository_selection": "selected",
+    "unexpected_repository_access": false
+  }
+}
