@@ -1455,3 +1455,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Compound CommandとComplex Shell Wrapper、Direct main Push、Force Push、Token Broker／Autonomy Libexec直接実行は`forbidden`だった。
 - 通常Push、Commit、Rebase、Dependency Install、Migration作成、Container Build、Network Accessは`prompt`だった。
 - Safe GitHub App Wrapper、Read-only Git、`rg`／`ls`／`cat`、Test／Lint／Typecheckは`allow`だった。
+
+### GitHub
+
+- Task Commit: `e8c359311fe244f671fb9ab93af1540b3aa01d7d`
+- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。
+- PR: `#20` (`https://github.com/ideal-sol/oripa/pull/20`)
+- PR Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`、Headは`chore/GOV-007-codex-permissions`である。
+- 本追記を含むFinal Headへ更新後、Strict Config、Execpolicy、Allowed Paths、Secret／PII、GitHub Checks、Fresh Self-review、Head不変、Merge Conflictなしを再検証して自律Squash Mergeする。
+- GOV-008は本Task完了後も開始しない。
