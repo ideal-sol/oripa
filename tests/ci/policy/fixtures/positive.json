@@ -1,0 +1,14 @@
+{
+  "title": "[GOV-008] ci: add platform policy gate",
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "changed_paths": [
+    "scripts/ci/policy_gate.py"
+  ],
+  "tracked_paths": [
+    "AGENTS.md",
+    "backend/.env.example",
+    "scripts/ci/policy_gate.py"
+  ],
+  "workflow": "permissions:\n  contents: read\nconcurrency:\n  group: fixture\njobs:\n  policy:\n    timeout-minutes: 5\n    steps:\n      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2\n",
+  "pr_body": "## Task\n\n- Task ID: GOV-008\n- Risk: R3\n- Base SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n## Summary\n\nFixture.\n\n## Specification sources\n\n- Governance.\n\n## Scope\n\n### Allowed paths\n\n- `scripts/ci/policy_gate.py`\n\n### Changed files\n\n- `scripts/ci/policy_gate.py`\n\n### Explicitly not changed\n\n- Application.\n\n## Verification performed\n\n- Unit test.\n\n## Verification not performed\n\n- Runtime tests.\n"
+}
