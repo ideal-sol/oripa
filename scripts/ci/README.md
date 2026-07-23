@@ -23,6 +23,8 @@ rejects failed, cancelled, or skipped dependency results.
 ## Quality, security, and integration
 
 - `quality_gate.py` validates tracked source and structured file quality.
+- `openapi_contract_gate.py` lints and bundles the Public／Admin／Webhook
+  OpenAPI 3.1.1 Contract、Commit済みBundle差分、Breaking Changeを検査する。
 - `lint_baseline.py` requires an exact, unexpired ESLint fingerprint set.
 - `backend_test_baseline.py` requires an exact, unexpired PHPUnit failure set.
 - `security_gate.py` performs repository security checks and requires exact,
@@ -30,6 +32,13 @@ rejects failed, cancelled, or skipped dependency results.
 
 Operational commands and baseline policy are documented in
 `docs/operations/ci/README.md`.
+
+OpenAPI ContractのLocal再現:
+
+```text
+pnpm openapi:test
+pnpm openapi:check
+```
 
 ## Dependency policy
 

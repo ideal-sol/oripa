@@ -1,0 +1,152 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Oripa Webhook API",
+    "version": "2.0.0-alpha.1",
+    "license": {
+      "name": "UNLICENSED",
+      "identifier": "LicenseRef-Proprietary"
+    },
+    "description": "外部Provider向けWebhook API v2のContract Skeleton。Provider固有Header、 Payload、Endpointは仕様確定後のContract-first Taskで追加する。",
+    "x-status": "skeleton"
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "/webhooks/v2"
+    }
+  ],
+  "paths": {},
+  "components": {
+    "schemas": {
+      "OpaqueId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "形式や並び順へ依存してはならない公開識別子。"
+      },
+      "SemanticVersion": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$",
+        "description": "API ContractまたはClientのSemVer。"
+      },
+      "UtcDateTime": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+        "description": "RFC 3339 UTC日時。末尾はZとする。"
+      },
+      "BusinessDate": {
+        "type": "string",
+        "format": "date",
+        "description": "Asia/Tokyo基準の業務日付。"
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "request_id",
+          "retryable"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "errors": {
+            "$ref": "#/components/schemas/ValidationErrors"
+          },
+          "retry_after_seconds": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "XOripaApiVersion": {
+        "required": true,
+        "schema": {
+          "type": "string",
+          "const": "2"
+        }
+      },
+      "RetryAfter": {
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "RFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Oripa-Api-Version": {
+            "$ref": "#/components/headers/XOripaApiVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-oripa-surface": "webhook"
+}

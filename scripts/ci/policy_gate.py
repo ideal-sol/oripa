@@ -70,6 +70,14 @@ WORKSPACE_REQUIRED_FILES = {
     "packages/AGENTS.md",
     "openapi/README.md",
     "openapi/AGENTS.md",
+    "openapi/redocly.yaml",
+    "openapi/components/common.yaml",
+    "openapi/public/openapi.yaml",
+    "openapi/admin/openapi.yaml",
+    "openapi/webhook/openapi.yaml",
+    "openapi/bundled/public.openapi.json",
+    "openapi/bundled/admin.openapi.json",
+    "openapi/bundled/webhook.openapi.json",
     "infrastructure/README.md",
     "infrastructure/AGENTS.md",
     "deployments/README.md",
@@ -135,6 +143,9 @@ ADMIN_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.11",
     "typescript": "6.0.3",
+}
+ROOT_DEV_DEPENDENCY_VERSIONS = {
+    "@redocly/cli": "2.40.0",
 }
 BOUNDARY_READMES = {
     "apps/README.md",
@@ -448,8 +459,12 @@ def validate_workspace_configuration(repository: Path) -> None:
         raise PolicyFailure("package.json: packageManager must match the V1 lockfile")
     if package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}:
         raise PolicyFailure("package.json: Node and pnpm engines must be exact")
-    if package.get("dependencies") or package.get("devDependencies"):
-        raise PolicyFailure("package.json: skeleton must not add dependencies")
+    if package.get("dependencies"):
+        raise PolicyFailure("package.json: root runtime dependencies are prohibited")
+    if package.get("devDependencies") != ROOT_DEV_DEPENDENCY_VERSIONS:
+        raise PolicyFailure(
+            "package.json: only the pinned OpenAPI validation tool is allowed"
+        )
     if package.get("pnpm") != {
         "overrides": {"postcss": "8.5.10", "sharp": "0.35.0"}
     }:

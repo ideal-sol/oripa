@@ -84,6 +84,11 @@ jobs:
           python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
           python3 scripts/ci/quality_gate.py --repository .
 
+      - name: Validate OpenAPI contracts and committed bundles
+        run: |
+          pnpm openapi:test
+          pnpm openapi:check
+
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
@@ -291,6 +296,7 @@ jobs:
       - name: Validate contracts, manifests, and Compose
         run: |
           python3 scripts/ci/quality_gate.py --repository .
+          pnpm openapi:check
           docker compose config --quiet
           docker compose -f docker-compose.v2.yml config --quiet
 
