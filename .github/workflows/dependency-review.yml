@@ -25,3 +25,13 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
+          # These exact pre-existing V1 advisories remain enforced by the
+          # package/version/path-specific, expiring security-gate baseline.
+          allow-ghsas: >-
+            GHSA-3jxr-9vmj-r5cp,
+            GHSA-52cp-r559-cp3m,
+            GHSA-f88m-g3jw-g9cj,
+            GHSA-6gpp-xcg3-4w24,
+            GHSA-m99w-x7hq-7vfj,
+            GHSA-89xv-2m56-2m9x,
+            GHSA-p9j2-gv94-2wf4

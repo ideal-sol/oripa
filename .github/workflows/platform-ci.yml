@@ -76,21 +76,21 @@ jobs:
       - name: Verify manifests and install frontend dependencies
         run: |
           composer --working-dir=apps/api validate --strict --no-check-publish
-          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir legacy/v1-frontend install --frozen-lockfile
 
       - name: Run quality structure and unit checks
         run: |
           python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
           python3 scripts/ci/quality_gate.py --repository .
 
-      - name: Typecheck frontend
-        run: pnpm --dir frontend typecheck
+      - name: Typecheck legacy frontend
+        run: pnpm --dir legacy/v1-frontend typecheck
 
-      - name: Compare frontend lint findings with the exact baseline
+      - name: Compare legacy frontend lint findings with the exact baseline
         run: |
           set +e
           (
-            cd frontend
+            cd legacy/v1-frontend
             pnpm exec eslint . --format json > "$RUNNER_TEMP/eslint.json"
           )
           eslint_status=$?
@@ -143,7 +143,7 @@ jobs:
           set +e
           composer --working-dir=apps/api audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
           composer_status=$?
-          pnpm --dir frontend audit --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
+          pnpm --dir legacy/v1-frontend audit --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
           pnpm_status=$?
           set -e
           echo "composer audit raw exit status: $composer_status"
@@ -233,7 +233,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
           composer --working-dir=apps/api install --no-interaction --prefer-dist --no-progress
-          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir legacy/v1-frontend install --frozen-lockfile
 
       - name: Apply migrations to the ephemeral database
         run: php apps/api/artisan migrate --no-interaction
@@ -264,10 +264,10 @@ jobs:
           fi
           echo "Negative Site Template fixture failed as required"
 
-      - name: Build and typecheck frontend
+      - name: Build and typecheck legacy frontend
         run: |
-          pnpm --dir frontend typecheck
-          pnpm --dir frontend build
+          pnpm --dir legacy/v1-frontend typecheck
+          pnpm --dir legacy/v1-frontend build
 
       - name: Validate contracts, manifests, and Compose
         run: |

@@ -11,6 +11,10 @@ apps/api/.env.*
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
+# Keep pre-MIG-022 local credentials ignored until operators remove them manually.
+legacy/v1-frontend/.env
+legacy/v1-frontend/.env.*
+!legacy/v1-frontend/.env.example
 
 # Dependency directories
 node_modules/
@@ -19,6 +23,8 @@ backend/vendor/
 apps/api/vendor/
 frontend/node_modules/
 frontend/.pnpm-store/
+legacy/v1-frontend/node_modules/
+legacy/v1-frontend/.pnpm-store/
 
 # Laravel generated files
 # Keep pre-MIG-021 local runtime residue ignored until operators remove it manually.
@@ -62,6 +68,15 @@ frontend/coverage/
 frontend/.turbo/
 frontend/tsconfig.tsbuildinfo
 frontend/next-env.d.ts
+# Keep pre-MIG-022 local build residue ignored until operators remove it manually.
+legacy/v1-frontend/.next/
+legacy/v1-frontend/out/
+legacy/v1-frontend/dist/
+legacy/v1-frontend/build/
+legacy/v1-frontend/coverage/
+legacy/v1-frontend/.turbo/
+legacy/v1-frontend/tsconfig.tsbuildinfo
+legacy/v1-frontend/next-env.d.ts
 
 # Local Docker / service data
 infra/data/

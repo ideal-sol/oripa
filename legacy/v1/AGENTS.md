@@ -23,12 +23,11 @@ behavioral reference and evidence source, not the V2 architecture authority.
 - Preserve before/after evidence and keep the V2 implementation separate.
 - Never use a V1 hotfix to bypass V2 Release Gates or security policy.
 
-## Path Note
+## Frontend Reference
 
-The finalized Migration Plan currently names `legacy/v1-frontend` as the future
-Frontend destination, while Governance specifies this `legacy/v1/AGENTS.md` path.
-This file follows the Governance location only; it does not move Frontend code or
-resolve that path decision.
+The V1 Frontend is preserved at `legacy/v1-frontend/` and follows its nearest
+`AGENTS.md` in addition to this file. It remains outside V2 Apps, Packages,
+Production Images, and Runtime Dependencies.
 
 ## Verification
 

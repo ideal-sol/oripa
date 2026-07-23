@@ -59,7 +59,7 @@ class PolicyGateTest(unittest.TestCase):
         )
         self.assertFalse(
             policy_gate.declared_path_allowed(
-                "frontend/src/app/page.tsx",
+                "legacy/v1-frontend/src/app/page.tsx",
                 ["apps/api/**"],
             )
         )
@@ -98,6 +98,9 @@ jobs:
 """
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
             policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
+
+    def test_dependency_review_allowlist_matches_exact_security_baseline(self):
+        policy_gate.validate_dependency_review_allowlist(ROOT)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -274,7 +277,7 @@ This is a non-Production Skeleton and contains no application implementation.
             root = Path(temporary)
             paths = self.make_workspace(root)
             (root / "pnpm-workspace.yaml").write_text(
-                "packages:\n  - apps/admin\n  - packages/*\n  - frontend\n",
+                "packages:\n  - apps/admin\n  - packages/*\n  - legacy/v1-frontend\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "workspace members"):
@@ -319,13 +322,61 @@ This is a non-Production Skeleton and contains no application implementation.
             root = Path(temporary)
             paths = self.make_workspace(root)
             content = "const copiedV1Implementation = true;\n" * 4
-            for relative in ("frontend/source.ts", "apps/admin/source.ts"):
+            for relative in (
+                "legacy/v1-frontend/source.ts",
+                "apps/admin/source.ts",
+            ):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
                 paths.add(relative)
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "V1 content copied"):
                 policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_legacy_frontend_layout_passes(self):
+        policy_gate.validate_legacy_frontend_layout(
+            ROOT,
+            set(policy_gate.LEGACY_FRONTEND_REQUIRED_FILES),
+        )
+
+    def test_tracked_frontend_path_fails(self):
+        paths = set(policy_gate.LEGACY_FRONTEND_REQUIRED_FILES)
+        paths.add("frontend/src/app/page.tsx")
+        with self.assertRaisesRegex(
+            policy_gate.PolicyFailure,
+            "legacy frontend source path remains tracked",
+        ):
+            policy_gate.validate_legacy_frontend_layout(ROOT, paths)
+
+    def test_nested_legacy_frontend_path_fails(self):
+        paths = set(policy_gate.LEGACY_FRONTEND_REQUIRED_FILES)
+        paths.add("legacy/v1-frontend/frontend/src/app/page.tsx")
+        with self.assertRaisesRegex(
+            policy_gate.PolicyFailure,
+            "nested frontend directory",
+        ):
+            policy_gate.validate_legacy_frontend_layout(ROOT, paths)
+
+    def test_v2_dockerfile_copying_legacy_frontend_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = set(policy_gate.LEGACY_FRONTEND_REQUIRED_FILES)
+            for relative in paths:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture\n", encoding="utf-8")
+            dockerfile = root / "apps/admin/Dockerfile"
+            dockerfile.parent.mkdir(parents=True, exist_ok=True)
+            dockerfile.write_text(
+                "COPY legacy/v1-frontend /app\n",
+                encoding="utf-8",
+            )
+            paths.add("apps/admin/Dockerfile")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "must not copy legacy frontend",
+            ):
+                policy_gate.validate_legacy_frontend_layout(root, paths)
 
 
 if __name__ == "__main__":

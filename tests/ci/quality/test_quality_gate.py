@@ -35,7 +35,7 @@ class QualityGateTest(unittest.TestCase):
     def test_new_lint_finding_fails_exact_baseline(self):
         report = [
             {
-                "filePath": "/workspace/frontend/example.tsx",
+                "filePath": "/workspace/legacy/v1-frontend/example.tsx",
                 "messages": [
                     {
                         "line": 1,
@@ -68,7 +68,7 @@ class QualityGateTest(unittest.TestCase):
     def test_lint_message_path_is_workspace_independent(self):
         message = (
             "Error: fixture\n"
-            "/home/runner/work/oripa/oripa/frontend/src/example.tsx:1:1\n"
+            "/home/runner/work/oripa/oripa/legacy/v1-frontend/src/example.tsx:1:1\n"
             "detail"
         )
         local = message.replace(

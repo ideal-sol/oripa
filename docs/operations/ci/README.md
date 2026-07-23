@@ -60,8 +60,8 @@ the complete backend suite still runs on every integration job.
 python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
 python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
 python3 scripts/ci/quality_gate.py --repository .
-cd frontend && pnpm typecheck
-cd frontend && pnpm exec eslint . --format json
+cd legacy/v1-frontend && pnpm typecheck
+cd legacy/v1-frontend && pnpm exec eslint . --format json
 cd apps/api && composer validate --strict --no-check-publish
 docker compose config --quiet
 git diff --check

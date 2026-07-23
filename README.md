@@ -5,7 +5,7 @@ This repository follows `docs/md/spec_v1.4.md` as the master specification.
 The local environment is intentionally split into:
 
 - `apps/api/`: Laravel API
-- `frontend/`: Next.js App Router
+- `legacy/v1-frontend/`: V1 Next.js App Router reference
 - PostgreSQL
 - Redis
 - MinIO
@@ -46,7 +46,7 @@ The host does not need PHP, Composer, Node.js, pnpm, PostgreSQL, Redis, or MinIO
 ```bash
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
-cp frontend/.env.example frontend/.env.local
+cp legacy/v1-frontend/.env.example legacy/v1-frontend/.env.local
 COMPOSE_BAKE=false docker compose build
 docker compose run --rm backend php artisan key:generate
 docker compose up -d

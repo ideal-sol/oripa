@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.next
+node_modules
+.pnpm-store
+out
+dist
+build
+coverage
+.turbo
+tsconfig.tsbuildinfo
+next-env.d.ts

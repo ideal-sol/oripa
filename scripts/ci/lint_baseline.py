@@ -17,16 +17,24 @@ class BaselineFailure(RuntimeError):
 
 
 def normalize_path(value: str) -> str:
-    marker = "/frontend/"
+    marker = "/legacy/v1-frontend/"
     if marker in value:
-        return "frontend/" + value.split(marker, 1)[1]
+        return "legacy/v1-frontend/" + value.split(marker, 1)[1]
     value = value.replace("\\", "/")
-    return value if value.startswith("frontend/") else "frontend/" + value.lstrip("/")
+    return (
+        value
+        if value.startswith("legacy/v1-frontend/")
+        else "legacy/v1-frontend/" + value.lstrip("/")
+    )
 
 
 def normalize_message(value: str) -> str:
     normalized = value.replace("\\", "/")
-    return re.sub(r"(?m)^.*?/frontend/", "frontend/", normalized)
+    return re.sub(
+        r"(?m)^.*?/legacy/v1-frontend/",
+        "frontend/",
+        normalized,
+    )
 
 
 def normalize_findings(report: list[dict]) -> list[dict]:

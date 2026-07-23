@@ -17,4 +17,6 @@ apps/api/storage/framework/views/*
 apps/api/bootstrap/cache/*
 frontend/.next
 frontend/node_modules
+legacy/v1-frontend/.next
+legacy/v1-frontend/node_modules
 infra/data
