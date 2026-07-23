@@ -18,8 +18,8 @@ behavioral reference and evidence source, not the V2 architecture authority.
 
 ## Exceptions
 
-- An emergency V1 correction requires an explicit human-approved hotfix Task,
-  dedicated Issue, branch, worktree, tests, and PR.
+- An emergency V1 correction requires an explicitly authorized hotfix Task,
+  dedicated Issue, branch, worktree, tests, fixed-head self-review, and PR.
 - Preserve before/after evidence and keep the V2 implementation separate.
 - Never use a V1 hotfix to bypass V2 Release Gates or security policy.
 
@@ -35,3 +35,5 @@ resolve that path decision.
 - Confirm archive refs and evidence checksums remain unchanged for any approved
   preservation Task.
 - Report all unexecuted runtime and Browser/E2E checks as not run.
+- The Root autonomous merge lifecycle applies to an authorized hotfix, but no
+  GitHub App or administrator may bypass the Archive Ruleset.

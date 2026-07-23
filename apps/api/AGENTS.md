@@ -44,3 +44,8 @@ domain invariants.
 - Run the applicable Unit, Feature, contract, transaction, concurrency, and
   integration checks required by the task and Release Gates.
 - Report tests not run separately; do not infer PASS from static review.
+- Follow the Root autonomous GitHub lifecycle. API changes may be squash merged
+  by Platform Codex only after fixed-head self-review, required CI, scope,
+  secret/PII, migration, contract, security, and financial gates pass.
+- GitHub Approval and Code Owner Review are not substitutes for those gates and
+  are not independently required.

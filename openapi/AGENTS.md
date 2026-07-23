@@ -31,3 +31,6 @@ These instructions apply to contracts under `openapi/`. They refine the Root
 - Run contract tests, generated-diff checks, client typecheck/tests, and the
   applicable Laravel and E2E checks.
 - Review the breaking-change and information-disclosure impact before commit.
+- Follow the Root autonomous GitHub lifecycle. A contract PR may be squash
+  merged only when fixed-head self-review and all applicable contract,
+  compatibility, generated-diff, security, and CI gates pass.

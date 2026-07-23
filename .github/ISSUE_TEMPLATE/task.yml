@@ -124,5 +124,7 @@ body:
           required: true
         - label: I will stop if unexpected local or remote changes are found.
           required: true
-        - label: Codex will not approve, merge, release or authorize production deployment.
+        - label: Codex will merge only after fixed-head self-review, required CI, scope and security gates pass.
+          required: true
+        - label: Codex will not make the final commercial Production GO or autonomous legal, accounting or provider decisions.
           required: true

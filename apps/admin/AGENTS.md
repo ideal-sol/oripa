@@ -33,3 +33,6 @@ These instructions apply to the future shared V2 Next.js Admin application under
 - Run Admin E2E for changed critical workflows when the task and environment
   permit it.
 - Record Browser/E2E as not run unless it was actually executed.
+- Follow the Root autonomous GitHub lifecycle. Platform Codex may squash merge
+  only after the current head, scope, available CI, self-review evidence, and
+  applicable Admin security/E2E gates are revalidated.

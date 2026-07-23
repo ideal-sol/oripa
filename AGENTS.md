@@ -23,19 +23,25 @@ Directory-specific rules may be added by later tasks without weakening this file
 Resolve conflicts in this order:
 
 1. Latest explicit human decision
-2. `V2_RELEASE_GATES_FINAL_2026-07-22.md`
-3. `V2_CODEX_GIT_CI_GOVERNANCE_FINAL_2026-07-22.md`
-4. `V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
-5. `V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
-6. `V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
-7. `V2_DATA_POINT_PAYMENT_BASELINE_FINAL_2026-07-22.md`
-8. `API_V2_AND_STOREFRONT_CLIENT_CONTRACT_FINAL_2026-07-21.md`
-9. Approved feature ADRs
-10. V1 specifications and implementation as behavioral references
+2. `docs/architecture/V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md`
+3. `docs/architecture/V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md`
+4. `docs/architecture/V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md`
+5. `V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
+6. `V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
+7. `V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
+8. `V2_DATA_POINT_PAYMENT_BASELINE_FINAL_2026-07-22.md`
+9. `API_V2_AND_STOREFRONT_CLIENT_CONTRACT_FINAL_2026-07-21.md`
+10. Approved feature ADRs
+11. V1 specifications and implementation as behavioral references
 
-The finalized V2 documents are not yet committed to this Repository. Until a
-later governance task places them, use the exact filenames above as the reading
-order and do not create broken links or unofficial copies.
+The Governance Rev2, Release Gates Rev1, and autonomous operations ADR are
+committed Repository authorities. Other finalized V2 documents remain outside
+the Repository until a later migration task places them; use their exact
+filenames and do not create broken links or unofficial copies.
+
+The 2026-07-22 Governance and Release Gates files are superseded historical
+documents. Do not apply their human-only PR approval, human-only merge,
+mandatory Code Owner review, or disabled auto-merge decisions.
 
 Do not use the non-revision Identity/Authorization/Security document. Only the
 `REV1` filename above is authoritative.
@@ -60,9 +66,15 @@ Platform Codex owns changes to:
 - Site schema and Storefront testkit
 - Infrastructure, CI, release, compatibility, and version policy
 
-Platform Codex may implement, test, commit to an approved task branch, push that
-branch through approved tooling, and create a Draft PR. It must not merge,
-approve a stable release, or approve Production.
+Platform Codex may implement, test, commit, push, create and ready a PR, inspect
+CI, create fixed-head self-review evidence, squash merge, clean task branches
+and worktrees, synchronize `main`, and manage approved GitHub Rulesets,
+settings, workflows, environments, deployments, releases, and tags.
+
+Platform Codex must satisfy every applicable gate and must not bypass CI,
+direct-push `main`, force-push, update Archive refs, or move/delete Stable Tags.
+Initial commercial Production GO and legal, accounting, and undecided provider
+judgments remain human decisions.
 
 ### Site Codex
 
@@ -133,6 +145,12 @@ approve a stable release, or approve Production.
 8. Do not infer undecided provider, legal, security, or accounting behavior.
 9. Do not use Production secrets, credentials, or real-user PII.
 10. Record work in `worklogs/new_ver_main.md` and the GitHub Issue/PR.
+11. Fix the PR head SHA before review and merge.
+12. Require fresh machine-readable self-review evidence for that exact head.
+13. Merge only after all available required checks and applicable local tests
+    pass with no SEV-0 or SEV-1 finding.
+14. Squash merge through the approved GitHub App wrapper, then verify `main` and
+    clean the Remote/local task branch and dedicated worktree.
 
 The latest human decision explicitly adopts both GitHub Issue/PR records and
 `worklogs/new_ver_main.md`. Keep the Worklog free of secrets and PII.
@@ -148,12 +166,15 @@ Do not run or perform:
 - direct `git push origin main`
 - force push or history rewriting of shared refs
 - moving or deleting stable tags
+- creating a Stable Tag before the Release Gate passes
 - deleting or overwriting Archive refs
 - `docker system prune -a --volumes`
 - Production migrations or direct Production database operations
 - builds on Production servers
 - displaying, logging, committing, or copying secrets
-- Codex merge, release approval, or Production approval
+- bypassing required checks, scope validation, or fresh self-review
+- weakening tests or assertions to obtain PASS
+- autonomous commercial Production GO, legal, accounting, or provider decisions
 
 Destructive commands require an explicit approved task even outside Production.
 Never weaken a security control to make a check pass.
@@ -184,10 +205,17 @@ them in process arguments, or persisting them in Git configuration.
 - Documentation-only tasks do not imply Backend, Frontend, Build, or E2E PASS.
 - Review changed paths, generated files, binary files, submodules, secrets, PII,
   and contract impact before commit and push.
+- Revalidate the current GitHub PR head, changed paths, checks, mergeability, and
+  self-review evidence immediately before merge.
+- A changed head invalidates prior review evidence.
+- Before GOV-009, require all available local validation and emitted GitHub
+  checks. After GOV-009, require `policy-gate`, `quality-gate`,
+  `security-gate`, `integration-gate`, and `ci-gate`.
 
 ## Completion and Reporting
 
-Codex completion is a reviewable Draft PR, not a merge.
+Codex completion is a gate-compliant squash merge followed by Remote/local
+branch cleanup, worktree cleanup, and local `main` synchronization.
 
 At completion, report:
 
@@ -198,7 +226,11 @@ At completion, report:
 - migrations created and migrations applied
 - API, database, auth, point, payment, draw, and infrastructure impact
 - known risks, unresolved decisions, and rollback notes
-- Draft PR URL and author
+- PR URL, self-review evidence, check summary, merge actor, and squash SHA
+- Remote/local task branch and worktree cleanup
+- local and Remote `main` equality
 
-Only a human may review and approve the PR, merge it, create or approve a stable
-release, or approve Production deployment.
+GitHub Approval and Code Owner Review are not required merge gates. Platform
+Codex may create a new Stable Tag or Release only after its Release Gate passes;
+it may never move or delete a Stable Tag. Initial commercial Production GO
+remains human-only.
