@@ -153,7 +153,7 @@ This is a non-Production Skeleton and contains no application implementation.
                     "pnpm": {
                         "overrides": {
                             "js-yaml": "4.3.0",
-                            "postcss": "8.5.10",
+                            "postcss": "8.5.12",
                             "sharp": "0.35.0",
                         }
                     },
