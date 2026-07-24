@@ -4,8 +4,9 @@
 
 MIG-040 establishes a non-Production PostgreSQL／Redis boundary. MIG-041 and
 MIG-041A add the V2 Identity／Admin Authentication foundation. MIG-042 adds
-Audit／Transactional Outbox persistence. Point, Payment, Draw, and other
-business tables are not part of this baseline.
+Audit／Transactional Outbox persistence. MIG-043 adds the Point Model
+Foundation. Payment, Draw, and other business tables are not part of this
+baseline.
 
 ## Isolation
 
@@ -53,13 +54,19 @@ OutboxはDomain変更と同じTransaction内でenqueueし、Deduplication Keyと
 `FOR UPDATE SKIP LOCKED`によるClaim、Lease、Retry、Delivered／Failed遷移を持つ。
 外部通信はDB Transaction外の後続Worker責任であり、本Taskでは実装しない。
 
+MIG-043は`wallets`、`point_operations`、`point_lots`、
+`point_ledger_entries`、`point_adjustments`、Ledger Cutoff方式の
+`point_balance_snapshots`、Reconciliation、`idempotency_records`を追加する。
+WalletをLock起点とし、free期限順／paid FIFOでLotをLockする。通常paid付与、
+Payment、Point Reservation、Public／Admin APIは実装しない。
+
 Verified User Email is protected by a partial Unique Index while Pending Email
 may repeat. Admin Email is Unique inside the Admin Realm. Account State, fixed
 Admin Role, Argon2id Hash format, Session Hash format, remember-device lifetime,
 and MFA storage format are protected by PostgreSQL Constraints.
 
-No `tenant_id`, speculative schema-version table, Point, Payment, or Draw table
-is added.
+No `tenant_id`, speculative schema-version table, Payment, or Draw table is
+added.
 
 ## Local Development
 

@@ -231,6 +231,29 @@ V2_AUDIT_OUTBOX_REQUIRED_FILES = {
     "apps/api/tests/V2/AuditOutboxFoundationTest.php",
     "docs/operations/audit-outbox/README.md",
 }
+V2_POINT_REQUIRED_FILES = {
+    "apps/api/app/Domain/Point/Exceptions/V2PointException.php",
+    "apps/api/app/Domain/Point/Services/V2PointIdempotencyService.php",
+    "apps/api/app/Domain/Point/Services/V2PointLedgerService.php",
+    "apps/api/app/Domain/Point/Services/V2PointReconciliationService.php",
+    "apps/api/app/Domain/Point/Services/V2PointService.php",
+    "apps/api/app/Domain/Point/Services/V2PointSnapshotService.php",
+    "apps/api/app/Domain/Point/Services/V2PointTransactionRunner.php",
+    "apps/api/app/Domain/Point/ValueObjects/V2IdempotencyClaim.php",
+    "apps/api/app/Models/V2/IdempotencyRecord.php",
+    "apps/api/app/Models/V2/PointAdjustment.php",
+    "apps/api/app/Models/V2/PointBalanceSnapshot.php",
+    "apps/api/app/Models/V2/PointLedgerEntry.php",
+    "apps/api/app/Models/V2/PointLot.php",
+    "apps/api/app/Models/V2/PointOperation.php",
+    "apps/api/app/Models/V2/PointReconciliationDiscrepancy.php",
+    "apps/api/app/Models/V2/PointReconciliationRun.php",
+    "apps/api/app/Models/V2/Wallet.php",
+    "apps/api/config/v2_point.php",
+    "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
+    "apps/api/tests/V2/PointModelFoundationTest.php",
+    "docs/operations/point-model/README.md",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1336,6 +1359,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_24_000003_create_v2_admin_mfa_methods.php",
         "2026_07_24_000004_create_v2_authentication_flows.php",
         "2026_07_24_000005_create_v2_audit_outbox_foundation.php",
+        "2026_07_24_000006_create_v2_point_model_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1492,7 +1516,11 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         if required not in runner:
             raise PolicyFailure(f"V2 Identity DB verification missing {required}")
     if "mig041-v2-" not in workflow:
-        if "mig041a-v2-" not in workflow and "mig042-v2-" not in workflow:
+        if (
+            "mig041a-v2-" not in workflow
+            and "mig042-v2-" not in workflow
+            and "mig043-v2-" not in workflow
+        ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
     authentication_sources = "\n".join(
@@ -1645,6 +1673,154 @@ def validate_v2_audit_outbox_boundary(
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 Audit／Outbox test missing {required}")
+
+
+def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_POINT_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 Point Model files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_24_000006_create_v2_point_model_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "wallets",
+        "point_operations",
+        "point_lots",
+        "point_ledger_entries",
+        "point_adjustments",
+        "point_balance_snapshots",
+        "point_reconciliation_runs",
+        "point_reconciliation_discrepancies",
+        "idempotency_records",
+        "paid_reserved_balance <= paid_balance",
+        "free_reserved_balance <= free_balance",
+        "point_type = 'paid' AND expire_at IS NULL",
+        "point_type = 'free' AND expire_at IS NOT NULL",
+        "$table->string('business_key', 191)->unique()",
+        "v2_reject_point_immutable_mutation",
+        "BEFORE TRUNCATE",
+        "REVOKE UPDATE, DELETE, TRUNCATE",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Point migration missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "payment_adjustments",
+        "point_lot_reservations",
+        "float",
+        "decimal",
+    ):
+        if prohibited in migration:
+            raise PolicyFailure(f"V2 Point migration contains prohibited {prohibited}")
+
+    service = (
+        repository
+        / "apps/api/app/Domain/Point/Services/V2PointService.php"
+    ).read_text(encoding="utf-8")
+    wallet_lock = service.find("lockWallet(")
+    free_lock = service.find("lockFreeLots(")
+    paid_lock = service.find("lockPaidLots(")
+    if wallet_lock < 0 or free_lock < wallet_lock or paid_lock < free_lock:
+        raise PolicyFailure("V2 Point service does not lock Wallet before ordered Lots")
+    for required in (
+        "lockForUpdate()",
+        "orderBy('expire_at')",
+        "orderBy('granted_at')",
+        "orderBy('id')",
+        "'point.free_granted'",
+        "'point.consumed'",
+        "'point.free_expired'",
+        "INSUFFICIENT_POINT_BALANCE",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Point service missing {required}")
+    if "SKIP LOCKED" in service or "skipLocked" in service:
+        raise PolicyFailure("V2 Point Lot consumption must not use SKIP LOCKED")
+    if "grantPaid" in service or "adjustPaid" in service:
+        raise PolicyFailure("V2 paid Point grant is prohibited before Payment Model")
+
+    point_config = (repository / "apps/api/config/v2_point.php").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "'business_timezone' => 'Asia/Tokyo'",
+        "'max_attempts' => 3",
+        "'40001'",
+        "'40P01'",
+        "'normal_source' => 'succeeded_payment_only'",
+        "'enabled' => false",
+    ):
+        if required not in point_config:
+            raise PolicyFailure(f"V2 Point configuration missing {required}")
+
+    snapshot = (
+        repository
+        / "apps/api/app/Domain/Point/Services/V2PointSnapshotService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "where('occurred_at', '<', $cutoff)",
+        "'ledger_cutoff'",
+        "['03-31', '09-30']",
+        "'point.snapshot_generated'",
+    ):
+        if required not in snapshot:
+            raise PolicyFailure(f"V2 Point snapshot boundary missing {required}")
+
+    reconciliation = (
+        repository
+        / "apps/api/app/Domain/Point/Services/V2PointReconciliationService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "wallet_lot",
+        "wallet_ledger",
+        "'resolved' => false",
+        "'automatic_repair' => false",
+        "'point.reconciliation_completed'",
+    ):
+        if required not in reconciliation:
+            raise PolicyFailure(f"V2 Point reconciliation boundary missing {required}")
+
+    permissions = (
+        repository / "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php"
+    ).read_text(encoding="utf-8")
+    if permissions.count("'point.adjustment.paid.approve'") != 1:
+        raise PolicyFailure("paid Point approval must be Owner-only")
+
+    readme = (repository / "docs/operations/point-model/README.md").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "MIG-044",
+        "payment_adjustment_id",
+        "Ownerによる自己承認を禁止しない",
+        "Point Reservationが存在しないためSnapshot予約残高は0",
+    ):
+        if required not in readme:
+            raise PolicyFailure(f"V2 Point operational boundary missing {required}")
+
+    tests = (repository / "apps/api/tests/V2/PointModelFoundationTest.php").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "test_wallet_and_lot_constraints",
+        "test_consumption_prefers_free_expiry",
+        "test_transaction_rollback",
+        "test_idempotency_replays",
+        "test_same_wallet_concurrent_consumption",
+        "test_consumption_and_expiry_conflict",
+        "test_deadlock_and_serialization_failures",
+        "test_ledger_rebuild_and_snapshot",
+        "test_reconciliation_detects_discrepancy_without_repair",
+        "test_no_paid_grant_or_public_api",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Point test missing {required}")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -1964,6 +2140,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_database_boundary(repository, paths)
     validate_v2_identity_boundary(repository, paths)
     validate_v2_audit_outbox_boundary(repository, paths)
+    validate_v2_point_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

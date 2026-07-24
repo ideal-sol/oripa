@@ -47,12 +47,21 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.admins",
     "public.audit_daily_digests",
     "public.audit_logs",
+    "public.idempotency_records",
     "public.migrations",
     "public.outbox_messages",
+    "public.point_adjustments",
+    "public.point_balance_snapshots",
+    "public.point_ledger_entries",
+    "public.point_lots",
+    "public.point_operations",
+    "public.point_reconciliation_discrepancies",
+    "public.point_reconciliation_runs",
     "public.user_email_verifications",
     "public.user_remember_devices",
     "public.user_sessions",
     "public.users",
+    "public.wallets",
 ]
 
 
@@ -79,15 +88,54 @@ def run(
         completed = subprocess.run(
             command,
             cwd=cwd,
-            env=environment,
-            input=input_bytes,
-            stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            check=True,
+        env=environment,
+        input=input_bytes,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
         )
     except subprocess.CalledProcessError as error:
         executable = Path(command[0]).name
-        raise GuardFailure(f"{executable} operation failed") from error
+        safe_operations = {
+            "build",
+            "config",
+            "exec",
+            "network",
+            "ps",
+            "run",
+            "up",
+            "volume",
+        }
+        operation = next((item for item in command[1:] if item in safe_operations), None)
+        suffix = f" during {operation}" if operation is not None else ""
+        detail = ""
+        if operation == "run":
+            lines = (
+                error.stdout.decode("utf-8", errors="replace").splitlines()
+                + error.stderr.decode("utf-8", errors="replace").splitlines()
+            )
+            selected_indexes = set()
+            for index, line in enumerate(lines):
+                if re.search(
+                    r"(?i)error|exception|sqlstate|failed|failure|migration|"
+                    r"syntax|undefined|constraint|asserting",
+                    line,
+                ):
+                    selected_indexes.update(
+                        range(max(0, index - 3), min(len(lines), index + 6))
+                    )
+            candidates = [
+                lines[index].strip()
+                for index in sorted(selected_indexes)
+                if lines[index].strip()
+                and not re.search(
+                    r"(?i)password|secret|token|authorization|cookie|private.?key|email",
+                    lines[index],
+                )
+            ]
+            if candidates:
+                detail = ": "+" | ".join(candidates[:20] + candidates[-4:])[:2400]
+        raise GuardFailure(f"{executable} operation failed{suffix}{detail}") from error
     return completed.stdout if capture else b""
 
 

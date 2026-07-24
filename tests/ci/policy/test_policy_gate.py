@@ -275,6 +275,7 @@ python3 scripts/db/v2_database.py smoke \\
             "openapi/bundled/admin.openapi.json",
             "scripts/db/v2_database.py",
             "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
+            "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -368,6 +369,52 @@ python3 scripts/db/v2_database.py smoke \\
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "BEFORE TRUNCATE"):
                 policy_gate.validate_v2_audit_outbox_boundary(root, paths)
+
+    def copy_v2_point_boundary(self, root):
+        paths = set(policy_gate.V2_POINT_REQUIRED_FILES)
+        supporting = {
+            "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_point_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_point_boundary(root)
+            policy_gate.validate_v2_point_boundary(root, paths)
+
+    def test_v2_point_skip_locked_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_point_boundary(root)
+            service = (
+                root / "apps/api/app/Domain/Point/Services/V2PointService.php"
+            )
+            service.write_text(
+                service.read_text(encoding="utf-8") + "\n// SKIP LOCKED\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "SKIP LOCKED"):
+                policy_gate.validate_v2_point_boundary(root, paths)
+
+    def test_v2_point_paid_grant_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_point_boundary(root)
+            service = (
+                root / "apps/api/app/Domain/Point/Services/V2PointService.php"
+            )
+            service.write_text(
+                service.read_text(encoding="utf-8") + "\n// grantPaid\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "paid Point grant"):
+                policy_gate.validate_v2_point_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
