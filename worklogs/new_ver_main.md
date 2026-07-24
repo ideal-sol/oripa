@@ -2562,3 +2562,22 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G3はSite Schema Alpha基盤を追加したが、V2 Baseline Migration、Realm分離、
   Constraint Test、Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
 - 次Task候補は`MIG-033`だが、MIG-032完了後には開始しない。
+
+### GitHub検証
+
+- Implementation Commitは
+  `97d103efe42f06af29d6380a59f2c0d6b0ace3d3`で、GitHub App Wrapperにより
+  Remote BranchへFast-forward Pushした。
+- PR `#66` (`https://github.com/ideal-sol/oripa/pull/66`)を作成し、Issue `#65`と
+  関連付けた。PR Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`である。
+- 初回`policy-gate`はPR本文の`Changed files`が実差分のPath一覧でなかったため
+  Failureとなった。Code、Gate、Assertionは変更せず、PR本文を実際の28 Pathへ
+  修正した。
+- 同一Implementation Headの再実行ではRequired 5 Check、CodeQL、
+  Dependency Reviewを含む8 Checkが成功した。初回Failure／Cancelled Runも同一
+  Headへ残るため、本Worklog追記だけの追加CommitをFinal Headとし、全Checkを
+  一意な履歴で再実行する。
+- Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
+  SEV-0／SEV-1なし、Merge Conflictなし、Head SHA不変を再確認してから
+  GitHub AppがSquash Merge、Issue Close、Remote／Local BranchとWorktreeの
+  Cleanup、Local `main`の`--ff-only`同期を実行する。
