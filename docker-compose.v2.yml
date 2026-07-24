@@ -24,6 +24,7 @@ services:
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?V2_REDIS_PASSWORD is required}
       REDIS_PORT: ${V2_REDIS_PORT:?V2_REDIS_PORT is required}
       SESSION_DRIVER: array
+      V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?V2_AUDIT_HMAC_KEY is required}
     depends_on:
       postgres:
         condition: service_healthy

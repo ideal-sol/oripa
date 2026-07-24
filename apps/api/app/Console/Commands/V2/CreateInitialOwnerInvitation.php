@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\V2;
 
+use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2EmailNormalizer;
@@ -20,7 +21,8 @@ final class CreateInitialOwnerInvitation extends Command
     public function handle(
         V2EmailNormalizer $emails,
         V2PasswordPolicy $passwords,
-        V2SecureToken $tokens
+        V2SecureToken $tokens,
+        V2SecurityEventSink $events
     ): int {
         if (Admin::query()->where('role', V2AdminRole::Owner->value)->exists()) {
             $this->error('A V2 owner already exists. No invitation was created.');
@@ -31,7 +33,14 @@ final class CreateInitialOwnerInvitation extends Command
         $normalized = $emails->normalize($email);
         $token = $tokens->generate();
 
-        DB::transaction(function () use ($email, $normalized, $token, $tokens, $passwords): void {
+        DB::transaction(function () use (
+            $email,
+            $normalized,
+            $token,
+            $tokens,
+            $passwords,
+            $events
+        ): void {
             $admin = Admin::query()->create([
                 'email_display' => trim($email),
                 'email_normalized' => $normalized,
@@ -43,6 +52,11 @@ final class CreateInitialOwnerInvitation extends Command
                 'admin_id' => $admin->getKey(),
                 'token_hash' => $tokens->hash($token),
                 'expires_at' => now()->addMinutes(30),
+            ]);
+            $events->record('admin_invitation', [
+                'realm' => 'admin',
+                'subject_id' => $admin->public_id,
+                'role' => V2AdminRole::Owner->value,
             ]);
         });
 

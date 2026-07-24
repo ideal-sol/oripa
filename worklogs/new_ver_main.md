@@ -3269,3 +3269,117 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 同一Headの再実行では過去の失敗／cancelled Check Runが厳格なWrapper集計へ残るため、
   履歴書換えやForce Pushを行わず、本Worklog追記を通常Commitとして追加した新Headで
   Required／Available Checkを再実行する。
+
+## MIG-041A Closeout
+
+- PR `#78`はMerged、Issue `#77`はClosedである。
+- Task Final Headは`19b67ae148b1a37a18d1587cf4c362d497d8652c`、Squash Commitは
+  `170a80928a42ac3b15c46e7ac2fb854e271d6786`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。
+- Final Head固定後のFresh Self-reviewは同じHeadを対象とし、SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-041A Worktreeは削除済みである。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanである。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、V1 Archive
+  Branch／Annotated Tagを変更していない。
+
+## MIG-042 Audit／Transactional Outbox Foundation
+
+### Task／Scope
+
+- Task ID: `MIG-042`
+- Risk: `R3`
+- Issue: `#79` (`https://github.com/ideal-sol/oripa/issues/79`)
+- Branch: `migration/MIG-042-audit-outbox-foundation`
+- Worktree: `/var/www/oripa-worktrees/MIG-042-audit-outbox-foundation`
+- Base SHA: `170a80928a42ac3b15c46e7ac2fb854e271d6786`
+- V2専用Migration Rootへ`audit_logs`、`audit_daily_digests`、
+  `outbox_messages`を追加した。Point、Payment、Draw、Probability、実外部Transport、
+  Audit検索／Export API、WORM連携は実装していない。
+
+### Audit Foundation
+
+- `audit_logs`は`public_id`、`occurred_at`、`business_date`、`request_id`、
+  Actor／Role／Realm／Session Correlation、Action／Target／Outcome／Reason、
+  Redaction済みBefore／After／Metadata、`previous_hash`、`record_hash`を保持する。
+- PostgreSQL Advisory Transaction Lockで並行Writeを直列化し、外部
+  `V2_AUDIT_HMAC_KEY`によるRecord Hash Chainを生成する。Key値はDB、Repository、
+  Log、Worklogへ保存していない。
+- `audit_logs`と`audit_daily_digests`のUpdate／Delete／TruncateはEloquent Modelと
+  PostgreSQL Triggerの両境界で拒否する。
+- Chain全件再計算、Tamper検知、Business Date単位のDaily Digest、Digest重複拒否を
+  実装した。
+- Password、Token、Raw Session ID、Recovery Code、TOTP Secret、Full Email、
+  Authorization／Cookie値、不要なPIIをRedactorで拒否し、IP、User Agent、Sessionは
+  HMAC相関Hashだけを保存する。
+- `V2SecurityEventSink`を`V2PersistentSecurityEventSink`へ接続し、Register、
+  Email Verification、Login成功／失敗、Logout、Admin Invitation、MFA
+  Enrollment／成功／失敗、Recovery Code使用、Rate Limit発火を永続Auditへ接続した。
+
+### Transactional Outbox
+
+- `V2OutboxService::enqueue`はActive Domain Transaction内だけを許可し、Rollback時は
+  Outbox Messageも残らない。
+- `topic`、Aggregate、Event Type、Payload、Deduplication Key、Status、
+  Available At、Attempts、Lease／Lock、Delivered At、Last Errorを構造化Columnで
+  保持する。
+- Unique Deduplication Key、`FOR UPDATE SKIP LOCKED`、Worker／Lease所有確認により、
+  Deduplication、並行Claim、期限切れClaim、Success／Retry／Failure遷移を保証する。
+- Email Verification通知はUser／Verification Token更新と同じTransactionでenqueue
+  する。Recipient、Token、RedirectはApplication-level Encryption済みCiphertext
+  だけをPayloadへ保存し、平文通知情報を保存しない。
+- 実Mail／SMS／Discord／Payment Provider送信とTransport Workerは実装していない。
+  外部通信はDB Transaction外の後続Worker責任である。
+
+### Migration／DB Verification
+
+- V1 Migrationは40件、内容SHA-256 Set
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  でBaselineと一致し、編集、改名、削除していない。
+- V2 Migrationは5件、内容SHA-256 Set
+  `4d9c030fc155bc8e1e49a6f21d668d1bbe84081742095a68b5925c28000ef2ec`
+  である。
+- `/etc/oripa-v2/dev.env`へRepository外Audit HMAC Keyを追加した。Fileは
+  `root:root`、mode `600`で、値を表示、記録していない。
+- Persistent V2 PostgreSQL 17／Redis 7でGuard経由の`migrate:fresh`を2回実行し、
+  Migration Status、14 TableのSchema Inventory、Health、Host Port非公開を確認した。
+- V2 PHPUnitは48 Test、289 Assertionが成功した。Audit／Outbox専用は11 Test、
+  52 Assertionで、Append-only、Hash Chain、Tamper、Daily Digest、並行Write、
+  Transaction Rollback、Deduplication、Claim、Lease、Retry、Security Event永続化を
+  検証した。
+- Task専用Ephemeral Source／Restore ProjectでBackup／Restoreを実行し、Source／Restore
+  Schema SHA-256は
+  `6982efd696edb35dfa22de2bb7dcd8017ec791504068dd17736436f5c86d27d3`、
+  Migration Row SHA-256は
+  `84b168f29f67e239e5a377f0295b3ddc4a0600d920527d53d7ac06ef9d76c9a2`
+  で一致した。最終Backup SHA-256は
+  `81cdf84e423656ada8492dd37251b8d185e00c43c90915d22b69490cd5f3a6f5`
+  である。
+- Task専用Container／Network／VolumeはGuardが対象ProjectだけをCleanupし、残存なしを
+  確認した。Global PruneやV1 Resource削除は実行していない。
+- EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-042-persistent-final-20260724T124100Z/`と
+  `/var/www/oripa-v1-evidence/MIG-042-ephemeral-final-20260724T125300Z/`へ保存した。
+  Directoryはmode `700`、Fileはmode `600`で、Secret、実PII、V1 Dataを含まない。
+
+### Local Verification／Gate
+
+- PHP Syntax、Composer Manifest、Policy／DB Guard Unit Test 64件、Quality Unit Test
+  5件、Security Unit Test 4件、OpenAPI Unit Test 4件はPASSした。
+- OpenAPI Public 6／Admin 9／Webhook 0 OperationのLint／Bundle、Storefront Client
+  9 Test、Site Schema 10 Test、Storefront Testkit 16 Test、Legacy Frontend
+  Typecheck、Admin Typecheck／Lint／BuildはPASSした。
+- `quality-gate`、`security-gate`、`git diff --check`はPASSした。Root Workspace
+  Auditは0 Finding、Secret／PII Candidateは0件である。
+- Legacy Frontend 13 FindingとComposer 10 Advisoryは既存期限付きBaselineと一致し、
+  新規Finding、件数増加、Severity悪化はない。
+- Full V1 Backend Test、Legacy Frontend Lint／Build、Browser／E2E、実外部Transportは
+  本Local検証では未実行であり、PASSとは記録しない。GitHub `integration-gate`では
+  既存BaselineとV2 Ephemeral DB検証を実行する。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewは
+  GitHub PRの固定Final Headで実行し、Fresh Self-review後に結果を確定する。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、V1 Archive
+  Branch／Annotated Tagを変更していない。
+- Gate G3はIdentity、Authentication、Audit／Outbox、V2 DB分離まで進んだが、
+  Point／Payment基礎Tableと初回`2.0.0-alpha.1` Artifactが残るため
+  `NOT COMPLETE`である。

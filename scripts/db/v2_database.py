@@ -28,6 +28,7 @@ REQUIRED_ENV_KEYS = {
     "COMPOSE_PROJECT_NAME",
     "V2_APP_ENV",
     "V2_APP_KEY",
+    "V2_AUDIT_HMAC_KEY",
     "V2_DB_HOST",
     "V2_DB_PORT",
     "V2_DB_DATABASE",
@@ -44,7 +45,10 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.admin_totp_methods",
     "public.admin_webauthn_credentials",
     "public.admins",
+    "public.audit_daily_digests",
+    "public.audit_logs",
     "public.migrations",
+    "public.outbox_messages",
     "public.user_email_verifications",
     "public.user_remember_devices",
     "public.user_sessions",
@@ -169,6 +173,16 @@ def validate_values(values: dict[str, str], project: str) -> None:
         raise GuardFailure("V2 Application key format is invalid") from error
     if len(decoded) != 32:
         raise GuardFailure("V2 Application key length is invalid")
+    if not values["V2_AUDIT_HMAC_KEY"].startswith("base64:"):
+        raise GuardFailure("V2 Audit HMAC key format is invalid")
+    try:
+        audit_key = base64.b64decode(
+            values["V2_AUDIT_HMAC_KEY"][7:], validate=True
+        )
+    except ValueError as error:
+        raise GuardFailure("V2 Audit HMAC key format is invalid") from error
+    if len(audit_key) < 32:
+        raise GuardFailure("V2 Audit HMAC key length is invalid")
 
 
 def compose_command(
@@ -433,6 +447,8 @@ def create_env_file(path: Path, project: str, environment: str, suffix: str) -> 
         "COMPOSE_PROJECT_NAME": project,
         "V2_APP_ENV": environment,
         "V2_APP_KEY": "base64:" + base64.b64encode(secrets.token_bytes(32)).decode(),
+        "V2_AUDIT_HMAC_KEY": "base64:"
+        + base64.b64encode(secrets.token_bytes(32)).decode(),
         "V2_DB_HOST": "postgres",
         "V2_DB_PORT": "5432",
         "V2_DB_DATABASE": f"oripa_v2_{database_suffix}",

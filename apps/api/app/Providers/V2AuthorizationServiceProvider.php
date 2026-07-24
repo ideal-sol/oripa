@@ -3,16 +3,16 @@
 namespace App\Providers;
 
 use App\Auth\V2RealmSessionGuard;
+use App\Domain\Audit\V2\Services\V2PersistentSecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
-use App\Domain\Identity\Services\V2DeferredSecurityEventSink;
-use App\Domain\Identity\Services\V2MailEmailVerificationNotifier;
 use App\Domain\Identity\Services\V2MfaPolicy;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
 use App\Domain\Identity\Services\V2RealmBoundary;
 use App\Domain\Identity\Services\V2SessionPolicy;
+use App\Domain\Outbox\Services\V2OutboxEmailVerificationNotifier;
 use App\Models\V2\Admin;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -30,11 +30,11 @@ final class V2AuthorizationServiceProvider extends ServiceProvider
         $this->app->singleton(V2SessionPolicy::class);
         $this->app->bind(
             V2EmailVerificationNotifier::class,
-            V2MailEmailVerificationNotifier::class
+            V2OutboxEmailVerificationNotifier::class
         );
         $this->app->bind(
             V2SecurityEventSink::class,
-            V2DeferredSecurityEventSink::class
+            V2PersistentSecurityEventSink::class
         );
     }
 

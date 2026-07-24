@@ -140,6 +140,7 @@ services:
       DB_USERNAME: ${V2_DB_USERNAME:?required}
       DB_PASSWORD: ${V2_DB_PASSWORD:?required}
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
+      V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?required}
   admin:
     image: admin
   postgres:
@@ -173,6 +174,8 @@ V1_MIGRATION_PATH = "apps/api/database/migrations"
 # V1 Compose Project is prohibited
 # V1 Migration Path is prohibited
 # Unexpected Database or Redis Host
+# "V2_AUDIT_HMAC_KEY"
+# V2 Audit HMAC key
 # Database and Redis Host Ports are prohibited
 # Refusing to remove an unscoped Volume
 """,
@@ -271,6 +274,7 @@ python3 scripts/db/v2_database.py smoke \\
             "openapi/bundled/public.openapi.json",
             "openapi/bundled/admin.openapi.json",
             "scripts/db/v2_database.py",
+            "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -312,6 +316,58 @@ python3 scripts/db/v2_database.py smoke \\
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
                 policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def copy_v2_audit_outbox_boundary(self, root):
+        paths = set(policy_gate.V2_AUDIT_OUTBOX_REQUIRED_FILES)
+        supporting = {
+            "apps/api/app/Providers/V2AuthorizationServiceProvider.php",
+            "docker-compose.v2.yml",
+            "scripts/db/v2_database.py",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_audit_outbox_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_audit_outbox_boundary(root)
+            policy_gate.validate_v2_audit_outbox_boundary(root, paths)
+
+    def test_v2_audit_outbox_missing_hmac_boundary_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_audit_outbox_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "V2_AUDIT_HMAC_KEY", "REMOVED_AUDIT_KEY"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "HMAC"):
+                policy_gate.validate_v2_audit_outbox_boundary(root, paths)
+
+    def test_v2_audit_outbox_mutation_guard_missing_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_audit_outbox_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_24_000005_create_v2_audit_outbox_foundation.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8").replace(
+                    "BEFORE TRUNCATE", "REMOVED TRUNCATE GUARD"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "BEFORE TRUNCATE"):
+                policy_gate.validate_v2_audit_outbox_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)

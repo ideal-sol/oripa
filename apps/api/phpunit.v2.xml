@@ -18,6 +18,7 @@
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
         <server name="APP_ENV" value="testing" force="true"/>
+        <env name="V2_AUDIT_HMAC_KEY" value="base64:QXVkaXRUZXN0S2V5Rm9yT25seVYyVGVzdHMyMDI2ISE=" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>

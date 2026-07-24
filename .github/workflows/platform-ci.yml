@@ -215,6 +215,7 @@ jobs:
       APP_ENV: testing
       APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       APP_DEBUG: "false"
+      V2_AUDIT_HMAC_KEY: base64:QXVkaXRUZXN0S2V5Rm9yT25seVYyVGVzdHMyMDI2ISE=
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: "5432"
@@ -327,9 +328,9 @@ jobs:
         run: |
           python3 scripts/db/v2_database.py smoke \
             --repository . \
-            --project-prefix "mig041a-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --project-prefix "mig042-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --migration-path apps/api/database/migrations-v2 \
-            --evidence-dir "$RUNNER_TEMP/mig041a-v2-authentication-evidence"
+            --evidence-dir "$RUNNER_TEMP/mig042-v2-audit-outbox-evidence"
 
       - name: Verify no tracked generated changes
         run: |

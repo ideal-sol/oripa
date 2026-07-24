@@ -75,5 +75,5 @@ return [
         'verification_resend_day' => [10, 86400],
     ],
 
-    'audit_persistence_ready' => false,
+    'audit_persistence_ready' => true,
 ];
