@@ -262,8 +262,11 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
-      - name: Apply migrations to the ephemeral database
-        run: php apps/api/artisan migrate --no-interaction
+      - name: Apply V1 migrations to the isolated legacy test database
+        run: >-
+          php apps/api/artisan migrate
+          --path=database/migrations
+          --no-interaction
 
       - name: Run backend tests against the exact legacy baseline
         run: |
@@ -316,66 +319,17 @@ jobs:
           python3 scripts/ci/quality_gate.py --repository .
           pnpm openapi:check
           docker compose config --quiet
-          docker compose -f docker-compose.v2.yml config --quiet
 
-      - name: Run ephemeral V2 Skeleton smoke test
+      - name: Validate V2 database guard
+        run: python3 -m unittest discover -s tests/db -p 'test_*.py'
+
+      - name: Run isolated V2 migration and backup restore smoke
         run: |
-          project="mig023-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          compose=(docker compose -p "$project" -f docker-compose.v2.yml)
-          cleanup() {
-            "${compose[@]}" down -v --remove-orphans
-          }
-          diagnostics() {
-            "${compose[@]}" ps >&2
-            "${compose[@]}" logs --no-color --tail 100 |
-              sed 's/^/V2_SMOKE_ERROR_DIAGNOSTIC: /' >&2
-          }
-          wait_for_endpoint() {
-            local service="$1"
-            shift
-            for _ in $(seq 1 60); do
-              if "${compose[@]}" exec -T "$service" "$@"; then
-                return 0
-              fi
-              sleep 5
-            done
-            echo "V2_SMOKE_ERROR_DIAGNOSTIC: endpoint timeout: $service" >&2
-            diagnostics
-            return 1
-          }
-          trap cleanup EXIT
-          COMPOSE_BAKE=false "${compose[@]}" up --build -d
-          wait_for_endpoint api \
-            curl --fail --silent http://localhost:8000/api/health \
-            > "$RUNNER_TEMP/v2-api-health.json"
-          wait_for_endpoint admin \
-            wget --quiet --output-document=- http://127.0.0.1:3000/api/health \
-            > "$RUNNER_TEMP/v2-admin-health.json"
-          for service in api admin postgres redis; do
-            container="$("${compose[@]}" ps -q "$service")"
-            if [ -z "$container" ] ||
-              [ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" != "healthy" ]; then
-              diagnostics
-              exit 1
-            fi
-          done
-          cleanup
-          trap - EXIT
-          if docker ps -a --filter "label=com.docker.compose.project=$project" \
-            --format '{{.ID}}' | grep -q .; then
-            echo "V2 Skeleton container cleanup failed"
-            exit 1
-          fi
-          if docker network ls --filter "label=com.docker.compose.project=$project" \
-            --format '{{.ID}}' | grep -q .; then
-            echo "V2 Skeleton network cleanup failed"
-            exit 1
-          fi
-          if docker volume ls --filter "label=com.docker.compose.project=$project" \
-            --format '{{.Name}}' | grep -q .; then
-            echo "V2 Skeleton volume cleanup failed"
-            exit 1
-          fi
+          python3 scripts/db/v2_database.py smoke \
+            --repository . \
+            --project-prefix "mig040-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --migration-path apps/api/database/migrations-v2 \
+            --evidence-dir "$RUNNER_TEMP/mig040-v2-db-evidence"
 
       - name: Verify no tracked generated changes
         run: |

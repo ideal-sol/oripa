@@ -89,6 +89,7 @@ Request ID、Timeout／AbortSignal、Idempotency-Key、RFC 9457 Problem Details�
 ```text
 python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
 python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
+python3 -m unittest discover -s tests/db -p 'test_*.py'
 python3 scripts/ci/quality_gate.py --repository .
 pnpm install --frozen-lockfile
 pnpm openapi:test
@@ -102,7 +103,11 @@ pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 cd legacy/v1-frontend && pnpm --ignore-workspace exec eslint . --format json
 cd apps/api && composer validate --strict --no-check-publish
 docker compose config --quiet
-docker compose -f docker-compose.v2.yml config --quiet
+python3 scripts/db/v2_database.py validate \
+  --repository . \
+  --env-file /etc/oripa-v2/dev.env \
+  --project oripa-v2-dev \
+  --migration-path apps/api/database/migrations-v2
 git diff --check
 ```
 

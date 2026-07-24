@@ -103,6 +103,166 @@ jobs:
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 
+    def make_v2_database_boundary(self, root):
+        migration = root / "apps/api/database/migrations/2026_01_01_000000_v1.php"
+        migration.parent.mkdir(parents=True, exist_ok=True)
+        migration.write_text("<?php return 'v1';\n", encoding="utf-8")
+        v2_root = root / "apps/api/database/migrations-v2"
+        v2_root.mkdir(parents=True)
+        (v2_root / "README.md").write_text(
+            "scripts/db/v2_database.py uses apps/api/database/migrations-v2 "
+            "instead of apps/api/database/migrations in non-Production.\n",
+            encoding="utf-8",
+        )
+        count, checksum = policy_gate.migration_content_set(
+            root, "apps/api/database/migrations"
+        )
+        baseline = root / ".ci/baselines/v1-migrations.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "path": "apps/api/database/migrations",
+                    "file_count": count,
+                    "content_sha256_set": checksum,
+                }
+            ),
+            encoding="utf-8",
+        )
+        compose = root / "docker-compose.v2.yml"
+        compose.write_text(
+            """# This is never a Production deployment.
+services:
+  api:
+    environment:
+      DB_DATABASE: ${V2_DB_DATABASE:?required}
+      DB_USERNAME: ${V2_DB_USERNAME:?required}
+      DB_PASSWORD: ${V2_DB_PASSWORD:?required}
+      REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
+  admin:
+    image: admin
+  postgres:
+    image: postgres:17-alpine
+    volumes:
+      - v2_postgres:/var/lib/postgresql/data
+    networks:
+      - v2_private
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - v2_redis:/data
+    networks:
+      - v2_private
+networks:
+  v2_private:
+    internal: true
+volumes:
+  v2_postgres:
+  v2_redis:
+""",
+            encoding="utf-8",
+        )
+        runner = root / "scripts/db/v2_database.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_text(
+            """
+MIGRATION_PATH = "apps/api/database/migrations-v2"
+V1_MIGRATION_PATH = "apps/api/database/migrations"
+# Production or unexpected environment is prohibited
+# V1 Compose Project is prohibited
+# V1 Migration Path is prohibited
+# Unexpected Database or Redis Host
+# Database and Redis Host Ports are prohibited
+# Refusing to remove an unscoped Volume
+""",
+            encoding="utf-8",
+        )
+        for relative in (
+            "docs/operations/database/README.md",
+            "scripts/db/README.md",
+            "tests/db/test_v2_database.py",
+        ):
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n", encoding="utf-8")
+        workflow = root / ".github/workflows/platform-ci.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text(
+            """
+php apps/api/artisan migrate --path=database/migrations
+python3 -m unittest discover -s tests/db -p 'test_*.py'
+python3 scripts/db/v2_database.py smoke \\
+  --migration-path apps/api/database/migrations-v2
+""",
+            encoding="utf-8",
+        )
+        paths = set(policy_gate.V2_DATABASE_REQUIRED_FILES)
+        paths.update(
+            {
+                "apps/api/database/migrations/2026_01_01_000000_v1.php",
+                ".github/workflows/platform-ci.yml",
+            }
+        )
+        return paths
+
+    def test_v2_database_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v1_migration_change_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            migration = next((root / "apps/api/database/migrations").glob("*.php"))
+            migration.write_text("<?php return 'changed';\n", encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "checksum"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_host_port_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    volumes:\n      - v2_postgres",
+                    "    ports:\n      - 5432:5432\n    volumes:\n      - v2_postgres",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Host Port"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_shared_volume_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "v2_postgres", "oripa_postgres_data"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "missing|prohibited"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8") + "\n# tenant_id\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
         for relative in paths:

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "path": "apps/api/database/migrations",
+  "file_pattern": "*.php",
+  "file_count": 40,
+  "content_sha256_set": "a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33",
+  "algorithm": "sha256(sorted(sha256(file_content)))"
+}

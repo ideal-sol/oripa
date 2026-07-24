@@ -45,10 +45,12 @@ MIG-020で確立するRepository Skeletonの運用正本。ApplicationやPackage
 ## Compose Boundary
 
 - `docker-compose.yml`はV1 Behavioral Referenceを非Productionで起動する正本。
-- `docker-compose.v2.yml`はV2 API／Admin／PostgreSQL／Redisの構造Smoke専用。
+- `docker-compose.v2.yml`はV2 API／Admin／PostgreSQL／Redisの開発・検証専用。
 - V2 ComposeとRoot Build Contextへ`legacy/v1-frontend`を含めない。
-- Compose Project名でNetwork／VolumeをTaskごとに分離し、検証後は
-  `docker compose down -v`で破棄する。
+- Persistent開発環境はCompose Project `oripa-v2-dev`、CIはTask固有
+  `mig040-v2-*`を使用し、V1 Project `oripa`と分離する。
+- Ephemeral検証後はGuarded RunnerがTask Projectを停止し、同一Project Labelの
+  Volumeだけを明示削除する。Global Pruneや未限定のVolume削除は行わない。
 
 ## Migration Boundary
 
@@ -58,3 +60,8 @@ MoveとBehavior変更を分離し、同一内容を旧PathとV2 Pathへ重複配
 
 `legacy/v1-frontend`はV1 Behavioral Referenceであり、V2 Production Image、
 V2 Runtime Dependency、V2 Admin App、Site Templateへ組み込まない。
+
+MIG-040以降、V1 Migrationは`apps/api/database/migrations`で内容を固定し、
+V2 Migrationは`apps/api/database/migrations-v2`だけを使用する。V2 Commandは
+`scripts/db/v2_database.py`を経由し、Migration Path、非Production Environment、
+V2専用Database／Host／Project／Volumeを実行前に検証する。

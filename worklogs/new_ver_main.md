@@ -2812,3 +2812,132 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   SEV-0／SEV-1なし、Merge Conflictなしを確認後にGitHub AppがSquash Mergeする。
 - Backend／Frontend Runtime Test、Build、Browser／E2E、Migration、DB／Redis操作は
   Documentation-only Taskの対象外として未実行であり、PASSとは記録しない。
+
+## MIG-033A Closeout
+
+- PR `#72` (`https://github.com/ideal-sol/oripa/pull/72`)はMergedで、Final Headは
+  `1727378dffbb20b48580b6a56dcb6e906364e75e`、Squash Commitは
+  `204bafa1e02b5988e586fd4384a3a94064e85fe5`である。
+- Final HeadではRequired 5 Check、CodeQL、`CodeQL (javascript-typescript)`、
+  Dependency Reviewを含む8 Checkがすべて成功した。
+- Fresh Self-reviewはPR `#72`のComment
+  `https://github.com/ideal-sol/oripa/pull/72#issuecomment-5066619977`に存在し、
+  SEV-0／SEV-1は0件、Merge Recommendationは`MERGE`である。
+- Issue `#71`はClosedで、Remote／Local Branch
+  `docs/MIG-033A-storefront-testkit-closeout`と専用WorktreeはCleanup済みである。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanだった。
+- MIG-033Aの実施とCloseoutではApplication、Package、OpenAPI、CI、Migration、
+  V1 Runtime、V1／V2 DB／Redisを変更していない。
+
+## MIG-040 V2専用DB Baseline
+
+### Task／Inventory
+
+- 実施開始: `2026-07-24T06:29:36Z`
+- Task ID: `MIG-040`
+- Risk: `R3`
+- Issue: `#73` (`https://github.com/ideal-sol/oripa/issues/73`)
+- Branch: `migration/MIG-040-v2-db-baseline`
+- Worktree: `/var/www/oripa-worktrees/MIG-040-v2-db-baseline`
+- Base SHA: `204bafa1e02b5988e586fd4384a3a94064e85fe5`
+- V1 Migration Root `apps/api/database/migrations`は40 Fileで、Pathに依存しない
+  内容SHA-256 Setは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  である。本文、File名、Modeを変更していない。
+- 稼働中V1 RuntimeはCompose Project `oripa`、固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanであり、V1 PostgreSQL、
+  Redis、Network、Volume、Nginx、Public／Admin Domainを変更していない。
+
+### Migration Boundary／Guard
+
+- V2専用Migration Rootを`apps/api/database/migrations-v2`へ作成した。
+  MIG-040ではBusiness Migrationを追加せず、Laravel標準`migrations` Repository
+  Tableだけを独立V2 DBへ作成する。
+- V2 Migration Setは0 File、SHA-256は
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+  である。
+- `scripts/db/v2_database.py`を唯一のV2 DB Runnerとし、Migration Path明示、
+  `APP_ENV`、DB名、DB／Redis Host、Compose Project、Volume Namespace、
+  Env FileのOwner／Mode／Symlink、Credential Fieldを実行前に検査する。
+- Production、V1 DB名、V1 Migration Path、Path未指定、V1 Compose Project、
+  想定外DB／Redis Host、共有Volume、Host Port公開、Group／Other Readable Env、
+  Symlink Env、Production Credential Path、追加Credential Fieldを拒否する。
+- RunnerはRollback、Seed、V1 Migration、任意CommandのPass-throughを提供しない。
+  ErrorへPassword、接続文字列、Secretを含めない。
+- V1 Migration 40件の内容Checksum、V2 Path、Compose分離、`tenant_id`禁止、
+  Host Port禁止、Secret非固定、Guard／CI接続を`policy-gate`で継続検査する。
+
+### Persistent V2 Development
+
+- Persistent Compose Projectは`oripa-v2-dev`である。
+- PostgreSQLは`postgres:17-alpine`、Redisは`redis:7-alpine`を使用する。
+- Networkは`oripa-v2-dev_v2_private`、PostgreSQL Volumeは
+  `oripa-v2-dev_v2_postgres`、Redis Volumeは`oripa-v2-dev_v2_redis`であり、
+  V1 Project `oripa`のResourceと共有していない。
+- PostgreSQL／RedisのHost Portは公開していない。固定Container名と
+  `tenant_id`方式を使用していない。
+- Secret FileはRepository外`/etc/oripa-v2/dev.env`で、Ownerは`root:root`、
+  Directory Modeは`700`、File Modeは`600`、非Symlinkである。値は表示、
+  Worklog記録、Commit、Command引数への展開を行っていない。
+- V2 PostgreSQL／Redisだけを長期Serviceとして起動し、両方のHealthはPASSした。
+  Migration用API Containerはone-shotで実行後に削除した。
+- V2専用Pathで`migrate:fresh`を2回実行し、Migration StatusはPASS、
+  Schema Inventoryは`public.migrations`だけで再現した。V1固有Table、
+  Identity、Admin、Audit、Outbox、Point、Payment Tableは存在しない。
+
+### Ephemeral Backup／Restore
+
+- 2つのTask専用Ephemeral ProjectでPostgreSQL／Redisを分離し、
+  V2専用Pathの`migrate:fresh`を2回実行した。
+- Source／RestoreのSchema Inventoryは`public.migrations`だけで一致した。
+- PostgreSQL 17のRaw Schema Dumpは毎回生成される`\restrict`／`\unrestrict`
+  Nonceだけが異なった。Raw DumpをRepository外Evidenceへ保持し、この2行だけを
+  固定Tokenへ正規化して再比較した。その他のSchema差分はない。
+- 正規化Schema SHA-256はSource／Restoreとも
+  `58e8aba469b229bbabd9005e3fd558aba8927f50bdc4e1ff52fc6655ad4774a0`
+  で一致した。
+- Migration Row SHA-256はSource／Restoreとも
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+  で一致した。
+- Empty V2 Database Backup SHA-256は
+  `c5448a67968e836069b77dac7749769672a1c4617bd812ad7987890ef384a536`
+  で、別Ephemeral PostgreSQLへのRestoreはPASSした。
+- API／Admin Health、PostgreSQL／Redis HealthはPASSした。
+- Source／RestoreのContainer、Network、VolumeはTask Project Labelで限定して
+  Cleanupし、残存Resourceは0件である。`docker compose down -v`、Global Prune、
+  未限定Volume削除は実行していない。
+- EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-040-v2-db-baseline-20260724T062133Z/`
+  に保存し、Directory Mode `700`、File Mode `600`とした。実PIIとV1 Dataは
+  含まない。
+
+### CI／Verification／Scope
+
+- `integration-gate`はV1 Characterization用Migrationへ
+  `--path=database/migrations`を明示し、別のTask専用V2 ProjectでGuard Unit Test、
+  V2 `migrate:fresh`、Status、Schema Inventory、Migration Checksum、
+  Backup／Restore、API／Admin Health、Cleanupを実行する。
+- 既存Check名`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`は変更していない。
+- Local Migration Guard Unit Test 13件、Policy Unit Test 43件、
+  Quality Unit Test 5件、Security Unit Test 4件、Local `policy-gate`、
+  `quality-gate`、Compose Config、`git diff --check`はPASSした。
+- Root Workspace Auditは0 Findingである。Legacy Frontend 13件とComposer
+  10件は既存期限付きBaselineと完全一致し、新規Finding／Severity悪化はない。
+- OpenAPI 3 Contract／Bundle、Storefront Client Unit Test 9件、Site Schema
+  Unit Test 10件、Storefront Testkit Unit Test 16件、Admin
+  Typecheck／Lint／Build、Legacy Frontend TypecheckはPASSした。
+- Full Backend Test、Legacy Frontend Build／Lint、Browser／E2EはLocalでは
+  未実行であり、PASSとは記録しない。Full Backend TestとLegacy Buildは
+  GitHub `integration-gate`で既存Baselineに対して実行する。
+- V1本番DB／Redis／Storageへの接続、Migration、Rollback、Seed、
+  `migrate:fresh`は実行していない。Production DB／Secretを作成していない。
+- Identity／Admin Realm、Constraint、Audit／Outbox、Point／Payment Table、
+  OpenAPI、Storefront Package、Application Business Logicを変更していない。
+- V1 Archive BranchとAnnotated Tagは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のままである。
+- Gate G3はV2専用DB／Redis分離、V2 Migration Path、`migrate:fresh`、
+  Migration Checksum、初回Backup／Restoreまで完了した。
+- User／Admin Realm、Constraint Test、Point／Payment基礎Table、Audit／Outbox、
+  初回`2.0.0-alpha.1` Artifactが残るためGate G3は`NOT COMPLETE`である。
+- 次Task候補は`MIG-041 Identity／Admin Realm`だが、MIG-040完了後には開始しない。
