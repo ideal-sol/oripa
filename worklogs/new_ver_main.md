@@ -2313,6 +2313,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Worktree: `/var/www/oripa-worktrees/MIG-031A-worklog-closeout`
 - 最新Base SHAはSEC-002 Squash Commit `09d4b5b196ce842e39319f5ebe1ac9db31d4da74`である。
 - 既存Task Branchへ最新`main`を通常Mergeし、Worklog競合では正しいMIG-031 CloseoutとSEC-002本文／Closeoutを保持し、誤ったMIG-030重複記録だけを削除した。
+- 通常Merge Commitは`9f7a89e0070505cc76f8a4b933c35c57e2acb598`で、Parentは既存Task Head `7e1c8bbebe8780adc8534b8f4d90e807b6d4efa4`と最新`main` `09d4b5b196ce842e39319f5ebe1ac9db31d4da74`である。
+- GitHub App Wrapperで通常Merge Commitを既存Remote BranchへFast-forward Pushし、Force Pushや履歴書換えは行っていない。
+- MIG-031A Task PolicyはBase SHAを最新`main`へ更新し、最終Allowed Pathを`worklogs/new_ver_main.md` 1件へ固定した。
+- PR `#60`のPostCSS Security Blocked記録はSEC-002完了結果に基づき解消済みへ更新し、本追記のFinal Headで全Checkを再実行する。
 - Repository変更差分は`worklogs/new_ver_main.md`だけに限定し、Application、OpenAPI、Package、CI、Dependency、Lockfile、Migration、Rulesetは変更しない。
 - Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認後にPR `#60`を自律Squash Mergeする。
 - Gate G3は`NOT COMPLETE`で、次Task候補は`MIG-032`だがMIG-031A完了後には開始しない。
