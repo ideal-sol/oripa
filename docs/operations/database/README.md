@@ -2,14 +2,15 @@
 
 ## Status
 
-MIG-040 establishes a non-Production PostgreSQL／Redis boundary. It does not
-create Identity, Admin, Audit, Outbox, Point, Payment, or other business tables.
+MIG-040 establishes a non-Production PostgreSQL／Redis boundary. MIG-041 adds
+the V2 Identity／Admin Realm foundation only. Audit, Outbox, Point, Payment,
+Draw, and other business tables are not part of this baseline.
 
 ## Isolation
 
 - V1 Production continues in Compose Project `oripa`.
 - Persistent V2 development uses Compose Project `oripa-v2-dev`.
-- CI uses unique `mig040-v2-*` projects.
+- CI uses unique Task-scoped `migNNN-v2-*` projects.
 - PostgreSQL 17 and Redis 7 use V2-only Network and Volume resources.
 - PostgreSQL and Redis publish no Host Port.
 - V2 uses a distinct database name, user, password, Redis password, and
@@ -34,8 +35,16 @@ must use the guarded runner and pass that path explicitly. The runner rejects:
 - a PostgreSQL／Redis Host outside the V2 Compose Network;
 - an Env File that is a Symlink or readable by Group／Other.
 
-Laravel's standard `migrations` repository table is the only table created by
-MIG-040. No speculative schema-version or business table is added.
+MIG-041 creates `users`, `admins`, Realm-separated Session tables, User remember
+devices, and Admin WebAuthn／TOTP／Recovery Code storage. The two Realm tables,
+Providers, Guards, Cookie names, and Session policies are separate. No
+`tenant_id`, speculative schema-version table, Audit, Outbox, Point, or Payment
+table is added.
+
+Verified User Email is protected by a partial Unique Index while Pending Email
+may repeat. Admin Email is Unique inside the Admin Realm. Account State, fixed
+Admin Role, Argon2id Hash format, Session Hash format, remember-device lifetime,
+and MFA storage format are protected by PostgreSQL Constraints.
 
 ## Local Development
 
@@ -59,14 +68,15 @@ python3 scripts/db/v2_database.py persistent \
 ```
 
 The persistent command starts only V2 PostgreSQL／Redis as long-lived services.
-The API migration container is one-shot and removed after execution.
+The API migration／Identity Test container is one-shot and removed after
+execution.
 
 ## Ephemeral Verification
 
 `smoke` generates two short-lived, non-Production configurations. It applies
-the empty V2 migration root twice, records status and schema inventory, creates
-an empty-database backup, restores it into a second PostgreSQL resource, and
-compares schema and migration checksums.
+the V2 migration root twice, runs `tests/V2`, records status and schema
+inventory, creates a V2 Identity database backup, restores it into a second
+PostgreSQL resource, and compares schema and migration checksums.
 
 Cleanup never uses a global prune or an unscoped Volume deletion. The runner
 stops only its named Task Projects and removes only Volumes carrying the same

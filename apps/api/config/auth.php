@@ -11,12 +11,30 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'v2_user' => [
+            'driver' => 'v2_realm_session',
+            'provider' => 'v2_user',
+            'realm' => 'user',
+        ],
+        'v2_admin' => [
+            'driver' => 'v2_realm_session',
+            'provider' => 'v2_admin',
+            'realm' => 'admin',
+        ],
     ],
 
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
+        ],
+        'v2_user' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\V2\User::class,
+        ],
+        'v2_admin' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\V2\Admin::class,
         ],
     ],
 

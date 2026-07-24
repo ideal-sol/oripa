@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Models\V2;
+
+use Illuminate\Database\Eloquent\Model;
+
+final class UserSession extends Model
+{
+    protected $table = 'user_sessions';
+    protected $primaryKey = 'session_id_hash';
+    public $incrementing = false;
+    public $timestamps = false;
+    protected $keyType = 'string';
+
+    protected $fillable = [
+        'session_id_hash',
+        'user_id',
+        'last_activity_at',
+        'idle_expires_at',
+        'absolute_expires_at',
+        'revoked_at',
+    ];
+
+    protected $hidden = [
+        'session_id_hash',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'created_at' => 'immutable_datetime',
+            'last_activity_at' => 'immutable_datetime',
+            'idle_expires_at' => 'immutable_datetime',
+            'absolute_expires_at' => 'immutable_datetime',
+            'revoked_at' => 'immutable_datetime',
+        ];
+    }
+}

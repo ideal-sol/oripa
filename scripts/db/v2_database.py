@@ -37,6 +37,17 @@ REQUIRED_ENV_KEYS = {
     "V2_REDIS_PORT",
     "V2_REDIS_PASSWORD",
 }
+EXPECTED_V2_SCHEMA_INVENTORY = [
+    "public.admin_recovery_codes",
+    "public.admin_sessions",
+    "public.admin_totp_methods",
+    "public.admin_webauthn_credentials",
+    "public.admins",
+    "public.migrations",
+    "public.user_remember_devices",
+    "public.user_sessions",
+    "public.users",
+]
 
 
 class GuardFailure(RuntimeError):
@@ -112,7 +123,7 @@ def validate_project(project: str) -> None:
     if project == V1_PROJECT or project.startswith("oripa_"):
         raise GuardFailure("V1 Compose Project is prohibited")
     if project != "oripa-v2-dev" and not re.fullmatch(
-        r"mig040-v2-[a-z0-9][a-z0-9-]{5,48}", project
+        r"mig[0-9]{3}[a-z]?-v2-[a-z0-9][a-z0-9-]{5,48}", project
     ):
         raise GuardFailure("Compose Project is outside the V2 allowlist")
 
@@ -325,6 +336,29 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
     )
 
 
+def validate_schema_inventory(inventory: list[str]) -> None:
+    if inventory != EXPECTED_V2_SCHEMA_INVENTORY:
+        raise GuardFailure("Unexpected V2 schema inventory")
+
+
+def run_identity_tests(
+    base: list[str], repository: Path, one_shot: bool
+) -> None:
+    prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
+    run(
+        base
+        + prefix
+        + [
+            "api",
+            "vendor/bin/phpunit",
+            "--configuration",
+            "phpunit.v2.xml",
+        ],
+        cwd=repository,
+        capture=False,
+    )
+
+
 def schema_dump(base: list[str], repository: Path) -> bytes:
     return compose_exec(
         base,
@@ -469,9 +503,9 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
     migrate_fresh(base, repository, one_shot=True)
     migrate_fresh(base, repository, one_shot=True)
     migration_status(base, repository, one_shot=True)
+    run_identity_tests(base, repository, one_shot=True)
     inventory = schema_inventory(base, repository)
-    if inventory != ["public.migrations"]:
-        raise GuardFailure("Unexpected V2 schema inventory")
+    validate_schema_inventory(inventory)
     migration_count, migration_set = migration_checksum(repository)
     evidence = {
         "schema_version": "1.0",
@@ -483,6 +517,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
         "migration_set_sha256": migration_set,
         "migrate_fresh_runs": 2,
         "migration_status": "PASS",
+        "identity_tests": "PASS",
         "schema_inventory": inventory,
         "postgres_health": "PASS",
         "redis_health": "PASS",
@@ -500,7 +535,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     os.chmod(evidence_dir, 0o700)
     source_project = args.project_prefix + "-source"
     restore_project = args.project_prefix + "-restore"
-    with tempfile.TemporaryDirectory(prefix="mig040-v2-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="v2-db-") as temporary:
         temporary_path = Path(temporary)
         source_env = temporary_path / "source.env"
         restore_env = temporary_path / "restore.env"
@@ -538,6 +573,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             migrate_fresh(source_base, repository, one_shot=False)
             migrate_fresh(source_base, repository, one_shot=False)
             migration_status(source_base, repository, one_shot=False)
+            run_identity_tests(source_base, repository, one_shot=False)
             run(
                 source_base
                 + [
@@ -565,13 +601,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 cwd=repository,
             )
             source_inventory = schema_inventory(source_base, repository)
-            if source_inventory != ["public.migrations"]:
-                raise GuardFailure("Unexpected source schema inventory")
+            validate_schema_inventory(source_inventory)
             source_schema_raw = schema_dump(source_base, repository)
             source_schema = normalize_schema_dump(source_schema_raw)
             source_rows = migration_rows(source_base, repository)
             backup = backup_database(source_base, repository)
-            backup_path = evidence_dir / "v2-empty-database.dump"
+            backup_path = evidence_dir / "v2-identity-database.dump"
             backup_path.write_bytes(backup)
             os.chmod(backup_path, 0o600)
 
@@ -609,6 +644,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "migration_set_sha256": migration_set,
                 "migrate_fresh_runs": 2,
                 "migration_status": "PASS",
+                "identity_tests": "PASS",
                 "schema_inventory": source_inventory,
                 "source_schema_sha256": sha256(source_schema),
                 "restore_schema_sha256": sha256(restore_schema),
