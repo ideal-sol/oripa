@@ -2320,3 +2320,145 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Repository変更差分は`worklogs/new_ver_main.md`だけに限定し、Application、OpenAPI、Package、CI、Dependency、Lockfile、Migration、Rulesetは変更しない。
 - Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認後にPR `#60`を自律Squash Mergeする。
 - Gate G3は`NOT COMPLETE`で、次Task候補は`MIG-032`だがMIG-031A完了後には開始しない。
+
+## OPS-001 luxe-pack.biz／admin.luxe-pack.biz V1 Runtime一時復旧
+
+### 実施情報
+
+- 実施日時: `2026-07-24T02:03:12Z`
+- Task ID: `OPS-001`
+- Production障害対応のためGitHub Issue／PR／Commitは作成していない。
+- V2 `main`の履歴は変更せず、V1 Archive Ref
+  `archive/v1-current`の固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`からDetached Worktree
+  `/var/www/oripa-v1-runtime`を作成した。
+- V1 Archive BranchとAnnotated Tagはcheckout、更新、削除していない。
+
+### 障害原因
+
+- DNSはCloudflare Proxyを経由し、Public／Admin DomainのTLS証明書は有効だった。
+- NginxはPublic／Admin Frontendを`127.0.0.1:3000`、Public／Admin APIを
+  `127.0.0.1:8000`へ転送していた。
+- 対応PortのApplication Containerが停止してListenerが存在せず、Nginx Logで
+  Upstream Connection Refusedを確認した。両Domainの502原因は停止中の
+  Frontend／Backend Upstreamだった。
+- systemd、Supervisor、Cronに別のActive Oripa Runtimeはなく、既存の停止済み
+  Docker Compose Project `oripa`がV1 Runtimeの正本だった。
+
+### V1 Runtime
+
+- 固定V1 Source、既存Docker Image、既存`oripa_*` Named Volumeを再利用し、
+  新しいDB／Redis／Storage Volumeは作成していない。
+- 既存Environment Fileは内容を表示・複製せず、Backend／Frontend Containerへ
+  Read-only bindした。Secret、Credential、Environment値はWorklogへ記録していない。
+- Laravel APIはLoopback限定`127.0.0.1:8100`、Next.js Public／Admin Frontendは
+  Loopback限定`127.0.0.1:3100`で起動した。
+- PostgreSQL、Redis、MinIO、Mailpitは内部Networkだけで起動し、Host Portを
+  公開していない。既存Volumeの追加・削除は0件だった。
+- 表示復旧に不要なQueue／Schedulerは起動していない。
+- Build、Migration、Rollback、Seed、DB Data変更は実行していない。
+- Read-onlyのMigration Status確認は成功し、適用済み40件、Pending 0件だった。
+
+### Domain分離／Nginx
+
+- 固定V1 Sourceで、`luxe-pack.biz`はPublic Route、
+  `admin.luxe-pack.biz`はHost判定されたAdmin Routeへ分岐することを確認した。
+- Public API `/api/**`とAdmin API `/admin/api/**`は同じLaravel Process内の
+  分離Routeであり、Admin Routeは認証Middlewareで保護されていることを確認した。
+- NginxのPublic Frontend Upstreamを`127.0.0.1:3100`、Public API Upstreamを
+  `127.0.0.1:8100`へ変更した。
+- Admin Frontend Upstreamを`127.0.0.1:3100`、Admin API Upstreamを
+  `127.0.0.1:8100`へ変更し、Admin Domainへ
+  `X-Robots-Tag: noindex, nofollow, noarchive`を追加した。
+- TLS、Host、Forwarded Header、WebSocket、Upload Size、Timeoutは変更していない。
+- `nginx -t`成功後、NginxだけをReloadした。
+
+### 検証
+
+- Nginx切替前にHost Header付きLocal Upstream検証を行い、Public Top、
+  Public Login、主要Page、Public／Admin Static Asset、Public API Healthが成功した。
+- Admin TopはAdmin Routeへ正常遷移し、未認証Admin APIは401、Admin Loginへの
+  不正なGETは405だった。認証なしの管理情報露出は確認されなかった。
+- Cloudflare経由でPublic Top、Static Asset、Login、主要Page、API Healthは
+  すべて200だった。
+- Cloudflare経由でAdmin Topは正常遷移後200、Static Assetは200、
+  未認証Admin APIは401、`X-Robots-Tag`は有効だった。
+- Origin直結でもPublic／Adminは200で、検証Request中の新規502／504／
+  Upstream Errorは0件だった。
+- Cookie Domain、CORS、CSRF、認証仕様、Production Dataは変更していない。
+
+### Repository／Rollback
+
+- V2 `main`と`origin/main`は
+  `10eeeb8492bbc9290a578aa8b46ebe3d2e395639`のまま変更していない。
+- PR `#60`、V2 File、V2 Worktree、Application Codeは変更していない。本節の
+  Worklog追記だけがLocal Repositoryの未Commit差分である。
+- V2へ戻す場合は、V2 Runtimeを先にHost Header付きでLocal検証し、Nginx
+  Upstreamを検証済みV2 Portへ戻して`nginx -t`後にReloadする。外部検証完了後に
+  V1 Frontend／Backendを停止し、Named Volumeは削除しない。
+- Runtime手順は`/etc/oripa-v1-runtime/README.md`、EvidenceはRepository外の
+  `OPS-001-runtime-recovery-20260724T020312Z` Directoryへ保存した。
+
+### V1／V2 Database分離決定
+
+- 最新の人間決定により、V2はV1本番DBを共有しない。
+- V2専用DB、認証情報、Volume、Schema、Migration履歴をV1から分離する。
+- V2のMigration、`migrate:fresh`、Testは、V2専用DBまたはTask専用Ephemeral DB
+  だけで実行する。
+- V1本番DBではV2 Migration、Rollback、Seed、`migrate:fresh`を実行しない。
+- Runtime境界で必要な場合は、V2 RedisもV1 Redisから分離する。
+- 本決定は境界の正本化であり、OPS-001AではV2 DB／Redisの作成、接続、Migrationを
+  開始しない。
+
+## OPS-001A V1 Runtime復旧記録の正本化
+
+### Task
+
+- 実施開始: `2026-07-24T03:45:31Z`
+- Task ID: `OPS-001A`
+- Risk: `R3`
+- Issue: `#63` (`https://github.com/ideal-sol/oripa/issues/63`)
+- Branch: `docs/OPS-001A-v1-runtime-closeout`
+- Worktree: `/var/www/oripa-worktrees/OPS-001A-v1-runtime-closeout`
+- Base SHA: `10eeeb8492bbc9290a578aa8b46ebe3d2e395639`
+- Allowed Pathは`worklogs/new_ver_main.md`だけである。
+
+### 未Commit差分の保全／反映
+
+- Local `main`に残っていたOPS-001差分を、Repository外の
+  `OPS-001A-worklog-preservation-20260724T034531Z` DirectoryへPatch、全文、
+  OPS-001節、`origin/main`版、SHA-256として保全した。
+- 保全Patchの対象Fileは`worklogs/new_ver_main.md` 1件だけで、Secret scanは
+  PASSした。
+- 最新`origin/main`からRemote Branchと専用Worktreeを作成し、保全Patchを適用した。
+- 元Local差分と専用Worktreeへ適用したOPS-001節のSHA-256は一致した。
+- 内容一致を確認するまで、元のLocal未Commit差分は変更・破棄していない。
+
+### 正本化範囲
+
+- V1 Runtime Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`で、
+  Runtime Worktreeはclean、`luxe-pack.biz`と`admin.luxe-pack.biz`は200である。
+- OPS-001復旧時にV2 Repository履歴は変更しておらず、OPS-001Aでは本Worklogだけを
+  Repository正本へ反映する。
+- OPS-001Aの実施中にNginx、systemd、Docker Production構成、V1本番DB、Redis、
+  Storageを変更していない。
+- Migration、Rollback、Seed、`migrate:fresh`は実行していない。
+- V1 Archive BranchとAnnotated Tagは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更していない。
+- V1 Runtimeを表示したまま、分離されたV2 Runtime／DB境界でV2開発を継続できる。
+- Application、OpenAPI、Package、Dependency、Lockfile、CIは変更していない。
+- MIG-032およびDB構築Taskは開始しない。
+
+### 検証
+
+- `git diff --check`、変更Path 1件、Markdown見出し、Task ID、Full SHA、
+  Secret／PII差分確認はPASSした。
+- Local `policy-gate`と`quality-gate`はPASSした。
+- OpenAPI 4件、Policy 30件、Quality 5件、Security 4件、Site Template 6件の
+  CI Unit TestはPASSした。
+- 保全したOPS-001節と専用Worktree反映後の同節はSHA-256一致である。
+- Backend／Frontend Test、Build、Browser／E2EはWorklog正本化Taskの対象外のため
+  未実行であり、PASSとは記録しない。
+- Migration、Rollback、Seed、`migrate:fresh`、V2 DB／Redis構築は未実行である。
+- Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
+  SEV-0／SEV-1なしを確認してからSquash Mergeする。
