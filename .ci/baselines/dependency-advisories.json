@@ -20,7 +20,6 @@
     {"source":"composer","advisory_id":"PKSA-mnyp-475s-ywph","package":"mtdowling/jmespath.php","version":"2.8.0","severity":"unknown","cve":"CVE-2026-54133"}
   ],
   "pnpm": [
-    {"source":"pnpm","advisory_id":"GHSA-qx2v-qp2m-jg93","audit_id":"1117015","package":"postcss","version":"8.4.31","severity":"moderate","path":".>next>postcss"},
     {"source":"pnpm","advisory_id":"GHSA-3jxr-9vmj-r5cp","audit_id":"1123897","package":"brace-expansion","version":"1.1.15","severity":"high","path":".>eslint>minimatch>brace-expansion"},
     {"source":"pnpm","advisory_id":"GHSA-3jxr-9vmj-r5cp","audit_id":"1123898","package":"brace-expansion","version":"5.0.6","severity":"high","path":".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion"},
     {"source":"pnpm","advisory_id":"GHSA-52cp-r559-cp3m","audit_id":"1123911","package":"js-yaml","version":"4.2.0","severity":"high","path":".>eslint>@eslint/eslintrc>js-yaml"},
