@@ -35,6 +35,32 @@ use App\Http\Controllers\Admin\User\AdminQaTestUserModeController;
 use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\V2\V2AdminAuthController;
+
+Route::prefix('v2/auth')
+    ->middleware('v2.browser:admin')
+    ->group(function (): void {
+        Route::post('/login', [V2AdminAuthController::class, 'login'])
+            ->name('v2.admin.auth.login');
+        Route::post('/mfa/verify', [V2AdminAuthController::class, 'verifyMfa'])
+            ->name('v2.admin.auth.mfa.verify');
+        Route::post('/logout', [V2AdminAuthController::class, 'logout'])
+            ->name('v2.admin.auth.logout');
+        Route::get('/session', [V2AdminAuthController::class, 'session'])
+            ->name('v2.admin.auth.session');
+        Route::post('/mfa/totp', [V2AdminAuthController::class, 'beginTotp'])
+            ->name('v2.admin.auth.mfa.totp.begin');
+        Route::post('/mfa/totp/confirm', [V2AdminAuthController::class, 'confirmTotp'])
+            ->name('v2.admin.auth.mfa.totp.confirm');
+        Route::post('/mfa/webauthn/options', [V2AdminAuthController::class, 'webauthnOptions'])
+            ->name('v2.admin.auth.mfa.webauthn.options');
+        Route::post('/mfa/webauthn', [V2AdminAuthController::class, 'storeWebauthn'])
+            ->name('v2.admin.auth.mfa.webauthn.store');
+        Route::post('/mfa/recovery-codes/regenerate', [
+            V2AdminAuthController::class,
+            'regenerateRecoveryCodes',
+        ])->name('v2.admin.auth.recovery-codes.regenerate');
+    });
 
 Route::post('/login', [AdminAuthController::class, 'login'])->name('admin.api.login');
 

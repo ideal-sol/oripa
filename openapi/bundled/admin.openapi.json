@@ -7,8 +7,8 @@
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
     },
-    "description": "共通管理画面向けAdmin API v2のContract Skeleton。Public APIとは型と認証Realmを 共有せず、業務Endpointは後続のContract-first Taskで追加する。",
-    "x-status": "skeleton"
+    "description": "共通管理画面向けAdmin API v2の認証Contract Alpha。",
+    "x-status": "alpha"
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
@@ -16,8 +16,360 @@
       "url": "/admin/api/v2"
     }
   ],
-  "paths": {},
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "beginAdminLogin",
+        "summary": "Passwordを検証して短時間のMFA Transactionを発行する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "account-ip-5-per-15-minutes-and-ip-20-per-hour",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "MFA検証待ち。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPreauth"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/verify": {
+      "post": {
+        "operationId": "verifyAdminMfa",
+        "summary": "MFAを検証してAdmin Sessionを発行する",
+        "x-idempotency": "one-time-transaction",
+        "x-rate-limit": "transaction-5-per-5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/AuthTransaction"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMfaVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MFA検証済みAdmin Session。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logoutAdmin",
+        "summary": "Admin Sessionを失効する",
+        "x-idempotency": "naturally-idempotent",
+        "x-rate-limit": "session",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sessionを失効した。"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "operationId": "getAdminSession",
+        "summary": "現在のAdmin Sessionを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "session",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {},
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp": {
+      "post": {
+        "operationId": "beginAdminTotpEnrollment",
+        "summary": "TOTP登録を開始する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "auth-transaction",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/AuthTransaction"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "1回限り表示するTOTP登録情報。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrollment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/confirm": {
+      "post": {
+        "operationId": "confirmAdminTotpEnrollment",
+        "summary": "TOTP登録を確認する",
+        "x-idempotency": "one-time-transaction",
+        "x-rate-limit": "auth-transaction",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/AuthTransaction"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "TOTPを登録した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/webauthn/options": {
+      "post": {
+        "operationId": "createAdminWebauthnOptions",
+        "summary": "WebAuthn登録Optionを発行する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "auth-transaction",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/AuthTransaction"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebauthnOptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "5分間有効なWebAuthn登録Option。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebauthnOptions"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/webauthn": {
+      "post": {
+        "operationId": "registerAdminWebauthn",
+        "summary": "WebAuthn Credentialを検証して登録する",
+        "x-idempotency": "one-time-challenge",
+        "x-rate-limit": "auth-transaction",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/AuthTransaction"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebauthnRegistration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Public Key Credentialを登録した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/mfa/recovery-codes/regenerate": {
+      "post": {
+        "operationId": "regenerateAdminRecoveryCodes",
+        "summary": "Recovery Codeを再生成する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "admin-session",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "1回限り表示する10件のRecovery Code。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
   "components": {
+    "securitySchemes": {
+      "adminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-oripa_admin_session"
+      }
+    },
     "schemas": {
       "OpaqueId": {
         "type": "string",
@@ -92,6 +444,336 @@
           }
         }
       },
+      "AdminLoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "invitation_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "AdminPreauth": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "transaction_token",
+          "expires_in",
+          "methods",
+          "webauthn"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "mfa_required"
+          },
+          "transaction_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300
+          },
+          "methods": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "totp",
+                "webauthn",
+                "recovery_code"
+              ]
+            }
+          },
+          "webauthn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WebauthnOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminMfaVerifyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "totp",
+              "webauthn",
+              "recovery_code"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "challenge_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "credential": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AdminIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "role",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "operator"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active"
+            ]
+          },
+          "mfa_verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "authenticated",
+          "admin"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "requires_mfa_enrollment": {
+            "type": "boolean"
+          },
+          "enrollment_transaction_token": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrollment_transaction_expires_in": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admin": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TotpEnrollment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enrollment_token",
+          "secret",
+          "otpauth_uri",
+          "expires_in"
+        ],
+        "properties": {
+          "enrollment_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "writeOnly": true
+          },
+          "otpauth_uri": {
+            "type": "string",
+            "pattern": "^otpauth://totp/",
+            "writeOnly": true
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300
+          }
+        }
+      },
+      "TotpConfirmation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enrollment_token",
+          "code"
+        ],
+        "properties": {
+          "enrollment_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "WebauthnOptionsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "WebauthnOptions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge_token",
+          "options",
+          "expires_in"
+        ],
+        "properties": {
+          "challenge_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300
+          }
+        }
+      },
+      "WebauthnRegistration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge_token",
+          "credential"
+        ],
+        "properties": {
+          "challenge_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "credential": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "RecoveryCodes": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recovery_codes"
+        ],
+        "properties": {
+          "recovery_codes": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "writeOnly": true
+            }
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "registered"
+            ]
+          }
+        }
+      },
       "ValidationErrors": {
         "type": "object",
         "additionalProperties": {
@@ -99,6 +781,26 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "parameters": {
+      "XsrfToken": {
+        "name": "X-XSRF-TOKEN",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "AuthTransaction": {
+        "name": "X-Oripa-Auth-Transaction",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },

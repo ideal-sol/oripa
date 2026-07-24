@@ -306,10 +306,17 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつOperation 0件でFake Operationがない", () => {
+test("Public OpenAPIは3.1.1かつ認証Operation 6件だけである", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 0);
-  assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, []);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 6);
+  assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "getUserSession",
+    "loginUser",
+    "logoutUser",
+    "registerUser",
+    "resendUserEmailVerification",
+    "verifyUserEmail",
+  ]);
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
 });
 

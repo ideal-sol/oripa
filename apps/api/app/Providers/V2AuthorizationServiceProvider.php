@@ -4,6 +4,10 @@ namespace App\Providers;
 
 use App\Auth\V2RealmSessionGuard;
 use App\Domain\Identity\Enums\V2Realm;
+use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
+use App\Domain\Identity\Contracts\V2SecurityEventSink;
+use App\Domain\Identity\Services\V2DeferredSecurityEventSink;
+use App\Domain\Identity\Services\V2MailEmailVerificationNotifier;
 use App\Domain\Identity\Services\V2MfaPolicy;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
@@ -24,6 +28,14 @@ final class V2AuthorizationServiceProvider extends ServiceProvider
         $this->app->singleton(V2PermissionAuthorizer::class);
         $this->app->singleton(V2RealmBoundary::class);
         $this->app->singleton(V2SessionPolicy::class);
+        $this->app->bind(
+            V2EmailVerificationNotifier::class,
+            V2MailEmailVerificationNotifier::class
+        );
+        $this->app->bind(
+            V2SecurityEventSink::class,
+            V2DeferredSecurityEventSink::class
+        );
     }
 
     public function boot(V2PermissionAuthorizer $authorizer): void

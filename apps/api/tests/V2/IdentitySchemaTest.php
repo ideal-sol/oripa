@@ -25,6 +25,8 @@ final class IdentitySchemaTest extends TestCase
     private const TABLES = [
         'users',
         'admins',
+        'user_email_verifications',
+        'admin_invitations',
         'user_sessions',
         'admin_sessions',
         'user_remember_devices',
@@ -50,6 +52,11 @@ final class IdentitySchemaTest extends TestCase
         self::assertTrue(Schema::hasColumn('admin_recovery_codes', 'code_hash'));
         self::assertFalse(Schema::hasColumn('admin_recovery_codes', 'code'));
         self::assertTrue(Schema::hasColumn('admin_webauthn_credentials', 'public_key'));
+        self::assertTrue(Schema::hasColumn('admin_sessions', 'requires_mfa_enrollment'));
+        self::assertTrue(Schema::hasColumn('user_email_verifications', 'token_hash'));
+        self::assertFalse(Schema::hasColumn('user_email_verifications', 'token'));
+        self::assertTrue(Schema::hasColumn('admin_invitations', 'token_hash'));
+        self::assertFalse(Schema::hasColumn('admin_invitations', 'token'));
     }
 
     public function test_pending_user_email_can_repeat_but_verified_email_is_unique(): void

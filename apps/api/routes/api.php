@@ -24,6 +24,28 @@ use App\Http\Controllers\Api\UserPrizeExchangeController;
 use App\Http\Controllers\Api\UserPrizeController;
 use App\Http\Controllers\Api\UserDrawRequestController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\V2\V2PublicAuthController;
+
+Route::prefix('v2/auth')
+    ->middleware('v2.browser:user')
+    ->group(function (): void {
+        Route::post('/register', [V2PublicAuthController::class, 'register'])
+            ->name('v2.public.auth.register');
+        Route::post('/login', [V2PublicAuthController::class, 'login'])
+            ->name('v2.public.auth.login');
+        Route::post('/logout', [V2PublicAuthController::class, 'logout'])
+            ->name('v2.public.auth.logout');
+        Route::post('/email/verification-notification', [
+            V2PublicAuthController::class,
+            'resendVerification',
+        ])->name('v2.public.auth.verification.resend');
+        Route::get('/email/verify/{userId}/{hash}', [V2PublicAuthController::class, 'verify'])
+            ->whereUuid('userId')
+            ->where('hash', '[0-9a-f]{64}')
+            ->name('v2.public.auth.verification.verify');
+        Route::get('/session', [V2PublicAuthController::class, 'session'])
+            ->name('v2.public.auth.session');
+    });
 
 Route::get('/health', HealthController::class)->name('api.health');
 Route::get('/assets/{path}', AssetController::class)->where('path', '.*')->name('api.assets.show');

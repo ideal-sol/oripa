@@ -247,7 +247,7 @@ test("Server ClientはCookie転送とGET／HEADだけを許可する", async () 
   );
 });
 
-test("Package公開面にFake Operation、Admin、Webhook Exportがない", async () => {
+test("Package公開面はPublic AuthだけでAdmin／Webhook Exportがない", async () => {
   const packageJson = JSON.parse(
     await (await import("node:fs/promises")).readFile(
       new URL("../package.json", import.meta.url),
@@ -269,6 +269,15 @@ test("Package公開面にFake Operation、Admin、Webhook Exportがない", asyn
     new URL("../src/generated/public.ts", import.meta.url),
     "utf8",
   );
-  assert.match(generated, /export type paths = Record<string, never>/);
-  assert.match(generated, /export type operations = Record<string, never>/);
+  for (const operationId of [
+    "registerUser",
+    "loginUser",
+    "logoutUser",
+    "resendUserEmailVerification",
+    "verifyUserEmail",
+    "getUserSession",
+  ]) {
+    assert.match(generated, new RegExp(operationId));
+  }
+  assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
 });

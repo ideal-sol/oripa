@@ -3122,3 +3122,150 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Final Head固定後にFresh Self-review、SEV-0／SEV-1なし、
   Merge Conflictなし、Head SHA不変を確認し、CheckをBypassせず
   GitHub AppがSquash Mergeする。
+
+## MIG-041 Closeout
+
+- PR `#76`はMerged、Issue `#75`はClosedである。
+- Task Final Headは`3d3db56ad244a3e06c6b4fa290a2006ef6ef0503`、Squash Commitは
+  `2a40029f01204ee5b7804414a5c6c207357780b4`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。
+- Final Head固定後のFresh Self-reviewでSEV-0／SEV-1は0件だった。
+- Remote Branchは削除済みで、Local BranchとWorktreeはMerge後Treeとの一致確認後に
+  Cleanupした。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanである。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Archive Branch／Annotated Tagを
+  変更していない。
+
+## MIG-041A User／Admin Authentication Flow・Admin MFA Enrollment
+
+### Task／Scope
+
+- Task ID: `MIG-041A`
+- Risk: `R3`
+- Issue: `#77` (`https://github.com/ideal-sol/oripa/issues/77`)
+- Branch: `feat/MIG-041A-authentication-mfa-flow`
+- Worktree: `/var/www/oripa-worktrees/MIG-041A-authentication-mfa-flow`
+- Base SHA: `2a40029f01204ee5b7804414a5c6c207357780b4`
+- Contract-first順序でPublic Auth 6 Operation、Admin Auth 9 Operation、
+  Generated Public Types、Laravel Flow、Feature／Integration Testを追加した。
+- Password Reset、OAuth／Google／LINE、User MFA、Admin UI、Admin Role管理、
+  Audit／Outbox Table、Point／Payment／Draw／Probabilityは実装していない。
+
+### OpenAPI／Generated Client
+
+- Public Contractへ`registerUser`、`loginUser`、`logoutUser`、
+  `resendUserEmailVerification`、`verifyUserEmail`、`getUserSession`を追加した。
+- Admin ContractへPassword Pre-auth、MFA Verify、Logout、Session、TOTP登録／確認、
+  WebAuthn Options／登録、Recovery Code再生成の9 Operationを追加した。
+- Public／Admin BundleはOpenAPI 3.1.1、JSON Schema Draft 2020-12でLint／Bundleに
+  成功し、Committed Bundleとの差分はない。
+- `@oripa/storefront-client`のPublic TypesはPublic Bundleから決定的に再生成した。
+  Admin／Webhook Operationおよび型はExportしていない。
+- `@oripa/storefront-testkit`のContract FixtureはPublic Auth 6 Operationへ更新し、
+  架空業務Operationを追加していない。
+
+### User Authentication
+
+- User登録は既存`V2PasswordPolicy`を使用し、`pending_verification`で作成する。
+  同じ未検証Emailは複数登録できる。
+- `user_email_verifications`はCSPRNG TokenのSHA-256 Hash、Relative Redirect、
+  60分期限、使用／失効日時だけを保存する。再送時は旧Tokenを失効する。
+- VerificationはNormalized Email単位のPostgreSQL Advisory LockとVerified Emailの
+  Partial Unique Indexを使用し、同時成功を1 Accountに限定する。
+- LoginはVerified Emailと`active`／`restricted`だけを許可し、失敗時はAccount存在を
+  開示しない`INVALID_CREDENTIALS`を返す。
+- Login／Verification成功時は新しいUser SessionをHash保存し、Logout時はServer
+  Sessionを失効、CookieとCSRF Tokenを更新する。
+
+### Admin Authentication／MFA
+
+- Admin Password成功は5分・1回限りの暗号化Pre-auth Transactionだけを発行し、
+  MFA成功前に`admin_sessions`を作成しない。
+- Initial OwnerはConsole Command
+  `v2:identity:create-owner-invitation`だけからInvitationを作成する。TokenはHash保存、
+  30分、1回限りで、Web Endpointはない。
+- TOTPは`spomky-labs/otphp` `11.5.0`を使用し、6桁、30秒、前後1 Step、同一Step
+  Replay拒否を実装した。SecretはApplication-level Encryptionで保存し、Confirm前は
+  Authenticator数へ含めない。
+- WebAuthnは`web-auth/webauthn-lib` `5.3.5`を使用し、Admin Domain固定RP ID、
+  Exact Origin、`userVerification=required`、Attestation `none`、5分・1回限り
+  Challenge、Credential ID Unique、Counter更新を実装した。Public Key以外の秘密情報を
+  永続化しない。
+- Recovery Codeは128bit以上を10件生成し、SHA-256 Hashだけを保存する。再生成で旧Codeを
+  全失効し、1回使用後のSessionは`requires_mfa_enrollment`により通常Admin Accessを
+  拒否する。Recovery Code使用後だけ5分の専用Enrollment Transactionを発行し、
+  PasswordだけのActive Admin Pre-authからのMFA追加を拒否する。Recovery Codeは
+  Authenticator数へ含めない。
+- OwnerはAuthenticator 2つ以上かつWebAuthn 1つ以上、Admin／OperatorはWebAuthnまたは
+  TOTP 1つ以上を要求する。SMS／Email OTP／Security Questionは追加していない。
+
+### Browser／Security Boundary
+
+- User／AdminはSession Table、Session Cookie、CSRF Cookie、SameSite、Originを共有しない。
+- Unsafe MethodはJSON、CSRF Double Submit、Exact OriginまたはReferer fallbackを要求し、
+  `Sec-Fetch-Site: cross-site`を拒否する。
+- User Login、Admin Login、MFA、Register、Verification ResendのRate LimitをConfigへ
+  固定し、EmailはApplication KeyによるHMACだけをRate Limit Keyへ使用する。
+- Critical Rate Limiterと認証Transaction Storeは利用不能時にFail Closedとなる。
+- `V2SecurityEventSink`はRegister、Verification、Login、Logout、MFA Enrollment／結果、
+  Recovery Code使用の境界を提供する。Password、Token、Session ID、MFA Secret、
+  Recovery Code、Full EmailをEventへ含めない。
+- MIG-042の永続Audit接続前であるため、Production Deploymentは禁止である。
+
+### Migration／DB Verification
+
+- V1 Migrationは40件、内容SHA-256 Set
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  のままで、編集、改名、削除していない。
+- V2 Migrationは`user_email_verifications`、`admin_invitations`、
+  `admin_sessions.requires_mfa_enrollment`を追加した4件で、内容SHA-256 Setは
+  `fccc5f42648f49eb0067d3e0e990411d11cbea4e1abc230be0efb53f64f5b237`
+  である。
+- Task専用PostgreSQL 17／Redis 7でV2 Migration Pathの`migrate:fresh`を2回実行し、
+  Migration Statusと11 TableのSchema Inventoryは一致した。V1固有Table、
+  `tenant_id`、Audit／Outbox、Point／Payment Tableは存在しない。
+- PHP 8.4上のV2 Testは37件、237 Assertionが2回連続で成功した。
+  `phpunit.v2.xml`はTest専用`array` Cacheを強制し、Compose RedisにRate Limit状態を
+  残さない。
+- Source／Restore Schema SHA-256は
+  `0f7ebb547ae6dd424630735c0008e84cf1e573c9cc7a097d37df4661595177cb`、
+  Migration Row SHA-256は
+  `bf356fd02f6eaea61825a59b51e9775a06b90bc640056a69cdc26f9f41193c4d`
+  で一致した。Backup SHA-256は
+  `826fd8775c4cc4513e4b86ead91ebe2b35ba6790f3dc61aa76593cdbf8c50ad9`
+  である。
+- EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-041A-local-final4/`に保存した。
+  Secret、実PII、V1 Dataを含まない。
+
+### Local Verification／Gate
+
+- Composer Manifest／Lock、PHP Syntax、OpenAPI Lint／Bundle、Generated Client、
+  Storefront Client Test 9件、Site Schema Test 10件、Storefront Testkit Test 16件、
+  Policy Unit Test 46件、Quality Unit Test 5件、Security Unit Test 4件、DB Guard Unit
+  Test 14件、OpenAPI Unit Test 4件、Site Template Unit Test 6件はPASSした。
+- Admin Typecheck／Lint／Build、Legacy Frontend Typecheck／Build、既存Lint Baseline、
+  `quality-gate`、`security-gate`はPASSした。Root Auditは0 Findingで、Legacy
+  Frontend 13 FindingとComposer 10 Advisoryは既存期限付きBaselineと一致し、
+  Secret Candidateは0件である。
+- Local `policy-gate`は全変更を明示StageしたFinal Scopeで実行する。Required 5 Check、
+  CodeQL、`CodeQL (javascript-typescript)`、Dependency ReviewはGitHub PRの固定Headで
+  実行する。
+- V1 Runtime Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`でclean、
+  Public／Admin Runtime、Nginx、V1本番DB／Redis／Storageを変更していない。
+- Gate G3はIdentity RealmとAuthentication Flowまで進んだが、Audit／Outbox、
+  Point／Payment基礎Table、初回`2.0.0-alpha.1` Artifactが残るため
+  `NOT COMPLETE`である。
+- 次Task候補は`MIG-042 Audit／Outbox`だが、MIG-041A完了後には開始しない。
+
+### GitHub Check再実行
+
+- PR `#78`の初回`policy-gate`は、実装ではなくPR本文の必須見出しと
+  `Allowed paths`／`Changed files` Section構造の不足により失敗した。
+- PR本文を既存Policyが要求するTemplate構造へ修正し、実変更56 Pathとの完全一致を
+  GitHub APIとLocal Diffの両方で確認した。Gate、Assertion、Allowed Pathは
+  弱めていない。
+- 同一Headの再実行では過去の失敗／cancelled Check Runが厳格なWrapper集計へ残るため、
+  履歴書換えやForce Pushを行わず、本Worklog追記を通常Commitとして追加した新Headで
+  Required／Available Checkを再実行する。

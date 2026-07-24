@@ -55,6 +55,6 @@
     "family": 2,
     "storefrontClientVersion": "2.0.0-alpha.1",
     "siteSchemaVersion": "2.0.0-alpha.1",
-    "publicApiOperationCount": 0
+    "publicApiOperationCount": 6
   }
 }
