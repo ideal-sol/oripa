@@ -30,6 +30,8 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "V2_APP_ENV": "local",
             "V2_APP_KEY": "base64:"
             + base64.b64encode(bytes(range(32))).decode(),
+            "V2_AUDIT_HMAC_KEY": "base64:"
+            + base64.b64encode(bytes(reversed(range(32)))).decode(),
             "V2_DB_HOST": "postgres",
             "V2_DB_PORT": "5432",
             "V2_DB_DATABASE": "oripa_v2_dev",
@@ -82,6 +84,11 @@ class V2DatabaseGuardTest(unittest.TestCase):
     def test_unexpected_database_host_is_rejected(self):
         self.values["V2_DB_HOST"] = "127.0.0.1"
         with self.assertRaisesRegex(v2_database.GuardFailure, "Unexpected Database"):
+            v2_database.validate_values(self.values, "oripa-v2-dev")
+
+    def test_short_audit_hmac_key_is_rejected(self):
+        self.values["V2_AUDIT_HMAC_KEY"] = "base64:" + base64.b64encode(b"short").decode()
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Audit HMAC key"):
             v2_database.validate_values(self.values, "oripa-v2-dev")
 
     def test_shared_redis_host_is_rejected(self):

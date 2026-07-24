@@ -442,18 +442,20 @@ final class AuthenticationFlowTest extends TestCase
 
 final class CapturingEmailNotifier implements V2EmailVerificationNotifier
 {
-    /** @var list<array{user_id: string, token: string, redirect_path: string}> */
+    /** @var list<array{user_id: string, token: string, redirect_path: string, deduplication_key: string}> */
     public array $messages = [];
 
     public function send(
         User $user,
         #[SensitiveParameter] string $token,
-        string $redirectPath
+        string $redirectPath,
+        string $deduplicationKey
     ): void {
         $this->messages[] = [
             'user_id' => $user->public_id,
             'token' => $token,
             'redirect_path' => $redirectPath,
+            'deduplication_key' => $deduplicationKey,
         ];
     }
 }

@@ -12,7 +12,8 @@ final class V2MailEmailVerificationNotifier implements V2EmailVerificationNotifi
     public function send(
         User $user,
         #[SensitiveParameter] string $token,
-        string $redirectPath
+        string $redirectPath,
+        string $deduplicationKey
     ): void {
         $path = '/api/v2/auth/email/verify/'.$user->public_id.'/'.$token
             .'?redirect='.rawurlencode($redirectPath);

@@ -10,6 +10,7 @@ interface V2EmailVerificationNotifier
     public function send(
         User $user,
         #[SensitiveParameter] string $token,
-        string $redirectPath
+        string $redirectPath,
+        string $deduplicationKey
     ): void;
 }

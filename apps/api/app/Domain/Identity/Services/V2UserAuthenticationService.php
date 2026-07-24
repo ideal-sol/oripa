@@ -48,12 +48,12 @@ final class V2UserAuthenticationService
             );
         }
 
-        [$user, $rawToken] = DB::transaction(function () use (
+        $user = DB::transaction(function () use (
             $email,
             $normalized,
             $passwordHash,
             $redirectPath
-        ): array {
+        ): User {
             $user = User::query()->create([
                 'email_display' => trim($email),
                 'email_normalized' => $normalized,
@@ -61,7 +61,7 @@ final class V2UserAuthenticationService
                 'state' => V2UserState::PendingVerification,
             ]);
             $rawToken = $this->tokens->generate();
-            UserEmailVerification::query()->create([
+            $verification = UserEmailVerification::query()->create([
                 'user_id' => $user->getKey(),
                 'token_hash' => $this->tokens->hash($rawToken),
                 'redirect_path' => $redirectPath,
@@ -69,16 +69,20 @@ final class V2UserAuthenticationService
                     (int) config('v2_identity.email_verification.ttl_minutes')
                 ),
             ]);
+            $this->notifier->send(
+                $user,
+                $rawToken,
+                $redirectPath,
+                'email-verification:'.$verification->getKey()
+            );
+            $this->events->record('register', [
+                'realm' => 'user',
+                'subject_id' => $user->public_id,
+                'result' => 'pending_verification',
+            ]);
 
-            return [$user, $rawToken];
+            return $user;
         });
-
-        $this->notifier->send($user, $rawToken, $redirectPath);
-        $this->events->record('register', [
-            'realm' => 'user',
-            'subject_id' => $user->public_id,
-            'result' => 'pending_verification',
-        ]);
 
         return $user;
     }
@@ -97,14 +101,14 @@ final class V2UserAuthenticationService
 
         $this->rateLimiter->assertSubject('verification_resend_hour', $publicId);
         $this->rateLimiter->assertSubject('verification_resend_day', $publicId);
-        $rawToken = DB::transaction(function () use ($user, $redirectPath): string {
+        DB::transaction(function () use ($user, $redirectPath): void {
             UserEmailVerification::query()
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now()]);
             $rawToken = $this->tokens->generate();
-            UserEmailVerification::query()->create([
+            $verification = UserEmailVerification::query()->create([
                 'user_id' => $user->getKey(),
                 'token_hash' => $this->tokens->hash($rawToken),
                 'redirect_path' => $redirectPath,
@@ -112,10 +116,13 @@ final class V2UserAuthenticationService
                     (int) config('v2_identity.email_verification.ttl_minutes')
                 ),
             ]);
-
-            return $rawToken;
+            $this->notifier->send(
+                $user,
+                $rawToken,
+                $redirectPath,
+                'email-verification:'.$verification->getKey()
+            );
         });
-        $this->notifier->send($user, $rawToken, $redirectPath);
     }
 
     /**

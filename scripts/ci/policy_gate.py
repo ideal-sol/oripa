@@ -213,6 +213,24 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/tests/V2/PermissionBoundaryTest.php",
     "apps/api/tests/V2/RealmSeparationTest.php",
 }
+V2_AUDIT_OUTBOX_REQUIRED_FILES = {
+    "apps/api/app/Domain/Audit/V2/Services/V2AuditChainVerifier.php",
+    "apps/api/app/Domain/Audit/V2/Services/V2AuditDailyDigestService.php",
+    "apps/api/app/Domain/Audit/V2/Services/V2AuditHasher.php",
+    "apps/api/app/Domain/Audit/V2/Services/V2AuditLogService.php",
+    "apps/api/app/Domain/Audit/V2/Services/V2AuditRedactor.php",
+    "apps/api/app/Domain/Audit/V2/Services/V2PersistentSecurityEventSink.php",
+    "apps/api/app/Domain/Outbox/Services/V2OutboxEmailVerificationNotifier.php",
+    "apps/api/app/Domain/Outbox/Services/V2OutboxService.php",
+    "apps/api/app/Models/V2/AuditDailyDigest.php",
+    "apps/api/app/Models/V2/AuditLog.php",
+    "apps/api/app/Models/V2/OutboxMessage.php",
+    "apps/api/config/v2_audit.php",
+    "apps/api/config/v2_outbox.php",
+    "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
+    "apps/api/tests/V2/AuditOutboxFoundationTest.php",
+    "docs/operations/audit-outbox/README.md",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1245,6 +1263,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "${V2_DB_USERNAME:?",
         "${V2_DB_PASSWORD:?",
         "${V2_REDIS_PASSWORD:?",
+        "${V2_AUDIT_HMAC_KEY:?",
         "v2_postgres:/var/lib/postgresql/data",
         "v2_redis:/data",
         "v2_private:",
@@ -1279,6 +1298,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "V1 Compose Project is prohibited",
         "V1 Migration Path is prohibited",
         "Unexpected Database or Redis Host",
+        "V2 Audit HMAC key",
         "Database and Redis Host Ports are prohibited",
         "Refusing to remove an unscoped Volume",
     ):
@@ -1315,15 +1335,16 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_24_000002_create_v2_identity_sessions.php",
         "2026_07_24_000003_create_v2_admin_mfa_methods.php",
         "2026_07_24_000004_create_v2_authentication_flows.php",
+        "2026_07_24_000005_create_v2_audit_outbox_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
 
-    migrations = "\n".join(
+    identity_migrations = "\n".join(
         (repository / "apps/api/database/migrations-v2" / name).read_text(
             encoding="utf-8"
         )
-        for name in migration_files
+        for name in expected_migrations[:4]
     )
     for required in (
         "users",
@@ -1349,7 +1370,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "owner",
         "operator",
     ):
-        if required not in migrations:
+        if required not in identity_migrations:
             raise PolicyFailure(f"V2 Identity migration boundary missing {required}")
     for prohibited in (
         "tenant_id",
@@ -1360,7 +1381,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "point_ledgers",
         "payments",
     ):
-        if prohibited in migrations:
+        if prohibited in identity_migrations:
             raise PolicyFailure(f"V2 Identity migration contains prohibited {prohibited}")
 
     auth = (repository / "apps/api/config/auth.php").read_text(encoding="utf-8")
@@ -1471,7 +1492,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         if required not in runner:
             raise PolicyFailure(f"V2 Identity DB verification missing {required}")
     if "mig041-v2-" not in workflow:
-        if "mig041a-v2-" not in workflow:
+        if "mig041a-v2-" not in workflow and "mig042-v2-" not in workflow:
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
     authentication_sources = "\n".join(
@@ -1525,6 +1546,105 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
     ):
         if operation_id not in admin_contract:
             raise PolicyFailure(f"Admin Authentication Contract missing {operation_id}")
+
+
+def validate_v2_audit_outbox_boundary(
+    repository: Path, paths: Iterable[str]
+) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_AUDIT_OUTBOX_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 Audit／Outbox files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_24_000005_create_v2_audit_outbox_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "audit_logs",
+        "audit_daily_digests",
+        "outbox_messages",
+        "previous_hash",
+        "record_hash",
+        "hmac_key_version",
+        "deduplication_key",
+        "lease_expires_at",
+        "FOR EACH ROW EXECUTE FUNCTION v2_reject_audit_mutation",
+        "BEFORE TRUNCATE",
+        "REVOKE UPDATE, DELETE, TRUNCATE",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Audit／Outbox migration missing {required}")
+    if "tenant_id" in migration:
+        raise PolicyFailure("V2 Audit／Outbox migration contains tenant_id")
+
+    audit_config = (repository / "apps/api/config/v2_audit.php").read_text(
+        encoding="utf-8"
+    )
+    compose = (repository / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    for source, required in (
+        (audit_config, "V2_AUDIT_HMAC_KEY"),
+        (compose, "${V2_AUDIT_HMAC_KEY:?"),
+        (runner, '"V2_AUDIT_HMAC_KEY"'),
+        (runner, "V2 Audit HMAC key"),
+    ):
+        if required not in source:
+            raise PolicyFailure(f"V2 Audit HMAC boundary missing {required}")
+
+    provider = (
+        repository / "apps/api/app/Providers/V2AuthorizationServiceProvider.php"
+    ).read_text(encoding="utf-8")
+    if (
+        "V2PersistentSecurityEventSink::class" not in provider
+        or "V2OutboxEmailVerificationNotifier::class" not in provider
+    ):
+        raise PolicyFailure("V2 persistent Audit／Outbox bindings are missing")
+
+    outbox = (
+        repository / "apps/api/app/Domain/Outbox/Services/V2OutboxService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "DB::transactionLevel() < 1",
+        "deduplication_key",
+        "FOR UPDATE SKIP LOCKED",
+        "lease_expires_at",
+        "markDelivered",
+        "retry",
+        "markFailed",
+    ):
+        if required not in outbox:
+            raise PolicyFailure(f"V2 Outbox service missing {required}")
+    notifier = (
+        repository
+        / "apps/api/app/Domain/Outbox/Services/"
+        "V2OutboxEmailVerificationNotifier.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "Crypt::encryptString",
+        "message_ciphertext",
+        "identity.email-verification",
+    ):
+        if required not in notifier:
+            raise PolicyFailure(f"V2 encrypted notification boundary missing {required}")
+
+    tests = (
+        repository / "apps/api/tests/V2/AuditOutboxFoundationTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_audit_concurrent_writes",
+        "test_hash_chain_detects_tampering",
+        "test_database_rejects_audit_update_delete_and_truncate",
+        "test_outbox_requires_transaction_rolls_back_and_deduplicates",
+        "test_outbox_concurrent_claim",
+        "test_outbox_claim_lease_retry_success_and_failure_boundaries",
+        "test_authentication_and_mfa_security_events_are_persisted",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Audit／Outbox test missing {required}")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -1843,6 +1963,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_legacy_frontend_layout(repository, paths)
     validate_v2_database_boundary(repository, paths)
     validate_v2_identity_boundary(repository, paths)
+    validate_v2_audit_outbox_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)
