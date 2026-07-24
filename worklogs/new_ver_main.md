@@ -3258,3 +3258,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Point／Payment基礎Table、初回`2.0.0-alpha.1` Artifactが残るため
   `NOT COMPLETE`である。
 - 次Task候補は`MIG-042 Audit／Outbox`だが、MIG-041A完了後には開始しない。
+
+### GitHub Check再実行
+
+- PR `#78`の初回`policy-gate`は、実装ではなくPR本文の必須見出しと
+  `Allowed paths`／`Changed files` Section構造の不足により失敗した。
+- PR本文を既存Policyが要求するTemplate構造へ修正し、実変更56 Pathとの完全一致を
+  GitHub APIとLocal Diffの両方で確認した。Gate、Assertion、Allowed Pathは
+  弱めていない。
+- 同一Headの再実行では過去の失敗／cancelled Check Runが厳格なWrapper集計へ残るため、
+  履歴書換えやForce Pushを行わず、本Worklog追記を通常Commitとして追加した新Headで
+  Required／Available Checkを再実行する。
