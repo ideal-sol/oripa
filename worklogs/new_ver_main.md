@@ -3104,3 +3104,21 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Full V1 Backend Test、Legacy Frontend Build／Lint、Browser／E2EはLocalでは
   未実行であり、PASSとは記録しない。GitHub `integration-gate`で既存Baselineと
   比較して実行する。
+
+### GitHub初回実行
+
+- Implementation Commitは
+  `848577f86d54771e6a37cf0db7f5c025781ab3a8`で、GitHub App Wrapperにより
+  Remote BranchへFast-forward Pushした。
+- PR `#76` (`https://github.com/ideal-sol/oripa/pull/76`)を作成し、
+  Issue `#75`と関連付けた。PR Authorは`ideal-sol-oripa-codex[bot]`、
+  Baseは`main`である。
+- 初回`policy-gate`はPR本文の`Changed files`が42 Fileの要約記載で、
+  Git差分の正確なPath一覧と一致しなかったため失敗した。実装差分やPolicyを
+  弱めず、PR本文を実差分42 Pathの明示列挙へ修正した。
+- 同一Headの旧失敗Runを成功扱いにせず、本Worklog追記を通常Commitとして
+  Fast-forward Pushする。新しいFinal HeadでRequired 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Reviewを再実行する。
+- Final Head固定後にFresh Self-review、SEV-0／SEV-1なし、
+  Merge Conflictなし、Head SHA不変を確認し、CheckをBypassせず
+  GitHub AppがSquash Mergeする。
