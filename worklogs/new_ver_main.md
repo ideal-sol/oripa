@@ -2752,3 +2752,63 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   完了したが、V2 Baseline Migration、Realm分離、Constraint Test、
   Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
 - 次Task候補は`MIG-040`だが、MIG-033完了後には開始しない。
+
+## MIG-033 Closeout
+
+- GitHub APIとLocal Repositoryで`2026-07-24T05:47:03Z`に完了状態を再確認した。
+- PR `#70` (`https://github.com/ideal-sol/oripa/pull/70`)はMergedで、Final Headは
+  `29c24e4a02bb9a70ede7ff0e33778b8f55dc9636`、Squash Commitは
+  `feb6a3817ef9199c7fd23c6075434ea4aa554d57`である。
+- Final Headでは`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`のRequired 5 Checkがすべて成功した。
+- CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewも成功し、
+  GitHub Checkは合計8件成功した。
+- Fresh Self-reviewはPR `#70`のComment
+  `https://github.com/ideal-sol/oripa/pull/70#issuecomment-5066521123`に存在し、
+  対象HeadはFinal Headと一致する。Scope、Secret／PII、
+  Migration／Contract／SecurityはPASS、Merge Recommendationは`MERGE`、
+  SEV-0／SEV-1は0件である。
+- Issue `#69`はClosedで、State Reasonは`completed`である。
+- Remote Branch `feat/MIG-033-storefront-testkit`はGitHub APIでNot Found、
+  Remote Tracking Refも存在せず、削除済みである。
+- Local Branch `feat/MIG-033-storefront-testkit`とWorktree
+  `/var/www/oripa-worktrees/MIG-033-storefront-testkit`は削除済みである。
+- Local `main`と`origin/main`はSquash Commit
+  `feb6a3817ef9199c7fd23c6075434ea4aa554d57`で一致し、Working Treeはcleanである。
+- `main`には`@oripa/storefront-testkit` `2.0.0-alpha.1`、FIFO応答Queue付き
+  Mock Transport、Request Recorder、Public Contract／Site Manifest Fixture、
+  Boundary Assertion、Unit Test 16件が保持されている。
+- Public API Operationは0件で、Root Workspace Auditは0 Findingである。
+  Testkitは実Network通信を行わず、Fake Operationを持たず、
+  Admin／Webhook／Provider型を公開していない。
+- V1 Runtime Worktreeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+- MIG-033および本Closeout確認ではV1 Runtime、Nginx、Docker Production構成、
+  V1本番DB、Redis、Storageを変更していない。V1／V2 DBのMigration、Rollback、
+  Seed、`migrate:fresh`、V2 DB／Redis構築は実行していない。
+- Gate G3はStorefront Client、Site Schema、Storefront TestkitのAlpha基盤まで
+  完了したが、V2 Baseline Migration、Realm分離、Constraint Test、
+  Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-040`だが、MIG-033A完了後には開始しない。
+
+## MIG-033A Storefront Testkit Alpha Closeout記録補完
+
+- Task ID: `MIG-033A`
+- Risk: `R3`
+- Issue: `#71` (`https://github.com/ideal-sol/oripa/issues/71`)
+- Branch: `docs/MIG-033A-storefront-testkit-closeout`
+- Worktree:
+  `/var/www/oripa-worktrees/MIG-033A-storefront-testkit-closeout`
+- Base SHA: `feb6a3817ef9199c7fd23c6075434ea4aa554d57`
+- Allowed Pathは`worklogs/new_ver_main.md` 1件だけである。
+- MIG-033のGitHub操作、Check、Self-review、Cleanup、Local同期結果の正本化だけを
+  行い、Storefront Testkit、Storefront Client、Site Schema、Package
+  Manifest／Lockfile、OpenAPI、CI／Gate／Ruleset、Laravel／Migrationを変更しない。
+- `git diff --check`、Markdown見出し、Full SHA、PR／Issue番号、変更Scope、
+  Secret／PII、V1 Runtime／V1本番DB／V2 DB非変更を検証する。
+- Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
+  SEV-0／SEV-1なし、Merge Conflictなしを確認後にGitHub AppがSquash Mergeする。
+- Backend／Frontend Runtime Test、Build、Browser／E2E、Migration、DB／Redis操作は
+  Documentation-only Taskの対象外として未実行であり、PASSとは記録しない。
