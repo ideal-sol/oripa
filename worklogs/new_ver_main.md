@@ -2941,3 +2941,19 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - User／Admin Realm、Constraint Test、Point／Payment基礎Table、Audit／Outbox、
   初回`2.0.0-alpha.1` Artifactが残るためGate G3は`NOT COMPLETE`である。
 - 次Task候補は`MIG-041 Identity／Admin Realm`だが、MIG-040完了後には開始しない。
+
+### GitHub検証
+
+- Implementation Commitは
+  `73e4463c674b4ebfdff0856cec471c6894ec2868`で、GitHub App Wrapperにより
+  Remote BranchへFast-forward Pushした。
+- PR `#74` (`https://github.com/ideal-sol/oripa/pull/74`)を作成してReady化し、
+  Issue `#73`と関連付けた。PR Authorは`ideal-sol-oripa-codex[bot]`、
+  Baseは`main`である。
+- Implementation Headでは`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`のRequired 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Reviewの合計8 Checkが
+  すべて成功した。
+- 本GitHub結果を記録するWorklog追加CommitをFinal Headとし、同じ8 Check、
+  Fresh Self-review、SEV-0／SEV-1なし、Merge Conflictなし、Head SHA不変を
+  再確認してからGitHub AppがSquash Mergeする。
