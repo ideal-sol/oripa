@@ -2462,3 +2462,122 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration、Rollback、Seed、`migrate:fresh`、V2 DB／Redis構築は未実行である。
 - Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
   SEV-0／SEV-1なしを確認してからSquash Mergeする。
+
+## OPS-001A Closeout
+
+- PR `#64`のFinal Headは
+  `c24cd8c9cbc0785a3537e4582a04f7122f81dd60`で、Required 5 Check、CodeQL、
+  Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定Head Self-reviewを作成し、PR `#64`をSquash Mergeした。
+  Squash Commitは`af6ef79c74c61a1673ca216d4b97a0a94ef2e78f`、Issue `#63`は
+  Closedである。
+- Remote／Local Branch `docs/OPS-001A-v1-runtime-closeout`と専用Worktreeは
+  Cleanup済みである。
+- Local `main`は`origin/main`へ`--ff-only`同期済みで、Working Treeはcleanだった。
+- Repository正本のOPS-001記録と保全したLocal記録の内容一致を確認済みである。
+- V1 Runtime Worktreeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でclean、V1 Archive Branchと
+  Annotated Tagも同Commitのまま変更されていない。
+- V1 Runtime、Nginx、Docker Production構成、V1本番DB、Redis、Storageは
+  OPS-001Aで変更しておらず、Migration、Rollback、Seed、`migrate:fresh`、
+  V2 DB／Redis構築も未実行である。
+
+## MIG-032 Site Schema Alpha
+
+### Task
+
+- 実施開始: `2026-07-24T04:19:01Z`
+- Task ID: `MIG-032`
+- Risk: `R3`
+- Issue: `#65` (`https://github.com/ideal-sol/oripa/issues/65`)
+- Branch: `feat/MIG-032-site-schema`
+- Worktree: `/var/www/oripa-worktrees/MIG-032-site-schema`
+- Base SHA: `af6ef79c74c61a1673ca216d4b97a0a94ef2e78f`
+- Root／`packages/AGENTS.md`、Package Version／Compatibility、API v2／Storefront
+  Client、V1→V2 Migration Planを再確認し、正本から確定できるFieldだけを採用した。
+
+### Site Manifest Contract
+
+- Packageは`@oripa/site-schema` `2.0.0-alpha.1`で、JSON Schema Draft 2020-12の
+  `packages/site-schema/schema/site-manifest.schema.json`を構造の正本とした。
+- Top-levelは`schema_version`、`site_version`、`compatibility`、`public`だけで、
+  全ObjectをStrictにし、Unknown Fieldを拒否する。
+- `compatibility`はCore Compatibility Family `2`、Exact SemVerの
+  `storefront_client_version`、`required_capabilities`だけを公開する。
+- `public`は`locale`、`timezone`、`features.enabled`だけを公開する。
+  `features.enabled`はCapability名の明示Listで、空ListをSecure Defaultとする。
+- Capability名は正本の`<domain>.<feature>.v<number>`形式を検査する。正本にない
+  Business CapabilityやSite固有Design設定を作成していない。
+- Secret、Credential、Cookie、Token、DB接続情報、顧客PII、Provider設定、
+  Draw／Point／Payment判断をSchema／型／Fixtureへ含めていない。
+
+### Type／Validator／Compatibility
+
+- `scripts/generate-types.mjs`が正本SchemaからTypeScript型とRuntime用Schema定数を
+  決定的に生成し、`generate:check`が再生成差分を拒否する。Generated Fileの
+  直接編集は禁止した。
+- Runtime ValidatorはDraft 2020-12対応の`Ajv 8.20.0`をExact Versionで使用し、
+  `parseSiteManifest`と`validateSiteManifest`を公開する。
+- `SiteManifestValidationError`はPath、Keyword、Messageだけを保持し、入力値を
+  Errorへ含めない。
+- Compatibility判定はCore Family、Test済みSchema Version、Storefront Client
+  Major／Minimum Version、Required Capability不足を検査する。
+- N／N-1は`tested_schema_versions`へ明示したVersionだけを受け入れる拡張境界とし、
+  初回Alphaでは`2.0.0-alpha.1`だけをTest済みとした。未作成のN-1を対応済みとは
+  記録しない。
+- Runtime Dependencyは`ajv 8.20.0`と`semver 7.8.5`、Development Dependencyは
+  Repository既存Toolを含めすべてExact Versionで固定した。
+
+### Fixture／Local Verification
+
+- Positive Fixture 2件、Negative Fixture 4件を追加した。Invalid SemVer、
+  Family Major不一致、Unknown Field、Secret風追加FieldをNegativeとして確認した。
+- Site SchemaのType生成、Typecheck、Lint、Build、Unit Test 10件はPASSした。
+- Required Capability不足、Minimum Storefront Client Version未達、Schema
+  Version Support、Validation Error値非露出のCompatibility TestはPASSした。
+- Existing Storefront Clientの生成差分、Typecheck、Lint、Build、Unit Test 9件は
+  PASSした。
+- OpenAPI Unit Test 4件とPublic／Admin／Webhook 3 Contract／Bundle検査はPASSし、
+  Operation数は各0のまま変更していない。
+- Policy Unit Test 32件、Quality Unit Test 5件、Security Unit Test 4件、
+  `quality-gate`、`security-gate`、`git diff --check`はPASSした。
+- Root Workspace Auditは0 Findingである。Legacy Frontend Auditは既存期限付き
+  Baselineと一致する13 Findingで、新規Finding／Severity悪化はない。
+- Backend／Frontend Runtime Test、Browser／E2E、Migration、DB／Redis操作は
+  本Package TaskのLocal対象外として未実行であり、PASSとは記録しない。
+
+### CI／Scope／保護
+
+- Root Scriptへ`site-schema:*`を追加し、`platform-ci.yml`の`quality-gate`と
+  `integration-gate`で`site-schema:check`を実行する。
+- `policy-gate`へPackage Identity、Exact Dependency、必須File、Strict Schema、
+  Secure Default、公開禁止Field、Generated Typeの継続検査とNegative Testを追加した。
+- Check名は`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`のまま増減していない。
+- Laravel、OpenAPI Contract、Migration、DB／Redis、V1 Runtime、Nginx、Docker
+  Production構成、V1 Archive Branch／Annotated Tagを変更していない。
+- GitHub App WrapperだけでCommitを既存Task BranchへFast-forward Pushし、
+  Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、
+  SEV-0／SEV-1なし、Merge Conflictなしを確認後にSquash Mergeする。
+- Gate G3はSite Schema Alpha基盤を追加したが、V2 Baseline Migration、Realm分離、
+  Constraint Test、Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-033`だが、MIG-032完了後には開始しない。
+
+### GitHub検証
+
+- Implementation Commitは
+  `97d103efe42f06af29d6380a59f2c0d6b0ace3d3`で、GitHub App Wrapperにより
+  Remote BranchへFast-forward Pushした。
+- PR `#66` (`https://github.com/ideal-sol/oripa/pull/66`)を作成し、Issue `#65`と
+  関連付けた。PR Authorは`ideal-sol-oripa-codex[bot]`、Baseは`main`である。
+- 初回`policy-gate`はPR本文の`Changed files`が実差分のPath一覧でなかったため
+  Failureとなった。Code、Gate、Assertionは変更せず、PR本文を実際の28 Pathへ
+  修正した。
+- 同一Implementation Headの再実行ではRequired 5 Check、CodeQL、
+  Dependency Reviewを含む8 Checkが成功した。初回Failure／Cancelled Runも同一
+  Headへ残るため、本Worklog追記だけの追加CommitをFinal Headとし、全Checkを
+  一意な履歴で再実行する。
+- Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
+  SEV-0／SEV-1なし、Merge Conflictなし、Head SHA不変を再確認してから
+  GitHub AppがSquash Merge、Issue Close、Remote／Local BranchとWorktreeの
+  Cleanup、Local `main`の`--ff-only`同期を実行する。

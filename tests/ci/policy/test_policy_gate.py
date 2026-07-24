@@ -231,6 +231,146 @@ packages:
                 ),
                 encoding="utf-8",
             )
+        (root / "packages/site-schema/package.json").write_text(
+            json.dumps(
+                {
+                    "name": "@oripa/site-schema",
+                    "version": "2.0.0-alpha.1",
+                    "private": True,
+                    "description": "Fixture Alpha",
+                    "license": "UNLICENSED",
+                    "type": "module",
+                    "sideEffects": False,
+                    "packageManager": "pnpm@10.12.1",
+                    "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+                    "files": ["dist", "schema"],
+                    "exports": {
+                        ".": {
+                            "types": "./dist/index.d.ts",
+                            "import": "./dist/index.js",
+                        },
+                        "./schema": "./schema/site-manifest.schema.json",
+                    },
+                    "scripts": {
+                        "build": "tsc",
+                        "generate": "node generate --write",
+                        "generate:check": "node generate --check",
+                        "lint": "eslint",
+                        "test": "node --test",
+                        "typecheck": "tsc --noEmit",
+                    },
+                    "dependencies": policy_gate.SITE_SCHEMA_DEPENDENCY_VERSIONS,
+                    "devDependencies": policy_gate.SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS,
+                    "oripaCompatibility": {
+                        "family": 2,
+                        "currentSchemaVersion": "2.0.0-alpha.1",
+                        "testedSchemaVersions": ["2.0.0-alpha.1"],
+                        "nMinusOneStatus": "pending-first-minor",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        site_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "urn:oripa:site-manifest:2.0.0-alpha.1",
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "schema_version",
+                "site_version",
+                "compatibility",
+                "public",
+            ],
+            "properties": {
+                "schema_version": {
+                    "type": "string",
+                    "const": "2.0.0-alpha.1",
+                },
+                "site_version": {"$ref": "#/$defs/semantic_version"},
+                "compatibility": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "family",
+                        "storefront_client_version",
+                        "required_capabilities",
+                    ],
+                    "properties": {
+                        "family": {"type": "integer", "const": 2},
+                        "storefront_client_version": {
+                            "$ref": "#/$defs/semantic_version"
+                        },
+                        "required_capabilities": {
+                            "$ref": "#/$defs/capability_list"
+                        },
+                    },
+                },
+                "public": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["locale", "timezone", "features"],
+                    "properties": {
+                        "locale": {"type": "string"},
+                        "timezone": {"type": "string"},
+                        "features": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["enabled"],
+                            "properties": {
+                                "enabled": {
+                                    "$ref": "#/$defs/capability_list",
+                                    "default": [],
+                                }
+                            },
+                        },
+                    },
+                },
+            },
+            "$defs": {
+                "semantic_version": {
+                    "type": "string",
+                    "pattern": policy_gate.SEMANTIC_VERSION.pattern,
+                },
+                "capability_name": {
+                    "type": "string",
+                    "pattern": "^[a-z]+\\.[a-z-]+\\.v[1-9][0-9]*$",
+                },
+                "capability_list": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/capability_name"},
+                    "uniqueItems": True,
+                    "default": [],
+                },
+            },
+        }
+        (
+            root / "packages/site-schema/schema/site-manifest.schema.json"
+        ).write_text(json.dumps(site_schema), encoding="utf-8")
+        (root / "packages/site-schema/.gitignore").write_text(
+            "/dist/\n",
+            encoding="utf-8",
+        )
+        (root / "packages/site-schema/src/generated/site-manifest.ts").write_text(
+            """/**
+ * This file is generated from schema/site-manifest.schema.json.
+ */
+export type SiteManifest = {
+  readonly schema_version: "2.0.0-alpha.1";
+  readonly compatibility: {
+    readonly family: 2;
+    readonly required_capabilities: ReadonlyArray<string>;
+  };
+};
+""",
+            encoding="utf-8",
+        )
+        site_schema_readme = root / "packages/site-schema/README.md"
+        site_schema_readme.write_text(
+            site_schema_readme.read_text(encoding="utf-8")
+            + "\nThis package is an Alpha boundary.\n",
+            encoding="utf-8",
+        )
         (root / "packages/storefront-client/package.json").write_text(
             json.dumps(
                 {
@@ -516,6 +656,36 @@ services:
             )
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "credentials must be include"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_site_schema_secret_field_definition_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            schema_path = (
+                root / "packages/site-schema/schema/site-manifest.schema.json"
+            )
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema["properties"]["api_token"] = {"type": "string"}
+            schema_path.write_text(json.dumps(schema), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "prohibited field"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_site_schema_unknown_top_level_field_policy_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            schema_path = (
+                root / "packages/site-schema/schema/site-manifest.schema.json"
+            )
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema["additionalProperties"] = True
+            schema_path.write_text(json.dumps(schema), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "reject unknown fields"
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 
