@@ -1,0 +1,16 @@
+{
+  "schema_version": "2.0.0-alpha.1",
+  "site_version": "^1.0.0",
+  "compatibility": {
+    "family": 2,
+    "storefront_client_version": "2.0.0-alpha.1",
+    "required_capabilities": []
+  },
+  "public": {
+    "locale": "ja-JP",
+    "timezone": "Asia/Tokyo",
+    "features": {
+      "enabled": []
+    }
+  }
+}

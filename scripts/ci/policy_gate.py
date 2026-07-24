@@ -56,6 +56,29 @@ STOREFRONT_CLIENT_REQUIRED_FILES = {
     "packages/storefront-client/src/types.ts",
     "packages/storefront-client/test/client.test.mjs",
 }
+SITE_SCHEMA_REQUIRED_FILES = {
+    "packages/site-schema/.gitignore",
+    "packages/site-schema/README.md",
+    "packages/site-schema/package.json",
+    "packages/site-schema/eslint.config.mjs",
+    "packages/site-schema/tsconfig.json",
+    "packages/site-schema/tsconfig.build.json",
+    "packages/site-schema/schema/site-manifest.schema.json",
+    "packages/site-schema/scripts/generate-types.mjs",
+    "packages/site-schema/src/compatibility.ts",
+    "packages/site-schema/src/errors.ts",
+    "packages/site-schema/src/generated/site-manifest.ts",
+    "packages/site-schema/src/generated/schema.ts",
+    "packages/site-schema/src/index.ts",
+    "packages/site-schema/src/validator.ts",
+    "packages/site-schema/test/fixtures/positive/minimal.json",
+    "packages/site-schema/test/fixtures/positive/requires-capability.json",
+    "packages/site-schema/test/fixtures/negative/family-major.json",
+    "packages/site-schema/test/fixtures/negative/invalid-semver.json",
+    "packages/site-schema/test/fixtures/negative/secret-field.json",
+    "packages/site-schema/test/fixtures/negative/unknown-field.json",
+    "packages/site-schema/test/site-schema.test.mjs",
+}
 WORKSPACE_REQUIRED_FILES = {
     ".dockerignore",
     ".github/dependabot.yml",
@@ -80,8 +103,7 @@ WORKSPACE_REQUIRED_FILES = {
     "packages/platform/README.md",
     "packages/platform/package.json",
     *STOREFRONT_CLIENT_REQUIRED_FILES,
-    "packages/site-schema/README.md",
-    "packages/site-schema/package.json",
+    *SITE_SCHEMA_REQUIRED_FILES,
     "packages/storefront-testkit/README.md",
     "packages/storefront-testkit/package.json",
     "packages/AGENTS.md",
@@ -144,7 +166,6 @@ ADMIN_SKELETON_FILES = {
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
-    "packages/site-schema/package.json": "@oripa/site-schema",
     "packages/storefront-testkit/package.json": "@oripa/storefront-testkit",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
@@ -166,6 +187,16 @@ ROOT_DEV_DEPENDENCY_VERSIONS = {
 STOREFRONT_CLIENT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
     "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+}
+SITE_SCHEMA_DEPENDENCY_VERSIONS = {
+    "ajv": "8.20.0",
+    "semver": "7.8.5",
+}
+SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
+    "@types/semver": "7.7.1",
+    "eslint": "9.39.4",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
 }
@@ -788,6 +819,124 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
             )
 
 
+def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(SITE_SCHEMA_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("Site Schema files missing: " + ", ".join(missing))
+
+    package = load_json(repository, "packages/site-schema/package.json")
+    identity = {
+        "name": package.get("name"),
+        "version": package.get("version"),
+        "private": package.get("private"),
+        "type": package.get("type"),
+        "sideEffects": package.get("sideEffects"),
+        "packageManager": package.get("packageManager"),
+        "engines": package.get("engines"),
+        "files": package.get("files"),
+    }
+    if identity != {
+        "name": "@oripa/site-schema",
+        "version": "2.0.0-alpha.1",
+        "private": True,
+        "type": "module",
+        "sideEffects": False,
+        "packageManager": "pnpm@10.12.1",
+        "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+        "files": ["dist", "schema"],
+    }:
+        raise PolicyFailure("packages/site-schema/package.json: Alpha identity is invalid")
+    validate_exact_dependency_versions(
+        package,
+        SITE_SCHEMA_DEPENDENCY_VERSIONS,
+        SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS,
+        "packages/site-schema/package.json",
+    )
+    if set(package.get("scripts", {})) != {
+        "build",
+        "generate",
+        "generate:check",
+        "lint",
+        "test",
+        "typecheck",
+    }:
+        raise PolicyFailure("packages/site-schema/package.json: scripts are invalid")
+    if set(package.get("exports", {})) != {".", "./schema"}:
+        raise PolicyFailure("packages/site-schema/package.json: exports are invalid")
+    if package.get("oripaCompatibility") != {
+        "family": 2,
+        "currentSchemaVersion": "2.0.0-alpha.1",
+        "testedSchemaVersions": ["2.0.0-alpha.1"],
+        "nMinusOneStatus": "pending-first-minor",
+    }:
+        raise PolicyFailure(
+            "packages/site-schema/package.json: compatibility metadata is invalid"
+        )
+    if (
+        repository / "packages/site-schema/.gitignore"
+    ).read_text(encoding="utf-8").strip() != "/dist/":
+        raise PolicyFailure("packages/site-schema/.gitignore: only dist may be ignored")
+
+    schema = load_json(repository, "packages/site-schema/schema/site-manifest.schema.json")
+    if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise PolicyFailure("Site Manifest must use JSON Schema Draft 2020-12")
+    if schema.get("additionalProperties") is not False:
+        raise PolicyFailure("Site Manifest must reject unknown fields")
+    if set(schema.get("required", [])) != {
+        "schema_version",
+        "site_version",
+        "compatibility",
+        "public",
+    }:
+        raise PolicyFailure("Site Manifest required fields are invalid")
+    properties = schema.get("properties", {})
+    compatibility = properties.get("compatibility", {})
+    public = properties.get("public", {})
+    features = public.get("properties", {}).get("features", {})
+    for name, value in (
+        ("compatibility", compatibility),
+        ("public", public),
+        ("public.features", features),
+    ):
+        if value.get("type") != "object" or value.get("additionalProperties") is not False:
+            raise PolicyFailure(f"Site Manifest {name} must be a strict object")
+    if compatibility.get("properties", {}).get("family", {}).get("const") != 2:
+        raise PolicyFailure("Site Manifest Core Compatibility Family must be 2")
+    if (
+        features.get("properties", {}).get("enabled", {}).get("default") != []
+    ):
+        raise PolicyFailure("Site Manifest Feature default must be empty")
+    definition_text = json.dumps(schema, sort_keys=True)
+    for prohibited in (
+        "api_token",
+        "cookie",
+        "credential",
+        "database",
+        "password",
+        "provider",
+        "secret",
+    ):
+        if prohibited in definition_text.lower():
+            raise PolicyFailure(
+                f"Site Manifest exposes prohibited field or definition: {prohibited}"
+            )
+
+    generated = (
+        repository / "packages/site-schema/src/generated/site-manifest.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "generated from schema/site-manifest.schema.json",
+        'readonly schema_version: "2.0.0-alpha.1";',
+        "readonly family: 2;",
+        "readonly required_capabilities: ReadonlyArray<string>;",
+    ):
+        if required not in generated:
+            raise PolicyFailure(
+                "packages/site-schema: generated Site Manifest type is invalid"
+            )
+
+
 def validate_compose_skeletons(repository: Path) -> None:
     v1 = (repository / "docker-compose.yml").read_text(encoding="utf-8")
     for required in ("./apps/api", "./legacy/v1-frontend", "postgres:", "redis:"):
@@ -823,7 +972,11 @@ def validate_boundary_readmes(repository: Path) -> None:
             )
         status_statement = (
             "Alpha"
-            if relative == "packages/storefront-client/README.md"
+            if relative
+            in {
+                "packages/storefront-client/README.md",
+                "packages/site-schema/README.md",
+            }
             else "Skeleton"
         )
         for statement in ("AGENTS.md", status_statement, "Production", "V1"):
@@ -1028,6 +1181,7 @@ def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     validate_admin_skeleton(repository, paths)
     validate_package_skeletons(repository)
     validate_storefront_client(repository, paths)
+    validate_site_schema(repository, paths)
     validate_compose_skeletons(repository)
     validate_boundary_readmes(repository)
     release_schema = validate_manifest_schema(

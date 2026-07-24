@@ -92,6 +92,9 @@ jobs:
       - name: Validate Storefront Client Alpha
         run: pnpm storefront:check
 
+      - name: Validate Site Schema Alpha
+        run: pnpm site-schema:check
+
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
@@ -298,6 +301,9 @@ jobs:
 
       - name: Generate, build, and test Storefront Client Alpha
         run: pnpm storefront:check
+
+      - name: Generate, build, and test Site Schema Alpha
+        run: pnpm site-schema:check
 
       - name: Validate contracts, manifests, and Compose
         run: |

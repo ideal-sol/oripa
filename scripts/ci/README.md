@@ -40,6 +40,17 @@ pnpm openapi:test
 pnpm openapi:check
 ```
 
+Site Schema AlphaのLocal再現:
+
+```text
+pnpm install --frozen-lockfile
+pnpm site-schema:check
+```
+
+`site-schema:check`はJSON SchemaからのType再生成差分、Typecheck、Lint、Build、
+Positive／Negative Fixture、SemVer、Compatibility Family、Required Capability、
+Unknown Field、Secret風Field混入を検査する。
+
 ## Dependency policy
 
 The gate does not install packages or use repository secrets. Workflow actions

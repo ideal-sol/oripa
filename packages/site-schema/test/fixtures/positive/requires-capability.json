@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0.0-alpha.1",
+  "site_version": "1.0.0",
+  "compatibility": {
+    "family": 2,
+    "storefront_client_version": "2.1.0",
+    "required_capabilities": [
+      "auth.session.v2"
+    ]
+  },
+  "public": {
+    "locale": "ja-JP",
+    "timezone": "Asia/Tokyo",
+    "features": {
+      "enabled": [
+        "auth.session.v2"
+      ]
+    }
+  }
+}
