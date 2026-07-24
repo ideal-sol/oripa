@@ -47,7 +47,7 @@
     "@oripa/storefront-client": "workspace:2.0.0-alpha.1"
   },
   "devDependencies": {
-    "eslint": "9.39.4",
+    "eslint": "10.7.0",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0"
   },
