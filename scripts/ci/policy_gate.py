@@ -490,7 +490,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     if package.get("pnpm") != {
         "overrides": {
             "js-yaml": "4.3.0",
-            "postcss": "8.5.10",
+            "postcss": "8.5.12",
             "sharp": "0.35.0",
         }
     }:

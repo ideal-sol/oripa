@@ -2241,3 +2241,78 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1 Archive BranchとAnnotated Tag Peeled Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
 - OpenAPI LintとGenerated Client cleanは完了したが、実Public Operation Contract Test、Realm分離、Constraint Test、Backup／Restore、Alpha Artifactは未完了のため、Gate G3は`NOT COMPLETE`である。
 - 次Task候補は`MIG-032`だが、MIG-031A完了後には開始しない。
+
+## SEC-002 PostCSS Security Advisory対応
+
+### Task
+
+- 実施開始: `2026-07-24T00:17:00Z`
+- Task ID: `SEC-002`
+- Risk: `R3`
+- Issue: `#61` (`https://github.com/ideal-sol/oripa/issues/61`)
+- Branch: `security/SEC-002-postcss-advisory`
+- Worktree: `/var/www/oripa-worktrees/SEC-002-postcss-advisory`
+- Base SHA: `643d5ec9e0e89a6ac9ea955865d93be78efed16b`
+- Draft PR `#60`はMIG-031A専用としてHead `7e1c8bbebe8780adc8534b8f4d90e807b6d4efa4`のまま保持し、本Taskでは変更していない。
+
+### Advisory／Dependency Graph
+
+- 対象はHigh Severity Advisory `GHSA-6g55-p6wh-862q`で、影響範囲は`postcss <=8.5.11`、修正版は`8.5.12`以上である。
+- Root Workspaceは`apps/admin -> next 16.2.11 -> postcss 8.5.10`のTransitive Dependencyとして検出した。
+- Legacy Frontendは`legacy/v1-frontend -> next 16.2.9 -> postcss 8.4.31`のTransitive Dependencyとして検出した。
+- Rootは既存`pnpm.overrides`をExact Version `8.5.12`へ更新した。
+- Legacyは独立した`package.json`へ`pnpm.overrides.postcss = 8.5.12`を追加し、RootとLegacyのLockfile分離を維持した。
+- Root／Legacyの`pnpm-lock.yaml`はpnpm `10.12.1`で独立再生成し、PostCSS以外のVersion、Application Dependency、Node／pnpm Versionは変更していない。
+
+### Baseline／Policy
+
+- Root WorkspaceのPolicy期待Versionだけを`8.5.10`から`8.5.12`へ同期した。検査条件、Allowed Scope、Assertionの強度は変更していない。
+- LegacyのPostCSS更新により対象High Advisoryと既存Moderate Advisory `GHSA-qx2v-qp2m-jg93`が同時に解消されたため、解消済みModerate Finding 1件だけを期限付きBaselineから削除した。
+- Legacy Baselineの残る13 Findingについて、Advisory ID、Package、Version、Severity、Path、期限、修正Taskは変更していない。Baselineの追加、拡張、Gate弱体化は行っていない。
+
+### Audit／Build／Test
+
+- Root `pnpm install --frozen-lockfile`はPASSし、Root Auditは0 Finding、`GHSA-6g55-p6wh-862q`は不在だった。
+- Legacy `pnpm install --frozen-lockfile`はPASSし、Auditは更新前15件から更新後13件となった。対象High Advisoryと解消済みPostCSS Moderate Advisory以外の増減はない。
+- Admin Typecheck、Lint、BuildはPASSした。AdminにはUnit Test ScriptがないためUnit Testは未実行であり、PASSとは記録しない。
+- Storefront Clientの生成差分、Typecheck、Lint、Build、Unit Test 9件はPASSした。Fake Operation、Admin／Webhook Export、OpenAPI生成物の差分はない。
+- Legacy TypecheckとBuildはPASSした。Lintは既知の8 Error／1 Warningで非0終了し、CIと同じFingerprint Baseline比較は9 Finding完全一致でPASSした。LegacyにはUnit Test ScriptがないためUnit Testは未実行である。
+- OpenAPI Unit Test 4件、Public／Admin／WebhookのLint／Bundle差分検査はPASSし、3 ContractともOperation数0件を維持した。
+- Policy Unit Test 30件、Quality Unit Test 5件、Security Unit Test 4件、Local `policy-gate`、`quality-gate`、`security-gate`、`git diff --check`はPASSした。
+- Security GateはRoot 0 Finding、Legacy 13 Finding、Composer 10 Findingを検証し、Legacy／Composerは更新後の期限付きExact Baselineと一致、Secret Candidateは0件だった。
+- Application Logic、OpenAPI Contract、Migration、DB、Security Gateの判定ロジック、Test Assertion、CI Workflow、Rulesetは変更していない。
+- Backend Test、Migration適用、Docker Compose Smoke、Browser／E2E、Production操作はDependency Security更新の対象外のため未実行であり、PASSとは記録しない。
+
+### GitHub／完了方針
+
+- Repository変更はPostCSSのManifest／Lockfile、解消済みBaseline 1件、固定Version期待値、Worklogだけに限定する。
+- Initial Implementation Commitは`95b5080f9f21f68768fd0bfb751cc9e8f7fc62b2`で、GitHub App WrapperによるFast-forward Push後にPR `#62` (`https://github.com/ideal-sol/oripa/pull/62`)を作成した。
+- 初回`policy-gate`はPR本文の見出しが標準Templateと一致せず失敗した。Code、Gate、Assertionは変更せず、PR本文を`Summary`、`Specification sources`、`Scope`、`Allowed paths`、`Changed files`、`Verification performed`、`Verification not performed`へ整形した。
+- 同一Headの再実行では新しい`policy-gate`がPASSしたが、旧Failure／Cancelled RunもHeadへ残った。Wrapperが旧Runを成功扱いしないため、本Worklog追記の追加Commitを新しいFinal Headとし、全Checkを一度だけ再実行する。
+- GitHub App Task Policy WrapperだけでFast-forward Pushし、Draft PR、Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
+- Direct main Push、Force Push、Required Check Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
+- SEC-002完了後もPR `#60`は変更せず、MIG-031AおよびMIG-032は開始しない。
+
+### SEC-002 Closeout
+
+- PR `#62`のFinal Headは`445b478eed88593e3b8aeeb8d53bb44a10a16c45`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定Head Self-review後にSquash Mergeし、Squash Commitは`09d4b5b196ce842e39319f5ebe1ac9db31d4da74`、Issue `#61`はClosedである。
+- Remote／Local Task Branch `security/SEC-002-postcss-advisory`とWorktreeは削除済みである。
+- Local `main`は`origin/main`へ`--ff-only`同期済みで、Working Treeはcleanだった。
+- `GHSA-6g55-p6wh-862q`はRoot／Legacy双方から解消され、Root Auditは0 Finding、Legacy Auditは既存期限付きBaselineと一致する13 Findingだった。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+
+## MIG-031A Worklog Closeout修正
+
+- 再開日時: `2026-07-24T01:42:57Z`
+- Task ID: `MIG-031A`
+- Risk: `R3`
+- Issue: `#59` (`https://github.com/ideal-sol/oripa/issues/59`)
+- PR: `#60` (`https://github.com/ideal-sol/oripa/pull/60`)
+- Branch: `docs/MIG-031A-worklog-closeout`
+- Worktree: `/var/www/oripa-worktrees/MIG-031A-worklog-closeout`
+- 最新Base SHAはSEC-002 Squash Commit `09d4b5b196ce842e39319f5ebe1ac9db31d4da74`である。
+- 既存Task Branchへ最新`main`を通常Mergeし、Worklog競合では正しいMIG-031 CloseoutとSEC-002本文／Closeoutを保持し、誤ったMIG-030重複記録だけを削除した。
+- Repository変更差分は`worklogs/new_ver_main.md`だけに限定し、Application、OpenAPI、Package、CI、Dependency、Lockfile、Migration、Rulesetは変更しない。
+- Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認後にPR `#60`を自律Squash Mergeする。
+- Gate G3は`NOT COMPLETE`で、次Task候補は`MIG-032`だがMIG-031A完了後には開始しない。
