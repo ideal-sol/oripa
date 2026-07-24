@@ -2232,10 +2232,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Ready化とPR再Openで同一HeadのPlatform CIが重なり、Concurrencyにより古い`integration-gate`がCancelされ、その系列の`ci-gate`が失敗した。GateをBypassせず、本追記を含む新しいFinal Headの`synchronize` Eventで全Checkを再実行する。
 - Final HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
 
-### Commit／Push／PR
+### MIG-031 Closeout
 
-- Implementation Commitは`be58b9ab21cbaf17cb3634ae127c3c2e491b6427`で、ParentはBase SHA `0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`である。
-- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、Archive Ref変更は行っていない。
-- PRは`#56` (`https://github.com/ideal-sol/oripa/pull/56`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
-- PR本文へ23 Changed Fileを完全列挙し、Contract Skeleton、共通Component、Lint／Bundle／Breaking Change、CI／Policy、Worklogを分離して記録した。
-- 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+- PR `#58`のFinal Headは`9df392b2f338b08fe206a48d51cfb3bd90b5ecc1`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定HeadのSelf-review後にSquash Mergeし、Squash Commitは`643d5ec9e0e89a6ac9ea955865d93be78efed16b`、Issue `#57`はClosedである。
+- Remote／Local Task Branch `feat/MIG-031-storefront-client`とWorktreeは削除済みである。
+- Local `main`は`origin/main`へ`--ff-only`同期済みで、Working Treeはcleanだった。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+- OpenAPI LintとGenerated Client cleanは完了したが、実Public Operation Contract Test、Realm分離、Constraint Test、Backup／Restore、Alpha Artifactは未完了のため、Gate G3は`NOT COMPLETE`である。
+- 次Task候補は`MIG-032`だが、MIG-031A完了後には開始しない。
