@@ -2232,13 +2232,15 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Ready化とPR再Openで同一HeadのPlatform CIが重なり、Concurrencyにより古い`integration-gate`がCancelされ、その系列の`ci-gate`が失敗した。GateをBypassせず、本追記を含む新しいFinal Headの`synchronize` Eventで全Checkを再実行する。
 - Final HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
 
-### Commit／Push／PR
+### MIG-031 Closeout
 
-- Implementation Commitは`be58b9ab21cbaf17cb3634ae127c3c2e491b6427`で、ParentはBase SHA `0efd04ec8283ef8a084b6b7d7eddbfcea2d1bd4d`である。
-- GitHub App WrapperでRemote Task BranchへFast-forward Pushした。Direct main Push、Force Push、Archive Ref変更は行っていない。
-- PRは`#56` (`https://github.com/ideal-sol/oripa/pull/56`)、Authorは`ideal-sol-oripa-codex[bot]`、Draft、Baseは`main`である。
-- PR本文へ23 Changed Fileを完全列挙し、Contract Skeleton、共通Component、Lint／Bundle／Breaking Change、CI／Policy、Worklogを分離して記録した。
-- 本追記を含むFinal HeadでRequired 5 Check、Available CodeQL／Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認して自律Squash Mergeする。
+- PR `#58`のFinal Headは`9df392b2f338b08fe206a48d51cfb3bd90b5ecc1`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定HeadのSelf-review後にSquash Mergeし、Squash Commitは`643d5ec9e0e89a6ac9ea955865d93be78efed16b`、Issue `#57`はClosedである。
+- Remote／Local Task Branch `feat/MIG-031-storefront-client`とWorktreeは削除済みである。
+- Local `main`は`origin/main`へ`--ff-only`同期済みで、Working Treeはcleanだった。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+- OpenAPI LintとGenerated Client cleanは完了したが、実Public Operation Contract Test、Realm分離、Constraint Test、Backup／Restore、Alpha Artifactは未完了のため、Gate G3は`NOT COMPLETE`である。
+- 次Task候補は`MIG-032`だが、MIG-031A完了後には開始しない。
 
 ## SEC-002 PostCSS Security Advisory対応
 
@@ -2290,3 +2292,31 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub App Task Policy WrapperだけでFast-forward Pushし、Draft PR、Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
 - Direct main Push、Force Push、Required Check Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
 - SEC-002完了後もPR `#60`は変更せず、MIG-031AおよびMIG-032は開始しない。
+
+### SEC-002 Closeout
+
+- PR `#62`のFinal Headは`445b478eed88593e3b8aeeb8d53bb44a10a16c45`で、Required 5 Check、CodeQL、Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定Head Self-review後にSquash Mergeし、Squash Commitは`09d4b5b196ce842e39319f5ebe1ac9db31d4da74`、Issue `#61`はClosedである。
+- Remote／Local Task Branch `security/SEC-002-postcss-advisory`とWorktreeは削除済みである。
+- Local `main`は`origin/main`へ`--ff-only`同期済みで、Working Treeはcleanだった。
+- `GHSA-6g55-p6wh-862q`はRoot／Legacy双方から解消され、Root Auditは0 Finding、Legacy Auditは既存期限付きBaselineと一致する13 Findingだった。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+
+## MIG-031A Worklog Closeout修正
+
+- 再開日時: `2026-07-24T01:42:57Z`
+- Task ID: `MIG-031A`
+- Risk: `R3`
+- Issue: `#59` (`https://github.com/ideal-sol/oripa/issues/59`)
+- PR: `#60` (`https://github.com/ideal-sol/oripa/pull/60`)
+- Branch: `docs/MIG-031A-worklog-closeout`
+- Worktree: `/var/www/oripa-worktrees/MIG-031A-worklog-closeout`
+- 最新Base SHAはSEC-002 Squash Commit `09d4b5b196ce842e39319f5ebe1ac9db31d4da74`である。
+- 既存Task Branchへ最新`main`を通常Mergeし、Worklog競合では正しいMIG-031 CloseoutとSEC-002本文／Closeoutを保持し、誤ったMIG-030重複記録だけを削除した。
+- 通常Merge Commitは`9f7a89e0070505cc76f8a4b933c35c57e2acb598`で、Parentは既存Task Head `7e1c8bbebe8780adc8534b8f4d90e807b6d4efa4`と最新`main` `09d4b5b196ce842e39319f5ebe1ac9db31d4da74`である。
+- GitHub App Wrapperで通常Merge Commitを既存Remote BranchへFast-forward Pushし、Force Pushや履歴書換えは行っていない。
+- MIG-031A Task PolicyはBase SHAを最新`main`へ更新し、最終Allowed Pathを`worklogs/new_ver_main.md` 1件へ固定した。
+- PR `#60`のPostCSS Security Blocked記録はSEC-002完了結果に基づき解消済みへ更新し、本追記のFinal Headで全Checkを再実行する。
+- Repository変更差分は`worklogs/new_ver_main.md`だけに限定し、Application、OpenAPI、Package、CI、Dependency、Lockfile、Migration、Rulesetは変更しない。
+- Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認後にPR `#60`を自律Squash Mergeする。
+- Gate G3は`NOT COMPLETE`で、次Task候補は`MIG-032`だがMIG-031A完了後には開始しない。
