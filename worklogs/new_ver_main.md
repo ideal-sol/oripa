@@ -2284,6 +2284,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ### GitHub／完了方針
 
 - Repository変更はPostCSSのManifest／Lockfile、解消済みBaseline 1件、固定Version期待値、Worklogだけに限定する。
+- Initial Implementation Commitは`95b5080f9f21f68768fd0bfb751cc9e8f7fc62b2`で、GitHub App WrapperによるFast-forward Push後にPR `#62` (`https://github.com/ideal-sol/oripa/pull/62`)を作成した。
+- 初回`policy-gate`はPR本文の見出しが標準Templateと一致せず失敗した。Code、Gate、Assertionは変更せず、PR本文を`Summary`、`Specification sources`、`Scope`、`Allowed paths`、`Changed files`、`Verification performed`、`Verification not performed`へ整形した。
+- 同一Headの再実行では新しい`policy-gate`がPASSしたが、旧Failure／Cancelled RunもHeadへ残った。Wrapperが旧Runを成功扱いしないため、本Worklog追記の追加Commitを新しいFinal Headとし、全Checkを一度だけ再実行する。
 - GitHub App Task Policy WrapperだけでFast-forward Pushし、Draft PR、Required 5 Check、CodeQL、Dependency Review、固定Head Self-review、SEV-0／SEV-1なし、Merge Conflictなしを確認してSquash Mergeする。
 - Direct main Push、Force Push、Required Check Bypass、V1 Archive Branch／Annotated Tag変更は行わない。
 - SEC-002完了後もPR `#60`は変更せず、MIG-031AおよびMIG-032は開始しない。
