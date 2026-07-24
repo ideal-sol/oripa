@@ -2581,3 +2581,52 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   SEV-0／SEV-1なし、Merge Conflictなし、Head SHA不変を再確認してから
   GitHub AppがSquash Merge、Issue Close、Remote／Local BranchとWorktreeの
   Cleanup、Local `main`の`--ff-only`同期を実行する。
+
+## MIG-032 Closeout
+
+- GitHub APIとLocal Repositoryで`2026-07-24T04:51:02Z`に完了状態を再確認した。
+- PR `#66` (`https://github.com/ideal-sol/oripa/pull/66`)はMergedで、Final Headは
+  `5120687fc1739252133d8ca02744e39be150471b`、Squash Commitは
+  `d092e634b9107aaa00c0c68a5cbb0206805af913`である。
+- Final Headでは`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`のRequired 5 Checkがすべて成功した。
+- CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewも成功し、
+  GitHub Checkは合計8件成功した。
+- Fresh Self-reviewはPR `#66`のComment
+  `https://github.com/ideal-sol/oripa/pull/66#issuecomment-5066208342`に存在し、
+  対象HeadはFinal Headと一致する。Scope、Secret／PII、Contract SecurityはPASS、
+  Merge Recommendationは`MERGE`、SEV-0／SEV-1は0件である。
+- Issue `#65`はClosedで、State Reasonは`completed`である。
+- Remote Branch `feat/MIG-032-site-schema`はGitHub APIでNot Found、
+  Remote Tracking Refも存在せず、削除済みである。
+- Local Branch `feat/MIG-032-site-schema`とWorktree
+  `/var/www/oripa-worktrees/MIG-032-site-schema`は削除済みである。
+- Local `main`と`origin/main`はSquash Commit
+  `d092e634b9107aaa00c0c68a5cbb0206805af913`で一致し、Working Treeはcleanである。
+- V1 Runtime Worktreeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のまま変更されていない。
+- MIG-032および本Closeout確認ではV1 Runtime、Nginx、Docker Production構成、
+  V1本番DB、Redis、Storageを変更していない。V1／V2 DBのMigration、Rollback、
+  Seed、`migrate:fresh`、V2 DB／Redis構築は実行していない。
+- Gate G3はSite Schema Alphaまで完了したが、V2 Baseline Migration、Realm分離、
+  Constraint Test、Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-033`だが、MIG-032A完了後には開始しない。
+
+## MIG-032A Site Schema Alpha Closeout記録補完
+
+- Task ID: `MIG-032A`
+- Risk: `R3`
+- Issue: `#67` (`https://github.com/ideal-sol/oripa/issues/67`)
+- Branch: `docs/MIG-032A-site-schema-closeout`
+- Worktree: `/var/www/oripa-worktrees/MIG-032A-site-schema-closeout`
+- Base SHA: `d092e634b9107aaa00c0c68a5cbb0206805af913`
+- Allowed Pathは`worklogs/new_ver_main.md` 1件だけである。
+- MIG-032のGitHub操作とCleanup結果の正本化だけを行い、Site Schema実装、
+  Package Manifest／Lockfile、OpenAPI、Storefront Client、CI／Gate／Ruleset、
+  Laravel／Migrationを変更しない。
+- `git diff --check`、Markdown見出し、Full SHA、PR／Issue番号、変更Scope、
+  Secret／PII、V1 Runtime／V1本番DB／V2 DB非変更を検証する。
+- Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
+  SEV-0／SEV-1なし、Merge Conflictなしを確認後にGitHub AppがSquash Mergeする。
