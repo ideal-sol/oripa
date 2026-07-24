@@ -6,15 +6,164 @@ info:
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
-  description: >-
-    Storefront向けPublic API v2のContract Skeleton。業務Endpointは後続の
-    Contract-first Taskで追加する。
-  x-status: skeleton
+  description: Storefront向けPublic API v2の認証Contract Alpha。
+  x-status: alpha
 x-oripa-surface: public
 servers:
   - url: /api/v2
-paths: {}
+paths:
+  /auth/register:
+    post:
+      operationId: registerUser
+      summary: Userを仮登録する
+      x-idempotency: not-supported
+      x-rate-limit: ip-5-per-hour-and-email-3-per-hour
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+      responses:
+        '202':
+          description: Email Verification待ち。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingRegistration'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/login:
+    post:
+      operationId: loginUser
+      summary: User Password Loginを行う
+      x-idempotency: not-supported
+      x-rate-limit: account-ip-5-per-15-minutes-and-ip-30-per-hour
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordLoginRequest'
+      responses:
+        '200':
+          description: User Sessionを発行した。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSession'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      summary: User Sessionを失効する
+      x-idempotency: naturally-idempotent
+      x-rate-limit: session
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: Sessionを失効した。
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/email/verification-notification:
+    post:
+      operationId: resendUserEmailVerification
+      summary: Email Verificationを再送する
+      x-idempotency: not-supported
+      x-rate-limit: account-3-per-hour-and-10-per-day
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationResendRequest'
+      responses:
+        '202':
+          description: 存在有無を開示せず受理した。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/email/verify/{user_id}/{hash}:
+    get:
+      operationId: verifyUserEmail
+      summary: 1回限りのTokenでEmailを検証する
+      x-idempotency: one-time-token
+      x-rate-limit: verification-token
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: hash
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+      responses:
+        '200':
+          description: Emailを検証しUser Sessionを発行した。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSession'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/session:
+    get:
+      operationId: getUserSession
+      summary: 現在のUser Sessionを取得する
+      x-idempotency: safe
+      x-rate-limit: session
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - {}
+        - userSession: []
+      responses:
+        '200':
+          description: Session状態。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSession'
+        default:
+          $ref: '#/components/responses/Problem'
 components:
+  securitySchemes:
+    userSession:
+      type: apiKey
+      in: cookie
+      name: __Host-oripa_user_session
   schemas:
     OpaqueId:
       $ref: ../components/common.yaml#/schemas/OpaqueId
@@ -28,6 +177,97 @@ components:
       $ref: ../components/common.yaml#/schemas/ProblemDetails
     CursorPageMeta:
       $ref: ../components/common.yaml#/schemas/CursorPageMeta
+    UserRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+        redirect_path:
+          type: string
+          default: /
+          pattern: '^/(?!/)'
+    PasswordLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+    VerificationResendRequest:
+      type: object
+      additionalProperties: false
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        redirect_path:
+          type: string
+          default: /
+          pattern: '^/(?!/)'
+    PendingRegistration:
+      type: object
+      additionalProperties: false
+      required: [status, user_id]
+      properties:
+        status:
+          type: string
+          const: pending_verification
+        user_id:
+          type: string
+          format: uuid
+    PublicUser:
+      type: object
+      additionalProperties: false
+      required: [id, state, email_verified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [active, restricted]
+        email_verified:
+          type: boolean
+          const: true
+    UserSession:
+      type: object
+      additionalProperties: false
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/PublicUser'
+            - type: 'null'
+        redirect_path:
+          type: string
+          pattern: '^/(?!/)'
+    Accepted:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: accepted
   parameters:
     XOripaClientVersion:
       $ref: ../components/common.yaml#/parameters/XOripaClientVersion
@@ -35,6 +275,13 @@ components:
       $ref: ../components/common.yaml#/parameters/XOripaSiteVersion
     IdempotencyKey:
       $ref: ../components/common.yaml#/parameters/IdempotencyKey
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{64}$'
   headers:
     XRequestId:
       $ref: ../components/common.yaml#/headers/XRequestId

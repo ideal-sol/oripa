@@ -38,12 +38,14 @@ REQUIRED_ENV_KEYS = {
     "V2_REDIS_PASSWORD",
 }
 EXPECTED_V2_SCHEMA_INVENTORY = [
+    "public.admin_invitations",
     "public.admin_recovery_codes",
     "public.admin_sessions",
     "public.admin_totp_methods",
     "public.admin_webauthn_credentials",
     "public.admins",
     "public.migrations",
+    "public.user_email_verifications",
     "public.user_remember_devices",
     "public.user_sessions",
     "public.users",

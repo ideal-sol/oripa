@@ -41,6 +41,12 @@ Providers, Guards, Cookie names, and Session policies are separate. No
 `tenant_id`, speculative schema-version table, Audit, Outbox, Point, or Payment
 table is added.
 
+MIG-041Aは`user_email_verifications`と`admin_invitations`を追加する。両Tableは
+CSPRNG TokenのSHA-256 Hashだけを保存し、User Verificationは60分、Admin
+Invitationは30分、いずれも1回限りである。`admin_sessions`へ
+`requires_mfa_enrollment`を追加し、Recovery Code使用後のSessionを通常Admin
+業務AccessからFail Closedにする。Audit／Outbox TableはMIG-042まで追加しない。
+
 Verified User Email is protected by a partial Unique Index while Pending Email
 may repeat. Admin Email is Unique inside the Admin Realm. Account State, fixed
 Admin Role, Argon2id Hash format, Session Hash format, remember-device lifetime,

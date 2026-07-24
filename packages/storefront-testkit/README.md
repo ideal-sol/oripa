@@ -20,8 +20,8 @@ OwnerはPlatform Codex。親[`AGENTS.md`](../AGENTS.md)に従う。
 - Public-safeなSite Manifest、Compatibility、Response Metadata Fixture
 - Browser／Server／Public Surface／Site CompatibilityのBoundary Assertion
 
-Public API Operationは0件である。架空Endpoint、Fake Operation、Draw／Point／
-Payment等の業務Responseは提供しない。
+Public API Operationは認証Contractの6件だけである。架空Endpoint、Fake Operation、
+Draw／Point／Payment等の業務Responseは提供しない。
 
 ## Entry Points
 
@@ -81,4 +81,4 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 ## Status
 
 Versionは`2.0.0-alpha.1`。Packageは非公開AlphaでありProduction利用不可。
-Canonical Site TemplateやPublic API Operationの実装済みを意味しない。
+Canonical Site Templateや認証以外のPublic API Operationの実装済みを意味しない。

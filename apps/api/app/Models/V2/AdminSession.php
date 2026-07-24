@@ -16,6 +16,7 @@ final class AdminSession extends Model
         'session_id_hash',
         'admin_id',
         'mfa_verified_at',
+        'requires_mfa_enrollment',
         'last_activity_at',
         'idle_expires_at',
         'absolute_expires_at',
@@ -30,6 +31,7 @@ final class AdminSession extends Model
     {
         return [
             'mfa_verified_at' => 'immutable_datetime',
+            'requires_mfa_enrollment' => 'boolean',
             'created_at' => 'immutable_datetime',
             'last_activity_at' => 'immutable_datetime',
             'idle_expires_at' => 'immutable_datetime',

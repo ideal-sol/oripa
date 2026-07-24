@@ -3,7 +3,110 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Userを仮登録する */
+        post: operations["registerUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** User Password Loginを行う */
+        post: operations["loginUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** User Sessionを失効する */
+        post: operations["logoutUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verification-notification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Email Verificationを再送する */
+        post: operations["resendUserEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verify/{user_id}/{hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 1回限りのTokenでEmailを検証する */
+        get: operations["verifyUserEmail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 現在のUser Sessionを取得する */
+        get: operations["getUserSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
@@ -40,6 +143,47 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        UserRegistrationRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+            /** @default / */
+            redirect_path: string;
+        };
+        PasswordLoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        VerificationResendRequest: {
+            /** Format: uuid */
+            user_id: string;
+            /** @default / */
+            redirect_path: string;
+        };
+        PendingRegistration: {
+            /** @constant */
+            status: "pending_verification";
+            /** Format: uuid */
+            user_id: string;
+        };
+        PublicUser: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            state: "active" | "restricted";
+            /** @constant */
+            email_verified: true;
+        };
+        UserSession: {
+            authenticated: boolean;
+            user: components["schemas"]["PublicUser"] | null;
+            redirect_path?: string;
+        };
+        Accepted: {
+            /** @constant */
+            status: "accepted";
+        };
         ValidationErrors: {
             [key: string]: string[];
         };
@@ -62,6 +206,7 @@ export interface components {
         XOripaClientVersion: components["schemas"]["SemanticVersion"];
         XOripaSiteVersion: components["schemas"]["SemanticVersion"];
         IdempotencyKey: string;
+        XsrfToken: string;
     };
     requestBodies: never;
     headers: {
@@ -73,4 +218,152 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    registerUser: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Email Verification待ち。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingRegistration"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    loginUser: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description User Sessionを発行した。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    logoutUser: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessionを失効した。 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    resendUserEmailVerification: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationResendRequest"];
+            };
+        };
+        responses: {
+            /** @description 存在有無を開示せず受理した。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    verifyUserEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Emailを検証しUser Sessionを発行した。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getUserSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session状態。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+}

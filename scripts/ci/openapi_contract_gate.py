@@ -43,7 +43,6 @@ REQUIRED_COMMON_SCHEMAS = {
     "ProblemDetails",
 }
 PUBLIC_LEAK_FIELDS = {
-    "password",
     "password_hash",
     "remember_token",
     "provider_secret",
@@ -116,8 +115,8 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
         str(info.get("version", ""))
     ):
         raise ContractFailure(f"{surface}: title or contract version is invalid")
-    if info.get("x-status") != "skeleton":
-        raise ContractFailure(f"{surface}: Skeleton status must be explicit")
+    if info.get("x-status") not in {"skeleton", "alpha"}:
+        raise ContractFailure(f"{surface}: contract status must be skeleton or alpha")
     if document.get("x-oripa-surface") != surface:
         raise ContractFailure(f"{surface}: surface marker is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
@@ -158,6 +157,19 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
                 )
 
     if surface == "public":
+        for name, schema in schemas.items():
+            if not isinstance(schema, dict):
+                continue
+            properties = schema.get("properties", {})
+            if not isinstance(properties, dict) or "password" not in properties:
+                continue
+            password = properties["password"]
+            if (
+                name not in {"UserRegistrationRequest", "PasswordLoginRequest"}
+                or not isinstance(password, dict)
+                or password.get("writeOnly") is not True
+            ):
+                raise ContractFailure("public: password is exposed outside an auth request")
         leaked = sorted(
             {key.lower() for key in nested_keys(document)} & PUBLIC_LEAK_FIELDS
         )
