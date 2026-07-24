@@ -158,6 +158,15 @@ API_APPLICATION_REQUIRED_FILES = {
     "apps/api/routes/api.php",
     "apps/api/tests/TestCase.php",
 }
+V2_DATABASE_REQUIRED_FILES = {
+    ".ci/baselines/v1-migrations.json",
+    "apps/api/database/migrations-v2/README.md",
+    "docker-compose.v2.yml",
+    "docs/operations/database/README.md",
+    "scripts/db/README.md",
+    "scripts/db/v2_database.py",
+    "tests/db/test_v2_database.py",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1140,6 +1149,107 @@ def validate_compose_skeletons(repository: Path) -> None:
         raise PolicyFailure(".dockerignore: Legacy Frontend root-context exclusion missing")
 
 
+def migration_content_set(repository: Path, relative: str) -> tuple[int, str]:
+    files = sorted((repository / relative).glob("*.php"))
+    digests = sorted(hashlib.sha256(path.read_bytes()).hexdigest() for path in files)
+    payload = ("\n".join(digests) + ("\n" if digests else "")).encode()
+    return len(files), hashlib.sha256(payload).hexdigest()
+
+
+def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_DATABASE_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("required V2 database baseline files missing: " + ", ".join(missing))
+
+    baseline_path = repository / ".ci/baselines/v1-migrations.json"
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if baseline.get("schema_version") != "1.0":
+        raise PolicyFailure("V1 migration baseline schema is invalid")
+    if baseline.get("path") != "apps/api/database/migrations":
+        raise PolicyFailure("V1 migration baseline path is invalid")
+    count, checksum = migration_content_set(repository, baseline["path"])
+    if baseline.get("file_count") != count:
+        raise PolicyFailure("V1 migration file count changed")
+    if baseline.get("content_sha256_set") != checksum:
+        raise PolicyFailure("V1 migration content checksum changed")
+
+    migration_root = repository / "apps/api/database/migrations-v2"
+    if not migration_root.is_dir():
+        raise PolicyFailure("V2 Migration Path is missing")
+    migration_readme = (migration_root / "README.md").read_text(encoding="utf-8")
+    for required in (
+        "scripts/db/v2_database.py",
+        "apps/api/database/migrations-v2",
+        "Production",
+        "apps/api/database/migrations",
+    ):
+        if required not in migration_readme:
+            raise PolicyFailure(f"V2 Migration Path instructions missing {required}")
+
+    compose = (repository / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    for required in (
+        "postgres:17-alpine",
+        "redis:7-alpine",
+        "${V2_DB_DATABASE:?",
+        "${V2_DB_USERNAME:?",
+        "${V2_DB_PASSWORD:?",
+        "${V2_REDIS_PASSWORD:?",
+        "v2_postgres:/var/lib/postgresql/data",
+        "v2_redis:/data",
+        "v2_private:",
+        "internal: true",
+    ):
+        if required not in compose:
+            raise PolicyFailure(f"V2 database Compose boundary missing {required}")
+    for prohibited in (
+        "container_name:",
+        "tenant_id",
+        "oripa_postgres_data",
+        "oripa_redis_data",
+        "v2_skeleton_only",
+    ):
+        if prohibited in compose:
+            raise PolicyFailure(f"V2 database Compose contains prohibited {prohibited}")
+    for service in ("postgres", "redis"):
+        block = re.search(
+            rf"(?ms)^  {service}:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^networks:)",
+            compose,
+        )
+        if not block:
+            raise PolicyFailure(f"V2 database Compose service missing {service}")
+        if re.search(r"(?m)^\s{4}ports:", block.group("body")):
+            raise PolicyFailure(f"V2 {service} Host Port publication is prohibited")
+
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    for required in (
+        'MIGRATION_PATH = "apps/api/database/migrations-v2"',
+        'V1_MIGRATION_PATH = "apps/api/database/migrations"',
+        "Production or unexpected environment is prohibited",
+        "V1 Compose Project is prohibited",
+        "V1 Migration Path is prohibited",
+        "Unexpected Database or Redis Host",
+        "Database and Redis Host Ports are prohibited",
+        "Refusing to remove an unscoped Volume",
+    ):
+        if required not in runner:
+            raise PolicyFailure(f"V2 database Guard missing {required}")
+    if "docker system prune" in runner or "docker compose down -v" in runner:
+        raise PolicyFailure("V2 database Guard contains an unscoped destructive command")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "--path=database/migrations",
+        "scripts/db/v2_database.py smoke",
+        "--migration-path apps/api/database/migrations-v2",
+        "tests/db",
+    ):
+        if required not in workflow:
+            raise PolicyFailure(f"platform-ci V2 database verification missing {required}")
+
+
 def validate_boundary_readmes(repository: Path) -> None:
     for relative in sorted(BOUNDARY_READMES):
         text = (repository / relative).read_text(encoding="utf-8")
@@ -1454,6 +1564,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_workspace_skeleton(repository, paths)
     validate_api_application_layout(paths)
     validate_legacy_frontend_layout(repository, paths)
+    validate_v2_database_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

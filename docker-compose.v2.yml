@@ -1,4 +1,4 @@
-# V2 structural smoke environment. This file is never a Production deployment.
+# V2 development and ephemeral verification only. This is never a Production deployment.
 services:
   api:
     build:
@@ -7,21 +7,22 @@ services:
     command: php artisan serve --host=0.0.0.0 --port=8000
     environment:
       APP_DEBUG: "false"
-      APP_ENV: local
-      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_ENV: ${V2_APP_ENV:?V2_APP_ENV is required}
+      APP_KEY: ${V2_APP_KEY:?V2_APP_KEY is required}
       APP_URL: http://api:8000
       CACHE_STORE: redis
       DB_CONNECTION: pgsql
-      DB_DATABASE: v2_skeleton
-      DB_HOST: postgres
-      DB_PASSWORD: v2_skeleton_only
-      DB_PORT: 5432
-      DB_USERNAME: v2_skeleton
+      DB_DATABASE: ${V2_DB_DATABASE:?V2_DB_DATABASE is required}
+      DB_HOST: ${V2_DB_HOST:?V2_DB_HOST is required}
+      DB_PASSWORD: ${V2_DB_PASSWORD:?V2_DB_PASSWORD is required}
+      DB_PORT: ${V2_DB_PORT:?V2_DB_PORT is required}
+      DB_USERNAME: ${V2_DB_USERNAME:?V2_DB_USERNAME is required}
       FILESYSTEM_DISK: local
       LOG_CHANNEL: stderr
       QUEUE_CONNECTION: sync
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_HOST: ${V2_REDIS_HOST:?V2_REDIS_HOST is required}
+      REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?V2_REDIS_PASSWORD is required}
+      REDIS_PORT: ${V2_REDIS_PORT:?V2_REDIS_PORT is required}
       SESSION_DRIVER: array
     depends_on:
       postgres:
@@ -35,7 +36,7 @@ services:
       retries: 24
       start_period: 15s
     networks:
-      - v2_skeleton
+      - v2_private
 
   admin:
     build:
@@ -51,39 +52,47 @@ services:
       retries: 24
       start_period: 10s
     networks:
-      - v2_skeleton
+      - v2_private
 
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: v2_skeleton
-      POSTGRES_PASSWORD: v2_skeleton_only
-      POSTGRES_USER: v2_skeleton
+      POSTGRES_DB: ${V2_DB_DATABASE:?V2_DB_DATABASE is required}
+      POSTGRES_PASSWORD: ${V2_DB_PASSWORD:?V2_DB_PASSWORD is required}
+      POSTGRES_USER: ${V2_DB_USERNAME:?V2_DB_USERNAME is required}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U v2_skeleton -d v2_skeleton"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
       - v2_postgres:/var/lib/postgresql/data
     networks:
-      - v2_skeleton
+      - v2_private
 
   redis:
     image: redis:7-alpine
-    command: redis-server --save "" --appendonly no
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        printf 'requirepass %s\nsave ""\nappendonly no\n' "$$REDIS_PASSWORD" > /run/redis-v2.conf
+        exec redis-server /run/redis-v2.conf
+    environment:
+      REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?V2_REDIS_PASSWORD is required}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
       - v2_redis:/data
     networks:
-      - v2_skeleton
+      - v2_private
 
 networks:
-  v2_skeleton:
+  v2_private:
     internal: true
 
 volumes:
