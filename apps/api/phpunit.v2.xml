@@ -11,6 +11,7 @@
     <source>
         <include>
             <directory>app/Domain/Identity</directory>
+            <directory>app/Domain/Point</directory>
             <directory>app/Http/Middleware/V2</directory>
             <directory>app/Models/V2</directory>
         </include>

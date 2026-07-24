@@ -3383,3 +3383,113 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G3はIdentity、Authentication、Audit／Outbox、V2 DB分離まで進んだが、
   Point／Payment基礎Tableと初回`2.0.0-alpha.1` Artifactが残るため
   `NOT COMPLETE`である。
+
+## MIG-042 Closeout
+
+- PR `#80`はMerged、Issue `#79`はClosedである。
+- Task Final Headは`12b3590054a4b6c6e6df8ccc4269bed129cf549a`、Squash Commitは
+  `56db6174510c286129d37403ae7052473a4d3454`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。
+- Final Head固定後のFresh Self-reviewは同じHeadを対象とし、SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-042 Worktreeは削除済みである。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanである。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、V1 Archive
+  Branch／Annotated Tagを変更していない。
+
+## MIG-043 Point Model Foundation
+
+### Task／Scope
+
+- Task ID: `MIG-043`
+- Risk: `R3`
+- Issue: `#81` (`https://github.com/ideal-sol/oripa/issues/81`)
+- Branch: `migration/MIG-043-point-model-foundation`
+- Worktree: `/var/www/oripa-worktrees/MIG-043-point-model-foundation`
+- Base SHA: `56db6174510c286129d37403ae7052473a4d3454`
+- V2専用Migration Rootへ`wallets`、`point_operations`、`point_lots`、
+  `point_ledger_entries`、`point_adjustments`、`point_balance_snapshots`、
+  `point_reconciliation_runs`、`point_reconciliation_discrepancies`、
+  `idempotency_records`を追加した。
+- Payment、Payment Adjustment、Provider Event、Point購入Plan、返金／チャージバック、
+  Draw／Probability／Inventory、Public／Admin／Webhook API、UIは実装していない。
+
+### Schema／Constraint
+
+- Point値はPostgreSQL `bigint`整数だけを使用し、paid／free、Balance／Reservedを
+  構造化Columnで分離した。WalletとLotは負数を拒否し、ReservedはBalance以下に限定する。
+- paid Lotは`expire_at IS NULL`、free Lotは`expire_at IS NOT NULL`をDB Constraintで
+  強制する。`tenant_id`、float／小数、内部IDのAPI公開は追加していない。
+- `point_operations.business_key`とIdempotency Scope／KeyはUniqueである。
+  Point Operation、Ledger、Reconciliation DiscrepancyはModelおよびPostgreSQL Triggerで
+  Update／Delete／Truncateを拒否する。
+- `public_id`はUUIDv7、`business_date`はAsia/Tokyo、Snapshotは
+  `occurred_at < ledger_cutoff`でLedgerから再構築し、3月31日／9月30日だけ
+  `is_base_date=true`とする。
+- `point_lot_reservations`は`payment_adjustments`へのFKと取消／返金時のReservation
+  不変条件を必要とするためMIG-044へ延期した。架空のPayment Tableや汎用JSONB代替は
+  作成していない。
+
+### Domain Service／Permission
+
+- Wallet初期化、free Point付与、Point消費、free Point失効、Ledger記録、
+  Idempotency、Deadlock／Serialization Failureの最大3回限定Retryを実装した。
+- 消費はWalletを先に`FOR UPDATE`し、freeを`expire_at ASC, granted_at ASC, id ASC`、
+  paidを`granted_at ASC, id ASC`でLockする。`SKIP LOCKED`は使用しない。
+- Ledger再構築、Ledger Cutoff Snapshot、Wallet／Lot／Ledger Reconciliationを
+  実装した。不一致は記録するだけで自動修復しない。
+- 通常Serviceはfree付与だけを公開し、成功済みPaymentを確認できないpaid付与経路を
+  持たない。Point AdjustmentはSchema、固定Permission、Audit境界までに限定し、
+  実行APIは追加していない。
+- `point.ledger.read`、Adjustment Request、free／paid Approval Permissionを固定した。
+  paid ApprovalはOwnerだけで、Owner自己承認を禁止する定義は追加していない。
+- Wallet初期化、free付与、消費、失効、Snapshot、ReconciliationをMIG-042の
+  Append-only Auditへ接続した。Password、Token、Full Email、Raw Session ID、
+  不要なPIIをAudit／Metadataへ保存しない。
+
+### Migration／DB Verification
+
+- V1 Migrationは40件、内容SHA-256 Set
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  でBaselineと一致し、編集、改名、削除していない。
+- V2 Migrationは6件、内容SHA-256 Set
+  `e25ae9c68129c311e894440d7e5d72944de22618bc238b8bf75dd2543b6027d5`
+  である。
+- Persistent V2 PostgreSQL 17／Redis 7でGuard経由の`migrate:fresh`を2回実行し、
+  Migration Status、23 TableのSchema Inventory、Health、Host Port非公開を確認した。
+- V2 PHPUnitは62 Test、356 Assertionが成功した。Point専用14 Testは、Constraint、
+  immutable、消費順、失効、Rollback、Idempotency、並行消費、消費／失効競合、
+  Deadlock Retry、Ledger再構築、Snapshot、Reconciliation、Permission、Auditを
+  検証する。
+- Task専用Ephemeral Source／Restore ProjectでBackup／Restoreを実行し、
+  Source／Restore Schema SHA-256は
+  `b360b2d6394452606c724aabe043a378839c11773b4067399a15fc93d700cd37`、
+  Migration Row SHA-256は
+  `082d7e5b67c0ae065f8160b5379bba92ae8d07c83d3634fb3d2f96886b888555`
+  で一致した。Backup SHA-256は
+  `83d256c545bf7c76eef82555a053db3c7c16c665f68140cb6809a12f51daa24f`
+  である。
+- EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-043-persistent-final-20260724T141500Z/`と
+  `/var/www/oripa-v1-evidence/MIG-043-ephemeral-final-20260724T141500Z/`へ保存した。
+  Task専用Container／Network／VolumeのCleanupはPASSし、Secret、実PII、V1 Dataを
+  含まない。
+
+### Local Verification／Gate
+
+- PHP Syntax、Policy Unit Test 52件、DB Guard Unit Test 16件、Quality Unit Test
+  5件、Security Unit Test 4件はPASSした。
+- `quality-gate`、`security-gate`、`git diff --check`はPASSした。Root Workspace
+  Auditは0 Finding、Secret／PII Candidateは0件である。
+- Legacy Frontend 13 FindingとComposer 10 Advisoryは既存期限付きBaselineと一致し、
+  新規Finding、件数増加、Severity悪化はない。
+- Full V1 Backend Test、Legacy Frontend Runtime Test、Browser／E2E、
+  Payment／Provider Integration、Production Deploymentは未実行であり、PASSとは
+  記録しない。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewは
+  GitHub PRの固定Final Headで実行し、Fresh Self-review後に結果を確定する。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、V1 Archive
+  Branch／Annotated Tagを変更していない。
+- Gate G3はPoint Model Foundationまで進んだが、Payment Modelと初回
+  `2.0.0-alpha.1` Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-044 Payment Model`だが、MIG-043完了後には開始しない。
