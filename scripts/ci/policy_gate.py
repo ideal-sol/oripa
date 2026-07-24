@@ -79,6 +79,24 @@ SITE_SCHEMA_REQUIRED_FILES = {
     "packages/site-schema/test/fixtures/negative/unknown-field.json",
     "packages/site-schema/test/site-schema.test.mjs",
 }
+STOREFRONT_TESTKIT_REQUIRED_FILES = {
+    "packages/storefront-testkit/.gitignore",
+    "packages/storefront-testkit/README.md",
+    "packages/storefront-testkit/package.json",
+    "packages/storefront-testkit/eslint.config.mjs",
+    "packages/storefront-testkit/tsconfig.json",
+    "packages/storefront-testkit/tsconfig.build.json",
+    "packages/storefront-testkit/scripts/check-exports.mjs",
+    "packages/storefront-testkit/scripts/check-network-boundary.mjs",
+    "packages/storefront-testkit/scripts/generate-public-contract.mjs",
+    "packages/storefront-testkit/src/assertions.ts",
+    "packages/storefront-testkit/src/errors.ts",
+    "packages/storefront-testkit/src/fixtures.ts",
+    "packages/storefront-testkit/src/generated/public-contract.ts",
+    "packages/storefront-testkit/src/index.ts",
+    "packages/storefront-testkit/src/mock.ts",
+    "packages/storefront-testkit/test/testkit.test.mjs",
+}
 WORKSPACE_REQUIRED_FILES = {
     ".dockerignore",
     ".github/dependabot.yml",
@@ -104,8 +122,7 @@ WORKSPACE_REQUIRED_FILES = {
     "packages/platform/package.json",
     *STOREFRONT_CLIENT_REQUIRED_FILES,
     *SITE_SCHEMA_REQUIRED_FILES,
-    "packages/storefront-testkit/README.md",
-    "packages/storefront-testkit/package.json",
+    *STOREFRONT_TESTKIT_REQUIRED_FILES,
     "packages/AGENTS.md",
     "openapi/README.md",
     "openapi/AGENTS.md",
@@ -166,7 +183,6 @@ ADMIN_SKELETON_FILES = {
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
-    "packages/storefront-testkit/package.json": "@oripa/storefront-testkit",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
     "next": "16.2.11",
@@ -196,6 +212,15 @@ SITE_SCHEMA_DEPENDENCY_VERSIONS = {
 }
 SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "@types/semver": "7.7.1",
+    "eslint": "9.39.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+}
+STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
+    "@oripa/site-schema": "workspace:2.0.0-alpha.1",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.1",
+}
+STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
@@ -591,9 +616,18 @@ def validate_exact_dependency_versions(
         raise PolicyFailure(f"{relative}: exact development dependencies are invalid")
     for section in ("dependencies", "devDependencies"):
         for name, version in package.get(section, {}).items():
-            if not SEMANTIC_VERSION.fullmatch(version):
+            exact_version = (
+                version.removeprefix("workspace:")
+                if version.startswith("workspace:")
+                else version
+            )
+            if not SEMANTIC_VERSION.fullmatch(exact_version):
                 raise PolicyFailure(
                     f"{relative}: dependency {name} must use an exact version"
+                )
+            if version.startswith("workspace:") and not name.startswith("@oripa/"):
+                raise PolicyFailure(
+                    f"{relative}: workspace protocol is limited to first-party packages"
                 )
 
 
@@ -937,6 +971,151 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
             )
 
 
+def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(STOREFRONT_TESTKIT_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("Storefront Testkit files missing: " + ", ".join(missing))
+
+    package = load_json(repository, "packages/storefront-testkit/package.json")
+    identity = {
+        "name": package.get("name"),
+        "version": package.get("version"),
+        "private": package.get("private"),
+        "type": package.get("type"),
+        "sideEffects": package.get("sideEffects"),
+        "packageManager": package.get("packageManager"),
+        "engines": package.get("engines"),
+        "files": package.get("files"),
+    }
+    if identity != {
+        "name": "@oripa/storefront-testkit",
+        "version": "2.0.0-alpha.1",
+        "private": True,
+        "type": "module",
+        "sideEffects": False,
+        "packageManager": "pnpm@10.12.1",
+        "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+        "files": ["dist"],
+    }:
+        raise PolicyFailure(
+            "packages/storefront-testkit/package.json: Alpha identity is invalid"
+        )
+    validate_exact_dependency_versions(
+        package,
+        STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS,
+        STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS,
+        "packages/storefront-testkit/package.json",
+    )
+    if set(package.get("scripts", {})) != {
+        "build",
+        "exports:check",
+        "generate",
+        "generate:check",
+        "lint",
+        "network:check",
+        "test",
+        "typecheck",
+    }:
+        raise PolicyFailure(
+            "packages/storefront-testkit/package.json: scripts are invalid"
+        )
+    if set(package.get("exports", {})) != {
+        ".",
+        "./assertions",
+        "./fixtures",
+        "./mock",
+    }:
+        raise PolicyFailure(
+            "packages/storefront-testkit/package.json: exports are invalid"
+        )
+    if package.get("oripaCompatibility") != {
+        "family": 2,
+        "storefrontClientVersion": "2.0.0-alpha.1",
+        "siteSchemaVersion": "2.0.0-alpha.1",
+        "publicApiOperationCount": 0,
+    }:
+        raise PolicyFailure(
+            "packages/storefront-testkit/package.json: compatibility metadata is invalid"
+        )
+    if (
+        repository / "packages/storefront-testkit/.gitignore"
+    ).read_text(encoding="utf-8").strip() != "/dist/":
+        raise PolicyFailure(
+            "packages/storefront-testkit/.gitignore: only dist may be ignored"
+        )
+
+    generated = (
+        repository / "packages/storefront-testkit/src/generated/public-contract.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "generated from openapi/bundled/public.openapi.json",
+        'openapi: "3.1.1"',
+        "operation_count: 0",
+        "operation_ids: []",
+        "bundle_sha256:",
+    ):
+        if required not in generated:
+            raise PolicyFailure(
+                "packages/storefront-testkit: generated Public Contract Fixture is invalid"
+            )
+
+    public_surface = "\n".join(
+        (repository / relative).read_text(encoding="utf-8")
+        for relative in (
+            "packages/storefront-testkit/src/index.ts",
+            "packages/storefront-testkit/src/assertions.ts",
+            "packages/storefront-testkit/src/fixtures.ts",
+            "packages/storefront-testkit/src/mock.ts",
+        )
+    )
+    if re.search(r"\b(?:Admin|Webhook|Provider)(?:Type|Client|Fixture|Request)", public_surface):
+        raise PolicyFailure(
+            "packages/storefront-testkit: forbidden surface is publicly exported"
+        )
+    for prohibited in (
+        "globalThis.fetch(",
+        "node:http",
+        "node:https",
+        "node:net",
+        "node:tls",
+        "undici",
+        "XMLHttpRequest",
+        "WebSocket",
+    ):
+        if prohibited in public_surface:
+            raise PolicyFailure(
+                "packages/storefront-testkit: real network access is prohibited"
+            )
+
+    mock = (
+        repository / "packages/storefront-testkit/src/mock.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "UnexpectedMockRequestError",
+        "requests.push(request)",
+        "queue.shift()",
+        'kind: "network-error"',
+        'kind: "pending"',
+        "credentials: init?.credentials",
+    ):
+        if required not in mock:
+            raise PolicyFailure(
+                f"packages/storefront-testkit: Mock Transport missing {required}"
+            )
+    test_source = (
+        repository / "packages/storefront-testkit/test/testkit.test.mjs"
+    ).read_text(encoding="utf-8")
+    if test_source.count("test(") < 12 or "assert." not in test_source:
+        raise PolicyFailure(
+            "packages/storefront-testkit: substantive assertions are required"
+        )
+    if re.search(r"\b(?:test|describe|it)\.(?:skip|todo)\b", test_source):
+        raise PolicyFailure(
+            "packages/storefront-testkit: skipped or no-op tests are prohibited"
+        )
+
+
 def validate_compose_skeletons(repository: Path) -> None:
     v1 = (repository / "docker-compose.yml").read_text(encoding="utf-8")
     for required in ("./apps/api", "./legacy/v1-frontend", "postgres:", "redis:"):
@@ -976,6 +1155,7 @@ def validate_boundary_readmes(repository: Path) -> None:
             in {
                 "packages/storefront-client/README.md",
                 "packages/site-schema/README.md",
+                "packages/storefront-testkit/README.md",
             }
             else "Skeleton"
         )
@@ -1182,6 +1362,7 @@ def validate_workspace_skeleton(repository: Path, paths: Iterable[str]) -> None:
     validate_package_skeletons(repository)
     validate_storefront_client(repository, paths)
     validate_site_schema(repository, paths)
+    validate_storefront_testkit(repository, paths)
     validate_compose_skeletons(repository)
     validate_boundary_readmes(repository)
     release_schema = validate_manifest_schema(
