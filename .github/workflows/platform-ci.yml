@@ -95,6 +95,9 @@ jobs:
       - name: Validate Site Schema Alpha
         run: pnpm site-schema:check
 
+      - name: Validate Storefront Testkit Alpha
+        run: pnpm testkit:check
+
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
@@ -304,6 +307,9 @@ jobs:
 
       - name: Generate, build, and test Site Schema Alpha
         run: pnpm site-schema:check
+
+      - name: Build and test Storefront Testkit Alpha
+        run: pnpm testkit:check
 
       - name: Validate contracts, manifests, and Compose
         run: |

@@ -2630,3 +2630,112 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Secret／PII、V1 Runtime／V1本番DB／V2 DB非変更を検証する。
 - Final HeadでRequired 5 Check、CodeQL、Dependency Review、Fresh Self-review、
   SEV-0／SEV-1なし、Merge Conflictなしを確認後にGitHub AppがSquash Mergeする。
+
+## MIG-032A Closeout
+
+- PR `#68`のFinal Headは
+  `a6008420e1c84644f81c6825096538c6f370f602`で、Required 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Reviewを含む8 Checkが成功した。
+- GitHub Appが固定HeadのFresh Self-reviewを作成し、SEV-0／SEV-1が0件、
+  Merge Conflictなしを確認してSquash Mergeした。Squash Commitは
+  `d552710fc9eb938278d183056b1c2df737b2ffc1`である。
+- Issue `#67`はClosed、Remote／Local Branch
+  `docs/MIG-032A-site-schema-closeout`と専用WorktreeはCleanup済みである。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanだった。
+- MIG-032の正しいCloseout、Gate G3 `NOT COMPLETE`、次Task候補`MIG-033`が
+  `worklogs/new_ver_main.md`へ正本化された。
+- V1 Runtime、Nginx、Docker Production構成、V1本番DB、Redis、Storage、
+  V1 Archive Branch／Annotated Tagは変更されていない。V1／V2 DBのMigration、
+  Rollback、Seed、`migrate:fresh`、V2 DB／Redis構築は未実行である。
+
+## MIG-033 Storefront Testkit Alpha
+
+### Task
+
+- 実施開始: `2026-07-24T05:18:14Z`
+- Task ID: `MIG-033`
+- Risk: `R3`
+- Issue: `#69` (`https://github.com/ideal-sol/oripa/issues/69`)
+- Branch: `feat/MIG-033-storefront-testkit`
+- Worktree: `/var/www/oripa-worktrees/MIG-033-storefront-testkit`
+- Base SHA: `d552710fc9eb938278d183056b1c2df737b2ffc1`
+- Root／`packages/AGENTS.md`、API v2／Storefront Client Contract、Package
+  Version／Compatibility Policy、V1→V2 Migration Plan、Public OpenAPI Bundle、
+  Storefront Client、Site Schemaを再確認した。
+
+### Package／Contract
+
+- `@oripa/storefront-testkit` `2.0.0-alpha.1`を、Site StorefrontのPlatform
+  Contract適合を検査するprivateかつ非ProductionのTest Packageとして実装した。
+- `@oripa/storefront-client`と`@oripa/site-schema`は
+  `workspace:2.0.0-alpha.1`でExact参照し、`workspace:*`、SemVer Range、
+  `latest`を使用していない。Root WorkspaceとLegacy FrontendのLockfile分離は
+  維持した。
+- ExportはRoot、`./assertions`、`./fixtures`、`./mock`だけに固定し、
+  `sideEffects: false`、決定的な`dist` Buildとした。Admin／Webhook／Provider型、
+  Business Authority、Production Runtime APIは公開していない。
+- Public OpenAPI BundleからOpenAPI Version、Operation ID、Operation数、
+  Bundle SHA-256を決定的に生成する。Generated Fileは直接編集禁止で、
+  `generate:check`が再生成差分を拒否する。
+- Public API Operationは0件のままで、架空Endpoint、Fake Operation、
+  Draw／Point／Payment等の架空業務Responseを追加していない。
+
+### Mock Transport／Fixture
+
+- `createMockFetch`はFIFO応答QueueとRequest Recorderを持ち、Method、URL、Header、
+  Body、Credentialsを順序どおり記録する。
+- JSON Response、RFC 9457 `application/problem+json`、Network Error、
+  Abort／Timeout用Pending応答を提供し、応答未登録、期待Request不一致、Queue残存を
+  即時Failureとする。
+- Mockは実Networkへ接続せず、Error MessageへRequest、Cookie、Token、
+  Credential、入力Bodyを含めない。
+- Site ManifestのMinimal／Required Capability、Platform Compatibility、
+  Public-safe Response Metadata Fixtureを提供する。実顧客情報、Secret、
+  Credential、Cookie、TokenはFixtureへ含めていない。
+
+### Boundary Assertion／Unit Test
+
+- Browser `credentials: include`、Client／Site Version Header、Request ID、
+  Authorization非付与、Public Surface、Server GET／HEAD、RFC 9457 Error、
+  Site Manifest Schema／Compatibilityを検査するAssertionを実装した。
+- Unit Test 16件でMock決定性、Request記録、FIFO、Unexpected Request、
+  Network Error、Timeout、Abort、Problem Details、Credentials／Version Header、
+  Authorization非付与、Public Surface、Server GET／HEAD、Valid／Invalid Manifest、
+  Family不一致、Required Capability不足、Secret風Field拒否、Operation 0件、
+  実Network不使用、Export Surfaceを検証し、全件PASSした。
+- No-op Test、AssertionなしSnapshot、Skipped Testは追加していない。
+
+### CI／Policy
+
+- Root Scriptへ`testkit:*`を追加し、`quality-gate`と`integration-gate`で生成差分、
+  Typecheck、Lint、Build、Unit Test、Export Surface、実Network不使用を実行する。
+- `policy-gate`へPackage Identity、Exact Version、固定Export、Operation 0件、
+  Mock Boundary、実Network禁止、Substantive Testを継続検査するPositive／Negative
+  Testを追加した。
+- Policy Unit Test 38件、Quality Unit Test 5件、Security Unit Test 4件、
+  Local `policy-gate`、`quality-gate`、`security-gate`はPASSした。
+- Existing Storefront Clientは生成差分、Typecheck、Lint、Build、Unit Test 9件、
+  Site Schemaは生成差分、Typecheck、Lint、Build、Unit Test 10件がPASSした。
+- Public／Admin／Webhook ContractとBundleは変更しておらず、OpenAPI Unit Test
+  4件とBundle検査はPASSした。
+- Root Workspace Auditは0 Findingである。Legacy Frontend 13件とComposer
+  10件は既存期限付きBaselineと完全一致し、新規Finding／Severity悪化はない。
+- Backend／Legacy Frontend Runtime Test、Browser／E2E、Migration、DB／Redis操作は
+  本Package TaskのLocal対象外として未実行であり、PASSとは記録しない。
+
+### Scope／保護
+
+- Repository変更は`packages/storefront-testkit/**`、Root Script／Lockfile、
+  `platform-ci.yml`、`policy_gate.py`とそのUnit Test、本Worklogだけである。
+- Laravel、Public／Admin／Webhook OpenAPI Contract、Migration、V2 DB／Redis、
+  V1 Runtime、`luxe-pack.biz`、`admin.luxe-pack.biz`、Nginx、Docker Production
+  構成、V1本番DB／Redis／Storageを変更していない。
+- V1 Archive BranchとAnnotated Tagは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のままである。
+- GitHub App WrapperでFast-forward Pushし、Required 5 Check、CodeQL、
+  Dependency Review、固定Head Fresh Self-review、SEV-0／SEV-1なし、
+  Merge Conflictなしを確認してからSquash Mergeする。
+- Gate G3はStorefront Client、Site Schema、Storefront TestkitのAlpha基盤まで
+  完了したが、V2 Baseline Migration、Realm分離、Constraint Test、
+  Backup／Restore、初回Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-040`だが、MIG-033完了後には開始しない。

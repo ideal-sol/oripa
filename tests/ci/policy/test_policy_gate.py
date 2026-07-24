@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
@@ -472,6 +473,12 @@ const problem = "application/problem+json";
 """,
             encoding="utf-8",
         )
+        shutil.copytree(
+            ROOT / "packages/storefront-testkit",
+            root / "packages/storefront-testkit",
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("dist", "node_modules"),
+        )
         (root / "apps/admin/src/app/layout.tsx").write_text(
             "export const metadata = { robots: { index: false, follow: false } };\n",
             encoding="utf-8",
@@ -686,6 +693,98 @@ services:
             schema_path.write_text(json.dumps(schema), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "reject unknown fields"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_dependency_range_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "packages/storefront-testkit/package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["dependencies"]["@oripa/storefront-client"] = "workspace:*"
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "exact runtime dependencies"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_forbidden_export_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "packages/storefront-testkit/package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["exports"]["./admin"] = "./dist/admin.js"
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "exports are invalid"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_fake_operation_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            generated = (
+                root
+                / "packages/storefront-testkit/src/generated/public-contract.ts"
+            )
+            generated.write_text(
+                generated.read_text(encoding="utf-8").replace(
+                    "operation_count: 0",
+                    "operation_count: 1",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "Public Contract Fixture"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_real_network_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            source = root / "packages/storefront-testkit/src/mock.ts"
+            source.write_text(
+                source.read_text(encoding="utf-8")
+                + "\nexport const unsafe = () => globalThis.fetch('/');\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "real network access"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_noop_test_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            test_path = root / "packages/storefront-testkit/test/testkit.test.mjs"
+            test_path.write_text(
+                'import test from "node:test";\ntest("noop", () => {});\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "substantive assertions"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_storefront_testkit_missing_mock_boundary_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            source = root / "packages/storefront-testkit/src/mock.ts"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "queue.shift()",
+                    "queue.at(0)",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "Mock Transport missing"
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 

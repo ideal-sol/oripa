@@ -34,7 +34,16 @@
     "storefront:generate:check": "pnpm --filter @oripa/storefront-client generate:check",
     "storefront:lint": "pnpm --filter @oripa/storefront-client lint",
     "storefront:test": "pnpm --filter @oripa/storefront-client test",
-    "storefront:typecheck": "pnpm --filter @oripa/storefront-client typecheck"
+    "storefront:typecheck": "pnpm --filter @oripa/storefront-client typecheck",
+    "testkit:build": "pnpm --filter @oripa/storefront-testkit build",
+    "testkit:check": "pnpm testkit:generate:check && pnpm testkit:typecheck && pnpm testkit:lint && pnpm testkit:build && pnpm testkit:test && pnpm testkit:exports:check && pnpm testkit:network:check",
+    "testkit:exports:check": "pnpm --filter @oripa/storefront-testkit exports:check",
+    "testkit:generate": "pnpm --filter @oripa/storefront-testkit generate",
+    "testkit:generate:check": "pnpm --filter @oripa/storefront-testkit generate:check",
+    "testkit:lint": "pnpm --filter @oripa/storefront-testkit lint",
+    "testkit:network:check": "pnpm --filter @oripa/storefront-testkit network:check",
+    "testkit:test": "pnpm --filter @oripa/storefront-testkit test",
+    "testkit:typecheck": "pnpm --filter @oripa/storefront-testkit typecheck"
   },
   "devDependencies": {
     "@redocly/cli": "2.40.0"

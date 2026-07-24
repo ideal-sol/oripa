@@ -87,7 +87,24 @@ importers:
         specifier: 8.65.0
         version: 8.65.0(eslint@9.39.4)(typescript@5.9.3)
 
-  packages/storefront-testkit: {}
+  packages/storefront-testkit:
+    dependencies:
+      '@oripa/site-schema':
+        specifier: workspace:2.0.0-alpha.1
+        version: link:../site-schema
+      '@oripa/storefront-client':
+        specifier: workspace:2.0.0-alpha.1
+        version: link:../storefront-client
+    devDependencies:
+      eslint:
+        specifier: 9.39.4
+        version: 9.39.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.65.0
+        version: 8.65.0(eslint@9.39.4)(typescript@5.9.3)
 
 packages:
 
