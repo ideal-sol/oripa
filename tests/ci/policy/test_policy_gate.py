@@ -263,6 +263,54 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
                 policy_gate.validate_v2_database_boundary(root, paths)
 
+    def copy_v2_identity_boundary(self, root):
+        paths = set(policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        supporting = {
+            "apps/api/config/auth.php",
+            ".github/workflows/platform-ci.yml",
+            "scripts/db/v2_database.py",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_identity_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_identity_boundary(root)
+            policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_v2_identity_missing_admin_guard_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_identity_boundary(root)
+            auth = root / "apps/api/config/auth.php"
+            auth.write_text(
+                auth.read_text(encoding="utf-8").replace("'v2_admin'", "'removed'"),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Auth separation"):
+                policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_v2_identity_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_identity_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_24_000001_create_v2_identity_accounts.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8") + "\n// tenant_id\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_identity_boundary(root, paths)
+
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
         for relative in paths:

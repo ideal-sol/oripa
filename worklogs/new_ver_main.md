@@ -2957,3 +2957,168 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 本GitHub結果を記録するWorklog追加CommitをFinal Headとし、同じ8 Check、
   Fresh Self-review、SEV-0／SEV-1なし、Merge Conflictなし、Head SHA不変を
   再確認してからGitHub AppがSquash Mergeする。
+
+## MIG-040 Closeout
+
+- PR `#74` (`https://github.com/ideal-sol/oripa/pull/74`)はMergedで、Final Headは
+  `2c109face3a40f5a4bbe457008eab9fd51e25294`、Squash Commitは
+  `9cde6c5fd70d6dc944710b040acc07462f4c4531`である。
+- Final Headでは`policy-gate`、`quality-gate`、`security-gate`、
+  `integration-gate`、`ci-gate`のRequired 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Reviewを含む8 Checkが成功した。
+- Fresh Self-reviewはFinal Headに固定され、SEV-0／SEV-1は0件だった。
+- Issue `#73`はClosedで、Remote Branch
+  `migration/MIG-040-v2-db-baseline`は削除済みである。
+- Local BranchとWorktree
+  `/var/www/oripa-worktrees/MIG-040-v2-db-baseline`はCleanup済みである。
+- Local `main`と`origin/main`はSquash Commitで一致し、Working Treeはcleanである。
+- V1 Runtime Worktreeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でclean、V1 Archive Branchと
+  Annotated Tag Peeled Commitも同SHAのままである。
+
+## MIG-041 Identity／Admin Realm Foundation
+
+### Task／Scope
+
+- Task ID: `MIG-041`
+- Risk: `R3`
+- Issue: `#75` (`https://github.com/ideal-sol/oripa/issues/75`)
+- Branch: `migration/MIG-041-identity-admin-realm`
+- Worktree: `/var/www/oripa-worktrees/MIG-041-identity-admin-realm`
+- Base SHA: `9cde6c5fd70d6dc944710b040acc07462f4c4531`
+- V2専用DBへIdentity DB Schema、User／Admin別Model、Provider／Guard、
+  Session／Cookie、Password Policy、Admin MFA Credential保存、Realm境界、
+  Deny-by-default Permission基礎を追加する。
+- Login／Registration／Password Reset、OAuth、MFA Enrollment／Verification、
+  Admin UI、Audit／Outbox、Point／Payment／Draw／Probabilityは実装しない。
+
+### V2 Identity Migration
+
+- `apps/api/database/migrations-v2`へIdentity Account、Realm Session、
+  Admin MFA Credentialの3 Migrationを追加した。
+- `users`はOpaque `public_id`、Email表示値／Normalized値、Verified日時、
+  Argon2id `password_hash`、固定Account Stateを持つ。
+- Pending User Emailは重複可能で、Verified User Emailだけを
+  `users_verified_email_unique`で一Site内Uniqueにする。
+- `admins`はUser Tableと共有せず、固定Role `owner`／`admin`／`operator`、
+  固定State `invited`／`active`／`suspended`／`disabled`をDB Constraintで
+  制限する。Custom RoleとUserからの昇格構造は持たない。
+- `user_sessions`と`admin_sessions`は別Tableで、Raw Session IDやPayloadを
+  保存せず、SHA-256 Hash、Idle／Absolute期限、Revocationだけを保持する。
+- User Cookieは`__Host-oripa_user_session`、Idle 60分、Absolute 24時間、
+  SameSite `Lax`、Admin Cookieは`__Host-oripa_admin_session`、Idle 15分、
+  Absolute 8時間、SameSite `Strict`、Remember禁止である。
+- `user_remember_devices`はSelector＋Token Hash、Rotation Counter、
+  最大30日、Revocation、Replay検出日時を保持し、Token平文を保存しない。
+- Admin MFAはWebAuthn Public Key、暗号化前提TOTP Ciphertext＋
+  Last Used Time Step、Recovery Code Hash＋使用日時を別Tableへ保存する。
+  SMS／Email MFA Methodは作成していない。
+
+### Auth／Security Boundary
+
+- 既存V1 `web` Guard／`users` Providerを維持し、`v2_user`と`v2_admin`の
+  Provider／Guardだけを追加した。
+- Realm MiddlewareはUnknown Surface、Realm切替、User／Admin同時認証、
+  User CookieによるAdmin Access、Admin CookieによるPublic Access、
+  WebhookでのBrowser Session、MFA未確認AdminをFail Closedにする。
+- Password Policyは8～128 Unicode文字、Space許可、Composition Ruleなし、
+  Common／Compromised Hash Blocklist、Argon2id 64MiB／3 iteration／1 thread、
+  `needsRehash`、Generic Errorを一元化する。
+- Admin MFA PolicyはOwnerへ2つ以上かつ1つ以上のWebAuthn、Admin／Operatorへ
+  WebAuthnまたはTOTPを1つ以上要求し、Recovery CodeをAuthenticator数へ含めない。
+- Permission CodeとLaravel Gateは中央Matrixを使用し、未登録Role／Permissionを
+  Denyする。Ownerのpaid Point調整自己承認を禁止する定義は追加していない。
+- `tenant_id`、Local Storage Token、Secret／Credential／実PIIのLog出力を
+  実装していない。
+
+### DB Runner／CI
+
+- MIG-040のGuardをTask固定値から`migNNN-v2-*`の限定Namespaceへ一般化し、
+  V1 Project／DB／Migration Path／Volume、Production、Host Port、
+  任意Projectの拒否を維持した。
+- Persistent／Ephemeral両方で3 Migrationを2回再現し、Identity Schema
+  Inventory、`tests/V2`、Migration Checksum、Backup／Restoreを検証する。
+- `policy-gate`へV1 Migration不変、V2 Migration Set、Realm Table、
+  Provider／Guard、Session／Cookie、Password、MFA、Deny-by-default、
+  `tenant_id`／業務Table禁止の継続検査とNegative Testを追加した。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、
+  V1 Archive Branch／Annotated Tagを変更していない。OPS-003のV1修正を
+  V2へ取り込んでいない。
+- Gate G3はV2専用DB／Redis、Identity Realm、主要Constraintまで進むが、
+  Authentication Flow、Audit／Outbox、Point／Payment基礎Table、
+  初回`2.0.0-alpha.1` Artifactが残るため`NOT COMPLETE`である。
+- 次Task候補は`MIG-041A User／Admin Authentication Flow・Admin MFA Enrollment`
+  だが、MIG-041完了後には開始しない。
+
+### Local DB／Test結果
+
+- V1 Migrationは40件、内容SHA-256 Setは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  でMIG-040 Baselineと一致し、File名、内容、Modeを変更していない。
+- V2 Migrationは3件、内容SHA-256 Setは
+  `5f52d4d565b94ec4c0d25a65dcb8bf1a3a2c306b428274e3893157d9f05c1d4b`
+  である。
+- Persistent `oripa-v2-dev`とTask専用Ephemeral DBの両方でV2専用Pathの
+  `migrate:fresh`を2回実行し、Migration Status、Identity Test、
+  PostgreSQL／Redis HealthはPASSした。
+- Identity TestはPassword、Realm、Guard、Cookie、Session Table、
+  Verified Email、Admin Role／State、MFA保存、Permissionを23 Testで検証し、
+  150 Assertion、新規Failure／WarningなしでPASSした。
+- Schema Inventoryは`users`、`admins`、`user_sessions`、`admin_sessions`、
+  `user_remember_devices`、`admin_webauthn_credentials`、
+  `admin_totp_methods`、`admin_recovery_codes`、`migrations`の9 Tableだけである。
+  V1固有Table、`tenant_id`、Audit／Outbox、Point／Payment Tableは存在しない。
+- Ephemeral Source／RestoreのSchema SHA-256は
+  `a469c082f92c4bb50cd18a0c3663cc1296106190f854a06e05b43385bdd6611f`、
+  Migration Row SHA-256は
+  `bad9535fff8c4718cb8cde338eb58d4c69dc25c36ada21db4fc5e04b19e6c1e2`
+  でそれぞれ一致した。
+- Backup SHA-256は
+  `ed0fb72110cc1b09620ba56376f4c13eb97e08e6535f0f4422f3e2eaf877f96c`
+  で、別Ephemeral PostgreSQLへのRestore、API／Admin Health、
+  Container／Network／Volume CleanupはPASSした。
+- EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-041-identity-final3-20260724T084020Z/`
+  に保存し、Directory Mode `700`、File Mode `600`とした。Credential値、
+  V1 Data、実PIIを含まない。
+- V1 Archive BranchとAnnotated Tag Peeled Commitは
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`のままである。
+
+### Local Gate／Scope
+
+- PHP Syntax、Composer Validate、XML／JSON／YAML／TOML Parse、
+  V1／V2 Compose Config、`git diff --check`はPASSした。
+- Policy Unit Test 46件、DB Guard Unit Test 14件、Quality Unit Test 5件、
+  Security Unit Test 4件、OpenAPI Unit Test 4件はPASSした。
+- Local `policy-gate`、`quality-gate`、`security-gate`はPASSし、
+  Secret Candidateは0件である。
+- OpenAPI 3 Surface／Bundle、Storefront Client Test 9件、Site Schema Test
+  10件、Storefront Testkit Test 16件、Admin Typecheck／Lint／Build、
+  Legacy Frontend TypecheckはPASSした。
+- Root Workspace Auditは0 Findingである。Legacy Frontend 13 Findingと
+  Composer 10 Advisoryは既存期限付きBaselineと一致し、新規Critical／High、
+  件数増加、Severity悪化はない。
+- Repository変更はMIG-041 Task PolicyのAllowed Path 42件だけで、
+  Binary／Submodule、Application Endpoint、OpenAPI、Dependency／Lockfile、
+  V1 Migration、V1 Runtime設定を変更していない。
+- Full V1 Backend Test、Legacy Frontend Build／Lint、Browser／E2EはLocalでは
+  未実行であり、PASSとは記録しない。GitHub `integration-gate`で既存Baselineと
+  比較して実行する。
+
+### GitHub初回実行
+
+- Implementation Commitは
+  `848577f86d54771e6a37cf0db7f5c025781ab3a8`で、GitHub App Wrapperにより
+  Remote BranchへFast-forward Pushした。
+- PR `#76` (`https://github.com/ideal-sol/oripa/pull/76`)を作成し、
+  Issue `#75`と関連付けた。PR Authorは`ideal-sol-oripa-codex[bot]`、
+  Baseは`main`である。
+- 初回`policy-gate`はPR本文の`Changed files`が42 Fileの要約記載で、
+  Git差分の正確なPath一覧と一致しなかったため失敗した。実装差分やPolicyを
+  弱めず、PR本文を実差分42 Pathの明示列挙へ修正した。
+- 同一Headの旧失敗Runを成功扱いにせず、本Worklog追記を通常Commitとして
+  Fast-forward Pushする。新しいFinal HeadでRequired 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Reviewを再実行する。
+- Final Head固定後にFresh Self-review、SEV-0／SEV-1なし、
+  Merge Conflictなし、Head SHA不変を確認し、CheckをBypassせず
+  GitHub AppがSquash Mergeする。

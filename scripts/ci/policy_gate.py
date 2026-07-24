@@ -167,6 +167,39 @@ V2_DATABASE_REQUIRED_FILES = {
     "scripts/db/v2_database.py",
     "tests/db/test_v2_database.py",
 }
+V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/app/Auth/V2RealmSessionGuard.php",
+    "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
+    "apps/api/app/Domain/Identity/Enums/V2AdminState.php",
+    "apps/api/app/Domain/Identity/Enums/V2Permission.php",
+    "apps/api/app/Domain/Identity/Enums/V2Realm.php",
+    "apps/api/app/Domain/Identity/Enums/V2UserState.php",
+    "apps/api/app/Domain/Identity/Services/V2MfaPolicy.php",
+    "apps/api/app/Domain/Identity/Services/V2PasswordPolicy.php",
+    "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php",
+    "apps/api/app/Domain/Identity/Services/V2RealmBoundary.php",
+    "apps/api/app/Domain/Identity/Services/V2SessionPolicy.php",
+    "apps/api/app/Http/Middleware/V2/EnforceV2Realm.php",
+    "apps/api/app/Models/V2/Admin.php",
+    "apps/api/app/Models/V2/AdminRecoveryCode.php",
+    "apps/api/app/Models/V2/AdminSession.php",
+    "apps/api/app/Models/V2/AdminTotpMethod.php",
+    "apps/api/app/Models/V2/AdminWebauthnMethod.php",
+    "apps/api/app/Models/V2/User.php",
+    "apps/api/app/Models/V2/UserRememberDevice.php",
+    "apps/api/app/Models/V2/UserSession.php",
+    "apps/api/app/Providers/V2AuthorizationServiceProvider.php",
+    "apps/api/config/v2_identity.php",
+    "apps/api/phpunit.v2.xml",
+    "apps/api/database/migrations-v2/2026_07_24_000001_create_v2_identity_accounts.php",
+    "apps/api/database/migrations-v2/2026_07_24_000002_create_v2_identity_sessions.php",
+    "apps/api/database/migrations-v2/2026_07_24_000003_create_v2_admin_mfa_methods.php",
+    "apps/api/tests/V2/AdminMfaPolicyTest.php",
+    "apps/api/tests/V2/IdentitySchemaTest.php",
+    "apps/api/tests/V2/PasswordPolicyTest.php",
+    "apps/api/tests/V2/PermissionBoundaryTest.php",
+    "apps/api/tests/V2/RealmSeparationTest.php",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1250,6 +1283,169 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
             raise PolicyFailure(f"platform-ci V2 database verification missing {required}")
 
 
+def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_IDENTITY_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("required V2 Identity files missing: " + ", ".join(missing))
+
+    migration_files = sorted(
+        path.name
+        for path in (repository / "apps/api/database/migrations-v2").glob("*.php")
+    )
+    expected_migrations = [
+        "2026_07_24_000001_create_v2_identity_accounts.php",
+        "2026_07_24_000002_create_v2_identity_sessions.php",
+        "2026_07_24_000003_create_v2_admin_mfa_methods.php",
+    ]
+    if migration_files != expected_migrations:
+        raise PolicyFailure("V2 Identity migration set is not exact")
+
+    migrations = "\n".join(
+        (repository / "apps/api/database/migrations-v2" / name).read_text(
+            encoding="utf-8"
+        )
+        for name in migration_files
+    )
+    for required in (
+        "users",
+        "admins",
+        "user_sessions",
+        "admin_sessions",
+        "user_remember_devices",
+        "admin_webauthn_credentials",
+        "admin_totp_methods",
+        "admin_recovery_codes",
+        "users_verified_email_unique",
+        "password_hash",
+        "session_id_hash",
+        "secret_ciphertext",
+        "code_hash",
+        "public_key",
+        "pending_verification",
+        "anonymized",
+        "owner",
+        "operator",
+    ):
+        if required not in migrations:
+            raise PolicyFailure(f"V2 Identity migration boundary missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "admin_sms",
+        "admin_email_mfa",
+        "audit_logs",
+        "outbox",
+        "point_ledgers",
+        "payments",
+    ):
+        if prohibited in migrations:
+            raise PolicyFailure(f"V2 Identity migration contains prohibited {prohibited}")
+
+    auth = (repository / "apps/api/config/auth.php").read_text(encoding="utf-8")
+    for required in (
+        "'v2_user'",
+        "'v2_admin'",
+        "'v2_realm_session'",
+        "'realm' => 'user'",
+        "'realm' => 'admin'",
+        "App\\Models\\V2\\User::class",
+        "App\\Models\\V2\\Admin::class",
+    ):
+        if required not in auth:
+            raise PolicyFailure(f"V2 Auth separation missing {required}")
+
+    config = (repository / "apps/api/config/v2_identity.php").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "__Host-oripa_user_session",
+        "__Host-oripa_admin_session",
+        "'idle_minutes' => 60",
+        "'absolute_minutes' => 1440",
+        "'idle_minutes' => 15",
+        "'absolute_minutes' => 480",
+        "'same_site' => 'lax'",
+        "'same_site' => 'strict'",
+        "'remember' => false",
+        "'algorithm' => 'argon2id'",
+    ):
+        if required not in config:
+            raise PolicyFailure(f"V2 Identity secure default missing {required}")
+
+    password_policy = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2PasswordPolicy.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "MIN_LENGTH = 8",
+        "MAX_LENGTH = 128",
+        "PASSWORD_ARGON2ID",
+        "password_needs_rehash",
+        "COMMON_PASSWORD_HASHES",
+        "#[SensitiveParameter]",
+    ):
+        if required not in password_policy:
+            raise PolicyFailure(f"V2 Password Policy missing {required}")
+
+    mfa_policy = (
+        repository / "apps/api/app/Domain/Identity/Services/V2MfaPolicy.php"
+    ).read_text(encoding="utf-8")
+    if (
+        "$authenticatorCount >= 2 && $activeWebauthnCredentials >= 1"
+        not in mfa_policy
+        or "$authenticatorCount >= 1" not in mfa_policy
+    ):
+        raise PolicyFailure("V2 Admin MFA secure default is incomplete")
+
+    realm = (
+        repository / "apps/api/app/Domain/Identity/Services/V2RealmBoundary.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "Unknown HTTP surface is denied",
+        "Realm switching is denied",
+        "Multiple authenticated realms are denied",
+        "Browser sessions are denied on webhook surfaces",
+        "Admin realm access is denied",
+    ):
+        if required not in realm:
+            raise PolicyFailure(f"V2 Realm boundary missing {required}")
+
+    guard = (
+        repository / "apps/api/app/Auth/V2RealmSessionGuard.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "hashSessionId",
+        "session_id_hash",
+        "idle_expires_at",
+        "absolute_expires_at",
+        "mfa_verified_at",
+        "return false",
+    ):
+        if required not in guard:
+            raise PolicyFailure(f"V2 Realm Session Guard missing {required}")
+
+    permission = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php"
+    ).read_text(encoding="utf-8")
+    if "tryFrom" not in permission or "return false" not in permission:
+        raise PolicyFailure("V2 Permission boundary is not deny-by-default")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    for required in (
+        "EXPECTED_V2_SCHEMA_INVENTORY",
+        '"phpunit.v2.xml"',
+        "run_identity_tests",
+    ):
+        if required not in runner:
+            raise PolicyFailure(f"V2 Identity DB verification missing {required}")
+    if "mig041-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
+
+
 def validate_boundary_readmes(repository: Path) -> None:
     for relative in sorted(BOUNDARY_READMES):
         text = (repository / relative).read_text(encoding="utf-8")
@@ -1565,6 +1761,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_api_application_layout(paths)
     validate_legacy_frontend_layout(repository, paths)
     validate_v2_database_boundary(repository, paths)
+    validate_v2_identity_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

@@ -42,6 +42,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
 
     def test_valid_boundary_passes(self):
         v2_database.validate_project("oripa-v2-dev")
+        v2_database.validate_project("mig041-v2-123456-1-source")
         v2_database.validate_values(self.values, "oripa-v2-dev")
         path = v2_database.validate_migration_path(
             self.repository, "apps/api/database/migrations-v2"
@@ -49,6 +50,10 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertEqual(
             path, self.repository / "apps" / "api" / "database" / "migrations-v2"
         )
+
+    def test_unapproved_task_project_is_rejected(self):
+        with self.assertRaisesRegex(v2_database.GuardFailure, "allowlist"):
+            v2_database.validate_project("task-v2-unscoped-source")
 
     def test_production_environment_is_rejected(self):
         self.values["V2_APP_ENV"] = "production"
