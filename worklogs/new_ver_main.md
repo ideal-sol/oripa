@@ -155,3 +155,51 @@
 ### 次Task候補
 
 - `V1-DRAW-1000B Bulk Draw 1000 Frontend・結果集計・本番反映`
+
+## V1-DRAW-1000B 100／1000回Bulk Draw Frontend・結果集計・本番反映
+
+### Task／Preflight
+
+- Task IDは`V1-DRAW-1000B`、Riskは`R3`、Issueは`#97`。
+- Base／PR Baseは`v1/early-release`、Base SHAは`64a8a6481bad4dc4d4d62efbf39eddaf35fac60b`。Local／Remoteは一致し、Working Tree clean、未Push／未Merge Commitなしを確認した。
+- V1-DRAW-1000AはIssue `#95`、PR `#96`で完了し、同Squash Commitが今回のBaseである。
+- 開始時のProduction Backendは`127.0.0.1:8120`、Frontendは`127.0.0.1:3120`、直前Rollback Runtimeは`8110／3110`。Publicは`200`、Adminは正常な`307`、API Healthは`200`、Production Migration Pendingは`0`だった。
+- V2 `main`は`07d9da4c8a482a806c092ec8ef19ac62d901dbec`、`archive/v1-current`とAnnotated Tagは`bfca8efa0b85c00a88fb0fd439a123b722577b68`で不変だった。
+
+### Frontend／Idempotency
+
+- 既存1／5／10回のButton、Request、全画面Animation、個別Result表示を変更せず、同じ選択領域へ100／1000回を追加した。1000回は既存配色内で強調し、Mobileでは全幅表示する。
+- 100／1000回だけに確認Dialogを追加し、実行回数、1回Point、合計消費Point、現在残高、予想残高、残り口数を表示する。Point不足、残口数不足、日次上限不足では実行を無効化し、Backendを最終判定と明記した。
+- 意図的な新規Bulk操作ごとにBrowser CSPRNGの`crypto.randomUUID()`で`Idempotency-Key`を1回生成する。Response不明または同一Key処理中では同じKeyを保持し、別Keyで自動再実行しない。
+- 同一Key処理中、Key期限切れ、Request Conflict、Point不足、残口数不足、認証切れ、結果不明、Server Errorを分離して表示する。
+- 100／1000回では個別Animationを再生せず、Fake Progressを持たない短い処理中表示と二重操作防止を使用する。
+
+### Result UI
+
+- Bulk Responseの`requested_count`、`executed_count`、消費Point、景品別／Rank別集計、高Rank結果、Replay、処理時間、公開Bulk Request IDを使用する。
+- 更新後Point残高は抽選後に既存`/me/points`から再取得し、残り口数は実行件数との差分を表示する。
+- 景品別とRank別の合計を`executed_count`と検証する。Minimum Guaranteeの`point_back`はBackend集計との差分から明示的な集計行として表示し、合計不一致を黙って表示しない。
+- 景品は同一景品を数量で集約し、高RankはBackend上限以内だけを表示する。1000件の個別DOMを生成せず、個別結果はBackendの履歴を正本とする。
+- Dialog、Status通知、Keyboard操作、Mobile 1 Column、画像Fallbackを追加し、Desktop／Mobileで横溢れがないことをBrowserで確認した。
+
+### 非Production検証
+
+- Task専用PostgreSQL 17、Redis 7、Backend、Frontendを隔離Networkで起動し、固定Test Fixtureだけを使用した。Production DB／Redis／Storage、Nginx、Runtimeは使用・変更していない。
+- Browser E2Eで既存1／5／10回Button、100回確認Dialog、100回成功、Response喪失後の同一Key Replay、1000回成功、集計合計、Point残高、残り口数、景品別／Rank別、高Rank上限、履歴再取得、Keyboard操作、Desktop／Mobileを確認した。
+- 実HTTP Requestは100回の初回と同一Key Replay、1000回の合計3件。1000件の個別Requestは送信していない。新規1000回操作では100回のKeyと異なるKeyを使用した。
+- DB結果は`draw_requests=2`、`draw_results=1100`、`user_prizes=1100`、`sold_count=1100`、Wallet残高`0`で一致した。Migrationは全件Applied。
+- Browser Consoleの新規Errorは0件、Mobile横溢れは0px。Browser ScreenshotとSummaryはRepository外Evidenceへ保存し、SHA-256を取得した。
+- Frontend Frozen Install、Typecheck、Production Build、変更File単体Lintは成功した。Full Lintは既存Fingerprintと同一の`8 Error／1 Warning`で、新規Findingは0件。
+- `frontend/package.json`と`frontend/pnpm-lock.yaml`は変更しておらず、Checksumはそれぞれ`2736b5097f5cdcf3c12dcb11fab531787e7a12e0f16447df6a73e0dc7a8d3ad0`、`55171c1b7dd2f1988b77bdcb8906ce4401cb860a6b6c8c0bfc36dc76f6cb8bfd`でBaseと一致した。
+- Full Backend Regressionは`370 Warning／2099 Assertion`で、既知`AdminPaymentApiTest`のRefund／Chargeback 2 Failureだけが既存Fingerprintと一致した。新規Failureは0件だった。
+- Full Regressionに含まれるBulk性能Testも再実行され、100回はp50 `382.437 ms`／p95 `470.299 ms`、1000回はp50 `3,366.853 ms`／p95 `3,576.927 ms`だった。実効API Timeout `60,000 ms`の50％である`30,000 ms`以内を維持した。
+- Frontend Unit Test基盤は存在せず、新規FrameworkをRepositoryへ追加せずBrowser Smokeを使用した。Productionの成功Drawは安全なFixtureが存在しない限り未実行とする。
+- `git diff --check`、変更Scope、Secret／PII Candidate、Binary／Submodule、V1 Migration不変を確認した。
+
+### Merge／Production反映境界
+
+- 変更対象は`frontend/src/app/gachas/[id]/draw-panel.tsx`、`frontend/src/app/globals.css`、本Worklogだけ。Backend、Migration、Dependency、Lockfileは変更していない。
+- GitHub Check未設定の場合は成功扱いにせず、Local Validationと固定Head Self-reviewをEvidenceとする。
+- Squash Merge後のCommitだけをDeploy Sourceとし、Full／Schema Backup、`pg_restore --list`、Migration Status、現行Runtime／Nginx Upstream、Rollback手順をRepository外Evidenceへ保全してから反映する。
+- ProductionではV1-DRAW-1000Aの新規MigrationだけがPendingであることを確認し、承認対象以外のMigrationがあれば停止する。`migrate:fresh`、Reset、Seed、手動Data修正は実行しない。
+- Productionの実景品／実Pointを使う成功Drawは行わず、安全なFixtureがない場合はUI表示と非破壊経路だけを確認する。
