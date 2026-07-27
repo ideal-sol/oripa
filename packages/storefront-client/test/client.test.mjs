@@ -10,6 +10,9 @@ import {
 import {
   createServerStorefrontClient,
 } from "../dist/server.js";
+import {
+  createStorefrontCatalogClient,
+} from "../dist/index.js";
 
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {
@@ -247,7 +250,7 @@ test("Server ClientはCookie転送とGET／HEADだけを許可する", async () 
   );
 });
 
-test("Package公開面はPublic AuthだけでAdmin／Webhook Exportがない", async () => {
+test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない", async () => {
   const packageJson = JSON.parse(
     await (await import("node:fs/promises")).readFile(
       new URL("../package.json", import.meta.url),
@@ -270,6 +273,11 @@ test("Package公開面はPublic AuthだけでAdmin／Webhook Exportがない", a
     "utf8",
   );
   for (const operationId of [
+    "listGachaCategories",
+    "listGachaTags",
+    "listGachas",
+    "getGacha",
+    "getGachaBySlug",
     "registerUser",
     "loginUser",
     "logoutUser",
@@ -280,4 +288,38 @@ test("Package公開面はPublic AuthだけでAdmin／Webhook Exportがない", a
     assert.match(generated, new RegExp(operationId));
   }
   assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
+});
+
+test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () => {
+  const paths = [];
+  const catalog = createStorefrontCatalogClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: { data: [] },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+  await catalog.listGachaCategories();
+  await catalog.listGachaTags();
+  await catalog.listGachas({
+    limit: 20,
+    cursor: "opaque-cursor",
+    category: "cards",
+    tag: "featured",
+  });
+  await catalog.getGacha("0198a001-0000-7000-8000-000000000011");
+  await catalog.getGachaBySlug("fixture-catalog");
+  assert.deepEqual(paths, [
+    "/gacha-categories",
+    "/gacha-tags",
+    "/gachas?limit=20&cursor=opaque-cursor&category=cards&tag=featured",
+    "/gachas/0198a001-0000-7000-8000-000000000011",
+    "/gachas/by-slug/fixture-catalog",
+  ]);
+  assert.throws(
+    () => catalog.listGachas({ limit: 101 }),
+    /limit must be an integer/,
+  );
 });

@@ -3830,3 +3830,105 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Artifact二重生成、全Asset SHA-256一致、Required／Available Check、
   Fresh Self-reviewをPR上で確定する。PR Merge後はSquash CommitをRelease Sourceとして
   同じ検証を再実行する。
+
+## MIG-045 Closeout／MIG-050 Catalog・Probability Read-only Vertical Slice
+
+### MIG-045 Closeout
+
+- MIG-045のIssue `#89`はClosed、PR `#90`はMergedである。Final Headは
+  `c68ff796fe1edf4c05ba7644950a9865c20a294f`、Squash Commitは
+  `07d9da4c8a482a806c092ec8ef19ac62d901dbec`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- `platform-v2.0.0-alpha.1`はSquash Commitを指すPre-releaseとして作成済みである。
+  Release Asset、Manifest、Image Digest、SBOM、Provenance、Checksumの検証を完了し、
+  Gate G3は`COMPLETE`である。AlphaはProduction／Commercial利用禁止のままである。
+- Remote／Local Task BranchとWorktreeは削除済みで、開始時にLocal
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、V1本番DB／Redis／Storage、Nginx、`v1/early-release`、V1 Migration、
+  Archive Branch、Annotated Tagを変更していない。
+
+### MIG-050 Task／Schema
+
+- Task IDは`MIG-050`、Riskは`R3`、Issueは`#103`、Branchは
+  `migration/MIG-050-catalog-probability`、Base SHAは
+  `07d9da4c8a482a806c092ec8ef19ac62d901dbec`である。
+- V2専用Migration RootへCategory、Tag、Rank、Rank Asset、Prize Master、
+  Presentation Asset、Gacha Master、Gacha Version、Gacha-Prize Relation、
+  Probability Version／Stage／Entry、Minimum Guarantee、Fixture Import Runの
+  15 Tableを追加した。
+- Public IDはUUIDv7、Point／ppm／数量は整数、価格・在庫初期値・販売口数は非負、
+  Category／Tag／Rank／Asset／Prize／GachaのCode／Slug／Storage識別子はUniqueとした。
+  `tenant_id`、`no_prize`、Provider／Shippingの推測構造は追加していない。
+- Probability Entryは`prize`または`point_back`だけを許可する。各StageはEntryと
+  Minimum Guaranteeの合計が`1,000,000 ppm`でなければDomain Validationと
+  PostgreSQL Triggerの双方で公開を拒否する。
+- Published Gacha Version、Published Probability Version、そのPrize Relation、
+  Stage、Entry、Minimum GuaranteeはApplication ModelとDB TriggerでUpdate／Deleteを
+  拒否する。公開開始／終了日時の逆転もDB Constraintで拒否する。
+
+### Contract／公開制御
+
+- Public OpenAPIへ`listGachaCategories`、`listGachaTags`、`listGachas`、
+  `getGacha`、`getGachaBySlug`を追加した。Public Operationは認証6件と合わせて
+  11件で、Admin 9件、Webhook 0件とのSurface分離を維持する。
+- 公開中かつ公開期間内のGacha Versionと、それに紐づくPublished Probability
+  Versionだけを返す。Draft、公開前、公開終了後は一覧へ含めず、詳細はRFC 9457の
+  `CATALOG_NOT_FOUND`を返す。
+- 一覧はOpaque Cursor、既定20件、最大100件である。Master、一覧、詳細へ
+  `Cache-Control`を明示し、Request IDとAPI Version Headerを返す。
+- Public ResponseはCategory／Tag、Rank、Prize表示情報、Presentation Asset、
+  Rank別合計ppm、Point Back合計ppm、Minimum Guaranteeを含む。景品別個別ppm、
+  内部在庫、原価、Storage識別子、Snapshot Checksum、内部`id`、Secret、
+  Credentialは公開しない。
+- Public OpenAPI Bundleを正本としてStorefront Client Typesを再生成し、
+  GET専用Catalog Facadeを追加した。Admin／Webhook型はStorefront Clientへ公開しない。
+  Storefront TestkitへPublic Catalog Fixtureを追加し、Operation 11件、集約確率、
+  Public-safe Fieldを固定した。
+
+### Fixture Import／Characterization
+
+- 決定的FixtureはCategory／Tag、Rank、Asset、Prize、Gacha、Version、
+  Probability Stage／Entryの順にImportする。Record数28件、Manifest SHA-256、
+  FK、重複Code／Slug、Stage合計、Asset SHA-256を検査する。
+- 同一Manifest再実行は同じImport Runを返し、Recordを重複作成しない。
+  MIG-070／MIG-071の本番Exporter／ImporterやProduction Dataは使用していない。
+- V1の`GachaDetailResource`、Probability Validator、既存Gacha API Testを
+  Characterization参照として固定した。V1のお知らせ拡張と100／1000回Bulk Drawは
+  V2移行差分として記録し、MIG-050へCode Copyしていない。
+
+### Local Verification
+
+- OpenAPI Lint／Bundle／差分検査はPASSし、Operation数はPublic 11、Admin 9、
+  Webhook 0である。OpenAPI Unit Test 4件、Policy Unit Test 62件、
+  Quality Unit Test 5件、DB Guard Unit Test 17件はPASSした。
+- Storefront Clientは生成差分、Typecheck、Lint、Build、10 TestがPASSした。
+  Storefront Testkitは生成差分、Typecheck、Lint、Build、17 Test、
+  Export Surface、実Network禁止検査がPASSした。
+- `/etc/oripa-v2/dev.env`と`scripts/db/v2_database.py`のGuardだけを使用した。
+  Persistent V2 PostgreSQL 17／Redis 7でV2 `migrate:fresh`を2回実行し、
+  Migration Status、全V2 Test、Schema Inventory、HealthはPASSした。
+- Task専用Ephemeral Source／Restoreでも`migrate:fresh`を2回実行した。
+  V2 Migrationは8件、Migration Set SHA-256は
+  `1ac40a48b0906ea72e190141846954df3cf8cd59e81382ae5f406abc124fa1fa`である。
+  Source／Restore Schema SHA-256は
+  `0a0628da358cc096f817b96795de0ee2054df7026e027338a8849f2b2690b842`、
+  Migration Row SHA-256は
+  `5d45636a52cd25841b20e84177fe5353294189235a67c41700b9e793f5dec294`、
+  Backup SHA-256は
+  `2445ceeda8cfdbca8a86258757258047ae94d1369c7c22bcabf974fee9169d8c`
+  で一致した。Task専用Container／Network／Volume CleanupはPASSした。
+- Repository外Evidenceは
+  `/var/www/oripa-evidence/MIG-050-20260727T130018Z/`へDirectory mode `700`、
+  File mode `600`で保存した。DB本文、Secret、Credential、実PIIはWorklogへ
+  記録していない。
+- Root／Legacy Audit、全Package／Admin検証、Security Gate、Required／Available
+  GitHub CheckはFinal候補Headで実行する。未実行項目をPASSとは記録しない。
+- Draw Transaction、Point消費、在庫減算、Row Lock、User Prize、Admin Mutation、
+  Admin UI、Shipping、Production Deploymentは実装していない。
+- V1 Runtime、本番Resource、Nginx、`v1/early-release`、V1 Migration 40件、
+  Archive Branch、Annotated Tagは変更していない。
+- Gate G4はCatalog／ProbabilityのRead-only Vertical Sliceまで進んだが、
+  Draw Vertical Slice等が残るため`NOT COMPLETE`である。次Task候補は
+  `MIG-051 Draw Vertical Slice`だが、本Task完了後には開始しない。

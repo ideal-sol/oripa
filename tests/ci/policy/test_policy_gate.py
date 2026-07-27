@@ -324,6 +324,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
             "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
             "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
+            "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -512,6 +513,70 @@ python3 scripts/db/v2_database.py smoke \\
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "bonus|missing"):
                 policy_gate.validate_v2_payment_boundary(root, paths)
+
+    def copy_v2_catalog_boundary(self, root):
+        paths = set(policy_gate.V2_CATALOG_REQUIRED_FILES)
+        for relative in paths:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        workflow = root / ".github/workflows/platform-ci.yml"
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / ".github/workflows/platform-ci.yml", workflow)
+        paths.add(".github/workflows/platform-ci.yml")
+        return paths
+
+    def test_v2_catalog_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_catalog_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_28_000008_create_v2_catalog_probability_foundation.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8") + "\n// tenant_id\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_catalog_no_prize_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_28_000008_create_v2_catalog_probability_foundation.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8") + "\n// no_prize\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "no_prize"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_catalog_public_probability_leak_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["components"]["schemas"]["GachaDetail"]["properties"][
+                "individual_ppm"
+            ] = {"type": "integer"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "individual_ppm"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -1127,8 +1192,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 6",
-                    "operation_count: 7",
+                    "operation_count: 11",
+                    "operation_count: 12",
                 ),
                 encoding="utf-8",
             )

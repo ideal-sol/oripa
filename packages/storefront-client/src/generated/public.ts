@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/gacha-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開中GachaのCategoryを取得する */
+        get: operations["listGachaCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gacha-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開中GachaのTagを取得する */
+        get: operations["listGachaTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gachas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開期間内のGachaをCursor順で取得する */
+        get: operations["listGachas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gachas/by-slug/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Slugで公開中Gacha詳細を取得する */
+        get: operations["getGachaBySlug"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gachas/{gacha_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Opaque Public IDで公開中Gacha詳細を取得する */
+        get: operations["getGacha"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -143,6 +228,128 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        PresentationAsset: {
+            id: components["schemas"]["OpaqueId"];
+            path: string;
+            checksum_sha256: string;
+            /** @enum {string} */
+            media_type: "image" | "video";
+            mime_type: string;
+            alt_text: string | null;
+        };
+        NullablePresentationAsset: components["schemas"]["PresentationAsset"] | null;
+        GachaCategory: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            name: string;
+            description: string | null;
+        };
+        GachaTag: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            name: string;
+        };
+        GachaCategoryCollection: {
+            data: components["schemas"]["GachaCategory"][];
+        };
+        GachaTagCollection: {
+            data: components["schemas"]["GachaTag"][];
+        };
+        GachaSummary: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+            price_points: number;
+            total_count: number;
+            remaining_count: number;
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            publish_end_at: components["schemas"]["UtcDateTime"] | null;
+            category: components["schemas"]["GachaCategory"];
+            tags: components["schemas"]["GachaTag"][];
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+        };
+        GachaSummaryCollection: {
+            data: components["schemas"]["GachaSummary"][];
+            meta: components["schemas"]["CursorPageMeta"];
+        };
+        RankReference: {
+            id: components["schemas"]["OpaqueId"];
+            code: string;
+            name: string;
+        };
+        RankPresentationAsset: {
+            id: components["schemas"]["OpaqueId"];
+            path: string;
+            checksum_sha256: string;
+            /** @enum {string} */
+            media_type: "image" | "video";
+            mime_type: string;
+            alt_text: string | null;
+            /** @enum {string} */
+            usage_type: "image" | "video" | "result_image";
+        };
+        PrizeDisplay: {
+            id: components["schemas"]["OpaqueId"];
+            name: string;
+            description: string | null;
+            display_price: number;
+            exchange_points: number;
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+        };
+        RankDisplay: {
+            id: components["schemas"]["OpaqueId"];
+            code: string;
+            name: string;
+            presentation_assets: components["schemas"]["RankPresentationAsset"][];
+            prizes: components["schemas"]["PrizeDisplay"][];
+        };
+        StageCondition: {
+            /** @constant */
+            type: "sold_count";
+            min_draw_number: number;
+            max_draw_number: number | null;
+        };
+        RankProbability: {
+            rank: components["schemas"]["RankReference"];
+            total_ppm: number;
+        };
+        MinimumGuarantee: {
+            /** @enum {string} */
+            result_type: "prize" | "point_back";
+            total_ppm: number;
+            rank?: components["schemas"]["RankReference"];
+            point_amount?: number;
+        } & (unknown | unknown);
+        ProbabilityStage: {
+            id: components["schemas"]["OpaqueId"];
+            code: string;
+            name: string;
+            condition: components["schemas"]["StageCondition"];
+            is_current: boolean;
+            rank_probabilities: components["schemas"]["RankProbability"][];
+            point_back_total_ppm: number;
+            minimum_guarantee: components["schemas"]["MinimumGuarantee"];
+        };
+        GachaDetail: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+            price_points: number;
+            total_count: number;
+            remaining_count: number;
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            publish_end_at: components["schemas"]["UtcDateTime"] | null;
+            category: components["schemas"]["GachaCategory"];
+            tags: components["schemas"]["GachaTag"][];
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+            description: string | null;
+            notices: string | null;
+            ranks: components["schemas"]["RankDisplay"][];
+            probability_stages: components["schemas"]["ProbabilityStage"][];
+        };
+        GachaDetailResponse: {
+            data: components["schemas"]["GachaDetail"];
+        };
         UserRegistrationRequest: {
             /** Format: email */
             email: string;
@@ -207,6 +414,10 @@ export interface components {
         XOripaSiteVersion: components["schemas"]["SemanticVersion"];
         IdempotencyKey: string;
         XsrfToken: string;
+        CatalogLimit: number;
+        CatalogCursor: string;
+        CategorySlug: string;
+        TagSlug: string;
     };
     requestBodies: never;
     headers: {
@@ -219,6 +430,120 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listGachaCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Category一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaCategoryCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listGachaTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Tag一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaTagCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listGachas: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+                category?: components["parameters"]["CategorySlug"];
+                tag?: components["parameters"]["TagSlug"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Gacha一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaSummaryCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getGachaBySlug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Gacha詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getGacha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gacha_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Gacha詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     registerUser: {
         parameters: {
             query?: never;

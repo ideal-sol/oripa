@@ -5,7 +5,7 @@
 
 export const PUBLIC_CONTRACT_FIXTURE = {
   openapi: "3.1.1",
-  operation_count: 6,
-  operation_ids: ["getUserSession","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"],
-  bundle_sha256: "ba8be9b179c7528f80cfa8fe5bd69855a42d38126d1d64ebcfc887808e10639d",
+  operation_count: 11,
+  operation_ids: ["getGacha","getGachaBySlug","getUserSession","listGachaCategories","listGachaTags","listGachas","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"],
+  bundle_sha256: "1cbad3ea9b56276d473ffa23d7de8117004d791bb01c065791c2fa0affd669cf",
 } as const;

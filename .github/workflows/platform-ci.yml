@@ -338,9 +338,9 @@ jobs:
         run: |
           python3 scripts/db/v2_database.py smoke \
             --repository . \
-            --project-prefix "mig044-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --project-prefix "mig050-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --migration-path apps/api/database/migrations-v2 \
-            --evidence-dir "$RUNNER_TEMP/mig044-v2-payment-evidence"
+            --evidence-dir "$RUNNER_TEMP/mig050-v2-catalog-evidence"
 
       - name: Verify no tracked generated changes
         run: |

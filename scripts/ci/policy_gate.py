@@ -47,6 +47,7 @@ STOREFRONT_CLIENT_REQUIRED_FILES = {
     "packages/storefront-client/tsconfig.build.json",
     "packages/storefront-client/scripts/check-generated.mjs",
     "packages/storefront-client/src/browser.ts",
+    "packages/storefront-client/src/catalog.ts",
     "packages/storefront-client/src/constants.ts",
     "packages/storefront-client/src/errors.ts",
     "packages/storefront-client/src/generated/public.ts",
@@ -270,6 +271,24 @@ V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
     "apps/api/tests/V2/PaymentModelFoundationTest.php",
     "docs/operations/payment-model/README.md",
+}
+V2_CATALOG_REQUIRED_FILES = {
+    "apps/api/app/Domain/Catalog/Exceptions/V2CatalogException.php",
+    "apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php",
+    "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php",
+    "apps/api/app/Http/Controllers/V2/V2CatalogController.php",
+    "apps/api/config/v2_catalog.php",
+    "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
+    "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
+    "apps/api/tests/V2/Fixtures/catalog-alpha.json",
+    "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
+    "docs/operations/catalog-probability/README.md",
+    "openapi/bundled/public.openapi.json",
+    "openapi/public/openapi.yaml",
+    "packages/storefront-client/src/catalog.ts",
+    "packages/storefront-client/src/generated/public.ts",
+    "packages/storefront-testkit/src/fixtures.ts",
+    "packages/storefront-testkit/src/generated/public-contract.ts",
 }
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
@@ -1157,7 +1176,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 6,
+        "publicApiOperationCount": 11,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1175,8 +1194,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 6",
-        '"getUserSession","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"',
+        "operation_count: 11",
+        '"getGacha","getGachaBySlug","getUserSession","listGachaCategories","listGachaTags","listGachas","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1385,6 +1404,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_24_000005_create_v2_audit_outbox_foundation.php",
         "2026_07_24_000006_create_v2_point_model_foundation.php",
         "2026_07_25_000007_create_v2_payment_model_foundation.php",
+        "2026_07_28_000008_create_v2_catalog_probability_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1546,6 +1566,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             and "mig042-v2-" not in workflow
             and "mig043-v2-" not in workflow
             and "mig044-v2-" not in workflow
+            and "mig050-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -1976,6 +1997,175 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 Payment test missing {required}")
+
+
+def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_CATALOG_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 Catalog files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_28_000008_create_v2_catalog_probability_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_categories",
+        "catalog_tags",
+        "catalog_ranks",
+        "catalog_rank_assets",
+        "catalog_prizes",
+        "catalog_presentation_assets",
+        "catalog_gachas",
+        "catalog_gacha_versions",
+        "catalog_gacha_version_prizes",
+        "catalog_probability_versions",
+        "catalog_probability_stages",
+        "catalog_probability_entries",
+        "catalog_minimum_guarantees",
+        "catalog_import_runs",
+        "1000000",
+        "ARRAY['prize'::text,'point_back'::text]",
+        "v2_catalog_protect_published",
+        "v2_catalog_validate_probability_publish",
+        "v2_catalog_validate_gacha_publish",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Catalog migration missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "no_prize",
+        "float",
+        "decimal",
+    ):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 Catalog migration contains prohibited {prohibited}"
+            )
+
+    service = (
+        repository
+        / "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "where('gv.status', 'published')",
+        "where('pv.status', 'published')",
+        "publish_start_at",
+        "publish_end_at",
+        "rank_probabilities",
+        "minimum_guarantee",
+        "next_cursor",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Catalog read service missing {required}")
+    for prohibited in (
+        "individual_ppm",
+        "unit_cost",
+        "secret",
+        "credential",
+        "lockForUpdate",
+        "->insert(",
+        "->update(",
+        "Math.random",
+    ):
+        if prohibited in service:
+            raise PolicyFailure(
+                f"V2 Catalog read service contains prohibited {prohibited}"
+            )
+
+    bundle = load_json(repository, "openapi/bundled/public.openapi.json")
+    operation_ids = sorted(
+        operation.get("operationId")
+        for path_item in bundle.get("paths", {}).values()
+        if isinstance(path_item, dict)
+        for operation in path_item.values()
+        if isinstance(operation, dict) and operation.get("operationId")
+    )
+    for required in (
+        "getGacha",
+        "getGachaBySlug",
+        "listGachaCategories",
+        "listGachaTags",
+        "listGachas",
+    ):
+        if required not in operation_ids:
+            raise PolicyFailure(f"Public Catalog contract missing {required}")
+    catalog_paths = {
+        path: path_item
+        for path, path_item in bundle.get("paths", {}).items()
+        if path.startswith("/api/v2/gacha")
+    }
+    catalog_schemas = {
+        name: schema
+        for name, schema in bundle.get("components", {}).get("schemas", {}).items()
+        if name.startswith(
+            (
+                "Catalog",
+                "Cursor",
+                "Gacha",
+                "MinimumGuarantee",
+                "PresentationAsset",
+                "Prize",
+                "ProbabilityStage",
+                "Rank",
+            )
+        )
+    }
+    public_contract = json.dumps(
+        {"paths": catalog_paths, "schemas": catalog_schemas},
+        ensure_ascii=False,
+    ).lower()
+    for prohibited in (
+        "individual_ppm",
+        "unit_cost",
+        "storage_identifier",
+        "secret",
+        "credential",
+        "internal_id",
+    ):
+        if prohibited in public_contract:
+            raise PolicyFailure(
+                f"Public Catalog contract exposes prohibited {prohibited}"
+            )
+
+    generated = (
+        repository / "packages/storefront-client/src/generated/public.ts"
+    ).read_text(encoding="utf-8")
+    facade = (
+        repository / "packages/storefront-client/src/catalog.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "listGachaCategories",
+        "listGachaTags",
+        "listGachas",
+        "getGacha",
+        "getGachaBySlug",
+    ):
+        if required not in generated or required not in facade:
+            raise PolicyFailure(f"Storefront Catalog Client missing {required}")
+
+    tests = (
+        repository / "apps/api/tests/V2/CatalogProbabilityFoundationTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_fixture_import_order_checksum_and_replay_are_deterministic",
+        "test_probability_stage_below_one_million_ppm_is_rejected",
+        "test_probability_stage_above_one_million_ppm_is_rejected",
+        "test_published_gacha_probability_and_children_are_immutable",
+        "test_public_api_exposes_only_published_period_and_aggregate_probability",
+        "test_draft_future_and_expired_versions_are_not_public",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Catalog test missing {required}")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    if "mig050-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 Catalog project boundary is missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -2413,6 +2603,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_audit_outbox_boundary(repository, paths)
     validate_v2_point_boundary(repository, paths)
     validate_v2_payment_boundary(repository, paths)
+    validate_v2_catalog_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)
