@@ -140,6 +140,38 @@ def normalize_cyclonedx(path: Path) -> None:
     metadata = value.get("metadata")
     if isinstance(metadata, dict):
         metadata.pop("timestamp", None)
+    reference_map = {}
+    components = list(value.get("components", []))
+    if isinstance(metadata, dict) and isinstance(metadata.get("component"), dict):
+        components.append(metadata["component"])
+    for component in components:
+        reference = component.get("bom-ref")
+        if not isinstance(reference, str):
+            continue
+        stable_component = dict(component)
+        stable_component.pop("bom-ref", None)
+        stable_reference = "urn:oripa:sbom:sha256:" + hashlib.sha256(
+            canonical_json(stable_component)
+        ).hexdigest()
+        reference_map[reference] = stable_reference
+
+    def replace_references(item):
+        if isinstance(item, dict):
+            return {key: replace_references(entry) for key, entry in item.items()}
+        if isinstance(item, list):
+            return [replace_references(entry) for entry in item]
+        if isinstance(item, str):
+            return reference_map.get(item, item)
+        return item
+
+    value = replace_references(value)
+    if isinstance(value.get("components"), list):
+        value["components"].sort(key=lambda item: item.get("bom-ref", ""))
+    if isinstance(value.get("dependencies"), list):
+        for dependency in value["dependencies"]:
+            if isinstance(dependency.get("dependsOn"), list):
+                dependency["dependsOn"].sort()
+        value["dependencies"].sort(key=lambda item: item.get("ref", ""))
     write_json(path, value)
 
 
@@ -184,6 +216,31 @@ def deterministic_tar_gz(
     with destination.open("wb") as target:
         with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
             compressed.write(payload.getvalue())
+
+
+def normalize_docker_archive(
+    source: Path,
+    destination: Path,
+    epoch: int,
+) -> None:
+    with tarfile.open(source, mode="r:") as input_archive:
+        members = sorted(input_archive.getmembers(), key=lambda member: member.name)
+        with destination.open("wb") as target:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
+                with tarfile.open(
+                    fileobj=compressed,
+                    mode="w|",
+                    format=tarfile.GNU_FORMAT,
+                ) as output_archive:
+                    for member in members:
+                        member.uid = 0
+                        member.gid = 0
+                        member.uname = "root"
+                        member.gname = "root"
+                        member.mtime = epoch
+                        member.pax_headers = {}
+                        stream = input_archive.extractfile(member) if member.isfile() else None
+                        output_archive.addfile(member, stream)
 
 
 def load_json(path: Path) -> dict:
@@ -323,9 +380,7 @@ def docker_build(
     raw = assets / f".{name}.docker.tar"
     run(["docker", "save", "--output", str(raw), tag], cwd=repository)
     destination = assets / definition["asset"]
-    with raw.open("rb") as source, destination.open("wb") as target:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
-            shutil.copyfileobj(source, compressed)
+    normalize_docker_archive(raw, destination, epoch)
     raw.unlink()
     iid.unlink()
     return {

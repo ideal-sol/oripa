@@ -136,6 +136,31 @@ class PlatformArtifactTest(unittest.TestCase):
                 labels,
             )
 
+    def test_docker_archive_normalization_removes_header_variation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            normalized = []
+            for sequence, timestamp in (
+                (("config", "manifest.json"), 100),
+                (("manifest.json", "config"), 200),
+            ):
+                raw = root / f"raw-{timestamp}.tar"
+                destination = root / f"normalized-{timestamp}.tar.gz"
+                with tarfile.open(raw, mode="w") as archive:
+                    for name in sequence:
+                        content = name.encode()
+                        info = tarfile.TarInfo(name)
+                        info.mtime = timestamp
+                        info.size = len(content)
+                        archive.addfile(info, io.BytesIO(content))
+                platform_artifact.normalize_docker_archive(
+                    raw,
+                    destination,
+                    123456789,
+                )
+                normalized.append(destination.read_bytes())
+            self.assertEqual(normalized[0], normalized[1])
+
     def test_trivy_report_normalization_removes_scan_time(self):
         with tempfile.TemporaryDirectory() as temporary:
             report = Path(temporary) / "scan.json"
@@ -170,6 +195,28 @@ class PlatformArtifactTest(unittest.TestCase):
                     "metadata": {"component": {"name": "api"}},
                 },
             )
+
+    def test_cyclonedx_normalization_stabilizes_component_references(self):
+        normalized = []
+        for reference in (
+            "10937fff-ece8-4500-8e6f-ccb879d7ba42",
+            "cd8fbce6-93ef-4ab5-9731-09cdb0c233e1",
+        ):
+            with tempfile.TemporaryDirectory() as temporary:
+                sbom = Path(temporary) / "sbom.json"
+                sbom.write_text(
+                    json.dumps(
+                        {
+                            "bomFormat": "CycloneDX",
+                            "components": [{"bom-ref": reference, "name": "alpine"}],
+                            "dependencies": [{"ref": reference, "dependsOn": []}],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                platform_artifact.normalize_cyclonedx(sbom)
+                normalized.append(sbom.read_bytes())
+        self.assertEqual(normalized[0], normalized[1])
 
 
 if __name__ == "__main__":
