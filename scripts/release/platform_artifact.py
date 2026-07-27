@@ -700,6 +700,9 @@ def build_bundle(repository: Path, source_commit: str, output: Path, test_eviden
         name: docker_build(repository, assets, name, source_commit, created, epoch)
         for name in IMAGE_DEFINITIONS
     }
+    test_evidence["api_image_build"] = "PASS"
+    test_evidence["admin_image_build"] = "PASS"
+    test_evidence["first_party_package_pack"] = "PASS"
     for name, details in images.items():
         scan = assets / f"{name}-image-scan.json"
         run_image_scan(repository, details["local_tag"], scan)
@@ -709,6 +712,7 @@ def build_bundle(repository: Path, source_commit: str, output: Path, test_eviden
             assets / f"oripa-{name}-{PLATFORM_VERSION}.cdx.json",
         )
     test_evidence["image_scan"] = "PASS"
+    test_evidence["image_sbom"] = "PASS"
     runtimes = runtime_versions(repository, images)
     write_release_documents(
         assets,
