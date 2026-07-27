@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PublicHeader from "../../public-header";
 import { fetchPublicAnnouncement } from "@/lib/api";
@@ -10,17 +11,27 @@ type AnnouncementDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default async function AnnouncementDetailPage({ params }: AnnouncementDetailPageProps) {
-  const { id } = await params;
-  const announcementId = Number(id);
+export async function generateMetadata({ params }: AnnouncementDetailPageProps): Promise<Metadata> {
+  const announcement = await loadAnnouncement(params);
 
-  if (!Number.isInteger(announcementId) || announcementId <= 0) {
-    notFound();
+  if (!announcement) {
+    return {};
   }
 
-  const announcement = await fetchPublicAnnouncement(announcementId)
-    .then((response) => response.data)
-    .catch(() => null);
+  return {
+    title: announcement.title,
+    robots: announcement.category === "lp"
+      ? {
+          index: false,
+          follow: false,
+          noarchive: true,
+        }
+      : undefined,
+  };
+}
+
+export default async function AnnouncementDetailPage({ params }: AnnouncementDetailPageProps) {
+  const announcement = await loadAnnouncement(params);
 
   if (!announcement) {
     notFound();
@@ -39,14 +50,23 @@ export default async function AnnouncementDetailPage({ params }: AnnouncementDet
         <div className={`announcement-main-image ${announcement.thumbnail_url ? "" : "logo-fallback"}`}>
           <span><Image className={announcement.thumbnail_url ? "optimized-image" : "optimized-image-contain"} src={announcement.thumbnail_url ?? ANNOUNCEMENT_FALLBACK_IMAGE} alt="" fill sizes="(max-width: 760px) 100vw, 920px" /></span>
         </div>
-        <div className="announcement-body">
-          {announcement.body.split(/\r?\n/).map((line, index) => (
-            <p key={`${index}-${line}`}>{line || "\u00a0"}</p>
-          ))}
-        </div>
+        <div className="announcement-body" dangerouslySetInnerHTML={{ __html: announcement.body_html }} />
       </article>
     </main>
   );
+}
+
+async function loadAnnouncement(params: Promise<{ id: string }>) {
+  const { id } = await params;
+  const announcementId = Number(id);
+
+  if (!Number.isInteger(announcementId) || announcementId <= 0) {
+    return null;
+  }
+
+  return fetchPublicAnnouncement(announcementId)
+    .then((response) => response.data)
+    .catch(() => null);
 }
 
 function formatDate(value: string | null) {

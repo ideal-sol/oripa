@@ -14,10 +14,14 @@ export type Announcement = {
   id: number;
   title: string;
   body: string;
+  body_html: string;
+  category: "notice" | "lp";
   thumbnail_url: string | null;
   show_on_top_slider: boolean;
   status: string;
   published_at: string | null;
+  published_until: string | null;
+  robots: string;
   created_at: string | null;
   updated_at: string | null;
 };
