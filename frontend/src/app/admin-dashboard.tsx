@@ -511,10 +511,14 @@ type Announcement = {
   id: number;
   title: string;
   body: string;
+  body_html: string;
+  category: "notice" | "lp";
   thumbnail_url: string | null;
   show_on_top_slider: boolean;
   status: string;
   published_at: string | null;
+  published_until: string | null;
+  robots: string;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -1065,11 +1069,14 @@ export default function AdminDashboard({
     id: "",
     title: "",
     body: "",
+    category: "notice" as "notice" | "lp",
     thumbnailUrl: "",
     showOnTopSlider: false,
     status: "draft",
     publishedAt: "",
+    publishedUntil: "",
   });
+  const [announcementPreviewHtml, setAnnouncementPreviewHtml] = useState("");
   const [categoryForm, setCategoryForm] = useState({
     id: "",
     name: "",
@@ -2775,10 +2782,12 @@ export default function AdminDashboard({
         body: JSON.stringify({
           title: announcementForm.title,
           body: announcementForm.body,
+          category: announcementForm.category,
           thumbnail_url: announcementForm.thumbnailUrl || null,
           show_on_top_slider: announcementForm.showOnTopSlider,
           status: announcementForm.status,
           published_at: announcementForm.publishedAt || null,
+          published_until: announcementForm.publishedUntil || null,
         }),
       }, session.access_token);
 
@@ -2789,11 +2798,14 @@ export default function AdminDashboard({
           id: "",
           title: "",
           body: "",
+          category: "notice",
           thumbnailUrl: "",
           showOnTopSlider: false,
           status: "draft",
           publishedAt: "",
+          publishedUntil: "",
         });
+        setAnnouncementPreviewHtml("");
         setActiveAnnouncementView("list");
         router.push(adminPathForTab("announcements"));
       }
@@ -2811,13 +2823,37 @@ export default function AdminDashboard({
       id: String(announcement.id),
       title: announcement.title,
       body: announcement.body,
+      category: announcement.category,
       thumbnailUrl: announcement.thumbnail_url ?? "",
       showOnTopSlider: announcement.show_on_top_slider,
       status: announcement.status,
       publishedAt: toDateTimeLocal(announcement.published_at),
+      publishedUntil: toDateTimeLocal(announcement.published_until),
     });
+    setAnnouncementPreviewHtml(announcement.body_html);
     setActiveAnnouncementView("edit");
     router.push(adminPathForAnnouncementView("edit", announcement.id));
+  }
+
+  async function previewAnnouncement() {
+    if (!session || !announcementForm.body) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessage();
+
+    try {
+      const response = await apiRequest<{ data: { body_html: string } }>("/announcements/preview", {
+        method: "POST",
+        body: JSON.stringify({ body: announcementForm.body }),
+      }, session.access_token);
+      setAnnouncementPreviewHtml(response.data.body_html);
+    } catch (error) {
+      showMessage("error", error instanceof Error ? error.message : "本文Previewに失敗しました");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function editContact(contact: ContactRequest) {
@@ -4057,7 +4093,8 @@ export default function AdminDashboard({
                 title="お知らせ一覧"
                 actionLabel="お知らせ登録"
                 onAction={() => {
-                  setAnnouncementForm({ id: "", title: "", body: "", thumbnailUrl: "", showOnTopSlider: false, status: "draft", publishedAt: "" });
+                  setAnnouncementForm({ id: "", title: "", body: "", category: "notice", thumbnailUrl: "", showOnTopSlider: false, status: "draft", publishedAt: "", publishedUntil: "" });
+                  setAnnouncementPreviewHtml("");
                   setActiveAnnouncementView("new");
                   router.push(adminPathForAnnouncementView("new"));
                 }}
@@ -4087,8 +4124,30 @@ export default function AdminDashboard({
                 </label>
                 <label>
                   <span>本文</span>
-                  <textarea value={announcementForm.body} onChange={(event) => setAnnouncementForm({ ...announcementForm, body: event.target.value })} required />
+                  <textarea value={announcementForm.body} onChange={(event) => {
+                    setAnnouncementForm({ ...announcementForm, body: event.target.value });
+                    setAnnouncementPreviewHtml("");
+                  }} required />
                 </label>
+                <div className="form-actions">
+                  <button className="secondary-button" type="button" onClick={() => void previewAnnouncement()} disabled={loading || !announcementForm.body}>Preview</button>
+                </div>
+                {announcementPreviewHtml && (
+                  <div className="announcement-body announcement-preview" dangerouslySetInnerHTML={{ __html: announcementPreviewHtml }} />
+                )}
+                <SelectField
+                  label="カテゴリ"
+                  value={announcementForm.category}
+                  onChange={(value) => setAnnouncementForm({
+                    ...announcementForm,
+                    category: value as "notice" | "lp",
+                    showOnTopSlider: value === "lp" ? false : announcementForm.showOnTopSlider,
+                  })}
+                  options={[
+                    ["notice", "お知らせ"],
+                    ["lp", "LP"],
+                  ]}
+                />
                 <ImageUploadField
                   label="サムネイル画像"
                   value={announcementForm.thumbnailUrl}
@@ -4097,7 +4156,7 @@ export default function AdminDashboard({
                   onUploadImage={uploadImage}
                 />
                 <label className="check-row">
-                  <input type="checkbox" checked={announcementForm.showOnTopSlider} onChange={(event) => setAnnouncementForm({ ...announcementForm, showOnTopSlider: event.target.checked })} />
+                  <input type="checkbox" checked={announcementForm.showOnTopSlider} disabled={announcementForm.category === "lp"} onChange={(event) => setAnnouncementForm({ ...announcementForm, showOnTopSlider: event.target.checked })} />
                   <span>トップのスライドに表示</span>
                 </label>
                 <SelectField
@@ -4113,6 +4172,10 @@ export default function AdminDashboard({
                 <label>
                   <span>公開日時</span>
                   <input type="datetime-local" value={announcementForm.publishedAt} onChange={(event) => setAnnouncementForm({ ...announcementForm, publishedAt: event.target.value })} />
+                </label>
+                <label>
+                  <span>公開終了日時（未指定は無期限）</span>
+                  <input type="datetime-local" value={announcementForm.publishedUntil} onChange={(event) => setAnnouncementForm({ ...announcementForm, publishedUntil: event.target.value })} />
                 </label>
                 <button className="primary-button" type="submit" disabled={loading}>{announcementForm.id ? "更新" : "作成"}</button>
               </form>
@@ -8767,13 +8830,14 @@ function PointPurchasePlanTable({ rows, onEdit }: { rows: PointPurchasePlan[]; o
 function AnnouncementTable({ rows, onEdit }: { rows: Announcement[]; onEdit: (announcement: Announcement) => void }) {
   return (
     <DataTable
-      headers={["ID", "サムネイル", "タイトル", "状態", "公開日時", "更新日時", "操作"]}
+      headers={["ID", "カテゴリ", "サムネイル", "タイトル", "状態", "公開期間", "更新日時", "操作"]}
       rows={rows.map((row) => [
         <span className="mono-id" key="id">#{row.id}</span>,
+        <StatusBadge key="category" value={row.category} />,
         row.thumbnail_url ? <span className="table-thumb" key="thumb" style={{ backgroundImage: `url("${row.thumbnail_url}")` }} /> : <span className="muted-text" key="thumb">未設定</span>,
         <span className="user-cell" key="title"><span>{row.title}</span><small>{row.body.slice(0, 48)}</small></span>,
         <StatusBadge key="status" value={row.status} />,
-        formatDate(row.published_at),
+        `${formatDate(row.published_at)} ～ ${row.published_until ? formatDate(row.published_until) : "無期限"}`,
         formatDate(row.updated_at),
         <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
       ])}

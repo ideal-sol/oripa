@@ -14,9 +14,7 @@ class AnnouncementController extends Controller
     {
         return AnnouncementResource::collection(
             Announcement::query()
-                ->where('status', 'published')
-                ->whereNotNull('published_at')
-                ->where('published_at', '<=', now())
+                ->publicNoticeListing()
                 ->orderByDesc('published_at')
                 ->limit(5)
                 ->get()
@@ -25,12 +23,10 @@ class AnnouncementController extends Controller
 
     public function show(Request $request, Announcement $announcement): AnnouncementResource
     {
-        abort_unless(
-            ($announcement->status instanceof \BackedEnum ? $announcement->status->value : $announcement->status) === 'published'
-                && $announcement->published_at !== null
-                && $announcement->published_at->lessThanOrEqualTo(now()),
-            404,
-        );
+        $announcement = Announcement::query()
+            ->publiclyVisible()
+            ->whereKey($announcement->getKey())
+            ->firstOrFail();
 
         return new AnnouncementResource($announcement);
     }

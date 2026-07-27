@@ -2314,6 +2314,38 @@ code {
   line-height: 1.85;
 }
 
+.announcement-body :is(h2, h3, h4) {
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+.announcement-body :is(ul, ol) {
+  padding-left: 24px;
+}
+
+.announcement-body a {
+  color: #2458a6;
+  text-decoration: underline;
+}
+
+.announcement-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.announcement-body :is(th, td) {
+  padding: 8px;
+  border: 1px solid #cfd7e6;
+  text-align: left;
+  vertical-align: top;
+}
+
+.announcement-preview {
+  padding: 16px;
+  border: 1px solid #cfd7e6;
+  background: #fff;
+}
+
 .contact-page {
   width: min(760px, calc(100% - 32px));
   display: grid;

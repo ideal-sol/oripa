@@ -46,6 +46,7 @@ Route::middleware(['auth:sanctum', EnsureAdminUser::class])->group(function (): 
 
     Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('admin.api.announcements.index');
     Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->name('admin.api.announcements.store');
+    Route::post('/announcements/preview', [AdminAnnouncementController::class, 'preview'])->name('admin.api.announcements.preview');
     Route::get('/announcements/{announcement}', [AdminAnnouncementController::class, 'show'])->name('admin.api.announcements.show');
     Route::put('/announcements/{announcement}', [AdminAnnouncementController::class, 'update'])->name('admin.api.announcements.update');
 

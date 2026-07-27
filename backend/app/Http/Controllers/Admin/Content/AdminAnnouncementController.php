@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin\Content;
 
 use App\Domain\Audit\Services\AuditLogService;
+use App\Domain\Content\Enums\AnnouncementCategory;
+use App\Domain\Content\Services\AnnouncementContentSanitizer;
+use App\Http\Requests\Admin\PreviewAnnouncementRequest;
 use App\Http\Requests\Admin\StoreAnnouncementRequest;
 use App\Http\Requests\Admin\UpdateAnnouncementRequest;
 use App\Http\Resources\AnnouncementResource;
 use App\Models\Announcement;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
 
@@ -24,9 +28,13 @@ class AdminAnnouncementController extends Controller
         return AnnouncementResource::collection($query->paginate((int) $request->integer('per_page', 20)));
     }
 
-    public function store(StoreAnnouncementRequest $request, AuditLogService $auditLogService): AnnouncementResource
+    public function store(
+        StoreAnnouncementRequest $request,
+        AuditLogService $auditLogService,
+        AnnouncementContentSanitizer $sanitizer,
+    ): AnnouncementResource
     {
-        $payload = $this->payload($request->validated());
+        $payload = $this->payload($request->validated(), $sanitizer);
         $announcement = Announcement::query()->create($payload);
 
         $auditLogService->record(
@@ -45,9 +53,14 @@ class AdminAnnouncementController extends Controller
         return new AnnouncementResource($announcement);
     }
 
-    public function update(UpdateAnnouncementRequest $request, Announcement $announcement, AuditLogService $auditLogService): AnnouncementResource
+    public function update(
+        UpdateAnnouncementRequest $request,
+        Announcement $announcement,
+        AuditLogService $auditLogService,
+        AnnouncementContentSanitizer $sanitizer,
+    ): AnnouncementResource
     {
-        $payload = $this->payload($request->validated());
+        $payload = $this->payload($request->validated(), $sanitizer);
         $before = $announcement->only(array_keys($payload));
 
         $announcement->fill($payload)->save();
@@ -62,8 +75,26 @@ class AdminAnnouncementController extends Controller
 
         return new AnnouncementResource($announcement->refresh());
     }
-    private function payload(array $payload): array
+
+    public function preview(
+        PreviewAnnouncementRequest $request,
+        AnnouncementContentSanitizer $sanitizer,
+    ): JsonResponse {
+        return response()->json([
+            'data' => [
+                'body_html' => $sanitizer->render($request->validated('body')),
+            ],
+        ]);
+    }
+
+    private function payload(array $payload, AnnouncementContentSanitizer $sanitizer): array
     {
+        $payload['body'] = $sanitizer->sanitizeForStorage($payload['body']);
+
+        if (($payload['category'] ?? null) === AnnouncementCategory::LandingPage->value) {
+            $payload['show_on_top_slider'] = false;
+        }
+
         if (($payload['status'] ?? null) === 'published' && empty($payload['published_at'])) {
             $payload['published_at'] = now();
         }
