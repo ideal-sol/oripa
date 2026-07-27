@@ -30,6 +30,7 @@ use App\Models\User;
 use App\Models\UserPrize;
 use App\Models\Wallet;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -41,6 +42,7 @@ class DrawService
         private readonly PointConsumptionService $pointConsumptionService,
         private readonly PointLotService $pointLotService,
         private readonly QaDrawResolver $qaDrawResolver,
+        private readonly CryptographicRandomSource $randomSource,
     ) {
     }
 
@@ -165,6 +167,11 @@ class DrawService
             $bulkRanks = collect();
             $changedBulkPrizeIds = [];
             $bulkMinimumGuarantees = [];
+            $bulkResultRows = [];
+            $bulkPrizeOutcomes = [];
+            $bulkStageIndex = 0;
+            $bulkRangeCache = [];
+            $bulkTimestamp = now();
 
             if ($isBulk) {
                 $bulkStages = $this->loadBulkStages($lockedGacha);
@@ -177,10 +184,10 @@ class DrawService
             for ($drawIndex = 1; $drawIndex <= $drawCount; $drawIndex++) {
                 $sequence = $soldCountBefore + $drawIndex;
                 $stage = $isBulk
-                    ? $this->resolveLoadedStage($bulkStages, $lockedGacha, $sequence)
+                    ? $this->resolveLoadedStage($bulkStages, $lockedGacha, $sequence, $bulkStageIndex)
                     : $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
                 // 抽選乱数はフロントではなくバックエンドのCSPRNGで生成する。
-                $randomValue = random_int(0, 999_999);
+                $randomValue = $this->randomSource->integer(0, 999_999);
 
                 $drawResult = null;
 
@@ -213,9 +220,14 @@ class DrawService
                     $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
                     $this->incrementQaPlanItem($qaItem);
                 } else {
-                    $range = $isBulk
-                        ? $this->rangeBuilder->buildFromLoaded($stage->probabilities, $bulkPrizes)
-                        : $this->rangeBuilder->build($stage);
+                    if ($isBulk) {
+                        $stageId = (int) $stage->id;
+                        $bulkRangeCache[$stageId] ??= $this->rangeBuilder
+                            ->buildFromLoaded($stage->probabilities, $bulkPrizes);
+                        $range = $bulkRangeCache[$stageId];
+                    } else {
+                        $range = $this->rangeBuilder->build($stage);
+                    }
                     $entry = $range->pick($randomValue);
 
                     if ($entry->isPrize()) {
@@ -239,37 +251,62 @@ class DrawService
 
                         if ($isBulk) {
                             $changedBulkPrizeIds[$prize->id] = true;
+                            if ((int) $prize->won_count >= (int) $prize->max_win_count) {
+                                // 売切れ景品は全StageのRangeから除外する必要がある。
+                                $bulkRangeCache = [];
+                            }
                         } else {
                             $prize->save();
                         }
 
-                        $drawResult = $this->storePrizeResult(
-                            drawRequest: $drawRequest,
-                            user: $user,
-                            gacha: $lockedGacha,
-                            prize: $prize,
-                            sequence: $sequence,
-                            randomValue: $randomValue,
-                            stageId: $stage->id,
-                            presentation: $isBulk
-                                ? $this->selectRankPresentationFromRank($bulkRanks->get($prize->rank_id))
-                                : null,
-                        );
-
-                        $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
-                    } else {
-                        $drawResult = $this->storePointBackResult(
-                            drawRequest: $drawRequest,
-                            user: $user,
-                            gacha: $lockedGacha,
-                            sequence: $sequence,
-                            randomValue: $randomValue,
-                            stageId: $stage->id,
-                        );
-
                         if ($isBulk) {
-                            $bulkMinimumGuarantees[] = $drawResult;
+                            $presentation = $this->selectRankPresentationFromRank($bulkRanks->get($prize->rank_id));
+                            $bulkResultRows[] = $this->bulkPrizeResultRow(
+                                drawRequest: $drawRequest,
+                                user: $user,
+                                gacha: $lockedGacha,
+                                prize: $prize,
+                                sequence: $sequence,
+                                randomValue: $randomValue,
+                                stageId: (int) $stage->id,
+                                presentation: $presentation,
+                                timestamp: $bulkTimestamp,
+                            );
+                            $bulkPrizeOutcomes[$sequence] = $prize;
                         } else {
+                            $drawResult = $this->storePrizeResult(
+                                drawRequest: $drawRequest,
+                                user: $user,
+                                gacha: $lockedGacha,
+                                prize: $prize,
+                                sequence: $sequence,
+                                randomValue: $randomValue,
+                                stageId: $stage->id,
+                            );
+
+                            $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
+                        }
+                    } else {
+                        if ($isBulk) {
+                            $bulkResultRows[] = $this->bulkPointBackResultRow(
+                                drawRequest: $drawRequest,
+                                user: $user,
+                                gacha: $lockedGacha,
+                                sequence: $sequence,
+                                randomValue: $randomValue,
+                                stageId: (int) $stage->id,
+                                timestamp: $bulkTimestamp,
+                            );
+                            $bulkMinimumGuarantees[] = $sequence;
+                        } else {
+                            $drawResult = $this->storePointBackResult(
+                                drawRequest: $drawRequest,
+                                user: $user,
+                                gacha: $lockedGacha,
+                                sequence: $sequence,
+                                randomValue: $randomValue,
+                                stageId: $stage->id,
+                            );
                             $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
                         }
                     }
@@ -289,7 +326,24 @@ class DrawService
                     $bulkPrizes->get($prizeId)?->save();
                 }
 
-                $this->grantMinimumGuaranteeBatch($user, $lockedGacha, $bulkMinimumGuarantees);
+                if (! $qaSelection->active) {
+                    $resultsBySequence = $this->persistBulkDrawResults($drawRequest, $bulkResultRows);
+                    $this->persistBulkUserPrizes(
+                        user: $user,
+                        gacha: $lockedGacha,
+                        prizeOutcomes: $bulkPrizeOutcomes,
+                        resultsBySequence: $resultsBySequence,
+                        timestamp: $bulkTimestamp,
+                    );
+                    $this->grantMinimumGuaranteeBatch(
+                        $user,
+                        $lockedGacha,
+                        array_map(
+                            fn (int $sequence): DrawResult => $resultsBySequence->get($sequence),
+                            $bulkMinimumGuarantees,
+                        ),
+                    );
+                }
                 $lockedGacha->save();
             }
 
@@ -394,21 +448,33 @@ class DrawService
             ->get();
     }
 
-    private function resolveLoadedStage(Collection $stages, Gacha $gacha, int $sequence): GachaProbabilityVersionStage
+    private function resolveLoadedStage(
+        Collection $stages,
+        Gacha $gacha,
+        int $sequence,
+        int &$stageIndex,
+    ): GachaProbabilityVersionStage
     {
-        /** @var GachaProbabilityVersionStage|null $stage */
-        $stage = $stages->first(fn (GachaProbabilityVersionStage $candidate): bool =>
-            (int) $candidate->min_draw_number <= $sequence
-            && ($candidate->max_draw_number === null || (int) $candidate->max_draw_number >= $sequence)
-        );
+        while ($stageIndex < $stages->count()) {
+            /** @var GachaProbabilityVersionStage $stage */
+            $stage = $stages->get($stageIndex);
 
-        if (! $stage) {
-            throw new DrawException(
-                "Published probability stage was not found for draw sequence {$sequence} on gacha {$gacha->id}."
-            );
+            if ((int) $stage->min_draw_number <= $sequence
+                && ($stage->max_draw_number === null || (int) $stage->max_draw_number >= $sequence)) {
+                return $stage;
+            }
+
+            if ($stage->max_draw_number !== null && (int) $stage->max_draw_number < $sequence) {
+                $stageIndex++;
+                continue;
+            }
+
+            break;
         }
 
-        return $stage;
+        throw new DrawException(
+            "Published probability stage was not found for draw sequence {$sequence} on gacha {$gacha->id}."
+        );
     }
 
     private function lockAndValidateQaPrizes(Gacha $gacha, QaDrawSelection $selection)
@@ -621,7 +687,125 @@ class DrawService
             return null;
         }
 
-        return $urls->get(random_int(0, $urls->count() - 1));
+        return $urls->get($this->randomSource->integer(0, $urls->count() - 1));
+    }
+
+    private function bulkPrizeResultRow(
+        DrawRequest $drawRequest,
+        User $user,
+        Gacha $gacha,
+        GachaPrize $prize,
+        int $sequence,
+        int $randomValue,
+        int $stageId,
+        array $presentation,
+        CarbonInterface $timestamp,
+    ): array {
+        return [
+            'draw_request_id' => $drawRequest->id,
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'draw_sequence_number' => $sequence,
+            'rank_id' => $prize->rank_id,
+            'prize_id' => $prize->id,
+            'result_type' => DrawResultType::Prize->value,
+            'consumed_point' => $gacha->price,
+            'granted_point' => 0,
+            'random_value' => $randomValue,
+            'probability_version_id' => $gacha->current_probability_version_id,
+            'probability_version_stage_id' => $stageId,
+            'selected_rank_image_url' => $presentation['image_url'],
+            'selected_draw_video_url' => $presentation['video_url'],
+            'is_qa_draw' => false,
+            'qa_draw_plan_item_id' => null,
+            'created_at' => $timestamp,
+        ];
+    }
+
+    private function bulkPointBackResultRow(
+        DrawRequest $drawRequest,
+        User $user,
+        Gacha $gacha,
+        int $sequence,
+        int $randomValue,
+        int $stageId,
+        CarbonInterface $timestamp,
+    ): array {
+        return [
+            'draw_request_id' => $drawRequest->id,
+            'user_id' => $user->id,
+            'gacha_id' => $gacha->id,
+            'draw_sequence_number' => $sequence,
+            'rank_id' => null,
+            'prize_id' => null,
+            'result_type' => DrawResultType::PointBack->value,
+            'consumed_point' => $gacha->price,
+            'granted_point' => $gacha->minimum_guarantee_value,
+            'random_value' => $randomValue,
+            'probability_version_id' => $gacha->current_probability_version_id,
+            'probability_version_stage_id' => $stageId,
+            'selected_rank_image_url' => null,
+            'selected_draw_video_url' => null,
+            'is_qa_draw' => false,
+            'qa_draw_plan_item_id' => null,
+            'created_at' => $timestamp,
+        ];
+    }
+
+    private function persistBulkDrawResults(DrawRequest $drawRequest, array $rows): Collection
+    {
+        foreach (array_chunk($rows, 250) as $chunk) {
+            DB::table('draw_results')->insert($chunk);
+        }
+
+        $results = DrawResult::query()
+            ->where('draw_request_id', $drawRequest->id)
+            ->orderBy('draw_sequence_number')
+            ->get()
+            ->keyBy('draw_sequence_number');
+
+        if ($results->count() !== count($rows)) {
+            throw new DrawException('Bulk draw result persistence count did not match the requested count.');
+        }
+
+        return $results;
+    }
+
+    private function persistBulkUserPrizes(
+        User $user,
+        Gacha $gacha,
+        array $prizeOutcomes,
+        Collection $resultsBySequence,
+        CarbonInterface $timestamp,
+    ): void {
+        $rows = [];
+        $storageExpireAt = $timestamp->copy()->addDays(60);
+
+        foreach ($prizeOutcomes as $sequence => $prize) {
+            /** @var DrawResult|null $drawResult */
+            $drawResult = $resultsBySequence->get($sequence);
+
+            if (! $drawResult) {
+                throw new DrawException('Bulk user prize could not be matched to its draw result.');
+            }
+
+            $rows[] = [
+                'user_id' => $user->id,
+                'gacha_id' => $gacha->id,
+                'gacha_prize_id' => $prize->id,
+                'draw_result_id' => $drawResult->id,
+                'status' => UserPrizeStatus::Stored->value,
+                'acquired_at' => $timestamp,
+                'storage_expire_at' => $storageExpireAt,
+                'converted_point' => null,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
+        }
+
+        foreach (array_chunk($rows, 250) as $chunk) {
+            DB::table('user_prizes')->insert($chunk);
+        }
     }
 
     private function storePointBackResult(

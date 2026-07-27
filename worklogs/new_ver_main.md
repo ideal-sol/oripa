@@ -203,3 +203,63 @@
 - Squash Merge後のCommitだけをDeploy Sourceとし、Full／Schema Backup、`pg_restore --list`、Migration Status、現行Runtime／Nginx Upstream、Rollback手順をRepository外Evidenceへ保全してから反映する。
 - ProductionではV1-DRAW-1000Aの新規MigrationだけがPendingであることを確認し、承認対象以外のMigrationがあれば停止する。`migrate:fresh`、Reset、Seed、手動Data修正は実行しない。
 - Productionの実景品／実Pointを使う成功Drawは行わず、安全なFixtureがない場合はUI表示と非破壊経路だけを確認する。
+
+## V1-DRAW-1000A2 Bulk Draw Set-based Persistence最適化
+
+### Task／Preflight
+
+- Task IDは`V1-DRAW-1000A2`、Riskは`R3`、Issueは`#99`。
+- 確認済みBase `64a8a6481bad4dc4d4d62efbf39eddaf35fac60b`以後に、承認済み`V1-DRAW-1000B`がSquash Mergeされていた。Local／Remote `v1/early-release`が一致し、Working Tree clean、未Push／未Merge Commitなしを確認したため、最新の`0c5262d42babc1bf3a63bd991ab07afb014a03c2`をTask Base／PR Baseに採用した。
+- GitHub App Wrapperが`performance/`を許可していないため、Task Policyを緩和せず、Branchは`refactor/V1-DRAW-1000A2-set-based-persistence`とした。
+- V1-DRAW-1000AはPR `#96`でMerged、Issue `#95`はClosed、Squash Commit `64a8a6481bad4dc4d4d62efbf39eddaf35fac60b`が履歴に存在することを確認した。
+- Production Backend／Frontendは`127.0.0.1:8130`／`127.0.0.1:3130`、直前Rollback Runtimeは`8120`／`3120`。Publicは`200`、Adminは正常な`307`、Production Migration Pendingは`0`だった。
+- V2 `main`、Production Runtime／Nginx／DB／Redis／Storage、`archive/v1-current`、Annotated TagはRead-only確認だけを行い、変更していない。
+
+### 変更前性能／Bottleneck
+
+- Task専用PostgreSQL 17／Redis 7と代表Fixtureで、100回／1000回を各5回、同一Gachaへ5／10／20 User × 1000回を測定した。
+- 100回はp50 `352.282 ms`、p95 `368.740 ms`、Query `288-299`。1000回はp50 `3038.793 ms`、p95 `3143.005 ms`、Query `2610-2660`、Transaction `2965-3133 ms`だった。
+- 同一Gachaの最終完了は5 User `17157.004 ms`、10 User `33038.802 ms`、20 User `68965.620 ms`。実測Lock Wait最大はそれぞれ`9040 ms`、`19330 ms`、`41540 ms`だった。
+- 1000回RequestのQueryは約2600件で、`DrawResult`、`UserPrize`、Point Lot／Ledgerの個別`INSERT`が大半を占めた。Gacha Row Lock取得後のTransaction保持時間が集中実行を直列に増幅する主要Bottleneckだった。
+- 変更前EvidenceはRepository外へ保存し、Directory mode `700`、File mode `600`、Evidence SHA-256は`77f3808496ab886b518a9cfbbd0f38aba823920c4d8a557c53203d778a5b3589`。
+
+### Set-based Persistence／互換境界
+
+- 各DrawのProduction CSPRNGは引き続き`random_int`を使用する。`CryptographicRandomSource`はTest時に決定的な値を注入する境界だけを追加し、抽選回数、順序、Random値、Stage、Prize、Rank、Point Backを固定した。
+- Probability Stageは`min_draw_number`順のPointerで進め、同一StageのRangeをCacheする。Prizeが売切れた時だけ全StageのRange Cacheを破棄し、既存のMinimum Guarantee吸収とStage切替条件を維持した。
+- `DrawResult`、`UserPrize`、Point Lot、Point LedgerはTransaction内で順番どおりMemory上へ構築し、250件単位でChunked Bulk Insertする。Draw Resultは`draw_request_id + draw_sequence_number`で安全に再取得し、User PrizeとPoint Lot／LedgerのRelationを保持した。
+- `DrawResult`／`UserPrize`／Point Lot／Point LedgerにはModel ObserverやModel Eventによる副作用が存在しないことを確認した。既存のAudit／Metric、Response、Idempotency、Lock順は削除・変更していない。
+- Bulk開始時刻を`created_at`、`updated_at`、`acquired_at`、Storage期限、Point期限の共通基準として1回だけ確定した。個別履歴1000件、User Prize全件、Point Lot／Ledger全件は省略していない。
+- 単一DB Transaction、Gacha／Wallet／Point Lot／PrizeのLock順、全Rollback、Idempotency Replay、同一Key Conflict、既存1／5／10／100／1000回のResponse Contractを維持した。複数Transaction、Queue、Reservation Saga、確率近似は導入していない。
+
+### 変更後性能
+
+- 単独100回はp50 `93.983 ms`、p95 `114.216 ms`、Query `40`。単独1000回はp50 `536.977 ms`、p95 `582.927 ms`、Query `48`、Transaction `480-568 ms`だった。
+- 1000回p95は変更前比約`81.5%`短縮し、Query数は約`98.2%`削減した。目標のp95 `2000 ms`以下、35%以上短縮、Query 50%以上削減を満たした。
+- 同一Gacha 5 Userはp50 `2191.223 ms`、p95／最終完了 `3632.022 ms`、実測Lock Wait最大`1770 ms`。
+- 同一Gacha 10 Userはp50 `3915.324 ms`、p95／最終完了 `7495.911 ms`、実測Lock Wait最大`3880 ms`。
+- 同一Gacha 20 Userはp50 `7498.448 ms`、p95 `14010.807 ms`、最終完了`14766.610 ms`、実測Lock Wait最大`7990 ms`。
+- 集中実行のRequest当たりQueryは`43-44`、`INSERT=14`、Peak PostgreSQL ConnectionはUser数＋測定Connection、未解消Deadlock／Serialization Failure、500／502／504、Point／在庫／履歴不整合は0件だった。
+- 観測Peak PHP Memory増分は最大`6291456 bytes`、Responseは約`6.7 KiB`以下。Timeout、PHP実行時間、Memory Limit、Nginx設定は変更していない。
+
+### Test／Security
+
+- 決定的Random FixtureでDraw順序、Probability Stage、Prize、Rank、Point Back、Point消費／付与、残口数、在庫、Draw History、User Prize、Bulk集計、Idempotencyを検証した。
+- 2番目のDraw Result ChunkでFailureを注入し、Draw Request、1000件の履歴、User Prize、Point、在庫、残口数が全Rollbackされることを確認した。
+- Full Backend Regressionは`373 Warning／2456 Assertion`。既知`AdminPaymentApiTest`のRefund／Chargeback 2 Failureだけが既存Fingerprintと完全一致し、新規Failureは0件だった。
+- Point／Payment／Refund／Chargeback、QA、Probability、Reconciliation、Idempotency、並行実行はFull Regression内で実行した。
+- Task専用DBで`migrate:fresh`、最新MigrationのRollback、Reapply、Migration Pending 0を確認した。Baseと変更後のMigrationはともに42件、内容Set SHA-256は`e0ad8f112212a9881521102e29b76fabfcd7c74b0912ec4b14f66af3055b2460`で一致し、Archive CommitのV1 Migration 40件も変更していない。
+- Frontend Typecheck／Buildは成功。Lintは既存Fingerprintと同一の`8 Error／1 Warning`で増加なし。
+- Composer Manifestは有効。Composer Auditは既存10 Finding、Frontend Auditは既存18 Finding（High 12／Moderate 6）で、Manifest／Lockfileを変更しておらず新規Critical／High Findingは0件。
+- PHP 373 FileのSyntax、`git diff --check`、Secret／PII Candidate 0件、Binary／Submoduleなし、Allowed Pathsを確認した。
+- Task専用Backendの`/api/health`はApplication／PostgreSQL／Redis／Storageがすべて`ok`。Production Deployment、Production成功Draw、Frontend UI変更、Browser E2Eは未実行。
+
+### GitHub／Cleanup
+
+- Final Headは固定後のMachine-readable Self-review Evidenceを正本とし、Squash CommitはMerge結果と最終完了報告で記録する。
+- GitHub Checkが`v1/early-release`に存在しない場合は成功扱いにせず、Local ValidationとFresh Self-reviewをEvidenceとする。
+- Merge後にIssue Close、Remote／Local Task Branch、Worktree、Task専用Container／Network／VolumeをCleanupし、Local `v1/early-release`を`origin/v1/early-release`へ同期する。
+
+### 次Task候補
+
+- `V1-DRAW-1000B Bulk Draw 1000 Frontend・結果集計・本番反映`

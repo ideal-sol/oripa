@@ -79,7 +79,8 @@ class BulkDrawPerformanceTest extends TestCase
                     'transaction_ms' => (int) $drawRequest->processing_duration_ms,
                     'query_count' => $activeMetrics['query_count'],
                     'query_time_ms' => round($activeMetrics['query_time_ms'], 3),
-                    'lock_wait_ms' => 0,
+                    'lock_wait_ms' => null,
+                    'lock_wait_measurement' => 'concentrated performance test sampler',
                     'peak_memory_delta_bytes' => max(0, memory_get_peak_usage(true) - $memoryBefore),
                     'response_bytes' => strlen(json_encode($response, JSON_THROW_ON_ERROR)),
                     'created_records' => $createdRecords,
@@ -94,6 +95,11 @@ class BulkDrawPerformanceTest extends TestCase
                 $this->assertSame($drawCount, $sample['sold_count_delta']);
                 $this->assertSame($drawCount, $sample['created_records']['user_prizes'] + $sample['created_records']['point_lots']);
                 $this->assertLessThan(self::API_TIMEOUT_MS / 2, $elapsedMs);
+                $this->assertLessThanOrEqual(100, $sample['query_count']);
+
+                if ($drawCount === 1_000) {
+                    $this->assertLessThanOrEqual(2_000, $elapsedMs);
+                }
 
                 $samples[] = $sample;
             }
