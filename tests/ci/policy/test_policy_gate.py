@@ -276,6 +276,7 @@ python3 scripts/db/v2_database.py smoke \\
             "scripts/db/v2_database.py",
             "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
             "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
+            "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -415,6 +416,55 @@ python3 scripts/db/v2_database.py smoke \\
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "paid Point grant"):
                 policy_gate.validate_v2_point_boundary(root, paths)
+
+    def copy_v2_payment_boundary(self, root):
+        paths = set(policy_gate.V2_PAYMENT_REQUIRED_FILES)
+        for relative in paths:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths
+
+    def test_v2_payment_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            policy_gate.validate_v2_payment_boundary(root, paths)
+
+    def test_v2_payment_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_25_000007_create_v2_payment_model_foundation.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8") + "\n// tenant_id\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_payment_boundary(root, paths)
+
+    def test_v2_payment_bonus_expiry_fail_closed_boundary_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            service = (
+                root
+                / "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php"
+            )
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED",
+                    "REMOVED_BONUS_EXPIRY_GUARD",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "bonus|missing"):
+                policy_gate.validate_v2_payment_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)

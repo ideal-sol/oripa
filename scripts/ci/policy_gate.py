@@ -254,6 +254,14 @@ V2_POINT_REQUIRED_FILES = {
     "apps/api/tests/V2/PointModelFoundationTest.php",
     "docs/operations/point-model/README.md",
 }
+V2_PAYMENT_REQUIRED_FILES = {
+    "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php",
+    "apps/api/config/v2_payment.php",
+    "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
+    "apps/api/tests/V2/PaymentModelFoundationTest.php",
+    "docs/operations/payment-model/README.md",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1362,6 +1370,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_24_000004_create_v2_authentication_flows.php",
         "2026_07_24_000005_create_v2_audit_outbox_foundation.php",
         "2026_07_24_000006_create_v2_point_model_foundation.php",
+        "2026_07_25_000007_create_v2_payment_model_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1522,6 +1531,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "mig041a-v2-" not in workflow
             and "mig042-v2-" not in workflow
             and "mig043-v2-" not in workflow
+            and "mig044-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -1801,7 +1811,7 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         "MIG-044",
         "payment_adjustment_id",
         "Ownerによる自己承認を禁止しない",
-        "Point Reservationが存在しないためSnapshot予約残高は0",
+        "Walletの予約残高とReservation履歴を照合対象に含める",
     ):
         if required not in readme:
             raise PolicyFailure(f"V2 Point operational boundary missing {required}")
@@ -1823,6 +1833,135 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 Point test missing {required}")
+
+
+def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_PAYMENT_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 Payment Model files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_25_000007_create_v2_payment_model_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "point_purchase_plans",
+        "payments",
+        "payment_status_histories",
+        "payment_point_grants",
+        "payment_provider_events",
+        "payment_provider_event_attempts",
+        "payment_provider_operations",
+        "payment_adjustments",
+        "payment_adjustment_status_histories",
+        "payment_adjustment_point_impacts",
+        "payment_adjustment_point_operations",
+        "point_lot_reservations",
+        "paid_point_amount = amount",
+        "currency = 'JPY'",
+        "source_provider_event_id",
+        "v2_reject_payment_immutable_mutation",
+        "v2_protect_published_plan",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Payment migration missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "financial_state",
+        "payment_adjustment_prize_actions",
+        "float",
+        "decimal",
+    ):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 Payment migration contains prohibited {prohibited}"
+            )
+
+    service = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php"
+    ).read_text(encoding="utf-8")
+    provider_lock = service.find("payment_provider_events")
+    payment_lock = service.find("payments", provider_lock)
+    wallet_lock = service.find("lockWallet(", payment_lock)
+    lot_lock = service.find("point_lots", wallet_lock)
+    if min(provider_lock, payment_lock, wallet_lock, lot_lock) < 0 or not (
+        provider_lock < payment_lock < wallet_lock < lot_lock
+    ):
+        raise PolicyFailure("V2 Payment success lock order is invalid")
+    for required in (
+        "recordVerifiedProviderEvent",
+        "confirmSucceeded",
+        "reserveFullRefund",
+        "resolveRefund",
+        "processChargeback",
+        "recordChargebackReversal",
+        "payment_point_grants",
+        "POINT_WALLET_NEGATIVE",
+        "PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED",
+        "manual_review",
+        "'payment.succeeded'",
+        "'payment.refund.requested'",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Payment service missing {required}")
+    for prohibited in (
+        "skipLocked",
+        "SKIP LOCKED",
+        "Math.random",
+        "refundPaymentAutomatically",
+    ):
+        if prohibited in service:
+            raise PolicyFailure(f"V2 Payment service contains prohibited {prohibited}")
+
+    config = (repository / "apps/api/config/v2_payment.php").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "'currency' => 'JPY'",
+        "'paid_point_per_jpy' => 1",
+        "'purchase_bonus_expiry_days'",
+        "'provider_call_in_transaction' => false",
+        "'refund_mode' => 'single_full_unused'",
+        "'chargeback_reversal' => 'manual_review'",
+    ):
+        if required not in config:
+            raise PolicyFailure(f"V2 Payment configuration missing {required}")
+
+    readme = (
+        repository / "docs/operations/payment-model/README.md"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "payment_adjustment_prize_actions",
+        "user_prizes",
+        "Provider結果不明時は予約を維持",
+        "Chargeback Reversal",
+        "Productionへ推測値を持ち込まない",
+    ):
+        if required not in readme:
+            raise PolicyFailure(f"V2 Payment operational boundary missing {required}")
+
+    tests = (
+        repository / "apps/api/tests/V2/PaymentModelFoundationTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_plan_constraints_and_published_financial_values_are_immutable",
+        "test_verified_payment_success_grants_paid_and_free_once",
+        "test_provider_event_replay_is_deduplicated",
+        "test_full_unused_refund_reserves_and_consumes_lots",
+        "test_refund_rejects_any_consumed_payment_point",
+        "test_failed_refund_releases_and_uncertain_refund_keeps_reservation",
+        "test_provider_operation_runs_outside_transaction_and_tracks_unknown_result",
+        "test_chargeback_uses_paid_then_free_and_records_shortfall_without_negative_balance",
+        "test_chargeback_reversal_never_restores_points_automatically",
+        "test_mock_payment_is_fail_closed_in_production",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Payment test missing {required}")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -2143,6 +2282,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_identity_boundary(repository, paths)
     validate_v2_audit_outbox_boundary(repository, paths)
     validate_v2_point_boundary(repository, paths)
+    validate_v2_payment_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

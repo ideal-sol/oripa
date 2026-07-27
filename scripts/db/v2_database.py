@@ -50,11 +50,23 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.idempotency_records",
     "public.migrations",
     "public.outbox_messages",
+    "public.payment_adjustment_point_impacts",
+    "public.payment_adjustment_point_operations",
+    "public.payment_adjustment_status_histories",
+    "public.payment_adjustments",
+    "public.payment_point_grants",
+    "public.payment_provider_event_attempts",
+    "public.payment_provider_events",
+    "public.payment_provider_operations",
+    "public.payment_status_histories",
+    "public.payments",
     "public.point_adjustments",
     "public.point_balance_snapshots",
     "public.point_ledger_entries",
+    "public.point_lot_reservations",
     "public.point_lots",
     "public.point_operations",
+    "public.point_purchase_plans",
     "public.point_reconciliation_discrepancies",
     "public.point_reconciliation_runs",
     "public.user_email_verifications",
@@ -109,7 +121,7 @@ def run(
         operation = next((item for item in command[1:] if item in safe_operations), None)
         suffix = f" during {operation}" if operation is not None else ""
         detail = ""
-        if operation == "run":
+        if operation in {"exec", "run"}:
             lines = (
                 error.stdout.decode("utf-8", errors="replace").splitlines()
                 + error.stderr.decode("utf-8", errors="replace").splitlines()

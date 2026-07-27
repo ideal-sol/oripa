@@ -234,7 +234,7 @@ final class V2OutboxService
             && $message->aggregate_type === $attributes['aggregate_type']
             && $message->aggregate_public_id === $attributes['aggregate_public_id']
             && $message->event_type === $attributes['event_type']
-            && $message->payload === $attributes['payload'];
+            && $this->normalizePayload($message->payload) === $attributes['payload'];
     }
 
     private function assertPayload(array $payload): void

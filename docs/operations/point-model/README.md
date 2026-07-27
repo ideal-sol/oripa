@@ -47,9 +47,9 @@ Owner専用Permission、Fresh MFA、理由、Audit、Idempotencyを要求するS
 
 ## Point Lot Reservations
 
-`point_lot_reservations`はMIG-043では作成しない。正本上必須の
+`point_lot_reservations`はMIG-043では作成せず、MIG-044で正本上必須の
 `payment_adjustment_id`がMIG-044の`payment_adjustments`へ依存するためである。
-MIG-044では次を同一Migration系列で追加する。
+次のConstraintを持つ形で追加した。
 
 - `point_lot_id`から`point_lots`へのRESTRICT Foreign Key
 - `payment_adjustment_id`から`payment_adjustments`へのRESTRICT Foreign Key
@@ -64,8 +64,8 @@ Snapshot Dateの翌日00:00 JSTをCutoffとし、`occurred_at < cutoff`のLedger
 同日再生成は前回Checksumと新しいGeneration RunをAuditへ残す。現在残高を任意の
 過去日へコピーしない。
 
-MIG-043ではPoint Reservationが存在しないためSnapshot予約残高は0である。MIG-044は
-Reservation履歴を正本に沿ってSnapshotへ統合しなければならない。
+MIG-043生成時点ではPoint Reservationが存在しないため、過去Snapshotの予約残高は0で
+ある。MIG-044以降はWalletの予約残高とReservation履歴を照合対象に含める。
 
 ## Reconciliation
 

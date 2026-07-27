@@ -264,13 +264,14 @@ final class PointModelFoundationTest extends TestCase
     {
         $user = $this->user('idempotency');
         $service = app(V2PointService::class);
-        $first = $service->grantFree($user->id, 50, now()->addDay(), 'same-key');
-        $replay = $service->grantFree($user->id, 50, now()->addDay(), 'same-key');
+        $expiry = now()->addDay()->startOfSecond();
+        $first = $service->grantFree($user->id, 50, $expiry, 'same-key');
+        $replay = $service->grantFree($user->id, 50, $expiry, 'same-key');
         self::assertSame($first->id, $replay->id);
         self::assertSame(1, PointOperation::query()->whereKey($first->id)->count());
         $this->expectException(V2PointException::class);
         $this->expectExceptionMessage('IDEMPOTENCY_KEY_REUSED');
-        $service->grantFree($user->id, 51, now()->addDay(), 'same-key');
+        $service->grantFree($user->id, 51, $expiry, 'same-key');
     }
 
     public function test_same_wallet_concurrent_consumption_does_not_overdraw(): void

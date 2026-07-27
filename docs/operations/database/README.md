@@ -5,8 +5,8 @@
 MIG-040 establishes a non-Production PostgreSQL／Redis boundary. MIG-041 and
 MIG-041A add the V2 Identity／Admin Authentication foundation. MIG-042 adds
 Audit／Transactional Outbox persistence. MIG-043 adds the Point Model
-Foundation. Payment, Draw, and other business tables are not part of this
-baseline.
+Foundation. MIG-044 adds the Payment／Refund／Chargeback Foundation. Draw and
+other business tables are not part of this baseline.
 
 ## Isolation
 
@@ -58,7 +58,9 @@ MIG-043は`wallets`、`point_operations`、`point_lots`、
 `point_ledger_entries`、`point_adjustments`、Ledger Cutoff方式の
 `point_balance_snapshots`、Reconciliation、`idempotency_records`を追加する。
 WalletをLock起点とし、free期限順／paid FIFOでLotをLockする。通常paid付与、
-Payment、Point Reservation、Public／Admin APIは実装しない。
+MIG-044はPayment成功とPoint付与を同一Transactionへ接続し、
+`point_lot_reservations`を追加する。Public／Admin／Webhook APIと実Provider Adapterは
+実装しない。
 
 Verified User Email is protected by a partial Unique Index while Pending Email
 may repeat. Admin Email is Unique inside the Admin Realm. Account State, fixed
