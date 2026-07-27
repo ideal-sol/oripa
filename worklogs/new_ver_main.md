@@ -3702,6 +3702,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Failureではない。`Base SHA`をResume Baseの単一値へ修正し、Original Baseを
   Summaryへ分離した再実行では`policy-gate`が成功した。初回Failureを含まない新しい
   Final Headで全Checkを再実行し、Required CheckをBypassしない。
+- 次のHeadの`integration-gate`では、既存Point Idempotency TestがReplay用Expiryを
+  `now()->addDay()`で2回生成し、実行が秒境界を跨いだ場合だけRequest Hashが変化する
+  Timing依存を検出した。Expiryを一度だけ固定して同一Replayへ再利用し、
+  Replay成功と異なるAmountでのKey再利用拒否Assertionは維持した。GateやBaselineを
+  弱めず、Final Headで全V2 Testを再実行する。
 - 稼働中V1 Runtimeは固定Commit
   `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。Nginx、V1本番DB／
   Redis／Storage、V1 Migration、V1 Archive Branch／Annotated Tagを変更していない。
