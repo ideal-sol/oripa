@@ -635,24 +635,26 @@ def verify_checksums(assets: Path) -> None:
 
 
 def verify_docker_archive(path: Path, expected_digest: str, expected_labels: dict) -> None:
-    with gzip.open(path, "rb") as compressed:
-        with tarfile.open(fileobj=compressed, mode="r|") as archive:
-            members = {}
-            for member in archive:
-                if member.isfile() and (member.name == "manifest.json" or member.name.endswith(".json")):
-                    stream = archive.extractfile(member)
-                    if stream:
-                        members[member.name] = stream.read()
-    manifest_data = json.loads(members["manifest.json"])
-    config_name = manifest_data[0]["Config"]
-    config = json.loads(members[config_name])
-    digest = "sha256:" + hashlib.sha256(members[config_name]).hexdigest()
+    with tarfile.open(path, mode="r:gz") as archive:
+        manifest_stream = archive.extractfile("manifest.json")
+        if manifest_stream is None:
+            raise ReleaseError(f"image manifest missing: {path.name}")
+        manifest_data = json.load(manifest_stream)
+        if len(manifest_data) != 1:
+            raise ReleaseError(f"unexpected image manifest count: {path.name}")
+        config_name = manifest_data[0]["Config"]
+        config_stream = archive.extractfile(config_name)
+        if config_stream is None:
+            raise ReleaseError(f"image config missing: {path.name}")
+        config_bytes = config_stream.read()
+        config = json.loads(config_bytes)
+        names = set(archive.getnames())
+    digest = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
     if digest != expected_digest:
         raise ReleaseError(f"image config digest mismatch: {path.name}")
     labels = config.get("config", {}).get("Labels", {})
     if any(labels.get(key) != value for key, value in expected_labels.items()):
         raise ReleaseError(f"image label mismatch: {path.name}")
-    names = set(members)
     if any("legacy/v1-frontend" in name for name in names):
         raise ReleaseError(f"legacy frontend found in image: {path.name}")
 

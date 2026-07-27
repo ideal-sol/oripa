@@ -1,6 +1,9 @@
 import importlib.util
+import hashlib
+import io
 import json
 from pathlib import Path
+import tarfile
 import tempfile
 import unittest
 
@@ -98,6 +101,40 @@ class PlatformArtifactTest(unittest.TestCase):
             (second / "asset").write_text("two", encoding="utf-8")
             with self.assertRaisesRegex(platform_artifact.ReleaseError, "reproducibility"):
                 platform_artifact.compare_bundles(first, second)
+
+    def test_docker_archive_verification_follows_extensionless_config_blob(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            archive_path = Path(temporary) / "image.tar.gz"
+            labels = {
+                "org.opencontainers.image.version": platform_artifact.PLATFORM_VERSION,
+                "org.opencontainers.image.revision": "1" * 40,
+            }
+            config_bytes = json.dumps(
+                {"config": {"Labels": labels}},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+            digest = hashlib.sha256(config_bytes).hexdigest()
+            config_name = f"blobs/sha256/{digest}"
+            manifest_bytes = json.dumps(
+                [{"Config": config_name, "RepoTags": ["test:fixed"], "Layers": []}],
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+            with tarfile.open(archive_path, mode="w:gz") as archive:
+                for name, content in (
+                    ("manifest.json", manifest_bytes),
+                    (config_name, config_bytes),
+                ):
+                    info = tarfile.TarInfo(name)
+                    info.size = len(content)
+                    archive.addfile(info, io.BytesIO(content))
+
+            platform_artifact.verify_docker_archive(
+                archive_path,
+                f"sha256:{digest}",
+                labels,
+            )
 
     def test_trivy_report_normalization_removes_scan_time(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -3817,7 +3817,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   180,269,440 ByteでHealth Endpointが成功し、再ScanはCritical／High 0件だった。
   Composer VersionはAPI RuntimeへBuild toolを残さず、Digest固定したComposer Imageから
   収集する。
-  Release Unit Test 7件、Policy Unit Test 58件、Quality Unit Test 5件、
+  Docker ArchiveはOCI Layoutの`manifest.json`から拡張子なしConfig Blobを解決して
+  Digest／OCI Labelを検証する。Release Unit Test 8件、Policy Unit Test 58件、Quality Unit Test 5件、
   Security Unit Test 4件、DB Guard Unit Test 16件、
   `policy-gate`、`quality-gate`、`security-gate`はPASSした。
 - Host PHPは8.3.31のためPHP 8.4を要求するComposer Lockを直接Installできなかった。
