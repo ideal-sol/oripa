@@ -3707,6 +3707,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Timing依存を検出した。Expiryを一度だけ固定して同一Replayへ再利用し、
   Replay成功と異なるAmountでのKey再利用拒否Assertionは維持した。GateやBaselineを
   弱めず、Final Headで全V2 Testを再実行する。
+- Timing修正後のHeadでは、追加変更した
+  `apps/api/tests/V2/PointModelFoundationTest.php`をPR本文のChanged filesへ
+  反映していなかったため`policy-gate`が失敗した。実際のPathはTask Policyの
+  `apps/api/tests/V2/**`内である。PR本文へ明示し、新しいFinal Headで全Checkを
+  再実行する。
 - 稼働中V1 Runtimeは固定Commit
   `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。Nginx、V1本番DB／
   Redis／Storage、V1 Migration、V1 Archive Branch／Annotated Tagを変更していない。
