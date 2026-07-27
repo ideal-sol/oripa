@@ -3697,6 +3697,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   未実行であり、PASSとは記録しない。Required 5 Check、CodeQL、
   `CodeQL (javascript-typescript)`、Dependency Review、Final Head固定後の
   Fresh Self-review、Squash Commit、CleanupはGitHub PR上で確定する。
+- Draft PR `#87`の初回`policy-gate`は、PR本文の`Base SHA`欄にOriginal／Resumeの
+  2 SHAを併記したため単一Full SHAのMetadata Schemaを満たさず失敗した。実装やGateの
+  Failureではない。`Base SHA`をResume Baseの単一値へ修正し、Original Baseを
+  Summaryへ分離した再実行では`policy-gate`が成功した。初回Failureを含まない新しい
+  Final Headで全Checkを再実行し、Required CheckをBypassしない。
 - 稼働中V1 Runtimeは固定Commit
   `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。Nginx、V1本番DB／
   Redis／Storage、V1 Migration、V1 Archive Branch／Annotated Tagを変更していない。
