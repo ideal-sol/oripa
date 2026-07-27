@@ -6,6 +6,7 @@ use App\Domain\Gacha\Enums\DrawRequestStatus;
 use App\Domain\Gacha\Enums\DrawResultType;
 use App\Domain\Gacha\Enums\GachaStatus;
 use App\Domain\Gacha\Exceptions\BulkDrawConflictException;
+use App\Domain\Gacha\Services\CryptographicRandomSource;
 use App\Domain\Gacha\Exceptions\DrawException;
 use App\Domain\Gacha\Services\DrawService;
 use App\Domain\Point\Enums\PointLotSourceType;
@@ -107,6 +108,56 @@ class DrawServiceTest extends TestCase
         $this->assertSame(1_000, $prize->refresh()->won_count);
         $this->assertSame(0, $user->wallet->refresh()->paid_balance);
         $this->assertDatabaseCount('point_ledgers', 1);
+    }
+
+    public function test_bulk_draw_preserves_per_draw_random_order_and_persistence_semantics(): void
+    {
+        $randomValues = array_merge(...array_fill(0, 50, [100_000, 900_000]));
+        $this->app->instance(
+            CryptographicRandomSource::class,
+            new class($randomValues) extends CryptographicRandomSource {
+                public function __construct(private array $values)
+                {
+                }
+
+                public function integer(int $minimum, int $maximum): int
+                {
+                    $value = array_shift($this->values);
+
+                    if (! is_int($value) || $value < $minimum || $value > $maximum) {
+                        throw new \RuntimeException('Deterministic random fixture was exhausted or invalid.');
+                    }
+
+                    return $value;
+                }
+            },
+        );
+        [$user, $gacha, $prize] = $this->createDrawableFixture(
+            price: 1,
+            minimumGuaranteeValue: 2,
+            totalCount: 100,
+            maxWinCount: 100,
+        );
+        $this->createWalletWithPaidLot($user, 100);
+        $this->publishSingleStage($gacha, $prize, prizePpm: 500_000, minimumGuaranteePpm: 500_000);
+
+        $request = app(DrawService::class)->draw($user, $gacha, 100, 'bulk-deterministic-semantics');
+        $results = $request->results()->orderBy('draw_sequence_number')->get();
+
+        $this->assertSame(range(1, 100), $results->pluck('draw_sequence_number')->all());
+        $this->assertSame($randomValues, $results->pluck('random_value')->all());
+        $this->assertSame(
+            array_merge(...array_fill(0, 50, [DrawResultType::Prize, DrawResultType::PointBack])),
+            $results->pluck('result_type')->all(),
+        );
+        $this->assertSame(50, UserPrize::query()->count());
+        $this->assertSame(50, PointLot::query()
+            ->where('source_type', PointLotSourceType::MinimumGuarantee)
+            ->count());
+        $this->assertSame(100, $gacha->refresh()->sold_count);
+        $this->assertSame(50, $prize->refresh()->won_count);
+        $this->assertSame(0, $user->wallet->refresh()->paid_balance);
+        $this->assertSame(100, $user->wallet->free_balance);
     }
 
     public function test_bulk_draw_rebuilds_probability_range_after_prize_inventory_is_exhausted(): void
@@ -281,16 +332,16 @@ class DrawServiceTest extends TestCase
         [$user, $gacha, $prize] = $this->createDrawableFixture(
             price: 1,
             minimumGuaranteeValue: 0,
-            totalCount: 500,
-            maxWinCount: 500,
+            totalCount: 2_000,
+            maxWinCount: 2_000,
         );
-        $this->createWalletWithPaidLot($user, 100);
+        $this->createWalletWithPaidLot($user, 1_000);
         $this->publishSingleStage($gacha, $prize, prizePpm: 1_000_000, minimumGuaranteePpm: 0);
 
         DB::unprepared(<<<'SQL'
             CREATE FUNCTION reject_bulk_draw_result() RETURNS trigger AS $$
             BEGIN
-                IF NEW.draw_sequence_number = 50 THEN
+                IF NEW.draw_sequence_number = 251 THEN
                     RAISE EXCEPTION 'injected bulk draw failure';
                 END IF;
                 RETURN NEW;
@@ -302,7 +353,7 @@ class DrawServiceTest extends TestCase
             SQL);
 
         try {
-            app(DrawService::class)->draw($user, $gacha, 100, 'bulk-rollback');
+            app(DrawService::class)->draw($user, $gacha, 1_000, 'bulk-rollback');
             $this->fail('The injected draw failure should have aborted the transaction.');
         } catch (\Throwable) {
             $this->assertDatabaseCount('draw_requests', 0);
@@ -310,8 +361,8 @@ class DrawServiceTest extends TestCase
             $this->assertDatabaseCount('user_prizes', 0);
             $this->assertSame(0, $gacha->refresh()->sold_count);
             $this->assertSame(0, $prize->refresh()->won_count);
-            $this->assertSame(100, $user->wallet->refresh()->paid_balance);
-            $this->assertSame(100, PointLot::query()->sum('remaining_amount'));
+            $this->assertSame(1_000, $user->wallet->refresh()->paid_balance);
+            $this->assertSame(1_000, PointLot::query()->sum('remaining_amount'));
         }
     }
 

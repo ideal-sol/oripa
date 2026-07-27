@@ -10,6 +10,7 @@ use App\Models\PointLot;
 use App\Models\User;
 use App\Models\Wallet;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 class PointLotService
 {
@@ -83,38 +84,70 @@ class PointLotService
             ['paid_balance' => 0, 'free_balance' => 0],
         );
         $balanceAfter = (int) $wallet->free_balance;
-        $lots = [];
+        $timestamp = now();
+        $lotRows = [];
 
         foreach ($grants as $grant) {
             if ($grant['amount'] <= 0) {
                 throw new \InvalidArgumentException('Granted point amount must be greater than zero.');
             }
 
-            $lot = PointLot::query()->create([
+            $lotRows[] = [
                 'user_id' => $user->id,
-                'point_type' => PointType::Free,
+                'point_type' => PointType::Free->value,
                 'granted_amount' => $grant['amount'],
                 'remaining_amount' => $grant['amount'],
-                'source_type' => $sourceType,
+                'source_type' => $sourceType->value,
                 'source_id' => $grant['source_id'],
-                'granted_at' => now(),
+                'granted_at' => $timestamp,
                 'expire_at' => $expireAt,
-            ]);
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
+        }
+
+        foreach (array_chunk($lotRows, 250) as $chunk) {
+            DB::table('point_lots')->insert($chunk);
+        }
+
+        $lotsBySourceId = PointLot::query()
+            ->where('user_id', $user->id)
+            ->where('source_type', $sourceType)
+            ->whereIn('source_id', array_column($grants, 'source_id'))
+            ->get()
+            ->keyBy('source_id');
+        $ledgerRows = [];
+        $lots = [];
+
+        foreach ($grants as $grant) {
+            /** @var PointLot|null $lot */
+            $lot = $lotsBySourceId->get($grant['source_id']);
+
+            if (! $lot) {
+                throw new \RuntimeException('Bulk point lot could not be matched to its source.');
+            }
+
             $balanceAfter += $grant['amount'];
 
-            PointLedger::query()->create([
+            $ledgerRows[] = [
                 'user_id' => $user->id,
                 'wallet_id' => $wallet->id,
                 'point_lot_id' => $lot->id,
-                'point_type' => PointType::Free,
-                'ledger_type' => $ledgerType,
+                'point_type' => PointType::Free->value,
+                'ledger_type' => $ledgerType->value,
                 'amount' => $grant['amount'],
                 'balance_after' => $balanceAfter,
                 'related_type' => $relatedType,
                 'related_id' => $grant['related_id'],
                 'description' => $grant['description'],
-            ]);
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
             $lots[] = $lot;
+        }
+
+        foreach (array_chunk($ledgerRows, 250) as $chunk) {
+            DB::table('point_ledgers')->insert($chunk);
         }
 
         $wallet->forceFill(['free_balance' => $balanceAfter])->save();
