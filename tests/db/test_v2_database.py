@@ -169,6 +169,23 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
+    def test_catalog_schema_inventory_is_explicit(self):
+        for table in (
+            "public.catalog_categories",
+            "public.catalog_tags",
+            "public.catalog_ranks",
+            "public.catalog_presentation_assets",
+            "public.catalog_prizes",
+            "public.catalog_gachas",
+            "public.catalog_gacha_versions",
+            "public.catalog_probability_versions",
+            "public.catalog_probability_stages",
+            "public.catalog_probability_entries",
+            "public.catalog_minimum_guarantees",
+            "public.catalog_import_runs",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
 
 if __name__ == "__main__":
     unittest.main()

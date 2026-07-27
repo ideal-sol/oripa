@@ -1,0 +1,234 @@
+{
+  "schema_version": "2.0.0-alpha.1",
+  "source_baseline_sha": "0000000000000000000000000000000000000001",
+  "expected_record_count": 28,
+  "categories": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000001",
+      "code": "cards",
+      "slug": "cards",
+      "name": "カード",
+      "description": "公開用の決定的Fixtureカテゴリ。",
+      "sort_order": 10
+    }
+  ],
+  "tags": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000002",
+      "code": "featured",
+      "slug": "featured",
+      "name": "注目",
+      "sort_order": 10
+    }
+  ],
+  "ranks": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000003",
+      "code": "S",
+      "name": "Sランク",
+      "sort_order": 10
+    },
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000004",
+      "code": "A",
+      "name": "Aランク",
+      "sort_order": 20
+    }
+  ],
+  "assets": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000005",
+      "storage_identifier": "fixture/catalog/gacha-main.txt",
+      "public_path": "/assets/fixture/catalog/gacha-main.txt",
+      "checksum_sha256": "0605cbbe5fcd83f57adc97efe4eb39efc5639b28f6fc48e097dc4a9ba68d86c8",
+      "fixture_content_base64": "Z2FjaGEtbWFpbg==",
+      "media_type": "image",
+      "mime_type": "image/png",
+      "alt_text": "Fixtureガチャ"
+    },
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000006",
+      "storage_identifier": "fixture/catalog/rank-s.txt",
+      "public_path": "/assets/fixture/catalog/rank-s.txt",
+      "checksum_sha256": "8ec35f5101c6ddd49040c825994824588f87469999265f6ff388a6475854b43c",
+      "fixture_content_base64": "cmFuay1z",
+      "media_type": "video",
+      "mime_type": "video/mp4",
+      "alt_text": "Sランク演出"
+    },
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000007",
+      "storage_identifier": "fixture/catalog/prize-s.txt",
+      "public_path": "/assets/fixture/catalog/prize-s.txt",
+      "checksum_sha256": "80f38f7f099ab5850aa3b947684603909409e61c2a193c672cab1c170e6621b0",
+      "fixture_content_base64": "cHJpemUtcy0x",
+      "media_type": "image",
+      "mime_type": "image/png",
+      "alt_text": "Fixture S景品"
+    },
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000008",
+      "storage_identifier": "fixture/catalog/prize-a.txt",
+      "public_path": "/assets/fixture/catalog/prize-a.txt",
+      "checksum_sha256": "63be6d08cc338b54c81011cb4083843b9c4ffd3a0e7ff4e98f28adf4f79a8be6",
+      "fixture_content_base64": "cHJpemUtYS0x",
+      "media_type": "image",
+      "mime_type": "image/png",
+      "alt_text": "Fixture A景品"
+    }
+  ],
+  "rank_assets": [
+    {
+      "rank_code": "S",
+      "asset_storage_identifier": "fixture/catalog/rank-s.txt",
+      "usage_type": "video",
+      "sort_order": 10
+    },
+    {
+      "rank_code": "A",
+      "asset_storage_identifier": "fixture/catalog/prize-a.txt",
+      "usage_type": "result_image",
+      "sort_order": 10
+    }
+  ],
+  "prizes": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000009",
+      "code": "fixture-s-1",
+      "rank_code": "S",
+      "asset_storage_identifier": "fixture/catalog/prize-s.txt",
+      "name": "Fixture S景品",
+      "description": "公開安全なFixture景品。",
+      "display_price": 10000,
+      "exchange_points": 8000
+    },
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000010",
+      "code": "fixture-a-1",
+      "rank_code": "A",
+      "asset_storage_identifier": "fixture/catalog/prize-a.txt",
+      "name": "Fixture A景品",
+      "description": "公開安全なFixture景品。",
+      "display_price": 3000,
+      "exchange_points": 2000
+    }
+  ],
+  "gachas": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000011",
+      "code": "fixture-catalog",
+      "slug": "fixture-catalog",
+      "category_code": "cards",
+      "tag_codes": ["featured"],
+      "sold_count": 5
+    }
+  ],
+  "versions": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000012",
+      "gacha_code": "fixture-catalog",
+      "version_number": 1,
+      "title": "Fixture Catalog Gacha",
+      "description": "MIG-050の決定的Fixture。",
+      "notices": "Production利用不可。",
+      "price_points": 100,
+      "total_count": 1000,
+      "asset_storage_identifier": "fixture/catalog/gacha-main.txt",
+      "publish_start_at": "2026-01-01T00:00:00Z",
+      "publish_end_at": "2027-01-01T00:00:00Z"
+    }
+  ],
+  "gacha_prizes": [
+    {
+      "gacha_code": "fixture-catalog",
+      "gacha_version_number": 1,
+      "prize_code": "fixture-s-1",
+      "initial_inventory": 10,
+      "sort_order": 10
+    },
+    {
+      "gacha_code": "fixture-catalog",
+      "gacha_version_number": 1,
+      "prize_code": "fixture-a-1",
+      "initial_inventory": 100,
+      "sort_order": 20
+    }
+  ],
+  "probability_versions": [
+    {
+      "public_id": "0198a001-0000-7000-8000-000000000013",
+      "gacha_code": "fixture-catalog",
+      "gacha_version_number": 1,
+      "version_number": 1,
+      "snapshot_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "stages": [
+        {
+          "public_id": "0198a001-0000-7000-8000-000000000014",
+          "code": "stage-1",
+          "name": "Stage 1",
+          "min_draw_number": 1,
+          "max_draw_number": 500,
+          "sort_order": 10,
+          "entries": [
+            {
+              "result_type": "prize",
+              "prize_code": "fixture-s-1",
+              "probability_ppm": 10000,
+              "sort_order": 10
+            },
+            {
+              "result_type": "prize",
+              "prize_code": "fixture-a-1",
+              "probability_ppm": 90000,
+              "sort_order": 20
+            },
+            {
+              "result_type": "point_back",
+              "point_amount": 100,
+              "probability_ppm": 100000,
+              "sort_order": 30
+            }
+          ],
+          "minimum_guarantee": {
+            "result_type": "prize",
+            "prize_code": "fixture-a-1",
+            "probability_ppm": 800000
+          }
+        },
+        {
+          "public_id": "0198a001-0000-7000-8000-000000000015",
+          "code": "stage-2",
+          "name": "Stage 2",
+          "min_draw_number": 501,
+          "max_draw_number": null,
+          "sort_order": 20,
+          "entries": [
+            {
+              "result_type": "prize",
+              "prize_code": "fixture-s-1",
+              "probability_ppm": 20000,
+              "sort_order": 10
+            },
+            {
+              "result_type": "prize",
+              "prize_code": "fixture-a-1",
+              "probability_ppm": 180000,
+              "sort_order": 20
+            },
+            {
+              "result_type": "point_back",
+              "point_amount": 100,
+              "probability_ppm": 100000,
+              "sort_order": 30
+            }
+          ],
+          "minimum_guarantee": {
+            "result_type": "prize",
+            "prize_code": "fixture-a-1",
+            "probability_ppm": 700000
+          }
+        }
+      ]
+    }
+  ]
+}

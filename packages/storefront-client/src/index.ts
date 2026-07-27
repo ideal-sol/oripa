@@ -5,6 +5,13 @@ export {
 export {
   createIdempotencyKey,
 } from "./transport.js";
+export {
+  createStorefrontCatalogClient,
+} from "./catalog.js";
+export type {
+  GachaListQuery,
+  StorefrontCatalogClient,
+} from "./catalog.js";
 export type {
   ApiProblem,
   StorefrontTransportErrorCode,

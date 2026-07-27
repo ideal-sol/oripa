@@ -25,6 +25,22 @@ use App\Http\Controllers\Api\UserPrizeController;
 use App\Http\Controllers\Api\UserDrawRequestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2PublicAuthController;
+use App\Http\Controllers\V2\V2CatalogController;
+
+Route::prefix('v2')->group(function (): void {
+    Route::get('/gacha-categories', [V2CatalogController::class, 'categories'])
+        ->name('v2.public.catalog.categories');
+    Route::get('/gacha-tags', [V2CatalogController::class, 'tags'])
+        ->name('v2.public.catalog.tags');
+    Route::get('/gachas', [V2CatalogController::class, 'index'])
+        ->name('v2.public.catalog.gachas');
+    Route::get('/gachas/by-slug/{slug}', [V2CatalogController::class, 'showBySlug'])
+        ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+        ->name('v2.public.catalog.gachas.by-slug');
+    Route::get('/gachas/{gachaId}', [V2CatalogController::class, 'show'])
+        ->whereUuid('gachaId')
+        ->name('v2.public.catalog.gachas.show');
+});
 
 Route::prefix('v2/auth')
     ->middleware('v2.browser:user')

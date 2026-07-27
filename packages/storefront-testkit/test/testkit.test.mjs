@@ -18,6 +18,7 @@ import {
   CAPABILITY_SITE_MANIFEST_FIXTURE,
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
+  PUBLIC_CATALOG_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
   PUBLIC_RESPONSE_METADATA_FIXTURE,
   TestkitAssertionError,
@@ -306,11 +307,16 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつ認証Operation 6件だけである", () => {
+test("Public OpenAPIは3.1.1かつ認証／Catalog Operation 11件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 6);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 11);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "getGacha",
+    "getGachaBySlug",
     "getUserSession",
+    "listGachaCategories",
+    "listGachaTags",
+    "listGachas",
     "loginUser",
     "logoutUser",
     "registerUser",
@@ -318,6 +324,24 @@ test("Public OpenAPIは3.1.1かつ認証Operation 6件だけである", () => {
     "verifyUserEmail",
   ]);
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
+});
+
+test("Public Catalog Fixtureは集約確率だけを持ち内部情報を公開しない", () => {
+  const serialized = JSON.stringify(PUBLIC_CATALOG_FIXTURE);
+  assert.equal(PUBLIC_CATALOG_FIXTURE.data.probability_stages.length, 1);
+  assert.equal(
+    PUBLIC_CATALOG_FIXTURE.data.probability_stages[0].rank_probabilities[0]
+      .total_ppm,
+    100000,
+  );
+  for (const prohibited of [
+    "individual_ppm",
+    "cost_price",
+    "internal_id",
+    "provider_secret",
+  ]) {
+    assert.equal(serialized.includes(prohibited), false);
+  }
 });
 
 test("Public-safeなResponse Metadata Fixtureを固定する", () => {
@@ -357,6 +381,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "CAPABILITY_SITE_MANIFEST_FIXTURE",
     "MINIMAL_SITE_MANIFEST_FIXTURE",
     "PLATFORM_COMPATIBILITY_FIXTURE",
+    "PUBLIC_CATALOG_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "TestkitAssertionError",
