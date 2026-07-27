@@ -61,6 +61,10 @@ TRIVY_IMAGE = (
     "aquasec/trivy:0.66.0@"
     "sha256:086971aaf400beebd94e8300fd8ea623774419597169156cec56eec5b00dfb1e"
 )
+COMPOSER_IMAGE = (
+    "composer:2@"
+    "sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760"
+)
 REQUIRED_CHECKS = [
     "policy-gate",
     "quality-gate",
@@ -399,7 +403,11 @@ def runtime_versions(repository: Path, images: dict) -> dict:
     api_tag = images["api"]["local_tag"]
     admin_tag = images["admin"]["local_tag"]
     php = run(["docker", "run", "--rm", api_tag, "php", "-r", "echo PHP_VERSION;"], cwd=repository, capture=True)
-    composer = run(["docker", "run", "--rm", api_tag, "composer", "--version", "--no-ansi"], cwd=repository, capture=True).split()[2]
+    composer = run(
+        ["docker", "run", "--rm", COMPOSER_IMAGE, "--version", "--no-ansi"],
+        cwd=repository,
+        capture=True,
+    ).split()[2]
     node = run(["docker", "run", "--rm", admin_tag, "node", "--version"], cwd=repository, capture=True).removeprefix("v")
     package_manager = load_json(repository / "package.json").get("packageManager", "")
     if not re.fullmatch(r"pnpm@\d+\.\d+\.\d+", package_manager):
