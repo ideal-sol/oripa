@@ -263,3 +263,51 @@
 ### 次Task候補
 
 - `V1-DRAW-1000B Bulk Draw 1000 Frontend・結果集計・本番反映`
+
+## V1-DRAW-1000A2D Bulk Draw高速化のV1本番反映
+
+### Task／Preflight
+
+- Task IDは`V1-DRAW-1000A2D`、Riskは`R3`、Production記録用Issueは`#101`。
+- Deploy Source Branchは`v1/early-release`、Deploy Source Commitは`a9b910b125ede42f92031e937e8d178f84d842f1`。Local／Remoteが一致し、同Commitが最新履歴であることを確認した。
+- V1-DRAW-1000A2はPR `#100`／Issue `#99`で完了していた。現行Production Source `0c5262d42babc1bf3a63bd991ab07afb014a03c2`との差分は、Probability Stage Pointer／Range Cache、Draw Result／User Prize／Point Lot／LedgerのChunked Bulk Insert、Test用Random Source、Performance／Regression Test、本Worklogの7 Pathだけだった。
+- Frontend、Migration、Dependency Manifest／Lockfile、Nginx、Environment、V2の差分がDeploy Sourceに含まれないことを確認した。
+- 反映前のProductionはBackend `oripa-draw-1000b-backend`／`127.0.0.1:8130`、Frontend `oripa-draw-1000b-frontend`／`127.0.0.1:3130`。Publicは`200`、Adminは正常な`307`、API Healthは`200`、Migration Pendingは`0`だった。
+
+### Backup／Build
+
+- Repository外Evidenceは`/var/backups/oripa-v1/V1-DRAW-1000A2D-20260727T104504Z`へ保存した。Directoryは`root:root`／mode `700`、Fileはmode `600`。
+- Full Backup SHA-256は`670ea5ec90aa51b680ec4dd8921578741a605e520e058a032ab12aae14586586`、Schema-only Backup SHA-256は`c32b4efb00a1d026c2ca1cba9d4c3a6acbaa47aa3e4b40020cce014b25dd735b`。
+- Full／Schema-only BackupはPostgreSQL 17 Container内の`pg_restore --list`でそれぞれ`551`／`453`行のArchive一覧を取得し、Restore可能な形式であることを確認した。
+- 固定CommitからRelease Worktree `/var/www/oripa-v1-releases/V1-DRAW-1000A2D-a9b910b125ed`を作成し、Backend Image `oripa-v1-draw-backend:a9b910b125ed`（Image ID `sha256:5e32540e3e3bd3f066c62a5ac48a84583ebbe5111c1b3778961dbbc2a75d6d32`）をBuildした。
+- 新Backendは`oripa-draw-1000a2d-backend`／`127.0.0.1:8140`で起動した。既存Environment Fileを値を表示せず再利用し、現行BackendとのEnvironment Key／Value Digest一致を確認した。
+- FrontendはPR `#98`を含む既存Image／Runtime `0c5262d42babc1bf3a63bd991ab07afb014a03c2`／`127.0.0.1:3130`を継続使用し、Build／Container／Upstreamを変更していない。
+
+### Migration／切替前検証
+
+- V1-DRAW-1000A2ではMigration Setに差分がなく、切替前後ともMigration Pendingは`0`。ProductionでMigration、Rollback、Refresh、Reset、Seed、`migrate:fresh`、手動Data修正は実行していない。
+- 新BackendのDirect Healthは`200`、未認証Admin APIは`401`、未認証100回Bulk Requestは`401`だった。
+- 既存FrontendのPublic Top／Login／Gacha詳細は`200`、100回／1000回選択肢、同一`Idempotency-Key`による再確認導線、Bulk集計表示の実装を確認した。Static Assetは`200`。
+- Productionの実User、実Point、実景品へ影響しない専用Fixtureが存在しないため、Production成功Draw、Idempotent Replay、集計結果のData整合確認は実行していない。これらはV1-DRAW-1000A2の非Production Regression／性能検証を正本とする。
+- Productionで5／10／20 User集中試験は実行していない。Timeout、PHP Memory Limit、Nginx Timeoutは変更していない。
+
+### Nginx切替／切替後Smoke
+
+- `nginx -t`成功後、Public `/api/`とAdmin `/admin/api/`のBackend Upstreamだけを`127.0.0.1:8130`から`127.0.0.1:8140`へ変更し、NginxだけをReloadした。
+- Frontend Upstream `127.0.0.1:3130`、TLS、Domain、Cookie、CORS、CSRF、Upload Size、Timeoutは変更していない。
+- Cloudflare経由とOrigin直結の双方でPublic Top／Login／Gacha詳細／API Healthは`200`、Adminは正常な`307`、Static Assetは`200`だった。
+- 切替後の未認証Admin APIと1000回Bulk Requestは`401`。Gacha画面に1／5／10／100／1000回の既存選択肢が保持されている。
+- 新Backend／NginxのError Scanは0件、500／502／504は0件、Migration Pendingは`0`。確認時のDB Active Connectionは`1`、Lock待機は`0`、新Backend Memoryは約`69.73 MiB`だった。
+- 旧Backend `oripa-draw-1000b-backend`／`127.0.0.1:8130`はHealth `200`のままRollback用に維持している。RollbackはBackend Upstreamを`8140→8130`へ戻し、`nginx -t`後にNginxだけをReloadする。Migration操作は不要。
+
+### 保護対象／最終状態
+
+- V1本番DB／Redis／StorageのDataとVolume、Queue／Scheduler、Frontend Runtimeは変更していない。
+- Secret、Credential、実PII、DB本文、Environment値はWorklog／Evidenceの表示対象にしていない。
+- V2 `main`は`07d9da4c8a482a806c092ec8ef19ac62d901dbec`、`archive/v1-current`とAnnotated TagのCommitは`bfca8efa0b85c00a88fb0fd439a123b722577b68`で不変。
+- 最終Production Backendは`a9b910b125ede42f92031e937e8d178f84d842f1`／`127.0.0.1:8140`、Frontendは`0c5262d42babc1bf3a63bd991ab07afb014a03c2`／`127.0.0.1:3130`。
+- 最終Publicは`200`、Adminは正常な`307`、API Healthは`200`。RunbookへActive／Rollback Runtimeを反映した。
+
+### 次確認
+
+- 新規機能開発ではなく、ブラウザでの100／1000回ガチャ最終確認を次候補とする。
