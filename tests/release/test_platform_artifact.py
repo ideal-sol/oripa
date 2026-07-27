@@ -99,6 +99,41 @@ class PlatformArtifactTest(unittest.TestCase):
             with self.assertRaisesRegex(platform_artifact.ReleaseError, "reproducibility"):
                 platform_artifact.compare_bundles(first, second)
 
+    def test_trivy_report_normalization_removes_scan_time(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "scan.json"
+            report.write_text(
+                json.dumps({"SchemaVersion": 2, "CreatedAt": "variable", "Results": []}),
+                encoding="utf-8",
+            )
+            platform_artifact.normalize_trivy_report(report)
+            self.assertEqual(
+                json.loads(report.read_text(encoding="utf-8")),
+                {"SchemaVersion": 2, "Results": []},
+            )
+
+    def test_cyclonedx_normalization_removes_random_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sbom = Path(temporary) / "sbom.json"
+            sbom.write_text(
+                json.dumps(
+                    {
+                        "bomFormat": "CycloneDX",
+                        "serialNumber": "urn:uuid:random",
+                        "metadata": {"timestamp": "variable", "component": {"name": "api"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            platform_artifact.normalize_cyclonedx(sbom)
+            self.assertEqual(
+                json.loads(sbom.read_text(encoding="utf-8")),
+                {
+                    "bomFormat": "CycloneDX",
+                    "metadata": {"component": {"name": "api"}},
+                },
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

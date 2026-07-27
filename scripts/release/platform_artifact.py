@@ -124,6 +124,21 @@ def write_json(path: Path, value: object) -> None:
     path.write_bytes(canonical_json(value))
 
 
+def normalize_trivy_report(path: Path) -> None:
+    value = load_json(path)
+    value.pop("CreatedAt", None)
+    write_json(path, value)
+
+
+def normalize_cyclonedx(path: Path) -> None:
+    value = load_json(path)
+    value.pop("serialNumber", None)
+    metadata = value.get("metadata")
+    if isinstance(metadata, dict):
+        metadata.pop("timestamp", None)
+    write_json(path, value)
+
+
 def source_metadata(repository: Path, source_commit: str) -> tuple[int, str]:
     if not FULL_SHA.fullmatch(source_commit):
         raise ReleaseError("source commit must be a full SHA")
@@ -334,6 +349,7 @@ def run_image_scan(repository: Path, image_tag: str, report: Path) -> None:
         f"{report.parent}:/evidence",
         TRIVY_IMAGE,
         "image",
+        "--skip-version-check",
         "--scanners",
         "vuln",
         "--severity",
@@ -348,6 +364,7 @@ def run_image_scan(repository: Path, image_tag: str, report: Path) -> None:
         image_tag,
     ]
     run(command, cwd=repository)
+    normalize_trivy_report(report)
 
 
 def generate_image_sbom(repository: Path, image_tag: str, output: Path) -> None:
@@ -366,6 +383,7 @@ def generate_image_sbom(repository: Path, image_tag: str, output: Path) -> None:
             f"{output.parent}:/evidence",
             TRIVY_IMAGE,
             "image",
+            "--skip-version-check",
             "--format",
             "cyclonedx",
             "--output",
@@ -374,6 +392,7 @@ def generate_image_sbom(repository: Path, image_tag: str, output: Path) -> None:
         ],
         cwd=repository,
     )
+    normalize_cyclonedx(output)
 
 
 def runtime_versions(repository: Path, images: dict) -> dict:

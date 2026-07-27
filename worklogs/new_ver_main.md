@@ -3787,3 +3787,38 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   全て再実行する。未実行項目をPASSとは記録しない。
 - V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、
   V1 Archive Branch／Annotated Tagを変更していない。
+
+### Local Validation／Image Security
+
+- Root／LegacyのFrozen InstallはPASSした。Root Auditは0 Finding、Legacy Auditは
+  既存Baseline以下の11 Findingで、新規Critical／High Findingは0件だった。
+  Composer Auditは既存の期限付き10 Findingと完全一致し、Baselineを追加・拡張していない。
+- AdminのTypecheck／Lint／Build、Legacy FrontendのTypecheck／Build、
+  Storefront Client 9 Test、Site Schema 10 Test、Storefront Testkit 16 Test、
+  OpenAPI 4 TestとBundle差分検査はPASSした。Legacy Lintは既存Baselineの
+  8 Error／1 Warningと完全一致した。
+- Persistent／Task専用Ephemeral V2 PostgreSQL 17／Redis 7で
+  `migrate:fresh`を2回実行し、V2 PHPUnit 82 Test／432 Assertion、
+  Backup／Restore、Schema／Migration Checksum、Resource CleanupはPASSした。
+  Source／Restore Schema SHA-256は
+  `deb895e3245d2d6c06c96b336f23dbf465434f69d647c2efcc9ddcb65c916b49`、
+  Migration Row SHA-256は
+  `951f49f3fe666b8140006863fae87bfdffcbac280f8434fc2b4f2d16235a343e`である。
+- API Imageの初回Scanは、公式PHP Base Imageに含まれる
+  `linux-libc-dev 6.1.176-1`の修正可能なHigh Finding 10件を検出し、
+  Artifact生成をFail Closedで停止した。Build dependencyをmulti-stageへ隔離し、
+  Runtimeの同PackageをExact `6.1.177-1`へ更新した再Scanでは
+  Critical／High Finding 0件となった。`pcntl`、`pdo_pgsql`、`zip`のRuntime Moduleは
+  維持され、Application Logicは変更していない。
+- Trivy Vulnerability ReportのScan時刻とCycloneDXのUUID／生成時刻を除去して
+  正規化し、Security Evidenceの内容を維持したまま同一SourceのByte再現性を検証可能にした。
+  Release Unit Test 7件、Policy Unit Test 57件、Quality Unit Test 5件、
+  Security Unit Test 4件、DB Guard Unit Test 16件、
+  `policy-gate`、`quality-gate`、`security-gate`はPASSした。
+- Host PHPは8.3.31のためPHP 8.4を要求するComposer Lockを直接Installできなかった。
+  Release API Image内のPHP 8.4でFrozen Composer Install、Module確認、Image Scanを
+  実行して代替し、Host失敗をPASSとは記録しない。
+- Final Headは本節とImage Security修正を含むCommitへ固定し、同一Sourceからの
+  Artifact二重生成、全Asset SHA-256一致、Required／Available Check、
+  Fresh Self-reviewをPR上で確定する。PR Merge後はSquash CommitをRelease Sourceとして
+  同じ検証を再実行する。
