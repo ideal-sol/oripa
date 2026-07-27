@@ -216,6 +216,30 @@ final class AuditOutboxFoundationTest extends TestCase
         );
     }
 
+    public function test_outbox_deduplication_normalizes_jsonb_key_order(): void
+    {
+        DB::transaction(function (): void {
+            $outbox = app(V2OutboxService::class);
+            $first = $outbox->enqueue(
+                'test.topic',
+                'test',
+                null,
+                'test.key_order',
+                ['payment_public_id' => 'payment', 'adjustment_public_id' => 'adjustment'],
+                'test:key-order'
+            );
+            $second = $outbox->enqueue(
+                'test.topic',
+                'test',
+                null,
+                'test.key_order',
+                ['adjustment_public_id' => 'adjustment', 'payment_public_id' => 'payment'],
+                'test:key-order'
+            );
+            self::assertSame($first->id, $second->id);
+        });
+    }
+
     public function test_outbox_claim_lease_retry_success_and_failure_boundaries(): void
     {
         CarbonImmutable::setTestNow('2026-03-03 00:00:00+00');

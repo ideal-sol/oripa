@@ -146,7 +146,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.normalize_schema_dump(second),
         )
 
-    def test_point_schema_inventory_is_explicit_and_payment_reservation_is_deferred(self):
+    def test_payment_schema_inventory_is_explicit(self):
         self.assertIn("public.wallets", v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
         self.assertIn(
             "public.point_ledger_entries",
@@ -156,12 +156,16 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "public.idempotency_records",
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
-        self.assertNotIn(
+        self.assertIn(
             "public.point_lot_reservations",
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
-        self.assertNotIn(
+        self.assertIn(
             "public.payment_adjustments",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        self.assertIn(
+            "public.payment_provider_events",
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
