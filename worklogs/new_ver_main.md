@@ -3565,3 +3565,142 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   確定する。SEV-0／SEV-1または新規Critical／High Findingがある場合はMergeしない。
 - SEC-003完了後もMIG-044は再開せず、Issue `#83`、Branch、Worktree、未Commit差分を
   保持する。MIG-045は開始しない。
+
+## MIG-043／SEC-003 CloseoutとMIG-044再開・Payment Model Foundation
+
+### MIG-043 Closeout
+
+- MIG-043のPR `#82`はMerged、Issue `#81`はClosedである。Final Headは
+  `8b4d00097fb7e98acb9532818b99cdc25daf8a5e`、Squash Commitは
+  `2c388015b1174b5ad7edf04853d59ccd35d2e5b0`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-043 Worktreeは削除済みで、Local
+  `main = origin/main`、Working Tree cleanを確認した。V1 Runtime、V1本番DB、
+  V1 Archive Branch／Annotated Tagは変更していない。
+
+### SEC-003 Closeout／MIG-044保存Evidence
+
+- MIG-044は新規High Advisoryにより一時BLOCKEDとなり、Issue `#83`、Branch
+  `migration/MIG-044-payment-model-foundation`、専用Worktreeの未Commit 16 Pathを
+  保持した。SEC-003ではPayment実装を変更していない。
+- SEC-003のIssue `#84`はClosed、PR `#85`はMergedである。Final Headは
+  `bb280c5c02a648ae77a677d7de8601f17332b945`、Squash Commitは
+  `5270012c0ffa6a1b4db3a9fbe1922b2cbbc7a519`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。SEC-003のRemote／Local BranchとWorktreeは削除済みで、
+  Local `main = origin/main`、Main Working Tree cleanである。
+- Root Auditは0 Finding、Legacy Auditは既存Baselineと一致する11 Finding、
+  `GHSA-r28c-9q8g-f849`と`GHSA-mh99-v99m-4gvg`は0件である。
+- MIG-044再開前EvidenceはRepository外
+  `/var/www/oripa-v1-evidence/MIG-044-resume-preservation-20260727T022002Z/`
+  にmode `700`、File mode `600`で保存した。Changed Path一覧SHA-256は
+  `e5f7ab10d330bd628314f29938b8cd95def518ba407d3480edb4fc5de289e70d`、
+  Binary対応Patch SHA-256は
+  `dce3d3cb0ecfb7aed3593337cfc9f6a97e10f3f67cc20b21513e932908f5edee`
+  で既存Evidenceと一致し、高確度Secret／PII Candidateは0件だった。
+- 16 PathだけをCheckpoint Commit
+  `325b7515462dda46f94a21f39ff2e915cb05cdaa`へ記録し、SEC-003 Squash Commitを
+  通常Mergeした。Rebase、Squash、Force Push、履歴書換えは行っていない。
+  Merge競合は発生せず、SEC-003の安全Dependency VersionとBaseline削除を維持した。
+  Resume Baseは`5270012c0ffa6a1b4db3a9fbe1922b2cbbc7a519`へ更新し、
+  Original Base `2c388015b1174b5ad7edf04853d59ccd35d2e5b0`はEvidenceと
+  本記録へ保持した。SEC-003のDependency FileはMIG-044のPR差分へ再登場していない。
+
+### MIG-044 Task／Schema
+
+- Task IDは`MIG-044`、Riskは`R3`、Issueは`#83`、Branchは
+  `migration/MIG-044-payment-model-foundation`である。新しいIssue、Branch、
+  Worktreeは作成せず既存Taskを継続した。
+- V2専用Migration Rootへ`point_purchase_plans`、`payments`、
+  `payment_status_histories`、`payment_point_grants`、`payment_provider_events`、
+  `payment_provider_event_attempts`、`payment_provider_operations`、
+  `payment_adjustments`、`payment_adjustment_status_histories`、
+  `payment_adjustment_point_impacts`、`payment_adjustment_point_operations`、
+  `point_lot_reservations`を追加した。
+- 金額とPointはPostgreSQL `bigint`、通貨は`JPY`、paid Pointは決済金額と一致し、
+  購入Bonusはfree Pointとして分離する。Payment statusへRefund／Chargebackを
+  混在させず、`financial_state`と`tenant_id`は保存していない。
+- Published Planの金額／paid／free／通貨変更をDB Triggerで拒否する。
+  Payment AdjustmentはPayment金額を超えられず、Status History、Provider Event、
+  Provider Event Attempt、Adjustment HistoryはDB TriggerでUpdate／Delete／
+  Truncateを拒否する。
+- `provider_code + external_event_id`、Payment Point Grant、Provider Operation、
+  Adjustment Source Event、Point Lot ReservationへUnique Constraintを設けた。
+  Raw Provider Payloadは暗号化し、Header／Request／ResponseはRedaction済み情報だけを
+  保存する。PAN、CVV／CVC、PIN、Track Data、Provider Secretは保存しない。
+- `payment_adjustment_prize_actions`は正しいV2 `user_prizes`が未実装のため、
+  架空RelationやFKなしTableを作らずDraw／Prize実装後へ延期した。
+
+### MIG-044 Domain Service／Transaction
+
+- Payment作成、署名検証済みProvider Event記録、Payment Lifecycle、Payment成功、
+  paid／free Point付与、全額未使用Refund、Provider Refund Operation、
+  Chargeback、Chargeback Reversalの`manual_review`境界を実装した。
+- Payment成功はProvider Event、Payment、Wallet、Point Lot／Ledgerの順にLockし、
+  Payment status、Point Operation／Lot／Ledger、Wallet、Grant、Audit、Outboxを
+  同一DB Transactionで確定する。同一Paymentの再送／並行処理はPointを1回だけ付与し、
+  Terminal Stateを巻き戻さない。
+- Provider EventとProvider Operationは同じIdempotency識別子の再送内容が完全一致する
+  場合だけReplayを許可し、異なるPayload／Requestでの再利用を拒否する。
+  Provider通信境界はDB Transaction外に限定した。
+- Refundは成功済みPayment由来のpaid／free Lotが全額未使用、未失効、未予約の場合だけ
+  Reservationを作成する。Provider結果不明時はReservationを維持し、明確な失敗時だけ
+  release、成功時はPoint Operation／Ledgerで取消してconsumeする。通知失敗で返金本体を
+  RollbackしないOutbox境界を設けた。
+- Chargebackは対象Paymentのpaid、他のpaid FIFO、対象Paymentのfree Bonus、
+  他のfree通常順、paid不足分のfree、Shortfallの順で処理する。Wallet／Lotを負数にせず、
+  Shortfall用の負Ledgerを作らない。free Bonusをpaid Lotから取消さず、
+  Chargeback Reversalは自動復元せず`manual_review`とする。
+- ProductionでMock PaymentをFail Closedにした。Public／Admin／Webhook API、
+  実Provider Adapter／SDK、3D Secure、Hosted Checkout、部分返金、UI、
+  Draw／Prize／Shippingは実装していない。
+
+### Migration／Local Verification
+
+- V1 Migrationは40件、内容SHA-256 Set
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  でBaselineと一致し、編集、改名、削除していない。
+- V2 Migrationは7件、内容SHA-256 Set
+  `e2f3b383b89291bbdcb997136f78b6d6f2175b0fe4613409b33525125f94a486`
+  である。
+- `/etc/oripa-v2/dev.env`と`scripts/db/v2_database.py`のGuardを使用し、
+  Persistent V2 PostgreSQL 17／Redis 7およびTask専用Ephemeral Source／Restoreで
+  `migrate:fresh`を各2回実行した。Migration Status、35 TableのSchema Inventory、
+  PostgreSQL／Redis／API／Admin Health、Host Port非公開はPASSした。
+- V2 PHPUnitは82 Test、432 Assertionが成功した。Payment専用TestはPlan Constraint、
+  Lifecycle、Terminal巻戻し、Idempotency、同一Payment並行成功、二重付与防止、
+  Transaction Rollback、Refund条件、Reservation消費拒否、Provider失敗／不明、
+  Provider Event／Operation再送、Chargeback取消順、Shortfall、Reversal、
+  Audit／Outbox、Mock Production拒否を検証した。MIG-041A～MIG-043 Regressionも
+  同じ全V2 Testで成功した。
+- Ephemeral Backup／Restoreは一致した。Source／Restore Schema SHA-256は
+  `deb895e3245d2d6c06c96b336f23dbf465434f69d647c2efcc9ddcb65c916b49`、
+  Migration Row SHA-256は
+  `951f49f3fe666b8140006863fae87bfdffcbac280f8434fc2b4f2d16235a343e`、
+  Backup SHA-256は
+  `5c2537cbbfffa7ae28605f52480c338216d24c5be5634d2bdadd1ef43c9e30f4`
+  である。Task専用Container／Network／Volume CleanupはPASSした。
+- Policy Unit Test 55件、Quality Unit Test 5件、Security Unit Test 4件、
+  DB Guard Unit Test 16件、`policy-gate`、`quality-gate`、`security-gate`、
+  `git diff --check`はPASSした。DB Guardのredacted diagnosticを`run`に加えて
+  `exec`にも適用し、秘密値を含めずTest失敗箇所を識別可能にした。
+- Root WorkspaceのInstall／Audit、OpenAPI、Admin Typecheck／Lint／Build、
+  Storefront Client、Site Schema、Storefront Testkitの生成差分／Typecheck／Lint／
+  Build／TestはPASSした。Root Auditは0 Findingである。
+- Legacy Frontendは独立Install、Typecheck、BuildがPASSし、Lintは既存Baselineの
+  8 Error／1 Warning、9 Findingと完全一致した。Legacy Auditは11 Finding、
+  新規Critical／High Findingは0件、SEC-003対象Advisoryは0件である。
+- 実Payment Provider、実Webhook署名、Browser／E2E、Production Deploymentは
+  未実行であり、PASSとは記録しない。Required 5 Check、CodeQL、
+  `CodeQL (javascript-typescript)`、Dependency Review、Final Head固定後の
+  Fresh Self-review、Squash Commit、CleanupはGitHub PR上で確定する。
+- 稼働中V1 Runtimeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。Nginx、V1本番DB／
+  Redis／Storage、V1 Migration、V1 Archive Branch／Annotated Tagを変更していない。
+- Gate G3はPayment Model Foundationまで進んだが、実Provider Adapter、
+  `payment_adjustment_prize_actions`、初回`2.0.0-alpha.1` Artifact等が残るため
+  `NOT COMPLETE`である。次候補は`MIG-045 Initial 2.0.0-alpha.1 Artifact`だが、
+  MIG-044完了後には開始しない。

@@ -6,6 +6,7 @@ use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Payment\V2\Services\V2PaymentService;
+use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
 use Illuminate\Database\QueryException;
@@ -125,6 +126,151 @@ final class PaymentModelFoundationTest extends TestCase
             'Authorization',
             (string) $first->headers_redacted
         );
+
+        $this->expectException(V2PaymentException::class);
+        $this->expectExceptionMessage('PROVIDER_EVENT_ID_REUSED');
+        $service->recordVerifiedProviderEvent(
+            'fixture',
+            'duplicate-event',
+            'payment.failed',
+            '{"safe":false}'
+        );
+    }
+
+    public function test_payment_lifecycle_rejects_terminal_state_rollback(): void
+    {
+        $service = app(V2PaymentService::class);
+        $user = $this->user('lifecycle');
+        $payment = $this->payment($user, $this->plan(1000, 100), 'lifecycle');
+        $processing = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'lifecycle-processing',
+            'payment.processing',
+            '{}',
+            [],
+            $payment->id
+        );
+        self::assertSame(
+            'processing',
+            $service->applyVerifiedStatus($processing->id, 'processing')->status
+        );
+        $failed = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'lifecycle-failed',
+            'payment.failed',
+            '{}',
+            [],
+            $payment->id
+        );
+        self::assertSame('failed', $service->applyVerifiedStatus($failed->id, 'failed')->status);
+        self::assertSame(
+            ['created', 'processing', 'failed'],
+            DB::table('payment_status_histories')->where('payment_id', $payment->id)
+                ->orderBy('id')->pluck('to_status')->all()
+        );
+
+        $lateSuccess = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'lifecycle-late-success',
+            'payment.succeeded',
+            '{}',
+            [],
+            $payment->id
+        );
+        $this->expectException(V2PaymentException::class);
+        $this->expectExceptionMessage('PAYMENT_TERMINAL_STATE');
+        $service->confirmSucceeded($lateSuccess->id);
+    }
+
+    public function test_payment_create_is_idempotent_and_rejects_key_reuse(): void
+    {
+        $service = app(V2PaymentService::class);
+        $user = $this->user('payment-idempotency');
+        $plan = $this->plan(1000, 100);
+        $first = $service->createPayment(
+            $user->id,
+            $plan->id,
+            'fixture',
+            'idempotent-payment',
+            'idempotent-create'
+        );
+        $replay = $service->createPayment(
+            $user->id,
+            $plan->id,
+            'fixture',
+            'idempotent-payment',
+            'idempotent-create'
+        );
+        self::assertSame($first->id, $replay->id);
+
+        $this->expectException(V2PointException::class);
+        $this->expectExceptionMessage('IDEMPOTENCY_KEY_REUSED');
+        $service->createPayment(
+            $user->id,
+            $this->plan(2000, 0)->id,
+            'fixture',
+            'different-payment',
+            'idempotent-create'
+        );
+    }
+
+    public function test_payment_success_rolls_back_all_point_and_event_side_effects(): void
+    {
+        [$payment, $event] = $this->paymentWithVerifiedEvent('success-rollback');
+        config(['v2_payment.purchase_bonus_expiry_days' => null]);
+        try {
+            app(V2PaymentService::class)->confirmSucceeded($event->id);
+            self::fail('Invalid bonus expiry configuration must fail the transaction.');
+        } catch (V2PaymentException $exception) {
+            self::assertSame('PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED', $exception->getMessage());
+        }
+
+        self::assertSame(
+            'created',
+            DB::table('payments')->where('id', $payment->id)->value('status')
+        );
+        self::assertSame(0, DB::table('payment_point_grants')
+            ->where('payment_id', $payment->id)->count());
+        self::assertSame(0, DB::table('point_operations')
+            ->where('business_key', 'payment.grant:'.$payment->id)->count());
+        self::assertSame(0, DB::table('audit_logs')
+            ->where('action_code', 'payment.succeeded')
+            ->where('target_public_id', $payment->public_id)->count());
+        self::assertSame(0, DB::table('outbox_messages')
+            ->where('event_type', 'payment.succeeded')
+            ->where('aggregate_public_id', $payment->public_id)->count());
+    }
+
+    public function test_same_payment_concurrent_success_grants_points_once(): void
+    {
+        if (! function_exists('proc_open')) {
+            self::markTestSkipped('proc_open is required for concurrency verification.');
+        }
+        [$payment, $event] = $this->paymentWithVerifiedEvent('concurrent-success');
+        $script = <<<'PHP'
+            require 'vendor/autoload.php';
+            $app = require 'bootstrap/app.php';
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            config([
+                'v2_audit.active_hmac_key_version' => 'v1',
+                'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
+            ]);
+            app(App\Domain\Payment\V2\Services\V2PaymentService::class)
+                ->confirmSucceeded((int) $argv[1]);
+            PHP;
+        self::assertSame(
+            [0, 0],
+            $this->parallelProcesses($script, [
+                [(string) $event->id],
+                [(string) $event->id],
+            ])
+        );
+        self::assertSame(1, DB::table('payment_point_grants')
+            ->where('payment_id', $payment->id)->count());
+        self::assertSame(1100, (int) DB::table('wallets')
+            ->where('user_id', $payment->user_id)
+            ->selectRaw('paid_balance + free_balance AS balance')
+            ->value('balance'));
     }
 
     public function test_full_unused_refund_reserves_and_consumes_lots(): void
@@ -147,6 +293,14 @@ final class PaymentModelFoundationTest extends TestCase
             'paid_reserved_balance' => 0,
             'free_reserved_balance' => 0,
         ]);
+        self::assertDatabaseHas('audit_logs', ['action_code' => 'payment.refund_succeeded']);
+        self::assertDatabaseHas('outbox_messages', [
+            'event_type' => 'payment.refund.succeeded',
+        ]);
+        self::assertSame(
+            $resolved->id,
+            $service->resolveRefund($adjustment->id, 'succeeded')->id
+        );
     }
 
     public function test_refund_rejects_any_consumed_payment_point(): void
@@ -176,6 +330,22 @@ final class PaymentModelFoundationTest extends TestCase
         self::assertSame(2, DB::table('point_lot_reservations')
             ->where('payment_adjustment_id', $uncertain->id)
             ->where('status', 'released')->count());
+        self::assertDatabaseHas('audit_logs', ['action_code' => 'payment.refund_failed']);
+    }
+
+    public function test_refund_reservation_blocks_point_consumption(): void
+    {
+        [$payment, $event] = $this->paymentWithVerifiedEvent('refund-reservation-block');
+        $service = app(V2PaymentService::class);
+        $service->confirmSucceeded($event->id);
+        $service->reserveFullRefund($payment->id, 'refund-reservation-block-key');
+
+        $this->expectException(V2PointException::class);
+        app(V2PointService::class)->consume(
+            $payment->user_id,
+            1,
+            'reserved-point-consumption'
+        );
     }
 
     public function test_provider_operation_runs_outside_transaction_and_tracks_unknown_result(): void
@@ -207,6 +377,64 @@ final class PaymentModelFoundationTest extends TestCase
         ));
     }
 
+    public function test_provider_operation_replay_requires_the_same_request(): void
+    {
+        [$payment, $event] = $this->paymentWithVerifiedEvent('provider-operation-replay');
+        $service = app(V2PaymentService::class);
+        $service->confirmSucceeded($event->id);
+        $adjustment = $service->reserveFullRefund(
+            $payment->id,
+            'provider-operation-replay-refund'
+        );
+        $first = $service->beginProviderRefundOperation(
+            $payment->id,
+            $adjustment->id,
+            'provider-operation-replay-key',
+            ['amount' => 1000]
+        );
+        self::assertSame(
+            $first->id,
+            $service->beginProviderRefundOperation(
+                $payment->id,
+                $adjustment->id,
+                'provider-operation-replay-key',
+                ['amount' => 1000]
+            )->id
+        );
+
+        $this->expectException(V2PaymentException::class);
+        $this->expectExceptionMessage('PROVIDER_OPERATION_KEY_REUSED');
+        $service->beginProviderRefundOperation(
+            $payment->id,
+            $adjustment->id,
+            'provider-operation-replay-key',
+            ['amount' => 999]
+        );
+    }
+
+    public function test_adjustment_amount_and_immutable_histories_are_database_enforced(): void
+    {
+        [$payment, $event] = $this->paymentWithVerifiedEvent('adjustment-constraint');
+        app(V2PaymentService::class)->confirmSucceeded($event->id);
+        $this->expectQueryFailure(fn () => DB::table('payment_adjustments')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'payment_id' => $payment->id,
+            'type' => 'refund',
+            'status' => 'requested',
+            'amount' => 1001,
+            'currency' => 'JPY',
+            'requested_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+        $historyId = DB::table('payment_status_histories')
+            ->where('payment_id', $payment->id)->value('id');
+        $this->expectQueryFailure(fn () => DB::table('payment_status_histories')
+            ->where('id', $historyId)->update(['to_status' => 'failed']));
+        $this->expectQueryFailure(fn () => DB::table('payment_provider_events')
+            ->where('id', $event->id)->delete());
+    }
+
     public function test_chargeback_uses_paid_then_free_and_records_shortfall_without_negative_balance(): void
     {
         [$payment, $success] = $this->paymentWithVerifiedEvent('chargeback');
@@ -235,6 +463,72 @@ final class PaymentModelFoundationTest extends TestCase
             $adjustment->id,
             $service->processChargeback($event->id)->id
         );
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'payment.chargeback_processed',
+        ]);
+        self::assertDatabaseHas('outbox_messages', [
+            'event_type' => 'payment.chargeback.processed',
+        ]);
+    }
+
+    public function test_chargeback_uses_origin_lots_first_and_never_uses_paid_for_free_bonus(): void
+    {
+        $service = app(V2PaymentService::class);
+        $user = $this->user('chargeback-order');
+        $olderPayment = $this->payment(
+            $user,
+            $this->plan(300, 0),
+            'chargeback-order-older'
+        );
+        $olderEvent = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'chargeback-order-older-success',
+            'payment.succeeded',
+            '{}',
+            [],
+            $olderPayment->id
+        );
+        $service->confirmSucceeded($olderEvent->id);
+        $targetPayment = $this->payment(
+            $user,
+            $this->plan(1000, 100),
+            'chargeback-order-target'
+        );
+        $targetSuccess = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'chargeback-order-target-success',
+            'payment.succeeded',
+            '{}',
+            [],
+            $targetPayment->id
+        );
+        $service->confirmSucceeded($targetSuccess->id);
+        $targetGrantOperation = DB::table('payment_point_grants')
+            ->where('payment_id', $targetPayment->id)->value('point_operation_id');
+        $targetFreeLot = DB::table('point_lots')
+            ->where('grant_operation_id', $targetGrantOperation)
+            ->where('point_type', 'free')->firstOrFail();
+        DB::table('point_lots')->where('id', $targetFreeLot->id)
+            ->update(['remaining_amount' => 0]);
+        DB::table('wallets')->where('user_id', $user->id)
+            ->update(['free_balance' => 0]);
+
+        $chargebackEvent = $service->recordVerifiedProviderEvent(
+            'fixture',
+            'chargeback-order-event',
+            'payment.chargeback',
+            '{}',
+            [],
+            $targetPayment->id
+        );
+        $adjustment = $service->processChargeback($chargebackEvent->id);
+        $impact = DB::table('payment_adjustment_point_impacts')
+            ->where('payment_adjustment_id', $adjustment->id)->firstOrFail();
+        self::assertSame(1000, (int) $impact->reversed_paid_from_paid);
+        self::assertSame(0, (int) $impact->reversed_free_from_free);
+        self::assertSame(100, (int) $impact->shortfall_free_amount);
+        self::assertSame(300, (int) DB::table('wallets')
+            ->where('user_id', $user->id)->value('paid_balance'));
     }
 
     public function test_chargeback_reversal_never_restores_points_automatically(): void
@@ -341,5 +635,42 @@ final class PaymentModelFoundationTest extends TestCase
         } catch (QueryException) {
             self::assertTrue(true);
         }
+    }
+
+    /**
+     * @param list<list<string>> $arguments
+     * @return list<int>
+     */
+    private function parallelProcesses(string $script, array $arguments): array
+    {
+        $processes = [];
+        foreach ($arguments as $args) {
+            $pipes = [];
+            $process = proc_open(
+                [PHP_BINARY, '-r', $script, ...$args],
+                [
+                    0 => ['pipe', 'r'],
+                    1 => ['pipe', 'w'],
+                    2 => ['pipe', 'w'],
+                ],
+                $pipes,
+                base_path()
+            );
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $processes[] = [$process, $pipes];
+        }
+        $statuses = [];
+        foreach ($processes as [$process, $pipes]) {
+            stream_get_contents($pipes[1]);
+            stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $statuses[] = proc_close($process);
+        }
+        DB::disconnect();
+        DB::reconnect();
+
+        return $statuses;
     }
 }

@@ -18,6 +18,11 @@ use Illuminate\Support\Str;
 final class V2PaymentService
 {
     private const TERMINAL_PAYMENT_STATUSES = ['succeeded', 'failed', 'canceled', 'expired'];
+    private const PAYMENT_TRANSITIONS = [
+        'created' => ['requires_action', 'processing', 'succeeded', 'failed', 'canceled', 'expired'],
+        'requires_action' => ['processing', 'succeeded', 'failed', 'canceled', 'expired'],
+        'processing' => ['succeeded', 'failed', 'canceled', 'expired'],
+    ];
 
     public function __construct(
         private readonly V2PointTransactionRunner $transactions,
@@ -41,6 +46,7 @@ final class V2PaymentService
         ?string $providerPaymentId,
         string $idempotencyKey
     ): object {
+        $this->assertRuntimeSafe();
         $this->assertCode($providerCode, 64);
         $user = User::query()->findOrFail($userId);
 
@@ -147,10 +153,20 @@ final class V2PaymentService
             }
         }
 
-        return DB::table('payment_provider_events')
+        $event = DB::table('payment_provider_events')
             ->where('provider_code', $providerCode)
             ->where('external_event_id', $externalEventId)
             ->firstOrFail();
+        if (
+            $event->event_type !== $eventType
+            || (int) ($event->payment_id ?? 0) !== (int) ($paymentId ?? 0)
+            || (int) ($event->payment_adjustment_id ?? 0) !== (int) ($adjustmentId ?? 0)
+            || ! hash_equals($event->payload_hash, hash('sha256', $rawPayload))
+        ) {
+            throw new V2PaymentException('PROVIDER_EVENT_ID_REUSED');
+        }
+
+        return $event;
     }
 
     /**
@@ -192,10 +208,19 @@ final class V2PaymentService
             'updated_at' => now(),
         ]);
 
-        return DB::table('payment_provider_operations')
+        $operation = DB::table('payment_provider_operations')
             ->where('operation_type', 'refund')
             ->where('provider_idempotency_key_hash', $keyHash)
             ->firstOrFail();
+        if (
+            (int) $operation->payment_id !== $paymentId
+            || (int) ($operation->payment_adjustment_id ?? 0) !== $adjustmentId
+            || ! hash_equals($operation->request_hash, $requestHash)
+        ) {
+            throw new V2PaymentException('PROVIDER_OPERATION_KEY_REUSED');
+        }
+
+        return $operation;
     }
 
     /**
@@ -215,6 +240,15 @@ final class V2PaymentService
         if ($responseRedacted !== null) {
             $this->assertRedactedPayload($responseRedacted);
         }
+        $operation = DB::table('payment_provider_operations')
+            ->where('id', $operationId)->firstOrFail();
+        if (in_array($operation->status, ['succeeded', 'failed'], true)) {
+            if ($operation->status !== $result) {
+                throw new V2PaymentException('PROVIDER_OPERATION_TERMINAL_STATE');
+            }
+
+            return $operation;
+        }
         DB::table('payment_provider_operations')->where('id', $operationId)->update([
             'status' => $result,
             'response_redacted' => $responseRedacted === null
@@ -229,6 +263,55 @@ final class V2PaymentService
 
         return DB::table('payment_provider_operations')
             ->where('id', $operationId)->firstOrFail();
+    }
+
+    public function applyVerifiedStatus(int $providerEventId, string $status): object
+    {
+        if ($status === 'succeeded') {
+            $this->confirmSucceeded($providerEventId);
+
+            return DB::table('payments')
+                ->where('id', DB::table('payment_provider_events')
+                    ->where('id', $providerEventId)->value('payment_id'))
+                ->firstOrFail();
+        }
+        if (! in_array($status, ['requires_action', 'processing', 'failed', 'canceled', 'expired'], true)) {
+            throw new V2PaymentException('PAYMENT_STATUS_INVALID');
+        }
+
+        return $this->transactions->run(function () use ($providerEventId, $status): object {
+            $event = DB::table('payment_provider_events')
+                ->where('id', $providerEventId)->lockForUpdate()->firstOrFail();
+            if ($event->signature_verified_at === null || $event->payment_id === null) {
+                throw new V2PaymentException('VERIFIED_SERVER_EVENT_REQUIRED');
+            }
+            $payment = DB::table('payments')
+                ->where('id', $event->payment_id)->lockForUpdate()->firstOrFail();
+            if ($payment->status === $status) {
+                return $payment;
+            }
+            if (! in_array($status, self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
+                throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
+            }
+            $transitioned = $this->transitionPayment(
+                $payment,
+                $status,
+                'provider_event',
+                $event->id
+            );
+            $this->providerAttempt($event->id, 'success');
+            $this->audit->record('payment.status_changed', [
+                'target_type' => 'payment',
+                'target_public_id' => $payment->public_id,
+                'metadata' => [
+                    'from_status' => $payment->status,
+                    'to_status' => $status,
+                    'provider_code' => $payment->provider_code,
+                ],
+            ]);
+
+            return $transitioned;
+        });
     }
 
     public function confirmSucceeded(int $providerEventId): object
@@ -248,6 +331,9 @@ final class V2PaymentService
             }
             if (in_array($payment->status, self::TERMINAL_PAYMENT_STATUSES, true)) {
                 throw new V2PaymentException('PAYMENT_TERMINAL_STATE');
+            }
+            if (! in_array('succeeded', self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
+                throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
             }
             $this->transitionPayment($payment, 'succeeded', 'provider_event', $event->id);
             $grant = $this->grantPaymentPoints($payment);
@@ -398,6 +484,14 @@ final class V2PaymentService
         return $this->transactions->run(function () use ($adjustmentId, $result): object {
             $adjustment = DB::table('payment_adjustments')->where('id', $adjustmentId)
                 ->lockForUpdate()->firstOrFail();
+            if (in_array($adjustment->status, ['succeeded', 'failed', 'canceled'], true)) {
+                $expected = $result === 'succeeded' ? 'succeeded' : ($result === 'failed' ? 'failed' : null);
+                if ($expected !== $adjustment->status) {
+                    throw new V2PaymentException('REFUND_TERMINAL_STATE');
+                }
+
+                return $adjustment;
+            }
             $payment = DB::table('payments')->where('id', $adjustment->payment_id)
                 ->lockForUpdate()->firstOrFail();
             $wallet = $this->lockWallet($payment->user_id);
@@ -409,7 +503,10 @@ final class V2PaymentService
             }
             if ($result === 'failed') {
                 $this->releaseReservations($wallet, $reservations);
-                return $this->transitionAdjustment($adjustment, 'failed', 'provider');
+                $failed = $this->transitionAdjustment($adjustment, 'failed', 'provider');
+                $this->auditAdjustment($payment, $failed, 'payment.refund_failed');
+
+                return $failed;
             }
 
             $operation = $this->newPointOperation(
@@ -469,6 +566,17 @@ final class V2PaymentService
             ]);
             $resolved = $this->transitionAdjustment($adjustment, 'succeeded', 'provider');
             $this->auditAdjustment($payment, $resolved, 'payment.refund_succeeded');
+            $this->outbox->enqueue(
+                'payment.lifecycle',
+                'payment_adjustment',
+                $resolved->public_id,
+                'payment.refund.succeeded',
+                [
+                    'payment_public_id' => $payment->public_id,
+                    'adjustment_public_id' => $resolved->public_id,
+                ],
+                'payment.refund.succeeded:'.$resolved->public_id
+            );
 
             return $resolved;
         });
@@ -484,6 +592,9 @@ final class V2PaymentService
             }
             $payment = DB::table('payments')->where('id', $event->payment_id)
                 ->lockForUpdate()->firstOrFail();
+            if ($payment->status !== 'succeeded') {
+                throw new V2PaymentException('CHARGEBACK_PAYMENT_NOT_SUCCEEDED');
+            }
             $existing = DB::table('payment_adjustments')
                 ->where('source_provider_event_id', $event->id)->first();
             if ($existing !== null) {
@@ -559,6 +670,17 @@ final class V2PaymentService
             $resolved = $this->transitionAdjustment($adjustment, 'succeeded', 'provider_event');
             $this->providerAttempt($event->id, 'success');
             $this->auditAdjustment($payment, $resolved, 'payment.chargeback_processed');
+            $this->outbox->enqueue(
+                'payment.lifecycle',
+                'payment_adjustment',
+                $resolved->public_id,
+                'payment.chargeback.processed',
+                [
+                    'payment_public_id' => $payment->public_id,
+                    'adjustment_public_id' => $resolved->public_id,
+                ],
+                'payment.chargeback.processed:'.$resolved->public_id
+            );
 
             return $resolved;
         });
@@ -576,6 +698,18 @@ final class V2PaymentService
                 ->where('type', 'chargeback')->lockForUpdate()->firstOrFail();
             $payment = DB::table('payments')->where('id', $parent->payment_id)
                 ->lockForUpdate()->firstOrFail();
+            $existing = DB::table('payment_adjustments')
+                ->where('source_provider_event_id', $event->id)->first();
+            if ($existing !== null) {
+                if (
+                    $existing->type !== 'chargeback_reversal'
+                    || (int) $existing->parent_adjustment_id !== $parent->id
+                ) {
+                    throw new V2PaymentException('PROVIDER_EVENT_ID_REUSED');
+                }
+
+                return $existing;
+            }
             $adjustment = $this->createAdjustment(
                 $payment,
                 'chargeback_reversal',
@@ -944,12 +1078,13 @@ final class V2PaymentService
         string $to,
         string $source
     ): object {
-        DB::table('payment_adjustments')->where('id', $adjustment->id)->update([
-            'status' => $to,
-            'succeeded_at' => $to === 'succeeded' ? now()->startOfSecond() : null,
-            'failed_at' => $to === 'failed' ? now()->startOfSecond() : null,
-            'updated_at' => now(),
-        ]);
+        $updates = ['status' => $to, 'updated_at' => now()];
+        if ($to === 'succeeded') {
+            $updates['succeeded_at'] = now()->startOfSecond();
+        } elseif ($to === 'failed') {
+            $updates['failed_at'] = now()->startOfSecond();
+        }
+        DB::table('payment_adjustments')->where('id', $adjustment->id)->update($updates);
         $this->adjustmentHistory($adjustment->id, $adjustment->status, $to, $source);
 
         return DB::table('payment_adjustments')->where('id', $adjustment->id)->firstOrFail();

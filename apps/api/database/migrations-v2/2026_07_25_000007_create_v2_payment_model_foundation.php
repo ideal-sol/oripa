@@ -265,6 +265,7 @@ return new class extends Migration
         }
         DB::statement('DROP FUNCTION IF EXISTS v2_reject_payment_immutable_mutation()');
         DB::statement('DROP FUNCTION IF EXISTS v2_protect_published_plan()');
+        DB::statement('DROP FUNCTION IF EXISTS v2_validate_payment_adjustment_amount()');
     }
 
     private function constraints(): void
@@ -284,6 +285,20 @@ return new class extends Migration
 
     private function immutableGuards(): void
     {
+        DB::statement(<<<'SQL'
+            CREATE OR REPLACE FUNCTION v2_validate_payment_adjustment_amount()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE payment_amount bigint;
+            BEGIN
+                SELECT amount INTO payment_amount FROM payments WHERE id = NEW.payment_id;
+                IF payment_amount IS NULL OR NEW.amount > payment_amount
+                THEN RAISE EXCEPTION 'Payment adjustment exceeds payment amount';
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            SQL);
+        DB::statement('CREATE TRIGGER payment_adjustment_validate_amount BEFORE INSERT OR UPDATE OF payment_id, amount ON payment_adjustments FOR EACH ROW EXECUTE FUNCTION v2_validate_payment_adjustment_amount()');
         DB::statement(<<<'SQL'
             CREATE OR REPLACE FUNCTION v2_reject_payment_immutable_mutation()
             RETURNS trigger LANGUAGE plpgsql AS $$

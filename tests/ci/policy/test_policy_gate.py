@@ -276,6 +276,7 @@ python3 scripts/db/v2_database.py smoke \\
             "scripts/db/v2_database.py",
             "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
             "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
+            "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

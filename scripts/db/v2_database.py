@@ -121,7 +121,7 @@ def run(
         operation = next((item for item in command[1:] if item in safe_operations), None)
         suffix = f" during {operation}" if operation is not None else ""
         detail = ""
-        if operation == "run":
+        if operation in {"exec", "run"}:
             lines = (
                 error.stdout.decode("utf-8", errors="replace").splitlines()
                 + error.stderr.decode("utf-8", errors="replace").splitlines()
