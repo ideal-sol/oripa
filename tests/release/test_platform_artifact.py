@@ -1,0 +1,104 @@
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+
+SCRIPT = (
+    Path(__file__).resolve().parents[2]
+    / "scripts"
+    / "release"
+    / "platform_artifact.py"
+)
+SPEC = importlib.util.spec_from_file_location("platform_artifact", SCRIPT)
+platform_artifact = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader
+SPEC.loader.exec_module(platform_artifact)
+
+
+class PlatformArtifactTest(unittest.TestCase):
+    def test_content_set_checksum_is_path_independent(self):
+        with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
+            first = Path(first_dir)
+            second = Path(second_dir)
+            (first / "a.php").write_text("same-a\n", encoding="utf-8")
+            (first / "b.php").write_text("same-b\n", encoding="utf-8")
+            (second / "renamed-1.php").write_text("same-b\n", encoding="utf-8")
+            (second / "renamed-2.php").write_text("same-a\n", encoding="utf-8")
+            self.assertEqual(
+                platform_artifact.content_set_checksum(first.glob("*.php")),
+                platform_artifact.content_set_checksum(second.glob("*.php")),
+            )
+
+    def test_deterministic_tar_gz_repeats_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            (source / "b.txt").write_text("beta\n", encoding="utf-8")
+            (source / "a.txt").write_text("alpha\n", encoding="utf-8")
+            first = root / "first.tar.gz"
+            second = root / "second.tar.gz"
+            members = list(source.glob("*.txt"))
+            platform_artifact.deterministic_tar_gz(source, members, first, 123456789)
+            platform_artifact.deterministic_tar_gz(source, reversed(members), second, 123456789)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+
+    def test_checksum_verification_rejects_tamper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            assets = Path(temporary)
+            target = assets / "artifact.txt"
+            target.write_text("original\n", encoding="utf-8")
+            platform_artifact.write_checksums(assets)
+            platform_artifact.verify_checksums(assets)
+            target.write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(platform_artifact.ReleaseError, "checksum mismatch"):
+                platform_artifact.verify_checksums(assets)
+
+    def test_manifest_requires_alpha_production_boundary(self):
+        value = {
+            "schema_version": "2.0",
+            "platform": {
+                "version": platform_artifact.PLATFORM_VERSION,
+                "compatibility_family": 2,
+                "channel": "alpha",
+                "tag": platform_artifact.RELEASE_TAG,
+                "source_commit": "1" * 40,
+                "created_at": "2026-07-27T00:00:00Z",
+                "production_allowed": False,
+                "data_retention_guaranteed": False,
+            },
+            "contracts": {name: {} for name in platform_artifact.CONTRACT_PATHS},
+            "packages": {name: {} for name in platform_artifact.PACKAGE_PATHS},
+            "images": {name: {} for name in platform_artifact.IMAGE_DEFINITIONS},
+            "database": {},
+            "runtimes": {},
+            "rollback_classification": "alpha",
+            "required_checks": platform_artifact.REQUIRED_CHECKS,
+            "known_issues_asset": "KNOWN-ISSUES.md",
+            "sbom_assets": [],
+            "provenance_asset": "provenance.json",
+            "secret_scan": {"result": "PASS", "candidate_count": 0},
+            "production_go": {"required": True, "approved": False},
+        }
+        platform_artifact.validate_manifest_shape(value)
+        value["platform"]["production_allowed"] = True
+        with self.assertRaisesRegex(platform_artifact.ReleaseError, "platform identity"):
+            platform_artifact.validate_manifest_shape(value)
+
+    def test_bundle_compare_detects_mismatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "first"
+            second = root / "second"
+            first.mkdir()
+            second.mkdir()
+            (first / "asset").write_text("one", encoding="utf-8")
+            (second / "asset").write_text("two", encoding="utf-8")
+            with self.assertRaisesRegex(platform_artifact.ReleaseError, "reproducibility"):
+                platform_artifact.compare_bundles(first, second)
+
+
+if __name__ == "__main__":
+    unittest.main()

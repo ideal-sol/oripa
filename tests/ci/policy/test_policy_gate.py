@@ -20,6 +20,38 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def make_release_foundation(self, root):
+        required = set(policy_gate.RELEASE_ARTIFACT_REQUIRED_FILES)
+        required.add("package.json")
+        for relative in required:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return required
+
+    def test_release_artifact_foundation_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_release_foundation(root)
+            policy_gate.validate_release_artifact_foundation(root, paths)
+
+    def test_release_artifact_floating_base_image_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_release_foundation(root)
+            dockerfile = root / "apps/admin/Dockerfile"
+            dockerfile.write_text(
+                dockerfile.read_text(encoding="utf-8").replace(
+                    "node:22.22.3-alpine@sha256:"
+                    "e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd",
+                    "node:latest",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "digest"):
+                policy_gate.validate_release_artifact_foundation(root, paths)
+
     def test_positive_pull_request_fixture_passes(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(
@@ -902,21 +934,12 @@ services:
             "type": "string",
             "pattern": policy_gate.SEMANTIC_VERSION.pattern,
         }
-        release_properties = {
-            field: {"type": "string"}
-            for field in policy_gate.RELEASE_MANIFEST_REQUIRED
-        }
-        release_properties["schema_version"] = {"const": "1.0"}
-        release_properties["platform_version"] = {
-            "$ref": "#/$defs/semantic_version"
-        }
-        release_properties["api_contract_version"] = {
-            "$ref": "#/$defs/semantic_version"
-        }
-        release_properties["package_versions"] = {
-            "type": "object",
-            "additionalProperties": {"$ref": "#/$defs/semantic_version"},
-        }
+        release_schema = root / "manifests/schemas/release-manifest.schema.json"
+        release_schema.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            ROOT / "manifests/schemas/release-manifest.schema.json",
+            release_schema,
+        )
         deployment_properties = {
             field: {"type": "string"}
             for field in policy_gate.DEPLOYMENT_MANIFEST_REQUIRED
@@ -930,11 +953,6 @@ services:
             "additionalProperties": {"$ref": "#/$defs/semantic_version"},
         }
         for relative, required, properties in (
-            (
-                "manifests/schemas/release-manifest.schema.json",
-                policy_gate.RELEASE_MANIFEST_REQUIRED,
-                release_properties,
-            ),
             (
                 "manifests/schemas/deployment-manifest.schema.json",
                 policy_gate.DEPLOYMENT_MANIFEST_REQUIRED,
@@ -954,21 +972,11 @@ services:
                 ),
                 encoding="utf-8",
             )
-        (root / "manifests/examples/release-manifest.example.json").write_text(
-            json.dumps(
-                {
-                    "schema_version": "1.0",
-                    "platform_version": "2.0.0-alpha.1",
-                    "package_versions": {"@oripa/platform": "2.0.0-alpha.1"},
-                    "api_contract_version": "2.0.0-alpha.1",
-                    "migration_revision": "fixture",
-                    "source_commit": "0" * 40,
-                    "image_digest": "sha256:" + "0" * 64,
-                    "sbom_reference": "fixture",
-                    "created_at": "1970-01-01T00:00:00Z",
-                }
-            ),
-            encoding="utf-8",
+        release_example = root / "manifests/examples/release-manifest.example.json"
+        release_example.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            ROOT / "manifests/examples/release-manifest.example.json",
+            release_example,
         )
         (root / "manifests/examples/deployment-manifest.example.json").write_text(
             json.dumps(
@@ -1296,7 +1304,7 @@ services:
             paths = self.make_workspace(root)
             schema_path = root / "manifests/schemas/release-manifest.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
-            schema["required"].remove("source_commit")
+            schema["required"].remove("platform")
             schema_path.write_text(json.dumps(schema), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "required manifest fields"

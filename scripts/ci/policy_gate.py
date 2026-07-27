@@ -167,6 +167,14 @@ V2_DATABASE_REQUIRED_FILES = {
     "scripts/db/v2_database.py",
     "tests/db/test_v2_database.py",
 }
+RELEASE_ARTIFACT_REQUIRED_FILES = {
+    "apps/admin/Dockerfile",
+    "infra/docker/backend/Dockerfile",
+    "docs/operations/releases/platform-alpha-artifact.md",
+    "scripts/release/README.md",
+    "scripts/release/platform_artifact.py",
+    "tests/release/test_platform_artifact.py",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -355,14 +363,19 @@ BOUNDARY_HEADINGS = {
 }
 RELEASE_MANIFEST_REQUIRED = {
     "schema_version",
-    "platform_version",
-    "package_versions",
-    "api_contract_version",
-    "migration_revision",
-    "source_commit",
-    "image_digest",
-    "sbom_reference",
-    "created_at",
+    "platform",
+    "contracts",
+    "packages",
+    "images",
+    "database",
+    "runtimes",
+    "rollback_classification",
+    "required_checks",
+    "known_issues_asset",
+    "sbom_assets",
+    "provenance_asset",
+    "secret_scan",
+    "production_go",
 }
 DEPLOYMENT_MANIFEST_REQUIRED = {
     "schema_version",
@@ -2103,6 +2116,94 @@ def validate_manifest_example(
     validate_schema_value(value, schema, schema, relative)
 
 
+def validate_release_artifact_foundation(
+    repository: Path,
+    paths: Iterable[str],
+) -> None:
+    path_set = set(paths)
+    missing = sorted(RELEASE_ARTIFACT_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required release artifact files missing: " + ", ".join(missing)
+        )
+
+    expected_labels = {
+        "org.opencontainers.image.version",
+        "org.opencontainers.image.revision",
+        "org.opencontainers.image.source",
+        "org.opencontainers.image.created",
+        "org.opencontainers.image.title",
+    }
+    for relative in ("apps/admin/Dockerfile", "infra/docker/backend/Dockerfile"):
+        text = (repository / relative).read_text(encoding="utf-8")
+        from_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip().startswith("FROM ")
+        ]
+        if not from_lines or any(
+            "@sha256:" not in line or re.search(r"\b(?:latest|edge)\b", line)
+            for line in from_lines
+        ):
+            raise PolicyFailure(f"{relative}: release base image must use a digest")
+        missing_labels = sorted(label for label in expected_labels if label not in text)
+        if missing_labels:
+            raise PolicyFailure(
+                f"{relative}: OCI labels missing: {', '.join(missing_labels)}"
+            )
+        if "legacy/v1-frontend" in text:
+            raise PolicyFailure(f"{relative}: legacy source is prohibited")
+
+    package = load_json(repository, "package.json")
+    scripts = package.get("scripts", {})
+    if scripts.get("release:test") != (
+        "python3 -m unittest discover -s tests/release -p 'test_*.py'"
+    ):
+        raise PolicyFailure("package.json: release test command is not fixed")
+    if scripts.get("release:validate") != (
+        "python3 scripts/release/platform_artifact.py validate-source --repository ."
+    ):
+        raise PolicyFailure("package.json: release validation command is not fixed")
+
+    builder = (repository / "scripts/release/platform_artifact.py").read_text(
+        encoding="utf-8"
+    )
+    required_statements = {
+        'PLATFORM_VERSION = "2.0.0-alpha.1"',
+        'CHANNEL = "alpha"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.1"',
+        "PRODUCTION_ALLOWED = False",
+        "DATA_RETENTION_GUARANTEED = False",
+        "pnpm",
+        "--filter",
+        "pack",
+        "SHA256SUMS",
+        "provenance.intoto.json",
+        "cyclonedx",
+    }
+    absent = sorted(statement for statement in required_statements if statement not in builder)
+    if absent:
+        raise PolicyFailure(
+            "release builder required controls missing: " + ", ".join(absent)
+        )
+    if re.search(r"(?:version|image|tag)\s*[:=]\s*[\"']latest[\"']", builder):
+        raise PolicyFailure("release builder must not use latest")
+
+    operations = (
+        repository / "docs/operations/releases/platform-alpha-artifact.md"
+    ).read_text(encoding="utf-8")
+    for statement in (
+        "Production／Commercial利用: 禁止",
+        "Data保持保証",
+        "NOT_STARTED",
+        "Assetは移動、削除、差替え",
+    ):
+        if statement not in operations:
+            raise PolicyFailure(
+                f"release operations document missing boundary: {statement}"
+            )
+
+
 def validate_no_v1_copy(repository: Path, paths: Iterable[str]) -> None:
     path_set = set(paths)
     source_paths = [
@@ -2276,6 +2377,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_dangerous_paths(paths)
     validate_basic_structures(repository, paths)
     validate_workspace_skeleton(repository, paths)
+    validate_release_artifact_foundation(repository, paths)
     validate_api_application_layout(paths)
     validate_legacy_frontend_layout(repository, paths)
     validate_v2_database_boundary(repository, paths)

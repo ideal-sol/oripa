@@ -3722,3 +3722,68 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `payment_adjustment_prize_actions`、初回`2.0.0-alpha.1` Artifact等が残るため
   `NOT COMPLETE`である。次候補は`MIG-045 Initial 2.0.0-alpha.1 Artifact`だが、
   MIG-044完了後には開始しない。
+
+## MIG-044 Closeout／MIG-045 Initial Platform Alpha Artifact
+
+### MIG-044 Closeout
+
+- MIG-044のPR `#87`はMerged、Issue `#83`はClosedである。Final Headは
+  `4bd3ca56a8a9c7b71430a3a42191548b87fa8cc6`、Squash Commitは
+  `b7cdc941b540fc7e28e985cc7e42c6ab86226469`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-044 Worktreeは削除済みで、Local
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtimeは`bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanであり、
+  V1本番Resource、V1 Migration 40件、Archive Branch、Annotated Tagを変更していない。
+
+### MIG-045 Task／Release Boundary
+
+- Task IDは`MIG-045`、Riskは`R3`、Issueは`#89`、Base SHAは
+  `b7cdc941b540fc7e28e985cc7e42c6ab86226469`である。
+- 推奨された`release/MIG-045-platform-alpha-artifact`は、GitHub App Wrapperが
+  `release/**`をProtected RefとしてTask Pushから拒否するため使用しない。許可済みPrefixの
+  `chore/MIG-045-platform-alpha-artifact`をPR用Task Branchとして使用し、
+  Release Tag `platform-v2.0.0-alpha.1`とは分離する。
+- Versionは`2.0.0-alpha.1`、Compatibility Familyは`2`、Channelは`alpha`である。
+  同じTag、Version、GitHub Release、MIG-045 Issue／PRが存在しないことを開始前に確認した。
+- AlphaはInternal Development専用で、Production／Commercial利用禁止、Stable Data保持保証
+  なしとする。人間のCommercial Production GO、法務、会計、未確定Provider判断は行わない。
+
+### Artifact Foundation
+
+- API／Admin Container Image、3 First-party Package Tarball、Public／Admin／Webhook
+  OpenAPI Bundle、V2 Migration Archive、Release Manifest、Compatibility Matrix、
+  Changelog、Known Issues、Test／Migration／Security Summary、CycloneDX SBOM、
+  in-toto SLSA Provenance、`SHA256SUMS`を固定Sourceから生成するBuilderを追加した。
+- Docker Base ImageはNode、PHP、ComposerをTagだけでなく取得済みManifest Digestへ固定し、
+  Version、Revision、Source、Created、TitleのOCI Labelを必須化した。
+- Release Manifest Schemaを`2.0`へ更新し、API／Admin Image、3 Contract、
+  First-party Package、Migration Set、Exact Runtime、Rollback分類、Known Issues、
+  SBOM、Provenance、Secret Scan、Production GateをStrict Objectとして分離した。
+- BuilderはSource CommitのTimestampを使用し、Migration Archiveとgzip metadataを固定する。
+  Package、Image、Manifest、Provenance、全Asset Checksumを検証し、同じSourceから2回生成した
+  Bundleの全File SHA-256一致を要求する。
+- Provenanceは全Assetと固定Sourceを結ぶ機械可読in-toto Statementである。
+  外部署名IdentityによるCryptographic Signatureは本Alphaでは`NOT_STARTED`で、
+  署名済みとは記録しない。
+- Repository外GitHub App Wrapperへ、Pre-release Tagの自動判定と、
+  固定Repository／Tag／Commit／Release Evidence／Asset SHA-256を必須にする
+  `upload-release-asset`を汎用Operationとして追加した。任意URL、Asset差替え、
+  Token／JWT／Private Key表示は許可しない。
+
+### Initial Verification
+
+- Release Unit Test 5件とPolicy Unit Test 57件はPASSした。
+- Release Source Validationは3 Contract Version `2.0.0-alpha.1`、V2 Migration 7件、
+  Migration Set SHA-256
+  `e2f3b383b89291bbdcb997136f78b6d6f2175b0fe4613409b33525125f94a486`
+  を確認した。
+- WrapperとTask PolicyのPython／JSON Syntax、Owner／Permission、
+  invalid Asset SHA-256拒否TestはPASSした。秘密値は出力していない。
+- Root／Legacy Frozen Install、Audit、Package／Admin／OpenAPI、V2 Database、
+  Image Build／Scan、SBOM、Artifact再現性、GitHub Checkは固定Checkpoint Commit後に
+  全て再実行する。未実行項目をPASSとは記録しない。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、
+  V1 Archive Branch／Annotated Tagを変更していない。

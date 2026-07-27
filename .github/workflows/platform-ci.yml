@@ -98,6 +98,11 @@ jobs:
       - name: Validate Storefront Testkit Alpha
         run: pnpm testkit:check
 
+      - name: Validate Platform Alpha Artifact foundation
+        run: |
+          pnpm release:test
+          pnpm release:validate
+
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
@@ -314,6 +319,11 @@ jobs:
 
       - name: Build and test Storefront Testkit Alpha
         run: pnpm testkit:check
+
+      - name: Validate Platform Alpha Artifact foundation
+        run: |
+          pnpm release:test
+          pnpm release:validate
 
       - name: Validate contracts, manifests, and Compose
         run: |

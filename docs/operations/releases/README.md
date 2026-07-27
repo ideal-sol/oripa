@@ -10,6 +10,7 @@ Rollbackに関する運用基準を管理する。
 - [Environment Protection](environment-protection.md)
 - [Release Process](release-process.md)
 - [Rollback](rollback.md)
+- [Initial Platform Alpha Artifact](platform-alpha-artifact.md)
 
 Manifestの非秘密Example:
 
