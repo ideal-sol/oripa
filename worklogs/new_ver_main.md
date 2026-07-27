@@ -3553,6 +3553,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Policy Unit Test 52件、Quality Unit Test 5件、Security Unit Test 4件、
   `policy-gate`、`quality-gate`、`security-gate`、`git diff --check`、
   JSON／YAML基本構造はPASSした。Secret／PII Candidateは0件である。
+- 初回PR Runは必須Heading／Changed Path宣言が不足したPR本文Schemaにより
+  `policy-gate`が失敗した。PR本文だけを正式Template構造へ修正し、GateをBypassせず
+  新しいFinal Headで全Checkを再実行する。
 - V1 Migrationは40件で不変である。V1 Runtime、Nginx、V1本番DB／Redis／Storage、
   V1 Archive Branch／Annotated Tagを変更していない。
 - Backend Runtime Test、Browser／E2E、Production TestはDependency-only Taskのため
