@@ -138,6 +138,34 @@ class AnnouncementContentApiTest extends TestCase
             ->assertJsonPath('data.id', $announcement->id);
     }
 
+    public function test_admin_can_filter_announcement_list_by_category(): void
+    {
+        $this->actingAdmin();
+        $notice = $this->announcement([
+            'title' => 'カテゴリ絞り込み対象のお知らせ',
+        ]);
+        $lp = $this->announcement([
+            'category' => 'lp',
+            'title' => 'カテゴリ絞り込み対象のLP',
+        ]);
+
+        $this->getJson('/admin/api/announcements?category=notice')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $notice->id)
+            ->assertJsonPath('data.0.category', 'notice');
+
+        $this->getJson('/admin/api/announcements?category=lp')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $lp->id)
+            ->assertJsonPath('data.0.category', 'lp');
+
+        $this->getJson('/admin/api/announcements?category=unknown')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('category');
+    }
+
     public function test_server_sanitizes_html_and_preview_matches_saved_rendering(): void
     {
         $this->actingAdmin();

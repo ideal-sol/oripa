@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 
 class AdminAnnouncementController extends Controller
 {
@@ -23,6 +24,14 @@ class AdminAnnouncementController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', $request->string('status')->toString());
+        }
+
+        if ($request->filled('category')) {
+            $category = $request->validate([
+                'category' => ['required', Rule::enum(AnnouncementCategory::class)],
+            ])['category'];
+
+            $query->where('category', $category);
         }
 
         return AnnouncementResource::collection($query->paginate((int) $request->integer('per_page', 20)));

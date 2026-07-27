@@ -832,7 +832,7 @@ const tabKeys: TabKey[] = [...tabs.map((tab) => tab.key), "draws", "prizes"];
 const perPage = 10;
 const emptyFilters: Record<TabKey, FilterState> = {
   guide: {},
-  announcements: { status: "" },
+  announcements: { category: "", status: "" },
   contacts: { status: "", email: "" },
   gachas: { status: "" },
   users: { status: "", q: "" },
@@ -6134,17 +6134,29 @@ function FilterPanel({
       )}
 
       {tab === "announcements" && (
-        <SelectField
-          label="状態"
-          value={filters.status ?? ""}
-          onChange={(value) => onChange("status", value)}
-          options={[
-            ["", "すべて"],
-            ["draft", "下書き"],
-            ["published", "公開"],
-            ["hidden", "非表示"],
-          ]}
-        />
+        <>
+          <SelectField
+            label="カテゴリ"
+            value={filters.category ?? ""}
+            onChange={(value) => onChange("category", value)}
+            options={[
+              ["", "すべて"],
+              ["notice", "お知らせ"],
+              ["lp", "LP"],
+            ]}
+          />
+          <SelectField
+            label="状態"
+            value={filters.status ?? ""}
+            onChange={(value) => onChange("status", value)}
+            options={[
+              ["", "すべて"],
+              ["draft", "下書き"],
+              ["published", "公開"],
+              ["hidden", "非表示"],
+            ]}
+          />
+        </>
       )}
 
       {tab === "contacts" && (
@@ -8830,19 +8842,31 @@ function PointPurchasePlanTable({ rows, onEdit }: { rows: PointPurchasePlan[]; o
 function AnnouncementTable({ rows, onEdit }: { rows: Announcement[]; onEdit: (announcement: Announcement) => void }) {
   return (
     <DataTable
-      headers={["ID", "カテゴリ", "サムネイル", "タイトル", "状態", "公開期間", "更新日時", "操作"]}
-      rows={rows.map((row) => [
-        <span className="mono-id" key="id">#{row.id}</span>,
-        <StatusBadge key="category" value={row.category} />,
-        row.thumbnail_url ? <span className="table-thumb" key="thumb" style={{ backgroundImage: `url("${row.thumbnail_url}")` }} /> : <span className="muted-text" key="thumb">未設定</span>,
-        <span className="user-cell" key="title"><span>{row.title}</span><small>{row.body.slice(0, 48)}</small></span>,
-        <StatusBadge key="status" value={row.status} />,
-        `${formatDate(row.published_at)} ～ ${row.published_until ? formatDate(row.published_until) : "無期限"}`,
-        formatDate(row.updated_at),
-        <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
-      ])}
+      headers={["ID", "カテゴリ", "サムネイル", "タイトル", "URL", "状態", "公開期間", "更新日時", "操作"]}
+      rows={rows.map((row) => {
+        const publicUrl = announcementPublicUrl(row.id);
+
+        return [
+          <span className="mono-id" key="id">#{row.id}</span>,
+          <StatusBadge key="category" value={row.category} />,
+          row.thumbnail_url ? <span className="table-thumb" key="thumb" style={{ backgroundImage: `url("${row.thumbnail_url}")` }} /> : <span className="muted-text" key="thumb">未設定</span>,
+          <span className="user-cell" key="title"><span>{row.title}</span><small>{row.body.slice(0, 48)}</small></span>,
+          <a className="table-link" href={publicUrl} key="url" target="_blank" rel="noreferrer">{publicUrl}</a>,
+          <StatusBadge key="status" value={row.status} />,
+          `${formatDate(row.published_at)} ～ ${row.published_until ? formatDate(row.published_until) : "無期限"}`,
+          formatDate(row.updated_at),
+          <button className="secondary-button small-button" type="button" key="edit" onClick={() => onEdit(row)}>編集</button>,
+        ];
+      })}
     />
   );
+}
+
+function announcementPublicUrl(id: number) {
+  const path = `/announcements/${id}`;
+  const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL?.replace(/\/+$/, "");
+
+  return frontendUrl ? `${frontendUrl}${path}` : path;
 }
 
 function RankAssetTable({ rows, onEdit }: { rows: RankAsset[]; onEdit: (asset: RankAsset) => void }) {
@@ -9339,6 +9363,8 @@ function statusLabel(value: string) {
     hidden: "非表示",
     visible: "表示",
     published: "公開",
+    notice: "お知らせ",
+    lp: "LP",
     new: "未対応",
     replied: "返信済み",
     closed: "完了",

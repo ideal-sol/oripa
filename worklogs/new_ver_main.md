@@ -61,3 +61,39 @@
 
 - `V1-DRAW-1000A Bulk Draw 1000 Backend・Transaction・性能基盤`
 - 主目的は1000回ガチャとし、100回対応は同じBulk基盤を利用する副次要件とする。
+
+## V1-NOTICE-002 お知らせ一覧のカテゴリ・URL表示
+
+### Task
+
+- Task ID: `V1-NOTICE-002`
+- Risk: `R3`
+- Issue: `#93`
+- PR: `#94`
+- Base／PR Base: `v1/early-release`
+- Base SHA: `71c010010eb8d35d688ea5e3aca30d2b47987950`
+- Branch: `feature/V1-NOTICE-002-announcement-list`
+
+### 実装
+
+- 管理画面のお知らせ一覧へ`notice`／`lp`のカテゴリFilterを追加した。
+- Backendの管理一覧APIへ`AnnouncementCategory` Enumで検証するカテゴリ絞り込みを追加し、未定義カテゴリは`422`で拒否する。
+- 一覧のカテゴリ表示を`お知らせ`／`LP`へ統一した。
+- 各RecordのPublic詳細URLを一覧へ表示し、別Tabで確認できる導線を追加した。
+- Publicのお知らせ一覧は引き続き公開期間内の`notice`だけを表示し、`lp`は既存詳細URLからのみ参照可能とする既存仕様を維持した。
+
+### Scope
+
+- 変更対象は管理一覧API、対象Feature Test、管理画面一覧、Worklogだけに限定した。
+- Migration、DB Schema、Sanitization、認証、Point、Payment、Draw、V2実装は変更していない。
+- 稼働中V1 Runtime、V1本番DB／Redis／Storage、Nginx、`archive/v1-current`、Annotated Tagは変更していない。
+- Production Build／Deployおよび本番DB操作は実行していない。
+
+### 検証
+
+- Backend対象Feature Testは`14 Test／58 Assertion`で成功した。既存HTMLPurifier cache書込Warningは発生したが、Test Failureは0件。
+- Frontend TypecheckとProduction Buildは成功した。
+- Frontend Lintは既存Baselineと同一の`8 Error／1 Warning`で、新規Findingは0件。
+- Composer Manifest Validationと変更PHP FileのSyntax Checkは成功した。
+- Composer Auditは既存`10 Finding`、Frontend Auditは既存`18 Finding`（High `12`／Moderate `6`）で、Dependency Fileを変更しておらず新規Findingは追加していない。
+- `git diff --check`、変更Path、Secret／PII Candidate、Binary／Submodule、V1 RuntimeおよびArchive Refの不変性を確認した。
