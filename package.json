@@ -23,6 +23,8 @@
     "openapi:bundle": "python3 scripts/ci/openapi_contract_gate.py --repository . --write-bundles",
     "openapi:check": "python3 scripts/ci/openapi_contract_gate.py --repository . --check-bundles",
     "openapi:test": "python3 -m unittest discover -s tests/ci/openapi -p 'test_*.py'",
+    "release:test": "python3 -m unittest discover -s tests/release -p 'test_*.py'",
+    "release:validate": "python3 scripts/release/platform_artifact.py validate-source --repository .",
     "site-schema:build": "pnpm --filter @oripa/site-schema build",
     "site-schema:check": "pnpm site-schema:generate:check && pnpm site-schema:typecheck && pnpm site-schema:lint && pnpm site-schema:build && pnpm site-schema:test",
     "site-schema:generate": "pnpm --filter @oripa/site-schema generate",

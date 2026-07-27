@@ -1,27 +1,118 @@
 {
-  "schema_version": "1.0",
-  "release_id": "platform-v2.0.0-example",
-  "release_class": "alpha",
-  "platform_version": "2.0.0-alpha.1",
-  "package_versions": {
-    "@oripa/platform": "2.0.0-alpha.1",
-    "@oripa/site-schema": "2.0.0-alpha.1",
-    "@oripa/storefront-client": "2.0.0-alpha.1",
-    "@oripa/storefront-testkit": "2.0.0-alpha.1"
+  "schema_version": "2.0",
+  "platform": {
+    "version": "2.0.0-alpha.1",
+    "compatibility_family": 2,
+    "channel": "alpha",
+    "tag": "platform-v2.0.0-alpha.1",
+    "source_commit": "1111111111111111111111111111111111111111",
+    "created_at": "2026-07-27T00:00:00Z",
+    "production_allowed": false,
+    "data_retention_guaranteed": false
   },
-  "api_contract_version": "2.0.0-alpha.1",
-  "migration_revision": "example-revision",
-  "source_commit": "0000000000000000000000000000000000000000",
-  "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-  "sbom_reference": "https://example.invalid/sbom/platform-v2.0.0-alpha.1.json",
-  "created_at": "1970-01-01T00:00:00Z",
+  "contracts": {
+    "public": {
+      "version": "2.0.0-alpha.1",
+      "asset": "public.openapi.2.0.0-alpha.1.json",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "admin": {
+      "version": "2.0.0-alpha.1",
+      "asset": "admin.openapi.2.0.0-alpha.1.json",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "webhook": {
+      "version": "2.0.0-alpha.1",
+      "asset": "webhook.openapi.2.0.0-alpha.1.json",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "packages": {
+    "@oripa/storefront-client": {
+      "version": "2.0.0-alpha.1",
+      "asset": "storefront-client-2.0.0-alpha.1.tgz",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "@oripa/site-schema": {
+      "version": "2.0.0-alpha.1",
+      "asset": "site-schema-2.0.0-alpha.1.tgz",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "@oripa/storefront-testkit": {
+      "version": "2.0.0-alpha.1",
+      "asset": "storefront-testkit-2.0.0-alpha.1.tgz",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  },
+  "images": {
+    "api": {
+      "asset": "oripa-api-2.0.0-alpha.1.docker.tar.gz",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "labels": {
+        "org.opencontainers.image.version": "2.0.0-alpha.1",
+        "org.opencontainers.image.revision": "1111111111111111111111111111111111111111",
+        "org.opencontainers.image.source": "https://github.com/ideal-sol/oripa",
+        "org.opencontainers.image.created": "2026-07-27T00:00:00Z",
+        "org.opencontainers.image.title": "Oripa V2 API"
+      },
+      "base_image": "php:8.4-cli-bookworm@sha256:138a210978c7767ef2a26f499c413fe6de1c13233c9a5068139565c81191b1ac"
+    },
+    "admin": {
+      "asset": "oripa-admin-2.0.0-alpha.1.docker.tar.gz",
+      "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "asset_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "labels": {
+        "org.opencontainers.image.version": "2.0.0-alpha.1",
+        "org.opencontainers.image.revision": "1111111111111111111111111111111111111111",
+        "org.opencontainers.image.source": "https://github.com/ideal-sol/oripa",
+        "org.opencontainers.image.created": "2026-07-27T00:00:00Z",
+        "org.opencontainers.image.title": "Oripa V2 Admin"
+      },
+      "base_image": "node:22.22.3-alpine@sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd"
+    }
+  },
+  "database": {
+    "migration_revision": "2026_07_25_000007_create_v2_payment_model_foundation",
+    "migration_count": 7,
+    "migration_set_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "asset": "v2-migrations-2.0.0-alpha.1.tar.gz",
+    "asset_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "rollback_classification": "FORWARD_FIX_OR_REBUILD_ALPHA_NO_DATA_GUARANTEE"
+  },
+  "runtimes": {
+    "php": "8.4.13",
+    "composer": "2.8.12",
+    "laravel": "13.15.0",
+    "node": "22.22.3",
+    "pnpm": "10.12.1",
+    "nextjs": "16.2.11",
+    "postgresql": "17-alpine (deployment baseline; not bundled)",
+    "redis": "7-alpine (deployment baseline; not bundled)",
+    "nginx": "NOT_INCLUDED",
+    "object_storage_client": "aws/aws-sdk-php 3.384.6"
+  },
+  "rollback_classification": "FORWARD_FIX_OR_REBUILD_ALPHA_NO_DATA_GUARANTEE",
   "required_checks": [
     "policy-gate",
     "quality-gate",
     "security-gate",
     "integration-gate",
-    "ci-gate"
+    "ci-gate",
+    "CodeQL",
+    "CodeQL (javascript-typescript)",
+    "dependency-review"
   ],
+  "known_issues_asset": "KNOWN-ISSUES.md",
+  "sbom_assets": [
+    "oripa-api-2.0.0-alpha.1.cdx.json",
+    "oripa-admin-2.0.0-alpha.1.cdx.json"
+  ],
+  "provenance_asset": "platform-2.0.0-alpha.1.provenance.intoto.json",
+  "secret_scan": {
+    "result": "PASS",
+    "candidate_count": 0
+  },
   "production_go": {
     "required": true,
     "approved": false

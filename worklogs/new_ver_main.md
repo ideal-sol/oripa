@@ -3722,3 +3722,111 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `payment_adjustment_prize_actions`、初回`2.0.0-alpha.1` Artifact等が残るため
   `NOT COMPLETE`である。次候補は`MIG-045 Initial 2.0.0-alpha.1 Artifact`だが、
   MIG-044完了後には開始しない。
+
+## MIG-044 Closeout／MIG-045 Initial Platform Alpha Artifact
+
+### MIG-044 Closeout
+
+- MIG-044のPR `#87`はMerged、Issue `#83`はClosedである。Final Headは
+  `4bd3ca56a8a9c7b71430a3a42191548b87fa8cc6`、Squash Commitは
+  `b7cdc941b540fc7e28e985cc7e42c6ab86226469`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-044 Worktreeは削除済みで、Local
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtimeは`bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanであり、
+  V1本番Resource、V1 Migration 40件、Archive Branch、Annotated Tagを変更していない。
+
+### MIG-045 Task／Release Boundary
+
+- Task IDは`MIG-045`、Riskは`R3`、Issueは`#89`、Base SHAは
+  `b7cdc941b540fc7e28e985cc7e42c6ab86226469`である。
+- 推奨された`release/MIG-045-platform-alpha-artifact`は、GitHub App Wrapperが
+  `release/**`をProtected RefとしてTask Pushから拒否するため使用しない。許可済みPrefixの
+  `chore/MIG-045-platform-alpha-artifact`をPR用Task Branchとして使用し、
+  Release Tag `platform-v2.0.0-alpha.1`とは分離する。
+- Versionは`2.0.0-alpha.1`、Compatibility Familyは`2`、Channelは`alpha`である。
+  同じTag、Version、GitHub Release、MIG-045 Issue／PRが存在しないことを開始前に確認した。
+- AlphaはInternal Development専用で、Production／Commercial利用禁止、Stable Data保持保証
+  なしとする。人間のCommercial Production GO、法務、会計、未確定Provider判断は行わない。
+
+### Artifact Foundation
+
+- API／Admin Container Image、3 First-party Package Tarball、Public／Admin／Webhook
+  OpenAPI Bundle、V2 Migration Archive、Release Manifest、Compatibility Matrix、
+  Changelog、Known Issues、Test／Migration／Security Summary、CycloneDX SBOM、
+  in-toto SLSA Provenance、`SHA256SUMS`を固定Sourceから生成するBuilderを追加した。
+- Docker Base ImageはNode、PHP、ComposerをTagだけでなく取得済みManifest Digestへ固定し、
+  Version、Revision、Source、Created、TitleのOCI Labelを必須化した。
+- Release Manifest Schemaを`2.0`へ更新し、API／Admin Image、3 Contract、
+  First-party Package、Migration Set、Exact Runtime、Rollback分類、Known Issues、
+  SBOM、Provenance、Secret Scan、Production GateをStrict Objectとして分離した。
+- BuilderはSource CommitのTimestampを使用し、Migration Archiveとgzip metadataを固定する。
+  Package、Image、Manifest、Provenance、全Asset Checksumを検証し、同じSourceから2回生成した
+  Bundleの全File SHA-256一致を要求する。
+- Provenanceは全Assetと固定Sourceを結ぶ機械可読in-toto Statementである。
+  外部署名IdentityによるCryptographic Signatureは本Alphaでは`NOT_STARTED`で、
+  署名済みとは記録しない。
+- Repository外GitHub App Wrapperへ、Pre-release Tagの自動判定と、
+  固定Repository／Tag／Commit／Release Evidence／Asset SHA-256を必須にする
+  `upload-release-asset`を汎用Operationとして追加した。任意URL、Asset差替え、
+  Token／JWT／Private Key表示は許可しない。
+
+### Initial Verification
+
+- Release Unit Test 5件とPolicy Unit Test 57件はPASSした。
+- Release Source Validationは3 Contract Version `2.0.0-alpha.1`、V2 Migration 7件、
+  Migration Set SHA-256
+  `e2f3b383b89291bbdcb997136f78b6d6f2175b0fe4613409b33525125f94a486`
+  を確認した。
+- WrapperとTask PolicyのPython／JSON Syntax、Owner／Permission、
+  invalid Asset SHA-256拒否TestはPASSした。秘密値は出力していない。
+- Root／Legacy Frozen Install、Audit、Package／Admin／OpenAPI、V2 Database、
+  Image Build／Scan、SBOM、Artifact再現性、GitHub Checkは固定Checkpoint Commit後に
+  全て再実行する。未実行項目をPASSとは記録しない。
+- V1 Runtime、Nginx、V1本番DB／Redis／Storage、V1 Migration、
+  V1 Archive Branch／Annotated Tagを変更していない。
+
+### Local Validation／Image Security
+
+- Root／LegacyのFrozen InstallはPASSした。Root Auditは0 Finding、Legacy Auditは
+  既存Baseline以下の11 Findingで、新規Critical／High Findingは0件だった。
+  Composer Auditは既存の期限付き10 Findingと完全一致し、Baselineを追加・拡張していない。
+- AdminのTypecheck／Lint／Build、Legacy FrontendのTypecheck／Build、
+  Storefront Client 9 Test、Site Schema 10 Test、Storefront Testkit 16 Test、
+  OpenAPI 4 TestとBundle差分検査はPASSした。Legacy Lintは既存Baselineの
+  8 Error／1 Warningと完全一致した。
+- Persistent／Task専用Ephemeral V2 PostgreSQL 17／Redis 7で
+  `migrate:fresh`を2回実行し、V2 PHPUnit 82 Test／432 Assertion、
+  Backup／Restore、Schema／Migration Checksum、Resource CleanupはPASSした。
+  Source／Restore Schema SHA-256は
+  `deb895e3245d2d6c06c96b336f23dbf465434f69d647c2efcc9ddcb65c916b49`、
+  Migration Row SHA-256は
+  `951f49f3fe666b8140006863fae87bfdffcbac280f8434fc2b4f2d16235a343e`である。
+- API Imageの初回Scanは、公式PHP Base Imageに含まれる
+  `linux-libc-dev 6.1.176-1`の修正可能なHigh Finding 10件を検出し、
+  Artifact生成をFail Closedで停止した。Build dependencyをmulti-stageへ隔離し、
+  Runtimeの同PackageをExact `6.1.177-1`へ更新した再Scanでは
+  Critical／High Finding 0件となった。`pcntl`、`pdo_pgsql`、`zip`のRuntime Moduleは
+  維持され、Application Logicは変更していない。
+- Trivy Vulnerability ReportのScan時刻とCycloneDXのUUID／生成時刻を除去して
+  正規化し、Security Evidenceの内容を維持したまま同一SourceのByte再現性を検証可能にした。
+  Admin ImageはNext.js standaloneのmulti-stage Runtimeへ変更し、Root Workspaceと
+  Runtime不要のglobal `npm`／`corepack`をRelease Imageへ残さない。Admin Runtimeは
+  180,269,440 ByteでHealth Endpointが成功し、再ScanはCritical／High 0件だった。
+  Composer VersionはAPI RuntimeへBuild toolを残さず、Digest固定したComposer Imageから
+  収集する。
+  Docker ArchiveはOCI Layoutの`manifest.json`から拡張子なしConfig Blobを解決して
+  Digest／OCI Labelを検証し、外装Tar Headerを固定Commit時刻へ正規化する。
+  CycloneDXの参照IDもComponent内容から決定する。Release Unit Test 10件、
+  Policy Unit Test 58件、Quality Unit Test 5件、
+  Security Unit Test 4件、DB Guard Unit Test 16件、
+  `policy-gate`、`quality-gate`、`security-gate`はPASSした。
+- Host PHPは8.3.31のためPHP 8.4を要求するComposer Lockを直接Installできなかった。
+  Release API Image内のPHP 8.4でFrozen Composer Install、Module確認、Image Scanを
+  実行して代替し、Host失敗をPASSとは記録しない。
+- Final Headは本節とImage Security修正を含むCommitへ固定し、同一Sourceからの
+  Artifact二重生成、全Asset SHA-256一致、Required／Available Check、
+  Fresh Self-reviewをPR上で確定する。PR Merge後はSquash CommitをRelease Sourceとして
+  同じ検証を再実行する。

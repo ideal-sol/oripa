@@ -1,67 +1,225 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Oripa V2 Release Manifest",
-  "description": "Release metadata schema. It contains no secret or deployment credential.",
+  "title": "Oripa V2 Platform Release Manifest",
+  "description": "Immutable Platform Release metadata without secrets, credentials, production data or PII.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "platform_version",
-    "package_versions",
-    "api_contract_version",
-    "migration_revision",
-    "source_commit",
-    "image_digest",
-    "sbom_reference",
-    "created_at"
+    "platform",
+    "contracts",
+    "packages",
+    "images",
+    "database",
+    "runtimes",
+    "rollback_classification",
+    "required_checks",
+    "known_issues_asset",
+    "sbom_assets",
+    "provenance_asset",
+    "secret_scan",
+    "production_go"
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "const": "2.0"
     },
-    "release_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "release_class": {
-      "enum": [
-        "alpha",
-        "beta",
-        "stable"
-      ]
-    },
-    "platform_version": {
-      "$ref": "#/$defs/semantic_version"
-    },
-    "package_versions": {
+    "platform": {
       "type": "object",
-      "minProperties": 1,
-      "additionalProperties": {
-        "$ref": "#/$defs/semantic_version"
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "compatibility_family",
+        "channel",
+        "tag",
+        "source_commit",
+        "created_at",
+        "production_allowed",
+        "data_retention_guaranteed"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/semantic_version"
+        },
+        "compatibility_family": {
+          "type": "integer"
+        },
+        "channel": {
+          "enum": [
+            "alpha",
+            "beta",
+            "stable"
+          ]
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^platform-v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/full_sha"
+        },
+        "created_at": {
+          "$ref": "#/$defs/utc_date_time"
+        },
+        "production_allowed": {
+          "type": "boolean"
+        },
+        "data_retention_guaranteed": {
+          "type": "boolean"
+        }
       }
     },
-    "api_contract_version": {
-      "$ref": "#/$defs/semantic_version"
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public",
+        "admin",
+        "webhook"
+      ],
+      "properties": {
+        "public": {
+          "$ref": "#/$defs/contract"
+        },
+        "admin": {
+          "$ref": "#/$defs/contract"
+        },
+        "webhook": {
+          "$ref": "#/$defs/contract"
+        }
+      }
     },
-    "migration_revision": {
+    "packages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "@oripa/storefront-client",
+        "@oripa/site-schema",
+        "@oripa/storefront-testkit"
+      ],
+      "properties": {
+        "@oripa/storefront-client": {
+          "$ref": "#/$defs/package"
+        },
+        "@oripa/site-schema": {
+          "$ref": "#/$defs/package"
+        },
+        "@oripa/storefront-testkit": {
+          "$ref": "#/$defs/package"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "api",
+        "admin"
+      ],
+      "properties": {
+        "api": {
+          "$ref": "#/$defs/image"
+        },
+        "admin": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "migration_revision",
+        "migration_count",
+        "migration_set_sha256",
+        "asset",
+        "asset_sha256",
+        "rollback_classification"
+      ],
+      "properties": {
+        "migration_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "migration_count": {
+          "type": "integer"
+        },
+        "migration_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "asset": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "asset_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rollback_classification": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "runtimes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "php",
+        "composer",
+        "laravel",
+        "node",
+        "pnpm",
+        "nextjs",
+        "postgresql",
+        "redis",
+        "nginx",
+        "object_storage_client"
+      ],
+      "properties": {
+        "php": {
+          "type": "string",
+          "minLength": 1
+        },
+        "composer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "laravel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pnpm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nextjs": {
+          "type": "string",
+          "minLength": 1
+        },
+        "postgresql": {
+          "type": "string",
+          "minLength": 1
+        },
+        "redis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nginx": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object_storage_client": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "rollback_classification": {
       "type": "string",
       "minLength": 1
-    },
-    "source_commit": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{40}$"
-    },
-    "image_digest": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "sbom_reference": {
-      "type": "string",
-      "minLength": 1
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time"
     },
     "required_checks": {
       "type": "array",
@@ -69,6 +227,38 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "known_issues_asset": {
+      "$ref": "#/$defs/asset_name"
+    },
+    "sbom_assets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/asset_name"
+      }
+    },
+    "provenance_asset": {
+      "$ref": "#/$defs/asset_name"
+    },
+    "secret_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "candidate_count"
+      ],
+      "properties": {
+        "result": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "candidate_count": {
+          "type": "integer"
+        }
       }
     },
     "production_go": {
@@ -92,6 +282,122 @@
     "semantic_version": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+    },
+    "full_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "oci_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "utc_date_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "asset_name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@._+-]+$"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "asset",
+        "sha256"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/semantic_version"
+        },
+        "asset": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "asset",
+        "sha256"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/semantic_version"
+        },
+        "asset": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset",
+        "digest",
+        "asset_sha256",
+        "labels",
+        "base_image"
+      ],
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "digest": {
+          "$ref": "#/$defs/oci_digest"
+        },
+        "asset_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "org.opencontainers.image.version",
+            "org.opencontainers.image.revision",
+            "org.opencontainers.image.source",
+            "org.opencontainers.image.created",
+            "org.opencontainers.image.title"
+          ],
+          "properties": {
+            "org.opencontainers.image.version": {
+              "$ref": "#/$defs/semantic_version"
+            },
+            "org.opencontainers.image.revision": {
+              "$ref": "#/$defs/full_sha"
+            },
+            "org.opencontainers.image.source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "org.opencontainers.image.created": {
+              "$ref": "#/$defs/utc_date_time"
+            },
+            "org.opencontainers.image.title": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "base_image": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}$"
+        }
+      }
     }
   }
 }
