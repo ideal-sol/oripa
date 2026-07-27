@@ -73,6 +73,7 @@ return [
         'register_email' => [3, 3600],
         'verification_resend_hour' => [3, 3600],
         'verification_resend_day' => [10, 86400],
+        'draw_mutation' => [20, 60],
     ],
 
     'audit_persistence_ready' => true,

@@ -3932,3 +3932,114 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4はCatalog／ProbabilityのRead-only Vertical Sliceまで進んだが、
   Draw Vertical Slice等が残るため`NOT COMPLETE`である。次Task候補は
   `MIG-051 Draw Vertical Slice`だが、本Task完了後には開始しない。
+
+## MIG-050 Closeout／MIG-051 V2 Draw Vertical Slice
+
+### MIG-050 Closeout
+
+- MIG-050のIssue `#103`はClosed、PR `#104`はMergedである。Final Headは
+  `563aa8838d266c9233fce448c4855e89961d9039`、Squash Commitは
+  `6ba4a949bf41526a8b09c3c544bf30b9bd3ac2fa`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-050 Worktreeは削除済みである。開始時にLocal
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、V1本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### MIG-051 Task／Schema
+
+- Task IDは`MIG-051`、Riskは`R3`、Issueは`#105`、Branchは
+  `feat/MIG-051-draw-vertical-slice`、Base SHAは
+  `6ba4a949bf41526a8b09c3c544bf30b9bd3ac2fa`である。
+- V2専用Migration Rootへ`gacha_draw_states`、`prize_inventories`、
+  `draw_requests`、`draw_results`、`user_prizes`を追加した。
+  有効な`user_prizes` FKを参照できる段階になったため、MIG-044で延期した
+  `payment_adjustment_prize_actions`も追加した。Chargeback時の景品自動取消や
+  自動復元は実装していない。
+- 内部PKは`bigint`、Public ResourceはUUIDv7、Point／Count／Sequenceは整数とした。
+  負数、許可外Draw Count、Draw Sequence重複、Draw Request内Sequence重複を
+  DB Constraintで拒否する。`tenant_id`、内部原価、個別ppmのPublic公開はない。
+- Published Catalog／Probability VersionをDraw Requestへ固定し、Draw時点の
+  表示SnapshotとChecksumを保存する。Core状態をJSONBだけでは管理しない。
+
+### Contract／Transaction
+
+- Public OpenAPIへ`createDraw`と`getDrawRequest`を追加し、Public Operationは
+  13件、Admin 9件、Webhook 0件である。全Draw Countで`Idempotency-Key`を必須とし、
+  RFC 9457 Error、User Realm、CSRF、Exact Origin、JSON Content Typeを既存境界で
+  検査する。
+- Storefront ClientへPublic Draw Facadeと生成型を追加し、Storefront Testkitへ
+  Draw Fixtureを追加した。Admin／Webhook型、内部`id`、個別ppmは公開していない。
+- Lock順はIdempotency Record／Draw Request、Gacha Mutable State、Wallet、
+  Point Lot、Prize Inventoryの内部ID昇順、Draw Result／User Prizeである。
+  Point消費、Inventory、Draw Result、User Prize、Audit、Outboxを単一DB Transactionで
+  確定し、外部HTTP、Mail、S3、Provider通信はTransaction内で実行しない。
+- `1`／`5`／`10`／`100`／`1000`だけを受け付ける。Point不足、残口数不足、
+  Inventory不足、非公開Catalogは永続Draw履歴を作成せず拒否する。
+  同一Key／同一RequestはCanonical Resultを返し、異なるRequestはConflict、
+  処理中はFail Closedとする。ReplayではCSPRNGを再実行しない。
+- Deadlock／Serialization Failureは、最初に生成した同一CSPRNG列と同一Keyで
+  最大3回だけRetryする。Terminal状態を巻き戻さない。Retentionは30日とし、
+  Terminal Recordだけを後続Cleanup対象にする。
+
+### Probability／Set-based Persistence
+
+- V1固定Sourceと承認済みTestをChecksum付きCharacterization Fixtureへ固定した。
+  各DrawでCSPRNGを生成し、Draw Sequenceに従ってProbability Stageを順方向へ評価する。
+  Stage単位Range CacheとPointerを使用し、閾値跨ぎ時だけ次Stageへ進む。
+- Minimum GuaranteeはV1どおり、在庫切れPrizeのppmをStageのMinimum Guaranteeへ
+  合算し、`prize`またはfree Pointの`point_back`だけを結果とする。
+  `no_prize`や期待値による一括近似は使用しない。
+- 1000件を順序どおりメモリ上で生成し、Draw Result／User Prizeを250件単位で
+  Bulk Insertする。Point Back Lot／Ledgerは専用Bulk Domain Methodで保存し、
+  Wallet更新を集約する。個別履歴、Sequence、Point由来、Auditの追跡性は省略しない。
+- ResponseはDraw Request Public ID、実行数、Point消費内訳、更新後Wallet、
+  Rank／Prize集計、Point Back、高Rank上限付き結果、Probability Version、
+  Replay、Request ID、状態を返す。100／1000回で1000件の個別結果は返さない。
+
+### Local Verification／Performance
+
+- Persistent V2 PostgreSQL 17／Redis 7でV2 `migrate:fresh`を2回実行し、
+  Migration Status、全V2 Test、Schema Inventory、HealthはPASSした。
+  V2 Migrationは9件、Migration Set SHA-256は
+  `bb045db7e8d9e88ff3430b842d1c7e6cb6c37c4f2026a1806af83f106b709451`
+  である。
+- Draw対象Test、V1 Characterization、HTTP Auth／CSRF／Origin、
+  Point／Payment／Refund／Chargeback／Audit／Outbox Regression、
+  Policy Unit Test 65件、DB Guard Unit Test 17件、OpenAPI Unit Test 4件は
+  PASSした。
+- 単独100回は5回でp50約150ms、p95約159ms、単独1000回は5回で
+  p50約434ms、p95約528msだった。1000回のQuery数は最大57、
+  Response Sizeは最大約18.5KBで、V2 Merge基準の2秒／100 Query以内である。
+- 同一Gachaへの1000回集中実行は、5 User最終約3.4秒、10 User最終約7.2秒、
+  20 User最終約14.1秒だった。別Gacha 20 Userは最終約14.5秒である。
+  最大Query数64、未解決Deadlock 0、500／502／504 0、Point／Inventory／
+  Draw History不整合0だった。
+- Storefront Clientは生成差分、Typecheck、Lint、Build、TestがPASSした。
+  Site Schema、Admin、Storefront Testkitの生成差分、Typecheck、Lint、Build、
+  18 Test、Export Surface、実Network禁止検査もPASSした。
+- Task専用Ephemeral Source／RestoreでV2 `migrate:fresh`を2回実行し、
+  全V2 Test、Draw Load Test、API／Admin Health、Backup／Restore、
+  Resource CleanupはPASSした。Source／Restore Schema SHA-256は
+  `398c1295cae5416c9e165301cb58bd47ea3b297b57d5d7f42bbd22a8cd5c6cd2`、
+  Migration Row SHA-256は
+  `1d08dfe9c592cecf7d23cac47a0d8ce0e3fd43d3f30304a12a6ed8b7bd6e5b11`、
+  Backup SHA-256は
+  `1f3c746cb9ba3e6d9d662f223a2d1da1491ad39bef31d7db1796a3e77ce0fd58`
+  で一致した。
+- Root／Legacy Frozen InstallはPASSした。Root Auditは0 Finding、Legacy Auditは
+  既存Baseline以下の11 Finding、Composer Auditは既存期限付き10 Findingと一致し、
+  Baselineを追加・拡張していない。新規Critical／High Findingは0件である。
+- Legacy FrontendのTypecheck／BuildはPASSし、Lintは既存Baselineの
+  8 Error／1 Warningと完全一致した。Required／Available GitHub Checkと
+  Final Head固定後のFresh Self-reviewはPR上で確定する。
+- Storefront UI、Animation、Admin Mutation、Prize Exchange、Shipping、QA Draw、
+  Payment Provider、Production Deploymentは実装・実行していない。
+- V1 Runtime、本番Resource、Nginx、`v1/early-release`、V1 Migration 40件、
+  Archive Branch、Annotated Tagを変更していない。
+- Handoff CはCatalog ReadとDraw WriteのContract／DB境界まで実装済みだが、
+  Prize／Exchange／Shipping Vertical Sliceが残る。Gate G4は`NOT COMPLETE`である。
+  次Task候補は`MIG-052 Prize／Exchange／Shipping Vertical Slice`だが、
+  MIG-051完了後には開始しない。

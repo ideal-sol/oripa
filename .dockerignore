@@ -2,6 +2,7 @@
 .env
 .env.*
 !*.env.example
+node_modules
 # Local pre-MIG-021 residue is not copied or deleted by the mechanical move.
 backend/vendor
 backend/storage/logs/*

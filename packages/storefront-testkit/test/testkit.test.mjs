@@ -19,6 +19,7 @@ import {
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
+  PUBLIC_DRAW_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
   PUBLIC_RESPONSE_METADATA_FIXTURE,
   TestkitAssertionError,
@@ -31,6 +32,14 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
+
+test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含まない", () => {
+  assert.equal(PUBLIC_DRAW_FIXTURE.requested_count, 1000);
+  assert.equal(PUBLIC_DRAW_FIXTURE.executed_count, 1000);
+  assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
+  const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
+  assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
 
 const SITE_VERSION = "1.0.0-alpha.1";
 const CLIENT_VERSION = "2.0.0-alpha.1";
@@ -307,10 +316,12 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつ認証／Catalog Operation 11件である", () => {
+test("Public OpenAPIは3.1.1かつ認証／Catalog／Draw Operation 13件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 11);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 13);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "createDraw",
+    "getDrawRequest",
     "getGacha",
     "getGachaBySlug",
     "getUserSession",
@@ -383,6 +394,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PLATFORM_COMPATIBILITY_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
+    "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "TestkitAssertionError",
     "TestkitNetworkError",

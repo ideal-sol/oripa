@@ -49,6 +49,7 @@ STOREFRONT_CLIENT_REQUIRED_FILES = {
     "packages/storefront-client/src/browser.ts",
     "packages/storefront-client/src/catalog.ts",
     "packages/storefront-client/src/constants.ts",
+    "packages/storefront-client/src/draw.ts",
     "packages/storefront-client/src/errors.ts",
     "packages/storefront-client/src/generated/public.ts",
     "packages/storefront-client/src/index.ts",
@@ -286,6 +287,31 @@ V2_CATALOG_REQUIRED_FILES = {
     "openapi/bundled/public.openapi.json",
     "openapi/public/openapi.yaml",
     "packages/storefront-client/src/catalog.ts",
+    "packages/storefront-client/src/generated/public.ts",
+    "packages/storefront-testkit/src/fixtures.ts",
+    "packages/storefront-testkit/src/generated/public-contract.ts",
+}
+V2_DRAW_REQUIRED_FILES = {
+    "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
+    "apps/api/app/Domain/Draw/Services/V2CryptographicRandomSource.php",
+    "apps/api/app/Domain/Draw/Services/V2DrawService.php",
+    "apps/api/app/Domain/Draw/Services/V2DrawTransactionRunner.php",
+    "apps/api/app/Http/Controllers/V2/V2DrawController.php",
+    "apps/api/app/Models/V2/DrawRequest.php",
+    "apps/api/app/Models/V2/DrawResult.php",
+    "apps/api/app/Models/V2/GachaDrawState.php",
+    "apps/api/app/Models/V2/PrizeInventory.php",
+    "apps/api/app/Models/V2/UserPrize.php",
+    "apps/api/config/v2_draw.php",
+    "apps/api/database/migrations-v2/2026_07_29_000009_create_v2_draw_vertical_slice.php",
+    "apps/api/tests/V2/DrawVerticalSliceTest.php",
+    "apps/api/tests/V2/V1DrawCharacterizationTest.php",
+    "apps/api/tests/V2/Fixtures/v1-draw-characterization.json",
+    "apps/api/tests/V2/ZDrawConcurrencyLoadTest.php",
+    "docs/operations/draw/README.md",
+    "openapi/bundled/public.openapi.json",
+    "openapi/public/openapi.yaml",
+    "packages/storefront-client/src/draw.ts",
     "packages/storefront-client/src/generated/public.ts",
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
@@ -1176,7 +1202,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 11,
+        "publicApiOperationCount": 13,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1194,8 +1220,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 11",
-        '"getGacha","getGachaBySlug","getUserSession","listGachaCategories","listGachaTags","listGachas","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"',
+        "operation_count: 13",
+        '"createDraw","getDrawRequest","getGacha","getGachaBySlug","getUserSession","listGachaCategories","listGachaTags","listGachas","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1405,6 +1431,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_24_000006_create_v2_point_model_foundation.php",
         "2026_07_25_000007_create_v2_payment_model_foundation.php",
         "2026_07_28_000008_create_v2_catalog_probability_foundation.php",
+        "2026_07_29_000009_create_v2_draw_vertical_slice.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1567,6 +1594,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             and "mig043-v2-" not in workflow
             and "mig044-v2-" not in workflow
             and "mig050-v2-" not in workflow
+            and "mig051-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -2164,8 +2192,118 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     workflow = (
         repository / ".github/workflows/platform-ci.yml"
     ).read_text(encoding="utf-8")
-    if "mig050-v2-" not in workflow:
+    if "mig050-v2-" not in workflow and "mig051-v2-" not in workflow:
         raise PolicyFailure("platform-ci V2 Catalog project boundary is missing")
+
+
+def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_DRAW_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure("required V2 Draw files missing: " + ", ".join(missing))
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_29_000009_create_v2_draw_vertical_slice.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "gacha_draw_states",
+        "prize_inventories",
+        "draw_requests",
+        "draw_results",
+        "user_prizes",
+        "payment_adjustment_prize_actions",
+        "draw_results_gacha_sequence_unique",
+        "v2_reject_draw_history_mutation",
+        "ARRAY[1,5,10,100,1000]",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Draw migration missing {required}")
+    for prohibited in ("tenant_id", "no_prize", "float", "decimal"):
+        if prohibited in migration:
+            raise PolicyFailure(f"V2 Draw migration contains prohibited {prohibited}")
+
+    service = (
+        repository / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "random->integer(0, 999_999)",
+        "lockForUpdate()",
+        "rangeCache",
+        "stageIndex",
+        "array_chunk",
+        "consumeForDraw",
+        "grantDrawPointBackBatch",
+        "draw.idempotent_replay",
+        "draw.completed",
+        "draw.events",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Draw service missing {required}")
+    for prohibited in (
+        "Math.random",
+        "SKIP LOCKED",
+        "tenant_id",
+        "individual_ppm",
+        "no_prize",
+    ):
+        if prohibited in service:
+            raise PolicyFailure(f"V2 Draw service contains prohibited {prohibited}")
+
+    bundle = load_json(repository, "openapi/bundled/public.openapi.json")
+    operations = {
+        operation.get("operationId")
+        for path_item in bundle.get("paths", {}).values()
+        if isinstance(path_item, dict)
+        for operation in path_item.values()
+        if isinstance(operation, dict)
+    }
+    for required in ("createDraw", "getDrawRequest"):
+        if required not in operations:
+            raise PolicyFailure(f"Public Draw contract missing {required}")
+    public_contract = json.dumps(bundle, ensure_ascii=False).lower()
+    for prohibited in (
+        "individual_ppm",
+        "random_value",
+        "internal_id",
+        "cost_price",
+    ):
+        if prohibited in public_contract:
+            raise PolicyFailure(f"Public Draw contract exposes prohibited {prohibited}")
+
+    client = (
+        repository / "packages/storefront-client/src/draw.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "createDraw",
+        "getDrawRequest",
+        "idempotency_key",
+        'csrf: "required"',
+        "1 | 5 | 10 | 100 | 1000",
+    ):
+        if required not in client:
+            raise PolicyFailure(f"Storefront Draw Client missing {required}")
+
+    tests = (
+        repository / "apps/api/tests/V2/DrawVerticalSliceTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response",
+        "test_stage_pointer_minimum_guarantee_and_point_back_follow_draw_order",
+        "test_idempotent_replay_returns_canonical_result_and_conflict_is_rejected",
+        "test_chunk_failure_rolls_back_point_inventory_history_audit_and_outbox",
+        "test_response_audit_and_outbox_do_not_expose_internal_or_sensitive_fields",
+        "test_single_bulk_performance_meets_merge_thresholds",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Draw test missing {required}")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    if "mig051-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -2604,6 +2742,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_point_boundary(repository, paths)
     validate_v2_payment_boundary(repository, paths)
     validate_v2_catalog_boundary(repository, paths)
+    validate_v2_draw_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

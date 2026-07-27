@@ -12,6 +12,7 @@
         <include>
             <directory>app/Domain/Identity</directory>
             <directory>app/Domain/Catalog</directory>
+            <directory>app/Domain/Draw</directory>
             <directory>app/Domain/Point</directory>
             <directory>app/Http/Middleware/V2</directory>
             <directory>app/Models/V2</directory>

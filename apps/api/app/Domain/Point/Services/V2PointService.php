@@ -13,6 +13,7 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final class V2PointService
 {
@@ -267,6 +268,331 @@ final class V2PointService
         });
     }
 
+    /**
+     * Draw Transaction内で既存のfree優先／paid FIFO規則を適用する。
+     *
+     * @return array{
+     *   operation: PointOperation,
+     *   paid: int,
+     *   free: int,
+     *   wallet_paid_after: int,
+     *   wallet_free_after: int
+     * }
+     */
+    public function consumeForDraw(
+        int $userId,
+        int $amount,
+        int $drawRequestId,
+        string $drawRequestPublicId,
+        CarbonInterface $occurredAt
+    ): array {
+        if (
+            DB::transactionLevel() < 1
+            || $amount <= 0
+            || $drawRequestId < 1
+            || ! Str::isUuid($drawRequestPublicId)
+        ) {
+            throw new V2PointException('Draw point consumption input is invalid.');
+        }
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $wallet = $this->lockWallet($userId);
+        $availablePaid = (int) $wallet->paid_balance
+            - (int) $wallet->paid_reserved_balance;
+        $freeLots = $this->lockFreeLots($userId, $occurred);
+        $availableFree = $freeLots->sum(
+            fn (PointLot $lot): int =>
+                (int) $lot->remaining_amount - (int) $lot->reserved_amount
+        );
+        if ($availableFree + $availablePaid < $amount) {
+            throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
+        }
+        $freeToConsume = min($amount, $availableFree);
+        $paidToConsume = $amount - $freeToConsume;
+        $paidLots = $paidToConsume > 0
+            ? $this->lockPaidLots($userId)
+            : collect();
+        $operation = $this->operation(
+            $userId,
+            'spend',
+            'draw',
+            'draw.consume:'.$drawRequestPublicId,
+            $occurred,
+            'user',
+            $userId,
+            $drawRequestId
+        );
+        $sequence = 1;
+        $remainingFree = $freeToConsume;
+        $runningFree = (int) $wallet->free_balance;
+        $this->consumeLotsForDraw(
+            $freeLots,
+            $remainingFree,
+            $operation,
+            $wallet,
+            'free',
+            $runningFree,
+            $sequence,
+            $occurred
+        );
+        $remainingPaid = $paidToConsume;
+        $runningPaid = (int) $wallet->paid_balance;
+        $this->consumeLotsForDraw(
+            $paidLots,
+            $remainingPaid,
+            $operation,
+            $wallet,
+            'paid',
+            $runningPaid,
+            $sequence,
+            $occurred
+        );
+        if ($remainingFree !== 0 || $remainingPaid !== 0) {
+            throw new V2PointException('Locked point lots do not match wallet availability.');
+        }
+        $wallet->forceFill([
+            'paid_balance' => $runningPaid,
+            'free_balance' => $runningFree,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+
+        return [
+            'operation' => $operation,
+            'paid' => $paidToConsume,
+            'free' => $freeToConsume,
+            'wallet_paid_after' => $runningPaid,
+            'wallet_free_after' => $runningFree,
+        ];
+    }
+
+    /**
+     * @param list<array{
+     *   draw_result_id: int,
+     *   draw_result_public_id: string,
+     *   amount: int
+     * }> $grants
+     * @return array{total: int, wallet_free_after: int}
+     */
+    public function grantDrawPointBackBatch(
+        int $userId,
+        int $drawRequestId,
+        string $drawRequestPublicId,
+        array $grants,
+        CarbonInterface $occurredAt
+    ): array {
+        if (
+            DB::transactionLevel() < 1
+            || $drawRequestId < 1
+            || ! Str::isUuid($drawRequestPublicId)
+        ) {
+            throw new V2PointException('Draw point-back input is invalid.');
+        }
+        if ($grants === []) {
+            $wallet = $this->lockWallet($userId);
+
+            return ['total' => 0, 'wallet_free_after' => (int) $wallet->free_balance];
+        }
+
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $expiry = $occurred->addDays((int) config('v2_draw.point_back_expiry_days', 180));
+        $businessDate = $occurred->setTimezone('Asia/Tokyo')->toDateString();
+        $wallet = $this->lockWallet($userId);
+        $operationRows = [];
+        $operationKeys = [];
+        $total = 0;
+        foreach ($grants as $grant) {
+            if (
+                ! isset(
+                    $grant['draw_result_id'],
+                    $grant['draw_result_public_id'],
+                    $grant['amount']
+                )
+                || ! is_int($grant['draw_result_id'])
+                || $grant['draw_result_id'] < 1
+                || ! is_string($grant['draw_result_public_id'])
+                || ! Str::isUuid($grant['draw_result_public_id'])
+                || ! is_int($grant['amount'])
+                || $grant['amount'] < 0
+            ) {
+                throw new V2PointException('Draw point-back grant is invalid.');
+            }
+            if ($grant['amount'] === 0) {
+                continue;
+            }
+            $businessKey = 'draw.point_back:'.$grant['draw_result_public_id'];
+            $operationKeys[$grant['draw_result_id']] = $businessKey;
+            $operationRows[] = [
+                'public_id' => (string) Str::uuid7(),
+                'user_id' => $userId,
+                'operation_type' => 'free_grant',
+                'business_key' => $businessKey,
+                'source_type' => 'draw',
+                'source_id' => $drawRequestId,
+                'actor_type' => 'system',
+                'actor_id' => null,
+                'is_qa' => false,
+                'qa_draw_execution_id' => null,
+                'occurred_at' => $occurred,
+                'business_date' => $businessDate,
+                'metadata' => json_encode([
+                    'draw_request_public_id' => $drawRequestPublicId,
+                ], JSON_THROW_ON_ERROR),
+                'created_at' => $occurred,
+            ];
+            $total += $grant['amount'];
+        }
+        if ($operationRows === []) {
+            return ['total' => 0, 'wallet_free_after' => (int) $wallet->free_balance];
+        }
+        foreach (array_chunk($operationRows, 250) as $chunk) {
+            DB::table('point_operations')->insert($chunk);
+        }
+        $operations = PointOperation::query()
+            ->whereIn('business_key', array_values($operationKeys))
+            ->get()
+            ->keyBy('business_key');
+        $lotRows = [];
+        $grantByOperation = [];
+        foreach ($grants as $grant) {
+            if ($grant['amount'] === 0) {
+                continue;
+            }
+            $operation = $operations->get($operationKeys[$grant['draw_result_id']]);
+            if (! $operation instanceof PointOperation) {
+                throw new V2PointException('Draw point-back operation mapping failed.');
+            }
+            $grantByOperation[$operation->id] = $grant;
+            $lotRows[] = [
+                'user_id' => $userId,
+                'grant_operation_id' => $operation->id,
+                'point_type' => 'free',
+                'granted_amount' => $grant['amount'],
+                'remaining_amount' => $grant['amount'],
+                'reserved_amount' => 0,
+                'granted_at' => $occurred,
+                'expire_at' => $expiry,
+                'created_at' => $occurred,
+                'updated_at' => $occurred,
+            ];
+        }
+        foreach (array_chunk($lotRows, 250) as $chunk) {
+            DB::table('point_lots')->insert($chunk);
+        }
+        $lots = PointLot::query()
+            ->whereIn('grant_operation_id', array_keys($grantByOperation))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('grant_operation_id');
+        $runningFree = (int) $wallet->free_balance;
+        $ledgerRows = [];
+        foreach ($operations->sortBy('id') as $operation) {
+            $lot = $lots->get($operation->id);
+            $grant = $grantByOperation[$operation->id] ?? null;
+            if (! $lot instanceof PointLot || ! is_array($grant)) {
+                throw new V2PointException('Draw point-back lot mapping failed.');
+            }
+            $runningFree += $grant['amount'];
+            $ledgerRows[] = [
+                'point_operation_id' => $operation->id,
+                'sequence_no' => 1,
+                'user_id' => $userId,
+                'wallet_id' => $wallet->id,
+                'point_lot_id' => $lot->id,
+                'point_type' => 'free',
+                'entry_type' => 'grant',
+                'amount_delta' => $grant['amount'],
+                'wallet_balance_after' => $runningFree,
+                'lot_remaining_after' => $grant['amount'],
+                'occurred_at' => $occurred,
+                'business_date' => $businessDate,
+                'created_at' => $occurred,
+            ];
+        }
+        foreach (array_chunk($ledgerRows, 250) as $chunk) {
+            DB::table('point_ledger_entries')->insert($chunk);
+        }
+        $wallet->forceFill([
+            'free_balance' => $runningFree,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+
+        return ['total' => $total, 'wallet_free_after' => $runningFree];
+    }
+
+    /**
+     * Draw TransactionではLock済みLotを同じ消費順のまま一括永続化する。
+     *
+     * @param Collection<int, PointLot> $lots
+     */
+    private function consumeLotsForDraw(
+        Collection $lots,
+        int &$remaining,
+        PointOperation $operation,
+        Wallet $wallet,
+        string $pointType,
+        int &$runningBalance,
+        int &$sequence,
+        CarbonImmutable $occurred
+    ): void {
+        $updates = [];
+        $ledgerRows = [];
+        $businessDate = $occurred->setTimezone('Asia/Tokyo')->toDateString();
+        foreach ($lots as $lot) {
+            if ($remaining === 0) {
+                break;
+            }
+            $available = (int) $lot->remaining_amount - (int) $lot->reserved_amount;
+            $used = min($remaining, $available);
+            if ($used <= 0) {
+                continue;
+            }
+            $lotRemaining = (int) $lot->remaining_amount - $used;
+            $runningBalance -= $used;
+            if ($runningBalance < 0 || $lotRemaining < 0) {
+                throw new V2PointException('Point consumption would create a negative balance.');
+            }
+            $updates[(int) $lot->id] = $lotRemaining;
+            $ledgerRows[] = [
+                'point_operation_id' => $operation->id,
+                'sequence_no' => $sequence++,
+                'user_id' => $operation->user_id,
+                'wallet_id' => $wallet->id,
+                'point_lot_id' => $lot->id,
+                'point_type' => $pointType,
+                'entry_type' => 'spend',
+                'amount_delta' => -$used,
+                'wallet_balance_after' => $runningBalance,
+                'lot_remaining_after' => $lotRemaining,
+                'occurred_at' => $occurred,
+                'business_date' => $businessDate,
+                'created_at' => $occurred,
+            ];
+            $lot->forceFill(['remaining_amount' => $lotRemaining]);
+            $remaining -= $used;
+        }
+        foreach (array_chunk($updates, 250, true) as $chunk) {
+            $cases = [];
+            $bindings = [];
+            foreach ($chunk as $id => $lotRemaining) {
+                $cases[] = 'WHEN ?::bigint THEN ?::bigint';
+                $bindings[] = $id;
+                $bindings[] = $lotRemaining;
+            }
+            $bindings[] = $occurred;
+            $ids = array_keys($chunk);
+            array_push($bindings, ...$ids);
+            DB::update(
+                'UPDATE point_lots SET remaining_amount = CASE id '.
+                implode(' ', $cases).
+                ' END, updated_at = ? WHERE id IN ('.
+                implode(',', array_fill(0, count($ids), '?')).')',
+                $bindings
+            );
+        }
+        foreach (array_chunk($ledgerRows, 250) as $chunk) {
+            DB::table('point_ledger_entries')->insert($chunk);
+        }
+    }
+
     public function expireFree(CarbonInterface $cutoff): int
     {
         $cutoffAt = CarbonImmutable::parse($cutoff)->startOfSecond();
@@ -444,7 +770,8 @@ final class V2PointService
         string $businessKey,
         CarbonImmutable $occurred,
         string $actorType = 'system',
-        ?int $actorId = null
+        ?int $actorId = null,
+        ?int $sourceId = null
     ): PointOperation {
         $operation = new PointOperation();
         $operation->forceFill([
@@ -452,6 +779,7 @@ final class V2PointService
             'operation_type' => $type,
             'business_key' => $businessKey,
             'source_type' => $sourceType,
+            'source_id' => $sourceId,
             'actor_type' => $actorType,
             'actor_id' => $actorId,
             'is_qa' => false,

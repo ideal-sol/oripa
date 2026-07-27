@@ -183,6 +183,102 @@
         }
       }
     },
+    "/gachas/{gacha_id}/draws": {
+      "post": {
+        "operationId": "createDraw",
+        "summary": "認証済みUserが単一またはBulk Drawを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "user-20-per-minute",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gacha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDrawRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Drawを完了した、または同じ結果を再取得した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DrawResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/draw-requests/{draw_request_id}": {
+      "get": {
+        "operationId": "getDrawRequest",
+        "summary": "Network結果不明時を含む完了済みDraw結果を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "draw_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User自身の完了済みDraw結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DrawResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/auth/register": {
       "post": {
         "operationId": "registerUser",
@@ -1125,6 +1221,360 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/GachaDetail"
+          }
+        }
+      },
+      "CreateDrawRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "draw_count"
+        ],
+        "properties": {
+          "draw_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          }
+        }
+      },
+      "PointConsumption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paid_points",
+          "free_points"
+        ],
+        "properties": {
+          "paid_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_points": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "WalletBalance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paid_points",
+          "free_points",
+          "total_points"
+        ],
+        "properties": {
+          "paid_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_points": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "DrawPrizeReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "presentation_asset"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "presentation_asset": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          }
+        }
+      },
+      "DrawRankCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "count"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/RankReference"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "DrawPrizeCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prize",
+          "rank",
+          "count"
+        ],
+        "properties": {
+          "prize": {
+            "$ref": "#/components/schemas/DrawPrizeReference"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/RankReference"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "DrawPointBack": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amount",
+          "point_type"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "type": "string",
+            "const": "free"
+          }
+        }
+      },
+      "DrawAnimation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "image",
+          "video"
+        ],
+        "properties": {
+          "image": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
+          "video": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          }
+        }
+      },
+      "DrawResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sequence_number",
+          "result_type",
+          "rank",
+          "prize",
+          "point_back",
+          "animation"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "sequence_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "result_type": {
+            "type": "string",
+            "enum": [
+              "prize",
+              "point_back"
+            ]
+          },
+          "rank": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RankReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prize": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DrawPrizeReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point_back": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DrawPointBack"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "animation": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DrawAnimation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ProbabilityVersionReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "DrawResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "gacha_id",
+          "status",
+          "requested_count",
+          "executed_count",
+          "point_cost_total",
+          "point_consumption",
+          "wallet_after",
+          "rank_counts",
+          "prize_counts",
+          "point_back_total",
+          "high_rank_results",
+          "high_rank_results_truncated",
+          "probability_version",
+          "idempotent_replay",
+          "request_id",
+          "processing_duration_ms",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "const": "completed"
+          },
+          "requested_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "executed_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "point_cost_total": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "point_consumption": {
+            "$ref": "#/components/schemas/PointConsumption"
+          },
+          "wallet_after": {
+            "$ref": "#/components/schemas/WalletBalance"
+          },
+          "rank_counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DrawRankCount"
+            }
+          },
+          "prize_counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DrawPrizeCount"
+            }
+          },
+          "point_back_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "high_rank_results": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/DrawResult"
+            }
+          },
+          "high_rank_results_truncated": {
+            "type": "boolean"
+          },
+          "probability_version": {
+            "$ref": "#/components/schemas/ProbabilityVersionReference"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "processing_duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/DrawResult"
+            }
           }
         }
       },

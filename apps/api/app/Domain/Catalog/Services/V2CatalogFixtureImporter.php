@@ -4,6 +4,7 @@ namespace App\Domain\Catalog\Services;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
@@ -29,6 +30,8 @@ final class V2CatalogFixtureImporter
                     'The same Catalog fixture previously failed.'
                 );
             }
+
+            $this->initializeDrawState($manifest);
 
             return [
                 'public_id' => $existing->public_id,
@@ -69,6 +72,7 @@ final class V2CatalogFixtureImporter
                 'completed_at' => now(),
                 'updated_at' => now(),
             ]);
+            $this->initializeDrawState($manifest);
         } catch (Throwable $exception) {
             DB::table('catalog_import_runs')->where('public_id', $runId)->update([
                 'status' => 'failed',
@@ -343,6 +347,73 @@ final class V2CatalogFixtureImporter
         }
 
         return $count;
+    }
+
+    /**
+     * Mutable Draw state is derived from the immutable published Catalog fixture.
+     *
+     * @param array<string, mixed> $manifest
+     */
+    private function initializeDrawState(array $manifest): void
+    {
+        if (! Schema::hasTable('gacha_draw_states')) {
+            return;
+        }
+
+        $now = now();
+        foreach ($manifest['gachas'] as $gacha) {
+            $gachaRow = DB::table('catalog_gachas')
+                ->where('code', $gacha['code'])
+                ->first(['id', 'published_version_id', 'sold_count']);
+            if ($gachaRow === null || $gachaRow->published_version_id === null) {
+                continue;
+            }
+            $version = DB::table('catalog_gacha_versions')
+                ->where('id', $gachaRow->published_version_id)
+                ->first(['id', 'published_probability_version_id', 'total_count']);
+            if ($version === null || $version->published_probability_version_id === null) {
+                continue;
+            }
+
+            $stateId = DB::table('gacha_draw_states')
+                ->where('gacha_id', $gachaRow->id)
+                ->value('id');
+            if ($stateId === null) {
+                $stateId = DB::table('gacha_draw_states')->insertGetId([
+                    'gacha_id' => $gachaRow->id,
+                    'gacha_version_id' => $version->id,
+                    'probability_version_id' => $version->published_probability_version_id,
+                    'status' => (int) $gachaRow->sold_count === (int) $version->total_count
+                        ? 'sold_out'
+                        : 'selling',
+                    'total_count' => $version->total_count,
+                    'sold_count' => $gachaRow->sold_count,
+                    'lock_version' => 0,
+                    'started_at' => $now,
+                    'sold_out_at' => (int) $gachaRow->sold_count === (int) $version->total_count
+                        ? $now
+                        : null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            $relations = DB::table('catalog_gacha_version_prizes')
+                ->where('gacha_version_id', $version->id)
+                ->orderBy('id')
+                ->get(['id', 'initial_inventory']);
+            foreach ($relations as $relation) {
+                DB::table('prize_inventories')->insertOrIgnore([
+                    'gacha_draw_state_id' => $stateId,
+                    'gacha_version_prize_id' => $relation->id,
+                    'initial_quantity' => $relation->initial_inventory,
+                    'won_count' => 0,
+                    'lock_version' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
     }
 
     /**

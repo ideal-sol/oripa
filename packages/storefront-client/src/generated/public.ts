@@ -89,6 +89,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gachas/{gacha_id}/draws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 認証済みUserが単一またはBulk Drawを作成する */
+        post: operations["createDraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draw-requests/{draw_request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Network結果不明時を含む完了済みDraw結果を取得する */
+        get: operations["getDrawRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -350,6 +384,80 @@ export interface components {
         GachaDetailResponse: {
             data: components["schemas"]["GachaDetail"];
         };
+        CreateDrawRequest: {
+            /** @enum {integer} */
+            draw_count: 1 | 5 | 10 | 100 | 1000;
+        };
+        PointConsumption: {
+            paid_points: number;
+            free_points: number;
+        };
+        WalletBalance: {
+            paid_points: number;
+            free_points: number;
+            total_points: number;
+        };
+        DrawPrizeReference: {
+            id: components["schemas"]["OpaqueId"];
+            name: string;
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+        };
+        DrawRankCount: {
+            rank: components["schemas"]["RankReference"];
+            count: number;
+        };
+        DrawPrizeCount: {
+            prize: components["schemas"]["DrawPrizeReference"];
+            rank: components["schemas"]["RankReference"];
+            count: number;
+        };
+        DrawPointBack: {
+            amount: number;
+            /** @constant */
+            point_type: "free";
+        };
+        DrawAnimation: {
+            image: components["schemas"]["NullablePresentationAsset"];
+            video: components["schemas"]["NullablePresentationAsset"];
+        };
+        DrawResult: {
+            id: components["schemas"]["OpaqueId"];
+            sequence_number: number;
+            /** @enum {string} */
+            result_type: "prize" | "point_back";
+            rank: components["schemas"]["RankReference"] | null;
+            prize: components["schemas"]["DrawPrizeReference"] | null;
+            point_back: components["schemas"]["DrawPointBack"] | null;
+            animation: components["schemas"]["DrawAnimation"] | null;
+        };
+        ProbabilityVersionReference: {
+            id: components["schemas"]["OpaqueId"];
+            version: number;
+        };
+        DrawResponse: {
+            id: components["schemas"]["OpaqueId"];
+            gacha_id: components["schemas"]["OpaqueId"];
+            /** @constant */
+            status: "completed";
+            /** @enum {integer} */
+            requested_count: 1 | 5 | 10 | 100 | 1000;
+            /** @enum {integer} */
+            executed_count: 1 | 5 | 10 | 100 | 1000;
+            point_cost_total: number;
+            point_consumption: components["schemas"]["PointConsumption"];
+            wallet_after: components["schemas"]["WalletBalance"];
+            rank_counts: components["schemas"]["DrawRankCount"][];
+            prize_counts: components["schemas"]["DrawPrizeCount"][];
+            point_back_total: number;
+            high_rank_results: components["schemas"]["DrawResult"][];
+            high_rank_results_truncated: boolean;
+            probability_version: components["schemas"]["ProbabilityVersionReference"];
+            idempotent_replay: boolean;
+            request_id: components["schemas"]["OpaqueId"];
+            processing_duration_ms: number;
+            created_at: components["schemas"]["UtcDateTime"];
+            results?: components["schemas"]["DrawResult"][];
+        };
         UserRegistrationRequest: {
             /** Format: email */
             email: string;
@@ -539,6 +647,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createDraw: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                gacha_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDrawRequest"];
+            };
+        };
+        responses: {
+            /** @description Drawを完了した、または同じ結果を再取得した。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getDrawRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draw_request_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User自身の完了済みDraw結果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawResponse"];
                 };
             };
             default: components["responses"]["Problem"];
