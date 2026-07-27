@@ -3493,3 +3493,72 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G3はPoint Model Foundationまで進んだが、Payment Modelと初回
   `2.0.0-alpha.1` Artifactが残るため`NOT COMPLETE`である。
 - 次Task候補は`MIG-044 Payment Model`だが、MIG-043完了後には開始しない。
+
+## SEC-003 PostCSS／brace-expansion 新規High Advisory対応
+
+### MIG-044 Blocked／差分保全
+
+- MIG-044は`GHSA-r28c-9q8g-f849`および`GHSA-mh99-v99m-4gvg`の新規High
+  Advisory検出によりBLOCKEDのまま維持した。Issue `#83`はOpen、Branchは
+  `migration/MIG-044-payment-model-foundation`、Worktreeは
+  `/var/www/oripa-worktrees/MIG-044-payment-model-foundation`である。
+- MIG-044 WorktreeのHEADは
+  `2c388015b1174b5ad7edf04853d59ccd35d2e5b0`で、Commit／Push／PRは未実施、
+  未Commit差分16 Pathを保持している。SEC-003ではMIG-044のFile、Index、Branch、
+  Worktreeを変更していない。
+- Repository外Evidenceは
+  `/var/www/oripa-v1-evidence/SEC-003-mig044-preservation-20260727T012131Z/`へ保存した。
+  Directoryはmode `700`、Fileは`root:root`、mode `600`である。
+- Changed Path一覧SHA-256は
+  `e5f7ab10d330bd628314f29938b8cd95def518ba407d3480edb4fc5de289e70d`、
+  未Commit Patch SHA-256は
+  `dce3d3cb0ecfb7aed3593337cfc9f6a97e10f3f67cc20b21513e932908f5edee`
+  である。高確度Secret／PII Candidateは0件で、最終検証時にもChecksum一致を確認する。
+
+### Task／Dependency更新
+
+- Task IDは`SEC-003`、Riskは`R3`、Issueは`#84`、Branchは
+  `security/SEC-003-postcss-brace-expansion`、Base SHAは
+  `2c388015b1174b5ad7edf04853d59ccd35d2e5b0`である。
+- Root WorkspaceとLegacy Frontendを独立して調査した。`postcss`はNext.js経由、
+  `brace-expansion`はESLint、minimatch、OpenAPI生成Tool等のTransitive Dependency
+  経由で導入されていた。`brace-expansion`と`@isaacs/brace-expansion`は混同していない。
+- Root／Legacyの`postcss`をExact `8.5.12`から`8.5.18`へ更新した。
+  `brace-expansion`は全Dependency経路をExact `5.0.8`へ固定した。
+- `brace-expansion 5.0.8`は旧`minimatch 3.x`へ単独OverrideするとESLintでAPI非互換に
+  なるため、Repositoryですでに使用していたExact `minimatch 10.2.5`へRoot／Legacyを
+  統一した。互換性はAdmin、First-party Package、Legacy FrontendのLint／Buildで
+  検証した。
+- pnpm `10.12.1`でRootとLegacyのLockfileを別々に再生成した。Legacy操作では
+  `--ignore-workspace`を使用し、Lockfile共有、SemVer Range、Floating Version、
+  無関係なDependency更新は行っていない。
+- 解消した既存`GHSA-3jxr-9vmj-r5cp`のBaseline Entry 2件とDependency Review
+  Allowlistだけを削除した。新規AdvisoryのBaseline／Allowlist、期限延長、
+  Blanket Ignore、Gate弱体化は追加していない。
+- RootのPostCSS／brace-expansion／minimatch固定Versionを検査するPolicyとUnit Testを
+  同期した。Application Logic、OpenAPI、Migration、DB、MIG-044実装は変更していない。
+
+### Local Verification
+
+- Root `pnpm install --frozen-lockfile`、Audit、Admin Typecheck／Lint／Build、
+  Storefront Client生成差分／Typecheck／Lint／Build／9 Test、Site Schema生成差分／
+  Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／Typecheck／Lint／
+  Build／16 TestはPASSした。
+- Legacyは独立した`pnpm install --frozen-lockfile --ignore-workspace`、Typecheck、
+  BuildがPASSした。Lintは既存Baselineの8 Error／1 Warning、9 Findingと完全一致し、
+  Error、Warning、Rule、Location、Message Fingerprintの増加はない。
+- Root Auditは0 Findingである。Legacy Auditは11 Findingで、新規Critical／High
+  Findingは0件、対象2 Advisoryは0件である。従来13件から減少した理由は、今回の
+  `brace-expansion 5.0.8`統一により既存Baseline 2件も同時に解消したためである。
+- Policy Unit Test 52件、Quality Unit Test 5件、Security Unit Test 4件、
+  `policy-gate`、`quality-gate`、`security-gate`、`git diff --check`、
+  JSON／YAML基本構造はPASSした。Secret／PII Candidateは0件である。
+- V1 Migrationは40件で不変である。V1 Runtime、Nginx、V1本番DB／Redis／Storage、
+  V1 Archive Branch／Annotated Tagを変更していない。
+- Backend Runtime Test、Browser／E2E、Production TestはDependency-only Taskのため
+  未実行であり、PASSとは記録しない。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Review、
+  Final Head固定後のFresh Self-review、Squash Commit、CleanupはGitHub PR上で
+  確定する。SEV-0／SEV-1または新規Critical／High Findingがある場合はMergeしない。
+- SEC-003完了後もMIG-044は再開せず、Issue `#83`、Branch、Worktree、未Commit差分を
+  保持する。MIG-045は開始しない。

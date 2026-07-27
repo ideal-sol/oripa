@@ -28,7 +28,6 @@ jobs:
           # These exact pre-existing V1 advisories remain enforced by the
           # package/version/path-specific, expiring security-gate baseline.
           allow-ghsas: >-
-            GHSA-3jxr-9vmj-r5cp,
             GHSA-52cp-r559-cp3m,
             GHSA-f88m-g3jw-g9cj,
             GHSA-6gpp-xcg3-4w24,
