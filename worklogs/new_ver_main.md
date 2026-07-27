@@ -3812,7 +3812,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   維持され、Application Logicは変更していない。
 - Trivy Vulnerability ReportのScan時刻とCycloneDXのUUID／生成時刻を除去して
   正規化し、Security Evidenceの内容を維持したまま同一SourceのByte再現性を検証可能にした。
-  Release Unit Test 7件、Policy Unit Test 57件、Quality Unit Test 5件、
+  Admin ImageはNext.js standaloneのmulti-stage Runtimeへ変更し、Root Workspaceと
+  Runtime不要のglobal `npm`／`corepack`をRelease Imageへ残さない。Admin Runtimeは
+  180,269,440 ByteでHealth Endpointが成功し、再ScanはCritical／High 0件だった。
+  Release Unit Test 7件、Policy Unit Test 58件、Quality Unit Test 5件、
   Security Unit Test 4件、DB Guard Unit Test 16件、
   `policy-gate`、`quality-gate`、`security-gate`はPASSした。
 - Host PHPは8.3.31のためPHP 8.4を要求するComposer Lockを直接Installできなかった。

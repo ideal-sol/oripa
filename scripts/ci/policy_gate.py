@@ -169,6 +169,7 @@ V2_DATABASE_REQUIRED_FILES = {
 }
 RELEASE_ARTIFACT_REQUIRED_FILES = {
     "apps/admin/Dockerfile",
+    "apps/admin/next.config.ts",
     "infra/docker/backend/Dockerfile",
     "docs/operations/releases/platform-alpha-artifact.md",
     "scripts/release/README.md",
@@ -2153,6 +2154,33 @@ def validate_release_artifact_foundation(
             )
         if "legacy/v1-frontend" in text:
             raise PolicyFailure(f"{relative}: legacy source is prohibited")
+
+    admin_config = (repository / "apps/admin/next.config.ts").read_text(
+        encoding="utf-8"
+    )
+    admin_dockerfile = (repository / "apps/admin/Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    if 'output: "standalone"' not in admin_config:
+        raise PolicyFailure("apps/admin: standalone release output is required")
+    if "COPY --from=build" not in admin_dockerfile or 'CMD ["node", "server.js"]' not in admin_dockerfile:
+        raise PolicyFailure("apps/admin/Dockerfile: standalone runtime is required")
+    for build_tool in (
+        "/usr/local/lib/node_modules/corepack",
+        "/usr/local/lib/node_modules/npm",
+    ):
+        if build_tool not in admin_dockerfile:
+            raise PolicyFailure(
+                "apps/admin/Dockerfile: runtime package tool removal is required"
+            )
+
+    api_dockerfile = (repository / "infra/docker/backend/Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.177-1" not in api_dockerfile:
+        raise PolicyFailure(
+            "infra/docker/backend/Dockerfile: patched multi-stage runtime is required"
+        )
 
     package = load_json(repository, "package.json")
     scripts = package.get("scripts", {})

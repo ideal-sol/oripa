@@ -401,7 +401,10 @@ def runtime_versions(repository: Path, images: dict) -> dict:
     php = run(["docker", "run", "--rm", api_tag, "php", "-r", "echo PHP_VERSION;"], cwd=repository, capture=True)
     composer = run(["docker", "run", "--rm", api_tag, "composer", "--version", "--no-ansi"], cwd=repository, capture=True).split()[2]
     node = run(["docker", "run", "--rm", admin_tag, "node", "--version"], cwd=repository, capture=True).removeprefix("v")
-    pnpm = run(["docker", "run", "--rm", admin_tag, "pnpm", "--version"], cwd=repository, capture=True)
+    package_manager = load_json(repository / "package.json").get("packageManager", "")
+    if not re.fullmatch(r"pnpm@\d+\.\d+\.\d+", package_manager):
+        raise ReleaseError("packageManager must pin an exact pnpm version")
+    pnpm = package_manager.removeprefix("pnpm@")
     composer_lock = load_json(repository / "apps/api/composer.lock")
     laravel = next(
         item["version"].removeprefix("v")

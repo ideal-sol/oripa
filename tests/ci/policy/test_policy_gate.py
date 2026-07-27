@@ -52,6 +52,21 @@ class PolicyGateTest(unittest.TestCase):
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "digest"):
                 policy_gate.validate_release_artifact_foundation(root, paths)
 
+    def test_release_artifact_non_standalone_admin_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_release_foundation(root)
+            config = root / "apps/admin/next.config.ts"
+            config.write_text(
+                config.read_text(encoding="utf-8").replace(
+                    '  output: "standalone",\n',
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "standalone"):
+                policy_gate.validate_release_artifact_foundation(root, paths)
+
     def test_positive_pull_request_fixture_passes(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(
