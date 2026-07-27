@@ -3712,6 +3712,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   反映していなかったため`policy-gate`が失敗した。実際のPathはTask Policyの
   `apps/api/tests/V2/**`内である。PR本文へ明示し、新しいFinal Headで全Checkを
   再実行する。
+- 直後の再実行はBranch Push後にPR本文を更新したため、Workflow Eventが更新前本文を
+  snapshotして同じChanged files不一致となった。GitHub上のPR本文と実際の18 Pathが
+  完全一致することを先に確認し、その本文を固定した状態で新HeadをPushする。
 - 稼働中V1 Runtimeは固定Commit
   `bfca8efa0b85c00a88fb0fd439a123b722577b68`でcleanである。Nginx、V1本番DB／
   Redis／Storage、V1 Migration、V1 Archive Branch／Annotated Tagを変更していない。
