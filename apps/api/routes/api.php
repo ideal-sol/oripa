@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\UserDrawRequestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2PublicAuthController;
 use App\Http\Controllers\V2\V2CatalogController;
+use App\Http\Controllers\V2\V2DrawController;
 
 Route::prefix('v2')->group(function (): void {
     Route::get('/gacha-categories', [V2CatalogController::class, 'categories'])
@@ -41,6 +42,17 @@ Route::prefix('v2')->group(function (): void {
         ->whereUuid('gachaId')
         ->name('v2.public.catalog.gachas.show');
 });
+
+Route::prefix('v2')
+    ->middleware(['v2.browser:user', 'v2.realm:user'])
+    ->group(function (): void {
+        Route::post('/gachas/{gachaId}/draws', [V2DrawController::class, 'store'])
+            ->whereUuid('gachaId')
+            ->name('v2.public.draws.store');
+        Route::get('/draw-requests/{drawRequestId}', [V2DrawController::class, 'show'])
+            ->whereUuid('drawRequestId')
+            ->name('v2.public.draws.show');
+    });
 
 Route::prefix('v2/auth')
     ->middleware('v2.browser:user')

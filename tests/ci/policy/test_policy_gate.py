@@ -325,6 +325,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
             "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
             "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
+            "apps/api/database/migrations-v2/2026_07_29_000009_create_v2_draw_vertical_slice.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -577,6 +578,53 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "individual_ppm"):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def copy_v2_draw_boundary(self, root):
+        paths = set(policy_gate.V2_DRAW_REQUIRED_FILES)
+        supporting = {
+            ".github/workflows/platform-ci.yml",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_draw_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_29_000009_create_v2_draw_vertical_slice.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8") + "\n// tenant_id\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_public_internal_field_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["components"]["schemas"]["DrawResponse"]["properties"][
+                "random_value"
+            ] = {"type": "integer"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "random_value"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -1192,8 +1240,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 11",
-                    "operation_count: 12",
+                    "operation_count: 13",
+                    "operation_count: 14",
                 ),
                 encoding="utf-8",
             )

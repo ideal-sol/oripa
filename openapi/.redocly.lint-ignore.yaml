@@ -1,0 +1,5 @@
+# LaravelのwhereUuid('gachaId')により、固定by-slug SegmentとはRuntimeで分離される。
+# OpenAPI 3.1はPath ParameterのRoute制約を表現できないため、このPointerだけを除外する。
+public/openapi.yaml:
+  no-ambiguous-paths:
+    - '#/paths/~1gachas~1{gacha_id}~1draws'

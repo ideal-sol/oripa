@@ -62,11 +62,15 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.catalog_rank_assets",
     "public.catalog_ranks",
     "public.catalog_tags",
+    "public.draw_requests",
+    "public.draw_results",
+    "public.gacha_draw_states",
     "public.idempotency_records",
     "public.migrations",
     "public.outbox_messages",
     "public.payment_adjustment_point_impacts",
     "public.payment_adjustment_point_operations",
+    "public.payment_adjustment_prize_actions",
     "public.payment_adjustment_status_histories",
     "public.payment_adjustments",
     "public.payment_point_grants",
@@ -84,7 +88,9 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.point_purchase_plans",
     "public.point_reconciliation_discrepancies",
     "public.point_reconciliation_runs",
+    "public.prize_inventories",
     "public.user_email_verifications",
+    "public.user_prizes",
     "public.user_remember_devices",
     "public.user_sessions",
     "public.users",
@@ -450,6 +456,26 @@ def run_identity_tests(
     )
 
 
+def run_draw_load_tests(base: list[str], repository: Path) -> None:
+    run(
+        base
+        + [
+            "exec",
+            "-T",
+            "-e",
+            "V2_DRAW_LOAD_TEST=1",
+            "api",
+            "vendor/bin/phpunit",
+            "--configuration",
+            "phpunit.v2.xml",
+            "--filter",
+            "ZDrawConcurrencyLoadTest",
+        ],
+        cwd=repository,
+        capture=False,
+    )
+
+
 def schema_dump(base: list[str], repository: Path) -> bytes:
     return compose_exec(
         base,
@@ -667,6 +693,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             migrate_fresh(source_base, repository, one_shot=False)
             migration_status(source_base, repository, one_shot=False)
             run_identity_tests(source_base, repository, one_shot=False)
+            run_draw_load_tests(source_base, repository)
             run(
                 source_base
                 + [
@@ -738,6 +765,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "migrate_fresh_runs": 2,
                 "migration_status": "PASS",
                 "identity_tests": "PASS",
+                "draw_load_tests": "PASS",
                 "schema_inventory": source_inventory,
                 "source_schema_sha256": sha256(source_schema),
                 "restore_schema_sha256": sha256(restore_schema),

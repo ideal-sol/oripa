@@ -12,6 +12,7 @@ import {
 } from "../dist/server.js";
 import {
   createStorefrontCatalogClient,
+  createStorefrontDrawClient,
 } from "../dist/index.js";
 
 const jsonResponse = (body, init = {}) =>
@@ -284,10 +285,51 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "resendUserEmailVerification",
     "verifyUserEmail",
     "getUserSession",
+    "createDraw",
+    "getDrawRequest",
   ]) {
     assert.match(generated, new RegExp(operationId));
   }
   assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
+});
+
+test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡す", async () => {
+  const requests = [];
+  const draw = createStorefrontDrawClient({
+    request: async (options) => {
+      requests.push(options);
+      return {
+        data: { status: "completed" },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+  const key = "0198a001-0000-7000-8000-000000000099";
+  const csrf = "a".repeat(64);
+  await draw.createDraw(
+    "0198a001-0000-7000-8000-000000000011",
+    1000,
+    { idempotency_key: key, csrf_token: csrf, timeout_ms: 2000 },
+  );
+  await draw.getDrawRequest("0198a001-0000-7000-8000-000000000099");
+
+  assert.equal(requests[0].method, "POST");
+  assert.equal(
+    requests[0].path,
+    "/gachas/0198a001-0000-7000-8000-000000000011/draws",
+  );
+  assert.deepEqual(requests[0].body, { draw_count: 1000 });
+  assert.equal(requests[0].idempotency_key, key);
+  assert.equal(requests[0].headers["X-XSRF-TOKEN"], csrf);
+  assert.equal(requests[0].csrf, "required");
+  assert.equal(
+    requests[1].path,
+    "/draw-requests/0198a001-0000-7000-8000-000000000099",
+  );
+  assert.throws(
+    () => draw.createDraw("valid", 2, { idempotency_key: key, csrf_token: csrf }),
+    /draw_count is invalid/,
+  );
 });
 
 test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () => {

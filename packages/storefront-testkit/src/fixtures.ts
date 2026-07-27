@@ -144,3 +144,57 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
     ],
   },
 } as const satisfies PublicComponents["schemas"]["GachaDetailResponse"]);
+
+export const PUBLIC_DRAW_FIXTURE = Object.freeze({
+  id: "0198a001-0000-7000-8000-000000000099",
+  gacha_id: "0198a001-0000-7000-8000-000000000011",
+  status: "completed",
+  requested_count: 1000,
+  executed_count: 1000,
+  point_cost_total: 100000,
+  point_consumption: {
+    paid_points: 0,
+    free_points: 100000,
+  },
+  wallet_after: {
+    paid_points: 0,
+    free_points: 900000,
+    total_points: 900000,
+  },
+  rank_counts: [
+    {
+      rank: {
+        id: "0198a001-0000-7000-8000-000000000003",
+        code: "S",
+        name: "Sランク",
+      },
+      count: 100,
+    },
+  ],
+  prize_counts: [
+    {
+      prize: {
+        id: "0198a001-0000-7000-8000-000000000009",
+        name: "Fixture S景品",
+        presentation_asset: null,
+      },
+      rank: {
+        id: "0198a001-0000-7000-8000-000000000003",
+        code: "S",
+        name: "Sランク",
+      },
+      count: 100,
+    },
+  ],
+  point_back_total: 90000,
+  high_rank_results: [],
+  high_rank_results_truncated: true,
+  probability_version: {
+    id: "0198a001-0000-7000-8000-000000000013",
+    version: 1,
+  },
+  idempotent_replay: false,
+  request_id: "0198a001-0000-7000-8000-000000000098",
+  processing_duration_ms: 583,
+  created_at: "2026-07-27T00:00:00Z",
+} as const satisfies PublicComponents["schemas"]["DrawResponse"]);

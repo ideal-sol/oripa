@@ -8,10 +8,18 @@ export {
 export {
   createStorefrontCatalogClient,
 } from "./catalog.js";
+export {
+  createStorefrontDrawClient,
+} from "./draw.js";
 export type {
   GachaListQuery,
   StorefrontCatalogClient,
 } from "./catalog.js";
+export type {
+  CreateDrawOptions,
+  DrawCount,
+  StorefrontDrawClient,
+} from "./draw.js";
 export type {
   ApiProblem,
   StorefrontTransportErrorCode,

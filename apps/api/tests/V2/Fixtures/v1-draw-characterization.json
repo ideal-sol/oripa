@@ -1,0 +1,24 @@
+{
+  "source_branch": "v1/early-release",
+  "source_commit": "fcaf0b9bb320aa479738e9be6d7b8465114f6226",
+  "draw_service_sha256": "264feedc6d63080f0ab3f03c2a253dbb1e4c04553ab93daea4432cd274ca3b35",
+  "draw_service_test_sha256": "61523579380a521a764d6bd5438725099bec3b856d8ddc0f10d9d1ef161c1e47",
+  "allowed_counts": [1, 5, 10, 100, 1000],
+  "behavior": {
+    "one_bulk_request": true,
+    "per_draw_csprng": true,
+    "stage_by_draw_sequence": true,
+    "minimum_guarantee_is_point_back": true,
+    "single_transaction": true,
+    "all_individual_results_persisted": true,
+    "idempotent_replay_and_conflict": true,
+    "stage_range_cache": true,
+    "chunked_insert_size": 250
+  },
+  "performance_reference": {
+    "single_1000_p95_ms": 583,
+    "query_count": 48,
+    "same_gacha_10_user_final_ms": 7500,
+    "same_gacha_20_user_final_ms": 14800
+  }
+}

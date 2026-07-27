@@ -148,6 +148,7 @@ final class V2CatalogReadService
                 'gv.published_probability_version_id'
             )
             ->join('catalog_categories as c', 'c.id', '=', 'g.category_id')
+            ->leftJoin('gacha_draw_states as ds', 'ds.gacha_id', '=', 'g.id')
             ->leftJoin(
                 'catalog_presentation_assets as a',
                 'a.id',
@@ -174,7 +175,7 @@ final class V2CatalogReadService
             'g.id as gacha_internal_id',
             'g.public_id',
             'g.slug',
-            'g.sold_count',
+            DB::raw('COALESCE(ds.sold_count, g.sold_count) as sold_count'),
             'gv.id as version_internal_id',
             'gv.title',
             'gv.description',
