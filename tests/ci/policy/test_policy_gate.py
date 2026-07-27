@@ -515,8 +515,10 @@ This is a non-Production Skeleton and contains no application implementation.
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
                     "pnpm": {
                         "overrides": {
+                            "brace-expansion": "5.0.8",
                             "js-yaml": "4.3.0",
-                            "postcss": "8.5.12",
+                            "minimatch": "10.2.5",
+                            "postcss": "8.5.18",
                             "sharp": "0.35.0",
                         }
                     },
