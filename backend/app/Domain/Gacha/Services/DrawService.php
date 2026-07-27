@@ -9,11 +9,13 @@ use App\Domain\Gacha\Enums\MinimumGuaranteeType;
 use App\Domain\Gacha\DTO\QaDrawSelectedItem;
 use App\Domain\Gacha\DTO\QaDrawSelection;
 use App\Domain\Gacha\Enums\QaDrawPlanStatus;
+use App\Domain\Gacha\Exceptions\BulkDrawConflictException;
 use App\Domain\Gacha\Exceptions\DrawException;
 use App\Domain\Point\Enums\PointLedgerType;
 use App\Domain\Point\Enums\PointLotSourceType;
 use App\Domain\Point\Services\PointConsumptionService;
 use App\Domain\Point\Services\PointLotService;
+use App\Domain\Probability\Enums\ProbabilityVersionStatus;
 use App\Domain\Probability\Services\ProbabilityRangeBuilder;
 use App\Domain\Probability\Services\StageResolver;
 use App\Domain\Shipping\Enums\UserPrizeStatus;
@@ -21,11 +23,14 @@ use App\Models\DrawRequest;
 use App\Models\DrawResult;
 use App\Models\Gacha;
 use App\Models\GachaPrize;
+use App\Models\GachaProbabilityVersionStage;
 use App\Models\GachaRank;
 use App\Models\QaDrawExecution;
 use App\Models\User;
 use App\Models\UserPrize;
+use App\Models\Wallet;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class DrawService
@@ -49,8 +54,29 @@ class DrawService
             throw new DrawException('Idempotency key is required.');
         }
 
+        $isBulk = $this->isBulkDraw($drawCount);
+        $requestHash = $isBulk ? $this->bulkRequestHash($user, $gacha, $drawCount) : null;
+        $startedAt = hrtime(true);
+
         // 抽選はポイント消費、通し番号、在庫、結果作成を必ず同じDBトランザクションで確定する。
-        return DB::transaction(function () use ($user, $gacha, $drawCount, $idempotencyKey): DrawRequest {
+        return DB::transaction(function () use (
+            $user,
+            $gacha,
+            $drawCount,
+            $idempotencyKey,
+            $isBulk,
+            $requestHash,
+            $startedAt,
+        ): DrawRequest {
+            $lockedGacha = null;
+
+            if ($isBulk) {
+                $lockedGacha = Gacha::query()
+                    ->whereKey($gacha->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            }
+
             $existing = DrawRequest::query()
                 ->where('user_id', $user->id)
                 ->where('gacha_id', $gacha->id)
@@ -60,14 +86,34 @@ class DrawService
 
             // 同じリクエストの二重送信は既存結果を返し、処理中の重複実行は止める。
             if ($existing) {
+                if ($isBulk) {
+                    if (! is_string($existing->request_hash) || ! hash_equals($existing->request_hash, (string) $requestHash)) {
+                        throw new BulkDrawConflictException('The Idempotency-Key was already used for a different bulk request.');
+                    }
+
+                    if ($existing->idempotency_expires_at?->isPast()) {
+                        throw new BulkDrawConflictException('The Idempotency-Key replay window has expired.');
+                    }
+                }
+
                 if ($existing->status === DrawRequestStatus::Completed) {
+                    if ($isBulk) {
+                        $existing->idempotentReplay = true;
+
+                        return $existing;
+                    }
+
                     return $existing->load('results');
+                }
+
+                if ($isBulk) {
+                    throw new BulkDrawConflictException('A bulk draw with the same Idempotency-Key is already processing.');
                 }
 
                 throw new DrawException('Draw request with the same idempotency key is already processing.');
             }
 
-            $lockedGacha = Gacha::query()
+            $lockedGacha ??= Gacha::query()
                 ->whereKey($gacha->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -78,7 +124,15 @@ class DrawService
             $qaSelection = $this->qaDrawResolver->resolve($user, $lockedGacha, $drawCount);
             $lockedQaPrizes = $qaSelection->active ? $this->lockAndValidateQaPrizes($lockedGacha, $qaSelection) : collect();
 
-            $totalCost = $lockedGacha->price * $drawCount;
+            $totalCost = $this->totalCost($lockedGacha, $drawCount);
+
+            if ($isBulk) {
+                Wallet::query()
+                    ->where('user_id', $user->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            }
+
             $this->pointConsumptionService->assertSpendable($user, $totalCost);
 
             $drawRequest = DrawRequest::query()->create([
@@ -86,6 +140,10 @@ class DrawService
                 'gacha_id' => $lockedGacha->id,
                 'draw_count' => $drawCount,
                 'idempotency_key' => $idempotencyKey,
+                'request_hash' => $requestHash,
+                'idempotency_expires_at' => $isBulk
+                    ? now()->addHours((int) config('oripa.bulk_draw.idempotency_hours', 24))
+                    : null,
                 'status' => DrawRequestStatus::Processing,
                 'consumed_point_total' => $totalCost,
                 'is_qa_draw' => $qaSelection->active,
@@ -102,10 +160,25 @@ class DrawService
             );
 
             $soldCountBefore = (int) $lockedGacha->sold_count;
+            $bulkStages = collect();
+            $bulkPrizes = collect();
+            $bulkRanks = collect();
+            $changedBulkPrizeIds = [];
+            $bulkMinimumGuarantees = [];
+
+            if ($isBulk) {
+                $bulkStages = $this->loadBulkStages($lockedGacha);
+
+                if (! $qaSelection->active) {
+                    [$bulkPrizes, $bulkRanks] = $this->prepareBulkDrawContext($bulkStages);
+                }
+            }
 
             for ($drawIndex = 1; $drawIndex <= $drawCount; $drawIndex++) {
                 $sequence = $soldCountBefore + $drawIndex;
-                $stage = $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
+                $stage = $isBulk
+                    ? $this->resolveLoadedStage($bulkStages, $lockedGacha, $sequence)
+                    : $this->stageResolver->resolve((int) $lockedGacha->current_probability_version_id, $sequence);
                 // 抽選乱数はフロントではなくバックエンドのCSPRNGで生成する。
                 $randomValue = random_int(0, 999_999);
 
@@ -140,21 +213,35 @@ class DrawService
                     $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
                     $this->incrementQaPlanItem($qaItem);
                 } else {
-                    $range = $this->rangeBuilder->build($stage);
+                    $range = $isBulk
+                        ? $this->rangeBuilder->buildFromLoaded($stage->probabilities, $bulkPrizes)
+                        : $this->rangeBuilder->build($stage);
                     $entry = $range->pick($randomValue);
 
                     if ($entry->isPrize()) {
-                        $prize = GachaPrize::query()
-                            ->whereKey($entry->prizeId)
-                            ->lockForUpdate()
-                            ->firstOrFail();
+                        $prize = $isBulk
+                            ? $bulkPrizes->get($entry->prizeId)
+                            : GachaPrize::query()
+                                ->whereKey($entry->prizeId)
+                                ->lockForUpdate()
+                                ->firstOrFail();
+
+                        if (! $prize) {
+                            throw new DrawException('Selected prize was not found.');
+                        }
 
                         // 当選直前に景品在庫をロックし、同じ景品が上限を超えて当たらないようにする。
                         $this->assertPrizeAvailable($prize, $lockedGacha);
 
                         $prize->forceFill([
                             'won_count' => (int) $prize->won_count + 1,
-                        ])->save();
+                        ]);
+
+                        if ($isBulk) {
+                            $changedBulkPrizeIds[$prize->id] = true;
+                        } else {
+                            $prize->save();
+                        }
 
                         $drawResult = $this->storePrizeResult(
                             drawRequest: $drawRequest,
@@ -164,6 +251,9 @@ class DrawService
                             sequence: $sequence,
                             randomValue: $randomValue,
                             stageId: $stage->id,
+                            presentation: $isBulk
+                                ? $this->selectRankPresentationFromRank($bulkRanks->get($prize->rank_id))
+                                : null,
                         );
 
                         $this->createUserPrize($user, $lockedGacha, $prize, $drawResult);
@@ -177,13 +267,30 @@ class DrawService
                             stageId: $stage->id,
                         );
 
-                        $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
+                        if ($isBulk) {
+                            $bulkMinimumGuarantees[] = $drawResult;
+                        } else {
+                            $this->grantMinimumGuarantee($user, $lockedGacha, $drawResult);
+                        }
                     }
                 }
 
                 $lockedGacha->forceFill([
                     'sold_count' => (int) $lockedGacha->sold_count + 1,
-                ])->save();
+                ]);
+
+                if (! $isBulk) {
+                    $lockedGacha->save();
+                }
+            }
+
+            if ($isBulk) {
+                foreach (array_keys($changedBulkPrizeIds) as $prizeId) {
+                    $bulkPrizes->get($prizeId)?->save();
+                }
+
+                $this->grantMinimumGuaranteeBatch($user, $lockedGacha, $bulkMinimumGuarantees);
+                $lockedGacha->save();
             }
 
             // 最後の口まで販売された時点で完売へ切り替え、以後の抽選を止める。
@@ -195,6 +302,7 @@ class DrawService
 
             $drawRequest->forceFill([
                 'status' => DrawRequestStatus::Completed,
+                'processing_duration_ms' => max(0, (int) round((hrtime(true) - $startedAt) / 1_000_000)),
             ])->save();
 
             if ($qaSelection->active) {
@@ -202,8 +310,105 @@ class DrawService
                 $this->createQaExecution($qaSelection, $drawRequest, $user, $lockedGacha, $drawCount);
             }
 
-            return $drawRequest->refresh()->load('results');
-        });
+            $completed = $drawRequest->refresh();
+
+            return $isBulk ? $completed : $completed->load('results');
+        }, $isBulk ? 3 : 1);
+    }
+
+    private function isBulkDraw(int $drawCount): bool
+    {
+        return in_array($drawCount, config('oripa.bulk_draw.counts', [100, 1000]), true);
+    }
+
+    private function bulkRequestHash(User $user, Gacha $gacha, int $drawCount): string
+    {
+        return hash('sha256', json_encode([
+            'user_id' => (int) $user->id,
+            'gacha_id' => (int) $gacha->id,
+            'draw_count' => $drawCount,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    private function totalCost(Gacha $gacha, int $drawCount): int
+    {
+        $price = (int) $gacha->price;
+
+        if ($price < 0 || $drawCount < 1 || $price > intdiv(PHP_INT_MAX, $drawCount)) {
+            throw new DrawException('The total draw cost exceeds the supported integer range.');
+        }
+
+        $totalCost = $price * $drawCount;
+
+        if ($totalCost > 2_147_483_647) {
+            throw new DrawException('The total draw cost exceeds the database integer range.');
+        }
+
+        return $totalCost;
+    }
+
+    /**
+     * @return array{0: Collection, 1: Collection}
+     */
+    private function prepareBulkDrawContext(Collection $stages): array
+    {
+        $prizeIds = $stages
+            ->flatMap(fn (GachaProbabilityVersionStage $stage) => $stage->probabilities)
+            ->where('is_minimum_guarantee', false)
+            ->pluck('prize_id')
+            ->filter()
+            ->map(fn (int|string $id): int => (int) $id)
+            ->unique()
+            ->sort()
+            ->values();
+
+        $prizes = GachaPrize::query()
+            ->whereIn('id', $prizeIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        $ranks = GachaRank::query()
+            ->with([
+                'rankImageAsset',
+                'drawVideoAsset',
+                'rankImageAssets' => fn ($query) => $query->where('is_active', true),
+                'drawVideoAssets' => fn ($query) => $query->where('is_active', true),
+            ])
+            ->whereIn('id', $prizes->pluck('rank_id')->unique()->values())
+            ->orderBy('id')
+            ->get()
+            ->keyBy('id');
+
+        return [$prizes, $ranks];
+    }
+
+    private function loadBulkStages(Gacha $gacha): Collection
+    {
+        return GachaProbabilityVersionStage::query()
+            ->where('probability_version_id', $gacha->current_probability_version_id)
+            ->whereHas('version', fn ($query) => $query->where('status', ProbabilityVersionStatus::Published->value))
+            ->with(['probabilities' => fn ($query) => $query->orderBy('id')])
+            ->orderBy('min_draw_number')
+            ->get();
+    }
+
+    private function resolveLoadedStage(Collection $stages, Gacha $gacha, int $sequence): GachaProbabilityVersionStage
+    {
+        /** @var GachaProbabilityVersionStage|null $stage */
+        $stage = $stages->first(fn (GachaProbabilityVersionStage $candidate): bool =>
+            (int) $candidate->min_draw_number <= $sequence
+            && ($candidate->max_draw_number === null || (int) $candidate->max_draw_number >= $sequence)
+        );
+
+        if (! $stage) {
+            throw new DrawException(
+                "Published probability stage was not found for draw sequence {$sequence} on gacha {$gacha->id}."
+            );
+        }
+
+        return $stage;
     }
 
     private function lockAndValidateQaPrizes(Gacha $gacha, QaDrawSelection $selection)
@@ -300,8 +505,9 @@ class DrawService
         ?string $selectedDrawVideoUrl = null,
         bool $isQaDraw = false,
         ?int $qaDrawPlanItemId = null,
+        ?array $presentation = null,
     ): DrawResult {
-        $presentation = $this->selectRankPresentation($prize);
+        $presentation ??= $this->selectRankPresentation($prize);
 
         return DrawResult::query()->create([
             'draw_request_id' => $drawRequest->id,
@@ -389,6 +595,15 @@ class DrawService
             ->whereKey($prize->rank_id)
             ->firstOrFail();
 
+        return $this->selectRankPresentationFromRank($rank);
+    }
+
+    private function selectRankPresentationFromRank(?GachaRank $rank): array
+    {
+        if (! $rank) {
+            throw new DrawException('Prize rank presentation was not found.');
+        }
+
         return [
             'image_url' => $this->randomAssetUrl($rank->rankImageAssets) ?? $rank->effectiveImageUrl(),
             'video_url' => $this->randomAssetUrl($rank->drawVideoAssets) ?? $rank->effectiveDrawVideoUrl(),
@@ -466,6 +681,40 @@ class DrawService
             relatedType: 'draw_result',
             relatedId: $drawResult->id,
             description: "Minimum guarantee for draw result {$drawResult->id}",
+        );
+    }
+
+    /**
+     * @param array<int, DrawResult> $drawResults
+     */
+    private function grantMinimumGuaranteeBatch(User $user, Gacha $gacha, array $drawResults): void
+    {
+        if ($drawResults === []) {
+            return;
+        }
+
+        if ($gacha->minimum_guarantee_type !== MinimumGuaranteeType::Point) {
+            throw new DrawException('Only point minimum guarantee is implemented.');
+        }
+
+        $amount = (int) $gacha->minimum_guarantee_value;
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        $this->pointLotService->grantFreeBatch(
+            user: $user,
+            grants: array_map(fn (DrawResult $drawResult): array => [
+                'amount' => $amount,
+                'source_id' => $drawResult->id,
+                'related_id' => $drawResult->id,
+                'description' => "Minimum guarantee for draw result {$drawResult->id}",
+            ], $drawResults),
+            expireAt: now()->addDays((int) config('oripa.free_point_expiration_days', 180)),
+            sourceType: PointLotSourceType::MinimumGuarantee,
+            ledgerType: PointLedgerType::Grant,
+            relatedType: 'draw_result',
         );
     }
 }
