@@ -6,6 +6,7 @@ use App\Domain\Probability\DTO\ProbabilityRange;
 use App\Domain\Probability\DTO\ProbabilityRangeEntry;
 use App\Models\GachaProbabilityVersionStage;
 use App\Models\GachaPrize;
+use Illuminate\Support\Collection;
 use LogicException;
 
 class ProbabilityRangeBuilder
@@ -31,6 +32,21 @@ class ProbabilityRangeBuilder
             ->whereIn('id', $prizeIds)
             ->get()
             ->keyBy('id');
+
+        return $this->buildFromLoaded($probabilities, $prizesById);
+    }
+
+    /**
+     * @param Collection<int, mixed> $probabilities
+     * @param Collection<int, GachaPrize> $prizesById
+     */
+    public function buildFromLoaded(Collection $probabilities, Collection $prizesById): ProbabilityRange
+    {
+        $minimumRow = $probabilities->firstWhere('is_minimum_guarantee', true);
+
+        if (! $minimumRow) {
+            throw new LogicException('Probability stage must include a minimum guarantee row.');
+        }
 
         $entries = [];
         $minimumGuaranteePpm = (int) $minimumRow->probability_ppm;

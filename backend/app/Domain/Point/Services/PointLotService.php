@@ -62,6 +62,66 @@ class PointLotService
         );
     }
 
+    /**
+     * @param array<int, array{amount: int, source_id: int, related_id: int, description: string}> $grants
+     * @return array<int, PointLot>
+     */
+    public function grantFreeBatch(
+        User $user,
+        array $grants,
+        CarbonInterface $expireAt,
+        PointLotSourceType $sourceType,
+        PointLedgerType $ledgerType = PointLedgerType::Grant,
+        string $relatedType = 'draw_result',
+    ): array {
+        if ($grants === []) {
+            return [];
+        }
+
+        $wallet = Wallet::query()->firstOrCreate(
+            ['user_id' => $user->id],
+            ['paid_balance' => 0, 'free_balance' => 0],
+        );
+        $balanceAfter = (int) $wallet->free_balance;
+        $lots = [];
+
+        foreach ($grants as $grant) {
+            if ($grant['amount'] <= 0) {
+                throw new \InvalidArgumentException('Granted point amount must be greater than zero.');
+            }
+
+            $lot = PointLot::query()->create([
+                'user_id' => $user->id,
+                'point_type' => PointType::Free,
+                'granted_amount' => $grant['amount'],
+                'remaining_amount' => $grant['amount'],
+                'source_type' => $sourceType,
+                'source_id' => $grant['source_id'],
+                'granted_at' => now(),
+                'expire_at' => $expireAt,
+            ]);
+            $balanceAfter += $grant['amount'];
+
+            PointLedger::query()->create([
+                'user_id' => $user->id,
+                'wallet_id' => $wallet->id,
+                'point_lot_id' => $lot->id,
+                'point_type' => PointType::Free,
+                'ledger_type' => $ledgerType,
+                'amount' => $grant['amount'],
+                'balance_after' => $balanceAfter,
+                'related_type' => $relatedType,
+                'related_id' => $grant['related_id'],
+                'description' => $grant['description'],
+            ]);
+            $lots[] = $lot;
+        }
+
+        $wallet->forceFill(['free_balance' => $balanceAfter])->save();
+
+        return $lots;
+    }
+
     private function grant(
         User $user,
         PointType $pointType,

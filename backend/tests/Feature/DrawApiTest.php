@@ -16,11 +16,45 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DrawApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    #[DataProvider('existingDrawCountProvider')]
+    public function test_existing_draw_response_contract_is_unchanged(int $drawCount): void
+    {
+        [$user, $gacha, $prize] = $this->createDrawableFixture();
+        $this->createWalletWithPaidLot($user, 100 * $drawCount);
+        $this->publishPointBackStage($gacha, $prize);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson("/api/gachas/{$gacha->id}/draw", [
+            'draw_count' => $drawCount,
+            'idempotency_key' => "api-characterization-{$drawCount}",
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonStructure([
+                'data' => [
+                    'id',
+                    'gacha_id',
+                    'draw_count',
+                    'idempotency_key',
+                    'status',
+                    'consumed_point_total',
+                    'results',
+                    'created_at',
+                    'updated_at',
+                ],
+            ])
+            ->assertJsonPath('data.draw_count', $drawCount)
+            ->assertJsonCount($drawCount, 'data.results');
+    }
 
     public function test_authenticated_user_can_draw_gacha(): void
     {
@@ -48,6 +82,81 @@ class DrawApiTest extends TestCase
         $this->assertSame(2, $gacha->refresh()->sold_count);
         $this->assertSame(0, $user->wallet->refresh()->paid_balance);
         $this->assertSame(20, $user->wallet->free_balance);
+    }
+
+    public function test_bulk_draw_requires_header_and_returns_compact_aggregate_response(): void
+    {
+        [$user, $gacha, $prize] = $this->createDrawableFixture();
+        $prize->forceFill(['max_win_count' => 200])->save();
+        $gacha->forceFill(['price' => 1, 'total_count' => 200])->save();
+        $this->createWalletWithPaidLot($user, 100);
+        $this->publishPrizeStage($gacha, $prize);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/gachas/{$gacha->id}/draw", [
+            'draw_count' => 100,
+        ])->assertUnprocessable()->assertJsonValidationErrors('idempotency_key');
+
+        $response = $this
+            ->withHeader('Idempotency-Key', 'bulk-api-key')
+            ->postJson("/api/gachas/{$gacha->id}/draw", ['draw_count' => 100]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.requested_count', 100)
+            ->assertJsonPath('data.executed_count', 100)
+            ->assertJsonPath('data.consumed_point', 100)
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.idempotent_replay', false)
+            ->assertJsonMissingPath('data.id')
+            ->assertJsonMissingPath('data.gacha_id')
+            ->assertJsonMissingPath('data.idempotency_key')
+            ->assertJsonMissingPath('data.results')
+            ->assertJsonCount(1, 'data.prize_counts')
+            ->assertJsonCount(1, 'data.rank_counts')
+            ->assertJsonPath('data.prize_counts.0.win_count', 100)
+            ->assertJsonPath('data.rank_counts.0.win_count', 100);
+
+        $this
+            ->withHeader('Idempotency-Key', 'bulk-api-key')
+            ->postJson("/api/gachas/{$gacha->id}/draw", ['draw_count' => 100])
+            ->assertOk()
+            ->assertJsonPath('data.idempotent_replay', true)
+            ->assertJsonPath('data.bulk_request_id', $response->json('data.bulk_request_id'));
+
+        $this->assertDatabaseCount('draw_requests', 1);
+        $this->assertDatabaseCount('draw_results', 100);
+    }
+
+    public function test_bulk_draw_rejects_mismatched_header_and_body_keys(): void
+    {
+        [$user, $gacha, $prize] = $this->createDrawableFixture();
+        $this->createWalletWithPaidLot($user, 100);
+        $this->publishPointBackStage($gacha, $prize);
+        Sanctum::actingAs($user);
+
+        $this
+            ->withHeader('Idempotency-Key', 'header-key')
+            ->postJson("/api/gachas/{$gacha->id}/draw", [
+                'draw_count' => 100,
+                'idempotency_key' => 'body-key',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('idempotency_key');
+    }
+
+    public function test_draw_count_outside_legacy_or_bulk_values_is_rejected(): void
+    {
+        [$user, $gacha, $prize] = $this->createDrawableFixture();
+        $this->createWalletWithPaidLot($user, 100);
+        $this->publishPointBackStage($gacha, $prize);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/gachas/{$gacha->id}/draw", [
+            'draw_count' => 11,
+            'idempotency_key' => 'invalid-count',
+        ])->assertUnprocessable()->assertJsonValidationErrors('draw_count');
     }
 
     public function test_unauthenticated_user_cannot_draw(): void
@@ -174,5 +283,30 @@ class DrawApiTest extends TestCase
                 ],
             ],
         ], AdminUser::factory()->create());
+    }
+
+    private function publishPrizeStage(Gacha $gacha, GachaPrize $prize): void
+    {
+        app(ProbabilityVersionPublisher::class)->publish($gacha, [
+            [
+                'stage_key' => 'stage_1',
+                'name' => 'Stage 1',
+                'min_draw_number' => 1,
+                'max_draw_number' => null,
+                'probabilities' => [
+                    ['prize_id' => $prize->id, 'probability_ppm' => 1_000_000],
+                    ['is_minimum_guarantee' => true, 'probability_ppm' => 0],
+                ],
+            ],
+        ], AdminUser::factory()->create());
+    }
+
+    public static function existingDrawCountProvider(): array
+    {
+        return [
+            'single' => [1],
+            'five' => [5],
+            'ten' => [10],
+        ];
     }
 }
