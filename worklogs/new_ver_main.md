@@ -69,6 +69,7 @@
 - Task ID: `V1-NOTICE-002`
 - Risk: `R3`
 - Issue: `#93`
+- PR: `#94`
 - Base／PR Base: `v1/early-release`
 - Base SHA: `71c010010eb8d35d688ea5e3aca30d2b47987950`
 - Branch: `feature/V1-NOTICE-002-announcement-list`
