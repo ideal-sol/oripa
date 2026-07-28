@@ -154,6 +154,45 @@ final class V2AdminFreshMfaAuthorizer
         return $admin;
     }
 
+    public function authorizePermission(
+        V2AdminAuthorizationContext $context,
+        V2Permission $permission,
+        bool $freshMfa = false,
+        string $action = 'admin.operation'
+    ): Admin {
+        [$session, $admin] = $this->sessionAndAdmin($context);
+        if (! $this->permissions->allows($admin->role, $permission)) {
+            throw new V2AuthenticationException(
+                'AUTHORIZATION_DENIED',
+                403,
+                'The Admin operation is not permitted.'
+            );
+        }
+        if (! $freshMfa) {
+            return $admin;
+        }
+        if (! $this->isFresh($session)) {
+            $this->audit->record('admin.fresh_mfa.required', [
+                'request_id' => $context->requestId,
+                'actor_type' => 'admin',
+                'actor_public_id' => $admin->public_id,
+                'actor_role' => $admin->role->value,
+                'auth_realm' => 'admin',
+                'session_correlation_hash' => $context->sessionCorrelationHash,
+                'outcome' => 'failure',
+                'reason_code' => 'fresh_authentication_required',
+                'metadata' => ['action' => $action],
+            ]);
+            throw new V2AuthenticationException(
+                'FRESH_AUTHENTICATION_REQUIRED',
+                403,
+                'Fresh multi-factor authentication is required.'
+            );
+        }
+
+        return $admin;
+    }
+
     public function validSessionForReauthentication(
         V2AdminAuthorizationContext $context,
         bool $lock = false

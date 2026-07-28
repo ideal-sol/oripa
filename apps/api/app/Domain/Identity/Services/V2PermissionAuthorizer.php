@@ -20,6 +20,11 @@ final class V2PermissionAuthorizer
             'qa.draw.manage',
             'reporting.financial.read',
             'reporting.financial.export',
+            'content.read',
+            'content.manage',
+            'content.publish',
+            'contact.read',
+            'contact.manage',
         ],
         'admin' => [
             'identity.admin.read',
@@ -30,11 +35,18 @@ final class V2PermissionAuthorizer
             'shipping.request.manage',
             'reporting.financial.read',
             'reporting.financial.export',
+            'content.read',
+            'content.manage',
+            'content.publish',
+            'contact.read',
+            'contact.manage',
         ],
         'operator' => [
             'identity.admin.read',
             'point.ledger.read',
             'shipping.request.manage',
+            'content.read',
+            'contact.read',
         ],
     ];
 

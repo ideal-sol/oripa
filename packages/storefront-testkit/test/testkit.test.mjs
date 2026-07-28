@@ -19,6 +19,7 @@ import {
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
+  PUBLIC_CONTENT_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
@@ -53,6 +54,16 @@ test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開
   assert.doesNotMatch(
     serialized,
     /internal_id|cost_price|individual_ppm|address_ciphertext|phone_number|secret/i,
+  );
+});
+
+test("Content Fixtureは公開AssetとSanitize済み本文だけを含む", () => {
+  assert.equal(PUBLIC_CONTENT_FIXTURE.banner.link_url, "/gachas");
+  assert.equal(PUBLIC_CONTENT_FIXTURE.notice.is_important, false);
+  const serialized = JSON.stringify(PUBLIC_CONTENT_FIXTURE);
+  assert.doesNotMatch(
+    serialized,
+    /storage_identifier|internal_id|cost_price|individual_ppm|script|secret/i,
   );
 });
 
@@ -331,15 +342,18 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつ認証／Catalog／Draw／Prize／Shipping Operation 24件である", () => {
+test("Public OpenAPIは3.1.1かつContent／Contactを含むOperation 29件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 24);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 29);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "createContactInquiry",
     "createDraw",
     "createShippingAddress",
     "createShippingRequest",
     "deleteShippingAddress",
     "exchangeUserPrizes",
+    "getContentNotice",
+    "getContentStaticPage",
     "getDrawRequest",
     "getGacha",
     "getGachaBySlug",
@@ -347,6 +361,8 @@ test("Public OpenAPIは3.1.1かつ認証／Catalog／Draw／Prize／Shipping Ope
     "getShippingRequest",
     "getUserPrize",
     "getUserSession",
+    "listContentBanners",
+    "listContentNotices",
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
@@ -419,6 +435,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "MINIMAL_SITE_MANIFEST_FIXTURE",
     "PLATFORM_COMPATIBILITY_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
+    "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",

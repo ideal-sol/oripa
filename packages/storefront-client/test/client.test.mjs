@@ -12,6 +12,7 @@ import {
 } from "../dist/server.js";
 import {
   createStorefrontCatalogClient,
+  createStorefrontContentContactClient,
   createStorefrontDrawClient,
 } from "../dist/index.js";
 
@@ -285,12 +286,57 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "resendUserEmailVerification",
     "verifyUserEmail",
     "getUserSession",
+    "listContentBanners",
+    "listContentNotices",
+    "getContentNotice",
+    "getContentStaticPage",
+    "createContactInquiry",
     "createDraw",
     "getDrawRequest",
   ]) {
     assert.match(generated, new RegExp(operationId));
   }
   assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
+});
+
+test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを送る", async () => {
+  const requests = [];
+  const client = createStorefrontContentContactClient({
+    request: async (options) => {
+      requests.push(options);
+      return {
+        data: { status: "accepted" },
+        metadata: { status: 202, idempotency_replayed: false },
+      };
+    },
+  });
+  await client.listBanners();
+  await client.listNotices({ limit: 20, cursor: "next" });
+  await client.getNotice("0198a001-0000-7000-8000-000000000201");
+  await client.getStaticPage("privacy");
+  await client.submitContact(
+    {
+      name: "Fixture User",
+      email: "fixture@example.test",
+      phone: null,
+      subject: "Fixture inquiry",
+      body: "Public-safe fixture body.",
+      website: "",
+    },
+    { csrf_token: "c".repeat(64) },
+  );
+
+  assert.equal(requests[0].path, "/content/banners");
+  assert.equal(requests[1].path, "/content/notices?limit=20&cursor=next");
+  assert.equal(
+    requests[2].path,
+    "/content/notices/0198a001-0000-7000-8000-000000000201",
+  );
+  assert.equal(requests[3].path, "/content/pages/privacy");
+  assert.equal(requests[4].path, "/contact-inquiries");
+  assert.equal(requests[4].method, "POST");
+  assert.equal(requests[4].headers["X-XSRF-TOKEN"], "c".repeat(64));
+  assert.equal(requests[4].csrf, "required");
 });
 
 test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡す", async () => {

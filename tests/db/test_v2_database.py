@@ -2,8 +2,10 @@ import base64
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 MODULE_PATH = (
@@ -227,6 +229,67 @@ class V2DatabaseGuardTest(unittest.TestCase):
         source = MODULE_PATH.read_text(encoding="utf-8")
         self.assertIn("run_reporting_performance_tests", source)
         self.assertIn("V2_REPORTING_PERFORMANCE_TEST", source)
+
+    def test_content_contact_schema_inventory_is_explicit(self):
+        for table in (
+            "public.content_banners",
+            "public.content_notices",
+            "public.content_static_pages",
+            "public.content_versions",
+            "public.content_version_assets",
+            "public.contact_inquiries",
+            "public.contact_status_histories",
+            "public.contact_internal_notes",
+            "public.contact_reply_requests",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("run_content_contact_performance_tests", source)
+        self.assertIn("V2_CONTENT_CONTACT_PERFORMANCE_TEST", source)
+        self.assertIn("rollback_and_reapply_latest", source)
+        self.assertIn("migrate:rollback", source)
+        self.assertIn("--step=1", source)
+
+    def test_content_contact_performance_marker_is_required(self):
+        marker = b"\nMIG056_CONTENT_CONTACT_PERFORMANCE={\"p95_ms\":12.5}\n"
+        with mock.patch.object(v2_database, "run", return_value=marker):
+            self.assertEqual(
+                {"p95_ms": 12.5},
+                v2_database.run_content_contact_performance_tests(
+                    ["docker", "compose"], MODULE_PATH.parents[2]
+                ),
+            )
+
+    def test_compose_up_failure_reports_safe_diagnostic_and_redacts_secrets(self):
+        failure = subprocess.CalledProcessError(
+            1,
+            ["docker", "compose", "up"],
+            output=b"container api is unhealthy\n",
+            stderr=b"error: health check failed\npassword=do-not-report\n",
+        )
+        with mock.patch.object(
+            v2_database.subprocess, "run", side_effect=failure
+        ) as runner:
+            with self.assertRaisesRegex(
+                v2_database.GuardFailure,
+                "during up.*health check failed",
+            ) as raised:
+                v2_database.run(
+                    ["docker", "compose", "up"],
+                    cwd=MODULE_PATH.parents[2],
+                )
+        self.assertNotIn("do-not-report", str(raised.exception))
+        self.assertEqual(
+            "false",
+            runner.call_args.kwargs["env"]["COMPOSE_BAKE"],
+        )
+        with mock.patch.object(v2_database, "run", return_value=b"no metrics"):
+            with self.assertRaisesRegex(
+                v2_database.GuardFailure, "evidence marker is missing"
+            ):
+                v2_database.run_content_contact_performance_tests(
+                    ["docker", "compose"], MODULE_PATH.parents[2]
+                )
 
 
 if __name__ == "__main__":

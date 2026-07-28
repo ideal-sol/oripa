@@ -4598,3 +4598,148 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   最小Storefront画面、Staging E2Eが残るためGate G4は`NOT COMPLETE`である。
   Payment Provider実装`MIG-055`は人間決定により延期し、次Task候補は
   `MIG-056 Content／Contact Vertical Slice`である。MIG-054完了後には開始しない。
+
+## MIG-054 Closeout／MIG-056 Content・Contact Vertical Slice
+
+### MIG-054 Closeout
+
+- Issue `#113`はClosed、PR `#114`はSquash Mergedである。Final Headは
+  `fcbbea33b8021faa6adc05955e562f53e823ea2a`、Squash Commitは
+  `a8400a3aefaf645e78b2a91105f125970f9982cb`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-054 Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 最新の人間決定／Task
+
+- Wave 3完了後に追加機能、各UI修正、最終Design、実Gacha登録を行い、その後に
+  決済審査を申請する。審査承認・正式見積り前にProvider固有実装を開始しない。
+- Stripe候補はCredit Card、Apple Pay、Google Pay、PayPayである。
+  Convenience Store Payment候補はPAYSLEで、Stripe Convenience Store Paymentは
+  比較・代替候補とする。料金・審査条件の自動Reminderは設定しない。
+- `test.luxe-pack.biz`／`ad.luxe-pack.biz`はBrowser確認Waveまで設定しない。
+  MIG-056ではNginx、Let's Encrypt、TLS、本番Domain、V1本番の
+  `luxe-pack.biz`／`admin.luxe-pack.biz`を変更しない。
+- Task IDは`MIG-056`、Riskは`R3`、Issueは`#115`、Branchは
+  `feat/MIG-056-content-contact`、Base SHAは
+  `a8400a3aefaf645e78b2a91105f125970f9982cb`である。
+
+### V1 Characterization／Schema
+
+- V1 BannerはImage、Link、Active、Sort Orderを持つ。NoticeはTitle、本文、
+  Thumbnail、重要表示、Draft／Published／Hidden、Published Atを持ち、
+  Published At以前のRecordを新しい順で公開する。Static PageはSlug、Title、
+  本文、Status、Published Atを持ち、`terms`、`privacy`、`commercial-law`、
+  `point-terms`をLegal Pageとして扱う。
+- V1 ContactはAnonymous／Authenticatedの双方からName、Email、Phone、Bodyを受け付け、
+  `new`／`replied`／`closed`を管理し、Mail／Discordを同期通知する。Attachmentはなく、
+  V1 Table名、内部ID、未Sanitize HTML、Test Contact DataはV2へCopyしない。
+- V2 Migrationへ`content_banners`、`content_notices`、`content_static_pages`、
+  `content_versions`、`content_version_assets`、`contact_inquiries`、
+  `contact_status_histories`、`contact_internal_notes`、`contact_reply_requests`を
+  追加した。Public IDはUUIDv7、内部PKはbigint、`tenant_id`はない。
+- Content MasterとVersionを分離し、Draft／Published／Archived、開始・終了期間、
+  Checksum、Actorを型付きColumnで保持する。Published VersionのUpdate／Delete、
+  Contact History／Internal Note／Reply RequestのUpdate／Delete、
+  Contact Inquiryの物理DeleteをDB Triggerで拒否する。
+
+### Contract／Content Security
+
+- Public OpenAPIへ公開中Banner一覧、Notice一覧／詳細、Static Page Slug取得、
+  Contact送信の5 Operationを追加した。Public Operationは合計29件で、
+  Storefront ClientのContent／Contact FacadeとTestkit Fixtureを再生成した。
+  Admin／Webhook型、内部ID、Storage Identifier、管理MetadataをPublicへExportしない。
+- Admin OpenAPIへBanner／Notice／Static Pageの一覧、作成、詳細、Version追加、
+  Publish、Unpublish、Archiveと、Contact一覧／詳細、Status更新、Internal Note、
+  Reply Requestの26 Operationを追加した。UIは実装していない。
+- Public ContentはPublished Versionかつ開始日時以下、終了日時がNULLまたは現在より後だけを
+  返す。BannerはPublic Image Assetを必須とし、Sort Orderを維持する。
+  NoticeはOpaque Cursor Paginationを使用する。
+- Server-side DOM Allowlist Sanitizerで段落、見出し、強調、List、Link、Tableを許可し、
+  Script、Inline Event、Style、危険URL、iframe、embed、object、form、SVG、MathMLを
+  除去する。保存時とPublic Response時の両方で同じPolicyを適用する。
+- 中央Permission Matrixへ`content.read`、`content.manage`、`content.publish`、
+  `contact.read`、`contact.manage`を追加した。Owner／Adminは管理可能、
+  OperatorはRead-onlyである。Legal PageのPublish／置換／Unpublish／Archiveは
+  MIG-053A共通Fresh MFA 5分をDomain Service入口で必須とする。
+
+### Contact／PII／Anti-spam／Audit
+
+- Name、Email、Phone、Subject、Body、Internal Note、Reply本文はApplication-level
+  Encryptionで保存する。Email検索・Rate LimitはRepository外KeyによるHMAC相関値を
+  使用し、Full PIIをLog、Error、Audit、Outboxへ保存しない。
+- Contact MutationはCSRF、Exact Origin、JSON Content-Type、Honeypot、Field Length、
+  20,000 byte本文上限、Unicode NFCを検査する。IPは5回／1時間、Emailは3回／1時間、
+  Limiter障害時はFail Closed、429では`Retry-After`を返す。
+- Content作成／更新／Publish／Unpublish／Archive、Legal Publish、Contact受付／閲覧／
+  Status変更／Internal Note／Reply Request／Rate Limit／Validation拒否を
+  Append-only Auditへ接続した。Contact受付、受付確認、管理者通知Outboxは同一Transaction、
+  Reply RequestとOutboxも同一Transactionである。実Mail／SMS／Discordは送信しない。
+- V1 Contact DataはImportせず、V2 Production開始時は0件とする。
+  MIG-070～072がContent Master、Version、Public Asset Relationの順でImportできる
+  構造だけを提供する。
+
+### Test／Performance／Gate
+
+- Guard付きPersistent V2 DBとTask専用Ephemeral DBの双方で`migrate:fresh`を2回実行し、
+  最新Migrationの1 Step Rollback／Reapply、Migration Status、Schema Inventoryを
+  確認した。Migrationは13件、Migration Set SHA-256は
+  `b190715a03b28e3a86ba1aa2052752abee7b8a37e7b363331bc4ea683202e423`
+  で一致した。
+- Task専用Ephemeral Source／RestoreのSchema SHA-256は
+  `b2d2be974f4822d9da461ef2948fde1013a0d6c84c6bee00dc85ec2ebd89c109`、
+  Migration Row SHA-256は
+  `7ae1f0b79eeeb104988caa52385fab772a0e570c5746224b0a5e28d7bb82c666`
+  で一致した。Backup SHA-256は
+  `346df5f403a15580580604c576e4efaf2313751f8d6b9076dcec6e1eee73f337`
+  で、Backup／Restore、API／Admin Health、Host Port非公開、
+  Task専用Container／Network／Volume CleanupはPASSした。
+- 全V2 Suite、通常Draw／QA Draw Load、Reporting Performance、
+  Content／Contact Feature／Performance、Auth／Fresh MFA、Catalog／Probability、
+  Point／Payment／Refund／Chargeback、Prize／Shipping、Audit／Outboxの回帰はPASSした。
+  実装途中に検出したContent DTO NULL処理、匿名Audit Actor、Legal Slug、
+  Audit列名、Test間Outbox Baseline、Published Asset Relation順序の不一致は修正済みである。
+- Storefront Client生成差分／Typecheck／Lint／Build／12 TestはPASSした。
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／20 Test／固定Export／
+  実Network禁止、Admin Typecheck／Lint／BuildもPASSした。
+- OpenAPI Unit Test 4件、Policy Unit Test 80件、Quality Unit Test 5件、
+  Security Unit Test 4件、DB Guard Unit Test 23件、Release Test 10件はPASSした。
+  Public 29 Operation、Admin 67 Operation、Webhook 0 OperationでBundle差分はない。
+  `policy-gate`、`quality-gate`、`security-gate`、Release Source Validation、
+  `git diff --check`のLocal相当はPASSし、`integration-gate`相当はGuard SmokeでPASSした。
+- 100 Banner、10,000 Notice、100 Static Page Version、100,000 ContactのFixtureで、
+  Banner First Page p50／p95は7.122／8.060ms、Noticeは36.528／42.662ms、
+  Static Pageは4.310／9.954ms、Contactは2.512／3.320msだった。
+  10並行Contactはp95 556.161ms、受付10件、Failure 0、未解決Deadlock 0である。
+  全測定とAuditを含むQuery数は45、Peak Memoryは44,564,480 byte、
+  N+1検出0で、Interactive First Page p95 1秒以下の基準を満たした。
+  Admin Content一覧とVersion履歴はJoin／Subqueryを使用する。
+- GitHub IntegrationでCompose v2.40と旧BuildxのBake経路非互換を検出した。
+  DB Guardは`COMPOSE_BAKE=false`を子Process環境へ固定し、外側の環境指定なしで
+  Guard Smokeを再実行してPASSした。Compose起動失敗時はPassword、Token等を除外した
+  Health／Build診断だけを出力し、Fail Closedを維持する。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは11 Finding、Composer Auditは既存期限付き10 Findingである。
+  Baseline追加／拡張、新規Critical／High、Secret／PII Candidateは0件だった。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  のままである。算出方式は
+  `sha256(sorted(sha256(file_content)))`で固定した。
+- V1 Migration 40件、V1 Runtime／本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+- Admin／Storefront UI、実Mail／SMS／Discord、CAPTCHA Provider、Provider固有決済、
+  Domain／Nginx／TLS、Staging E2E、Production Deploymentは未実行であり、
+  PASSとは記録しない。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree／Task Resource CleanupはPR上で確定する。
+- Admin／Storefront UI、通知実送信、Staging E2Eが残るためGate G4は
+  `NOT COMPLETE`である。Password Reset／SMS Verification、UI／Staging、
+  通知Transport等が残るためGate G5も`NOT COMPLETE`である。
+  Payment Provider実装`MIG-055`は延期を維持し、
+  次Task候補は`MIG-057 Password Reset／SMS Verification Vertical Slice`だが、
+  MIG-056完了後には開始しない。

@@ -12,6 +12,125 @@ x-oripa-surface: public
 servers:
   - url: /api/v2
 paths:
+  /content/banners:
+    get:
+      operationId: listContentBanners
+      summary: 公開期間内のBannerを表示順で取得する
+      x-idempotency: safe
+      x-rate-limit: public-read
+      x-cache-policy: public-60-seconds
+      x-stability: alpha
+      security: []
+      responses:
+        '200':
+          description: 公開Banner一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentBannerCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /content/notices:
+    get:
+      operationId: listContentNotices
+      summary: 公開期間内のNoticeをCursor順で取得する
+      x-idempotency: safe
+      x-rate-limit: public-read
+      x-cache-policy: public-60-seconds
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogLimit'
+        - $ref: '#/components/parameters/CatalogCursor'
+      responses:
+        '200':
+          description: 公開Notice一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentNoticeCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /content/notices/{notice_id}:
+    get:
+      operationId: getContentNotice
+      summary: 公開期間内のNotice詳細を取得する
+      x-idempotency: safe
+      x-rate-limit: public-read
+      x-cache-policy: public-60-seconds
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: notice_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+      responses:
+        '200':
+          description: 公開Notice詳細。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentNotice'
+        default:
+          $ref: '#/components/responses/Problem'
+  /content/pages/{slug}:
+    get:
+      operationId: getContentStaticPage
+      summary: Slugで公開期間内のStatic Pageを取得する
+      x-idempotency: safe
+      x-rate-limit: public-read
+      x-cache-policy: public-60-seconds
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+            maxLength: 128
+      responses:
+        '200':
+          description: 公開Static Page。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentStaticPage'
+        default:
+          $ref: '#/components/responses/Problem'
+  /contact-inquiries:
+    post:
+      operationId: createContactInquiry
+      summary: Anonymousまたは認証済みUserが問い合わせを送信する
+      x-idempotency: not-supported
+      x-rate-limit: ip-5-per-hour-and-email-3-per-hour
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - {}
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactInquiryRequest'
+      responses:
+        '202':
+          description: 問い合わせを受け付けた。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactInquiryReceipt'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
   /gacha-categories:
     get:
       operationId: listGachaCategories
@@ -593,6 +712,193 @@ components:
       in: cookie
       name: __Host-oripa_user_session
   schemas:
+    ContentAsset:
+      type: object
+      additionalProperties: false
+      required: [id, path, checksum_sha256, alt_text]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        path:
+          type: string
+          pattern: '^/'
+        checksum_sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        alt_text:
+          type: [string, 'null']
+          maxLength: 191
+    ContentBanner:
+      type: object
+      additionalProperties: false
+      required: [id, title, link_url, asset, publish_start_at, publish_end_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        title:
+          type: string
+          maxLength: 191
+        link_url:
+          type: [string, 'null']
+          maxLength: 2048
+        asset:
+          $ref: '#/components/schemas/ContentAsset'
+        publish_start_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        publish_end_at:
+          type: [string, 'null']
+          format: date-time
+    ContentBannerCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBanner'
+    ContentNoticeSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [id, slug, title, summary, is_important, asset, publish_start_at, publish_end_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          type: string
+          maxLength: 128
+        title:
+          type: string
+          maxLength: 191
+        summary:
+          type: [string, 'null']
+          maxLength: 500
+        is_important:
+          type: boolean
+        asset:
+          oneOf:
+            - $ref: '#/components/schemas/ContentAsset'
+            - type: 'null'
+        publish_start_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        publish_end_at:
+          type: [string, 'null']
+          format: date-time
+    ContentNoticeCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentNoticeSummary'
+        next_cursor:
+          type: [string, 'null']
+    ContentNotice:
+      type: object
+      additionalProperties: false
+      required:
+        [id, slug, title, summary, is_important, asset, publish_start_at,
+         publish_end_at, body_html, checksum_sha256]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          type: string
+          maxLength: 128
+        title:
+          type: string
+          maxLength: 191
+        summary:
+          type: [string, 'null']
+          maxLength: 500
+        is_important:
+          type: boolean
+        asset:
+          oneOf:
+            - $ref: '#/components/schemas/ContentAsset'
+            - type: 'null'
+        publish_start_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        publish_end_at:
+          type: [string, 'null']
+          format: date-time
+        body_html:
+          type: string
+        checksum_sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+    ContentStaticPage:
+      type: object
+      additionalProperties: false
+      required:
+        [id, slug, title, body_html, checksum_sha256, is_legal, publish_start_at, publish_end_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          type: string
+          maxLength: 128
+        title:
+          type: string
+          maxLength: 191
+        body_html:
+          type: string
+        checksum_sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        is_legal:
+          type: boolean
+        publish_start_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        publish_end_at:
+          type: [string, 'null']
+          format: date-time
+    CreateContactInquiryRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, subject, body, website]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        phone:
+          type: [string, 'null']
+          maxLength: 32
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 191
+        body:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        website:
+          type: string
+          maxLength: 0
+          writeOnly: true
+    ContactInquiryReceipt:
+      type: object
+      additionalProperties: false
+      required: [receipt_code, status, received_at, request_id]
+      properties:
+        receipt_code:
+          type: string
+          pattern: '^CNT-[A-Z0-9]{20}$'
+        status:
+          type: string
+          const: accepted
+        received_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        request_id:
+          $ref: '#/components/schemas/OpaqueId'
     OpaqueId:
       $ref: ../components/common.yaml#/schemas/OpaqueId
     UserPrizeStatus:

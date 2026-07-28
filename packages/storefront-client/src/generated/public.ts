@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/content/banners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開期間内のBannerを表示順で取得する */
+        get: operations["listContentBanners"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開期間内のNoticeをCursor順で取得する */
+        get: operations["listContentNotices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/notices/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開期間内のNotice詳細を取得する */
+        get: operations["getContentNotice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Slugで公開期間内のStatic Pageを取得する */
+        get: operations["getContentStaticPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contact-inquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Anonymousまたは認証済みUserが問い合わせを送信する */
+        post: operations["createContactInquiry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gacha-categories": {
         parameters: {
             query?: never;
@@ -352,6 +437,79 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ContentAsset: {
+            id: components["schemas"]["OpaqueId"];
+            path: string;
+            checksum_sha256: string;
+            alt_text: string | null;
+        };
+        ContentBanner: {
+            id: components["schemas"]["OpaqueId"];
+            title: string;
+            link_url: string | null;
+            asset: components["schemas"]["ContentAsset"];
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            publish_end_at: string | null;
+        };
+        ContentBannerCollection: {
+            items: components["schemas"]["ContentBanner"][];
+        };
+        ContentNoticeSummary: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+            summary: string | null;
+            is_important: boolean;
+            asset: components["schemas"]["ContentAsset"] | null;
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            publish_end_at: string | null;
+        };
+        ContentNoticeCollection: {
+            items: components["schemas"]["ContentNoticeSummary"][];
+            next_cursor: string | null;
+        };
+        ContentNotice: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+            summary: string | null;
+            is_important: boolean;
+            asset: components["schemas"]["ContentAsset"] | null;
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            publish_end_at: string | null;
+            body_html: string;
+            checksum_sha256: string;
+        };
+        ContentStaticPage: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+            body_html: string;
+            checksum_sha256: string;
+            is_legal: boolean;
+            publish_start_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            publish_end_at: string | null;
+        };
+        CreateContactInquiryRequest: {
+            name: string;
+            /** Format: email */
+            email: string;
+            phone?: string | null;
+            subject: string;
+            body: string;
+            website: string;
+        };
+        ContactInquiryReceipt: {
+            receipt_code: string;
+            /** @constant */
+            status: "accepted";
+            received_at: components["schemas"]["UtcDateTime"];
+            request_id: components["schemas"]["OpaqueId"];
+        };
         /** @description 形式や並び順へ依存してはならない公開識別子。 */
         OpaqueId: string;
         /** @enum {string} */
@@ -754,6 +912,125 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listContentBanners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Banner一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentBannerCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listContentNotices: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Notice一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentNoticeCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getContentNotice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notice_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Notice詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentNotice"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getContentStaticPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Static Page。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStaticPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createContactInquiry: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactInquiryRequest"];
+            };
+        };
+        responses: {
+            /** @description 問い合わせを受け付けた。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactInquiryReceipt"];
+                };
+            };
+            429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
     listGachaCategories: {
         parameters: {
             query?: never;

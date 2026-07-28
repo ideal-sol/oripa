@@ -15,4 +15,9 @@ enum V2Permission: string
     case ManageQaDraw = 'qa.draw.manage';
     case ReadFinancialReporting = 'reporting.financial.read';
     case ExportFinancialReporting = 'reporting.financial.export';
+    case ReadContent = 'content.read';
+    case ManageContent = 'content.manage';
+    case PublishContent = 'content.publish';
+    case ReadContact = 'contact.read';
+    case ManageContact = 'contact.manage';
 }

@@ -384,6 +384,32 @@ V2_REPORTING_REQUIRED_FILES = {
     "openapi/admin/openapi.yaml",
     "openapi/bundled/admin.openapi.json",
 }
+V2_CONTENT_CONTACT_REQUIRED_FILES = {
+    "apps/api/app/Domain/ContentContact/Exceptions/V2ContentContactException.php",
+    "apps/api/app/Domain/ContentContact/Services/V2ContentCursor.php",
+    "apps/api/app/Domain/ContentContact/Services/V2ContactService.php",
+    "apps/api/app/Domain/ContentContact/Services/V2ContentContactAdminService.php",
+    "apps/api/app/Domain/ContentContact/Services/V2ContentHtmlSanitizer.php",
+    "apps/api/app/Domain/ContentContact/Services/V2ContentReadService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminContentContactController.php",
+    "apps/api/app/Http/Controllers/V2/V2ContentContactController.php",
+    "apps/api/app/Models/V2/ContactInquiry.php",
+    "apps/api/app/Models/V2/ContentBanner.php",
+    "apps/api/app/Models/V2/ContentNotice.php",
+    "apps/api/app/Models/V2/ContentStaticPage.php",
+    "apps/api/app/Models/V2/ContentVersion.php",
+    "apps/api/config/v2_content_contact.php",
+    "apps/api/database/migrations-v2/2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
+    "apps/api/tests/V2/ContentContactVerticalSliceTest.php",
+    "apps/api/tests/V2/ZContentContactPerformanceTest.php",
+    "docs/operations/content-contact/README.md",
+    "openapi/admin/openapi.yaml",
+    "openapi/bundled/admin.openapi.json",
+    "openapi/bundled/public.openapi.json",
+    "openapi/public/openapi.yaml",
+    "packages/storefront-client/src/content-contact.ts",
+    "packages/storefront-testkit/src/fixtures.ts",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1270,7 +1296,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 24,
+        "publicApiOperationCount": 29,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1288,8 +1314,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 24",
-        '"createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getUserPrize","getUserSession","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","resendUserEmailVerification","updateShippingAddress","verifyUserEmail"',
+        "operation_count: 29",
+        '"createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getUserPrize","getUserSession","listContentBanners","listContentNotices","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","resendUserEmailVerification","updateShippingAddress","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1505,6 +1531,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
         "2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
         "2026_08_01_000012_create_v2_reporting_export_foundation.php",
+        "2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2956,6 +2983,169 @@ def validate_v2_reporting_boundary(repository: Path, paths: Iterable[str]) -> No
         raise PolicyFailure("platform-ci V2 Reporting project boundary is missing")
 
 
+def validate_v2_content_contact_boundary(
+    repository: Path, paths: Iterable[str]
+) -> None:
+    missing = sorted(V2_CONTENT_CONTACT_REQUIRED_FILES - set(paths))
+    if missing:
+        raise PolicyFailure(
+            "required V2 Content／Contact files missing: " + ", ".join(missing)
+        )
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_02_000013_create_v2_content_contact_vertical_slice.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "content_banners",
+        "content_notices",
+        "content_static_pages",
+        "content_versions",
+        "content_version_assets",
+        "contact_inquiries",
+        "contact_status_histories",
+        "contact_internal_notes",
+        "contact_reply_requests",
+        "v2_content_protect_published_version",
+        "v2_contact_reject_history_mutation",
+        "v2_contact_reject_delete",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Content／Contact migration missing {required}")
+    for prohibited in ("tenant_id", "cascadeOnDelete"):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 Content／Contact migration contains prohibited {prohibited}"
+            )
+
+    sanitizer = (
+        repository
+        / "apps/api/app/Domain/ContentContact/Services/V2ContentHtmlSanitizer.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "DOMDocument",
+        "LIBXML_NONET",
+        "DROP_WITH_CONTENT",
+        "safeHref",
+        "['http', 'https', 'mailto']",
+        "noopener noreferrer",
+    ):
+        if required not in sanitizer:
+            raise PolicyFailure(f"V2 Content sanitizer missing {required}")
+    contact = (
+        repository
+        / "apps/api/app/Domain/ContentContact/Services/V2ContactService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "Crypt::encryptString",
+        "contact_hmac_key",
+        "assertGlobal('contact_ip'",
+        "assertSubject('contact_email'",
+        "contact.receipt.requested",
+        "contact.admin_notification.requested",
+        "contact.rate_limited",
+        "DB::transaction",
+    ):
+        if required not in contact:
+            raise PolicyFailure(f"V2 Contact boundary missing {required}")
+    if "email_ciphertext' => $email" in contact or "body_ciphertext' => $body" in contact:
+        raise PolicyFailure("V2 Contact stores plaintext PII")
+
+    admin_service = (
+        repository
+        / "apps/api/app/Domain/ContentContact/Services/"
+        "V2ContentContactAdminService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "ReadContent",
+        "ManageContent",
+        "PublishContent",
+        "ReadContact",
+        "ManageContact",
+        "content.legal.publish",
+        "content.legal.archive",
+        "contact.reply.requested",
+    ):
+        if required not in admin_service:
+            raise PolicyFailure(f"V2 Content／Contact Admin boundary missing {required}")
+
+    public_bundle = load_json(repository, "openapi/bundled/public.openapi.json")
+    admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
+    public_operations = {
+        operation.get("operationId")
+        for item in public_bundle.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    required_public = {
+        "listContentBanners",
+        "listContentNotices",
+        "getContentNotice",
+        "getContentStaticPage",
+        "createContactInquiry",
+    }
+    if not required_public.issubset(public_operations):
+        raise PolicyFailure("V2 Public Content／Contact operation set is incomplete")
+    public_text = json.dumps(public_bundle, sort_keys=True)
+    for prohibited in (
+        "AdminContent",
+        "ContactInternalNote",
+        "ContactReplyRequest",
+        "/admin/",
+    ):
+        if prohibited in public_text:
+            raise PolicyFailure(
+                f"V2 Public Contract exposes Admin Content surface {prohibited}"
+            )
+    admin_operations = {
+        operation.get("operationId")
+        for item in admin_bundle.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    required_admin = {
+        "createAdminContentBanner",
+        "publishAdminContentBannerVersion",
+        "createAdminContentNotice",
+        "publishAdminContentNoticeVersion",
+        "createAdminContentStaticPage",
+        "publishAdminContentStaticPageVersion",
+        "listAdminContactInquiries",
+        "getAdminContactInquiry",
+        "updateAdminContactInquiryStatus",
+        "addAdminContactInternalNote",
+        "createAdminContactReplyRequest",
+    }
+    if not required_admin.issubset(admin_operations):
+        raise PolicyFailure("V2 Admin Content／Contact operation set is incomplete")
+
+    tests = (
+        repository / "apps/api/tests/V2/ContentContactVerticalSliceTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_html_sanitizer_keeps_document_markup_and_removes_active_content",
+        "test_published_content_respects_period_order_cursor_and_public_asset",
+        "test_published_version_is_immutable_and_legal_publish_requires_fresh_mfa",
+        "test_contact_is_encrypted_audited_and_enqueues_notifications_atomically",
+        "test_contact_admin_workflow_separates_notes_and_keeps_history_append_only",
+        "test_rate_limit_and_permission_matrix_fail_closed_without_pii",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Content／Contact test missing {required}")
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    for required in (
+        "run_content_contact_performance_tests",
+        "V2_CONTENT_CONTACT_PERFORMANCE_TEST",
+        "ZContentContactPerformanceTest",
+    ):
+        if required not in runner:
+            raise PolicyFailure(
+                f"V2 Content／Contact performance verification missing {required}"
+            )
+
+
 def validate_boundary_readmes(repository: Path) -> None:
     for relative in sorted(BOUNDARY_READMES):
         text = (repository / relative).read_text(encoding="utf-8")
@@ -3396,6 +3586,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_prize_shipping_boundary(repository, paths)
     validate_v2_qa_draw_boundary(repository, paths)
     validate_v2_reporting_boundary(repository, paths)
+    validate_v2_content_contact_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)
