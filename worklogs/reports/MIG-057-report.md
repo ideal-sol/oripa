@@ -110,7 +110,15 @@
 
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`
-- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+- PR: `#118`
+- 初回Final候補Head:
+  `c96f33c2af943f9000ac722be99add849912a18f`
+- 初回Final候補Headの最新RunではRequired 5 Check、CodeQL 2件、
+  Dependency Reviewがすべて成功。
+- PR本文のTask Policy Metadata不足による過去の失敗Runは、本文修正だけで解消。
+- Application／Migration／Contractを変更せず、本提出記録を確定した次Headを
+  Final Headとして全CheckとFresh Self-reviewを再実行する。
+- Final Head、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR完了時に確定する。
 - 次Task候補:
   `MIG-058 Google OIDC／LINE Identity Linking Vertical Slice`

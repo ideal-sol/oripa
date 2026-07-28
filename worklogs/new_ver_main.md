@@ -4853,7 +4853,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - SMS Provider実送信、Google OIDC、LINE、Referral、Admin／Storefront UI、
   Domain／Nginx／TLS、Staging E2E、Production Deploymentは未実行であり、
   PASSとは記録しない。
-- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+- PR `#118`を作成し、初回Final候補Head
+  `c96f33c2af943f9000ac722be99add849912a18f`でRequired 5 Check、
+  CodeQL 2件、Dependency Reviewの最新Runはすべて成功した。PR本文の
+  Task Policy Metadata不足による過去の失敗Runは本文修正だけで解消し、
+  Application／Migration／Contractを変更せず、提出記録を確定した次Headを
+  Final Headとして全CheckとFresh Self-reviewを再実行する。
+- Final Head、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。UI、通知Transport、Staging E2Eが
   残るためGate G4／G5は`NOT COMPLETE`である。次Task候補は
   `MIG-058 Google OIDC／LINE Identity Linking Vertical Slice`だが、
