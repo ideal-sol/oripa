@@ -165,7 +165,11 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
                 continue
             password = properties["password"]
             if (
-                name not in {"UserRegistrationRequest", "PasswordLoginRequest"}
+                name not in {
+                    "UserRegistrationRequest",
+                    "PasswordLoginRequest",
+                    "PasswordResetConfirmRequest",
+                }
                 or not isinstance(password, dict)
                 or password.get("writeOnly") is not True
             ):

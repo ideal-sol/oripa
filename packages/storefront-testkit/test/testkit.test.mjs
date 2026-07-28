@@ -20,6 +20,7 @@ import {
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
+  PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
@@ -65,6 +66,18 @@ test("Content Fixtureは公開AssetとSanitize済み本文だけを含む", () =
     serialized,
     /storage_identifier|internal_id|cost_price|individual_ppm|script|secret/i,
   );
+});
+
+test("Identity Recovery FixtureはToken、Code、Full PIIを公開しない", () => {
+  assert.equal(PUBLIC_IDENTITY_RECOVERY_FIXTURE.password_reset.status, "accepted");
+  assert.equal(PUBLIC_IDENTITY_RECOVERY_FIXTURE.sms_status.verified, false);
+  assert.match(PUBLIC_IDENTITY_RECOVERY_FIXTURE.sms_status.phone_masked, /\*/);
+  const serialized = JSON.stringify(PUBLIC_IDENTITY_RECOVERY_FIXTURE);
+  assert.doesNotMatch(
+    serialized,
+    /"(?:password|token|verification_code|full_email|full_phone|secret)"\s*:/i,
+  );
+  assert.doesNotMatch(serialized, /@[a-z0-9.-]+|\+819[0-9]{9}/i);
 });
 
 const SITE_VERSION = "1.0.0-alpha.1";
@@ -342,10 +355,11 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつContent／Contactを含むOperation 29件である", () => {
+test("Public OpenAPIは3.1.1かつRecovery／SMSを含むOperation 35件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 29);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 35);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",
     "createShippingAddress",
@@ -359,6 +373,7 @@ test("Public OpenAPIは3.1.1かつContent／Contactを含むOperation 29件で�
     "getGachaBySlug",
     "getShippingAddress",
     "getShippingRequest",
+    "getSmsVerificationStatus",
     "getUserPrize",
     "getUserSession",
     "listContentBanners",
@@ -372,8 +387,12 @@ test("Public OpenAPIは3.1.1かつContent／Contactを含むOperation 29件で�
     "loginUser",
     "logoutUser",
     "registerUser",
+    "requestPasswordReset",
+    "resendSmsVerification",
     "resendUserEmailVerification",
+    "sendSmsVerification",
     "updateShippingAddress",
+    "verifySmsCode",
     "verifyUserEmail",
   ]);
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
@@ -438,6 +457,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
+    "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",

@@ -984,6 +984,88 @@
         }
       }
     },
+    "/auth/password/forgot": {
+      "post": {
+        "operationId": "requestPasswordReset",
+        "summary": "Password Reset通知を存在有無を開示せず受け付ける",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "account-3-per-hour-and-ip-10-per-hour",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accountの存在有無を開示せず受理した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/auth/password/reset": {
+      "post": {
+        "operationId": "confirmPasswordReset",
+        "summary": "One-time TokenでPassword Resetを確定する",
+        "x-idempotency": "one-time-token",
+        "x-rate-limit": "token-account-5-attempts",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Passwordを変更し全旧Sessionを失効した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "operationId": "logoutUser",
@@ -1120,6 +1202,170 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/sms-verification": {
+      "get": {
+        "operationId": "getSmsVerificationStatus",
+        "summary": "User自身のSMS認証状態を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "session",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SMS認証状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsVerificationStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "sendSmsVerification",
+        "summary": "E.164電話番号へSMS認証Challengeを発行する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "phone-3-per-hour-10-per-day-and-ip-5-per-hour",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsVerificationSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "SMS通知Outboxを受理した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsVerificationAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/sms-verification/resend": {
+      "post": {
+        "operationId": "resendSmsVerification",
+        "summary": "旧Challengeを失効してSMS認証を再送する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "phone-3-per-hour-10-per-day-and-ip-5-per-hour",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "SMS通知Outboxを再発行した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsVerificationAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/sms-verification/verify": {
+      "post": {
+        "operationId": "verifySmsCode",
+        "summary": "One-time SMS Codeで電話番号を検証する",
+        "x-idempotency": "one-time-code",
+        "x-rate-limit": "challenge-5-attempts",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsVerificationConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "電話番号を検証しUser SessionをRotationした。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsVerificationStatus"
                 }
               }
             }
@@ -3038,6 +3284,183 @@
             "minLength": 1,
             "maxLength": 128,
             "writeOnly": true
+          }
+        }
+      },
+      "PasswordResetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "redirect_path": {
+            "type": "string",
+            "default": "/",
+            "pattern": "^/(?!/)"
+          }
+        }
+      },
+      "PasswordResetConfirmRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "token",
+          "password"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        }
+      },
+      "PasswordResetAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "message"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "accepted"
+          },
+          "message": {
+            "type": "string",
+            "const": "If the account is eligible, password reset instructions will be sent."
+          }
+        }
+      },
+      "SmsVerificationSendRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phone"
+        ],
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9][0-9]{7,14}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "SmsVerificationConfirmRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge_id",
+          "code"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "SmsVerificationChallenge": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "expired"
+            ]
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "SmsVerificationAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accepted",
+          "challenge_id",
+          "phone_masked",
+          "expires_at"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "const": true
+          },
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone_masked": {
+            "type": "string"
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "SmsVerificationStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "verified",
+          "phone_masked",
+          "challenge"
+        ],
+        "properties": {
+          "verified": {
+            "type": "boolean"
+          },
+          "phone_masked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "challenge": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SmsVerificationChallenge"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

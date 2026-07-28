@@ -20,6 +20,16 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         'rate_limit_trigger' => 'identity.rate_limit_trigger',
         'recovery_code_use' => 'identity.recovery_code_use',
         'register' => 'identity.register',
+        'password_reset_failed' => 'identity.password_reset.failed',
+        'password_reset_rate_limited' => 'identity.password_reset.rate_limited',
+        'password_reset_requested' => 'identity.password_reset.requested',
+        'password_reset_succeeded' => 'identity.password_reset.succeeded',
+        'phone_changed' => 'identity.phone.changed',
+        'sms_verification_failed' => 'identity.sms_verification.failed',
+        'sms_verification_rate_limited' => 'identity.sms_verification.rate_limited',
+        'sms_verification_sent' => 'identity.sms_verification.sent',
+        'sms_verification_succeeded' => 'identity.sms_verification.succeeded',
+        'user_sessions_revoked' => 'identity.user_sessions.revoked',
         'verification_failure' => 'identity.verification_failure',
         'verification_success' => 'identity.verification_success',
     ];
@@ -56,7 +66,10 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         $request = app()->bound('request') ? app('request') : null;
         $request = $request instanceof Request ? $request : null;
         $metadata = array_intersect_key($context, array_flip(['method', 'result', 'stage']));
-        $failure = str_ends_with($event, '_failure') || $event === 'rate_limit_trigger';
+        $failure = str_ends_with($event, '_failure')
+            || str_ends_with($event, '_failed')
+            || str_ends_with($event, '_rate_limited')
+            || $event === 'rate_limit_trigger';
         $outcome = $failure ? 'failure' : ($event === 'register' ? 'pending' : 'success');
 
         $this->audit->record(self::ACTIONS[$event], [

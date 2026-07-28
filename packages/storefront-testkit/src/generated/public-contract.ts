@@ -5,7 +5,7 @@
 
 export const PUBLIC_CONTRACT_FIXTURE = {
   openapi: "3.1.1",
-  operation_count: 29,
-  operation_ids: ["createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getUserPrize","getUserSession","listContentBanners","listContentNotices","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","resendUserEmailVerification","updateShippingAddress","verifyUserEmail"],
-  bundle_sha256: "f9ecb45afeea6e69d11f77e44a5fe6420235636afa50d5fca125de2c50ea7843",
+  operation_count: 35,
+  operation_ids: ["confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","updateShippingAddress","verifySmsCode","verifyUserEmail"],
+  bundle_sha256: "174292584ac12e9e999816cb84f59191005218053d2a1b2b1399fb1970ee4d77",
 } as const;

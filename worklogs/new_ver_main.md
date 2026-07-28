@@ -4743,3 +4743,124 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Payment Provider実装`MIG-055`は延期を維持し、
   次Task候補は`MIG-057 Password Reset／SMS Verification Vertical Slice`だが、
   MIG-056完了後には開始しない。
+
+## MIG-056 Closeout／MIG-057 Password Reset・SMS Verification Vertical Slice
+
+### MIG-056 Closeout
+
+- Issue `#115`はClosed、PR `#116`はSquash Mergedである。Final Headは
+  `1b82684a8dc6f5ecef533a6c9b0c2901920181b4`、Squash Commitは
+  `e0b4640bf12456d47c6cbf22ca99c681a67ad05b`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-056 Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### MIG-057 Task／Contract
+
+- Task IDは`MIG-057`、Riskは`R3`、Issueは`#117`、Branchは
+  `feat/MIG-057-password-reset-sms-verification`、Base SHAは
+  `e0b4640bf12456d47c6cbf22ca99c681a67ad05b`である。
+- Public OpenAPIへPassword Reset Request／Confirm、SMS認証状態取得、
+  SMS送信／再送／Code検証の6 Operationを追加した。Public Operationは35件、
+  Adminは67件、Webhookは0件である。RFC 9457、CSRF、Exact Origin、
+  JSON Content-Type、User Realm境界を既存Middlewareで維持する。
+- Storefront ClientへPassword Reset／SMS Facadeを追加し、Public OpenAPIから
+  型を再生成した。TestkitへToken、Code、Full Email、Full Phoneを含まない
+  Identity Recovery Fixtureを追加し、Admin／Webhook型は公開していない。
+
+### Password Reset
+
+- `password_reset_tokens`へCSPRNG TokenのSHA-256だけを保存する。有効期限30分、
+  1回限り、Token／Account単位の失敗5回で失効し、同一Tokenの並行Confirmは
+  Row Lockにより1件だけ成功する。
+- Request ResponseはAccount存在、未認証、状態を区別せずGenericにした。
+  Verified Emailを持つ対象Accountだけへ、暗号化Delivery Envelopeを含むOutboxを
+  Transaction内で登録する。RedirectはRelative Pathだけを許可する。
+- Confirmは既存`V2PasswordPolicy`を使用し、成功時に全User Sessionと
+  Remember Deviceを失効する。新Session／CSRFを再生成し、
+  Password変更通知OutboxとAppend-only Auditを同一Transactionで確定する。
+- Request Rate LimitはAccount 3回／1時間、IP 10回／1時間、Confirmは
+  Token／Account各5回である。Email／IPはHMAC相関値だけを使用し、
+  Limiter障害時はFail Closedとする。
+
+### SMS Verification／PII
+
+- `user_phone_numbers`と`sms_verification_challenges`を追加した。Phoneは
+  Application-level Encryption、検索／重複判定／Rate LimitはRepository外Keyによる
+  HMAC相関値、数字CodeはCSPRNG生成してSHA-256だけを保存する。
+- Challengeは5分、1回限り、失敗5回で失効する。再送時は旧Challengeを失効し、
+  並行Verifyは1件だけ成功する。Phone送信は3回／1時間・10回／日、
+  IPは5回／1時間、VerifyはChallenge当たり5回である。
+- 未認証Phoneの重複を許可し、`active`／`suspended` UserのVerified Phoneは
+  Partial Unique Indexで1件に制限する。`closed`／`anonymized` UserのPhoneは
+  再利用可能である。
+- Phone登録／変更はServer DBのFresh User Sessionを必須とする。変更開始時に旧Phoneの
+  認証状態を解除し、Verify成功時にSession／CSRFをRotationする。
+  User／Admin Realmを共有しない。
+- SMS Provider実送信は実装せず、暗号化Delivery Envelopeを持つOutboxまでとした。
+  Provider Secret、API Key、Phone平文、Code平文をOutbox Metadata、Audit、Logへ
+  保存しない。
+
+### Security／Audit／Recovery Boundary
+
+- Password Reset成功／失敗／Rate Limit／Session失効、SMS送信／成功／失敗、
+  Phone変更、Rate LimitをMIG-042のAppend-only Auditへ接続した。
+  Password、Token、Code、Full Email、Full Phone、Cookie、Raw Session IDを
+  Audit／Errorへ保存しない。
+- Suspicious Recovery条件は正本から具体化できないため独自Heuristicを追加せず、
+  明示的な検証済みSignalだけを受け取るFail-closed接続境界を追加した。
+- `user_sessions.reauthenticated_at`をForward-safeに追加し、既存Sessionは
+  `created_at`でBackfillする。Phone変更境界はClient時刻ではなくServer DB Sessionと
+  Server時刻を正本とする。
+
+### Migration／Test／Gate
+
+- V2 Migrationは14件、Migration Set SHA-256は
+  `a92551fc56e8c9202201fcb384964ac819c80be289348113410aef1ce969af60`
+  である。Persistent／Task専用Ephemeral DBの双方で`migrate:fresh`を2回、
+  最新Migrationの1 Step Rollback／Reapply、Migration Status、Schema Inventoryを
+  Guard経由で確認した。
+- Ephemeral Source／RestoreのSchema SHA-256は
+  `ef2a759f15827d55ed322d30ac49522569b82d6866666b3e47ad81607601d10d`、
+  Migration Row SHA-256は
+  `82c81f26517ed15802a6a8e7c12dad30eafdf49dc6e3ac34dce9bc4118772808`
+  で一致した。Backup SHA-256は
+  `9ae8fd8eba94e27e9966aef2fd5ed836de389b092b02ac9aed317d182348c439`
+  で、Backup／Restore、API／Admin Health、Host Port非公開、
+  Task専用Container／Network／Volume CleanupはPASSした。
+- Password Reset／SMS対象Test 12件／81 Assertion、Process並行Test
+  2件／17 AssertionはPASSした。全V2 Suite、通常Draw／QA Draw Load、
+  Reporting／Content／Contact Performance、Auth／MFA、Catalog、Point、
+  Payment／Refund／Chargeback、Prize／Shipping、Audit／Outboxの回帰もPASSした。
+- Storefront Client生成差分／Typecheck／Lint／Build／13 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Testkit生成差分／Typecheck／Lint／Build／21 Test／固定Export／実Network禁止、
+  Admin Typecheck／Lint／BuildはPASSした。
+- OpenAPI Unit Test 4件、Policy Unit Test 80件、DB Guard Unit Test 25件、
+  Release Test 10件はPASSした。Root／Legacy Frozen Installはpnpm `10.12.1`で
+  PASSした。Root Auditは0 Finding、Legacy Auditは既存11 Finding、
+  Composer Auditは既存期限付き10 Findingで、Baseline追加／拡張はない。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtimeは固定Commit
+  `bfca8efa0b85c00a88fb0fd439a123b722577b68`かつclean、Publicは200、
+  Adminは307であり、V1本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+- SMS Provider実送信、Google OIDC、LINE、Referral、Admin／Storefront UI、
+  Domain／Nginx／TLS、Staging E2E、Production Deploymentは未実行であり、
+  PASSとは記録しない。
+- PR `#118`を作成し、初回Final候補Head
+  `c96f33c2af943f9000ac722be99add849912a18f`でRequired 5 Check、
+  CodeQL 2件、Dependency Reviewの最新Runはすべて成功した。PR本文の
+  Task Policy Metadata不足による過去の失敗Runは本文修正だけで解消し、
+  Application／Migration／Contractを変更せず、提出記録を確定した次Headを
+  Final Headとして全CheckとFresh Self-reviewを再実行する。
+- Final Head、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。UI、通知Transport、Staging E2Eが
+  残るためGate G4／G5は`NOT COMPLETE`である。次Task候補は
+  `MIG-058 Google OIDC／LINE Identity Linking Vertical Slice`だが、
+  MIG-057完了後には開始しない。

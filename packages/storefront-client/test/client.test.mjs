@@ -14,6 +14,7 @@ import {
   createStorefrontCatalogClient,
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
+  createStorefrontIdentityClient,
 } from "../dist/index.js";
 
 const jsonResponse = (body, init = {}) =>
@@ -286,6 +287,12 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "resendUserEmailVerification",
     "verifyUserEmail",
     "getUserSession",
+    "requestPasswordReset",
+    "confirmPasswordReset",
+    "getSmsVerificationStatus",
+    "sendSmsVerification",
+    "resendSmsVerification",
+    "verifySmsCode",
     "listContentBanners",
     "listContentNotices",
     "getContentNotice",
@@ -297,6 +304,55 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     assert.match(generated, new RegExp(operationId));
   }
   assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
+});
+
+test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る", async () => {
+  const requests = [];
+  const identity = createStorefrontIdentityClient({
+    request: async (options) => {
+      requests.push(options);
+      return {
+        data: { status: "accepted" },
+        metadata: { status: 202, idempotency_replayed: false },
+      };
+    },
+  });
+  const options = { csrf_token: "d".repeat(64) };
+  await identity.requestPasswordReset(
+    { email: "fixture@example.test", redirect_path: "/" },
+    options,
+  );
+  await identity.confirmPasswordReset(
+    {
+      user_id: "0198a001-0000-7000-8000-000000000301",
+      token: "a".repeat(64),
+      password: "valid fixture password",
+    },
+    options,
+  );
+  await identity.getSmsVerificationStatus();
+  await identity.sendSmsVerification({ phone: "+819012345678" }, options);
+  await identity.resendSmsVerification(options);
+  await identity.verifySmsCode(
+    {
+      challenge_id: "0198a001-0000-7000-8000-000000000302",
+      code: "123456",
+    },
+    options,
+  );
+
+  assert.deepEqual(requests.map(({ path }) => path), [
+    "/auth/password/forgot",
+    "/auth/password/reset",
+    "/me/sms-verification",
+    "/me/sms-verification",
+    "/me/sms-verification/resend",
+    "/me/sms-verification/verify",
+  ]);
+  for (const request of requests.filter(({ method }) => method === "POST")) {
+    assert.equal(request.headers["X-XSRF-TOKEN"], "d".repeat(64));
+    assert.equal(request.csrf, "required");
+  }
 });
 
 test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを送る", async () => {

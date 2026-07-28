@@ -97,6 +97,14 @@ Route::prefix('v2')
         Route::get('/me/shipping-requests/{shippingRequestId}', [V2PrizeShippingController::class, 'shippingRequest'])
             ->whereUuid('shippingRequestId')
             ->name('v2.public.shipping-requests.show');
+        Route::get('/me/sms-verification', [V2PublicAuthController::class, 'smsStatus'])
+            ->name('v2.public.sms-verification.show');
+        Route::post('/me/sms-verification', [V2PublicAuthController::class, 'sendSms'])
+            ->name('v2.public.sms-verification.send');
+        Route::post('/me/sms-verification/resend', [V2PublicAuthController::class, 'resendSms'])
+            ->name('v2.public.sms-verification.resend');
+        Route::post('/me/sms-verification/verify', [V2PublicAuthController::class, 'verifySms'])
+            ->name('v2.public.sms-verification.verify');
     });
 
 Route::prefix('v2/auth')
@@ -106,6 +114,14 @@ Route::prefix('v2/auth')
             ->name('v2.public.auth.register');
         Route::post('/login', [V2PublicAuthController::class, 'login'])
             ->name('v2.public.auth.login');
+        Route::post('/password/forgot', [
+            V2PublicAuthController::class,
+            'requestPasswordReset',
+        ])->name('v2.public.auth.password-reset.request');
+        Route::post('/password/reset', [
+            V2PublicAuthController::class,
+            'confirmPasswordReset',
+        ])->name('v2.public.auth.password-reset.confirm');
         Route::post('/logout', [V2PublicAuthController::class, 'logout'])
             ->name('v2.public.auth.logout');
         Route::post('/email/verification-notification', [

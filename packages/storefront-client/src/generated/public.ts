@@ -365,6 +365,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Password Reset通知を存在有無を開示せず受け付ける */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One-time TokenでPassword Resetを確定する */
+        post: operations["confirmPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/logout": {
         parameters: {
             query?: never;
@@ -427,6 +461,58 @@ export interface paths {
         get: operations["getUserSession"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sms-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身のSMS認証状態を取得する */
+        get: operations["getSmsVerificationStatus"];
+        put?: never;
+        /** E.164電話番号へSMS認証Challengeを発行する */
+        post: operations["sendSmsVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sms-verification/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 旧Challengeを失効してSMS認証を再送する */
+        post: operations["resendSmsVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sms-verification/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One-time SMS Codeで電話番号を検証する */
+        post: operations["verifySmsCode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -840,6 +926,52 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        PasswordResetRequest: {
+            /** Format: email */
+            email: string;
+            /** @default / */
+            redirect_path: string;
+        };
+        PasswordResetConfirmRequest: {
+            /** Format: uuid */
+            user_id: string;
+            token: string;
+            password: string;
+        };
+        PasswordResetAccepted: {
+            /** @constant */
+            status: "accepted";
+            /** @constant */
+            message: "If the account is eligible, password reset instructions will be sent.";
+        };
+        SmsVerificationSendRequest: {
+            phone: string;
+        };
+        SmsVerificationConfirmRequest: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+        };
+        SmsVerificationChallenge: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "pending" | "expired";
+            expires_at: components["schemas"]["UtcDateTime"];
+        };
+        SmsVerificationAccepted: {
+            /** @constant */
+            accepted: true;
+            /** Format: uuid */
+            challenge_id: string;
+            phone_masked: string;
+            expires_at: components["schemas"]["UtcDateTime"];
+        };
+        SmsVerificationStatus: {
+            verified: boolean;
+            phone_masked: string | null;
+            challenge: components["schemas"]["SmsVerificationChallenge"] | null;
         };
         VerificationResendRequest: {
             /** Format: uuid */
@@ -1530,6 +1662,60 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Accountの存在有無を開示せず受理した。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetAccepted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    confirmPasswordReset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Passwordを変更し全旧Sessionを失効した。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     logoutUser: {
         parameters: {
             query?: never;
@@ -1618,6 +1804,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getSmsVerificationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SMS認証状態。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmsVerificationStatus"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    sendSmsVerification: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmsVerificationSendRequest"];
+            };
+        };
+        responses: {
+            /** @description SMS通知Outboxを受理した。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmsVerificationAccepted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    resendSmsVerification: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description SMS通知Outboxを再発行した。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmsVerificationAccepted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    verifySmsCode: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmsVerificationConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description 電話番号を検証しUser SessionをRotationした。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmsVerificationStatus"];
                 };
             };
             default: components["responses"]["Problem"];
