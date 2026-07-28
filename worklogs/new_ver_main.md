@@ -4938,7 +4938,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Unlink通知をTransactional Outboxへ接続した。Token、Code、ID Token、Raw Subject、
   State、Nonce、Verifier、Full Email、Cookie、Raw Session ID、Client Secretを
   Audit／Log／Error／Outbox Metadataへ保存しない。
-- `firebase/php-jwt` `7.1.0`をExact Versionで追加した。Google Client ID／Secret／
+- `firebase/php-jwt`はManifest `^7.1`、Frozen Lock／Policyで解決Versionを
+  Exact `7.1.0`に固定した。Google Client ID／Secret／
   Redirect URIはRepository外Environmentだけを使用し、未設定時はFail Closedである。
 
 ### Test／Migration／非変更
@@ -5003,6 +5004,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Canonical Migration確定後の最終Persistent Guardは1分39秒でPASSした。
 - 期限切れTransaction状態の補完後にPersistent Guardを再実行し、2分10.6秒で
   Migration 15件、全V2 Suite、PostgreSQL／Redis Healthを含めPASSした。
+- GitHub Quality Gate初回はComposer Strict ValidateがManifestのExact制約を
+  SemVer警告として扱いFailureとなった。Gateを弱めず、Manifestを`^7.1`、
+  Frozen LockとPolicyをExact `7.1.0`へ固定して再現性を維持した。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。UI、通知Transport、実Google Browser E2E、
   Staging E2Eが残るためGate G4／G5は`NOT COMPLETE`である。

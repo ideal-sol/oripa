@@ -1827,6 +1827,21 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
     ):
         if prohibited in oidc_sources:
             raise PolicyFailure(f"V2 Google OIDC boundary contains prohibited {prohibited}")
+    composer_manifest = json.loads(
+        (repository / "apps/api/composer.json").read_text(encoding="utf-8")
+    )
+    if composer_manifest.get("require", {}).get("firebase/php-jwt") != "^7.1":
+        raise PolicyFailure("V2 Google OIDC JWT manifest constraint is not approved")
+    composer_lock = json.loads(
+        (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
+    )
+    jwt_versions = [
+        package.get("version")
+        for package in composer_lock.get("packages", [])
+        if package.get("name") == "firebase/php-jwt"
+    ]
+    if jwt_versions != ["v7.1.0"]:
+        raise PolicyFailure("V2 Google OIDC JWT resolved version is not exactly v7.1.0")
     for operation_id in (
         "beginAdminLogin",
         "verifyAdminMfa",

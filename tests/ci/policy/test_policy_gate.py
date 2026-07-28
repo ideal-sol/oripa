@@ -334,6 +334,8 @@ python3 scripts/db/v2_database.py smoke \\
         paths = set(policy_gate.V2_IDENTITY_REQUIRED_FILES)
         supporting = {
             "apps/api/config/auth.php",
+            "apps/api/composer.json",
+            "apps/api/composer.lock",
             ".github/workflows/platform-ci.yml",
             "openapi/bundled/public.openapi.json",
             "openapi/bundled/admin.openapi.json",
@@ -362,6 +364,19 @@ python3 scripts/db/v2_database.py smoke \\
             root = Path(temporary)
             paths = self.copy_v2_identity_boundary(root)
             policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_v2_identity_oidc_jwt_resolved_version_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_identity_boundary(root)
+            lock_path = root / "apps/api/composer.lock"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            for package in lock["packages"]:
+                if package.get("name") == "firebase/php-jwt":
+                    package["version"] = "7.1.1"
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "exactly v7.1.0"):
+                policy_gate.validate_v2_identity_boundary(root, paths)
 
     def test_v2_identity_missing_admin_guard_fails(self):
         with tempfile.TemporaryDirectory() as temporary:

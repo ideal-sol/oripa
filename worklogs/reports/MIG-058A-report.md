@@ -57,7 +57,8 @@
   `sub`、`email_verified`を検証。
 - Clock Skewは60秒。JWKSはUnknown Key時に1回Refreshし、それでも不明なら拒否。
 - Authorization Code、Access／Refresh Token、ID Tokenは永続化しない。
-- Exact Dependency: `firebase/php-jwt` `7.1.0`。
+- `firebase/php-jwt`はManifest `^7.1`、Frozen Lock／Policyで解決Versionを
+  Exact `7.1.0`に固定した。
 
 ### Account／Session
 
@@ -128,6 +129,9 @@
    PostgreSQL Canonical `text[]`式でMigrationを固定した。
 4. 期限切れCallbackは拒否できていたが、Transaction状態が`pending`のままだった。
    Server時刻で期限切れを再確認して`expired`へ遷移し、同状態をTestで固定した。
+5. GitHub Quality GateのComposer Strict ValidateがManifestのExact制約を
+   SemVer警告としてFailureにした。Gateを弱めず、Manifestを`^7.1`、
+   Frozen Lock／PolicyをExact `7.1.0`として再現性を維持した。
 
 ## 時間を要した作業
 
