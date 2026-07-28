@@ -50,6 +50,7 @@ interface AdminAuthContextValue {
   clearError: () => void;
   confirmTotpEnrollment: (code: string) => Promise<void>;
   enrollWebauthn: (label: string) => Promise<void>;
+  expireSession: () => void;
   freshTotp: (code: string) => Promise<void>;
   freshWebauthn: () => Promise<void>;
   login: (request: AdminLoginRequest) => Promise<void>;
@@ -74,6 +75,11 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<AuthErrorState | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const expireSession = useCallback(() => {
+    setAdmin(null);
+    setPhase("expired");
+  }, []);
+
   const captureError = useCallback((cause: unknown) => {
     if (cause instanceof AdminApiError) {
       setError({
@@ -82,8 +88,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         retryAfter: cause.retryAfter,
       });
       if (cause.isSessionExpired) {
-        setAdmin(null);
-        setPhase("expired");
+        expireSession();
       }
       return;
     }
@@ -92,7 +97,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       requestId: null,
       retryAfter: null,
     });
-  }, []);
+  }, [expireSession]);
 
   const withRequest = useCallback(
     async <T,>(operation: () => Promise<T>): Promise<T> => {
@@ -215,6 +220,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           }),
         );
       },
+      expireSession,
       freshTotp: async (code) => {
         const result = await withRequest(() =>
           client.reauthenticate({ method: "totp", code }),
@@ -266,6 +272,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       totpEnrollment,
       withRequest,
       enrollmentToken,
+      expireSession,
     ],
   );
 

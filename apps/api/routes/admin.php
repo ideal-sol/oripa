@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
+use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
@@ -65,6 +66,8 @@ Route::prefix('v2/auth')
             'regenerateRecoveryCodes',
         ])->name('v2.admin.auth.recovery-codes.regenerate');
         Route::middleware('auth:v2_admin')->group(function (): void {
+            Route::get('/permissions', V2AdminPermissionController::class)
+                ->name('v2.admin.auth.permissions');
             Route::post('/reauthenticate/webauthn/options', [
                 V2AdminAuthController::class,
                 'reauthenticationWebauthnOptions',

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
+import { PermissionProvider } from "@/components/permissions/permission-provider";
 
 import "./globals.css";
 
@@ -36,7 +37,9 @@ export default async function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <AdminAuthProvider>{children}</AdminAuthProvider>
+        <AdminAuthProvider>
+          <PermissionProvider>{children}</PermissionProvider>
+        </AdminAuthProvider>
       </body>
     </html>
   );

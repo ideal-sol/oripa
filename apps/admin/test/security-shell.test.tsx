@@ -21,6 +21,25 @@ vi.mock("@/components/auth/admin-auth-provider", () => ({
   useAdminAuth: () => auth,
 }));
 
+vi.mock("@/components/permissions/permission-provider", () => ({
+  usePermissions: () => ({
+    error: null,
+    hasPermission: () => true,
+    permissions: new Set([
+      "catalog.read",
+      "qa.draw.manage",
+      "shipping.request.manage",
+      "reporting.financial.read",
+      "content.read",
+      "contact.read",
+    ]),
+    requestId: "01910191-0191-7191-8191-019101910191",
+    retry: vi.fn(),
+    role: "owner",
+    status: "ready",
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ replace: vi.fn() }),

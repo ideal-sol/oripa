@@ -28,6 +28,9 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
         authenticated: false,
       });
     }
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
     if (path.endsWith("/auth/login")) {
       loginHeaders = request.headers();
       return json(route, {
@@ -74,10 +77,10 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
   await expect(page).toHaveURL(/\/$/u);
   expect(mfaHeaders?.["x-oripa-auth-transaction"]).toBe(transaction);
   await expect(page.getByText("Owner", { exact: true })).toBeVisible();
-  await expect(page.getByText("業務モジュールは未設定です")).toBeVisible();
+  await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
   await page.screenshot({
     fullPage: true,
-    path: "/tmp/oripa-mig-060a-admin-desktop.png",
+    path: "/tmp/oripa-mig-060b-admin-desktop.png",
   });
 
   await page.getByRole("button", { name: "再確認" }).click();
@@ -135,11 +138,14 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
   await installAdminApi(page, async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) return json(route, adminSession());
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
     return route.fulfill({ status: 404 });
   });
 
   await page.goto("/");
-  await expect(page.getByText("業務モジュールは未設定です")).toBeVisible();
+  await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
   await page.getByRole("button", { name: "ナビゲーションを開く" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("navigation", { name: "管理ナビゲーション" })).toBeVisible();
@@ -152,9 +158,42 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
   ).toBe(true);
   await page.screenshot({
     fullPage: true,
-    path: "/tmp/oripa-mig-060a-admin-mobile.png",
+    path: "/tmp/oripa-mig-060b-admin-mobile.png",
   });
 });
+
+for (const role of ["owner", "admin", "operator"] as const) {
+  test(`${role} navigation follows backend effective permissions`, async ({ page }) => {
+    await installAdminApi(page, async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/auth/session")) {
+        return json(route, adminSession(role));
+      }
+      if (path.endsWith("/auth/permissions")) {
+        return json(route, permissionResponse(role));
+      }
+      return route.fulfill({ status: 404 });
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "カタログ" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "景品・配送" }).first()).toBeVisible();
+    if (role === "owner") {
+      await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
+    } else {
+      await expect(page.getByRole("link", { name: "QA Draw" })).toHaveCount(0);
+    }
+    if (role === "operator") {
+      await expect(page.getByRole("link", { name: "レポート" })).toHaveCount(0);
+      await page.goto("/qa");
+      await expect(
+        page.getByRole("heading", { name: "アクセスできません" }),
+      ).toBeVisible();
+    } else {
+      await expect(page.getByRole("link", { name: "レポート" }).first()).toBeVisible();
+    }
+  });
+}
 
 async function installAdminApi(
   page: Page,
@@ -163,20 +202,38 @@ async function installAdminApi(
   await page.route(/\/admin\/api\/v2\/auth\/[^?]+(?:\?.*)?$/u, handler);
 }
 
-function adminIdentity() {
+function adminIdentity(role: "owner" | "admin" | "operator" = "owner") {
   return {
     id: "01910191-0191-7191-8191-019101910191",
     mfa_verified: true,
-    role: "owner",
+    role,
     state: "active",
   };
 }
 
-function adminSession() {
+function adminSession(role: "owner" | "admin" | "operator" = "owner") {
   return {
-    admin: adminIdentity(),
+    admin: adminIdentity(role),
     authenticated: true,
     requires_mfa_enrollment: false,
+  };
+}
+
+function permissionResponse(role: "owner" | "admin" | "operator") {
+  const common = [
+    "catalog.read",
+    "shipping.request.manage",
+    "content.read",
+    "contact.read",
+  ];
+  return {
+    permissions: [
+      ...common,
+      ...(role === "owner" ? ["qa.draw.manage"] : []),
+      ...(role !== "operator" ? ["reporting.financial.read"] : []),
+    ],
+    request_id: "01910191-0191-7191-8191-019101910193",
+    role,
   };
 }
 

@@ -210,6 +210,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Console/Commands/V2/CreateInitialOwnerInvitation.php",
     "apps/api/app/Http/Controllers/V2/V2PublicAuthController.php",
     "apps/api/app/Http/Controllers/V2/V2AdminAuthController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminPermissionController.php",
     "apps/api/app/Http/Middleware/V2/EnforceV2BrowserSecurity.php",
     "apps/api/app/Http/Middleware/V2/EnforceV2Realm.php",
     "apps/api/app/Models/V2/Admin.php",
@@ -245,6 +246,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/tests/V2/GoogleOidcVerticalSliceTest.php",
     "apps/api/tests/V2/ZExternalIdentityConcurrencyTest.php",
     "apps/api/tests/V2/PermissionBoundaryTest.php",
+    "apps/api/tests/V2/AdminPermissionContractTest.php",
     "apps/api/tests/V2/RealmSeparationTest.php",
     "docs/operations/identity-recovery/README.md",
     "docs/operations/external-identity/README.md",
@@ -469,6 +471,12 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/not-found.tsx",
     "apps/admin/src/app/page.tsx",
     "apps/admin/src/app/api/health/route.ts",
+    "apps/admin/src/app/catalog/page.tsx",
+    "apps/admin/src/app/contacts/page.tsx",
+    "apps/admin/src/app/content/page.tsx",
+    "apps/admin/src/app/qa/page.tsx",
+    "apps/admin/src/app/reports/page.tsx",
+    "apps/admin/src/app/shipping/page.tsx",
     "apps/admin/src/components/auth/admin-auth-provider.tsx",
     "apps/admin/src/components/auth/auth-frame.tsx",
     "apps/admin/src/components/auth/auth-status.tsx",
@@ -478,14 +486,27 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/auth/mfa-form.tsx",
     "apps/admin/src/components/auth/recovery-panel.tsx",
     "apps/admin/src/components/auth/route-guard.tsx",
+    "apps/admin/src/components/navigation/admin-navigation.tsx",
+    "apps/admin/src/components/navigation/breadcrumb.tsx",
+    "apps/admin/src/components/navigation/navigation-icon.tsx",
+    "apps/admin/src/components/permissions/permission-gate.tsx",
+    "apps/admin/src/components/permissions/permission-provider.tsx",
+    "apps/admin/src/components/permissions/protected-admin-route.tsx",
+    "apps/admin/src/components/shell/admin-page-header.tsx",
     "apps/admin/src/components/shell/admin-shell.tsx",
+    "apps/admin/src/components/shell/dashboard-module-card.tsx",
     "apps/admin/src/components/shell/dashboard-home.tsx",
+    "apps/admin/src/components/shell/module-placeholder.tsx",
+    "apps/admin/src/components/shell/module-route-page.tsx",
     "apps/admin/src/lib/admin-api/client.ts",
     "apps/admin/src/lib/admin-api/generated.ts",
     "apps/admin/src/lib/admin-api/webauthn.ts",
+    "apps/admin/src/lib/permissions/admin-navigation.ts",
     "apps/admin/src/proxy.ts",
     "apps/admin/test/admin-api-client.test.ts",
     "apps/admin/test/auth-components.test.tsx",
+    "apps/admin/test/permission-provider.test.tsx",
+    "apps/admin/test/permissions-navigation.test.tsx",
     "apps/admin/test/security-shell.test.tsx",
     "apps/admin/test/setup.ts",
     "apps/admin/test/webauthn.test.ts",
@@ -1048,9 +1069,62 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         "AdminMfaVerifyRequest",
         "AdminReauthenticationRequest",
         "RecoveryCodes",
+        "AdminEffectivePermissions",
+        "AdminPermissionCode",
     ):
         if required not in generated:
             raise PolicyFailure(f"apps/admin: generated Admin contract missing {required}")
+
+    navigation = (
+        repository / "apps/admin/src/lib/permissions/admin-navigation.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        '"catalog.read"',
+        '"qa.draw.manage"',
+        '"shipping.request.manage"',
+        '"reporting.financial.read"',
+        '"content.read"',
+        '"contact.read"',
+        "validateNavigation",
+        "navigationForPermissions",
+    ):
+        if required not in navigation:
+            raise PolicyFailure(f"apps/admin: permission registry missing {required}")
+    for prohibited in (
+        "role ===",
+        'role ==',
+        '"owner"',
+        '"admin"',
+        '"operator"',
+    ):
+        if prohibited in navigation:
+            raise PolicyFailure(
+                f"apps/admin: navigation must not authorize by role: {prohibited}"
+            )
+
+    permission_provider = (
+        repository / "apps/admin/src/components/permissions/permission-provider.tsx"
+    ).read_text(encoding="utf-8")
+    protected_route = (
+        repository / "apps/admin/src/components/permissions/protected-admin-route.tsx"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "getPermissions",
+        "ADMIN_PERMISSION_CODES",
+        "response.role !== admin.role",
+        "expireSession",
+        '"forbidden"',
+        '"rate_limited"',
+    ):
+        if required not in permission_provider:
+            raise PolicyFailure(f"apps/admin: PermissionProvider missing {required}")
+    for required in (
+        "hasPermission(permission)",
+        "アクセスできません",
+        "安全のため業務モジュールを非表示",
+    ):
+        if required not in protected_route:
+            raise PolicyFailure(f"apps/admin: ProtectedAdminRoute missing {required}")
 
     proxy = (repository / "apps/admin/src/proxy.ts").read_text(encoding="utf-8")
     for required in (
@@ -1838,8 +1912,47 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         repository
         / "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php"
     ).read_text(encoding="utf-8")
-    if "tryFrom" not in permission or "return false" not in permission:
+    if (
+        "tryFrom" not in permission
+        or "return false" not in permission
+        or "effectivePermissions" not in permission
+        or permission.count("'catalog.read'") != 3
+    ):
         raise PolicyFailure("V2 Permission boundary is not deny-by-default")
+
+    admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
+    permission_operation = admin_bundle.get("paths", {}).get(
+        "/auth/permissions", {}
+    ).get("get", {})
+    if permission_operation.get("operationId") != "getAdminEffectivePermissions":
+        raise PolicyFailure("Admin effective Permission contract is missing")
+    permission_schema = (
+        admin_bundle.get("components", {})
+        .get("schemas", {})
+        .get("AdminEffectivePermissions", {})
+    )
+    if set(permission_schema.get("required", [])) != {
+        "role",
+        "permissions",
+        "request_id",
+    }:
+        raise PolicyFailure("Admin effective Permission response is not exact")
+
+    admin_routes = (repository / "apps/api/routes/admin.php").read_text(
+        encoding="utf-8"
+    )
+    controller = (
+        repository
+        / "apps/api/app/Http/Controllers/V2/V2AdminPermissionController.php"
+    ).read_text(encoding="utf-8")
+    if (
+        "'/permissions'"
+        not in admin_routes
+        or "V2AdminPermissionController::class" not in admin_routes
+        or "effectivePermissions($admin->role)" not in controller
+        or "'Cache-Control' => 'private, no-store'" not in controller
+    ):
+        raise PolicyFailure("Admin effective Permission endpoint is incomplete")
 
     workflow = (
         repository / ".github/workflows/platform-ci.yml"

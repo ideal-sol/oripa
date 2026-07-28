@@ -11,8 +11,7 @@ OwnerはPlatform Codex。[`AGENTS.md`](AGENTS.md)とRoot
 
 ## Planned Components
 
-Catalog、QA、Shipping、Reporting、Content等の業務Route、Permission別Navigation、
-Audit表示を後続Taskで配置する。
+Catalog、QA、Shipping、Reporting、Content等の業務画面とAudit表示を後続Taskで配置する。
 
 ## Allowed Scope
 
@@ -33,7 +32,16 @@ Draw／Point／Payment判断、Site固有Design、User Cookie、V1 CodeをCopy�
 * Owner／Admin／Operator表示、共通Shell、Loading／Error／403／404
 * Unknown Host拒否、CSP、Frame拒否、`private, no-store`、`noindex`
 
-業務管理画面、Domain／TLS設定、Staging／Production Deploymentは未実装であり、
+`MIG-060B`でBackend中央Permission Matrixを正本とする共通基盤を追加した。
+
+* `GET /admin/api/v2/auth/permissions`からRoleと有効Permissionだけを取得
+* Permission取得失敗時に業務ModuleをFail Closed
+* 型付きNavigation Registry、Permission Provider／Gate、Route Guard
+* Dashboard、Breadcrumb、Active Navigation、Mobile Drawer
+* `/catalog`、`/qa`、`/shipping`、`/reports`、`/content`、`/contacts`
+* 未実装Moduleは架空Dataを表示しない準備中画面
+
+業務データ画面、Domain／TLS設定、Staging／Production Deploymentは未実装であり、
 本ApplicationはProduction利用不可。
 
 ## Local Verification

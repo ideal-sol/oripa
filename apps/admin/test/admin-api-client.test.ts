@@ -41,6 +41,28 @@ describe("AdminApiClient", () => {
     ).rejects.toThrow("outside the approved surface");
   });
 
+  it("retrieves effective permissions without CSRF or bearer tokens", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({
+        permissions: ["catalog.read"],
+        request_id: "01910191-0191-7191-8191-019101910191",
+        role: "operator",
+      }),
+    );
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await expect(client.getPermissions()).resolves.toMatchObject({
+      permissions: ["catalog.read"],
+      role: "operator",
+    });
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe("/admin/api/v2/auth/permissions");
+    expect(request?.credentials).toBe("include");
+    const headers = new Headers(request?.headers);
+    expect(headers.get("X-XSRF-TOKEN")).toBeNull();
+    expect(headers.get("Authorization")).toBeNull();
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
