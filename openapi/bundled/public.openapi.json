@@ -279,6 +279,446 @@
         }
       }
     },
+    "/me/prizes": {
+      "get": {
+        "operationId": "listUserPrizes",
+        "summary": "User自身が所有する景品を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogLimit"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User Prize一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPrizeCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/prizes/{prize_id}": {
+      "get": {
+        "operationId": "getUserPrize",
+        "summary": "User自身が所有する景品詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserPrizeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User Prize詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPrizeDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/prizes/exchange": {
+      "post": {
+        "operationId": "exchangeUserPrizes",
+        "summary": "User自身の景品を一括でfree Pointへ交換する",
+        "x-idempotency": "required",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrizeExchangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "景品交換結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrizeExchangeResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/shipping-addresses": {
+      "get": {
+        "operationId": "listShippingAddresses",
+        "summary": "Mask済み配送先一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "配送先一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingAddressCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createShippingAddress",
+        "summary": "配送先を作成する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShippingAddressInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成した配送先。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/shipping-addresses/{address_id}": {
+      "get": {
+        "operationId": "getShippingAddress",
+        "summary": "User本人の配送先詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ShippingAddressId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "配送先詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateShippingAddress",
+        "summary": "User本人の配送先を更新する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ShippingAddressId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShippingAddressInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新した配送先。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteShippingAddress",
+        "summary": "User本人の配送先を削除する",
+        "x-idempotency": "naturally-idempotent",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ShippingAddressId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "deleted"
+                  ],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/shipping-requests": {
+      "get": {
+        "operationId": "listShippingRequests",
+        "summary": "User自身のShipping Request一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogLimit"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shipping Request一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingRequestCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createShippingRequest",
+        "summary": "複数景品を1件のShipping Requestへまとめる",
+        "x-idempotency": "required",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShippingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shipping Request作成結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingRequestSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/shipping-requests/{shipping_request_id}": {
+      "get": {
+        "operationId": "getShippingRequest",
+        "summary": "User自身のShipping Request詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ShippingRequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shipping Request詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingRequestDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/auth/register": {
       "post": {
         "operationId": "registerUser",
@@ -521,6 +961,450 @@
         "type": "string",
         "minLength": 1,
         "description": "形式や並び順へ依存してはならない公開識別子。"
+      },
+      "UserPrizeStatus": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "exchange_processing",
+          "converted",
+          "shipping_requested",
+          "packing",
+          "shipped",
+          "delivered",
+          "hold",
+          "return_requested",
+          "returned",
+          "expired",
+          "canceled"
+        ]
+      },
+      "UserPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "exchange_points",
+          "acquired_at",
+          "storage_expires_at",
+          "draw_result_id",
+          "display",
+          "rank"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserPrizeStatus"
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "acquired_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "storage_expires_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "draw_result_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "display": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "rank": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        }
+      },
+      "UserPrizeCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserPrize"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UserPrizeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UserPrize"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status_history"
+            ],
+            "properties": {
+              "status_history": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StatusHistory"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "StatusHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from_status",
+          "to_status",
+          "reason_code",
+          "occurred_at"
+        ],
+        "properties": {
+          "from_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_status": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "PrizeExchangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prize_ids"
+        ],
+        "properties": {
+          "prize_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        }
+      },
+      "PrizeExchangeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "exchanged_count",
+          "exchange_point_total",
+          "wallet_free_points_after",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "const": "completed"
+          },
+          "exchanged_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "exchange_point_total": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "wallet_free_points_after": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ShippingAddressInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recipient_name",
+          "postal_code",
+          "prefecture",
+          "city",
+          "street",
+          "phone_number"
+        ],
+        "properties": {
+          "recipient_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "postal_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "prefecture": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "street": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "building": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 191
+          },
+          "phone_number": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        }
+      },
+      "ShippingAddress": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ShippingAddressInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "created_at": {
+                "$ref": "#/components/schemas/UtcDateTime"
+              },
+              "updated_at": {
+                "$ref": "#/components/schemas/UtcDateTime"
+              }
+            }
+          }
+        ]
+      },
+      "ShippingAddressCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "recipient_name_masked",
+                "postal_code_masked",
+                "phone_number_masked",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/OpaqueId"
+                },
+                "recipient_name_masked": {
+                  "type": "string"
+                },
+                "postal_code_masked": {
+                  "type": "string"
+                },
+                "phone_number_masked": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "$ref": "#/components/schemas/UtcDateTime"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateShippingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shipping_address_id",
+          "prize_ids"
+        ],
+        "properties": {
+          "shipping_address_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "prize_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        }
+      },
+      "ShippingStatus": {
+        "type": "string",
+        "enum": [
+          "requested",
+          "packing",
+          "shipped",
+          "delivered",
+          "hold",
+          "return_requested",
+          "returned",
+          "canceled"
+        ]
+      },
+      "ShippingRequestSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "prize_count",
+          "requested_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ShippingStatus"
+          },
+          "prize_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requested_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "shipped_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "carrier_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ShippingRequestDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ShippingRequestSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "prize_ids",
+              "tracking_number",
+              "shipping_address",
+              "status_history"
+            ],
+            "properties": {
+              "prize_ids": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OpaqueId"
+                }
+              },
+              "tracking_number": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "shipping_address": {
+                "$ref": "#/components/schemas/ShippingAddressInput"
+              },
+              "status_history": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StatusHistory"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ShippingRequestCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShippingRequestSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "SemanticVersion": {
         "type": "string",
@@ -1738,6 +2622,30 @@
       }
     },
     "parameters": {
+      "UserPrizeId": {
+        "name": "prize_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "ShippingAddressId": {
+        "name": "address_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "ShippingRequestId": {
+        "name": "shipping_request_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
       "XOripaClientVersion": {
         "name": "X-Oripa-Client-Version",
         "in": "header",

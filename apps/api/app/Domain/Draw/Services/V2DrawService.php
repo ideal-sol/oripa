@@ -459,6 +459,7 @@ final class V2DrawService
                 'relation.sort_order as relation_sort_order',
                 'prize.public_id as prize_public_id',
                 'prize.display_name as prize_name',
+                'prize.exchange_points as prize_exchange_points',
                 'rank.id as rank_id',
                 'rank.public_id as rank_public_id',
                 'rank.code as rank_code',
@@ -502,6 +503,7 @@ final class V2DrawService
                 'relation_sort_order' => (int) $row->relation_sort_order,
                 'prize_public_id' => $row->prize_public_id,
                 'prize_name' => $row->prize_name,
+                'exchange_points' => (int) $row->prize_exchange_points,
                 'rank_id' => (int) $row->rank_id,
                 'rank_public_id' => $row->rank_public_id,
                 'rank_code' => $row->rank_code,
@@ -969,7 +971,13 @@ final class V2DrawService
                 'draw_result_id' => $result->id,
                 'gacha_version_prize_id' => $row['gacha_version_prize_id'],
                 'status' => 'stored',
+                'exchange_point_snapshot' => $row['prize']['exchange_points'],
+                'exchanged_point_amount' => null,
                 'acquired_at' => $occurredAt,
+                'storage_expires_at' => $occurredAt->copy()->addDays(
+                    (int) config('v2_prize_shipping.storage_days', 60)
+                ),
+                'terminal_at' => null,
                 'created_at' => $occurredAt,
                 'updated_at' => $occurredAt,
             ];

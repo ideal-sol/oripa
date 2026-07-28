@@ -20,6 +20,8 @@ import {
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
+  PUBLIC_SHIPPING_REQUEST_FIXTURE,
+  PUBLIC_USER_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
   PUBLIC_RESPONSE_METADATA_FIXTURE,
   TestkitAssertionError,
@@ -39,6 +41,19 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
   assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開する", () => {
+  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.status, "stored");
+  assert.equal(PUBLIC_SHIPPING_REQUEST_FIXTURE.status, "requested");
+  const serialized = JSON.stringify({
+    prize: PUBLIC_USER_PRIZE_FIXTURE,
+    shipping: PUBLIC_SHIPPING_REQUEST_FIXTURE,
+  });
+  assert.doesNotMatch(
+    serialized,
+    /internal_id|cost_price|individual_ppm|address_ciphertext|phone_number|secret/i,
+  );
 });
 
 const SITE_VERSION = "1.0.0-alpha.1";
@@ -316,22 +331,33 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつ認証／Catalog／Draw Operation 13件である", () => {
+test("Public OpenAPIは3.1.1かつ認証／Catalog／Draw／Prize／Shipping Operation 24件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 13);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 24);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "createDraw",
+    "createShippingAddress",
+    "createShippingRequest",
+    "deleteShippingAddress",
+    "exchangeUserPrizes",
     "getDrawRequest",
     "getGacha",
     "getGachaBySlug",
+    "getShippingAddress",
+    "getShippingRequest",
+    "getUserPrize",
     "getUserSession",
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listShippingAddresses",
+    "listShippingRequests",
+    "listUserPrizes",
     "loginUser",
     "logoutUser",
     "registerUser",
     "resendUserEmailVerification",
+    "updateShippingAddress",
     "verifyUserEmail",
   ]);
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
@@ -396,6 +422,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
+    "PUBLIC_SHIPPING_REQUEST_FIXTURE",
+    "PUBLIC_USER_PRIZE_FIXTURE",
     "TestkitAssertionError",
     "TestkitNetworkError",
     "UnexpectedMockRequestError",

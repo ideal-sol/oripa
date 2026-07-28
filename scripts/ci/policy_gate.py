@@ -316,6 +316,27 @@ V2_DRAW_REQUIRED_FILES = {
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
 }
+V2_PRIZE_SHIPPING_REQUIRED_FILES = {
+    "apps/api/app/Domain/PrizeShipping/Exceptions/V2PrizeShippingException.php",
+    "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminShippingController.php",
+    "apps/api/app/Http/Controllers/V2/V2PrizeShippingController.php",
+    "apps/api/app/Models/V2/PrizeExchangeRequest.php",
+    "apps/api/app/Models/V2/ShippingAddress.php",
+    "apps/api/app/Models/V2/ShippingRequest.php",
+    "apps/api/config/v2_prize_shipping.php",
+    "apps/api/database/migrations-v2/2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
+    "apps/api/tests/V2/PrizeShippingVerticalSliceTest.php",
+    "docs/operations/prize-shipping/README.md",
+    "openapi/admin/openapi.yaml",
+    "openapi/bundled/admin.openapi.json",
+    "openapi/bundled/public.openapi.json",
+    "openapi/public/openapi.yaml",
+    "packages/storefront-client/src/generated/public.ts",
+    "packages/storefront-client/src/prize-shipping.ts",
+    "packages/storefront-testkit/src/fixtures.ts",
+    "packages/storefront-testkit/src/generated/public-contract.ts",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1202,7 +1223,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 13,
+        "publicApiOperationCount": 24,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1220,8 +1241,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 13",
-        '"createDraw","getDrawRequest","getGacha","getGachaBySlug","getUserSession","listGachaCategories","listGachaTags","listGachas","loginUser","logoutUser","registerUser","resendUserEmailVerification","verifyUserEmail"',
+        "operation_count: 24",
+        '"createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getUserPrize","getUserSession","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","resendUserEmailVerification","updateShippingAddress","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1356,6 +1377,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "${V2_DB_PASSWORD:?",
         "${V2_REDIS_PASSWORD:?",
         "${V2_AUDIT_HMAC_KEY:?",
+        "${V2_PII_CORRELATION_KEY:?",
         "v2_postgres:/var/lib/postgresql/data",
         "v2_redis:/data",
         "v2_private:",
@@ -1391,6 +1413,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "V1 Migration Path is prohibited",
         "Unexpected Database or Redis Host",
         "V2 Audit HMAC key",
+        "V2 PII correlation key",
         "Database and Redis Host Ports are prohibited",
         "Refusing to remove an unscoped Volume",
     ):
@@ -1432,6 +1455,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_25_000007_create_v2_payment_model_foundation.php",
         "2026_07_28_000008_create_v2_catalog_probability_foundation.php",
         "2026_07_29_000009_create_v2_draw_vertical_slice.php",
+        "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1595,6 +1619,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             and "mig044-v2-" not in workflow
             and "mig050-v2-" not in workflow
             and "mig051-v2-" not in workflow
+            and "mig052-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -2192,7 +2217,11 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     workflow = (
         repository / ".github/workflows/platform-ci.yml"
     ).read_text(encoding="utf-8")
-    if "mig050-v2-" not in workflow and "mig051-v2-" not in workflow:
+    if (
+        "mig050-v2-" not in workflow
+        and "mig051-v2-" not in workflow
+        and "mig052-v2-" not in workflow
+    ):
         raise PolicyFailure("platform-ci V2 Catalog project boundary is missing")
 
 
@@ -2303,7 +2332,164 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
         repository / ".github/workflows/platform-ci.yml"
     ).read_text(encoding="utf-8")
     if "mig051-v2-" not in workflow:
-        raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
+        if "mig052-v2-" not in workflow:
+            raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
+
+
+def validate_v2_prize_shipping_boundary(
+    repository: Path, paths: Iterable[str]
+) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_PRIZE_SHIPPING_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 Prize Shipping files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "exchange_point_snapshot",
+        "storage_expires_at",
+        "user_prize_status_histories",
+        "prize_exchange_requests",
+        "shipping_addresses",
+        "shipping_requests",
+        "shipping_request_items",
+        "shipping_request_status_histories",
+        "recipient_name_ciphertext",
+        "tracking_number_ciphertext",
+        "v2_protect_user_prize_ownership",
+        "v2_reject_prize_shipping_history_mutation",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Prize Shipping migration missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "$table->string('recipient_name'",
+        "$table->string('phone_number'",
+        "$table->string('tracking_number'",
+    ):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 Prize Shipping migration contains prohibited {prohibited}"
+            )
+
+    service = (
+        repository
+        / "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "grantPrizeExchange",
+        "lockForUpdate()",
+        "assertNoActiveHold",
+        "Crypt::encryptString",
+        "Crypt::decryptString",
+        "prize.exchanged",
+        "shipping.request_created",
+        "shipping.status_changed",
+        "shipping.admin_address_read",
+        "IDEMPOTENCY_KEY_REUSED",
+        "CONCURRENT_OPERATION_RETRY_EXHAUSTED",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Prize Shipping service missing {required}")
+    for prohibited in (
+        "SKIP LOCKED",
+        "tenant_id",
+        "Math.random",
+    ):
+        if prohibited in service:
+            raise PolicyFailure(
+                f"V2 Prize Shipping service contains prohibited {prohibited}"
+            )
+
+    public = load_json(repository, "openapi/bundled/public.openapi.json")
+    admin = load_json(repository, "openapi/bundled/admin.openapi.json")
+    public_operations = {
+        operation.get("operationId")
+        for item in public.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    for required in (
+        "listUserPrizes",
+        "getUserPrize",
+        "exchangeUserPrizes",
+        "listShippingAddresses",
+        "createShippingAddress",
+        "updateShippingAddress",
+        "deleteShippingAddress",
+        "listShippingRequests",
+        "createShippingRequest",
+        "getShippingRequest",
+    ):
+        if required not in public_operations:
+            raise PolicyFailure(f"Public Prize Shipping contract missing {required}")
+    admin_operations = {
+        operation.get("operationId")
+        for item in admin.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    for required in (
+        "listAdminShippingRequests",
+        "getAdminShippingRequest",
+        "updateAdminShippingRequest",
+    ):
+        if required not in admin_operations:
+            raise PolicyFailure(f"Admin Shipping contract missing {required}")
+    public_contract = json.dumps(public, ensure_ascii=False).lower()
+    for prohibited in (
+        "recipient_name_ciphertext",
+        "phone_number_ciphertext",
+        "tracking_number_ciphertext",
+        "internal_id",
+        "cost_price",
+        "individual_ppm",
+    ):
+        if prohibited in public_contract:
+            raise PolicyFailure(
+                f"Public Prize Shipping contract exposes prohibited {prohibited}"
+            )
+
+    client = (
+        repository / "packages/storefront-client/src/prize-shipping.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "exchangePrizes",
+        "createShippingAddress",
+        "createShippingRequest",
+        "idempotency_key",
+        'csrf: "required"',
+    ):
+        if required not in client:
+            raise PolicyFailure(f"Storefront Prize Shipping Client missing {required}")
+
+    tests = (
+        repository / "apps/api/tests/V2/PrizeShippingVerticalSliceTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_schema_uses_snapshots_encrypted_pii_and_immutable_histories",
+        "test_prize_list_is_owner_scoped_cursor_paginated_and_public_safe",
+        "test_bulk_exchange_grants_snapshot_free_points_and_replays_once",
+        "test_exchange_rolls_back_all_items_when_one_prize_is_invalid",
+        "test_address_is_encrypted_owner_scoped_masked_and_snapshot_is_stable",
+        "test_shipping_request_is_atomic_replay_safe_and_tracks_admin_transitions",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Prize Shipping test missing {required}")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    if "mig052-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 Prize Shipping project boundary is missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -2743,6 +2929,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_payment_boundary(repository, paths)
     validate_v2_catalog_boundary(repository, paths)
     validate_v2_draw_boundary(repository, paths)
+    validate_v2_prize_shipping_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

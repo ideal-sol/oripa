@@ -198,3 +198,32 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   processing_duration_ms: 583,
   created_at: "2026-07-27T00:00:00Z",
 } as const satisfies PublicComponents["schemas"]["DrawResponse"]);
+
+export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
+  id: "0198a001-0000-7000-8000-000000000120",
+  status: "stored",
+  exchange_points: 8000,
+  acquired_at: "2026-07-30T00:00:00Z",
+  storage_expires_at: "2026-09-28T00:00:00Z",
+  draw_result_id: "0198a001-0000-7000-8000-000000000121",
+  display: {
+    id: "0198a001-0000-7000-8000-000000000009",
+    name: "Fixture S景品",
+    presentation_asset: null,
+  },
+  rank: {
+    id: "0198a001-0000-7000-8000-000000000003",
+    code: "S",
+    name: "Sランク",
+  },
+} as const satisfies PublicComponents["schemas"]["UserPrize"]);
+
+export const PUBLIC_SHIPPING_REQUEST_FIXTURE = Object.freeze({
+  id: "0198a001-0000-7000-8000-000000000130",
+  status: "requested",
+  prize_count: 1,
+  requested_at: "2026-07-30T00:00:00Z",
+  shipped_at: null,
+  carrier_code: null,
+  idempotent_replay: false,
+} as const satisfies PublicComponents["schemas"]["ShippingRequestSummary"]);

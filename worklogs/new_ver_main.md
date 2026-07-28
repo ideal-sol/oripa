@@ -4043,3 +4043,141 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Prize／Exchange／Shipping Vertical Sliceが残る。Gate G4は`NOT COMPLETE`である。
   次Task候補は`MIG-052 Prize／Exchange／Shipping Vertical Slice`だが、
   MIG-051完了後には開始しない。
+
+## MIG-051 Closeout／MIG-052 Prize・Exchange・Shipping Vertical Slice
+
+### MIG-051 Closeout
+
+- MIG-051のIssue `#105`はClosed、PR `#106`はSquash Mergedである。Final Headは
+  `1fcc43d75eb70d696fa3968287822276a282d1ba`、Squash Commitは
+  `4112f0d9442efcd155e9593fbbf8e531aef58641`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewは
+  成功した。Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-051 Worktreeは削除済みである。開始時にLocal
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、V1 Migration、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Characterization／Schema
+
+- Task IDは`MIG-052`、Riskは`R3`、Issueは`#107`、Branchは
+  `feat/MIG-052-prize-exchange-shipping`、Base SHAは
+  `4112f0d9442efcd155e9593fbbf8e531aef58641`である。
+- V1のUser Prize、Point交換、Shipping Address／Request、Tracking、Chargeback Holdを
+  Characterizationした。V1の確定状態は`stored`、`shipping_requested`、`packing`、
+  `shipped`、`delivered`、`converted`、`expired`、`held`／`hold`、
+  `return_requested`、`returned`、`canceled`を基礎とする。QA由来景品も通常景品と同じ
+  交換／配送境界を使用し、MIG-053用の追跡関係を維持した。
+- V2専用Migrationへ`user_prize_status_histories`、`prize_exchange_requests`、
+  `prize_exchange_request_items`、`shipping_addresses`、`shipping_requests`、
+  `shipping_request_items`、`shipping_request_status_histories`を追加した。
+  `user_prizes`へDraw時点の交換Point Snapshot、Storage期限、交換Point、Terminal時刻を
+  Forward-safeに追加した。既存Migration、`tenant_id`、V1 Tableは変更していない。
+- User Prizeの所有User、Draw Result、Catalog Relation、取得日時、交換Point Snapshot、
+  Storage期限はDB Triggerで変更を拒否する。User Prize／Shipping状態履歴は
+  Update／Delete／TruncateをDB境界で拒否する。Rollbackは状態が全件`stored`の場合だけ
+  許可し、業務状態を暗黙に巻き戻さない。
+
+### Contract／Point Exchange
+
+- Public OpenAPIへUser Prize一覧／詳細、Point交換、Shipping Address CRUD、
+  Shipping Request一覧／作成／詳細を追加した。Admin OpenAPIへShipping Request
+  一覧／詳細／状態更新を追加した。Public Operationは24件、Adminは12件、
+  Webhookは0件である。RFC 9457、Opaque Cursor、User Realm、Admin Realm／Permission、
+  MFA、CSRF、Exact Originの既存境界を維持する。
+- Public Responseへ内部`id`、原価、個別ppm、内部Storage識別子、暗号文、
+  管理Metadataを公開しない。Storefront Client TypesをPublic Bundleから再生成し、
+  Prize／Shipping Facadeを追加した。Admin／Webhook型はExportしていない。
+- 交換PointはPrize Masterの現在値ではなくMIG-051のDraw時点Snapshotを使用する。
+  1件または最大100件を内部ID昇順でLockし、全件交換可能な場合だけ
+  MIG-043の`V2PointService::grantPrizeExchange`でfree Pointを付与する。
+  Point Operation／Lot／Ledger／Wallet、User Prize状態、履歴、Audit、Outboxを
+  同一Transactionで確定する。一部成功、二重付与、Replay時の再付与はない。
+- `Idempotency-Key`はPoint交換とShipping Requestで必須である。同一Key／同一Requestは
+  Canonical Result、異なるRequestはConflict、処理中はFail Closedとする。
+  Deadlock／Serialization Failureは同一Keyで最大3回だけRetryする。
+
+### Shipping／PII／Hold
+
+- Shipping Addressの宛名、郵便番号、都道府県、市区町村、番地、建物、電話番号は
+  Laravel Application-level Encryptionで保存する。相関確認用にRepository外Keyによる
+  HMACだけを保持し、一覧はMask、本人詳細だけ復号する。Address削除／変更後も
+  Shipping Requestの暗号化Snapshotは不変である。
+- PII相関Keyは`V2_PII_CORRELATION_KEY`としてRepository外Env Fileへ保存し、
+  `scripts/db/v2_database.py`で32 Byte以上のBase64 Keyを生成・検証する。
+  Compose／CIへ値を表示せず受け渡し、Key不在時はFail Closedとする。
+- 1 Shipping Requestへ同一Userの複数User Prizeを含める。Address所有権と全景品状態を
+  検査し、User Prize、Request／Item／History、Audit、Outboxを同一Transactionで作成する。
+  Point交換済み、依頼済み、Hold中、期限切れ、Terminalの景品を拒否する。
+- Adminは`shipping.request.manage` PermissionとMFA済みAdmin Realmでのみ参照・更新できる。
+  許可遷移だけを受け付け、発送時はCarrier Code、Tracking Number、発送日時を必須とする。
+  Tracking Numberは暗号化し、履歴とAuditへはHMAC相関値だけを残す。
+  発送済み／配送完了／返送完了から交換可能状態へ巻き戻さない。
+- Activeな`payment_adjustment_prize_actions`の`hold`／`return_request`は交換と発送を拒否する。
+  Hold解除、景品取消、返送完了、Payment Adjustment状態変更を自動実行しない。
+  拒否結果はPIIを含まない相関HashとReason Codeで永続Auditへ記録する。
+- 配送先詳細取得、Address CRUD、Shipping Request作成、Admin配送先参照、
+  Tracking登録、状態変更、Point交換、Hold拒否をAuditする。住所全文、電話番号、
+  Full Email、Cookie、Session ID、TokenはAudit／Log／Errorへ保存しない。
+- Lock順はIdempotency Record、User／Wallet、User Prize内部ID昇順、Point Lot、
+  Shipping Request、Payment Adjustment Prize Action、History／Audit／Outboxである。
+  `SKIP LOCKED`や外部配送通信をTransaction内で使用していない。
+
+### Test／Performance
+
+- Persistent V2 PostgreSQL 17／Redis 7とTask専用Ephemeral Source／Restoreで
+  V2 `migrate:fresh`を各2回実行した。V2全Testは116件／774 Assertion、
+  Performance Test 19 Assertion、実Process並行Test 9 Assertionを含めPASSした。
+  通常Suiteでは明示的Load Test 1件をSkippedとし、Ephemeral Smokeの専用Load工程で
+  別途PASSを確認した。
+- 同一景品のPoint交換とShipping Requestを独立Process 2本で同時開始し、片方だけが成立、
+  もう片方は状態競合として拒否された。重複Request、二重Point付与、二重Shipping Item、
+  未解決Deadlock、部分成功は0件だった。
+- User Prize 1,000件のCursor一覧は10 Page／10 Query、Page p50 9.840ms、
+  p95 11.192msだった。100件一括Point交換5回はp50 328.579ms、
+  p95 367.675ms、各525 Queryだった。100件Shipping Request 5回は
+  p50 192.530ms、p95 194.434ms、各317 Queryだった。
+  Shipping一覧は2 QueryでN+1なし、Peak Memoryは82,837,504 Byteだった。
+  Queryの主因は景品ごとのimmutable状態履歴とRequest Itemであり、省略していない。
+- Ephemeral Backup／Restoreは一致した。V2 Migrationは10件、Migration Set SHA-256は
+  `7d071219bff4bec38052b4e214a1fa4f3580a9ba13929b24b05fdde98f9dbb84`、
+  Source／Restore Schema SHA-256は
+  `f0dc3761ba913ffe0181252381926408c76783fbe32da193a9f46c23b5c26a6a`、
+  Migration Row SHA-256は
+  `1b502dcbedeeff9865e3f187f1b0ee4abfd932c8dc1a7a7d80928945c25c1118`、
+  Backup SHA-256は
+  `13212d6c8d7853efee7f59b78f3eb9b57feb7e68ff6a570f5d33663cfba8be10`
+  である。Task専用Container／Network／Volume CleanupはPASSした。
+- OpenAPI Lint／Bundle／Checksum、Storefront Client生成差分／Typecheck／Lint／Build／
+  11 Test、Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／19 Test／Export／Network境界、
+  Admin Typecheck／Lint／BuildはPASSした。
+- Policy Unit Test 68件、Quality Unit Test 5件、Security Unit Test 4件、
+  DB Guard Unit Test 19件、OpenAPI Unit Test 4件、Release Unit Test 10件、
+  `policy-gate`、`quality-gate`、`security-gate`はPASSした。
+  Root Auditは0 Finding、Legacy Auditは11 Finding、Composer Auditは既存期限付き
+  10 Findingと一致し、Baselineを追加・拡張していない。新規Critical／Highは0件、
+  Secret／PII Candidateは0件である。
+- Legacy FrontendのFrozen Install、Typecheck、BuildはPASSし、Lintは既存Baselineの
+  8 Error／1 Warningと完全一致した。V1 Migrationは40件、内容Checksumは
+  `e490ab8b248cecd709908023a21201e7f3bf7dfb0bbd703a8197d4642eff0631`
+  で不変である。
+- Registration Verificationの`created_at`と`expires_at`が秒境界を跨ぐ既存Flakeを
+  検出した。DBの60分TTL Constraintを満たすよう同一固定時刻から生成する最小修正だけを
+  行い、認証仕様、TTL、Token、Session境界は変更していない。
+- GitHub Required／Available Check、Final Head固定後のFresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree CleanupはPR上で確定する。
+  未実行項目をPASSとは記録しない。
+
+### Scope／Gate G4
+
+- Storefront UI、Admin UI、Site Design、Animation、Carrier API／Webhook、
+  送り状PDF、送料決済、倉庫API、Mail／SMS送信、QA Mode、Reporting／Export、
+  Payment Provider、Production Deployment、V1本番反映は実装・実行していない。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、V1 Migration、
+  Archive Branch、Annotated Tagを変更していない。
+- Handoff CはCatalog Read、Draw Write、User Prize Read、Point Exchangeまで接続済みである。
+  Handoff DはShipping Address／Request／TrackingとPII AuditのAPI／DB境界まで接続済みだが、
+  最小Storefront画面、最小Admin画面、Staging E2Eが残る。
+- Gate G4は`NOT COMPLETE`である。次Task候補は
+  `MIG-053 QA Draw Vertical Slice`だが、MIG-052完了後には開始しない。

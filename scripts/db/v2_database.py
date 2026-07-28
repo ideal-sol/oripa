@@ -29,6 +29,7 @@ REQUIRED_ENV_KEYS = {
     "V2_APP_ENV",
     "V2_APP_KEY",
     "V2_AUDIT_HMAC_KEY",
+    "V2_PII_CORRELATION_KEY",
     "V2_DB_HOST",
     "V2_DB_PORT",
     "V2_DB_DATABASE",
@@ -88,8 +89,15 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.point_purchase_plans",
     "public.point_reconciliation_discrepancies",
     "public.point_reconciliation_runs",
+    "public.prize_exchange_request_items",
+    "public.prize_exchange_requests",
     "public.prize_inventories",
+    "public.shipping_addresses",
+    "public.shipping_request_items",
+    "public.shipping_request_status_histories",
+    "public.shipping_requests",
     "public.user_email_verifications",
+    "public.user_prize_status_histories",
     "public.user_prizes",
     "public.user_remember_devices",
     "public.user_sessions",
@@ -264,6 +272,16 @@ def validate_values(values: dict[str, str], project: str) -> None:
         raise GuardFailure("V2 Audit HMAC key format is invalid") from error
     if len(audit_key) < 32:
         raise GuardFailure("V2 Audit HMAC key length is invalid")
+    if not values["V2_PII_CORRELATION_KEY"].startswith("base64:"):
+        raise GuardFailure("V2 PII correlation key format is invalid")
+    try:
+        pii_key = base64.b64decode(
+            values["V2_PII_CORRELATION_KEY"][7:], validate=True
+        )
+    except ValueError as error:
+        raise GuardFailure("V2 PII correlation key format is invalid") from error
+    if len(pii_key) < 32:
+        raise GuardFailure("V2 PII correlation key length is invalid")
 
 
 def compose_command(
@@ -549,6 +567,8 @@ def create_env_file(path: Path, project: str, environment: str, suffix: str) -> 
         "V2_APP_ENV": environment,
         "V2_APP_KEY": "base64:" + base64.b64encode(secrets.token_bytes(32)).decode(),
         "V2_AUDIT_HMAC_KEY": "base64:"
+        + base64.b64encode(secrets.token_bytes(32)).decode(),
+        "V2_PII_CORRELATION_KEY": "base64:"
         + base64.b64encode(secrets.token_bytes(32)).decode(),
         "V2_DB_HOST": "postgres",
         "V2_DB_PORT": "5432",

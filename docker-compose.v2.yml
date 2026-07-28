@@ -25,6 +25,7 @@ services:
       REDIS_PORT: ${V2_REDIS_PORT:?V2_REDIS_PORT is required}
       SESSION_DRIVER: array
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?V2_AUDIT_HMAC_KEY is required}
+      V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?V2_PII_CORRELATION_KEY is required}
     depends_on:
       postgres:
         condition: service_healthy

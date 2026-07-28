@@ -32,6 +32,8 @@ class V2DatabaseGuardTest(unittest.TestCase):
             + base64.b64encode(bytes(range(32))).decode(),
             "V2_AUDIT_HMAC_KEY": "base64:"
             + base64.b64encode(bytes(reversed(range(32)))).decode(),
+            "V2_PII_CORRELATION_KEY": "base64:"
+            + base64.b64encode(bytes(range(31, -1, -1))).decode(),
             "V2_DB_HOST": "postgres",
             "V2_DB_PORT": "5432",
             "V2_DB_DATABASE": "oripa_v2_dev",
@@ -89,6 +91,13 @@ class V2DatabaseGuardTest(unittest.TestCase):
     def test_short_audit_hmac_key_is_rejected(self):
         self.values["V2_AUDIT_HMAC_KEY"] = "base64:" + base64.b64encode(b"short").decode()
         with self.assertRaisesRegex(v2_database.GuardFailure, "Audit HMAC key"):
+            v2_database.validate_values(self.values, "oripa-v2-dev")
+
+    def test_short_pii_correlation_key_is_rejected(self):
+        self.values["V2_PII_CORRELATION_KEY"] = (
+            "base64:" + base64.b64encode(b"short").decode()
+        )
+        with self.assertRaisesRegex(v2_database.GuardFailure, "PII correlation key"):
             v2_database.validate_values(self.values, "oripa-v2-dev")
 
     def test_shared_redis_host_is_rejected(self):
@@ -183,6 +192,18 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "public.catalog_probability_entries",
             "public.catalog_minimum_guarantees",
             "public.catalog_import_runs",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
+    def test_prize_shipping_schema_inventory_is_explicit(self):
+        for table in (
+            "public.prize_exchange_requests",
+            "public.prize_exchange_request_items",
+            "public.shipping_addresses",
+            "public.shipping_requests",
+            "public.shipping_request_items",
+            "public.shipping_request_status_histories",
+            "public.user_prize_status_histories",
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 

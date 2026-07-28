@@ -188,6 +188,7 @@ services:
       DB_PASSWORD: ${V2_DB_PASSWORD:?required}
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?required}
+      V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?required}
   admin:
     image: admin
   postgres:
@@ -223,6 +224,8 @@ V1_MIGRATION_PATH = "apps/api/database/migrations"
 # Unexpected Database or Redis Host
 # "V2_AUDIT_HMAC_KEY"
 # V2 Audit HMAC key
+# "V2_PII_CORRELATION_KEY"
+# V2 PII correlation key
 # Database and Redis Host Ports are prohibited
 # Refusing to remove an unscoped Volume
 """,
@@ -326,6 +329,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
             "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
             "apps/api/database/migrations-v2/2026_07_29_000009_create_v2_draw_vertical_slice.php",
+            "apps/api/database/migrations-v2/2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -625,6 +629,54 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "random_value"):
                 policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def copy_v2_prize_shipping_boundary(self, root):
+        paths = set(policy_gate.V2_PRIZE_SHIPPING_REQUIRED_FILES)
+        supporting = {
+            ".github/workflows/platform-ci.yml",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_prize_shipping_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_prize_shipping_boundary(root)
+            policy_gate.validate_v2_prize_shipping_boundary(root, paths)
+
+    def test_v2_prize_shipping_plain_pii_column_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_prize_shipping_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8")
+                + "\n// $table->string('recipient_name');\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "recipient_name"):
+                policy_gate.validate_v2_prize_shipping_boundary(root, paths)
+
+    def test_v2_prize_shipping_public_ciphertext_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_prize_shipping_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["components"]["schemas"]["ShippingAddress"]["properties"] = {
+                "recipient_name_ciphertext": {"type": "string"}
+            }
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "ciphertext"):
+                policy_gate.validate_v2_prize_shipping_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -1240,8 +1292,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 13",
-                    "operation_count: 14",
+                    "operation_count: 24",
+                    "operation_count: 25",
                 ),
                 encoding="utf-8",
             )

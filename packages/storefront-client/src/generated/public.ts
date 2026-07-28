@@ -123,6 +123,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/prizes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身が所有する景品を取得する */
+        get: operations["listUserPrizes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/prizes/{prize_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身が所有する景品詳細を取得する */
+        get: operations["getUserPrize"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/prizes/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** User自身の景品を一括でfree Pointへ交換する */
+        post: operations["exchangeUserPrizes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/shipping-addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mask済み配送先一覧を取得する */
+        get: operations["listShippingAddresses"];
+        put?: never;
+        /** 配送先を作成する */
+        post: operations["createShippingAddress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/shipping-addresses/{address_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User本人の配送先詳細を取得する */
+        get: operations["getShippingAddress"];
+        /** User本人の配送先を更新する */
+        put: operations["updateShippingAddress"];
+        post?: never;
+        /** User本人の配送先を削除する */
+        delete: operations["deleteShippingAddress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/shipping-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身のShipping Request一覧を取得する */
+        get: operations["listShippingRequests"];
+        put?: never;
+        /** 複数景品を1件のShipping Requestへまとめる */
+        post: operations["createShippingRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/shipping-requests/{shipping_request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身のShipping Request詳細を取得する */
+        get: operations["getShippingRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -231,6 +354,96 @@ export interface components {
     schemas: {
         /** @description 形式や並び順へ依存してはならない公開識別子。 */
         OpaqueId: string;
+        /** @enum {string} */
+        UserPrizeStatus: "stored" | "exchange_processing" | "converted" | "shipping_requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "expired" | "canceled";
+        UserPrize: {
+            id: components["schemas"]["OpaqueId"];
+            status: components["schemas"]["UserPrizeStatus"];
+            exchange_points: number;
+            acquired_at: components["schemas"]["UtcDateTime"];
+            storage_expires_at: components["schemas"]["UtcDateTime"];
+            draw_result_id: components["schemas"]["OpaqueId"];
+            display: {
+                [key: string]: unknown;
+            } | null;
+            rank: {
+                [key: string]: unknown;
+            } | null;
+        };
+        UserPrizeCollection: {
+            items: components["schemas"]["UserPrize"][];
+            next_cursor: string | null;
+        };
+        UserPrizeDetail: components["schemas"]["UserPrize"] & {
+            status_history: components["schemas"]["StatusHistory"][];
+        };
+        StatusHistory: {
+            from_status: string | null;
+            to_status: string;
+            reason_code: string;
+            occurred_at: components["schemas"]["UtcDateTime"];
+        };
+        PrizeExchangeRequest: {
+            prize_ids: components["schemas"]["OpaqueId"][];
+        };
+        PrizeExchangeResponse: {
+            id: components["schemas"]["OpaqueId"];
+            /** @constant */
+            status: "completed";
+            exchanged_count: number;
+            exchange_point_total: number;
+            wallet_free_points_after: number;
+            idempotent_replay: boolean;
+        };
+        ShippingAddressInput: {
+            recipient_name: string;
+            postal_code: string;
+            prefecture: string;
+            city: string;
+            street: string;
+            building?: string | null;
+            phone_number: string;
+        };
+        ShippingAddress: components["schemas"]["ShippingAddressInput"] & {
+            id: components["schemas"]["OpaqueId"];
+            created_at: components["schemas"]["UtcDateTime"];
+            updated_at: components["schemas"]["UtcDateTime"];
+        };
+        ShippingAddressCollection: {
+            items: {
+                id: components["schemas"]["OpaqueId"];
+                recipient_name_masked: string;
+                postal_code_masked: string;
+                phone_number_masked: string;
+                updated_at: components["schemas"]["UtcDateTime"];
+            }[];
+        };
+        CreateShippingRequest: {
+            shipping_address_id: components["schemas"]["OpaqueId"];
+            prize_ids: components["schemas"]["OpaqueId"][];
+        };
+        /** @enum {string} */
+        ShippingStatus: "requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "canceled";
+        ShippingRequestSummary: {
+            id: components["schemas"]["OpaqueId"];
+            status: components["schemas"]["ShippingStatus"];
+            prize_count: number;
+            requested_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            shipped_at?: string | null;
+            carrier_code?: string | null;
+            idempotent_replay?: boolean;
+        };
+        ShippingRequestDetail: components["schemas"]["ShippingRequestSummary"] & {
+            prize_ids: components["schemas"]["OpaqueId"][];
+            tracking_number: string | null;
+            shipping_address: components["schemas"]["ShippingAddressInput"];
+            status_history: components["schemas"]["StatusHistory"][];
+        };
+        ShippingRequestCollection: {
+            items: components["schemas"]["ShippingRequestSummary"][];
+            next_cursor: string | null;
+        };
         /** @description API ContractまたはClientのSemVer。 */
         SemanticVersion: string;
         /**
@@ -518,6 +731,9 @@ export interface components {
         };
     };
     parameters: {
+        UserPrizeId: components["schemas"]["OpaqueId"];
+        ShippingAddressId: components["schemas"]["OpaqueId"];
+        ShippingRequestId: components["schemas"]["OpaqueId"];
         XOripaClientVersion: components["schemas"]["SemanticVersion"];
         XOripaSiteVersion: components["schemas"]["SemanticVersion"];
         IdempotencyKey: string;
@@ -700,6 +916,284 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DrawResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listUserPrizes: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User Prize一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrizeCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getUserPrize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prize_id: components["parameters"]["UserPrizeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User Prize詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrizeDetail"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    exchangeUserPrizes: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrizeExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description 景品交換結果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrizeExchangeResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShippingAddresses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 配送先一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingAddressCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createShippingAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingAddressInput"];
+            };
+        };
+        responses: {
+            /** @description 作成した配送先。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingAddress"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getShippingAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: components["parameters"]["ShippingAddressId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 配送先詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingAddress"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateShippingAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                address_id: components["parameters"]["ShippingAddressId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingAddressInput"];
+            };
+        };
+        responses: {
+            /** @description 更新した配送先。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingAddress"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteShippingAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                address_id: components["parameters"]["ShippingAddressId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 削除結果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        deleted: true;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShippingRequests: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shipping Request一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingRequestCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createShippingRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateShippingRequest"];
+            };
+        };
+        responses: {
+            /** @description Shipping Request作成結果。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingRequestSummary"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getShippingRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shipping_request_id: components["parameters"]["ShippingRequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shipping Request詳細。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingRequestDetail"];
                 };
             };
             default: components["responses"]["Problem"];

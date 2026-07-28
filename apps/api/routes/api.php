@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2PublicAuthController;
 use App\Http\Controllers\V2\V2CatalogController;
 use App\Http\Controllers\V2\V2DrawController;
+use App\Http\Controllers\V2\V2PrizeShippingController;
 
 Route::prefix('v2')->group(function (): void {
     Route::get('/gacha-categories', [V2CatalogController::class, 'categories'])
@@ -52,6 +53,33 @@ Route::prefix('v2')
         Route::get('/draw-requests/{drawRequestId}', [V2DrawController::class, 'show'])
             ->whereUuid('drawRequestId')
             ->name('v2.public.draws.show');
+        Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
+            ->name('v2.public.prizes.index');
+        Route::get('/me/prizes/{prizeId}', [V2PrizeShippingController::class, 'prize'])
+            ->whereUuid('prizeId')
+            ->name('v2.public.prizes.show');
+        Route::post('/me/prizes/exchange', [V2PrizeShippingController::class, 'exchange'])
+            ->name('v2.public.prizes.exchange');
+        Route::get('/me/shipping-addresses', [V2PrizeShippingController::class, 'addresses'])
+            ->name('v2.public.shipping-addresses.index');
+        Route::post('/me/shipping-addresses', [V2PrizeShippingController::class, 'createAddress'])
+            ->name('v2.public.shipping-addresses.store');
+        Route::get('/me/shipping-addresses/{addressId}', [V2PrizeShippingController::class, 'address'])
+            ->whereUuid('addressId')
+            ->name('v2.public.shipping-addresses.show');
+        Route::put('/me/shipping-addresses/{addressId}', [V2PrizeShippingController::class, 'updateAddress'])
+            ->whereUuid('addressId')
+            ->name('v2.public.shipping-addresses.update');
+        Route::delete('/me/shipping-addresses/{addressId}', [V2PrizeShippingController::class, 'deleteAddress'])
+            ->whereUuid('addressId')
+            ->name('v2.public.shipping-addresses.destroy');
+        Route::get('/me/shipping-requests', [V2PrizeShippingController::class, 'shippingRequests'])
+            ->name('v2.public.shipping-requests.index');
+        Route::post('/me/shipping-requests', [V2PrizeShippingController::class, 'createShippingRequest'])
+            ->name('v2.public.shipping-requests.store');
+        Route::get('/me/shipping-requests/{shippingRequestId}', [V2PrizeShippingController::class, 'shippingRequest'])
+            ->whereUuid('shippingRequestId')
+            ->name('v2.public.shipping-requests.show');
     });
 
 Route::prefix('v2/auth')
