@@ -331,6 +331,40 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertSame(5, DB::table('qa_draw_executions')->count());
         self::assertSame($expected, (int) DB::table('gacha_draw_states')->value('sold_count'));
         self::assertSame($expected, $randomCounter->count);
+
+        try {
+            $this->draw($user, 5, 'qa-allowed-count-10-key');
+            self::fail('A QA idempotency key reused for another request must conflict.');
+        } catch (V2DrawException $exception) {
+            self::assertSame('IDEMPOTENCY_KEY_REUSED', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+        }
+
+        $inFlightKey = 'qa-in-flight-key-0001';
+        DB::table('idempotency_records')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'scope' => 'draw.create',
+            'actor_type' => 'user',
+            'actor_public_id' => $user->public_id,
+            'key_hash' => hash('sha256', $inFlightKey),
+            'request_hash' => hash('sha256', json_encode([
+                'draw_count' => 1,
+                'gacha_id' => self::GACHA_ID,
+            ], JSON_THROW_ON_ERROR)),
+            'status' => 'processing',
+            'created_at' => now(),
+            'expires_at' => now()->addDay(),
+        ]);
+        try {
+            $this->draw($user, 1, $inFlightKey);
+            self::fail('An in-flight QA idempotency key must fail closed.');
+        } catch (V2DrawException $exception) {
+            self::assertSame('IDEMPOTENCY_REQUEST_IN_PROGRESS', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+            self::assertTrue($exception->retryable);
+        }
+        self::assertSame($expected, (int) DB::table('qa_draw_plan_items')->value('consumed_count'));
+        self::assertSame($expected, DB::table('draw_results')->count());
     }
 
     public function test_active_invalid_qa_never_falls_back_and_fails_before_domain_changes(): void
@@ -428,6 +462,63 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertSame(0, (int) DB::table('prize_inventories')->sum('won_count'));
         self::assertSame($wallet, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
+    }
+
+    public function test_second_result_chunk_failure_rolls_back_the_entire_qa_draw(): void
+    {
+        [$user, $owner] = $this->fixture(
+            randomValues: [1],
+            freePoints: 200_000,
+            totalCount: 2_000
+        );
+        $this->enableMode($owner, $user);
+        $this->qaPlan($owner, $user, [
+            $this->item(self::PRIZE_A_ID, 1_000, 1),
+        ]);
+        $wallet = (int) DB::table('wallets')->where('user_id', $user->id)
+            ->value('free_balance');
+        $pointRows = DB::table('point_ledger_entries')->count();
+        $outboxRows = DB::table('outbox_messages')->count();
+
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION fail_qa_draw_second_chunk()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF NEW.request_sequence = 251 THEN
+                    RAISE EXCEPTION 'qa draw test chunk failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER fail_qa_draw_second_chunk
+            BEFORE INSERT ON draw_results
+            FOR EACH ROW
+            EXECUTE FUNCTION fail_qa_draw_second_chunk();
+            SQL);
+
+        try {
+            $this->draw($user, 1_000, 'qa-second-chunk-failure-key');
+            self::fail('The second QA result chunk must fail for this test.');
+        } catch (V2DrawException $exception) {
+            self::assertSame('DRAW_INTERNAL_ERROR', $exception->errorCode);
+            self::assertSame(500, $exception->status);
+        }
+
+        self::assertDatabaseCount('draw_requests', 0);
+        self::assertDatabaseCount('draw_results', 0);
+        self::assertDatabaseCount('user_prizes', 0);
+        self::assertDatabaseCount('qa_draw_executions', 0);
+        self::assertSame(0, (int) DB::table('qa_draw_plan_items')->value('consumed_count'));
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame(0, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($wallet, (int) DB::table('wallets')
+            ->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame($pointRows, DB::table('point_ledger_entries')->count());
+        self::assertSame($outboxRows, DB::table('outbox_messages')->count());
+        self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.draw.failed']);
     }
 
     public function test_qa_user_prize_remains_exchangeable_and_qa_execution_is_owner_readable(): void

@@ -49,6 +49,7 @@ final class V2DrawService
         $randomValues = null;
         $started = hrtime(true);
         $qaRetryItemIds = null;
+        $qaAttempted = false;
 
         try {
             return $this->transactions->run(function (int $attempt) use (
@@ -59,7 +60,8 @@ final class V2DrawService
                 $requestId,
                 $started,
                 &$randomValues,
-                &$qaRetryItemIds
+                &$qaRetryItemIds,
+                &$qaAttempted
             ): array {
                 $claim = $this->idempotency->claim(
                     'draw.create',
@@ -144,6 +146,7 @@ final class V2DrawService
                     $qaRetryItemIds
                 );
                 if ($qaSelection['active']) {
+                    $qaAttempted = true;
                     $qaRetryItemIds ??= $qaSelection['item_ids'];
                 }
                 $inventories = null;
@@ -375,6 +378,8 @@ final class V2DrawService
                     $gachaPublicId,
                     $requestId
                 );
+            }
+            if ($qaAttempted || str_starts_with($mapped->errorCode, 'QA_')) {
                 $this->audit->record('qa.draw.failed', [
                     'request_id' => $requestId,
                     'actor_type' => 'user',

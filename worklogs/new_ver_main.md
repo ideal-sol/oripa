@@ -4223,7 +4223,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### MIG-053 Task／Schema
 
-- Task IDは`MIG-053`、Riskは`R3`、Issueは`#109`、Branchは
+- Task IDは`MIG-053`、Riskは`R3`、Issueは`#109`、PRは`#110`、Branchは
   `feat/MIG-053-qa-draw-vertical-slice`、Base SHAは
   `37ba098b89848f962ddab2fbc5dcb0763beac818`である。
 - V2専用Migrationへ`qa_test_user_modes`、`qa_draw_plans`、
@@ -4291,7 +4291,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Migration Row SHA-256は
   `b035e90a3e58d3864bb88e040603e814de688633ecf8ef3c72a6571b321493f0`、
   Backup SHA-256は
-  `02f5efd706da42ce4af13e521a9c31d24393bf3e99b8f9216c560099b387a9a3`
+  `cb7448a0f56efa4af308191e9010fcb9342f2493b26cad713c0ce9aa5cb05fc3`
   で一致した。Host Port公開なし、Task Resource CleanupはPASSした。
 - QA 100回5回はp50約124ms、p95約154ms、最大65 Queryだった。
   QA 1000回5回はp50約687ms、p95約825ms、最大76 Query、Response最大約18.6KB、
@@ -4303,8 +4303,20 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Mode／Plan、Owner-only、Inactive通常Draw、Active指定景品、全Draw Count、
   Plan順序／完了、固定Asset Snapshot、Replay、CSPRNG非再実行、期限切れ完了、
   設定／在庫Failure全Rollback、QA景品Point交換、Execution参照を専用Testで確認した。
+  同一Keyの異なるQA RequestはConflict、Processing中の同一KeyはFail Closedとし、
+  Replay／Conflict／In-flightでPlan消費、Point、Resultを再更新しないことを直接確認した。
+  Test専用PostgreSQL Triggerで2番目の250件Result Chunkを失敗させ、Draw Request／
+  Result／User Prize／Point／Inventory／Sold／Plan消費／Execution／Outboxが
+  単一Transactionで全Rollbackし、通常`draw.failed`とQA固有`qa.draw.failed`の
+  両Auditが残ることを確認した。
   MIG-050～052、Point、Payment／Refund／Chargeback、Auth／MFA、Audit／Outbox、
   Backup／Restore Regressionは全V2 SuiteでPASSした。
+- 全V2 Regressionで、`UserEmailVerification`がServiceの明示`created_at`を
+  Mass Assignmentで破棄し、PostgreSQL Transaction開始時刻を使うため、Password Hashが
+  秒境界を跨ぐと60分TTL Constraintへ1秒違反する既存不具合を再現した。
+  `created_at`をModel Allowlistへ追加し、Serviceが既に生成している同一固定時刻を
+  保存する最小修正で解消した。TTL、Token、Session、Migration、認証Contractは
+  変更していない。修正後の全V2 SuiteとIdentity TestはPASSした。
 - OpenAPI Lint／Bundle、Storefront Client生成差分／Typecheck／Lint／Build／11 Test、
   Site Schema生成差分／Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／
   Typecheck／Lint／Build／19 Test／Export／実Network禁止、Admin Typecheck／Lint／Build、
