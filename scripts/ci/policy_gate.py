@@ -197,9 +197,13 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Domain/Identity/Services/V2WebauthnService.php",
     "apps/api/app/Domain/Identity/Services/V2RecoveryCodeService.php",
     "apps/api/app/Domain/Identity/Contracts/V2SecurityEventSink.php",
+    "apps/api/app/Domain/Identity/Contracts/V2GoogleOidcTransport.php",
     "apps/api/app/Domain/Identity/Contracts/V2SuspiciousRecoveryBoundary.php",
     "apps/api/app/Domain/Identity/Services/V2ExplicitSuspiciousRecoveryBoundary.php",
     "apps/api/app/Domain/Identity/Services/V2IdentityCorrelation.php",
+    "apps/api/app/Domain/Identity/Services/V2ExternalIdentityService.php",
+    "apps/api/app/Domain/Identity/Services/V2GoogleIdTokenVerifier.php",
+    "apps/api/app/Domain/Identity/Services/V2GoogleOidcHttpTransport.php",
     "apps/api/app/Domain/Identity/Services/V2PasswordRecoveryService.php",
     "apps/api/app/Domain/Identity/Services/V2PhoneNormalizer.php",
     "apps/api/app/Domain/Identity/Services/V2SmsVerificationService.php",
@@ -214,6 +218,9 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Models/V2/AdminTotpMethod.php",
     "apps/api/app/Models/V2/AdminWebauthnMethod.php",
     "apps/api/app/Models/V2/User.php",
+    "apps/api/app/Models/V2/ExternalIdentityAccount.php",
+    "apps/api/app/Models/V2/ExternalIdentityAccountHistory.php",
+    "apps/api/app/Models/V2/ExternalIdentityTransaction.php",
     "apps/api/app/Models/V2/PasswordResetToken.php",
     "apps/api/app/Models/V2/SmsVerificationChallenge.php",
     "apps/api/app/Models/V2/UserPhoneNumber.php",
@@ -227,6 +234,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_24_000003_create_v2_admin_mfa_methods.php",
     "apps/api/database/migrations-v2/2026_07_24_000004_create_v2_authentication_flows.php",
     "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
+    "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
     "apps/api/tests/V2/AuthenticationFlowTest.php",
     "apps/api/tests/V2/BrowserSecurityTest.php",
     "apps/api/tests/V2/AdminMfaPolicyTest.php",
@@ -234,9 +242,12 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/tests/V2/PasswordPolicyTest.php",
     "apps/api/tests/V2/PasswordResetSmsVerificationTest.php",
     "apps/api/tests/V2/ZIdentityRecoveryConcurrencyTest.php",
+    "apps/api/tests/V2/GoogleOidcVerticalSliceTest.php",
+    "apps/api/tests/V2/ZExternalIdentityConcurrencyTest.php",
     "apps/api/tests/V2/PermissionBoundaryTest.php",
     "apps/api/tests/V2/RealmSeparationTest.php",
     "docs/operations/identity-recovery/README.md",
+    "docs/operations/external-identity/README.md",
 }
 V2_AUDIT_OUTBOX_REQUIRED_FILES = {
     "apps/api/app/Domain/Audit/V2/Services/V2AuditChainVerifier.php",
@@ -1310,7 +1321,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 35,
+        "publicApiOperationCount": 42,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1328,8 +1339,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 35",
-        '"confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        "operation_count: 42",
+        '"completeGoogleOidc","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","unlinkGoogleIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1547,6 +1558,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_01_000012_create_v2_reporting_export_foundation.php",
         "2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
         "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
+        "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1555,7 +1567,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         (repository / "apps/api/database/migrations-v2" / name).read_text(
             encoding="utf-8"
         )
-        for name in [*expected_migrations[:4], expected_migrations[-1]]
+        for name in [*expected_migrations[:4], *expected_migrations[-2:]]
     )
     for required in (
         "users",
@@ -1585,6 +1597,12 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "sms_verification_challenges",
         "user_phone_numbers_verified_unique",
         "reauthenticated_at",
+        "external_identity_accounts",
+        "external_identity_transactions",
+        "external_identity_account_histories",
+        "password_login_enabled",
+        "subject_hash",
+        "code_verifier_ciphertext",
     ):
         if required not in identity_migrations:
             raise PolicyFailure(f"V2 Identity migration boundary missing {required}")
@@ -1639,6 +1657,9 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "'sms_phone_day' => [10, 86400]",
         "'sms_ip' => [5, 3600]",
         "'sms_verify' => [5, 300]",
+        "'oidc_login_start' => [10, 600]",
+        "'oidc_link_start' => [5, 600]",
+        "'oidc_unlink' => [5, 3600]",
     ):
         if required not in config:
             raise PolicyFailure(f"V2 Identity secure default missing {required}")
@@ -1765,11 +1786,62 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "resendUserEmailVerification",
         "verifyUserEmail",
         "getUserSession",
+        "startGoogleLogin",
+        "completeGoogleOidc",
+        "listExternalIdentities",
+        "startGoogleIdentityLink",
+        "startGoogleReauthentication",
+        "reauthenticateUserPassword",
+        "unlinkGoogleIdentity",
     ):
         if operation_id not in public_contract:
             raise PolicyFailure(f"Public Authentication Contract missing {operation_id}")
     if "beginAdminLogin" in public_contract or "verifyAdminMfa" in public_contract:
         raise PolicyFailure("Admin Authentication leaked into Public Contract")
+    oidc_sources = "\n".join(
+        (repository / relative).read_text(encoding="utf-8")
+        for relative in (
+            "apps/api/app/Domain/Identity/Services/V2ExternalIdentityService.php",
+            "apps/api/app/Domain/Identity/Services/V2GoogleIdTokenVerifier.php",
+            "apps/api/app/Domain/Identity/Services/V2GoogleOidcHttpTransport.php",
+        )
+    )
+    for required in (
+        "https://accounts.google.com",
+        "https://oauth2.googleapis.com/token",
+        "https://www.googleapis.com/oauth2/v3/certs",
+        "code_challenge_method",
+        "RS256",
+        "email_verified",
+        "subject_hash",
+        "password_login_enabled",
+    ):
+        if required not in oidc_sources:
+            raise PolicyFailure(f"V2 Google OIDC boundary missing {required}")
+    for prohibited in (
+        "access_token",
+        "refresh_token",
+        "raw_subject",
+        "tenant_id",
+        "Math.random",
+    ):
+        if prohibited in oidc_sources:
+            raise PolicyFailure(f"V2 Google OIDC boundary contains prohibited {prohibited}")
+    composer_manifest = json.loads(
+        (repository / "apps/api/composer.json").read_text(encoding="utf-8")
+    )
+    if composer_manifest.get("require", {}).get("firebase/php-jwt") != "^7.1":
+        raise PolicyFailure("V2 Google OIDC JWT manifest constraint is not approved")
+    composer_lock = json.loads(
+        (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
+    )
+    jwt_versions = [
+        package.get("version")
+        for package in composer_lock.get("packages", [])
+        if package.get("name") == "firebase/php-jwt"
+    ]
+    if jwt_versions != ["v7.1.0"]:
+        raise PolicyFailure("V2 Google OIDC JWT resolved version is not exactly v7.1.0")
     for operation_id in (
         "beginAdminLogin",
         "verifyAdminMfa",

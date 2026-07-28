@@ -611,6 +611,80 @@ paths:
                 $ref: '#/components/schemas/UserSession'
         default:
           $ref: '#/components/responses/Problem'
+  /auth/external/google/start:
+    post:
+      operationId: startGoogleLogin
+      summary: Google OIDC Login Transactionを開始する
+      x-idempotency: not-supported
+      x-rate-limit: ip-10-per-10-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalIdentityStartRequest'
+      responses:
+        '200':
+          description: 固定Google OIDC Authorization URL。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalIdentityStart'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/external/google/callback:
+    get:
+      operationId: completeGoogleOidc
+      summary: Google OIDC Authorization Code Callbackを検証する
+      x-idempotency: one-time-transaction
+      x-rate-limit: transaction-and-ip
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - {}
+        - userSession: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 4096
+            writeOnly: true
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+            writeOnly: true
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            const: https://accounts.google.com
+      responses:
+        '200':
+          description: OIDC Transactionを1回だけ確定してSessionを発行またはRotationした。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalIdentitySession'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
   /auth/password/forgot:
     post:
       operationId: requestPasswordReset
@@ -755,6 +829,123 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSession'
+        default:
+          $ref: '#/components/responses/Problem'
+  /me/external-identities:
+    get:
+      operationId: listExternalIdentities
+      summary: User自身にLink済みのExternal Identityを取得する
+      x-idempotency: safe
+      x-rate-limit: session
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      responses:
+        '200':
+          description: SubjectやTokenを含まないLink済みIdentity一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalIdentityCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /me/external-identities/google/link:
+    post:
+      operationId: startGoogleIdentityLink
+      summary: 認証済みUserへGoogle IdentityをLinkするTransactionを開始する
+      x-idempotency: not-supported
+      x-rate-limit: user-5-per-10-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalIdentityStartRequest'
+      responses:
+        '200':
+          description: User SessionへBindingしたGoogle OIDC Transaction。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalIdentityStart'
+        default:
+          $ref: '#/components/responses/Problem'
+  /me/external-identities/google/reauthenticate:
+    post:
+      operationId: startGoogleReauthentication
+      summary: Google IdentityによるRecent User Reauthenticationを開始する
+      x-idempotency: not-supported
+      x-rate-limit: user-5-per-10-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalIdentityStartRequest'
+      responses:
+        '200':
+          description: User SessionへBindingしたGoogle Reauthentication Transaction。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalIdentityStart'
+        default:
+          $ref: '#/components/responses/Problem'
+  /me/external-identities/google:
+    delete:
+      operationId: unlinkGoogleIdentity
+      summary: Recent User Reauthentication後にGoogle IdentityをUnlinkする
+      x-idempotency: naturally-idempotent
+      x-rate-limit: user-5-per-hour
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: Google Identityを失効しRemember Deviceと他Sessionを失効した。
+        default:
+          $ref: '#/components/responses/Problem'
+  /me/password/reauthenticate:
+    post:
+      operationId: reauthenticateUserPassword
+      summary: Password Login有効UserがRecent User Reauthenticationを行う
+      x-idempotency: not-supported
+      x-rate-limit: session-5-per-5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordReauthenticationRequest'
+      responses:
+        '200':
+          description: SessionとCSRFをRotationしてRecent Authenticationを更新した。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReauthentication'
         default:
           $ref: '#/components/responses/Problem'
   /me/sms-verification:
@@ -2093,6 +2284,97 @@ components:
         redirect_path:
           type: string
           pattern: '^/(?!/)'
+    ExternalIdentityStartRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        return_path:
+          type: string
+          default: /
+          pattern: '^/(?!/)'
+          maxLength: 255
+    ExternalIdentityStart:
+      type: object
+      additionalProperties: false
+      required: [provider, authorization_url, expires_at]
+      properties:
+        provider:
+          type: string
+          const: google
+        purpose:
+          type: string
+          enum: [link, reauthentication]
+        authorization_url:
+          type: string
+          format: uri
+          pattern: '^https://accounts\.google\.com/'
+        expires_at:
+          $ref: '#/components/schemas/UtcDateTime'
+    ExternalIdentitySession:
+      type: object
+      additionalProperties: false
+      required: [authenticated, purpose, provider, return_path, user]
+      properties:
+        authenticated:
+          type: boolean
+          const: true
+        purpose:
+          type: string
+          enum: [login, link, reauthentication]
+        provider:
+          type: string
+          const: google
+        return_path:
+          type: string
+          pattern: '^/(?!/)'
+        user:
+          $ref: '#/components/schemas/PublicUser'
+    ExternalIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, provider, linked_at, last_authenticated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        provider:
+          type: string
+          const: google
+        linked_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        last_authenticated_at:
+          type: [string, 'null']
+          format: date-time
+    ExternalIdentityCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/ExternalIdentity'
+    UserPasswordReauthenticationRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+    UserReauthentication:
+      type: object
+      additionalProperties: false
+      required: [reauthenticated, method]
+      properties:
+        reauthenticated:
+          type: boolean
+          const: true
+        method:
+          type: string
+          enum: [password, google]
     Accepted:
       type: object
       additionalProperties: false

@@ -5,23 +5,25 @@ namespace App\Http\Controllers\V2;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2CsrfService;
+use App\Domain\Identity\Services\V2ExternalIdentityService;
 use App\Domain\Identity\Services\V2PasswordRecoveryService;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Identity\Services\V2SmsVerificationService;
 use App\Domain\Identity\Services\V2UserAuthenticationService;
-use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\V2\User;
+use Symfony\Component\HttpFoundation\Cookie;
 
-final class V2PublicAuthController extends Controller
+final class V2PublicAuthController
 {
     public function __construct(
         private readonly V2UserAuthenticationService $authentication,
         private readonly V2PasswordRecoveryService $passwordRecovery,
         private readonly V2SmsVerificationService $smsVerification,
+        private readonly V2ExternalIdentityService $externalIdentities,
         private readonly V2SessionManager $sessions,
         private readonly V2CsrfService $csrf
     ) {
@@ -105,6 +107,147 @@ final class V2PublicAuthController extends Controller
             V2Realm::User,
             $result['session']['token'],
             $result['session']['absolute_expires_at']
+        );
+        $this->csrf->rotate($response, V2Realm::User);
+
+        return $response;
+    }
+
+    public function startGoogleLogin(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'return_path' => ['sometimes', 'string', 'max:255'],
+        ]);
+        $result = $this->externalIdentities->start(
+            'login',
+            $data['return_path'] ?? '/',
+            $request->ip() ?? 'unknown',
+            (string) $request->header('X-Request-ID'),
+            null,
+            $request
+        );
+        $response = response()->json([
+            'provider' => 'google',
+            'authorization_url' => $result['authorization_url'],
+            'expires_at' => $result['expires_at']->format(DATE_ATOM),
+        ]);
+        $this->attachExternalTransactionCookie(
+            $response,
+            $result['binding_token'],
+            $result['expires_at']
+        );
+
+        return $response;
+    }
+
+    public function completeGoogle(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'code' => ['required', 'string', 'max:4096'],
+            'state' => ['required', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
+            'iss' => ['sometimes', 'string', 'max:255'],
+        ]);
+        if (isset($data['iss']) && $data['iss'] !== 'https://accounts.google.com') {
+            throw new V2AuthenticationException(
+                'EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
+                401,
+                'The external identity request could not be completed.'
+            );
+        }
+        $cookieName = (string) config(
+            'v2_identity.external_identity.transaction_cookie',
+            '__Host-oripa_oidc_transaction'
+        );
+        $binding = $request->cookies->get($cookieName);
+        if (! is_string($binding) || ! preg_match('/\A[0-9a-f]{64}\z/', $binding)) {
+            throw new V2AuthenticationException(
+                'EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
+                401,
+                'The external identity request could not be completed.'
+            );
+        }
+        $result = $this->externalIdentities->callback(
+            $data['state'],
+            $data['code'],
+            $binding,
+            $request->url(),
+            $request->ip() ?? 'unknown',
+            $request
+        );
+        $response = response()->json([
+            'authenticated' => true,
+            'purpose' => $result['purpose'],
+            'provider' => 'google',
+            'return_path' => $result['return_path'],
+            'user' => [
+                'id' => $result['user']->public_id,
+                'state' => $result['user']->state->value,
+                'email_verified' => true,
+            ],
+        ]);
+        $this->sessions->attachSession(
+            $response,
+            V2Realm::User,
+            $result['session']['token'],
+            $result['session']['absolute_expires_at']
+        );
+        $this->csrf->rotate($response, V2Realm::User);
+        $this->expireExternalTransactionCookie($response);
+
+        return $response;
+    }
+
+    public function startGoogleLink(Request $request): JsonResponse
+    {
+        return $this->startAuthenticatedGoogleTransaction($request, 'link');
+    }
+
+    public function startGoogleReauthentication(Request $request): JsonResponse
+    {
+        return $this->startAuthenticatedGoogleTransaction($request, 'reauthentication');
+    }
+
+    public function linkedIdentities(): JsonResponse
+    {
+        return response()->json([
+            'items' => $this->externalIdentities->identities($this->currentUser())->values(),
+        ]);
+    }
+
+    public function reauthenticatePassword(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'password' => ['required', 'string'],
+        ]);
+        $session = $this->externalIdentities->reauthenticatePassword(
+            $this->currentUser(),
+            $request,
+            $data['password']
+        );
+        $response = response()->json([
+            'reauthenticated' => true,
+            'method' => 'password',
+        ]);
+        $this->sessions->attachSession(
+            $response,
+            V2Realm::User,
+            $session['token'],
+            $session['absolute_expires_at']
+        );
+        $this->csrf->rotate($response, V2Realm::User);
+
+        return $response;
+    }
+
+    public function unlinkGoogle(Request $request): JsonResponse
+    {
+        $session = $this->externalIdentities->unlinkGoogle($this->currentUser(), $request);
+        $response = response()->json(null, 204);
+        $this->sessions->attachSession(
+            $response,
+            V2Realm::User,
+            $session['token'],
+            $session['absolute_expires_at']
         );
         $this->csrf->rotate($response, V2Realm::User);
 
@@ -275,5 +418,75 @@ final class V2PublicAuthController extends Controller
         }
 
         return $user;
+    }
+
+    private function startAuthenticatedGoogleTransaction(
+        Request $request,
+        string $purpose
+    ): JsonResponse {
+        $data = $this->validate($request, [
+            'return_path' => ['sometimes', 'string', 'max:255'],
+        ]);
+        $user = $this->currentUser();
+        $result = $this->externalIdentities->start(
+            $purpose,
+            $data['return_path'] ?? '/',
+            $request->ip() ?? 'unknown',
+            (string) $request->header('X-Request-ID'),
+            $user,
+            $request
+        );
+        $response = response()->json([
+            'provider' => 'google',
+            'purpose' => $purpose,
+            'authorization_url' => $result['authorization_url'],
+            'expires_at' => $result['expires_at']->format(DATE_ATOM),
+        ]);
+        $this->attachExternalTransactionCookie(
+            $response,
+            $result['binding_token'],
+            $result['expires_at']
+        );
+
+        return $response;
+    }
+
+    private function attachExternalTransactionCookie(
+        JsonResponse $response,
+        string $bindingToken,
+        \DateTimeInterface $expiresAt
+    ): void {
+        $response->headers->setCookie(new Cookie(
+            (string) config(
+                'v2_identity.external_identity.transaction_cookie',
+                '__Host-oripa_oidc_transaction'
+            ),
+            $bindingToken,
+            $expiresAt,
+            '/',
+            null,
+            true,
+            true,
+            false,
+            'lax'
+        ));
+    }
+
+    private function expireExternalTransactionCookie(JsonResponse $response): void
+    {
+        $response->headers->setCookie(new Cookie(
+            (string) config(
+                'v2_identity.external_identity.transaction_cookie',
+                '__Host-oripa_oidc_transaction'
+            ),
+            '',
+            1,
+            '/',
+            null,
+            true,
+            true,
+            false,
+            'lax'
+        ));
     }
 }

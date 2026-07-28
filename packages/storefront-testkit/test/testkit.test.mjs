@@ -21,6 +21,7 @@ import {
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
+  PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
@@ -355,10 +356,11 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつRecovery／SMSを含むOperation 35件である", () => {
+test("Public OpenAPIは3.1.1かつGoogle OIDCを含むOperation 42件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 35);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 42);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "completeGoogleOidc",
     "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",
@@ -378,6 +380,7 @@ test("Public OpenAPIは3.1.1かつRecovery／SMSを含むOperation 35件であ�
     "getUserSession",
     "listContentBanners",
     "listContentNotices",
+    "listExternalIdentities",
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
@@ -386,16 +389,31 @@ test("Public OpenAPIは3.1.1かつRecovery／SMSを含むOperation 35件であ�
     "listUserPrizes",
     "loginUser",
     "logoutUser",
+    "reauthenticateUserPassword",
     "registerUser",
     "requestPasswordReset",
     "resendSmsVerification",
     "resendUserEmailVerification",
     "sendSmsVerification",
+    "startGoogleIdentityLink",
+    "startGoogleLogin",
+    "startGoogleReauthentication",
+    "unlinkGoogleIdentity",
     "updateShippingAddress",
     "verifySmsCode",
     "verifyUserEmail",
   ]);
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
+});
+
+test("External Identity FixtureはProvider Subject／Token／Secretを公開しない", () => {
+  assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.start.provider, "google");
+  assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.linked.items.length, 1);
+  const serialized = JSON.stringify(PUBLIC_EXTERNAL_IDENTITY_FIXTURE);
+  assert.doesNotMatch(
+    serialized,
+    /subject|access_token|refresh_token|authorization_code|client_secret|internal_id/i,
+  );
 });
 
 test("Public Catalog Fixtureは集約確率だけを持ち内部情報を公開しない", () => {
@@ -457,6 +475,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
+    "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",

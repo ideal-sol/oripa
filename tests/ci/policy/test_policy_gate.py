@@ -334,6 +334,8 @@ python3 scripts/db/v2_database.py smoke \\
         paths = set(policy_gate.V2_IDENTITY_REQUIRED_FILES)
         supporting = {
             "apps/api/config/auth.php",
+            "apps/api/composer.json",
+            "apps/api/composer.lock",
             ".github/workflows/platform-ci.yml",
             "openapi/bundled/public.openapi.json",
             "openapi/bundled/admin.openapi.json",
@@ -348,6 +350,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_01_000012_create_v2_reporting_export_foundation.php",
             "apps/api/database/migrations-v2/2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
+            "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -361,6 +364,19 @@ python3 scripts/db/v2_database.py smoke \\
             root = Path(temporary)
             paths = self.copy_v2_identity_boundary(root)
             policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_v2_identity_oidc_jwt_resolved_version_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_identity_boundary(root)
+            lock_path = root / "apps/api/composer.lock"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            for package in lock["packages"]:
+                if package.get("name") == "firebase/php-jwt":
+                    package["version"] = "7.1.1"
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "exactly v7.1.0"):
+                policy_gate.validate_v2_identity_boundary(root, paths)
 
     def test_v2_identity_missing_admin_guard_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1500,8 +1516,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 35",
-                    "operation_count: 36",
+                    "operation_count: 42",
+                    "operation_count: 43",
                 ),
                 encoding="utf-8",
             )

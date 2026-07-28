@@ -169,6 +169,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
                     "UserRegistrationRequest",
                     "PasswordLoginRequest",
                     "PasswordResetConfirmRequest",
+                    "UserPasswordReauthenticationRequest",
                 }
                 or not isinstance(password, dict)
                 or password.get("writeOnly") is not True

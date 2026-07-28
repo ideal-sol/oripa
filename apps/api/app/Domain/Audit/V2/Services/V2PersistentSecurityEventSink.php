@@ -32,6 +32,23 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         'user_sessions_revoked' => 'identity.user_sessions.revoked',
         'verification_failure' => 'identity.verification_failure',
         'verification_success' => 'identity.verification_success',
+        'external_email_conflict' => 'identity.external.email_conflict',
+        'external_identity_rate_limited' => 'identity.external.rate_limited',
+        'external_link_rejected' => 'identity.external.link.rejected',
+        'external_link_succeeded' => 'identity.external.link.succeeded',
+        'external_login_rejected' => 'identity.external.login.rejected',
+        'external_login_succeeded' => 'identity.external.login.succeeded',
+        'external_unlink_rejected' => 'identity.external.unlink.rejected',
+        'external_unlink_succeeded' => 'identity.external.unlink.succeeded',
+        'external_user_created' => 'identity.external.user.created',
+        'oidc_nonce_rejected' => 'identity.oidc.nonce.rejected',
+        'oidc_pkce_rejected' => 'identity.oidc.pkce.rejected',
+        'oidc_provider_failure' => 'identity.oidc.provider.failure',
+        'oidc_signature_rejected' => 'identity.oidc.signature.rejected',
+        'oidc_start' => 'identity.oidc.start',
+        'oidc_state_rejected' => 'identity.oidc.state.rejected',
+        'user_reauthentication_failed' => 'identity.user.reauthentication.failed',
+        'user_reauthentication_succeeded' => 'identity.user.reauthentication.succeeded',
     ];
 
     private const CONTEXT_KEYS = [
@@ -68,6 +85,7 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         $metadata = array_intersect_key($context, array_flip(['method', 'result', 'stage']));
         $failure = str_ends_with($event, '_failure')
             || str_ends_with($event, '_failed')
+            || str_ends_with($event, '_rejected')
             || str_ends_with($event, '_rate_limited')
             || $event === 'rate_limit_trigger';
         $outcome = $failure ? 'failure' : ($event === 'register' ? 'pending' : 'success');

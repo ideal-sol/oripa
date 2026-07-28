@@ -365,6 +365,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/external/google/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Google OIDC Login Transactionを開始する */
+        post: operations["startGoogleLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/external/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Google OIDC Authorization Code Callbackを検証する */
+        get: operations["completeGoogleOidc"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/forgot": {
         parameters: {
             query?: never;
@@ -461,6 +495,91 @@ export interface paths {
         get: operations["getUserSession"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User自身にLink済みのExternal Identityを取得する */
+        get: operations["listExternalIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/google/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 認証済みUserへGoogle IdentityをLinkするTransactionを開始する */
+        post: operations["startGoogleIdentityLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/google/reauthenticate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Google IdentityによるRecent User Reauthenticationを開始する */
+        post: operations["startGoogleReauthentication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Recent User Reauthentication後にGoogle IdentityをUnlinkする */
+        delete: operations["unlinkGoogleIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/password/reauthenticate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Password Login有効UserがRecent User Reauthenticationを行う */
+        post: operations["reauthenticateUserPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -997,6 +1116,49 @@ export interface components {
             authenticated: boolean;
             user: components["schemas"]["PublicUser"] | null;
             redirect_path?: string;
+        };
+        ExternalIdentityStartRequest: {
+            /** @default / */
+            return_path: string;
+        };
+        ExternalIdentityStart: {
+            /** @constant */
+            provider: "google";
+            /** @enum {string} */
+            purpose?: "link" | "reauthentication";
+            /** Format: uri */
+            authorization_url: string;
+            expires_at: components["schemas"]["UtcDateTime"];
+        };
+        ExternalIdentitySession: {
+            /** @constant */
+            authenticated: true;
+            /** @enum {string} */
+            purpose: "login" | "link" | "reauthentication";
+            /** @constant */
+            provider: "google";
+            return_path: string;
+            user: components["schemas"]["PublicUser"];
+        };
+        ExternalIdentity: {
+            id: components["schemas"]["OpaqueId"];
+            /** @constant */
+            provider: "google";
+            linked_at: components["schemas"]["UtcDateTime"];
+            /** Format: date-time */
+            last_authenticated_at: string | null;
+        };
+        ExternalIdentityCollection: {
+            items: components["schemas"]["ExternalIdentity"][];
+        };
+        UserPasswordReauthenticationRequest: {
+            password: string;
+        };
+        UserReauthentication: {
+            /** @constant */
+            reauthenticated: true;
+            /** @enum {string} */
+            method: "password" | "google";
         };
         Accepted: {
             /** @constant */
@@ -1662,6 +1824,61 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    startGoogleLogin: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description 固定Google OIDC Authorization URL。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    completeGoogleOidc: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+                iss?: "https://accounts.google.com";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OIDC Transactionを1回だけ確定してSessionを発行またはRotationした。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentitySession"];
+                };
+            };
+            409: components["responses"]["Problem"];
+            429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
     requestPasswordReset: {
         parameters: {
             query?: never;
@@ -1804,6 +2021,129 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserSession"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listExternalIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SubjectやTokenを含まないLink済みIdentity一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    startGoogleIdentityLink: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description User SessionへBindingしたGoogle OIDC Transaction。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    startGoogleReauthentication: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description User SessionへBindingしたGoogle Reauthentication Transaction。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    unlinkGoogleIdentity: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Google Identityを失効しRemember Deviceと他Sessionを失効した。 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    reauthenticateUserPassword: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPasswordReauthenticationRequest"];
+            };
+        };
+        responses: {
+            /** @description SessionとCSRFをRotationしてRecent Authenticationを更新した。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserReauthentication"];
                 };
             };
             default: components["responses"]["Problem"];

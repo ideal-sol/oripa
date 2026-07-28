@@ -105,6 +105,24 @@ Route::prefix('v2')
             ->name('v2.public.sms-verification.resend');
         Route::post('/me/sms-verification/verify', [V2PublicAuthController::class, 'verifySms'])
             ->name('v2.public.sms-verification.verify');
+        Route::get('/me/external-identities', [V2PublicAuthController::class, 'linkedIdentities'])
+            ->name('v2.public.external-identities.index');
+        Route::post('/me/external-identities/google/link', [
+            V2PublicAuthController::class,
+            'startGoogleLink',
+        ])->name('v2.public.external-identities.google.link');
+        Route::post('/me/external-identities/google/reauthenticate', [
+            V2PublicAuthController::class,
+            'startGoogleReauthentication',
+        ])->name('v2.public.external-identities.google.reauthenticate');
+        Route::delete('/me/external-identities/google', [
+            V2PublicAuthController::class,
+            'unlinkGoogle',
+        ])->name('v2.public.external-identities.google.destroy');
+        Route::post('/me/password/reauthenticate', [
+            V2PublicAuthController::class,
+            'reauthenticatePassword',
+        ])->name('v2.public.password.reauthenticate');
     });
 
 Route::prefix('v2/auth')
@@ -114,6 +132,14 @@ Route::prefix('v2/auth')
             ->name('v2.public.auth.register');
         Route::post('/login', [V2PublicAuthController::class, 'login'])
             ->name('v2.public.auth.login');
+        Route::post('/external/google/start', [
+            V2PublicAuthController::class,
+            'startGoogleLogin',
+        ])->name('v2.public.auth.external.google.start');
+        Route::get('/external/google/callback', [
+            V2PublicAuthController::class,
+            'completeGoogle',
+        ])->name('v2.public.auth.external.google.callback');
         Route::post('/password/forgot', [
             V2PublicAuthController::class,
             'requestPasswordReset',

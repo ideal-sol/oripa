@@ -84,6 +84,24 @@ final class V2SessionManager
     public function requireFreshUserSession(
         Request $request,
         int $userId,
+        bool $lock = false,
+        ?int $freshMinutes = null
+    ): UserSession {
+        $session = $this->requireActiveUserSession($request, $userId, $lock);
+        $freshMinutes ??= (int) config('v2_identity.user_fresh_auth.minutes', 10);
+        if (
+            $session->reauthenticated_at === null
+            || ! $session->reauthenticated_at->copy()->addMinutes($freshMinutes)->isFuture()
+        ) {
+            throw new \RuntimeException('Fresh User Authentication is required.');
+        }
+
+        return $session;
+    }
+
+    public function requireActiveUserSession(
+        Request $request,
+        int $userId,
         bool $lock = false
     ): UserSession {
         $raw = $this->rawToken($request, V2Realm::User);
@@ -100,13 +118,8 @@ final class V2SessionManager
             $query->lockForUpdate();
         }
         $session = $query->first();
-        $freshMinutes = (int) config('v2_identity.user_fresh_auth.minutes', 10);
-        if (
-            $session === null
-            || $session->reauthenticated_at === null
-            || ! $session->reauthenticated_at->copy()->addMinutes($freshMinutes)->isFuture()
-        ) {
-            throw new \RuntimeException('Fresh User Authentication is required.');
+        if ($session === null) {
+            throw new \RuntimeException('A current User Session is required.');
         }
 
         return $session;

@@ -192,7 +192,10 @@ final class V2PasswordRecoveryService
             }
 
             $now = now()->startOfSecond();
-            $user->forceFill(['password_hash' => $passwordHash])->save();
+            $user->forceFill([
+                'password_hash' => $passwordHash,
+                'password_login_enabled' => true,
+            ])->save();
             $reset->forceFill(['used_at' => $now])->save();
             PasswordResetToken::query()
                 ->where('user_id', $user->getKey())

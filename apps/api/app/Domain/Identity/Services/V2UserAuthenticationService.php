@@ -215,7 +215,11 @@ final class V2UserAuthenticationService
             ->whereNotNull('email_verified_at')
             ->whereIn('state', [V2UserState::Active->value, V2UserState::Restricted->value])
             ->first();
-        if ($user === null || ! $this->passwordPolicy->verify($password, $user->password_hash)) {
+        if (
+            $user === null
+            || ! $user->password_login_enabled
+            || ! $this->passwordPolicy->verify($password, $user->password_hash)
+        ) {
             $this->rateLimiter->hitAccount('user_login_failure', $normalized, $ip);
             $this->events->record('login_failure', ['realm' => 'user']);
             throw $this->invalidCredentials();
