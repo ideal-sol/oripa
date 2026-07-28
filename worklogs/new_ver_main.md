@@ -4418,8 +4418,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Password／Recovery Code拒否、TOTP Replay、Rate Limit、Audit、失効／期限切れSession、
   Client時刻非採用、WebAuthn ChallengeのSession Binding／1回限りと既存QA Regressionの
   対象Testは19件／159 AssertionでPASSした。全V2 SuiteはGuard RunnerでPASSした。
-  Policy Unit Testは73件、DB Guard Unit Testは20件、Quality Unit Testは5件、
+  Policy Unit Testは74件、DB Guard Unit Testは20件、Quality Unit Testは5件、
   Security Unit Testは4件、OpenAPI Unit Testは4件で、すべてPASSした。
+- PR Scope Parserの節終端をMarkdownの次のH2／H3見出しへ正規化し、後続の検証結果を
+  Changed filesへ誤算入しない回帰Testを追加した。宣言Pathと実Git差分の完全一致、
+  Allowed Path境界、Gate強度は維持している。
 - Admin OpenAPIは26 Operation、Publicは24 Operation、Webhookは0 Operationである。
   Public／Webhook ContractとStorefront ClientのAdmin型非公開境界を変更していない。
 - MIG-053のQA Draw、Point、Inventory、Plan消費、CSPRNG、Idempotency、

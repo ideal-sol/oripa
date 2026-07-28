@@ -78,6 +78,20 @@ class PolicyGateTest(unittest.TestCase):
         policy_gate.validate_workflow_text("fixture.yml", data["workflow"])
         policy_gate.validate_dangerous_paths(data["tracked_paths"])
 
+    def test_pull_request_scope_sections_stop_at_the_next_heading(self):
+        data = fixture("positive.json")
+        body = (
+            data["pr_body"]
+            + "\n## Verification performed\n"
+            + "\n- `php artisan test` PASS\n"
+        )
+        policy_gate.validate_pr_body(
+            body,
+            data["title"],
+            data["changed_paths"],
+            data["base_sha"],
+        )
+
     def test_missing_metadata_fixture_fails(self):
         data = fixture("negative_missing_metadata.json")
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "Risk"):

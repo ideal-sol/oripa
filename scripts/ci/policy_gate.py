@@ -552,7 +552,7 @@ def metadata_value(body: str, label: str) -> str:
 
 def section_bullets(body: str, heading: str) -> list[str]:
     match = re.search(
-        rf"^###\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^##{{2,3}}\s+|\Z)",
+        rf"^###\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^#{{2,3}}\s+|\Z)",
         body,
         re.MULTILINE,
     )
