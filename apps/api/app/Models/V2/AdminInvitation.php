@@ -16,6 +16,7 @@ final class AdminInvitation extends Model
         'expires_at',
         'used_at',
         'revoked_at',
+        'created_at',
     ];
 
     protected $hidden = ['token_hash'];

@@ -207,6 +207,18 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 
+    def test_qa_draw_schema_inventory_and_load_runner_are_explicit(self):
+        for table in (
+            "public.qa_test_user_modes",
+            "public.qa_draw_plans",
+            "public.qa_draw_plan_items",
+            "public.qa_draw_executions",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("run_qa_draw_load_tests", source)
+        self.assertIn("V2_QA_DRAW_LOAD_TEST", source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -330,6 +330,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
             "apps/api/database/migrations-v2/2026_07_29_000009_create_v2_draw_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
+            "apps/api/database/migrations-v2/2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -677,6 +678,77 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "ciphertext"):
                 policy_gate.validate_v2_prize_shipping_boundary(root, paths)
+
+    def copy_v2_qa_draw_boundary(self, root):
+        paths = set(policy_gate.V2_QA_DRAW_REQUIRED_FILES)
+        supporting = {
+            ".github/workflows/platform-ci.yml",
+            "apps/api/app/Domain/Draw/Services/V2DrawService.php",
+            "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php",
+            "openapi/bundled/public.openapi.json",
+            "scripts/db/v2_database.py",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_qa_draw_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
+    def test_v2_qa_draw_user_prize_boolean_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_07_31_000011_create_v2_qa_draw_vertical_slice.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8")
+                + "\n// Schema::table('user_prizes', fn () => null);\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "user_prizes"):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
+    def test_v2_qa_draw_admin_permission_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            permission = (
+                root
+                / "apps/api/app/Domain/Identity/Services/"
+                "V2PermissionAuthorizer.php"
+            )
+            text = permission.read_text(encoding="utf-8")
+            text = text.replace(
+                "'admin' => [",
+                "'admin' => [\n            'qa.draw.manage',",
+                1,
+            )
+            permission.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Owner-only"):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
+    def test_v2_qa_draw_public_contract_exposure_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document.setdefault("components", {}).setdefault("schemas", {})[
+                "QaPlan"
+            ] = {"type": "object"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "QA management"):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)

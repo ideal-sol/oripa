@@ -342,6 +342,11 @@ final class AuthenticationFlowTest extends TestCase
             'state' => V2AdminState::Invited->value,
         ]);
         self::assertDatabaseCount('admin_invitations', 1);
+        $invitation = AdminInvitation::query()->sole();
+        self::assertSame(
+            30.0 * 60,
+            $invitation->created_at->diffInSeconds($invitation->expires_at)
+        );
         $this->artisan('v2:identity:create-owner-invitation', [
             'email' => 'second-owner@example.test',
         ])->assertFailed();

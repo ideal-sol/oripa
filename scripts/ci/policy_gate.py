@@ -337,6 +337,23 @@ V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
 }
+V2_QA_DRAW_REQUIRED_FILES = {
+    "apps/api/app/Domain/QaDraw/Exceptions/V2QaDrawException.php",
+    "apps/api/app/Domain/QaDraw/Services/V2QaDrawAdminService.php",
+    "apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminQaDrawController.php",
+    "apps/api/app/Models/V2/QaDrawExecution.php",
+    "apps/api/app/Models/V2/QaDrawPlan.php",
+    "apps/api/app/Models/V2/QaDrawPlanItem.php",
+    "apps/api/app/Models/V2/QaTestUserMode.php",
+    "apps/api/config/v2_qa_draw.php",
+    "apps/api/database/migrations-v2/2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
+    "apps/api/tests/V2/QaDrawVerticalSliceTest.php",
+    "apps/api/tests/V2/ZQaDrawConcurrencyLoadTest.php",
+    "docs/operations/qa-draw/README.md",
+    "openapi/admin/openapi.yaml",
+    "openapi/bundled/admin.openapi.json",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1456,6 +1473,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_28_000008_create_v2_catalog_probability_foundation.php",
         "2026_07_29_000009_create_v2_draw_vertical_slice.php",
         "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
+        "2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1620,6 +1638,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             and "mig050-v2-" not in workflow
             and "mig051-v2-" not in workflow
             and "mig052-v2-" not in workflow
+            and "mig053-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -2221,6 +2240,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "mig050-v2-" not in workflow
         and "mig051-v2-" not in workflow
         and "mig052-v2-" not in workflow
+        and "mig053-v2-" not in workflow
     ):
         raise PolicyFailure("platform-ci V2 Catalog project boundary is missing")
 
@@ -2333,7 +2353,8 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
     ).read_text(encoding="utf-8")
     if "mig051-v2-" not in workflow:
         if "mig052-v2-" not in workflow:
-            raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
+            if "mig053-v2-" not in workflow:
+                raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
 
 
 def validate_v2_prize_shipping_boundary(
@@ -2489,7 +2510,161 @@ def validate_v2_prize_shipping_boundary(
         repository / ".github/workflows/platform-ci.yml"
     ).read_text(encoding="utf-8")
     if "mig052-v2-" not in workflow:
-        raise PolicyFailure("platform-ci V2 Prize Shipping project boundary is missing")
+        if "mig053-v2-" not in workflow:
+            raise PolicyFailure("platform-ci V2 Prize Shipping project boundary is missing")
+
+
+def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
+    path_set = set(paths)
+    missing = sorted(V2_QA_DRAW_REQUIRED_FILES - path_set)
+    if missing:
+        raise PolicyFailure(
+            "required V2 QA Draw files missing: " + ", ".join(missing)
+        )
+
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_07_31_000011_create_v2_qa_draw_vertical_slice.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "qa_test_user_modes",
+        "qa_draw_plans",
+        "qa_draw_plan_items",
+        "qa_draw_executions",
+        "qa_draw_plans_active_user_gacha_unique",
+        "is_qa_draw",
+        "qa_test_user_mode_id",
+        "qa_draw_plan_id",
+        "qa_draw_plan_item_id",
+        "restrictOnDelete",
+        "v2_reject_qa_draw_deletion",
+        "v2_reject_qa_execution_update",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 QA Draw migration missing {required}")
+    for prohibited in (
+        "tenant_id",
+        "cascadeOnDelete",
+        "Schema::table('user_prizes'",
+    ):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 QA Draw migration contains prohibited {prohibited}"
+            )
+
+    permission = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2PermissionAuthorizer.php"
+    ).read_text(encoding="utf-8")
+    owner = permission.split("'owner' => [", 1)[1].split("],", 1)[0]
+    admin = permission.split("'admin' => [", 1)[1].split("],", 1)[0]
+    operator = permission.split("'operator' => [", 1)[1].split("],", 1)[0]
+    if "'qa.draw.manage'" not in owner:
+        raise PolicyFailure("V2 QA Draw Owner permission is missing")
+    if "'qa.draw.manage'" in admin or "'qa.draw.manage'" in operator:
+        raise PolicyFailure("V2 QA Draw permission must be Owner-only")
+
+    resolver = (
+        repository
+        / "apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "lockForUpdate",
+        "QA_CONFIGURATION_INVALID",
+        "expectedItemIds",
+        "consumed_count",
+        "QaDrawExecution",
+        "fixed_image",
+        "fixed_video",
+    ):
+        if required not in resolver:
+            raise PolicyFailure(f"V2 QA Draw Resolver missing {required}")
+
+    draw = (
+        repository / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "selectQaOutcomes",
+        "qa_draw_plan_item_id",
+        "qa.draw.completed",
+        "qa.draw.failed",
+        "validateInventory",
+        "V2QaDrawResolver",
+    ):
+        if required not in draw:
+            raise PolicyFailure(f"V2 Draw QA integration missing {required}")
+    if draw.index("$this->qaDraw->resolve") > draw.index("$this->points->consumeForDraw"):
+        raise PolicyFailure("V2 QA configuration must be resolved before Point consumption")
+    if not (
+        draw.index("$this->points->lockAndValidateForDraw")
+        < draw.index("$this->lockInventories")
+        < draw.index("$this->points->consumeForDraw")
+    ):
+        raise PolicyFailure(
+            "V2 QA Draw lock order must be Point validation before Inventory and consumption"
+        )
+
+    admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
+    public_bundle = load_json(repository, "openapi/bundled/public.openapi.json")
+    admin_operations = {
+        operation.get("operationId")
+        for item in admin_bundle.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    required_operations = {
+        "getQaTestUserMode",
+        "saveQaTestUserMode",
+        "disableQaTestUserMode",
+        "listQaDrawPlans",
+        "createQaDrawPlan",
+        "getQaDrawPlan",
+        "updateQaDrawPlan",
+        "pauseQaDrawPlan",
+        "activateQaDrawPlan",
+        "disableQaDrawPlan",
+        "listQaDrawExecutions",
+        "getQaDrawExecution",
+    }
+    if not required_operations.issubset(admin_operations):
+        raise PolicyFailure("V2 Admin QA Draw operation set is incomplete")
+    public_text = json.dumps(public_bundle, sort_keys=True)
+    for prohibited in ("QaMode", "QaPlan", "QaExecution", "/qa-draw"):
+        if prohibited in public_text:
+            raise PolicyFailure(
+                f"V2 Public Contract exposes QA management surface {prohibited}"
+            )
+
+    tests = (
+        repository / "apps/api/tests/V2/QaDrawVerticalSliceTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_owner_only_mode_enforces_reason_window_and_logical_disable",
+        "test_active_qa_draw_uses_ordered_items_real_domain_updates_and_compact_response",
+        "test_qa_draw_supports_all_counts_and_replay_never_consumes_twice",
+        "test_active_invalid_qa_never_falls_back_and_fails_before_domain_changes",
+        "test_expired_active_plan_fails_closed_and_is_completed_after_draw_rollback",
+        "test_inventory_failure_rolls_back_plan_point_draw_and_execution",
+        "test_qa_user_prize_remains_exchangeable_and_qa_execution_is_owner_readable",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 QA Draw test missing {required}")
+
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "run_qa_draw_load_tests",
+        "V2_QA_DRAW_LOAD_TEST",
+        "ZQaDrawConcurrencyLoadTest",
+    ):
+        if required not in runner:
+            raise PolicyFailure(f"V2 QA Draw load verification missing {required}")
+    if "mig053-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 QA Draw project boundary is missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -2930,6 +3105,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_catalog_boundary(repository, paths)
     validate_v2_draw_boundary(repository, paths)
     validate_v2_prize_shipping_boundary(repository, paths)
+    validate_v2_qa_draw_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)

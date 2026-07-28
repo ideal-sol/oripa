@@ -355,6 +355,34 @@ final class V2PointService
     }
 
     /**
+     * QA DrawのInventory検証前に既存順序でWallet／LotをLockする。
+     */
+    public function lockAndValidateForDraw(
+        int $userId,
+        int $amount,
+        CarbonInterface $occurredAt
+    ): void {
+        if (DB::transactionLevel() < 1 || $amount <= 0) {
+            throw new V2PointException('Draw point validation input is invalid.');
+        }
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $wallet = $this->lockWallet($userId);
+        $freeLots = $this->lockFreeLots($userId, $occurred);
+        $availableFree = $freeLots->sum(
+            fn (PointLot $lot): int =>
+                (int) $lot->remaining_amount - (int) $lot->reserved_amount
+        );
+        $availablePaid = (int) $wallet->paid_balance
+            - (int) $wallet->paid_reserved_balance;
+        if ($availableFree + $availablePaid < $amount) {
+            throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
+        }
+        if ($availablePaid > 0) {
+            $this->lockPaidLots($userId);
+        }
+    }
+
+    /**
      * Draw Transaction内で既存のfree優先／paid FIFO規則を適用する。
      *
      * @return array{

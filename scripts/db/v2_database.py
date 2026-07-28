@@ -92,6 +92,10 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.prize_exchange_request_items",
     "public.prize_exchange_requests",
     "public.prize_inventories",
+    "public.qa_draw_executions",
+    "public.qa_draw_plan_items",
+    "public.qa_draw_plans",
+    "public.qa_test_user_modes",
     "public.shipping_addresses",
     "public.shipping_request_items",
     "public.shipping_request_status_histories",
@@ -494,6 +498,26 @@ def run_draw_load_tests(base: list[str], repository: Path) -> None:
     )
 
 
+def run_qa_draw_load_tests(base: list[str], repository: Path) -> None:
+    run(
+        base
+        + [
+            "exec",
+            "-T",
+            "-e",
+            "V2_QA_DRAW_LOAD_TEST=1",
+            "api",
+            "vendor/bin/phpunit",
+            "--configuration",
+            "phpunit.v2.xml",
+            "--filter",
+            "ZQaDrawConcurrencyLoadTest",
+        ],
+        cwd=repository,
+        capture=False,
+    )
+
+
 def schema_dump(base: list[str], repository: Path) -> bytes:
     return compose_exec(
         base,
@@ -714,6 +738,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             migration_status(source_base, repository, one_shot=False)
             run_identity_tests(source_base, repository, one_shot=False)
             run_draw_load_tests(source_base, repository)
+            run_qa_draw_load_tests(source_base, repository)
             run(
                 source_base
                 + [
@@ -786,6 +811,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "migration_status": "PASS",
                 "identity_tests": "PASS",
                 "draw_load_tests": "PASS",
+                "qa_draw_load_tests": "PASS",
                 "schema_inventory": source_inventory,
                 "source_schema_sha256": sha256(source_schema),
                 "restore_schema_sha256": sha256(restore_schema),

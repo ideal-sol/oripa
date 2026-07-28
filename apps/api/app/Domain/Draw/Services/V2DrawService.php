@@ -8,6 +8,8 @@ use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointService;
+use App\Domain\QaDraw\Exceptions\V2QaDrawException;
+use App\Domain\QaDraw\Services\V2QaDrawResolver;
 use App\Models\V2\DrawRequest;
 use App\Models\V2\DrawResult;
 use App\Models\V2\GachaDrawState;
@@ -28,7 +30,8 @@ final class V2DrawService
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2PointService $points,
         private readonly V2AuditLogService $audit,
-        private readonly V2OutboxService $outbox
+        private readonly V2OutboxService $outbox,
+        private readonly V2QaDrawResolver $qaDraw
     ) {
     }
 
@@ -43,11 +46,10 @@ final class V2DrawService
         string $requestId
     ): array {
         $this->assertInput($gachaPublicId, $drawCount, $idempotencyKey, $requestId);
-        $randomValues = [];
-        for ($index = 0; $index < $drawCount; $index++) {
-            $randomValues[] = $this->random->integer(0, 999_999);
-        }
+        $randomValues = null;
         $started = hrtime(true);
+        $qaRetryItemIds = null;
+        $qaAttempted = false;
 
         try {
             return $this->transactions->run(function (int $attempt) use (
@@ -56,8 +58,10 @@ final class V2DrawService
                 $drawCount,
                 $idempotencyKey,
                 $requestId,
-                $randomValues,
-                $started
+                $started,
+                &$randomValues,
+                &$qaRetryItemIds,
+                &$qaAttempted
             ): array {
                 $claim = $this->idempotency->claim(
                     'draw.create',
@@ -87,6 +91,12 @@ final class V2DrawService
                     ]);
 
                     return $response;
+                }
+                if ($randomValues === null) {
+                    $randomValues = [];
+                    for ($index = 0; $index < $drawCount; $index++) {
+                        $randomValues[] = $this->random->integer(0, 999_999);
+                    }
                 }
 
                 $gacha = DB::table('catalog_gachas')
@@ -127,6 +137,28 @@ final class V2DrawService
                 }
                 $totalCost = $this->totalCost((int) $context['version']->price_points, $drawCount);
                 $occurredAt = CarbonImmutable::now()->startOfSecond();
+                $qaSelection = $this->qaDraw->resolve(
+                    $user,
+                    (int) $gacha->id,
+                    (int) $context['version']->id,
+                    $drawCount,
+                    $requestId,
+                    $qaRetryItemIds
+                );
+                if ($qaSelection['active']) {
+                    $qaAttempted = true;
+                    $qaRetryItemIds ??= $qaSelection['item_ids'];
+                }
+                $inventories = null;
+                if ($qaSelection['active']) {
+                    $this->points->lockAndValidateForDraw(
+                        $user->id,
+                        $totalCost,
+                        $occurredAt
+                    );
+                    $inventories = $this->lockInventories($state);
+                    $this->qaDraw->validateInventory($qaSelection, $inventories);
+                }
                 $drawRequest = new DrawRequest();
                 $drawRequest->forceFill([
                     'user_id' => $user->id,
@@ -141,6 +173,9 @@ final class V2DrawService
                     'executed_count' => 0,
                     'point_cost_total' => $totalCost,
                     'status' => 'processing',
+                    'is_qa_draw' => $qaSelection['active'],
+                    'qa_test_user_mode_id' => $qaSelection['mode']?->id,
+                    'qa_draw_plan_id' => $qaSelection['plan']?->id,
                     'created_at' => $occurredAt,
                 ])->save();
                 $this->audit->record('draw.started', [
@@ -154,6 +189,7 @@ final class V2DrawService
                         'gacha_public_id' => $gachaPublicId,
                         'requested_count' => $drawCount,
                         'attempt' => $attempt,
+                        'is_qa_draw' => $qaSelection['active'],
                     ],
                 ]);
 
@@ -164,25 +200,30 @@ final class V2DrawService
                     $drawRequest->public_id,
                     $occurredAt
                 );
-                $inventories = PrizeInventory::query()
-                    ->where('gacha_draw_state_id', $state->id)
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('gacha_version_prize_id');
+                $inventories ??= $this->lockInventories($state);
                 $probability = $this->probabilityContext(
                     (int) $context['probability']->id,
                     (int) $context['version']->id,
                     $inventories
                 );
-                $outcomes = $this->selectOutcomes(
-                    $state,
-                    $probability,
-                    $inventories,
-                    $randomValues,
-                    (int) $context['version']->price_points,
-                    $occurredAt
-                );
+                $outcomes = $qaSelection['active']
+                    ? $this->selectQaOutcomes(
+                        $state,
+                        $probability,
+                        $inventories,
+                        $randomValues,
+                        (int) $context['version']->price_points,
+                        $occurredAt,
+                        $qaSelection
+                    )
+                    : $this->selectOutcomes(
+                        $state,
+                        $probability,
+                        $inventories,
+                        $randomValues,
+                        (int) $context['version']->price_points,
+                        $occurredAt
+                    );
                 $this->persistInventory($inventories, $outcomes['inventory_won'], $occurredAt);
                 $state->forceFill([
                     'sold_count' => $state->sold_count + $drawCount,
@@ -236,6 +277,16 @@ final class V2DrawService
                     $pointBackGrants,
                     $occurredAt
                 );
+                $qaExecution = $qaSelection['active']
+                    ? $this->qaDraw->consume(
+                        $qaSelection,
+                        $drawRequest,
+                        $user,
+                        (int) $gacha->id,
+                        $occurredAt,
+                        $requestId
+                    )
+                    : null;
                 $duration = max(0, (int) round((hrtime(true) - $started) / 1_000_000));
                 $response = $this->response(
                     $drawRequest,
@@ -276,6 +327,21 @@ final class V2DrawService
                     $userPrizeCount,
                     $requestId
                 );
+                if ($qaExecution !== null) {
+                    $this->audit->record('qa.draw.completed', [
+                        'request_id' => $requestId,
+                        'actor_type' => 'user',
+                        'actor_public_id' => $user->public_id,
+                        'auth_realm' => 'user',
+                        'target_type' => 'qa_draw_execution',
+                        'target_public_id' => $qaExecution->public_id,
+                        'metadata' => [
+                            'draw_request_public_id' => $drawRequest->public_id,
+                            'executed_count' => $drawCount,
+                            'qa_plan_public_id' => $qaSelection['plan']->public_id,
+                        ],
+                    ]);
+                }
                 $this->outbox->enqueue(
                     'draw.events',
                     'draw_request',
@@ -286,6 +352,7 @@ final class V2DrawService
                         'gacha_public_id' => $gachaPublicId,
                         'requested_count' => $drawCount,
                         'point_cost_total' => $totalCost,
+                        'is_qa_draw' => $qaSelection['active'],
                     ],
                     'draw.completed:'.$drawRequest->public_id
                 );
@@ -305,6 +372,26 @@ final class V2DrawService
                 'reason_code' => strtolower($mapped->errorCode),
                 'metadata' => ['requested_count' => $drawCount],
             ]);
+            if (str_starts_with($mapped->errorCode, 'QA_')) {
+                $this->qaDraw->completeExpiredPlan(
+                    $user,
+                    $gachaPublicId,
+                    $requestId
+                );
+            }
+            if ($qaAttempted || str_starts_with($mapped->errorCode, 'QA_')) {
+                $this->audit->record('qa.draw.failed', [
+                    'request_id' => $requestId,
+                    'actor_type' => 'user',
+                    'actor_public_id' => $user->public_id,
+                    'auth_realm' => 'user',
+                    'target_type' => 'gacha',
+                    'target_public_id' => $gachaPublicId,
+                    'outcome' => 'failure',
+                    'reason_code' => strtolower($mapped->errorCode),
+                    'metadata' => ['requested_count' => $drawCount],
+                ]);
+            }
 
             throw $mapped;
         }
@@ -409,6 +496,17 @@ final class V2DrawService
         }
 
         return $price * $drawCount;
+    }
+
+    /** @return Collection<int, PrizeInventory> */
+    private function lockInventories(GachaDrawState $state): Collection
+    {
+        return PrizeInventory::query()
+            ->where('gacha_draw_state_id', $state->id)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('gacha_version_prize_id');
     }
 
     /**
@@ -652,6 +750,103 @@ final class V2DrawService
         return ['rows' => $rows, 'inventory_won' => $inventoryWon];
     }
 
+    /**
+     * @param Collection<int, PrizeInventory> $inventories
+     * @param list<int> $randomValues
+     * @param array<string, mixed> $selection
+     * @return array{
+     *   rows: list<array<string, mixed>>,
+     *   inventory_won: array<int, int>
+     * }
+     */
+    private function selectQaOutcomes(
+        GachaDrawState $state,
+        array $probability,
+        Collection $inventories,
+        array $randomValues,
+        int $pricePoints,
+        CarbonImmutable $occurredAt,
+        array $selection
+    ): array {
+        $rows = [];
+        $stageIndex = 0;
+        $inventoryWon = $inventories->mapWithKeys(
+            fn (PrizeInventory $inventory): array => [
+                (int) $inventory->gacha_version_prize_id => (int) $inventory->won_count,
+            ]
+        )->all();
+        foreach ($randomValues as $index => $randomValue) {
+            $sequence = $state->sold_count + $index + 1;
+            $stage = $this->stageForSequence(
+                $probability['stages'],
+                $sequence,
+                $stageIndex
+            );
+            $selected = $selection['items'][$index] ?? null;
+            if (! is_array($selected)) {
+                throw new V2DrawException(
+                    'QA_CONFIGURATION_INVALID',
+                    422,
+                    'The QA Draw selection is incomplete.'
+                );
+            }
+            $relationId = (int) $selected['relation_id'];
+            $inventory = $inventories->get($relationId);
+            $prize = $probability['prizes'][$relationId] ?? null;
+            if (! $inventory instanceof PrizeInventory || ! is_array($prize)) {
+                throw new V2DrawException(
+                    'QA_CONFIGURATION_INVALID',
+                    422,
+                    'The QA Draw Prize is unavailable.'
+                );
+            }
+            $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
+            if ($nextWon > $inventory->initial_quantity) {
+                throw new V2DrawException(
+                    'QA_CONFIGURATION_INVALID',
+                    422,
+                    'The QA Draw Prize Inventory is insufficient.'
+                );
+            }
+            $inventoryWon[$relationId] = $nextWon;
+            $snapshot = [
+                'result_type' => 'prize',
+                'rank' => [
+                    'id' => $prize['rank_public_id'],
+                    'code' => $prize['rank_code'],
+                    'name' => $prize['rank_name'],
+                ],
+                'prize' => [
+                    'id' => $prize['prize_public_id'],
+                    'name' => $prize['prize_name'],
+                    'presentation_asset' => $prize['asset'],
+                ],
+                'animation' => [
+                    'image' => $selected['fixed_image'] ?? $prize['animation_image'],
+                    'video' => $selected['fixed_video'] ?? $prize['animation_video'],
+                ],
+            ];
+            $rows[] = $this->outcomeRow(
+                (string) Str::uuid7(),
+                $index + 1,
+                $sequence,
+                $stage,
+                $randomValue,
+                'prize',
+                $relationId,
+                $prize['rank_id'],
+                0,
+                $pricePoints,
+                $snapshot,
+                $occurredAt,
+                $prize,
+                (int) $selected['item_id']
+            );
+        }
+
+        return ['rows' => $rows, 'inventory_won' => $inventoryWon];
+    }
+
     private function stageForSequence(
         Collection $stages,
         int $sequence,
@@ -823,7 +1018,8 @@ final class V2DrawService
         int $consumedPoints,
         array $snapshot,
         CarbonImmutable $occurredAt,
-        ?array $prize
+        ?array $prize,
+        ?int $qaDrawPlanItemId = null
     ): array {
         $encoded = json_encode(
             $snapshot,
@@ -847,6 +1043,7 @@ final class V2DrawService
             'display_snapshot_sha256' => hash('sha256', $encoded),
             'occurred_at' => $occurredAt,
             'prize' => $prize,
+            'qa_draw_plan_item_id' => $qaDrawPlanItemId,
         ];
     }
 
@@ -920,6 +1117,8 @@ final class V2DrawService
                 'display_snapshot_sha256' => $row['display_snapshot_sha256'],
                 'occurred_at' => $row['occurred_at'],
                 'created_at' => $occurredAt,
+                'is_qa_draw' => $row['qa_draw_plan_item_id'] !== null,
+                'qa_draw_plan_item_id' => $row['qa_draw_plan_item_id'],
             ];
         }
         $chunkSize = (int) config('v2_draw.insert_chunk_size', 250);
@@ -1201,6 +1400,14 @@ final class V2DrawService
     {
         if ($exception instanceof V2DrawException) {
             return $exception;
+        }
+        if ($exception instanceof V2QaDrawException) {
+            return new V2DrawException(
+                $exception->errorCode,
+                $exception->status,
+                $exception->getMessage(),
+                $exception->retryable
+            );
         }
         if ($exception instanceof V2PointException) {
             return match ($exception->getMessage()) {
