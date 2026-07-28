@@ -999,27 +999,6 @@ packages:
 """,
             encoding="utf-8",
         )
-        (root / "apps/admin/package.json").write_text(
-            json.dumps(
-                {
-                    "name": "@oripa/admin",
-                    "version": "2.0.0-alpha.1",
-                    "private": True,
-                    "packageManager": "pnpm@10.12.1",
-                    "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
-                    "scripts": {
-                        "build": "next build",
-                        "dev": "next dev",
-                        "lint": "eslint .",
-                        "start": "next start",
-                        "typecheck": "tsc --noEmit",
-                    },
-                    "dependencies": policy_gate.ADMIN_DEPENDENCY_VERSIONS,
-                    "devDependencies": policy_gate.ADMIN_DEV_DEPENDENCY_VERSIONS,
-                }
-            ),
-            encoding="utf-8",
-        )
         for relative, name in policy_gate.PACKAGE_SKELETONS.items():
             (root / relative).write_text(
                 json.dumps(
@@ -1287,18 +1266,19 @@ const problem = "application/problem+json";
             dirs_exist_ok=True,
             ignore=shutil.ignore_patterns("dist", "node_modules"),
         )
-        (root / "apps/admin/src/app/layout.tsx").write_text(
-            "export const metadata = { robots: { index: false, follow: false } };\n",
-            encoding="utf-8",
+        shutil.copytree(
+            ROOT / "apps/admin",
+            root / "apps/admin",
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(
+                ".next",
+                "node_modules",
+                "tsconfig.tsbuildinfo",
+            ),
         )
-        (root / "apps/admin/src/app/page.tsx").write_text(
-            "export default function Page() { return <main>Skeleton</main>; }\n",
-            encoding="utf-8",
-        )
-        (root / "apps/admin/src/app/api/health/route.ts").write_text(
-            'export function GET() { return { status: "ok", production_ready: false }; }\n',
-            encoding="utf-8",
-        )
+        workflow = root / ".github/workflows/platform-ci.yml"
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / ".github/workflows/platform-ci.yml", workflow)
         (root / ".dockerignore").write_text(
             "legacy/v1-frontend\n",
             encoding="utf-8",
@@ -1665,6 +1645,55 @@ services:
             paths.add(relative)
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "unapproved application files"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_browser_token_storage_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            client = root / "apps/admin/src/lib/admin-api/client.ts"
+            client.write_text(
+                client.read_text(encoding="utf-8")
+                + '\nlocalStorage.setItem("admin_token", "forbidden");\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "prohibited implementation"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_cookie_credentials_omission_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            client = root / "apps/admin/src/lib/admin-api/client.ts"
+            client.write_text(
+                client.read_text(encoding="utf-8").replace(
+                    'credentials: "include"',
+                    'credentials: "omit"',
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "Admin API boundary"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_security_header_removal_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            proxy = root / "apps/admin/src/proxy.ts"
+            proxy.write_text(
+                proxy.read_text(encoding="utf-8").replace(
+                    "frame-ancestors 'none'",
+                    "frame-ancestors *",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "security response boundary"
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 

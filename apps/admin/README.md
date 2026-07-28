@@ -11,7 +11,8 @@ OwnerはPlatform Codex。[`AGENTS.md`](AGENTS.md)とRoot
 
 ## Planned Components
 
-Admin Route、Feature、MFA UI、Permission UI、Audit表示を配置予定。
+Catalog、QA、Shipping、Reporting、Content等の業務Route、Permission別Navigation、
+Audit表示を後続Taskで配置する。
 
 ## Allowed Scope
 
@@ -23,9 +24,17 @@ Draw／Point／Payment判断、Site固有Design、User Cookie、V1 CodeをCopy�
 
 ## Status
 
-現時点はBuild／Health検証用の最小Next.js Skeletonであり、Production利用不可。
-表示PageとHealth Endpoint以外のApplication機能、API接続、Auth、MFA、
-Business Logicは実装していない。
+`MIG-060A`で非Production用のAdmin認証と共通Shellを実装した。
+
+* Admin OpenAPIから決定的に生成・検証するAuth型
+* Same-origin Cookie／Admin CSRFを使用するAdmin API Client
+* Password Pre-auth、TOTP／WebAuthn／Recovery Code、MFA Enrollment
+* Session／Logout／Fresh MFA再認証
+* Owner／Admin／Operator表示、共通Shell、Loading／Error／403／404
+* Unknown Host拒否、CSP、Frame拒否、`private, no-store`、`noindex`
+
+業務管理画面、Domain／TLS設定、Staging／Production Deploymentは未実装であり、
+本ApplicationはProduction利用不可。
 
 ## Local Verification
 
@@ -33,9 +42,13 @@ Root Workspaceで次を実行する。
 
 ```text
 pnpm install --frozen-lockfile
+pnpm admin:generate:check
 pnpm admin:typecheck
 pnpm admin:lint
+pnpm admin:test
 pnpm admin:build
+pnpm admin:test:e2e
 ```
 
-非ProductionのV2 Composeでは`GET /api/health`だけを起動確認に使用する。
+Browser E2Eは固定Test Doubleを使い、実CredentialやProduction Resourceへ接続しない。
+非ProductionのV2 Composeでは`GET /api/health`を起動確認に使用する。

@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
+import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
+
+import "./globals.css";
+
 export const metadata: Metadata = {
-  title: "Oripa V2 Admin Skeleton",
-  description: "V2 Adminの非Production Skeleton",
+  title: {
+    default: "Oripa Admin",
+    template: "%s | Oripa Admin",
+  },
+  description: "Oripa Platform Administration",
+  referrer: "strict-origin-when-cross-origin",
   robots: {
     follow: false,
     index: false,
@@ -18,10 +27,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  await headers();
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        <AdminAuthProvider>{children}</AdminAuthProvider>
+      </body>
     </html>
   );
 }

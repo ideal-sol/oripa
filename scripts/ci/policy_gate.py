@@ -449,31 +449,73 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
     "apps/admin/Dockerfile",
+    "apps/admin/e2e/admin-auth-shell.spec.ts",
     "apps/admin/package.json",
+    "apps/admin/playwright.config.ts",
+    "apps/admin/scripts/generate-admin-contract.mjs",
     "apps/admin/next.config.ts",
     "apps/admin/tsconfig.json",
     "apps/admin/eslint.config.mjs",
     "apps/admin/next-env.d.ts",
+    "apps/admin/src/app/auth/enroll/page.tsx",
+    "apps/admin/src/app/auth/mfa/page.tsx",
+    "apps/admin/src/app/auth/recovery/page.tsx",
+    "apps/admin/src/app/error.tsx",
+    "apps/admin/src/app/forbidden/page.tsx",
+    "apps/admin/src/app/globals.css",
     "apps/admin/src/app/layout.tsx",
+    "apps/admin/src/app/loading.tsx",
+    "apps/admin/src/app/login/page.tsx",
+    "apps/admin/src/app/not-found.tsx",
     "apps/admin/src/app/page.tsx",
     "apps/admin/src/app/api/health/route.ts",
+    "apps/admin/src/components/auth/admin-auth-provider.tsx",
+    "apps/admin/src/components/auth/auth-frame.tsx",
+    "apps/admin/src/components/auth/auth-status.tsx",
+    "apps/admin/src/components/auth/enrollment-form.tsx",
+    "apps/admin/src/components/auth/fresh-mfa-dialog.tsx",
+    "apps/admin/src/components/auth/login-form.tsx",
+    "apps/admin/src/components/auth/mfa-form.tsx",
+    "apps/admin/src/components/auth/recovery-panel.tsx",
+    "apps/admin/src/components/auth/route-guard.tsx",
+    "apps/admin/src/components/shell/admin-shell.tsx",
+    "apps/admin/src/components/shell/dashboard-home.tsx",
+    "apps/admin/src/lib/admin-api/client.ts",
+    "apps/admin/src/lib/admin-api/generated.ts",
+    "apps/admin/src/lib/admin-api/webauthn.ts",
+    "apps/admin/src/proxy.ts",
+    "apps/admin/test/admin-api-client.test.ts",
+    "apps/admin/test/auth-components.test.tsx",
+    "apps/admin/test/security-shell.test.tsx",
+    "apps/admin/test/setup.ts",
+    "apps/admin/test/webauthn.test.ts",
+    "apps/admin/vitest.config.ts",
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
+    "lucide-react": "0.468.0",
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7",
 }
 ADMIN_DEV_DEPENDENCY_VERSIONS = {
+    "@playwright/test": "1.62.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@types/node": "25.9.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.11",
+    "jsdom": "30.0.0",
     "typescript": "6.0.3",
+    "vitest": "4.1.10",
 }
+WORKSPACE_REQUIRED_FILES.update(
+    ADMIN_SKELETON_FILES | {".github/workflows/platform-ci.yml"}
+)
 ROOT_DEV_DEPENDENCY_VERSIONS = {
     "@redocly/cli": "2.40.0",
 }
@@ -936,38 +978,100 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
     ):
-        raise PolicyFailure("apps/admin/package.json: Skeleton identity is invalid")
+        raise PolicyFailure("apps/admin/package.json: Admin App identity is invalid")
     validate_exact_dependency_versions(
         package,
         ADMIN_DEPENDENCY_VERSIONS,
         ADMIN_DEV_DEPENDENCY_VERSIONS,
         "apps/admin/package.json",
     )
-    required_scripts = {"build", "dev", "lint", "start", "typecheck"}
+    required_scripts = {
+        "build",
+        "dev",
+        "generate",
+        "generate:check",
+        "lint",
+        "start",
+        "test",
+        "test:e2e",
+        "typecheck",
+    }
     if set(package.get("scripts", {})) != required_scripts:
         raise PolicyFailure("apps/admin/package.json: required scripts are invalid")
 
-    source = "\n".join(
+    production_source = "\n".join(
         (repository / relative).read_text(encoding="utf-8", errors="replace")
         for relative in sorted(actual)
-        if relative.endswith((".ts", ".tsx", ".mjs"))
+        if (
+            relative.startswith("apps/admin/src/")
+            or relative == "apps/admin/scripts/generate-admin-contract.mjs"
+        )
+        and relative.endswith((".ts", ".tsx", ".mjs"))
     )
     for prohibited in (
         "admin-dashboard",
         "legacy/v1-frontend",
         "Math.random",
-        "/api/v2",
-        "fetch(",
         "cookies(",
+        "localStorage",
+        "sessionStorage",
+        "NEXT_PUBLIC_",
     ):
-        if prohibited in source:
+        if prohibited in production_source:
             raise PolicyFailure(
-                f"apps/admin: Skeleton contains prohibited implementation: {prohibited}"
+                f"apps/admin: Auth Shell contains prohibited implementation: {prohibited}"
             )
+    client = (repository / "apps/admin/src/lib/admin-api/client.ts").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        'const ADMIN_CSRF_COOKIE = "__Host-oripa_admin_xsrf"',
+        'credentials: "include"',
+        '"X-XSRF-TOKEN"',
+        '"X-Request-Id"',
+        '"application/problem+json"',
+        'redirect: "error"',
+        "AbortSignal",
+        "path.startsWith(\"/auth/\")",
+    ):
+        if required not in client:
+            raise PolicyFailure(f"apps/admin: Admin API boundary missing {required}")
+    if 'headers.set("Authorization"' in client:
+        raise PolicyFailure("apps/admin: bearer Authorization storage is prohibited")
+
+    generated = (
+        repository / "apps/admin/src/lib/admin-api/generated.ts"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "Generated from openapi/bundled/admin.openapi.json",
+        'ADMIN_API_BASE_PATH = "/admin/api/v2"',
+        "AdminMfaVerifyRequest",
+        "AdminReauthenticationRequest",
+        "RecoveryCodes",
+    ):
+        if required not in generated:
+            raise PolicyFailure(f"apps/admin: generated Admin contract missing {required}")
+
+    proxy = (repository / "apps/admin/src/proxy.ts").read_text(encoding="utf-8")
+    for required in (
+        "ADMIN_ALLOWED_HOSTS",
+        "Content-Security-Policy",
+        "frame-ancestors 'none'",
+        '"X-Frame-Options": "DENY"',
+        '"Cache-Control": "private, no-store"',
+        '"X-Robots-Tag": "noindex, nofollow, noarchive"',
+    ):
+        if required not in proxy:
+            raise PolicyFailure(f"apps/admin: security response boundary missing {required}")
     layout = (repository / "apps/admin/src/app/layout.tsx").read_text(
         encoding="utf-8"
     )
-    if "index: false" not in layout or "follow: false" not in layout:
+    if (
+        "index: false" not in layout
+        or "follow: false" not in layout
+        or 'dynamic = "force-dynamic"' not in layout
+        or "await headers()" not in layout
+    ):
         raise PolicyFailure("apps/admin: noindex and nofollow metadata are required")
     health = (repository / "apps/admin/src/app/api/health/route.ts").read_text(
         encoding="utf-8"
@@ -978,6 +1082,19 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         or "production_ready: false" not in health
     ):
         raise PolicyFailure("apps/admin: deterministic Skeleton health is required")
+
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "pnpm admin:generate:check",
+        "pnpm admin:typecheck",
+        "pnpm admin:lint",
+        "pnpm admin:test",
+        "pnpm admin:build",
+    ):
+        if required not in workflow:
+            raise PolicyFailure(f"platform-ci Admin Auth Shell verification missing {required}")
 
 
 def validate_package_skeletons(repository: Path) -> None:
@@ -3262,7 +3379,7 @@ def validate_boundary_readmes(repository: Path) -> None:
                 "packages/site-schema/README.md",
                 "packages/storefront-testkit/README.md",
             }
-            else "Skeleton"
+            else ("MIG-060A" if relative == "apps/admin/README.md" else "Skeleton")
         )
         for statement in ("AGENTS.md", status_statement, "Production", "V1"):
             if statement not in text:
