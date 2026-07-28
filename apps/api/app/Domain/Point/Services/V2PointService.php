@@ -147,6 +147,92 @@ final class V2PointService
         });
     }
 
+    /**
+     * Prize Exchange Transaction内でfree Pointを付与する。
+     *
+     * @return array{operation: PointOperation, wallet_free_after: int}
+     */
+    public function grantPrizeExchange(
+        int $userId,
+        int $exchangeRequestId,
+        string $exchangeRequestPublicId,
+        int $amount,
+        CarbonInterface $expireAt,
+        CarbonInterface $occurredAt
+    ): array {
+        if (
+            DB::transactionLevel() < 1
+            || $userId < 1
+            || $exchangeRequestId < 1
+            || ! Str::isUuid($exchangeRequestPublicId)
+            || $amount <= 0
+        ) {
+            throw new V2PointException('Prize exchange point grant input is invalid.');
+        }
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
+        if ($expiry->lessThanOrEqualTo($occurred)) {
+            throw new V2PointException('Prize exchange point expiry is invalid.');
+        }
+
+        $wallet = $this->lockWallet($userId);
+        $before = (int) $wallet->free_balance;
+        $operation = $this->operation(
+            $userId,
+            'free_grant',
+            'prize_exchange',
+            'prize.exchange:'.$exchangeRequestPublicId,
+            $occurred,
+            'user',
+            $userId,
+            $exchangeRequestId
+        );
+        $lot = new PointLot();
+        $lot->forceFill([
+            'user_id' => $userId,
+            'grant_operation_id' => $operation->id,
+            'point_type' => 'free',
+            'granted_amount' => $amount,
+            'remaining_amount' => $amount,
+            'reserved_amount' => 0,
+            'granted_at' => $occurred,
+            'expire_at' => $expiry,
+        ])->save();
+        $wallet->forceFill([
+            'free_balance' => $before + $amount,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+        $this->ledger(
+            $operation,
+            $wallet,
+            $lot,
+            1,
+            'free',
+            'grant',
+            $amount,
+            (int) $wallet->free_balance,
+            $amount,
+            $occurred
+        );
+        $this->audit->record('point.prize_exchange_granted', [
+            'actor_type' => 'user',
+            'auth_realm' => 'user',
+            'target_type' => 'prize_exchange_request',
+            'target_public_id' => $exchangeRequestPublicId,
+            'before' => ['free_balance' => $before],
+            'after' => ['free_balance' => (int) $wallet->free_balance],
+            'metadata' => [
+                'amount' => $amount,
+                'operation_public_id' => $operation->public_id,
+            ],
+        ]);
+
+        return [
+            'operation' => $operation,
+            'wallet_free_after' => (int) $wallet->free_balance,
+        ];
+    }
+
     public function consume(
         int $userId,
         int $amount,

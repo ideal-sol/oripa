@@ -11,6 +11,9 @@ export {
 export {
   createStorefrontDrawClient,
 } from "./draw.js";
+export {
+  createStorefrontPrizeShippingClient,
+} from "./prize-shipping.js";
 export type {
   GachaListQuery,
   StorefrontCatalogClient,
@@ -20,6 +23,10 @@ export type {
   DrawCount,
   StorefrontDrawClient,
 } from "./draw.js";
+export type {
+  PrizeShippingMutationOptions,
+  StorefrontPrizeShippingClient,
+} from "./prize-shipping.js";
 export type {
   ApiProblem,
   StorefrontTransportErrorCode,

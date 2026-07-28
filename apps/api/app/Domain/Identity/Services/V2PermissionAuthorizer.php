@@ -16,6 +16,7 @@ final class V2PermissionAuthorizer
             'point.adjustment.request',
             'point.adjustment.free.approve',
             'point.adjustment.paid.approve',
+            'shipping.request.manage',
         ],
         'admin' => [
             'identity.admin.read',
@@ -23,10 +24,12 @@ final class V2PermissionAuthorizer
             'point.ledger.read',
             'point.adjustment.request',
             'point.adjustment.free.approve',
+            'shipping.request.manage',
         ],
         'operator' => [
             'identity.admin.read',
             'point.ledger.read',
+            'shipping.request.manage',
         ],
     ];
 

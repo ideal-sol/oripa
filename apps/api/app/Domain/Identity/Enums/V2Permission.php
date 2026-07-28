@@ -11,4 +11,5 @@ enum V2Permission: string
     case RequestPointAdjustment = 'point.adjustment.request';
     case ApproveFreePointAdjustment = 'point.adjustment.free.approve';
     case ApprovePaidPointAdjustment = 'point.adjustment.paid.approve';
+    case ManageShippingRequest = 'shipping.request.manage';
 }

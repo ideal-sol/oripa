@@ -61,13 +61,15 @@ final class V2UserAuthenticationService
                 'state' => V2UserState::PendingVerification,
             ]);
             $rawToken = $this->tokens->generate();
+            $verificationCreatedAt = now()->startOfSecond();
             $verification = UserEmailVerification::query()->create([
                 'user_id' => $user->getKey(),
                 'token_hash' => $this->tokens->hash($rawToken),
                 'redirect_path' => $redirectPath,
-                'expires_at' => now()->addMinutes(
+                'expires_at' => $verificationCreatedAt->copy()->addMinutes(
                     (int) config('v2_identity.email_verification.ttl_minutes')
                 ),
+                'created_at' => $verificationCreatedAt,
             ]);
             $this->notifier->send(
                 $user,
@@ -108,13 +110,15 @@ final class V2UserAuthenticationService
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now()]);
             $rawToken = $this->tokens->generate();
+            $verificationCreatedAt = now()->startOfSecond();
             $verification = UserEmailVerification::query()->create([
                 'user_id' => $user->getKey(),
                 'token_hash' => $this->tokens->hash($rawToken),
                 'redirect_path' => $redirectPath,
-                'expires_at' => now()->addMinutes(
+                'expires_at' => $verificationCreatedAt->copy()->addMinutes(
                     (int) config('v2_identity.email_verification.ttl_minutes')
                 ),
+                'created_at' => $verificationCreatedAt,
             ]);
             $this->notifier->send(
                 $user,

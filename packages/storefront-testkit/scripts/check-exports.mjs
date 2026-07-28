@@ -20,6 +20,8 @@ const expected = {
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
+    "PUBLIC_SHIPPING_REQUEST_FIXTURE",
+    "PUBLIC_USER_PRIZE_FIXTURE",
     "TestkitAssertionError",
     "TestkitNetworkError",
     "UnexpectedMockRequestError",
@@ -47,6 +49,8 @@ const expected = {
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
+    "PUBLIC_SHIPPING_REQUEST_FIXTURE",
+    "PUBLIC_USER_PRIZE_FIXTURE",
   ],
   "./mock": [
     "TestkitAssertionError",

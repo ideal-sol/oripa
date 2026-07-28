@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
+use App\Http\Controllers\V2\V2AdminShippingController;
 
 Route::prefix('v2/auth')
     ->middleware('v2.browser:admin')
@@ -60,6 +61,19 @@ Route::prefix('v2/auth')
             V2AdminAuthController::class,
             'regenerateRecoveryCodes',
         ])->name('v2.admin.auth.recovery-codes.regenerate');
+    });
+
+Route::prefix('v2')
+    ->middleware(['v2.browser:admin', 'auth:v2_admin'])
+    ->group(function (): void {
+        Route::get('/shipping-requests', [V2AdminShippingController::class, 'index'])
+            ->name('v2.admin.shipping-requests.index');
+        Route::get('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'show'])
+            ->whereUuid('shippingRequestId')
+            ->name('v2.admin.shipping-requests.show');
+        Route::put('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'update'])
+            ->whereUuid('shippingRequestId')
+            ->name('v2.admin.shipping-requests.update');
     });
 
 Route::post('/login', [AdminAuthController::class, 'login'])->name('admin.api.login');

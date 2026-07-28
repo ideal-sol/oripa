@@ -224,6 +224,76 @@ paths:
                 $ref: '#/components/schemas/RecoveryCodes'
         default:
           $ref: '#/components/responses/Problem'
+  /shipping-requests:
+    get:
+      operationId: listAdminShippingRequests
+      summary: Shipping Request一覧を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: Shipping Request一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminShippingRequestCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /shipping-requests/{shipping_request_id}:
+    get:
+      operationId: getAdminShippingRequest
+      summary: Shipping運用に必要な配送先を含む詳細を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ShippingRequestId'
+      responses:
+        '200':
+          description: Shipping Request詳細。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminShippingRequestDetail'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: updateAdminShippingRequest
+      summary: 許可された配送状態遷移とTrackingを登録する
+      x-idempotency: not-supported
+      x-rate-limit: admin-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ShippingRequestId'
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminShippingTransition'
+      responses:
+        '200':
+          description: 更新したShipping Request。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminShippingRequestDetail'
+        default:
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     adminSession:
@@ -233,6 +303,102 @@ components:
   schemas:
     OpaqueId:
       $ref: ../components/common.yaml#/schemas/OpaqueId
+    ShippingStatus:
+      type: string
+      enum: [requested, packing, shipped, delivered, hold, return_requested, returned, canceled]
+    AdminShippingTransition:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ShippingStatus'
+        carrier_code:
+          type: [string, 'null']
+          maxLength: 64
+        tracking_number:
+          type: [string, 'null']
+          maxLength: 191
+          writeOnly: true
+        reason:
+          type: [string, 'null']
+          maxLength: 191
+    AdminShippingRequestSummary:
+      type: object
+      additionalProperties: false
+      required: [id, status, prize_count, requested_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        status:
+          $ref: '#/components/schemas/ShippingStatus'
+        prize_count:
+          type: integer
+          minimum: 1
+        requested_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        shipped_at:
+          type: [string, 'null']
+          format: date-time
+        carrier_code:
+          type: [string, 'null']
+    AdminShippingRequestDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminShippingRequestSummary'
+        - type: object
+          required: [prize_ids, tracking_number, shipping_address, status_history]
+          properties:
+            prize_ids:
+              type: array
+              items:
+                $ref: '#/components/schemas/OpaqueId'
+            tracking_number:
+              type: [string, 'null']
+            shipping_address:
+              type: object
+              additionalProperties: false
+              required: [recipient_name, postal_code, prefecture, city, street, building, phone_number]
+              properties:
+                recipient_name:
+                  type: string
+                postal_code:
+                  type: string
+                prefecture:
+                  type: string
+                city:
+                  type: string
+                street:
+                  type: string
+                building:
+                  type: [string, 'null']
+                phone_number:
+                  type: string
+            status_history:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [from_status, to_status, reason_code, occurred_at]
+                properties:
+                  from_status:
+                    type: [string, 'null']
+                  to_status:
+                    type: string
+                  reason_code:
+                    type: string
+                  occurred_at:
+                    $ref: '#/components/schemas/UtcDateTime'
+    AdminShippingRequestCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminShippingRequestSummary'
+        next_cursor:
+          type: [string, 'null']
     SemanticVersion:
       $ref: ../components/common.yaml#/schemas/SemanticVersion
     UtcDateTime:
@@ -437,6 +603,25 @@ components:
           type: string
           enum: [confirmed, registered]
   parameters:
+    PageLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    PageCursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    ShippingRequestId:
+      name: shipping_request_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
     XsrfToken:
       name: X-XSRF-TOKEN
       in: header
