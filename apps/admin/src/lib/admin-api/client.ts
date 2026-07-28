@@ -1,5 +1,6 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminEffectivePermissions,
   type AdminLoginRequest,
   type AdminMfaVerifyRequest,
   type AdminPreauth,
@@ -56,6 +57,10 @@ export class AdminApiClient {
 
   getSession(signal?: AbortSignal): Promise<AdminSession> {
     return this.request("GET", "/auth/session", { signal });
+  }
+
+  getPermissions(signal?: AbortSignal): Promise<AdminEffectivePermissions> {
+    return this.request("GET", "/auth/permissions", { signal });
   }
 
   login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {

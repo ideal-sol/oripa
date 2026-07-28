@@ -5128,3 +5128,123 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
   `MIG-060B Admin Dashboard／Navigation／Permission Foundation`だが、
   MIG-060Bは本Task内で開始しない。
+
+## MIG-060A Closeout／MIG-060B Admin Dashboard／Navigation／Permission Foundation
+
+### MIG-060A Closeout
+
+- Issue `#121`はClosed、PR `#122`はSquash Mergedである。Final Headは
+  `4ee324bc8c2b4615f499443158b79065cb6308e5`、Squash Commitは
+  `cfe1b511cb0ecf5ef170a7e00165a2c4f2709211`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-060A Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／Effective Permission Contract
+
+- Task IDは`MIG-060B`、Riskは`R3`、Issueは`#123`、Branchは
+  `feat/MIG-060B-admin-navigation-permissions`、Base SHAは
+  `cfe1b511cb0ecf5ef170a7e00165a2c4f2709211`である。
+- Admin OpenAPIへ`GET /admin/api/v2/auth/permissions`を追加した。
+  有効なAdmin Realm SessionとMFA Enrollment完了を既存Middlewareで検査し、
+  Role、有効Permission Code、Request IDだけを`private, no-store`で返す。
+  Public／Webhook ContractおよびStorefront ClientへAdmin型を公開しない。
+- 中央`V2PermissionAuthorizer`を唯一のPermission正本とし、未知Role、
+  未登録Permission、重複PermissionをFail Closedとする。
+  Catalog参照の共通境界として`catalog.read`を中央Matrixへ追加し、
+  Owner／Admin／Operatorへ割り当てた。ControllerやComponentでRole名を比較しない。
+- Permission取得ControllerをAdmin Auth Flow Controllerから分離した。
+  Permission取得だけでWebAuthn等の無関係なProvider設定を解決しないための
+  最小Dependency境界である。
+
+### Dashboard／Navigation／Route Guard
+
+- 型付きNavigation RegistryへDashboard、Catalog、QA Draw、Prize／Shipping、
+  Reporting／Export、Content、Contactを集約した。Stable Route ID、Label、Path、
+  Permission、Icon、Section、Sort Order、実装状態、Fresh MFA境界を持つ。
+- PermissionがないModuleはNavigationとDashboardから非表示になる。
+  Permission取得失敗時はDashboard以外をFail Closedとし、401はSession失効、
+  403は汎用Forbidden、429は安全な`Retry-After`表示とする。
+- `PermissionProvider`、`PermissionGate`、`ProtectedAdminRoute`、
+  `AdminNavigation`、`Breadcrumb`、`ModulePlaceholder`、
+  `DashboardModuleCard`、`AdminPageHeader`を責任別に実装した。
+  直接URLも同じRegistryとPermission Route Guardを通る。
+- `/catalog`、`/qa`、`/shipping`、`/reports`、`/content`、`/contacts`を追加した。
+  各RootはPage Title、Breadcrumb、Active Navigation、Loading、Error、403、
+  準備中表示を持ち、架空業務Dataを表示しない。
+- DashboardはCurrent Admin Public ID、Role、MFA Enrollment状態、
+  Server取得Permission、利用可能Moduleを表示する。売上、User、Gacha等の
+  架空集計値およびBrowser時刻によるSession／Freshness判定は追加していない。
+- Desktop SidebarとMobile Drawerで同一Registryを使用し、Escape Close、
+  Focus移動／復帰、Keyboard操作、Active Route境界を実装した。
+  MIG-060AのCookie Session、CSRF、Exact Origin、Realm分離、CSP、
+  Unknown Host、Storage Token禁止、`private, no-store`を維持した。
+
+### Test／Migration／Security
+
+- Admin OpenAPI Unit／BundleはPASSし、Operation数はPublic 42、Admin 68、
+  Webhook 0である。Admin Contract生成差分は0である。
+- Admin Typecheck、Lint、Production Build、Unit／Component 21 Test、
+  Chromium Browser E2E 6 TestはPASSした。Owner／Admin／OperatorのNavigation差、
+  Permission取得失敗、直接URL拒否、401／403／429、Mobile Drawer、Keyboard、
+  Focus、横溢れ、Secret／Credential非保存を検証した。
+- Backend Permission Contract対象Testは4 Test／46 AssertionでPASSした。
+  Policy Unitは86 Test、Quality Unitは5 Test、Security Unitは4 Test、
+  Release Unitは10 TestでPASSした。
+- Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／22 Test／実Network禁止は
+  PASSした。Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。
+- Root Auditは0 Finding、Legacy Auditは既存11 Finding、
+  Composer Auditは既存期限付き10 Findingであり、Baseline追加／拡張、
+  新規Critical／High、Secret／PII Candidateは0件だった。
+- Guard付きPersistent V2 DBで`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、PostgreSQL／Redis Healthを確認した。
+  Task専用Ephemeralでは`migrate:fresh` 2回、全V2 Suite、
+  Draw／QA／Reporting／Content Load、API／Admin Health、Backup／Restore、
+  Task Resource Cleanupを確認した。
+- V2 Migrationは15件、Migration Set SHA-256は
+  `53cbd05cae2fa794d39a3fd5c71ad87cefcb398e69eafc066a29ec9356e4f27a`である。
+  Source／Restore Schema SHA-256は
+  `7ae754f3fcbf1cff5cdf48961f0e03293e0e4e432124e92b0bbb399dcec60090`、
+  Migration Row SHA-256は
+  `3e9d7878e58a77810819042186ef4ac43acb4926d74a7e619296657e382fd4ea`
+  で一致した。Backup SHA-256は
+  `8a61ca630206f5d35c6ea52a5b3220e342b8a135b9fa8a376c42f06ff25350e4`である。
+- Persistent Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-060B/persistent/persistent-result.json`、
+  Ephemeral Evidenceは`/var/lib/oripa-v2-evidence/MIG-060B/smoke/`へ
+  Repository外保全した。Secret／PIIを含めず、Task ResourceはCleanup済みである。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 時間を要した作業／Gate
+
+- Guard付きPersistent検証は初回無出力待機でSIGTERMとなったためHeartbeat付きで
+  再実行した。HTTP 500、Cookie Test Harness、不要なWebAuthn設定解決、
+  Cache-Control順序、Laravel Auth Guard Cacheを順に検出し、Controller分離と
+  Test境界修正後に約2分で全SuiteをPASSした。今後はPermission Contract対象Testと
+  HTTP Route SmokeをGuard付きFull Suiteより前に実行する。
+- Ephemeral Smokeは全Suite／Load／Backup／Restoreを含み約4分30秒を要した。
+  全工程は1回の成功Runで完了し、Source／Restore Schema一致とResource Cleanupを
+  Evidence化した。後続Admin-only Taskでは同一Final HeadのDB Evidence再利用可否を
+  Governanceで明文化することを改善候補とする。
+- Package検証を並行実行した初回はStorefront ProcessのSIGTERMと、
+  Site Schema Build完了前にTestkitが参照する競合が発生した。
+  依存順にSerial再実行して全件PASSした。今後は生成Packageを
+  Site Schema、Storefront Client、Testkitの依存順で実行する。
+- fallback Chromiumに日本語FontがなくScreenshotでは日本語Glyphが欠落した。
+  DOM Text、Accessible Name、Keyboard E2E、Layout／Drawer／横溢れは正常である。
+  Staging Browser確認Waveで実配信Fontと対象OSを再確認する。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。業務Admin画面、Storefront画面、
+  通知Transport、Staging E2Eが残るためGate G4／G5は`NOT COMPLETE`である。
+- LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
+  `MIG-060C Admin Catalog／Gacha／Probability Management`だが、
+  MIG-060Cは本Task内で開始しない。

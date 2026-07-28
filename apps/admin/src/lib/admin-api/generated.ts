@@ -1,10 +1,30 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: f0a97ca3efa260614e78793fbb5fabf8fb4d8b16b06cd1e92c0fc225f4157c94
+// Contract SHA-256: 48a31f4acd9eeda30db6d97d486a33d60ccd47f867a66fb21abb2c34ce00fb54
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
+export const ADMIN_PERMISSION_CODES = [
+  "identity.admin.read",
+  "identity.admin.manage",
+  "identity.admin.session.revoke",
+  "point.ledger.read",
+  "point.adjustment.request",
+  "point.adjustment.free.approve",
+  "point.adjustment.paid.approve",
+  "catalog.read",
+  "shipping.request.manage",
+  "qa.draw.manage",
+  "reporting.financial.read",
+  "reporting.financial.export",
+  "content.read",
+  "content.manage",
+  "content.publish",
+  "contact.read",
+  "contact.manage"
+] as const;
 
 export type AdminRole = "owner" | "admin" | "operator";
+export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshMfaMethod = "totp" | "webauthn";
 
@@ -13,6 +33,12 @@ export interface AdminIdentity {
   role: AdminRole;
   state: "active";
   mfa_verified?: boolean;
+}
+
+export interface AdminEffectivePermissions {
+  role: AdminRole;
+  permissions: AdminPermissionCode[];
+  request_id: string;
 }
 
 export interface AdminLoginRequest {

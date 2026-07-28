@@ -8,7 +8,6 @@ use App\Domain\Identity\Services\V2AdminAuthenticationService;
 use App\Domain\Identity\Services\V2AdminReauthenticationService;
 use App\Domain\Identity\Services\V2CsrfService;
 use App\Domain\Identity\Services\V2SessionManager;
-use App\Http\Controllers\Controller;
 use App\Models\V2\Admin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +17,7 @@ use Illuminate\Support\Str;
 use SensitiveParameter;
 use Symfony\Component\HttpFoundation\Cookie;
 
-final class V2AdminAuthController extends Controller
+final class V2AdminAuthController
 {
     private const TRANSACTION_COOKIE = '__Host-oripa_admin_auth_transaction';
 

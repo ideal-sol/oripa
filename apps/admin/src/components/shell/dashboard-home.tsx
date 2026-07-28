@@ -1,42 +1,63 @@
 "use client";
 
-import { KeyRound, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  KeyRound,
+  RotateCcw,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { useState } from "react";
 
 import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
+import { usePermissions } from "@/components/permissions/permission-provider";
+import { AdminPageHeader } from "@/components/shell/admin-page-header";
+import { DashboardModuleCard } from "@/components/shell/dashboard-module-card";
+import {
+  navigationForPermissions,
+} from "@/lib/permissions/admin-navigation";
 
 export function DashboardHome() {
   const { admin } = useAdminAuth();
+  const { error, permissions, retry, role, status } = usePermissions();
   const [freshOpen, setFreshOpen] = useState(false);
   const [freshConfirmed, setFreshConfirmed] = useState(false);
+  const modules = navigationForPermissions(
+    status === "ready" ? permissions : new Set(),
+  ).filter((item) => item.id !== "dashboard");
 
   return (
     <section className="workspace">
-      <header className="workspace-header">
-        <div>
-          <span className="eyebrow">Administration</span>
-          <h1>管理ホーム</h1>
-          <p>現在の管理セッションと認証状態を確認できます。</p>
-        </div>
-        <span className="status-pill">
+      <AdminPageHeader
+        eyebrow="Administration"
+        title="ダッシュボード"
+        description="現在の管理セッションと利用可能なモジュールを確認できます。"
+        action={<span className="status-pill">
           <span aria-hidden="true" />
           Session active
-        </span>
-      </header>
+        </span>}
+      />
       <div className="summary-grid">
+        <article className="summary-item">
+          <UserRound size={22} aria-hidden="true" />
+          <div>
+            <span>Current Admin</span>
+            <strong className="admin-public-id">{admin?.id ?? "unknown"}</strong>
+          </div>
+        </article>
         <article className="summary-item">
           <ShieldCheck size={22} aria-hidden="true" />
           <div>
             <span>Admin Role</span>
-            <strong>{admin?.role ?? "unknown"}</strong>
+            <strong>{role ?? admin?.role ?? "unknown"}</strong>
           </div>
         </article>
         <article className="summary-item">
           <KeyRound size={22} aria-hidden="true" />
           <div>
             <span>MFA</span>
-            <strong>{freshConfirmed ? "Fresh" : "Verified"}</strong>
+            <strong>{freshConfirmed ? "Fresh" : "登録要件完了"}</strong>
           </div>
           <button
             className="secondary-button compact-button"
@@ -47,11 +68,53 @@ export function DashboardHome() {
           </button>
         </article>
       </div>
-      <section className="empty-workspace" aria-labelledby="workspace-empty-title">
-        <LayoutGraphic />
-        <h2 id="workspace-empty-title">業務モジュールは未設定です</h2>
-        <p>利用可能な管理機能は、後続の権限設定後に表示されます。</p>
-      </section>
+      {status === "ready" ? (
+        <>
+          <section className="permission-summary" aria-labelledby="permission-heading">
+            <div>
+              <span className="eyebrow">Effective permissions</span>
+              <h2 id="permission-heading">有効Permission</h2>
+            </div>
+            <ul>
+              {[...permissions].sort().map((permission) => (
+                <li key={permission}>
+                  <code>{permission}</code>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="dashboard-modules" aria-labelledby="modules-heading">
+            <div className="section-title">
+              <h2 id="modules-heading">利用可能なモジュール</h2>
+              <span>{modules.length}件</span>
+            </div>
+            <div className="module-grid">
+              {modules.map((item) => (
+                <DashboardModuleCard item={item} key={item.id} />
+              ))}
+            </div>
+          </section>
+        </>
+      ) : status === "loading" || status === "idle" ? (
+        <section className="empty-workspace" aria-live="polite">
+          <p>有効Permissionを確認しています。</p>
+        </section>
+      ) : (
+        <section className="permission-failure" role="alert">
+          <AlertTriangle size={24} aria-hidden="true" />
+          <div>
+            <h2>Permissionを取得できませんでした</h2>
+            <p>安全のため業務モジュールを非表示にしています。</p>
+            {status === "rate_limited" && error?.retryAfter ? (
+              <p>{error.retryAfter}秒後に再試行できます。</p>
+            ) : null}
+          </div>
+          <button className="secondary-button" onClick={retry} type="button">
+            <RotateCcw size={17} aria-hidden="true" />
+            再試行
+          </button>
+        </section>
+      )}
       <FreshMfaDialog
         onClose={() => setFreshOpen(false)}
         onSuccess={() => {
@@ -61,15 +124,5 @@ export function DashboardHome() {
         open={freshOpen}
       />
     </section>
-  );
-}
-
-function LayoutGraphic() {
-  return (
-    <div className="empty-graphic" aria-hidden="true">
-      <span />
-      <span />
-      <span />
-    </div>
   );
 }

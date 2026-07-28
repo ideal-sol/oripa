@@ -24,6 +24,39 @@ final class PermissionBoundaryTest extends TestCase
         );
         self::assertFalse($authorizer->allows('custom-role', 'identity.admin.read'));
         self::assertFalse($authorizer->allows('owner', 'unregistered.permission'));
+        self::assertTrue(
+            $authorizer->allows(V2AdminRole::Operator, V2Permission::ReadCatalog)
+        );
+    }
+
+    public function test_effective_permissions_are_registered_unique_and_role_scoped(): void
+    {
+        $authorizer = new V2PermissionAuthorizer();
+        $known = array_map(
+            static fn (V2Permission $permission): string => $permission->value,
+            V2Permission::cases()
+        );
+
+        foreach (V2AdminRole::cases() as $role) {
+            $effective = $authorizer->effectivePermissions($role);
+            self::assertSame($effective, array_values(array_unique($effective)));
+            self::assertSame([], array_diff($effective, $known));
+            self::assertContains(V2Permission::ReadCatalog->value, $effective);
+        }
+
+        self::assertContains(
+            V2Permission::ManageQaDraw->value,
+            $authorizer->effectivePermissions(V2AdminRole::Owner)
+        );
+        self::assertNotContains(
+            V2Permission::ManageQaDraw->value,
+            $authorizer->effectivePermissions(V2AdminRole::Admin)
+        );
+        self::assertNotContains(
+            V2Permission::ReadFinancialReporting->value,
+            $authorizer->effectivePermissions(V2AdminRole::Operator)
+        );
+        self::assertSame([], $authorizer->effectivePermissions('unregistered-role'));
     }
 
     public function test_laravel_gate_uses_the_v2_admin_provider_model(): void

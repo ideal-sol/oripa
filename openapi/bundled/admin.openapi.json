@@ -1221,6 +1221,54 @@
         }
       }
     },
+    "/auth/permissions": {
+      "get": {
+        "operationId": "getAdminEffectivePermissions",
+        "summary": "現在のAdminに有効なPermission Codeを取得する",
+        "description": "Backend中央Permission Matrixで登録済みのRoleとPermission Codeだけを返す。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "session",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "現在のRoleと有効Permission。",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEffectivePermissions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/auth/mfa/totp": {
       "post": {
         "operationId": "beginAdminTotpEnrollment",
@@ -4416,6 +4464,58 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "AdminPermissionCode": {
+        "type": "string",
+        "enum": [
+          "identity.admin.read",
+          "identity.admin.manage",
+          "identity.admin.session.revoke",
+          "point.ledger.read",
+          "point.adjustment.request",
+          "point.adjustment.free.approve",
+          "point.adjustment.paid.approve",
+          "catalog.read",
+          "shipping.request.manage",
+          "qa.draw.manage",
+          "reporting.financial.read",
+          "reporting.financial.export",
+          "content.read",
+          "content.manage",
+          "content.publish",
+          "contact.read",
+          "contact.manage"
+        ]
+      },
+      "AdminEffectivePermissions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "permissions",
+          "request_id"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "operator"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/AdminPermissionCode"
+            }
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

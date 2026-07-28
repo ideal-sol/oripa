@@ -339,6 +339,7 @@ python3 scripts/db/v2_database.py smoke \\
             ".github/workflows/platform-ci.yml",
             "openapi/bundled/public.openapi.json",
             "openapi/bundled/admin.openapi.json",
+            "apps/api/routes/admin.php",
             "scripts/db/v2_database.py",
             "apps/api/database/migrations-v2/2026_07_24_000005_create_v2_audit_outbox_foundation.php",
             "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
@@ -1694,6 +1695,38 @@ services:
             )
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "security response boundary"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_permission_registry_unknown_code_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            registry = root / "apps/admin/src/lib/permissions/admin-navigation.ts"
+            registry.write_text(
+                registry.read_text(encoding="utf-8").replace(
+                    '"catalog.read"',
+                    '"unknown.permission"',
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "permission registry"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_admin_permission_provider_role_authorization_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            registry = root / "apps/admin/src/lib/permissions/admin-navigation.ts"
+            registry.write_text(
+                registry.read_text(encoding="utf-8")
+                + '\nconst bypass = role === "owner";\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "must not authorize by role"
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 

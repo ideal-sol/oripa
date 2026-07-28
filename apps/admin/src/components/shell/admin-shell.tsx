@@ -3,29 +3,17 @@
 import {
   ChevronDown,
   CircleUserRound,
-  ContactRound,
-  FileBarChart,
-  Gift,
-  LayoutDashboard,
   LogOut,
   Menu,
-  PackageSearch,
   PanelLeftClose,
   ShieldCheck,
   X,
 } from "lucide-react";
-import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { RouteGuard } from "@/components/auth/route-guard";
-
-const futureNavigation = [
-  { icon: Gift, label: "カタログ" },
-  { icon: PackageSearch, label: "配送" },
-  { icon: FileBarChart, label: "レポート" },
-  { icon: ContactRound, label: "コンテンツ" },
-];
+import { AdminNavigation } from "@/components/navigation/admin-navigation";
 
 const roleLabel = {
   owner: "Owner",
@@ -37,6 +25,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const { admin, loading, logout } = useAdminAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const mobileTrigger = useRef<HTMLButtonElement>(null);
+  const mobileClose = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    mobileClose.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        mobileTrigger.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileOpen]);
 
   return (
     <RouteGuard allow={["authenticated"]}>
@@ -50,6 +53,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             aria-label="ナビゲーションを開く"
             className="icon-button mobile-menu-button"
             onClick={() => setMobileOpen(true)}
+            ref={mobileTrigger}
             type="button"
           >
             <Menu size={21} />
@@ -73,7 +77,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <button
             aria-label="ナビゲーションを閉じる"
             className="mobile-overlay"
-            onClick={() => setMobileOpen(false)}
+            onClick={() => {
+              setMobileOpen(false);
+              mobileTrigger.current?.focus();
+            }}
             type="button"
           />
         ) : null}
@@ -92,30 +99,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <button
               aria-label="ナビゲーションを閉じる"
               className="icon-button mobile-only"
-              onClick={() => setMobileOpen(false)}
+              onClick={() => {
+                setMobileOpen(false);
+                mobileTrigger.current?.focus();
+              }}
+              ref={mobileClose}
               type="button"
             >
               <X size={19} />
             </button>
           </div>
-          <nav aria-label="管理ナビゲーション">
-            <Link aria-current="page" className="nav-item active" href="/">
-              <LayoutDashboard size={19} aria-hidden="true" />
-              <span>ホーム</span>
-            </Link>
-            {futureNavigation.map(({ icon: Icon, label }) => (
-              <button
-                className="nav-item"
-                disabled
-                key={label}
-                title={`${label}は未実装`}
-                type="button"
-              >
-                <Icon size={19} aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </nav>
+          <AdminNavigation onNavigate={() => setMobileOpen(false)} />
           <div className="sidebar-footer">
             <button
               className="nav-item logout-button"

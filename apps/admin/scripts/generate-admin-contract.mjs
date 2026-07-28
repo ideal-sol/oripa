@@ -15,6 +15,7 @@ const operations = {
   beginAdminLogin: ["post", "/auth/login"],
   verifyAdminMfa: ["post", "/auth/mfa/verify"],
   logoutAdmin: ["post", "/auth/logout"],
+  getAdminEffectivePermissions: ["get", "/auth/permissions"],
   getAdminSession: ["get", "/auth/session"],
   beginAdminTotpEnrollment: ["post", "/auth/mfa/totp"],
   confirmAdminTotpEnrollment: ["post", "/auth/mfa/totp/confirm"],
@@ -40,6 +41,7 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
   "AdminIdentity",
+  "AdminEffectivePermissions",
   "AdminLoginRequest",
   "AdminMfaVerifyRequest",
   "AdminPreauth",
@@ -52,6 +54,7 @@ const requiredSchemas = [
   "WebauthnOptions",
   "WebauthnOptionsRequest",
   "WebauthnRegistration",
+  "AdminPermissionCode",
 ];
 for (const name of requiredSchemas) {
   if (!schemas[name]) {
@@ -59,6 +62,7 @@ for (const name of requiredSchemas) {
   }
 }
 const roles = schemas.AdminIdentity.properties.role.enum;
+const permissions = schemas.AdminPermissionCode.enum;
 const methods = schemas.AdminMfaVerifyRequest.properties.method.enum;
 const reauthenticationMethods =
   schemas.AdminReauthenticationRequest.properties.method.enum;
@@ -78,8 +82,10 @@ const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
+export const ADMIN_PERMISSION_CODES = ${JSON.stringify(permissions, null, 2)} as const;
 
 export type AdminRole = "owner" | "admin" | "operator";
+export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshMfaMethod = "totp" | "webauthn";
 
@@ -88,6 +94,12 @@ export interface AdminIdentity {
   role: AdminRole;
   state: "active";
   mfa_verified?: boolean;
+}
+
+export interface AdminEffectivePermissions {
+  role: AdminRole;
+  permissions: AdminPermissionCode[];
+  request_id: string;
 }
 
 export interface AdminLoginRequest {
