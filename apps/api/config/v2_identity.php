@@ -80,6 +80,8 @@ return [
         'verification_resend_hour' => [3, 3600],
         'verification_resend_day' => [10, 86400],
         'draw_mutation' => [20, 60],
+        'contact_ip' => [5, 3600],
+        'contact_email' => [3, 3600],
     ],
 
     'audit_persistence_ready' => true,

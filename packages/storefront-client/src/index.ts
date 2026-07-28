@@ -14,6 +14,9 @@ export {
 export {
   createStorefrontPrizeShippingClient,
 } from "./prize-shipping.js";
+export {
+  createStorefrontContentContactClient,
+} from "./content-contact.js";
 export type {
   GachaListQuery,
   StorefrontCatalogClient,
@@ -27,6 +30,11 @@ export type {
   PrizeShippingMutationOptions,
   StorefrontPrizeShippingClient,
 } from "./prize-shipping.js";
+export type {
+  ContactSubmissionOptions,
+  ContentListQuery,
+  StorefrontContentContactClient,
+} from "./content-contact.js";
 export type {
   ApiProblem,
   StorefrontTransportErrorCode,

@@ -227,3 +227,36 @@ export const PUBLIC_SHIPPING_REQUEST_FIXTURE = Object.freeze({
   carrier_code: null,
   idempotent_replay: false,
 } as const satisfies PublicComponents["schemas"]["ShippingRequestSummary"]);
+
+export const PUBLIC_CONTENT_FIXTURE = Object.freeze({
+  banner: {
+    id: "0198a001-0000-7000-8000-000000000201",
+    title: "Fixture Banner",
+    link_url: "/gachas",
+    asset: {
+      id: "0198a001-0000-7000-8000-000000000202",
+      path: "/assets/fixture/content/banner.png",
+      checksum_sha256:
+        "6ff0d7ec10eb8cc7746db1bf8137ef3375bf81177d77e13d99c7fd6ddc28f89a",
+      alt_text: "Fixture Banner",
+    },
+    publish_start_at: "2026-07-28T00:00:00Z",
+    publish_end_at: null,
+  },
+  notice: {
+    id: "0198a001-0000-7000-8000-000000000203",
+    slug: "fixture-notice",
+    title: "Fixture Notice",
+    summary: "Public-safe fixture summary.",
+    is_important: false,
+    asset: null,
+    publish_start_at: "2026-07-28T00:00:00Z",
+    publish_end_at: null,
+    body_html: "<p>Public-safe fixture notice.</p>",
+    checksum_sha256:
+      "9be8d4ecf0cab8a507116713604b0f47326d346a9386a1685b963086d18c406e",
+  },
+} as const satisfies {
+  banner: PublicComponents["schemas"]["ContentBanner"];
+  notice: PublicComponents["schemas"]["ContentNotice"];
+});

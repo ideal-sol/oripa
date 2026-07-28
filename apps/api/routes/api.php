@@ -28,8 +28,18 @@ use App\Http\Controllers\V2\V2PublicAuthController;
 use App\Http\Controllers\V2\V2CatalogController;
 use App\Http\Controllers\V2\V2DrawController;
 use App\Http\Controllers\V2\V2PrizeShippingController;
+use App\Http\Controllers\V2\V2ContentContactController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
+        ->name('v2.public.content.banners');
+    Route::get('/content/notices', [V2ContentContactController::class, 'notices'])
+        ->name('v2.public.content.notices');
+    Route::get('/content/notices/{noticeId}', [V2ContentContactController::class, 'notice'])
+        ->whereUuid('noticeId')->name('v2.public.content.notices.show');
+    Route::get('/content/pages/{slug}', [V2ContentContactController::class, 'staticPage'])
+        ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+        ->name('v2.public.content.pages.show');
     Route::get('/gacha-categories', [V2CatalogController::class, 'categories'])
         ->name('v2.public.catalog.categories');
     Route::get('/gacha-tags', [V2CatalogController::class, 'tags'])
@@ -43,6 +53,13 @@ Route::prefix('v2')->group(function (): void {
         ->whereUuid('gachaId')
         ->name('v2.public.catalog.gachas.show');
 });
+
+Route::prefix('v2')
+    ->middleware('v2.browser:user')
+    ->group(function (): void {
+        Route::post('/contact-inquiries', [V2ContentContactController::class, 'contact'])
+            ->name('v2.public.contacts.store');
+    });
 
 Route::prefix('v2')
     ->middleware(['v2.browser:user', 'v2.realm:user'])

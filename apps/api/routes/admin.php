@@ -39,6 +39,7 @@ use App\Http\Controllers\V2\V2AdminAuthController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
+use App\Http\Controllers\V2\V2AdminContentContactController;
 
 Route::prefix('v2/auth')
     ->middleware('v2.browser:admin')
@@ -78,6 +79,32 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function (): void {
+        Route::get('/content/banners', [V2AdminContentContactController::class, 'banners']);
+        Route::post('/content/banners', [V2AdminContentContactController::class, 'createBanner']);
+        Route::get('/content/banners/{contentId}', [V2AdminContentContactController::class, 'banner'])->whereUuid('contentId');
+        Route::post('/content/banners/{contentId}/versions', [V2AdminContentContactController::class, 'createBannerVersion'])->whereUuid('contentId');
+        Route::post('/content/banners/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishBanner'])->whereUuid('contentId')->whereUuid('versionId');
+        Route::post('/content/banners/{contentId}/unpublish', [V2AdminContentContactController::class, 'unpublishBanner'])->whereUuid('contentId');
+        Route::post('/content/banners/{contentId}/archive', [V2AdminContentContactController::class, 'archiveBanner'])->whereUuid('contentId');
+        Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);
+        Route::post('/content/notices', [V2AdminContentContactController::class, 'createNotice']);
+        Route::get('/content/notices/{contentId}', [V2AdminContentContactController::class, 'notice'])->whereUuid('contentId');
+        Route::post('/content/notices/{contentId}/versions', [V2AdminContentContactController::class, 'createNoticeVersion'])->whereUuid('contentId');
+        Route::post('/content/notices/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishNotice'])->whereUuid('contentId')->whereUuid('versionId');
+        Route::post('/content/notices/{contentId}/unpublish', [V2AdminContentContactController::class, 'unpublishNotice'])->whereUuid('contentId');
+        Route::post('/content/notices/{contentId}/archive', [V2AdminContentContactController::class, 'archiveNotice'])->whereUuid('contentId');
+        Route::get('/content/static-pages', [V2AdminContentContactController::class, 'staticPages']);
+        Route::post('/content/static-pages', [V2AdminContentContactController::class, 'createStaticPage']);
+        Route::get('/content/static-pages/{contentId}', [V2AdminContentContactController::class, 'staticPage'])->whereUuid('contentId');
+        Route::post('/content/static-pages/{contentId}/versions', [V2AdminContentContactController::class, 'createStaticPageVersion'])->whereUuid('contentId');
+        Route::post('/content/static-pages/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishStaticPage'])->whereUuid('contentId')->whereUuid('versionId');
+        Route::post('/content/static-pages/{contentId}/unpublish', [V2AdminContentContactController::class, 'unpublishStaticPage'])->whereUuid('contentId');
+        Route::post('/content/static-pages/{contentId}/archive', [V2AdminContentContactController::class, 'archiveStaticPage'])->whereUuid('contentId');
+        Route::get('/contact-inquiries', [V2AdminContentContactController::class, 'contacts']);
+        Route::get('/contact-inquiries/{contactId}', [V2AdminContentContactController::class, 'contact'])->whereUuid('contactId');
+        Route::put('/contact-inquiries/{contactId}/status', [V2AdminContentContactController::class, 'updateContactStatus'])->whereUuid('contactId');
+        Route::post('/contact-inquiries/{contactId}/internal-notes', [V2AdminContentContactController::class, 'addContactNote'])->whereUuid('contactId');
+        Route::post('/contact-inquiries/{contactId}/reply-requests', [V2AdminContentContactController::class, 'requestContactReply'])->whereUuid('contactId');
         Route::get('/users/{userId}/qa-mode', [V2AdminQaDrawController::class, 'showMode'])
             ->whereUuid('userId')->name('v2.admin.qa-mode.show');
         Route::put('/users/{userId}/qa-mode', [V2AdminQaDrawController::class, 'saveMode'])

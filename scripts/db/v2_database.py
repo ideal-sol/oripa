@@ -63,6 +63,15 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.catalog_rank_assets",
     "public.catalog_ranks",
     "public.catalog_tags",
+    "public.contact_inquiries",
+    "public.contact_internal_notes",
+    "public.contact_reply_requests",
+    "public.contact_status_histories",
+    "public.content_banners",
+    "public.content_notices",
+    "public.content_static_pages",
+    "public.content_version_assets",
+    "public.content_versions",
     "public.draw_requests",
     "public.draw_results",
     "public.export_jobs",
@@ -431,6 +440,41 @@ def migration_status(base: list[str], repository: Path, one_shot: bool) -> None:
     )
 
 
+def rollback_and_reapply_latest(
+    base: list[str], repository: Path, one_shot: bool
+) -> None:
+    prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
+    run(
+        base
+        + prefix
+        + [
+            "api",
+            "php",
+            "artisan",
+            "migrate:rollback",
+            f"--path={CONTAINER_MIGRATION_PATH}",
+            "--step=1",
+            "--no-interaction",
+        ],
+        cwd=repository,
+        capture=False,
+    )
+    run(
+        base
+        + prefix
+        + [
+            "api",
+            "php",
+            "artisan",
+            "migrate",
+            f"--path={CONTAINER_MIGRATION_PATH}",
+            "--no-interaction",
+        ],
+        cwd=repository,
+        capture=False,
+    )
+
+
 def schema_inventory(base: list[str], repository: Path) -> list[str]:
     output = compose_exec(
         base,
@@ -537,6 +581,36 @@ def run_reporting_performance_tests(base: list[str], repository: Path) -> None:
         cwd=repository,
         capture=False,
     )
+
+
+def run_content_contact_performance_tests(
+    base: list[str], repository: Path
+) -> dict[str, Any]:
+    output = run(
+        base
+        + [
+            "exec",
+            "-T",
+            "-e",
+            "V2_CONTENT_CONTACT_PERFORMANCE_TEST=1",
+            "api",
+            "vendor/bin/phpunit",
+            "--configuration",
+            "phpunit.v2.xml",
+            "--filter",
+            "ZContentContactPerformanceTest",
+        ],
+        cwd=repository,
+    )
+    marker = "MIG056_CONTENT_CONTACT_PERFORMANCE="
+    for line in output.decode("utf-8", errors="replace").splitlines():
+        if marker not in line:
+            continue
+        metrics = json.loads(line.split(marker, 1)[1])
+        if not isinstance(metrics, dict):
+            break
+        return metrics
+    raise GuardFailure("Content Contact performance evidence marker is missing")
 
 
 def schema_dump(base: list[str], repository: Path) -> bytes:
@@ -686,6 +760,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
     run(base + ["build", "api"], cwd=repository, capture=False)
     migrate_fresh(base, repository, one_shot=True)
     migrate_fresh(base, repository, one_shot=True)
+    rollback_and_reapply_latest(base, repository, one_shot=True)
     migration_status(base, repository, one_shot=True)
     run_identity_tests(base, repository, one_shot=True)
     inventory = schema_inventory(base, repository)
@@ -700,6 +775,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
         "migration_file_count": migration_count,
         "migration_set_sha256": migration_set,
         "migrate_fresh_runs": 2,
+        "latest_migration_rollback_reapply": "PASS",
         "migration_status": "PASS",
         "identity_tests": "PASS",
         "schema_inventory": inventory,
@@ -756,11 +832,17 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             migrate_fresh(source_base, repository, one_shot=False)
             migrate_fresh(source_base, repository, one_shot=False)
+            rollback_and_reapply_latest(
+                source_base, repository, one_shot=False
+            )
             migration_status(source_base, repository, one_shot=False)
             run_identity_tests(source_base, repository, one_shot=False)
             run_draw_load_tests(source_base, repository)
             run_qa_draw_load_tests(source_base, repository)
             run_reporting_performance_tests(source_base, repository)
+            content_contact_performance = run_content_contact_performance_tests(
+                source_base, repository
+            )
             run(
                 source_base
                 + [
@@ -830,11 +912,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "migration_file_count": migration_count,
                 "migration_set_sha256": migration_set,
                 "migrate_fresh_runs": 2,
+                "latest_migration_rollback_reapply": "PASS",
                 "migration_status": "PASS",
                 "identity_tests": "PASS",
                 "draw_load_tests": "PASS",
                 "qa_draw_load_tests": "PASS",
                 "reporting_performance_tests": "PASS",
+                "content_contact_performance_tests": "PASS",
+                "content_contact_performance": content_contact_performance,
                 "schema_inventory": source_inventory,
                 "source_schema_sha256": sha256(source_schema),
                 "restore_schema_sha256": sha256(restore_schema),

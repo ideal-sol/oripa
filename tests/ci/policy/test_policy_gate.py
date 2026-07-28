@@ -346,6 +346,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_08_01_000012_create_v2_reporting_export_foundation.php",
+            "apps/api/database/migrations-v2/2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -837,6 +838,52 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "Admin Reporting"):
                 policy_gate.validate_v2_reporting_boundary(root, paths)
+
+    def copy_v2_content_contact_boundary(self, root):
+        paths = set(policy_gate.V2_CONTENT_CONTACT_REQUIRED_FILES)
+        supporting = {"scripts/db/v2_database.py"}
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_content_contact_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_content_contact_boundary(root)
+            policy_gate.validate_v2_content_contact_boundary(root, paths)
+
+    def test_v2_content_contact_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_content_contact_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_08_02_000013_create_v2_content_contact_vertical_slice.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8")
+                + "\n// $table->unsignedBigInteger('tenant_id');\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_content_contact_boundary(root, paths)
+
+    def test_v2_content_contact_public_admin_exposure_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_content_contact_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document.setdefault("components", {}).setdefault("schemas", {})[
+                "ContactInternalNote"
+            ] = {"type": "object"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Admin Content"):
+                policy_gate.validate_v2_content_contact_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -1452,8 +1499,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 24",
-                    "operation_count: 25",
+                    "operation_count: 29",
+                    "operation_count: 30",
                 ),
                 encoding="utf-8",
             )
