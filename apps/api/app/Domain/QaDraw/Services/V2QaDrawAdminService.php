@@ -3,8 +3,9 @@
 namespace App\Domain\QaDraw\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
-use App\Domain\Identity\Enums\V2AdminRole;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2UserState;
+use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Models\V2\Admin;
 use App\Models\V2\QaDrawPlan;
@@ -17,14 +18,16 @@ use Illuminate\Support\Str;
 
 final class V2QaDrawAdminService
 {
-    public function __construct(private readonly V2AuditLogService $audit)
-    {
+    public function __construct(
+        private readonly V2AuditLogService $audit,
+        private readonly V2AdminFreshMfaAuthorizer $freshMfa
+    ) {
     }
 
     /** @return array<string, mixed> */
-    public function mode(Admin $admin, string $userPublicId): array
+    public function mode(V2AdminAuthorizationContext $context, string $userPublicId): array
     {
-        $this->assertOwner($admin);
+        $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
         $mode = QaTestUserMode::query()->where('user_id', $user->id)->first();
 
@@ -36,14 +39,13 @@ final class V2QaDrawAdminService
 
     /** @return array<string, mixed> */
     public function saveMode(
-        Admin $admin,
+        V2AdminAuthorizationContext $context,
         string $userPublicId,
         string $reason,
         ?string $startsAt,
-        string $endsAt,
-        string $requestId
+        string $endsAt
     ): array {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
         $user = $this->user($userPublicId);
         if ($user->state !== V2UserState::Active) {
             throw $this->invalid('QA Mode requires an active User.');
@@ -57,7 +59,7 @@ final class V2QaDrawAdminService
             $reason,
             $starts,
             $ends,
-            $requestId
+            $context
         ): array {
             $mode = QaTestUserMode::query()
                 ->where('user_id', $user->id)
@@ -77,7 +79,7 @@ final class V2QaDrawAdminService
                 'disabled_at' => null,
                 'disabled_by_admin_id' => null,
             ])->save();
-            $this->adminAudit($action, $admin, $mode->public_id, $requestId, [
+            $this->adminAudit($action, $admin, $context, $mode->public_id, [
                 'user_public_id' => $user->public_id,
                 'starts_at' => $starts?->utc()->toIso8601String(),
                 'ends_at' => $ends->utc()->toIso8601String(),
@@ -89,14 +91,13 @@ final class V2QaDrawAdminService
 
     /** @return array<string, mixed> */
     public function disableMode(
-        Admin $admin,
-        string $userPublicId,
-        string $requestId
+        V2AdminAuthorizationContext $context,
+        string $userPublicId
     ): array {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
         $user = $this->user($userPublicId);
 
-        return DB::transaction(function () use ($admin, $user, $requestId): array {
+        return DB::transaction(function () use ($admin, $user, $context): array {
             $mode = QaTestUserMode::query()
                 ->where('user_id', $user->id)
                 ->lockForUpdate()
@@ -117,8 +118,8 @@ final class V2QaDrawAdminService
                 $this->adminAudit(
                     'qa.mode.disabled',
                     $admin,
+                    $context,
                     $mode->public_id,
-                    $requestId,
                     ['user_public_id' => $user->public_id]
                 );
             }
@@ -128,9 +129,9 @@ final class V2QaDrawAdminService
     }
 
     /** @return array<string, mixed> */
-    public function plans(Admin $admin, string $userPublicId): array
+    public function plans(V2AdminAuthorizationContext $context, string $userPublicId): array
     {
-        $this->assertOwner($admin);
+        $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
         $plans = QaDrawPlan::query()
             ->where('user_id', $user->id)
@@ -148,17 +149,16 @@ final class V2QaDrawAdminService
      * @return array<string, mixed>
      */
     public function createPlan(
-        Admin $admin,
+        V2AdminAuthorizationContext $context,
         string $userPublicId,
         string $gachaPublicId,
         string $title,
         string $reason,
         ?string $startsAt,
         ?string $endsAt,
-        array $items,
-        string $requestId
+        array $items
     ): array {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
         $user = $this->user($userPublicId);
         $title = $this->text($title, 191, 'QA Plan title');
         $reason = $this->text($reason, 500, 'QA Plan reason');
@@ -175,9 +175,13 @@ final class V2QaDrawAdminService
             $starts,
             $ends,
             $validatedItems,
-            $requestId
+            $context
         ): array {
-            $this->completeStaleActivePlans($user->id, (int) $gacha->id, $requestId);
+            $this->completeStaleActivePlans(
+                $user->id,
+                (int) $gacha->id,
+                $context->requestId
+            );
             $plan = new QaDrawPlan();
             $plan->forceFill([
                 'user_id' => $user->id,
@@ -197,8 +201,8 @@ final class V2QaDrawAdminService
             $this->adminAudit(
                 'qa.plan.created',
                 $admin,
+                $context,
                 $plan->public_id,
-                $requestId,
                 [
                     'user_public_id' => $user->public_id,
                     'gacha_public_id' => $gacha->public_id,
@@ -211,24 +215,23 @@ final class V2QaDrawAdminService
     }
 
     /** @return array<string, mixed> */
-    public function plan(Admin $admin, string $planPublicId): array
+    public function plan(V2AdminAuthorizationContext $context, string $planPublicId): array
     {
-        $this->assertOwner($admin);
+        $this->freshMfa->authorizeQa($context);
 
         return $this->planResource($this->findPlan($planPublicId), true);
     }
 
     /** @return array<string, mixed> */
     public function updatePlan(
-        Admin $admin,
+        V2AdminAuthorizationContext $context,
         string $planPublicId,
         string $title,
         string $reason,
         ?string $startsAt,
-        ?string $endsAt,
-        string $requestId
+        ?string $endsAt
     ): array {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
         $title = $this->text($title, 191, 'QA Plan title');
         $reason = $this->text($reason, 500, 'QA Plan reason');
         [$starts, $ends] = $this->planWindow($startsAt, $endsAt);
@@ -240,7 +243,7 @@ final class V2QaDrawAdminService
             $reason,
             $starts,
             $ends,
-            $requestId
+            $context
         ): array {
             $plan = QaDrawPlan::query()
                 ->where('public_id', $planPublicId)
@@ -262,8 +265,8 @@ final class V2QaDrawAdminService
             $this->adminAudit(
                 'qa.plan.updated',
                 $admin,
-                $plan->public_id,
-                $requestId
+                $context,
+                $plan->public_id
             );
 
             return $this->planResource($plan->refresh(), true);
@@ -271,17 +274,23 @@ final class V2QaDrawAdminService
     }
 
     /** @return array<string, mixed> */
-    public function pausePlan(Admin $admin, string $planPublicId, string $requestId): array
+    public function pausePlan(
+        V2AdminAuthorizationContext $context,
+        string $planPublicId
+    ): array
     {
-        return $this->transitionPlan($admin, $planPublicId, 'paused', $requestId);
+        return $this->transitionPlan($context, $planPublicId, 'paused');
     }
 
     /** @return array<string, mixed> */
-    public function activatePlan(Admin $admin, string $planPublicId, string $requestId): array
+    public function activatePlan(
+        V2AdminAuthorizationContext $context,
+        string $planPublicId
+    ): array
     {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
 
-        return DB::transaction(function () use ($admin, $planPublicId, $requestId): array {
+        return DB::transaction(function () use ($admin, $context, $planPublicId): array {
             $plan = QaDrawPlan::query()
                 ->where('public_id', $planPublicId)
                 ->lockForUpdate()
@@ -298,7 +307,7 @@ final class V2QaDrawAdminService
             $this->completeStaleActivePlans(
                 (int) $plan->user_id,
                 (int) $plan->gacha_id,
-                $requestId,
+                $context->requestId,
                 (int) $plan->id
             );
             $remaining = DB::table('qa_draw_plan_items')
@@ -314,8 +323,8 @@ final class V2QaDrawAdminService
             $this->adminAudit(
                 'qa.plan.activated',
                 $admin,
-                $plan->public_id,
-                $requestId
+                $context,
+                $plan->public_id
             );
 
             return $this->planResource($plan->refresh(), true);
@@ -323,15 +332,18 @@ final class V2QaDrawAdminService
     }
 
     /** @return array<string, mixed> */
-    public function disablePlan(Admin $admin, string $planPublicId, string $requestId): array
+    public function disablePlan(
+        V2AdminAuthorizationContext $context,
+        string $planPublicId
+    ): array
     {
-        return $this->transitionPlan($admin, $planPublicId, 'disabled', $requestId);
+        return $this->transitionPlan($context, $planPublicId, 'disabled');
     }
 
     /** @return array<string, mixed> */
-    public function executions(Admin $admin, array $filters): array
+    public function executions(V2AdminAuthorizationContext $context, array $filters): array
     {
-        $this->assertOwner($admin);
+        $this->freshMfa->authorizeQa($context);
         $limit = min(
             max((int) ($filters['limit'] ?? config('v2_qa_draw.execution_page_size', 50)), 1),
             100
@@ -393,9 +405,12 @@ final class V2QaDrawAdminService
     }
 
     /** @return array<string, mixed> */
-    public function execution(Admin $admin, string $publicId, string $requestId): array
+    public function execution(
+        V2AdminAuthorizationContext $context,
+        string $publicId
+    ): array
     {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context);
         if (! Str::isUuid($publicId)) {
             throw $this->notFound();
         }
@@ -416,7 +431,7 @@ final class V2QaDrawAdminService
         if ($row === null) {
             throw $this->notFound();
         }
-        $this->adminAudit('qa.execution.read', $admin, $publicId, $requestId);
+        $this->adminAudit('qa.execution.read', $admin, $context, $publicId);
 
         return [
             'id' => $row->public_id,
@@ -431,18 +446,17 @@ final class V2QaDrawAdminService
     }
 
     private function transitionPlan(
-        Admin $admin,
+        V2AdminAuthorizationContext $context,
         string $planPublicId,
-        string $status,
-        string $requestId
+        string $status
     ): array {
-        $this->assertOwner($admin);
+        $admin = $this->freshMfa->authorizeQa($context, true);
 
         return DB::transaction(function () use (
             $admin,
+            $context,
             $planPublicId,
-            $status,
-            $requestId
+            $status
         ): array {
             $plan = QaDrawPlan::query()
                 ->where('public_id', $planPublicId)
@@ -464,8 +478,8 @@ final class V2QaDrawAdminService
             $this->adminAudit(
                 'qa.plan.'.$status,
                 $admin,
-                $plan->public_id,
-                $requestId
+                $context,
+                $plan->public_id
             );
 
             return $this->planResource($plan->refresh(), true);
@@ -769,30 +783,20 @@ final class V2QaDrawAdminService
         return $resource;
     }
 
-    private function assertOwner(Admin $admin): void
-    {
-        if ($admin->role !== V2AdminRole::Owner) {
-            throw new V2QaDrawException(
-                'AUTHORIZATION_DENIED',
-                403,
-                'The QA Draw operation is restricted to Owners.'
-            );
-        }
-    }
-
     private function adminAudit(
         string $action,
         Admin $admin,
+        V2AdminAuthorizationContext $context,
         string $targetPublicId,
-        string $requestId,
         array $metadata = []
     ): void {
         $this->audit->record($action, [
-            'request_id' => $requestId,
+            'request_id' => $context->requestId,
             'actor_type' => 'admin',
             'actor_public_id' => $admin->public_id,
             'actor_role' => $admin->role->value,
             'auth_realm' => 'admin',
+            'session_correlation_hash' => $context->sessionCorrelationHash,
             'target_type' => str_starts_with($action, 'qa.mode.')
                 ? 'qa_test_user_mode'
                 : (str_starts_with($action, 'qa.plan.')

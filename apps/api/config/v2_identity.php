@@ -55,6 +55,10 @@ return [
         'totp_enrollment_ttl_seconds' => 300,
     ],
 
+    'fresh_mfa' => [
+        'minutes' => 5,
+    ],
+
     'webauthn' => [
         'rp_name' => env('V2_WEBAUTHN_RP_NAME', 'Oripa Admin'),
         'rp_id' => env('V2_WEBAUTHN_RP_ID'),
@@ -69,6 +73,7 @@ return [
         'admin_login_failure' => [5, 900],
         'admin_login_ip' => [20, 3600],
         'mfa_verify' => [5, 300],
+        'critical_admin_mutation' => [10, 600],
         'register_ip' => [5, 3600],
         'register_email' => [3, 3600],
         'verification_resend_hour' => [3, 3600],

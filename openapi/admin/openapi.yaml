@@ -9,6 +9,11 @@ info:
   description: 共通管理画面向けAdmin API v2の認証Contract Alpha。
   x-status: alpha
 x-oripa-surface: admin
+x-oripa-error-codes:
+  FRESH_AUTHENTICATION_REQUIRED:
+    status: 403
+    retryable: false
+    description: Admin MFA確認から5分以上経過したQA管理操作は再認証を要求する。
 servers:
   - url: /admin/api/v2
 paths:
@@ -224,12 +229,74 @@ paths:
                 $ref: '#/components/schemas/RecoveryCodes'
         default:
           $ref: '#/components/responses/Problem'
+  /auth/reauthenticate/webauthn/options:
+    post:
+      operationId: createAdminReauthenticationWebauthnOptions
+      summary: 現在のAdmin SessionへBindingしたFresh MFA用WebAuthn Optionを発行する
+      x-idempotency: not-supported
+      x-rate-limit: session-5-per-5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '201':
+          description: 5分以内に1回だけ使用できるWebAuthn Option。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebauthnOptions'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/reauthenticate:
+    post:
+      operationId: reauthenticateAdmin
+      summary: TOTPまたはWebAuthnでFresh MFAを検証しAdmin Sessionを回転する
+      description: PasswordまたはRecovery Codeだけでは成功しない。成功してもAbsolute Session期限は延長しない。
+      x-idempotency: not-supported
+      x-rate-limit: session-5-per-5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      x-error-codes:
+        - INVALID_MFA_CREDENTIAL
+        - RATE_LIMITED
+        - AUTH_SERVICE_UNAVAILABLE
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReauthenticationRequest'
+      responses:
+        '200':
+          description: Session IDとCSRF Tokenを回転したFresh MFA済みAdmin Session。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReauthenticationResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
   /users/{user_id}/qa-mode:
     get:
       operationId: getQaTestUserMode
       summary: OwnerがUserのQA Test Modeを取得する
       x-idempotency: safe
       x-rate-limit: owner-read
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -249,7 +316,8 @@ paths:
       operationId: saveQaTestUserMode
       summary: OwnerがUserのQA Test Modeを有効化または更新する
       x-idempotency: state-replacement
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -276,7 +344,8 @@ paths:
       operationId: disableQaTestUserMode
       summary: OwnerがUserのQA Test Modeを論理無効化する
       x-idempotency: naturally-idempotent
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -299,6 +368,7 @@ paths:
       summary: OwnerがUserのQA Draw Plan一覧を取得する
       x-idempotency: safe
       x-rate-limit: owner-read
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -318,7 +388,8 @@ paths:
       operationId: createQaDrawPlan
       summary: Ownerが指定景品順を持つQA Draw Planを作成する
       x-idempotency: not-supported
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -347,6 +418,7 @@ paths:
       summary: OwnerがQA Draw Plan詳細を取得する
       x-idempotency: safe
       x-rate-limit: owner-read
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -366,7 +438,8 @@ paths:
       operationId: updateQaDrawPlan
       summary: Ownerが未完了QA Draw PlanのMetadataを更新する
       x-idempotency: state-replacement
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -394,7 +467,8 @@ paths:
       operationId: pauseQaDrawPlan
       summary: OwnerがQA Draw PlanをPauseする
       x-idempotency: state-transition
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -416,7 +490,8 @@ paths:
       operationId: activateQaDrawPlan
       summary: Ownerが未完了QA Draw PlanをActivateする
       x-idempotency: state-transition
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -438,7 +513,8 @@ paths:
       operationId: disableQaDrawPlan
       summary: OwnerがQA Draw Planを論理無効化する
       x-idempotency: naturally-idempotent
-      x-rate-limit: owner-mutation
+      x-rate-limit: owner-mutation-10-per-10-minutes
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -461,6 +537,7 @@ paths:
       summary: OwnerがQA Draw Executionを安全な条件で絞り込む
       x-idempotency: safe
       x-rate-limit: owner-read
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -503,6 +580,7 @@ paths:
       summary: OwnerがQA Draw Execution詳細を取得する
       x-idempotency: safe
       x-rate-limit: owner-read
+      x-fresh-mfa: 5-minutes
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -973,6 +1051,38 @@ components:
         credential:
           type: object
           additionalProperties: true
+    AdminReauthenticationRequest:
+      type: object
+      additionalProperties: false
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [totp, webauthn]
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          writeOnly: true
+        challenge_token:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          writeOnly: true
+        credential:
+          type: object
+          additionalProperties: true
+    AdminReauthenticationResponse:
+      type: object
+      additionalProperties: false
+      required: [authenticated, fresh_mfa_expires_in, admin]
+      properties:
+        authenticated:
+          type: boolean
+          const: true
+        fresh_mfa_expires_in:
+          type: integer
+          const: 300
+        admin:
+          $ref: '#/components/schemas/AdminIdentity'
     AdminIdentity:
       type: object
       additionalProperties: false

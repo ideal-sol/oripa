@@ -701,6 +701,28 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_qa_draw_boundary(root)
             policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
+    def test_v2_qa_draw_fresh_mfa_boundary_fails_when_five_minute_check_is_removed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            authorizer = (
+                root
+                / "apps/api/app/Domain/Identity/Services/"
+                "V2AdminFreshMfaAuthorizer.php"
+            )
+            authorizer.write_text(
+                authorizer.read_text(encoding="utf-8").replace(
+                    "FRESH_AUTHENTICATION_REQUIRED",
+                    "AUTHORIZATION_DENIED",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "Fresh MFA Authorizer",
+            ):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
     def test_v2_qa_draw_user_prize_boolean_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\V2;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminAuthenticationService;
+use App\Domain\Identity\Services\V2AdminReauthenticationService;
 use App\Domain\Identity\Services\V2CsrfService;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Http\Controllers\Controller;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use SensitiveParameter;
 use Symfony\Component\HttpFoundation\Cookie;
 
@@ -22,6 +24,7 @@ final class V2AdminAuthController extends Controller
 
     public function __construct(
         private readonly V2AdminAuthenticationService $authentication,
+        private readonly V2AdminReauthenticationService $reauthentication,
         private readonly V2SessionManager $sessions,
         private readonly V2CsrfService $csrf
     ) {
@@ -171,6 +174,55 @@ final class V2AdminAuthController extends Controller
         ]);
     }
 
+    public function reauthenticationWebauthnOptions(Request $request): JsonResponse
+    {
+        $requestId = $this->requestId($request);
+        $context = $this->reauthentication->context($request, $requestId);
+
+        return response()->json(
+            $this->reauthentication->beginWebauthn($context),
+            201,
+            ['X-Request-Id' => $requestId]
+        );
+    }
+
+    public function reauthenticate(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'method' => ['required', 'in:totp,webauthn'],
+            'code' => ['sometimes', 'string', 'size:6'],
+            'challenge_token' => ['sometimes', 'string', 'size:64'],
+            'credential' => ['sometimes', 'array'],
+        ]);
+        $requestId = $this->requestId($request);
+        $context = $this->reauthentication->context($request, $requestId);
+        $result = $this->reauthentication->reauthenticate(
+            $context,
+            $data['method'],
+            $data['code'] ?? null,
+            $data['challenge_token'] ?? null,
+            $data['credential'] ?? []
+        );
+        $response = response()->json([
+            'authenticated' => true,
+            'fresh_mfa_expires_in' => $result['fresh_mfa_expires_in'],
+            'admin' => [
+                'id' => $result['admin']->public_id,
+                'role' => $result['admin']->role->value,
+                'state' => $result['admin']->state->value,
+            ],
+        ], 200, ['X-Request-Id' => $requestId]);
+        $this->sessions->attachSession(
+            $response,
+            V2Realm::Admin,
+            $result['session']['token'],
+            $result['session']['absolute_expires_at']
+        );
+        $this->csrf->rotate($response, V2Realm::Admin);
+
+        return $response;
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $this->authentication->logout($request);
@@ -216,6 +268,15 @@ final class V2AdminAuthController extends Controller
         }
 
         return $header;
+    }
+
+    private function requestId(Request $request): string
+    {
+        $value = $request->header('X-Request-Id');
+
+        return is_string($value) && Str::isUuid($value)
+            ? $value
+            : (string) Str::uuid7();
     }
 
     private function attachTransactionCookie(

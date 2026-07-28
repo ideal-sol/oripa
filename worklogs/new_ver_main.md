@@ -4342,3 +4342,117 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Reporting／CSV、最小Admin画面、最小Storefront画面、Staging E2Eが残るため、
   Gate G4は`NOT COMPLETE`である。次Task候補は
   `MIG-054 Reporting／Export Vertical Slice`だが、MIG-053完了後には開始しない。
+
+## MIG-053 Closeout／MIG-053A Admin Fresh MFA Step-up Foundation
+
+### MIG-053 Closeout
+
+- Issue `#109`はClosed、PR `#110`はSquash Mergedである。Final Headは
+  `63d582ab027492298fb4a7774aed0cdfb3373596`、Squash Commitは
+  `23212e6686824c6dbb4cec2a39f8d77b1b215d56`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-053 Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Fresh MFA欠落原因／Task
+
+- Task IDは`MIG-053A`、Riskは`R3`、Issueは`#111`、Branchは
+  `security/MIG-053A-admin-fresh-mfa-qa`、Base SHAは
+  `23212e6686824c6dbb4cec2a39f8d77b1b215d56`である。
+- MIG-053は`auth:v2_admin`、通常MFA済みAdmin Session、Owner Permissionを
+  検査していたが、QA API Request時点で`admin_sessions.mfa_verified_at`の
+  5分境界を検査していなかった。QA Domain Serviceも`Admin` Modelを直接受け取り、
+  Controller外からFresh MFAを証明できない構造だった。
+- Client Header、Request Body、Browser時刻を正本にせず、Server DBの現在Session行と
+  Server時刻だけを使用する`V2AdminAuthorizationContext`と
+  `V2AdminFreshMfaAuthorizer`を追加した。ContextはAdmin、Role、DB照合用Session Hash、
+  Audit HMACによるSession Correlation Hash、Request IDを相関し、QA Domain Serviceの
+  全入口で再検証する。
+
+### Admin Step-up／5分境界／Session Rotation
+
+- Admin Contractへ`POST /admin/api/v2/auth/reauthenticate`と
+  `POST /admin/api/v2/auth/reauthenticate/webauthn/options`を追加した。
+  TOTPまたはWebAuthnだけを許可し、Password単独とRecovery Codeを拒否する。
+- Fresh条件は有効かつ未失効のAdmin Session、MFA Enrollment完了、
+  `mfa_verified_at`あり、`now < mfa_verified_at + 5 minutes`である。
+  4分59秒はFresh、5分ちょうどからExpiredとし、403のRFC 9457
+  `FRESH_AUTHENTICATION_REQUIRED`、`retryable=false`を返す。
+- WebAuthn Challengeは現在のAdminとSession HashへBindingし、RP ID／Origin Exact、
+  `userVerification=required`、5分、1回限りの既存Transaction Storeを使用する。
+  TOTPは6桁、前後1 Step、同一Step Replay拒否の既存Serviceを使用する。
+- 再認証成功時は現在SessionをLockして失効し、CSPRNG Tokenの新Sessionへ回転する。
+  DBへ保存するのはHashだけで、`mfa_verified_at=now`、Enrollment完了を設定し、
+  CSRF Tokenも回転する。新SessionのAbsolute期限は旧Session期限を上限とし、
+  Admin Idle 15分／Absolute 8時間を延長・弱体化しない。失敗時は旧Sessionを維持する。
+
+### QA Enforcement／Rate Limit／Audit
+
+- QA Mode取得／更新／無効化、Plan一覧／作成／詳細／更新／Pause／Activate／Disable、
+  Execution一覧／詳細の全12 OperationへOwner＋Fresh MFA 5分を強制した。
+  Admin／OperatorはFreshでも403、未認証は401、Enrollment未完了または無効Sessionは
+  Fail Closedである。
+- QA Domain Serviceは`Admin` Modelを直接受け取らずAuthorization Contextを要求し、
+  Session行、Admin、Role、Permission、FreshnessをService入口で再検証する。
+  ControllerのAuth差替えやDomain Service直接呼出による迂回を許可しない。
+- MFA VerifyはSession単位5回／5分、Critical QA MutationはAdmin単位10回／10分である。
+  Rate Limit KeyはApplication KeyによるHMAC相関値で、Limiter障害時はFail Closed、
+  429と`Retry-After`を返す。QA ReadにはMutation Limitを適用しない。
+- `admin.reauthentication.succeeded`／`failed`／`rate_limited`、
+  `admin.fresh_mfa.required`とFresh成立後のQA操作をAppend-only Auditへ接続した。
+  Actor、Role、Realm、Session Correlation Hash、Request ID、Outcome、Reason、
+  MFA Methodだけを保存し、Password、Code、Secret、Raw Credential、Challenge、
+  Session ID／Cookie、Recovery Code、Full Email、IP／User Agent平文を保存しない。
+
+### Test／Check／Scope
+
+- Persistent V2 PostgreSQL 17／Redis 7へGuard付きV2 Migration Rootだけを使用し、
+  `migrate:fresh`を2回実行した。V2 Migrationは11件、Migration Set SHA-256は
+  `54a8cb25cde7b961c8f5ea4033b6798f967e11178bc8486b55a99aa7ae8199e3`、
+  Migration Status／Schema Inventory／Health／全V2 SuiteはPASSした。
+- Freshness、Owner境界、TOTP再認証、Session Rotation、Absolute期限非延長、
+  Password／Recovery Code拒否、TOTP Replay、Rate Limit、Audit、失効／期限切れSession、
+  Client時刻非採用、WebAuthn ChallengeのSession Binding／1回限りと既存QA Regressionの
+  対象Testは19件／159 AssertionでPASSした。全V2 SuiteはGuard RunnerでPASSした。
+  Policy Unit Testは73件、DB Guard Unit Testは20件、Quality Unit Testは5件、
+  Security Unit Testは4件、OpenAPI Unit Testは4件で、すべてPASSした。
+- Admin OpenAPIは26 Operation、Publicは24 Operation、Webhookは0 Operationである。
+  Public／Webhook ContractとStorefront ClientのAdmin型非公開境界を変更していない。
+- MIG-053のQA Draw、Point、Inventory、Plan消費、CSPRNG、Idempotency、
+  Set-based Persistence、公開Response Contractを変更していない。
+  User Draw RequestへAdmin Fresh MFA Queryを追加していない。
+- Task専用Ephemeral Source／Restoreで`migrate:fresh`を2回実行した。Source／Restoreの
+  Schema SHA-256は
+  `3cf6abcdaa5cb14a223254eb95d3e879c4446670d55713734dd6aeda353396ce`、
+  Migration Row SHA-256は
+  `b035e90a3e58d3864bb88e040603e814de688633ecf8ef3c72a6571b321493f0`
+  で一致し、Backup SHA-256は
+  `e8406c4573279dcf484cd86509d267617f074722b9bcbe6f7145fa220bbf6c50`
+  だった。Backup／Restore、API／Admin Health、通常Draw Load、QA Draw Load、
+  Host Port非公開、Task Resource CleanupはPASSした。
+- QA／通常1000回LoadはMIG-053／MIG-051の同一Testで再検証し、
+  QA 1000回p95 2秒以下／150 Query以下、通常1000回p95 2秒以下／100 Query以下、
+  同一Gacha QA 10 User最終20秒以下、未解決Deadlock／整合性不一致0件の各Assertionを
+  PASSした。今回のFresh MFA処理はQA管理APIだけにあり、Draw Requestごとの
+  Admin Session Queryは追加していない。
+- Storefront Client生成差分／Typecheck／Lint／Build／11 Test、Site Schema生成差分／
+  Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／Typecheck／Lint／
+  Build／19 Test／Export／実Network禁止、Admin Typecheck／Lint／Build、
+  Legacy Frozen Install／Typecheck／Build、Release 10 Test／Source ValidationはPASSした。
+  Legacy Lintは既存8 Error／1 Warningと一致した。
+- Root Auditは0 Finding、Legacy Auditは11 Finding、Composer Auditは既存期限付き
+  10 Finding、Secret／PII Candidateは0件で、Baselineを追加・拡張していない。
+  `policy-gate`、`quality-gate`、`security-gate`のLocal相当検証、
+  OpenAPI Lint／Bundle、`git diff --check`はPASSした。
+- GitHub Required／Available Check、Final Head固定後のFresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree CleanupはPR上で確定する。
+  未実行項目をPASSとは記録しない。
+- V1 Runtime、本番Resource、Nginx、V1 Migration 40件、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+- Reporting／Export、最小Admin画面、最小Storefront画面、Staging E2Eが残るため、
+  Gate G4は`NOT COMPLETE`である。次Task候補は
+  `MIG-054 Reporting／Export Vertical Slice`だが、MIG-053A完了後には開始しない。
