@@ -2,6 +2,7 @@ import base64
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -258,6 +259,30 @@ class V2DatabaseGuardTest(unittest.TestCase):
                     ["docker", "compose"], MODULE_PATH.parents[2]
                 ),
             )
+
+    def test_compose_up_failure_reports_safe_diagnostic_and_redacts_secrets(self):
+        failure = subprocess.CalledProcessError(
+            1,
+            ["docker", "compose", "up"],
+            output=b"container api is unhealthy\n",
+            stderr=b"error: health check failed\npassword=do-not-report\n",
+        )
+        with mock.patch.object(
+            v2_database.subprocess, "run", side_effect=failure
+        ) as runner:
+            with self.assertRaisesRegex(
+                v2_database.GuardFailure,
+                "during up.*health check failed",
+            ) as raised:
+                v2_database.run(
+                    ["docker", "compose", "up"],
+                    cwd=MODULE_PATH.parents[2],
+                )
+        self.assertNotIn("do-not-report", str(raised.exception))
+        self.assertEqual(
+            "false",
+            runner.call_args.kwargs["env"]["COMPOSE_BAKE"],
+        )
         with mock.patch.object(v2_database, "run", return_value=b"no metrics"):
             with self.assertRaisesRegex(
                 v2_database.GuardFailure, "evidence marker is missing"

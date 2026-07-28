@@ -143,11 +143,11 @@ def run(
         completed = subprocess.run(
             command,
             cwd=cwd,
-        env=environment,
-        input=input_bytes,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=True,
+            env=environment,
+            input=input_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
         )
     except subprocess.CalledProcessError as error:
         executable = Path(command[0]).name
@@ -164,7 +164,7 @@ def run(
         operation = next((item for item in command[1:] if item in safe_operations), None)
         suffix = f" during {operation}" if operation is not None else ""
         detail = ""
-        if operation in {"exec", "run"}:
+        if operation in {"exec", "run", "up"}:
             lines = (
                 error.stdout.decode("utf-8", errors="replace").splitlines()
                 + error.stderr.decode("utf-8", errors="replace").splitlines()

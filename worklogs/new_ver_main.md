@@ -4695,7 +4695,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Migration Row SHA-256は
   `7ae1f0b79eeeb104988caa52385fab772a0e570c5746224b0a5e28d7bb82c666`
   で一致した。Backup SHA-256は
-  `9fcf4844ee4338bad1986ba135d7481f528d9a400eda3a7ca5a3001a58619e6b`
+  `346df5f403a15580580604c576e4efaf2313751f8d6b9076dcec6e1eee73f337`
   で、Backup／Restore、API／Admin Health、Host Port非公開、
   Task専用Container／Network／Volume CleanupはPASSした。
 - 全V2 Suite、通常Draw／QA Draw Load、Reporting Performance、
@@ -4713,12 +4713,16 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `policy-gate`、`quality-gate`、`security-gate`、Release Source Validation、
   `git diff --check`のLocal相当はPASSし、`integration-gate`相当はGuard SmokeでPASSした。
 - 100 Banner、10,000 Notice、100 Static Page Version、100,000 ContactのFixtureで、
-  Banner First Page p50／p95は8.315／11.358ms、Noticeは38.820／48.845ms、
-  Static Pageは4.973／10.443ms、Contactは2.763／4.121msだった。
-  10並行Contactはp95 466.716ms、受付10件、Failure 0、未解決Deadlock 0である。
+  Banner First Page p50／p95は7.122／8.060ms、Noticeは36.528／42.662ms、
+  Static Pageは4.310／9.954ms、Contactは2.512／3.320msだった。
+  10並行Contactはp95 556.161ms、受付10件、Failure 0、未解決Deadlock 0である。
   全測定とAuditを含むQuery数は45、Peak Memoryは44,564,480 byte、
   N+1検出0で、Interactive First Page p95 1秒以下の基準を満たした。
   Admin Content一覧とVersion履歴はJoin／Subqueryを使用する。
+- GitHub IntegrationでCompose v2.40と旧BuildxのBake経路非互換を検出した。
+  DB Guardは`COMPOSE_BAKE=false`を子Process環境へ固定し、外側の環境指定なしで
+  Guard Smokeを再実行してPASSした。Compose起動失敗時はPassword、Token等を除外した
+  Health／Build診断だけを出力し、Fail Closedを維持する。
 - Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
   Legacy Auditは11 Finding、Composer Auditは既存期限付き10 Findingである。
   Baseline追加／拡張、新規Critical／High、Secret／PII Candidateは0件だった。
