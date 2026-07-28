@@ -35,6 +35,7 @@ final class DrawResult extends Model
             'consumed_points' => 'integer',
             'point_back_amount' => 'integer',
             'random_value' => 'integer',
+            'is_qa_draw' => 'boolean',
             'display_snapshot' => 'array',
             'occurred_at' => 'immutable_datetime',
             'created_at' => 'immutable_datetime',

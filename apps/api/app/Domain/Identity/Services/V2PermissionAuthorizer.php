@@ -17,6 +17,7 @@ final class V2PermissionAuthorizer
             'point.adjustment.free.approve',
             'point.adjustment.paid.approve',
             'shipping.request.manage',
+            'qa.draw.manage',
         ],
         'admin' => [
             'identity.admin.read',

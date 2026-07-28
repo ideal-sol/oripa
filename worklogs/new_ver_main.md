@@ -4185,3 +4185,146 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   最小Storefront画面、最小Admin画面、Staging E2Eが残る。
 - Gate G4は`NOT COMPLETE`である。次Task候補は
   `MIG-053 QA Draw Vertical Slice`だが、MIG-052完了後には開始しない。
+
+## MIG-052 Closeout／MIG-053 QA Draw Vertical Slice
+
+### MIG-052 Closeout
+
+- MIG-052のIssue `#107`はClosed、PR `#108`はSquash Mergedである。Final Headは
+  `393a4e278a14bda7e6b21ee513f1858d1bdd4f03`、Squash Commitは
+  `37ba098b89848f962ddab2fbc5dcb0763beac818`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Fresh Self-reviewはFinal Headと一致し、
+  SEV-0／SEV-1は0件だった。
+- Remote Task Branch、Local Task Branch、MIG-052 Worktreeは削除済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- Final Headの通常V2 Suiteは117 Test／781 Assertion／1 Skipである。これは
+  Performance Test 1件／19 Assertionと専用Process Concurrency Test
+  1件／7 Assertionを含む総数であり、これらを117件へ加算しない。Skip 1件は
+  `ZDrawConcurrencyLoadTest`で、専用Load工程では環境変数を明示して別途実行した。
+  PR本文の116 Test／774 Assertion／1 SkipはConcurrency Test追加前の実測であり、
+  Final Headの正本値とは統合・合算しない。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### V1 Migration Checksum正規化
+
+- `apps/api/database/migrations/*.php`と固定V1 Runtimeの対応40 Fileについて、
+  File名、Byte内容、改行、mode `100644`が全件一致し、実File差分は0件だった。
+- Policy正本Algorithmは各File内容のSHA-256を辞書順に並べ、改行区切りのDigest Setを
+  再度SHA-256化する
+  `sha256(sorted(sha256(file_content)))`である。正本値は
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で、`.ci/baselines/v1-migrations.json`を変更していない。
+- MIG-052記録の
+  `e490ab8b248cecd709908023a21201e7f3bf7dfb0bbd703a8197d4642eff0631`
+  はFile名順のDigest列をHashした旧算出値である。Algorithm差だけであり、
+  Baselineを新値で上書きしていない。以後はPolicy正本Algorithmを使用する。
+
+### MIG-053 Task／Schema
+
+- Task IDは`MIG-053`、Riskは`R3`、Issueは`#109`、Branchは
+  `feat/MIG-053-qa-draw-vertical-slice`、Base SHAは
+  `37ba098b89848f962ddab2fbc5dcb0763beac818`である。
+- V2専用Migrationへ`qa_test_user_modes`、`qa_draw_plans`、
+  `qa_draw_plan_items`、`qa_draw_executions`を追加した。Draw Requestへ
+  QA Mode／Plan参照、Draw ResultへPlan Item参照を追加し、User Prizeは
+  `user_prize → draw_result → QA識別`で追跡するため重複QA Booleanを持たない。
+- User＋GachaのActive PlanはPostgreSQL Partial Unique Indexで1件に制限する。
+  Mode、Plan、Item、Executionは物理削除をDB Triggerで拒否し、Executionは
+  Updateも拒否する。Quantity／Sort Order／消費数、Mode最大24時間、
+  QA参照のNULL整合をDB Constraintで固定した。`tenant_id`は追加していない。
+- V1 QA Mode／Plan／ExecutionはImportせず、Production Seedも追加していない。
+  V2 Production開始時のQA Recordは0件であり、FixtureはTask専用DBだけで使用した。
+
+### QA Mode／Plan／Owner Permission
+
+- QA ModeはUserごとに1 Recordとし、理由と終了日時を必須、開始日時を任意、
+  最大24時間とした。再有効化は同一Recordを更新し、無効化は
+  `is_enabled=false`、`disabled_at`、`disabled_by_admin_id`を保存する。
+  開始前、期限切れ、無効化済みは通常Probability Drawを使用する。
+- QA Planは`active`、`paused`、`completed`、`disabled`を区別し、1件以上の
+  Item、正整数Quantity、Plan内一意Sort Order、Published Gacha Version所属Prize、
+  PublicなImage／Video Asset型を検証する。開始前Planは保持し、期限切れまたは
+  全消費Planだけを`completed`へ遷移する。Completed／Disabled Planは再Activateしない。
+- Admin OpenAPIへMode取得／更新／無効化、Plan一覧／作成／詳細／更新／Pause／
+  Activate／Disable、Execution一覧／詳細の12 Operationを追加した。Admin Operationは
+  24件、Publicは24件、Webhookは0件である。
+- `qa.draw.manage`はOwner Roleだけへ付与した。ControllerとDomain Serviceの両方で
+  Admin／OperatorのRead／Writeを403、未認証を401とし、既存のAdmin Realm、
+  MFA Session、CSRF、Exact Origin、JSON Content Type境界を維持した。
+  Public Bundle／Storefront ClientへQA管理型、理由、Owner、内部IDを公開していない。
+
+### Draw統合／Idempotency／QA識別
+
+- Active QA Modeでは有効なPlanを必須とし、Planなし、期間外、残数不足、
+  Prize／Asset不整合、在庫不足を422でFail Closedにする。通常Probabilityへの
+  Fallbackは行わず、Point、Inventory、Sold／Won、Draw、User Prize、Plan消費、
+  Executionを残さない。
+- Plan Itemは`sort_order`、内部ID、Quantity／Consumed Count順でLockして展開する。
+  同一ItemのPrize／Asset検証結果は1回だけ構築して数量展開へ再利用する。
+  各Drawで通常どおりProbability Stageを解決しCSPRNGを生成するが、QA景品選択へ
+  CSPRNGを使用せず、Point Backを生成しない。
+- `1`／`5`／`10`／`100`／`1000`を既存単一Bulk Requestと単一Transactionで処理する。
+  Draw Result／User Prizeは既存Chunked Bulk Insertを使用し、個別ResultとPlan Item
+  Relationを全件保存する。Responseは既存集計形式を維持し、QA理由や巨大JSONを返さない。
+- Lock順はIdempotency、Gacha、QA Mode／Plan／Item、Wallet／Point Lot、
+  Prize Inventory内部ID順、Result／Prize、Plan消費／Execution、Audit／Outboxである。
+  Point ServiceへTransaction内専用の事前Lock／残高検証境界を追加し、QAだけが
+  InventoryをWalletより先にLockする順序反転を防止した。
+- Completed ReplayはCanonical Resultを返し、Plan、Point、Inventory、Sold／Won、
+  Executionを再更新しない。CSPRNG列は非Replay確定後に1度だけ生成し、
+  Deadlock Retryでは同じ列と同じPlan Item列を最大3回再利用する。
+- QA Draw成功／失敗、Mode／Plan操作、Replay／Conflict、Execution参照を
+  MIG-042 Auditへ接続した。通常`draw.completed` OutboxへQA識別だけを追加し、
+  Password、Cookie、Session ID、Token、CSPRNG生値、Full Email、Asset内部Storage、
+  不要なPIIはAudit／Public Responseへ保存していない。
+
+### Test／Performance
+
+- V2 Migrationは11件、Migration Set SHA-256は
+  `54a8cb25cde7b961c8f5ea4033b6798f967e11178bc8486b55a99aa7ae8199e3`
+  である。Task専用Source／Restoreで`migrate:fresh`を2回実行し、Migration Status、
+  全V2 Suite、通常Draw Load、QA Draw Load、API／Admin HealthはPASSした。
+- Source／Restore Schema SHA-256は
+  `3cf6abcdaa5cb14a223254eb95d3e879c4446670d55713734dd6aeda353396ce`、
+  Migration Row SHA-256は
+  `b035e90a3e58d3864bb88e040603e814de688633ecf8ef3c72a6571b321493f0`、
+  Backup SHA-256は
+  `02f5efd706da42ce4af13e521a9c31d24393bf3e99b8f9216c560099b387a9a3`
+  で一致した。Host Port公開なし、Task Resource CleanupはPASSした。
+- QA 100回5回はp50約124ms、p95約154ms、最大65 Queryだった。
+  QA 1000回5回はp50約687ms、p95約825ms、最大76 Query、Response最大約18.6KB、
+  Peak Memory約57.1MBだった。
+- 同一GachaへのQA 1000回集中実行は5 User最終約4.0秒、10 User最終約8.2秒、
+  Lock Wait p95はそれぞれ約2.9秒／7.1秒だった。500／502／504、未解決Deadlock、
+  負Wallet、Inventory超過、Result／User Prize不整合は0件である。
+  通常1000回Load Regressionも2秒／100 Query基準内でPASSした。
+- Mode／Plan、Owner-only、Inactive通常Draw、Active指定景品、全Draw Count、
+  Plan順序／完了、固定Asset Snapshot、Replay、CSPRNG非再実行、期限切れ完了、
+  設定／在庫Failure全Rollback、QA景品Point交換、Execution参照を専用Testで確認した。
+  MIG-050～052、Point、Payment／Refund／Chargeback、Auth／MFA、Audit／Outbox、
+  Backup／Restore Regressionは全V2 SuiteでPASSした。
+- OpenAPI Lint／Bundle、Storefront Client生成差分／Typecheck／Lint／Build／11 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／
+  Typecheck／Lint／Build／19 Test／Export／実Network禁止、Admin Typecheck／Lint／Build、
+  Release 10 Test／Source ValidationはPASSした。
+- Policy Unit Test 72件、DB Guard Unit Test 20件を含む合同92件、Quality Unit Test
+  5件、Security Unit Test 4件、OpenAPI Unit Test 4件はPASSした。
+  Root Auditは0 Finding、Legacy Auditは11 Finding、Composer Auditは既存期限付き
+  10 Finding、Secret／PII Candidateは0件で、Baselineを追加・拡張していない。
+- Legacy Frontend Frozen Install、Typecheck、BuildはPASSし、Lintは既存Baselineの
+  8 Error／1 Warningと完全一致した。V1 Migration 40件はPolicy正本Checksumで不変、
+  V1 Runtime／本番Resource、Nginx、`v1/early-release`、Archive Branch、
+  Annotated Tagを変更していない。
+- GitHub Required／Available Check、Final Head固定後のFresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree CleanupはPR上で確定する。
+  未実行項目をPASSとは記録しない。
+
+### Handoff／Gate G4
+
+- Handoff CはCatalog／Probability、Draw、User Prize、Point Exchange、QA識別まで接続済み。
+  Handoff DはShipping／PII AuditとMIG-054が利用できるQA Execution／Relationまで接続済み。
+- Reporting／CSV、最小Admin画面、最小Storefront画面、Staging E2Eが残るため、
+  Gate G4は`NOT COMPLETE`である。次Task候補は
+  `MIG-054 Reporting／Export Vertical Slice`だが、MIG-053完了後には開始しない。

@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
+use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 
 Route::prefix('v2/auth')
@@ -66,6 +67,30 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function (): void {
+        Route::get('/users/{userId}/qa-mode', [V2AdminQaDrawController::class, 'showMode'])
+            ->whereUuid('userId')->name('v2.admin.qa-mode.show');
+        Route::put('/users/{userId}/qa-mode', [V2AdminQaDrawController::class, 'saveMode'])
+            ->whereUuid('userId')->name('v2.admin.qa-mode.save');
+        Route::delete('/users/{userId}/qa-mode', [V2AdminQaDrawController::class, 'disableMode'])
+            ->whereUuid('userId')->name('v2.admin.qa-mode.disable');
+        Route::get('/users/{userId}/qa-draw-plans', [V2AdminQaDrawController::class, 'plans'])
+            ->whereUuid('userId')->name('v2.admin.qa-plans.index');
+        Route::post('/users/{userId}/qa-draw-plans', [V2AdminQaDrawController::class, 'createPlan'])
+            ->whereUuid('userId')->name('v2.admin.qa-plans.store');
+        Route::get('/qa-draw-plans/{planId}', [V2AdminQaDrawController::class, 'showPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-plans.show');
+        Route::put('/qa-draw-plans/{planId}', [V2AdminQaDrawController::class, 'updatePlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-plans.update');
+        Route::post('/qa-draw-plans/{planId}/pause', [V2AdminQaDrawController::class, 'pausePlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-plans.pause');
+        Route::post('/qa-draw-plans/{planId}/activate', [V2AdminQaDrawController::class, 'activatePlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-plans.activate');
+        Route::post('/qa-draw-plans/{planId}/disable', [V2AdminQaDrawController::class, 'disablePlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-plans.disable');
+        Route::get('/qa-draw-executions', [V2AdminQaDrawController::class, 'executions'])
+            ->name('v2.admin.qa-executions.index');
+        Route::get('/qa-draw-executions/{executionId}', [V2AdminQaDrawController::class, 'showExecution'])
+            ->whereUuid('executionId')->name('v2.admin.qa-executions.show');
         Route::get('/shipping-requests', [V2AdminShippingController::class, 'index'])
             ->name('v2.admin.shipping-requests.index');
         Route::get('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'show'])

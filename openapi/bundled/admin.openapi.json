@@ -361,6 +361,507 @@
         }
       }
     },
+    "/users/{user_id}/qa-mode": {
+      "get": {
+        "operationId": "getQaTestUserMode",
+        "summary": "OwnerがUserのQA Test Modeを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UserのQA Test Mode。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaModeEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveQaTestUserMode",
+        "summary": "OwnerがUserのQA Test Modeを有効化または更新する",
+        "x-idempotency": "state-replacement",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaModeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "有効化または更新したQA Test Mode。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaMode"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "disableQaTestUserMode",
+        "summary": "OwnerがUserのQA Test Modeを論理無効化する",
+        "x-idempotency": "naturally-idempotent",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "論理無効化したQA Test Mode。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaMode"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/qa-draw-plans": {
+      "get": {
+        "operationId": "listQaDrawPlans",
+        "summary": "OwnerがUserのQA Draw Plan一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Draw Plan一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createQaDrawPlan",
+        "summary": "Ownerが指定景品順を持つQA Draw Planを作成する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaPlanCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "作成したQA Draw Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-plans/{qa_plan_id}": {
+      "get": {
+        "operationId": "getQaDrawPlan",
+        "summary": "OwnerがQA Draw Plan詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Draw Plan詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateQaDrawPlan",
+        "summary": "Ownerが未完了QA Draw PlanのMetadataを更新する",
+        "x-idempotency": "state-replacement",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaPlanUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したQA Draw Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-plans/{qa_plan_id}/pause": {
+      "post": {
+        "operationId": "pauseQaDrawPlan",
+        "summary": "OwnerがQA Draw PlanをPauseする",
+        "x-idempotency": "state-transition",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PauseしたQA Draw Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-plans/{qa_plan_id}/activate": {
+      "post": {
+        "operationId": "activateQaDrawPlan",
+        "summary": "Ownerが未完了QA Draw PlanをActivateする",
+        "x-idempotency": "state-transition",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ActivateしたQA Draw Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-plans/{qa_plan_id}/disable": {
+      "post": {
+        "operationId": "disableQaDrawPlan",
+        "summary": "OwnerがQA Draw Planを論理無効化する",
+        "x-idempotency": "naturally-idempotent",
+        "x-rate-limit": "owner-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "論理無効化したQA Draw Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-executions": {
+      "get": {
+        "operationId": "listQaDrawExecutions",
+        "summary": "OwnerがQA Draw Executionを安全な条件で絞り込む",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "name": "gacha_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "name": "draw_request_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Draw Execution一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaExecutionCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa-draw-executions/{qa_execution_id}": {
+      "get": {
+        "operationId": "getQaDrawExecution",
+        "summary": "OwnerがQA Draw Execution詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaExecutionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Draw Execution詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaExecutionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/shipping-requests": {
       "get": {
         "operationId": "listAdminShippingRequests",
@@ -494,6 +995,421 @@
         "type": "string",
         "minLength": 1,
         "description": "形式や並び順へ依存してはならない公開識別子。"
+      },
+      "QaModeInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reason",
+          "ends_at"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "QaMode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "is_enabled",
+          "is_active",
+          "reason",
+          "starts_at",
+          "ends_at",
+          "disabled_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "disabled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaModeEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "mode"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "mode": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QaMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "QaPlanStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused",
+          "completed",
+          "disabled"
+        ]
+      },
+      "QaPlanItemInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prize_id",
+          "quantity",
+          "sort_order"
+        ],
+        "properties": {
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fixed_image_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixed_video_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "QaPlanItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanItemInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "consumed_count"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "consumed_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ]
+      },
+      "QaPlanUpdateInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "reason"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaPlanCreateInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanUpdateInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "gacha_id",
+              "items"
+            ],
+            "properties": {
+              "gacha_id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {
+                  "$ref": "#/components/schemas/QaPlanItemInput"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "QaPlanSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "gacha_id",
+          "status",
+          "title",
+          "reason",
+          "starts_at",
+          "ends_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QaPlanStatus"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaPlanDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/QaPlanItem"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "QaPlanCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaPlanSummary"
+            }
+          }
+        }
+      },
+      "QaExecutionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "gacha_id",
+          "draw_request_id",
+          "executed_count",
+          "executed_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "draw_request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "executed_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "executed_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "QaExecutionDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaExecutionSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "metadata"
+            ],
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "qa_mode_public_id",
+                  "qa_plan_public_id",
+                  "plan_item_public_ids"
+                ],
+                "properties": {
+                  "qa_mode_public_id": {
+                    "$ref": "#/components/schemas/OpaqueId"
+                  },
+                  "qa_plan_public_id": {
+                    "$ref": "#/components/schemas/OpaqueId"
+                  },
+                  "plan_item_public_ids": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "$ref": "#/components/schemas/OpaqueId"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "QaExecutionCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaExecutionSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "ShippingStatus": {
         "type": "string",
@@ -1129,6 +2045,30 @@
       },
       "ShippingRequestId": {
         "name": "shipping_request_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "UserId": {
+        "name": "user_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "QaPlanId": {
+        "name": "qa_plan_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "QaExecutionId": {
+        "name": "qa_execution_id",
         "in": "path",
         "required": true,
         "schema": {

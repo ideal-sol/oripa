@@ -31,6 +31,7 @@ final class DrawRequest extends Model
             'wallet_paid_after' => 'integer',
             'wallet_free_after' => 'integer',
             'point_back_total' => 'integer',
+            'is_qa_draw' => 'boolean',
             'processing_duration_ms' => 'integer',
             'response_data' => 'array',
             'created_at' => 'immutable_datetime',
