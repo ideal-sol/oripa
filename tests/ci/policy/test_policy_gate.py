@@ -345,6 +345,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_07_29_000009_create_v2_draw_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
+            "apps/api/database/migrations-v2/2026_08_01_000012_create_v2_reporting_export_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -785,6 +786,57 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "QA management"):
                 policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
+    def copy_v2_reporting_boundary(self, root):
+        paths = set(policy_gate.V2_REPORTING_REQUIRED_FILES)
+        supporting = {
+            ".github/workflows/platform-ci.yml",
+            "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php",
+            "openapi/bundled/public.openapi.json",
+            "scripts/db/v2_database.py",
+        }
+        for relative in paths | supporting:
+            source = ROOT / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        return paths | supporting
+
+    def test_v2_reporting_boundary_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_reporting_boundary(root)
+            policy_gate.validate_v2_reporting_boundary(root, paths)
+
+    def test_v2_reporting_tenant_id_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_reporting_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_08_01_000012_create_v2_reporting_export_foundation.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8")
+                + "\n// $table->unsignedBigInteger('tenant_id');\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
+                policy_gate.validate_v2_reporting_boundary(root, paths)
+
+    def test_v2_reporting_public_contract_exposure_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_reporting_boundary(root)
+            bundle = root / "openapi/bundled/public.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document.setdefault("components", {}).setdefault("schemas", {})[
+                "ExportJob"
+            ] = {"type": "object"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Admin Reporting"):
+                policy_gate.validate_v2_reporting_boundary(root, paths)
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)

@@ -13,7 +13,15 @@ x-oripa-error-codes:
   FRESH_AUTHENTICATION_REQUIRED:
     status: 403
     retryable: false
-    description: Admin MFA確認から5分以上経過したQA管理操作は再認証を要求する。
+    description: Admin MFA確認から5分以上経過したCritical管理操作は再認証を要求する。
+  REPORTING_PERIOD_INVALID:
+    status: 422
+    retryable: false
+    description: Reporting期間が不正。
+  EXPORT_ASYNC_REQUIRED:
+    status: 422
+    retryable: false
+    description: 大量Exportは非同期Job作成が必要。
 servers:
   - url: /admin/api/v2
 paths:
@@ -666,6 +674,351 @@ paths:
                 $ref: '#/components/schemas/AdminShippingRequestDetail'
         default:
           $ref: '#/components/responses/Problem'
+  /reports/sales/monthly:
+    get:
+      operationId: getAdminMonthlySalesReport
+      summary: JST月単位の売上Event集計を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportMonth'
+      responses:
+        '200':
+          description: 月別売上Summary。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlySalesReport'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/sales/daily:
+    get:
+      operationId: listAdminDailySales
+      summary: JST指定日の成功Paymentを取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportDate'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: 日別Payment一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/adjustments:
+    get:
+      operationId: listAdminPaymentAdjustmentsReport
+      summary: JST成功日基準のPayment Adjustmentを取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportDate'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: Adjustment一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/points/monthly:
+    get:
+      operationId: getAdminMonthlyPointReport
+      summary: immutable Point Ledgerから月別Point増減を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportMonth'
+      responses:
+        '200':
+          description: paid／free Point増減。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointReport'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/gachas/monthly:
+    get:
+      operationId: getAdminMonthlyGachaReport
+      summary: Gacha別Point消費とDraw数を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportMonth'
+        - $ref: '#/components/parameters/QaFilter'
+      responses:
+        '200':
+          description: Gacha別集計。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GachaReport'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/draw-requests:
+    get:
+      operationId: listAdminDrawReportingHistory
+      summary: QA識別可能なDraw Request履歴を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportDate'
+        - $ref: '#/components/parameters/QaFilter'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: Draw Request履歴。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/draw-results:
+    get:
+      operationId: listAdminDrawResultReportingHistory
+      summary: QA識別可能な個別Draw Result履歴を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportDate'
+        - $ref: '#/components/parameters/QaFilter'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: 個別Draw Result履歴。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/point-balance-snapshots:
+    get:
+      operationId: listAdminPointBalanceSnapshots
+      summary: Ledger Cutoff方式の日次Point残高を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportMonth'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: 日次Point残高一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/point-balance-snapshots/{date}:
+    get:
+      operationId: getAdminPointBalanceSnapshot
+      summary: 指定日のLedger Cutoff Snapshotを取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ReportDatePath'
+      responses:
+        '200':
+          description: Point残高Snapshot。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointBalanceSnapshot'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/exports/stream:
+    post:
+      operationId: streamAdminReportingCsv
+      summary: 小量のFinancial CSVをStreaming生成する
+      x-idempotency: not-supported
+      x-rate-limit: admin-5-per-hour
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportFilter'
+      responses:
+        '200':
+          description: UTF-8 BOM付きCSV Stream。
+          content:
+            text/csv:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/export-jobs:
+    post:
+      operationId: createAdminReportingExportJob
+      summary: 大量CSV用のExport Jobを作成する
+      x-idempotency: required-header
+      x-rate-limit: admin-5-per-hour
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportFilter'
+      responses:
+        '202':
+          description: Export Job。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+    get:
+      operationId: listAdminReportingExportJobs
+      summary: 参照可能なExport Job一覧を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: Export Job一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/export-jobs/{export_job_id}:
+    get:
+      operationId: getAdminReportingExportJob
+      summary: Export Job詳細を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ExportJobId'
+      responses:
+        '200':
+          description: Export Job詳細。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/export-jobs/{export_job_id}/download:
+    post:
+      operationId: createAdminReportingExportDownload
+      summary: Private Exportの短時間Download URLを取得する
+      x-idempotency: not-supported
+      x-rate-limit: admin-5-per-hour
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ExportJobId'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '200':
+          description: 短時間の署名付きDownload URL。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportDownload'
+        default:
+          $ref: '#/components/responses/Problem'
+  /reports/export-jobs/{export_job_id}/file:
+    get:
+      operationId: downloadAdminReportingExportFile
+      summary: 署名検証済みPrivate Exportを取得する
+      x-idempotency: safe
+      x-rate-limit: signed-url
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/ExportJobId'
+      responses:
+        '200':
+          description: Private CSV。
+          content:
+            text/csv:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     adminSession:
@@ -1215,6 +1568,375 @@ components:
         status:
           type: string
           enum: [confirmed, registered]
+    AmountCount:
+      type: object
+      additionalProperties: false
+      required: [count, amount]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        amount:
+          type: integer
+          minimum: 0
+    MonthlySalesDay:
+      type: object
+      additionalProperties: false
+      required: [business_date, payment_count, gross_amount]
+      properties:
+        business_date:
+          type: string
+          format: date
+        payment_count:
+          type: integer
+          minimum: 0
+        gross_amount:
+          type: integer
+          minimum: 0
+    MonthlySalesReport:
+      type: object
+      additionalProperties: false
+      required:
+        - month
+        - currency
+        - basis
+        - gross_sales
+        - refunds
+        - chargebacks
+        - net_sales_amount
+        - chargeback_reversals
+        - pending_adjustments
+        - days
+      properties:
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        currency:
+          type: string
+          const: JPY
+        basis:
+          type: string
+          const: operational_event_aggregation_not_accounting_recognition
+        gross_sales:
+          $ref: '#/components/schemas/AmountCount'
+        refunds:
+          $ref: '#/components/schemas/AmountCount'
+        chargebacks:
+          $ref: '#/components/schemas/AmountCount'
+        net_sales_amount:
+          type: integer
+        chargeback_reversals:
+          type: object
+          additionalProperties: false
+          required: [count]
+          properties:
+            count:
+              type: integer
+              minimum: 0
+        pending_adjustments:
+          type: object
+          additionalProperties: false
+          required: [count]
+          properties:
+            count:
+              type: integer
+              minimum: 0
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthlySalesDay'
+    ReportingCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        date:
+          type: string
+          format: date
+        qa_filter:
+          $ref: '#/components/schemas/QaFilter'
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        next_cursor:
+          type: [string, 'null']
+    PointReportEntry:
+      type: object
+      additionalProperties: false
+      required: [point_type, entry_type, source_type, entry_count, amount]
+      properties:
+        point_type:
+          type: string
+          enum: [paid, free]
+        entry_type:
+          type: string
+          enum: [grant, spend, expire, reverse, restore]
+        source_type:
+          type: string
+          maxLength: 32
+        entry_count:
+          type: integer
+          minimum: 0
+        amount:
+          type: integer
+          minimum: 0
+    PointReport:
+      type: object
+      additionalProperties: false
+      required: [month, entries]
+      properties:
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointReportEntry'
+    GachaReportEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - gacha_id
+        - gacha_version_id
+        - title
+        - request_count
+        - draw_count
+        - consumed_paid_points
+        - consumed_free_points
+      properties:
+        gacha_id:
+          $ref: '#/components/schemas/OpaqueId'
+        gacha_version_id:
+          $ref: '#/components/schemas/OpaqueId'
+        title:
+          type: string
+          maxLength: 191
+        request_count:
+          type: integer
+          minimum: 0
+        draw_count:
+          type: integer
+          minimum: 0
+        consumed_paid_points:
+          type: integer
+          minimum: 0
+        consumed_free_points:
+          type: integer
+          minimum: 0
+    GachaReport:
+      type: object
+      additionalProperties: false
+      required: [month, qa_filter, items, rank_results, prize_results]
+      properties:
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        qa_filter:
+          $ref: '#/components/schemas/QaFilter'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GachaReportEntry'
+        rank_results:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [gacha_id, rank_id, rank_code, rank_name, result_count]
+            properties:
+              gacha_id:
+                $ref: '#/components/schemas/OpaqueId'
+              rank_id:
+                $ref: '#/components/schemas/OpaqueId'
+              rank_code:
+                type: string
+                maxLength: 32
+              rank_name:
+                type: string
+                maxLength: 128
+              result_count:
+                type: integer
+                minimum: 0
+        prize_results:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [gacha_id, prize_id, prize_name, result_count]
+            properties:
+              gacha_id:
+                $ref: '#/components/schemas/OpaqueId'
+              prize_id:
+                $ref: '#/components/schemas/OpaqueId'
+              prize_name:
+                type: string
+                maxLength: 191
+              result_count:
+                type: integer
+                minimum: 0
+    PointBalanceSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - snapshot_date
+        - source_cutoff_at
+        - closing_paid_balance
+        - closing_free_balance
+        - paid_reserved_balance
+        - free_reserved_balance
+        - user_count
+        - open_lot_count
+        - is_base_date
+        - generation_run_id
+        - checksum
+        - generated_at
+      properties:
+        snapshot_date:
+          type: string
+          format: date
+        source_cutoff_at:
+          type: string
+          format: date-time
+        closing_paid_balance:
+          type: integer
+        closing_free_balance:
+          type: integer
+        paid_reserved_balance:
+          type: integer
+          minimum: 0
+        free_reserved_balance:
+          type: integer
+          minimum: 0
+        user_count:
+          type: integer
+          minimum: 0
+        open_lot_count:
+          type: integer
+          minimum: 0
+        is_base_date:
+          type: boolean
+        generation_run_id:
+          $ref: '#/components/schemas/OpaqueId'
+        checksum:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        generated_at:
+          type: string
+          format: date-time
+    QaFilter:
+      type: string
+      enum: [normal, qa, all]
+      default: all
+    ExportFilter:
+      type: object
+      additionalProperties: false
+      required: [report_type, period_type]
+      properties:
+        report_type:
+          type: string
+          enum: [sales, adjustments, point_ledger, draw_results, point_snapshots]
+        period_type:
+          type: string
+          enum: [month, date]
+        month:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        date:
+          type: [string, 'null']
+          format: date
+        qa_filter:
+          $ref: '#/components/schemas/QaFilter'
+    ExportJob:
+      type: object
+      additionalProperties: false
+      required:
+        - export_job_id
+        - report_type
+        - status
+        - period_type
+        - month
+        - date
+        - qa_filter
+        - data_cutoff_at
+        - query_version
+        - row_count
+        - byte_size
+        - sha256
+        - failure_code
+        - completed_at
+        - expires_at
+        - created_at
+      properties:
+        export_job_id:
+          $ref: '#/components/schemas/OpaqueId'
+        report_type:
+          type: string
+          enum: [sales, adjustments, point_ledger, draw_results, point_snapshots]
+        status:
+          type: string
+          enum: [queued, processing, completed, failed, expired]
+        period_type:
+          type: string
+          enum: [month, date]
+        month:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        date:
+          type: [string, 'null']
+          format: date
+        qa_filter:
+          $ref: '#/components/schemas/QaFilter'
+        data_cutoff_at:
+          type: string
+          format: date-time
+        query_version:
+          type: string
+        row_count:
+          type: [integer, 'null']
+          minimum: 0
+        byte_size:
+          type: [integer, 'null']
+          minimum: 0
+        sha256:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        failure_code:
+          type: [string, 'null']
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        idempotent_replay:
+          type: boolean
+    ExportDownload:
+      type: object
+      additionalProperties: false
+      required: [export_job_id, download_url, expires_at, sha256, byte_size]
+      properties:
+        export_job_id:
+          $ref: '#/components/schemas/OpaqueId'
+        download_url:
+          type: string
+          format: uri-reference
+        expires_at:
+          type: string
+          format: date-time
+        sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        byte_size:
+          type: integer
+          minimum: 0
   parameters:
     PageLimit:
       name: limit
@@ -1229,6 +1951,40 @@ components:
       in: query
       schema:
         type: string
+    ReportMonth:
+      name: month
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+    ReportDate:
+      name: date
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    ReportDatePath:
+      name: date
+      in: path
+      required: true
+      schema:
+        type: string
+        format: date
+    QaFilter:
+      name: qa_filter
+      in: query
+      schema:
+        $ref: '#/components/schemas/QaFilter'
+    ExportJobId:
+      name: export_job_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    IdempotencyKey:
+      $ref: ../components/common.yaml#/parameters/IdempotencyKey
     ShippingRequestId:
       name: shipping_request_id
       in: path

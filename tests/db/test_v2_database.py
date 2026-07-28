@@ -219,6 +219,15 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertIn("run_qa_draw_load_tests", source)
         self.assertIn("V2_QA_DRAW_LOAD_TEST", source)
 
+    def test_reporting_schema_inventory_and_performance_runner_are_explicit(self):
+        self.assertIn(
+            "public.export_jobs",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("run_reporting_performance_tests", source)
+        self.assertIn("V2_REPORTING_PERFORMANCE_TEST", source)
+
 
 if __name__ == "__main__":
     unittest.main()

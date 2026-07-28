@@ -21,6 +21,13 @@ Schedule::command('points:snapshot-balances')
     ->dailyAt('00:10')
     ->timezone(config('app.timezone', 'Asia/Tokyo'))
     ->withoutOverlapping();
+Schedule::command('v2:points:snapshot-previous-day')
+    ->dailyAt('00:20')
+    ->timezone('Asia/Tokyo')
+    ->withoutOverlapping();
+Schedule::command('v2:reporting:work-exports --worker=scheduler --limit=5')
+    ->everyMinute()
+    ->withoutOverlapping();
 Schedule::command('admin:daily-sales-report')
     ->dailyAt('10:00')
     ->timezone(config('services.discord.daily_report_timezone', config('app.timezone', 'Asia/Tokyo')))

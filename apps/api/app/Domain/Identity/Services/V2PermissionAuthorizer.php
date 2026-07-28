@@ -18,6 +18,8 @@ final class V2PermissionAuthorizer
             'point.adjustment.paid.approve',
             'shipping.request.manage',
             'qa.draw.manage',
+            'reporting.financial.read',
+            'reporting.financial.export',
         ],
         'admin' => [
             'identity.admin.read',
@@ -26,6 +28,8 @@ final class V2PermissionAuthorizer
             'point.adjustment.request',
             'point.adjustment.free.approve',
             'shipping.request.manage',
+            'reporting.financial.read',
+            'reporting.financial.export',
         ],
         'operator' => [
             'identity.admin.read',

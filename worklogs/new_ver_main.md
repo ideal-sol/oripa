@@ -4459,3 +4459,142 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Reporting／Export、最小Admin画面、最小Storefront画面、Staging E2Eが残るため、
   Gate G4は`NOT COMPLETE`である。次Task候補は
   `MIG-054 Reporting／Export Vertical Slice`だが、MIG-053A完了後には開始しない。
+
+## MIG-053A Closeout／MIG-054 Reporting・Export Vertical Slice
+
+### MIG-053A Closeout
+
+- Issue `#111`はClosed、PR `#112`はSquash Mergedである。Final Headは
+  `6f11c4efc22558341fd9c23b76057ee72a5ceba4`、Squash Commitは
+  `f38d521f8c9b2c1e0639923018948d13303c24c7`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-053A Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 最新の人間決定／Task
+
+- Payment Provider実装`MIG-055`は延期する。Wave 3完了後に追加機能、各UI修正、
+  最終Design、実Gacha登録を行い、その時点で決済審査を申請する。実Provider Adapterは
+  決済審査承認後に実装する。
+- `test.luxe-pack.biz`はV2 User Front確認用、`ad.luxe-pack.biz`はV2 Admin画面確認用
+  とする。Nginx、Let's Encrypt、HTTPSはBrowser確認Wave開始時に設定する。
+  MIG-054ではDomain、Nginx、TLS、Let's Encrypt、V1本番の
+  `luxe-pack.biz`／`admin.luxe-pack.biz`を変更しない。
+- Task IDは`MIG-054`、Riskは`R3`、Issueは`#113`、Branchは
+  `feat/MIG-054-reporting-export`、Base SHAは
+  `f38d521f8c9b2c1e0639923018948d13303c24c7`である。
+
+### V1 Characterization／集計正本
+
+- V1の月間Calendar、日別売上、成功Refund／Chargeback、Point種別消費、
+  Gacha別抽選口数、日次Point残高、CSV Header／BOM／日時、QA識別、
+  Export監査の業務結果をCharacterizationした。V1のTable名、内部ID、Full Emailを
+  V2 ContractへCopyしていない。
+- 売上はPaymentの`succeeded_at`、Refund／ChargebackはAdjustmentの
+  `succeeded_at`をAsia／Tokyo業務日へ変換するEvent集計である。
+  Gross Salesから成功Refundと成功Chargebackを控除してNet Salesを算出し、
+  Pending／Processing／Manual ReviewとChargeback Reversalは別項目にする。
+  会計上の売上認識を確定するReportではないことをResponseと運用文書へ明記した。
+- PointはWallet現在値で過去を逆算せず、immutableな`point_operations`と
+  `point_ledger_entries`からpaid／freeの付与、消費、失効、取消、Point Back、
+  景品交換、管理調整、Refund／Chargeback影響を集計する。
+- DrawはRequest数、Result数、paid／free消費、Gacha／Rank／Prize別結果を集計する。
+  QAは実Point／Inventoryへ影響するためDefault `all`へ含め、
+  `normal`／`qa`／`all` FilterとCSVの`is_qa_draw`で分離する。
+  QA理由、Owner、Plan内部情報、個別ppm、原価、内部IDを公開しない。
+
+### Contract／Schema／Snapshot
+
+- Admin OpenAPIへ月別売上、月内日別、指定日明細、Adjustment、Point、Gacha、
+  Draw Request／Result、Point Snapshot、同期CSV、Export Job作成／一覧／詳細／
+  Download取得の15 Operationを追加した。Interactive期間は`YYYY-MM`または
+  `YYYY-MM-DD`に限定し、Cursor Pagination、RFC 9457、
+  `Cache-Control: private, no-store`を使用する。
+- V2専用Migrationへ`export_jobs`を追加した。UUIDv7 Public ID、固定Report／Status、
+  Month／Date、QA Filter、Canonical Filter Hash、Data Cutoff、Query Version、
+  Admin、Request／Idempotency相関、Row／Byte／SHA-256、Private Object Key、
+  Claim／Lease／Retry／Expiryを型付きColumnとConstraintで保持する。
+  Status遷移はDB TriggerでもFail Closedにし、`tenant_id`は追加していない。
+- 既存Ledger Cutoff方式の`occurred_at < cutoff`、paid／free分離、
+  3月31日／9月30日基準日、Checksum、同日再生成Auditを正本として再利用する。
+  Console CommandはAsia／Tokyoの前日だけを決定的に生成し、任意過去日へ現在残高を
+  保存できる引数を持たない。毎日00:20 JSTのScheduler境界を追加した。
+
+### Export／Storage／Fresh MFA
+
+- 同期CSVは最大10,000 Row、非同期閾値は10,001 Rowへ固定した。設定値が連続しない場合は
+  Fail Closedとする。同期処理はGenerator、非同期Workerは500 Row Chunkで処理し、
+  全RecordをMemoryへ展開しない。
+- 大量ExportはJob、Idempotency、Outbox、Auditを同一Transactionで確定し、
+  Commit後にWorkerが`FOR UPDATE SKIP LOCKED`でClaimする。CSV生成とObject Storage書込は
+  DB Transaction外で実行し、Lease、最大3 Attempt、Retry／Resume、二重File確定拒否、
+  Temporary File削除を実装した。
+- Private Prefixは`v2/private/exports/`、Download URLは5分、Job／File期限は24時間である。
+  Object KeyとSigned URLをAPI／DB Auditへ公開・保存せず、File完成後にRow Count、
+  Byte Size、SHA-256を確定する。CSVはUTF-8 BOM、固定Header、Timezone付きTimestamp、
+  Public ID、paid／free分離、Formula Injection、Quote／改行／Unicodeを検証する。
+- Owner／AdminはMFA済みSessionで集計閲覧とExportを利用でき、Operatorは403である。
+  Export作成、同期CSV、Download URL取得はMIG-053A共通Fresh MFA 5分を必須とする。
+  Financial ExportはAdmin単位5回／1時間、Limiter障害時Fail Closedである。
+  Rate Limit、Fresh MFA要求、Report閲覧、Export要求／開始／成功／失敗／Download／
+  Expiry、Snapshot生成をAppend-only Auditへ接続し、Full PII、Signed URL、Object Key、
+  Session ID、Cookie、Token、CSV内容を保存しない。
+
+### Test／Performance
+
+- Reporting対象TestはJST月境界、Payment／Adjustment Event日、Net Sales、Ledger基準Point、
+  CSV Formula対策、QA列、Export Replay／Conflict、Outbox、Worker Lease／Retry、
+  Private Checksum、Owner／Admin／Operator境界、Fresh MFA、5回／時Rate Limit Audit、
+  Snapshot Cutoff／404を検証した。
+- Task専用Performance Fixtureでは100,000 Payment RowをStreaming／Async対象として使用し、
+  月別Summary 5回のp50は約132ms、p95は約192ms、日別First Page 5回のp50は約98ms、
+  p95は約132msだった。5回のSummary QueryとAuditを合わせたQuery数は45で、
+  `EXPLAIN ANALYZE`とIndex使用を確認した。
+- Async 100,000 Row CSVは約5.2秒、約12.5MBで完了し、Row Count／Checksum一致、
+  Memory増分0、未解決Deadlock0、長時間DB Transaction0だった。
+  Interactive p95 1秒以下、Peak Memory 256MB以下、OOM／500／502／504なしの基準を満たした。
+- Persistent V2 DBでGuard付き`migrate:fresh`を2回実行し、12 Migration、
+  Migration Set SHA-256
+  `1a77a173a354a89cf11549e02d1359d534296534d82b3c034ba73d0d7d5c414c`
+  と`export_jobs`を含むSchema Inventoryを確認した。
+- Policy／DB Guard Unit Test 98件はPASSした。OpenAPI Lint／BundleはPASSし、
+  Admin 41 Operation、Public 24 Operation、Webhook 0 Operationである。
+  Public／Webhook ContractとStorefront ClientのAdmin型非公開境界を変更していない。
+- Task専用Ephemeral Source／Restoreで`migrate:fresh`を2回実行した。
+  Source／Restore Schema SHA-256は
+  `bd34041cb1a953f3129f482d7d64e4d178693a24c0b2c1710046b54e0f83260a`、
+  Migration Row SHA-256は
+  `b0151f523172e847af278ef9605cfedc63d90148c0e7e7a1169b42d96e400a08`
+  で一致し、Backup SHA-256は
+  `9fefbdc33a2ef55a1f3268ac42bd2ff819636c7e8e3a5e563165da07d151774f`
+  だった。全V2 Suite、通常Draw／QA Draw Load、Reporting Performance、
+  Backup／Restore、API／Admin Health、Host Port非公開、Task Resource CleanupはPASSした。
+- Storefront Client生成差分／Typecheck／Lint／Build／11 Test、Site Schema生成差分／
+  Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／Typecheck／Lint／
+  Build／19 Test／Export／実Network禁止、Admin Typecheck／Lint／Build、
+  Release 10 Test／Source ValidationはPASSした。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Legacy Typecheck／Buildは
+  PASSし、Lintは既存8 Error／1 Warningと完全一致した。
+  Root Auditは0 Finding、Legacy Auditは11 Finding、Composer Auditは既存期限付き
+  10 Finding、Secret／PII Candidateは0件で、Baselineを追加・拡張していない。
+- Policy Unit Test 77件、DB Guard Unit Test 21件、Quality Unit Test 5件、
+  Security Unit Test 4件、OpenAPI Unit Test 4件、Release Test 10件はPASSした。
+  `policy-gate`、`quality-gate`、`security-gate`、OpenAPI Lint／Bundle、
+  Release Source Validation、`git diff --check`のLocal相当検証はPASSした。
+  `integration-gate`のLocal相当はGuard SmokeでPASSした。
+- GitHub Required／Available Check、Final Head固定後のFresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree CleanupはPR上で確定する。
+  未実行項目をPASSとは記録しない。
+- V1 Migration 40件、V1 Runtime／本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### Gate
+
+- Reporting／ExportのBackend Vertical Sliceは実装したが、最小Admin画面、
+  最小Storefront画面、Staging E2Eが残るためGate G4は`NOT COMPLETE`である。
+  Payment Provider実装`MIG-055`は人間決定により延期し、次Task候補は
+  `MIG-056 Content／Contact Vertical Slice`である。MIG-054完了後には開始しない。

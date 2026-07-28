@@ -37,6 +37,7 @@ use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
+use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 
 Route::prefix('v2/auth')
@@ -109,6 +110,48 @@ Route::prefix('v2')
         Route::put('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'update'])
             ->whereUuid('shippingRequestId')
             ->name('v2.admin.shipping-requests.update');
+        Route::get('/reports/sales/monthly', [V2AdminReportingController::class, 'monthlySales'])
+            ->name('v2.admin.reporting.sales.monthly');
+        Route::get('/reports/sales/daily', [V2AdminReportingController::class, 'dailySales'])
+            ->name('v2.admin.reporting.sales.daily');
+        Route::get('/reports/adjustments', [V2AdminReportingController::class, 'adjustments'])
+            ->name('v2.admin.reporting.adjustments.index');
+        Route::get('/reports/points/monthly', [V2AdminReportingController::class, 'points'])
+            ->name('v2.admin.reporting.points.monthly');
+        Route::get('/reports/gachas/monthly', [V2AdminReportingController::class, 'gachas'])
+            ->name('v2.admin.reporting.gachas.monthly');
+        Route::get('/reports/draw-requests', [V2AdminReportingController::class, 'draws'])
+            ->name('v2.admin.reporting.draws.index');
+        Route::get('/reports/draw-results', [V2AdminReportingController::class, 'drawResults'])
+            ->name('v2.admin.reporting.draw-results.index');
+        Route::get('/reports/point-balance-snapshots', [
+            V2AdminReportingController::class,
+            'snapshots',
+        ])->name('v2.admin.reporting.snapshots.index');
+        Route::get('/reports/point-balance-snapshots/{date}', [
+            V2AdminReportingController::class,
+            'snapshot',
+        ])->where('date', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            ->name('v2.admin.reporting.snapshots.show');
+        Route::post('/reports/exports/stream', [V2AdminReportingController::class, 'stream'])
+            ->name('v2.admin.reporting.exports.stream');
+        Route::post('/reports/export-jobs', [V2AdminReportingController::class, 'createJob'])
+            ->name('v2.admin.reporting.export-jobs.store');
+        Route::get('/reports/export-jobs', [V2AdminReportingController::class, 'jobs'])
+            ->name('v2.admin.reporting.export-jobs.index');
+        Route::get('/reports/export-jobs/{exportJobId}', [
+            V2AdminReportingController::class,
+            'job',
+        ])->whereUuid('exportJobId')->name('v2.admin.reporting.export-jobs.show');
+        Route::post('/reports/export-jobs/{exportJobId}/download', [
+            V2AdminReportingController::class,
+            'download',
+        ])->whereUuid('exportJobId')->name('v2.admin.reporting.export-jobs.download');
+        Route::get('/reports/export-jobs/{exportJobId}/file', [
+            V2AdminReportingController::class,
+            'file',
+        ])->middleware('signed')->whereUuid('exportJobId')
+            ->name('v2.admin.reporting.export-jobs.file');
     });
 
 Route::post('/login', [AdminAuthController::class, 'login'])->name('admin.api.login');
