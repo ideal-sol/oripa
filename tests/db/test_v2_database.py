@@ -250,6 +250,14 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertIn("migrate:rollback", source)
         self.assertIn("--step=1", source)
 
+    def test_identity_recovery_schema_inventory_is_explicit(self):
+        for table in (
+            "public.password_reset_tokens",
+            "public.sms_verification_challenges",
+            "public.user_phone_numbers",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
     def test_content_contact_performance_marker_is_required(self):
         marker = b"\nMIG056_CONTENT_CONTACT_PERFORMANCE={\"p95_ms\":12.5}\n"
         with mock.patch.object(v2_database, "run", return_value=marker):

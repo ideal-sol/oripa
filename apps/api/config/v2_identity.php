@@ -48,6 +48,23 @@ return [
         'redirect_allowlist' => ['/'],
     ],
 
+    'password_reset' => [
+        'ttl_minutes' => 30,
+        'maximum_attempts' => 5,
+        'redirect_allowlist' => ['/'],
+    ],
+
+    'sms_verification' => [
+        'ttl_minutes' => 5,
+        'maximum_attempts' => 5,
+        'code_digits' => 6,
+        'phone_hmac_key' => env('V2_PII_CORRELATION_KEY'),
+    ],
+
+    'user_fresh_auth' => [
+        'minutes' => 10,
+    ],
+
     'transactions' => [
         'store' => env('V2_AUTH_TRANSACTION_STORE', 'redis'),
         'admin_preauth_ttl_seconds' => 300,
@@ -82,6 +99,13 @@ return [
         'draw_mutation' => [20, 60],
         'contact_ip' => [5, 3600],
         'contact_email' => [3, 3600],
+        'password_reset_account' => [3, 3600],
+        'password_reset_ip' => [10, 3600],
+        'password_reset_confirm' => [5, 1800],
+        'sms_phone_hour' => [3, 3600],
+        'sms_phone_day' => [10, 86400],
+        'sms_ip' => [5, 3600],
+        'sms_verify' => [5, 300],
     ],
 
     'audit_persistence_ready' => true,

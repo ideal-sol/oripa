@@ -17,6 +17,9 @@ export {
 export {
   createStorefrontContentContactClient,
 } from "./content-contact.js";
+export {
+  createStorefrontIdentityClient,
+} from "./identity.js";
 export type {
   GachaListQuery,
   StorefrontCatalogClient,
@@ -35,6 +38,10 @@ export type {
   ContentListQuery,
   StorefrontContentContactClient,
 } from "./content-contact.js";
+export type {
+  IdentityMutationOptions,
+  StorefrontIdentityClient,
+} from "./identity.js";
 export type {
   ApiProblem,
   StorefrontTransportErrorCode,

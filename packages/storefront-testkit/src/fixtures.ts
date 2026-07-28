@@ -260,3 +260,22 @@ export const PUBLIC_CONTENT_FIXTURE = Object.freeze({
   banner: PublicComponents["schemas"]["ContentBanner"];
   notice: PublicComponents["schemas"]["ContentNotice"];
 });
+
+export const PUBLIC_IDENTITY_RECOVERY_FIXTURE = Object.freeze({
+  password_reset: {
+    status: "accepted",
+    message: "If the account is eligible, password reset instructions will be sent.",
+  },
+  sms_status: {
+    verified: false,
+    phone_masked: "+819****5678",
+    challenge: {
+      id: "0198a001-0000-7000-8000-000000000302",
+      status: "pending",
+      expires_at: "2026-07-28T10:05:00Z",
+    },
+  },
+} as const satisfies {
+  password_reset: PublicComponents["schemas"]["PasswordResetAccepted"];
+  sms_status: PublicComponents["schemas"]["SmsVerificationStatus"];
+});

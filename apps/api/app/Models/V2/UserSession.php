@@ -16,6 +16,7 @@ final class UserSession extends Model
         'session_id_hash',
         'user_id',
         'last_activity_at',
+        'reauthenticated_at',
         'idle_expires_at',
         'absolute_expires_at',
         'revoked_at',
@@ -30,6 +31,7 @@ final class UserSession extends Model
         return [
             'created_at' => 'immutable_datetime',
             'last_activity_at' => 'immutable_datetime',
+            'reauthenticated_at' => 'immutable_datetime',
             'idle_expires_at' => 'immutable_datetime',
             'absolute_expires_at' => 'immutable_datetime',
             'revoked_at' => 'immutable_datetime',

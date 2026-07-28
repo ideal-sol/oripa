@@ -7,6 +7,8 @@ use App\Domain\Audit\V2\Services\V2PersistentSecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
+use App\Domain\Identity\Contracts\V2SuspiciousRecoveryBoundary;
+use App\Domain\Identity\Services\V2ExplicitSuspiciousRecoveryBoundary;
 use App\Domain\Identity\Services\V2MfaPolicy;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
@@ -35,6 +37,10 @@ final class V2AuthorizationServiceProvider extends ServiceProvider
         $this->app->bind(
             V2SecurityEventSink::class,
             V2PersistentSecurityEventSink::class
+        );
+        $this->app->bind(
+            V2SuspiciousRecoveryBoundary::class,
+            V2ExplicitSuspiciousRecoveryBoundary::class
         );
     }
 
