@@ -55,16 +55,7 @@ final class V2AdminFreshMfaAuthorizer
         V2AdminAuthorizationContext $context,
         bool $criticalMutation = false
     ): Admin {
-        $session = $this->validSession($context->sessionIdHash);
-        $admin = $session?->admin;
-        if (
-            ! $admin instanceof Admin
-            || (int) $admin->getKey() !== $context->adminId
-            || ! hash_equals($admin->public_id, $context->adminPublicId)
-            || $admin->role !== $context->role
-        ) {
-            throw $this->authenticationRequired();
-        }
+        [$session, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, V2Permission::ManageQaDraw)) {
             throw new V2AuthenticationException(
                 'AUTHORIZATION_DENIED',
@@ -94,6 +85,70 @@ final class V2AdminFreshMfaAuthorizer
                 'critical_admin_mutation',
                 $admin->public_id
             );
+        }
+
+        return $admin;
+    }
+
+    public function authorizeReporting(
+        V2AdminAuthorizationContext $context,
+        bool $financialExport = false
+    ): Admin {
+        [$session, $admin] = $this->sessionAndAdmin($context);
+        $permission = $financialExport
+            ? V2Permission::ExportFinancialReporting
+            : V2Permission::ReadFinancialReporting;
+        if (! $this->permissions->allows($admin->role, $permission)) {
+            throw new V2AuthenticationException(
+                'AUTHORIZATION_DENIED',
+                403,
+                'The reporting operation is not permitted.'
+            );
+        }
+        if (! $financialExport) {
+            return $admin;
+        }
+        if (! $this->isFresh($session)) {
+            $this->audit->record('admin.fresh_mfa.required', [
+                'request_id' => $context->requestId,
+                'actor_type' => 'admin',
+                'actor_public_id' => $admin->public_id,
+                'actor_role' => $admin->role->value,
+                'auth_realm' => 'admin',
+                'session_correlation_hash' => $context->sessionCorrelationHash,
+                'action' => 'reporting.export',
+                'outcome' => 'failure',
+                'reason_code' => 'fresh_authentication_required',
+            ]);
+            throw new V2AuthenticationException(
+                'FRESH_AUTHENTICATION_REQUIRED',
+                403,
+                'Fresh multi-factor authentication is required.'
+            );
+        }
+        try {
+            $this->rateLimiter->assertSubject(
+                'financial_export',
+                $admin->public_id
+            );
+        } catch (V2AuthenticationException $exception) {
+            $this->audit->record(
+                $exception->errorCode === 'RATE_LIMITED'
+                    ? 'report.export.rate_limited'
+                    : 'report.export.authorization_failed',
+                [
+                    'request_id' => $context->requestId,
+                    'actor_type' => 'admin',
+                    'actor_public_id' => $admin->public_id,
+                    'actor_role' => $admin->role->value,
+                    'auth_realm' => 'admin',
+                    'session_correlation_hash' => $context->sessionCorrelationHash,
+                    'action' => 'reporting.export',
+                    'outcome' => 'failure',
+                    'reason_code' => strtolower($exception->errorCode),
+                ]
+            );
+            throw $exception;
         }
 
         return $admin;
@@ -152,6 +207,25 @@ final class V2AdminFreshMfaAuthorizer
         }
 
         return $session;
+    }
+
+    /** @return array{AdminSession, Admin} */
+    private function sessionAndAdmin(
+        V2AdminAuthorizationContext $context
+    ): array {
+        $session = $this->validSession($context->sessionIdHash);
+        $admin = $session?->admin;
+        if (
+            ! $session instanceof AdminSession
+            || ! $admin instanceof Admin
+            || (int) $admin->getKey() !== $context->adminId
+            || ! hash_equals($admin->public_id, $context->adminPublicId)
+            || $admin->role !== $context->role
+        ) {
+            throw $this->authenticationRequired();
+        }
+
+        return [$session, $admin];
     }
 
     private function authenticationRequired(): V2AuthenticationException

@@ -74,6 +74,7 @@ return [
         'admin_login_ip' => [20, 3600],
         'mfa_verify' => [5, 300],
         'critical_admin_mutation' => [10, 600],
+        'financial_export' => [5, 3600],
         'register_ip' => [5, 3600],
         'register_email' => [3, 3600],
         'verification_resend_hour' => [3, 3600],

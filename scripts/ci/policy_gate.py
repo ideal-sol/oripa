@@ -360,6 +360,30 @@ V2_QA_DRAW_REQUIRED_FILES = {
     "openapi/admin/openapi.yaml",
     "openapi/bundled/admin.openapi.json",
 }
+V2_REPORTING_REQUIRED_FILES = {
+    "apps/api/app/Console/Commands/V2/CreatePreviousDayPointSnapshot.php",
+    "apps/api/app/Console/Commands/V2/RunV2ExportWorker.php",
+    "apps/api/app/Domain/Reporting/Exceptions/V2ReportingException.php",
+    "apps/api/app/Domain/Reporting/Services/V2CsvWriter.php",
+    "apps/api/app/Domain/Reporting/Services/V2ExportRowSource.php",
+    "apps/api/app/Domain/Reporting/Services/V2ExportService.php",
+    "apps/api/app/Domain/Reporting/Services/V2ExportWorker.php",
+    "apps/api/app/Domain/Reporting/Services/V2ReportingCursor.php",
+    "apps/api/app/Domain/Reporting/Services/V2ReportingService.php",
+    "apps/api/app/Domain/Reporting/ValueObjects/V2ExportDefinition.php",
+    "apps/api/app/Domain/Reporting/ValueObjects/V2ReportingPeriod.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminReportingController.php",
+    "apps/api/app/Models/V2/ExportJob.php",
+    "apps/api/config/v2_reporting.php",
+    "apps/api/database/migrations-v2/2026_08_01_000012_create_v2_reporting_export_foundation.php",
+    "apps/api/routes/admin.php",
+    "apps/api/routes/console.php",
+    "apps/api/tests/V2/ReportingExportVerticalSliceTest.php",
+    "apps/api/tests/V2/ZReportingExportPerformanceTest.php",
+    "docs/operations/reporting/README.md",
+    "openapi/admin/openapi.yaml",
+    "openapi/bundled/admin.openapi.json",
+}
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
     "legacy/v1-frontend/AGENTS.md",
@@ -1480,6 +1504,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_07_29_000009_create_v2_draw_vertical_slice.php",
         "2026_07_30_000010_create_v2_prize_shipping_vertical_slice.php",
         "2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
+        "2026_08_01_000012_create_v2_reporting_export_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1645,6 +1670,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             and "mig051-v2-" not in workflow
             and "mig052-v2-" not in workflow
             and "mig053-v2-" not in workflow
+            and "mig054-v2-" not in workflow
         ):
             raise PolicyFailure("platform-ci V2 Identity project boundary is missing")
 
@@ -2247,6 +2273,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         and "mig051-v2-" not in workflow
         and "mig052-v2-" not in workflow
         and "mig053-v2-" not in workflow
+        and "mig054-v2-" not in workflow
     ):
         raise PolicyFailure("platform-ci V2 Catalog project boundary is missing")
 
@@ -2359,7 +2386,7 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
     ).read_text(encoding="utf-8")
     if "mig051-v2-" not in workflow:
         if "mig052-v2-" not in workflow:
-            if "mig053-v2-" not in workflow:
+            if "mig053-v2-" not in workflow and "mig054-v2-" not in workflow:
                 raise PolicyFailure("platform-ci V2 Draw project boundary is missing")
 
 
@@ -2516,7 +2543,7 @@ def validate_v2_prize_shipping_boundary(
         repository / ".github/workflows/platform-ci.yml"
     ).read_text(encoding="utf-8")
     if "mig052-v2-" not in workflow:
-        if "mig053-v2-" not in workflow:
+        if "mig053-v2-" not in workflow and "mig054-v2-" not in workflow:
             raise PolicyFailure("platform-ci V2 Prize Shipping project boundary is missing")
 
 
@@ -2696,9 +2723,15 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     }
     if not required_operations.issubset(admin_operations):
         raise PolicyFailure("V2 Admin QA Draw operation set is incomplete")
-    if json.dumps(admin_bundle, sort_keys=True).count(
-        '"x-fresh-mfa": "5-minutes"'
-    ) != 12:
+    qa_fresh_count = sum(
+        1
+        for path, item in admin_bundle.get("paths", {}).items()
+        if "/qa-" in path or path.endswith("/qa-mode")
+        for operation in item.values()
+        if isinstance(operation, dict)
+        and operation.get("x-fresh-mfa") == "5-minutes"
+    )
+    if qa_fresh_count != 12:
         raise PolicyFailure("Every V2 Admin QA operation must require Fresh MFA")
     public_text = json.dumps(public_bundle, sort_keys=True)
     for prohibited in ("QaMode", "QaPlan", "QaExecution", "/qa-draw"):
@@ -2744,8 +2777,183 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in runner:
             raise PolicyFailure(f"V2 QA Draw load verification missing {required}")
-    if "mig053-v2-" not in workflow:
+    if "mig054-v2-" not in workflow:
         raise PolicyFailure("platform-ci V2 QA Draw project boundary is missing")
+
+
+def validate_v2_reporting_boundary(repository: Path, paths: Iterable[str]) -> None:
+    missing = sorted(V2_REPORTING_REQUIRED_FILES - set(paths))
+    if missing:
+        raise PolicyFailure(
+            "required V2 Reporting files missing: " + ", ".join(missing)
+        )
+    migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_01_000012_create_v2_reporting_export_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "export_jobs",
+        "canonical_filter_hash",
+        "data_cutoff_at",
+        "query_version",
+        "private_object_key",
+        "lease_expires_at",
+        "v2_export_job_transition_guard",
+        "v2/private/exports/",
+    ):
+        if required not in migration:
+            raise PolicyFailure(f"V2 Reporting migration missing {required}")
+    for prohibited in ("tenant_id", "cascadeOnDelete", "public_object_key"):
+        if prohibited in migration:
+            raise PolicyFailure(
+                f"V2 Reporting migration contains prohibited {prohibited}"
+            )
+
+    authorizer = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "authorizeReporting",
+        "ExportFinancialReporting",
+        "FRESH_AUTHENTICATION_REQUIRED",
+        "'financial_export'",
+    ):
+        if required not in authorizer:
+            raise PolicyFailure(f"V2 Reporting authorization missing {required}")
+
+    reporting = (
+        repository
+        / "apps/api/app/Domain/Reporting/Services/V2ReportingService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "payments.succeeded_at",
+        "payment_adjustments.succeeded_at",
+        "point_ledger_entries",
+        "operational_event_aggregation_not_accounting_recognition",
+        "Asia/Tokyo",
+        "is_qa_draw",
+        "authorizeReporting",
+    ):
+        if required not in reporting:
+            raise PolicyFailure(f"V2 Reporting service missing {required}")
+    if "email_display" in reporting or "email_normalized" in reporting:
+        raise PolicyFailure("V2 Reporting service exposes Full Email")
+    snapshot_command = (
+        repository
+        / "apps/api/app/Console/Commands/V2/CreatePreviousDayPointSnapshot.php"
+    ).read_text(encoding="utf-8")
+    for required in ("subDay()", "Asia/Tokyo", "V2PointSnapshotService"):
+        if required not in snapshot_command:
+            raise PolicyFailure(
+                f"V2 previous-day Snapshot Command missing {required}"
+            )
+    if "{--date" in snapshot_command:
+        raise PolicyFailure("V2 Snapshot Command permits arbitrary past dates")
+    schedule = (repository / "apps/api/routes/console.php").read_text(encoding="utf-8")
+    for required in (
+        "v2:points:snapshot-previous-day",
+        "v2:reporting:work-exports",
+        "timezone('Asia/Tokyo')",
+        "withoutOverlapping",
+    ):
+        if required not in schedule:
+            raise PolicyFailure(f"V2 Reporting schedule missing {required}")
+
+    export = (
+        repository
+        / "apps/api/app/Domain/Reporting/Services/V2ExportService.php"
+    ).read_text(encoding="utf-8")
+    worker = (
+        repository
+        / "apps/api/app/Domain/Reporting/Services/V2ExportWorker.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "streamDownload",
+        "temporarySignedRoute",
+        "reporting.export.requested",
+        "authorizeReporting($context, true)",
+        "Idempotency",
+    ):
+        if required not in export:
+            raise PolicyFailure(f"V2 Export service missing {required}")
+    for required in (
+        "FOR UPDATE SKIP LOCKED",
+        "tmpfile",
+        "hash_update_stream",
+        "worker_max_attempts",
+        "Storage::disk",
+    ):
+        if required not in worker:
+            raise PolicyFailure(f"V2 Export Worker missing {required}")
+    if "DB::transaction(function ()" in worker.split("public function process", 1)[1].split(
+        "private function complete", 1
+    )[0]:
+        raise PolicyFailure("CSV generation must not run in a long DB transaction")
+
+    admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
+    operations = {
+        operation.get("operationId")
+        for item in admin_bundle.get("paths", {}).values()
+        if isinstance(item, dict)
+        for operation in item.values()
+        if isinstance(operation, dict)
+    }
+    required_operations = {
+        "getAdminMonthlySalesReport",
+        "listAdminDailySales",
+        "listAdminPaymentAdjustmentsReport",
+        "getAdminMonthlyPointReport",
+        "getAdminMonthlyGachaReport",
+        "listAdminDrawReportingHistory",
+        "listAdminDrawResultReportingHistory",
+        "listAdminPointBalanceSnapshots",
+        "getAdminPointBalanceSnapshot",
+        "streamAdminReportingCsv",
+        "createAdminReportingExportJob",
+        "listAdminReportingExportJobs",
+        "getAdminReportingExportJob",
+        "createAdminReportingExportDownload",
+        "downloadAdminReportingExportFile",
+    }
+    if not required_operations.issubset(operations):
+        raise PolicyFailure("V2 Admin Reporting operation set is incomplete")
+    public_bundle = load_json(repository, "openapi/bundled/public.openapi.json")
+    public_text = json.dumps(public_bundle, sort_keys=True)
+    for prohibited in ("ExportJob", "/reports/", "ReportingCollection"):
+        if prohibited in public_text:
+            raise PolicyFailure(
+                f"V2 Public Contract exposes Admin Reporting surface {prohibited}"
+            )
+
+    tests = (
+        repository / "apps/api/tests/V2/ReportingExportVerticalSliceTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_sales_use_succeeded_event_dates_and_jst_boundary",
+        "test_point_report_uses_immutable_ledger_not_wallet_balance",
+        "test_csv_has_stable_header_utf8_bom_and_formula_protection",
+        "test_export_job_is_idempotent_and_worker_persists_private_checksum",
+        "test_reporting_permissions_and_fresh_mfa_fail_closed",
+    ):
+        if required not in tests:
+            raise PolicyFailure(f"V2 Reporting test missing {required}")
+    runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
+    for required in (
+        "run_reporting_performance_tests",
+        "V2_REPORTING_PERFORMANCE_TEST",
+        "ZReportingExportPerformanceTest",
+    ):
+        if required not in runner:
+            raise PolicyFailure(
+                f"V2 Reporting performance verification missing {required}"
+            )
+    workflow = (
+        repository / ".github/workflows/platform-ci.yml"
+    ).read_text(encoding="utf-8")
+    if "mig054-v2-" not in workflow:
+        raise PolicyFailure("platform-ci V2 Reporting project boundary is missing")
 
 
 def validate_boundary_readmes(repository: Path) -> None:
@@ -3187,6 +3395,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_v2_draw_boundary(repository, paths)
     validate_v2_prize_shipping_boundary(repository, paths)
     validate_v2_qa_draw_boundary(repository, paths)
+    validate_v2_reporting_boundary(repository, paths)
     validate_architecture_index(repository)
     validate_governance_statements(repository, paths)
     validate_dependency_review_allowlist(repository)
