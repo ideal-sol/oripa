@@ -10,21 +10,31 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "generate": "node scripts/generate-admin-contract.mjs",
+    "generate:check": "node scripts/generate-admin-contract.mjs --check",
     "lint": "eslint .",
     "start": "next start",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "lucide-react": "0.468.0",
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@types/node": "25.9.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.11",
-    "typescript": "6.0.3"
+    "jsdom": "30.0.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
   }
 }

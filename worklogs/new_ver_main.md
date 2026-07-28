@@ -5012,3 +5012,119 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Staging E2Eが残るためGate G4／G5は`NOT COMPLETE`である。
   次Task候補は`MIG-058B LINE Login v2.1 Identity Linking Vertical Slice`だが、
   MIG-058Bは本Task内で開始しない。
+
+## MIG-058A Closeout／MIG-060A New Admin App Authentication／Session Shell
+
+### MIG-058A Closeout
+
+- Issue `#119`はClosed、PR `#120`はSquash Mergedである。Final Headは
+  `68c4e23c9a8149ac453b3a711053574af0cf1161`、Squash Commitは
+  `691686f6a5527f2748650818c70bc5b12534a654`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-058A Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／Admin Contract
+
+- Task IDは`MIG-060A`、Riskは`R3`、Issueは`#121`、Branchは
+  `feat/MIG-060A-admin-auth-shell`、Base SHAは
+  `691686f6a5527f2748650818c70bc5b12534a654`である。
+- Admin OpenAPI Bundleの11 Auth OperationとSchema／Enumを検証し、
+  Bundle SHA-256付きTypeを決定的に生成する。生成差分0を
+  `quality-gate`で継続検査する。
+- API Clientは`/admin/api/v2/auth/*`だけを許可し、Same-origin Cookie、
+  `credentials: include`、Admin CSRF Cookie／Header、Request ID、RFC 9457、
+  401／403／429、Timeout／Abortを実装した。Authorization Header、
+  Local Storage／Session Storage Token、User Realm Cookieを使用しない。
+
+### Authentication／Session
+
+- `/login`、`/auth/mfa`、`/auth/enroll`、`/auth/recovery`、`/`を実装し、
+  anonymous、Password Pre-auth、MFA、Enrollment、authenticated、
+  expiredをServer Session応答に従って分岐する。
+- TOTP／WebAuthn／Recovery Code MFA、TOTP Enrollment／Confirm、
+  WebAuthn Enrollment、Recovery Code再生成、Session取得、Logoutを実装した。
+  Recovery Code利用後の`requires_mfa_enrollment`をEnrollment Routeへ誘導する。
+- Admin Session／CSRF RotationはResponse Cookieを正本とし、ClientでTokenを
+  永続化しない。Fresh MFAはMIG-053AのTOTP／WebAuthn Contractを共通Dialogから
+  使用し、Browser時刻によるFreshness判定を行わない。
+- Native `fetch`をClass field経由で呼ぶ際のreceiver不一致をBrowser E2Eで検出し、
+  `globalThis`へ明示Bindingした。Password、TOTP、Recovery Code、
+  WebAuthn CredentialをLog、Error、Storageへ保存しない。
+
+### Common Shell／Security
+
+- Header、Sidebar、Backend応答に基づくOwner／Admin／Operator表示、Logout、
+  Main Content、Loading、Error、Empty、403、404、Session Expiredを実装した。
+  業務Menuはdisabled Placeholderだけで、架空Dataや未実装業務画面はない。
+- Mobile Drawer、Keyboard操作、Skip Link、Fresh MFA Dialogの初期Focus、
+  Focus Trap、閉鎖後Focus復帰を実装した。Desktop／Mobileで横溢れとControl overlapが
+  ないことをPlaywright Screenshotで確認した。
+- Unknown HostをFail Closedで404とし、CSP nonce、`frame-ancestors 'none'`、
+  `X-Frame-Options: DENY`、`nosniff`、Referrer／Permissions Policy、
+  `private, no-store`、`noindex／nofollow／noarchive`を全Pageへ適用した。
+- CSP nonceを動的Responseへ付与するためRoot LayoutをDynamic Renderとし、
+  Development用`unsafe-eval`を許可せずProduction BuildでBrowser E2Eを実行した。
+  Domain、Nginx、TLS、Production Hostは設定していない。
+
+### Test／Migration／Security
+
+- Admin generated差分0、Typecheck、Lint、Production Build、
+  Unit／Component 12 Test、Chromium Browser E2E 3 TestはPASSした。
+  Browser E2EはPassword Pre-auth、TOTP、Fresh MFA、Logout、429 Generic Error、
+  Credential非保存、Role、Mobile／Keyboard／横溢れをTask専用API Test Doubleで確認した。
+  実Credential、実WebAuthn Device、Production Resourceは使用していない。
+- Policy Unit Testは84件、`policy-gate`、`quality-gate`、
+  `security-gate`はPASSした。Admin認証Shellの許可File、Admin API限定、
+  Cookie Session、Storage Token禁止、Security Header、CI生成差分／Testを
+  Policyへ固定した。
+- Persistent V2 DBで`migrate:fresh` 2回、最新Migration Rollback／Reapply、
+  全V2 Suite、PostgreSQL／Redis Healthを確認した。Task専用Ephemeralでは
+  `migrate:fresh` 2回、全V2 Suite、Draw／QA／Reporting／Content負荷回帰、
+  Backup／Restore、API／Admin Health、Resource Cleanupを確認した。
+- V2 Migrationは15件、Migration Set SHA-256は
+  `53cbd05cae2fa794d39a3fd5c71ad87cefcb398e69eafc066a29ec9356e4f27a`である。
+  Source／Restore Schema SHA-256は
+  `7ae754f3fcbf1cff5cdf48961f0e03293e0e4e432124e92b0bbb399dcec60090`、
+  Migration Row SHA-256は
+  `3e9d7878e58a77810819042186ef4ac43acb4926d74a7e619296657e382fd4ea`
+  で一致した。Backup SHA-256は
+  `d5dfad57793f5d51e5ea030243ec1e0073d084479d4a5f43a9d4cfd0188ea38b`である。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは既存11 Finding、Composer Auditは既存期限付き10 Findingである。
+  Secret／PII Candidate、新規Critical／High、Baseline追加／拡張は0件だった。
+- OpenAPI Unit 4件／BundleはPublic 42、Admin 67、Webhook 0 OperationでPASSした。
+  Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Testkit生成差分／Typecheck／Lint／Build／22 Test／実Network禁止はPASSした。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 時間を要した作業／Gate
+
+- Browser E2E基盤整備はChromium初回取得、CSP nonceの静的Render問題、
+  Native `fetch` receiver不一致、厳密Locator、Drawer transitionの順に検出・修正し、
+  複数回のProduction Buildを含め約10分を要した。CSPを弱めずDynamic nonceと
+  Production Server検証で解決した。今後はBrowser E2Eを認証Shell変更の早期段階で
+  実行し、Native Browser APIのbindingをUnit Test Doubleだけで判断しない。
+- Guard付きPersistent／Ephemeral DB回帰は約8分を要した。100,000件Contact、
+  Reporting、Draw／QA Load、Backup／RestoreをAdmin-only変更でも全実行したためである。
+  今後はGateを弱めず、同一Final候補HeadのDB Evidenceを再利用できる承認済み
+  Admin-only回帰Profileを後続改善候補とする。
+- Playwright fallback Chromiumに日本語FontがなくScreenshotでは日本語Glyphが
+  欠落した。DOM Text、Accessible Name、Keyboard E2Eは正常で、Layout／Drawer／
+  Overlay／横溢れは視覚確認できた。Staging Browser確認Waveでは実配信Font／
+  対象OSで再確認する。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。Catalog／QA／Shipping／Reporting／
+  Content等の業務Admin画面、Storefront画面、通知Transport、Staging E2Eが残るため、
+  Gate G4／G5は`NOT COMPLETE`である。
+- LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
+  `MIG-060B Admin Dashboard／Navigation／Permission Foundation`だが、
+  MIG-060Bは本Task内で開始しない。

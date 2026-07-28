@@ -106,10 +106,12 @@ jobs:
       - name: Typecheck legacy frontend
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
-      - name: Validate V2 Admin Skeleton
+      - name: Validate V2 Admin Auth Shell
         run: |
+          pnpm admin:generate:check
           pnpm admin:typecheck
           pnpm admin:lint
+          pnpm admin:test
           pnpm admin:build
 
       - name: Compare legacy frontend lint findings with the exact baseline
@@ -305,7 +307,7 @@ jobs:
           pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
           pnpm --dir legacy/v1-frontend --ignore-workspace build
 
-      - name: Build and validate V2 Admin Skeleton
+      - name: Build and validate V2 Admin Auth Shell
         run: |
           pnpm admin:typecheck
           pnpm admin:lint
