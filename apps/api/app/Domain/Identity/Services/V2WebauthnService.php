@@ -139,6 +139,32 @@ final class V2WebauthnService
      */
     public function beginAssertion(Admin $admin): ?array
     {
+        return $this->beginBoundAssertion($admin, 'admin_webauthn_assertion');
+    }
+
+    /**
+     * @return array{challenge_token: string, options: array<string, mixed>, expires_in: int}|null
+     */
+    public function beginReauthenticationAssertion(
+        Admin $admin,
+        string $sessionIdHash
+    ): ?array {
+        return $this->beginBoundAssertion(
+            $admin,
+            'admin_webauthn_reauthentication',
+            $sessionIdHash
+        );
+    }
+
+    /**
+     * @return array{challenge_token: string, options: array<string, mixed>, expires_in: int}|null
+     */
+    private function beginBoundAssertion(
+        Admin $admin,
+        string $purpose,
+        ?string $sessionIdHash = null
+    ): ?array
+    {
         $methods = AdminWebauthnMethod::query()
             ->where('admin_id', $admin->getKey())
             ->whereNull('revoked_at')
@@ -161,12 +187,16 @@ final class V2WebauthnService
             PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED,
             300000
         );
-        $transaction = $this->transactions->issue(
-            'admin_webauthn_assertion',
-            [
+        $payload = [
                 'admin_id' => (int) $admin->getKey(),
                 'options' => $this->serializer->serialize($options, 'json'),
-            ],
+        ];
+        if ($sessionIdHash !== null) {
+            $payload['session_id_hash'] = $sessionIdHash;
+        }
+        $transaction = $this->transactions->issue(
+            $purpose,
+            $payload,
             (int) config('v2_identity.transactions.webauthn_ttl_seconds')
         );
 
@@ -185,15 +215,60 @@ final class V2WebauthnService
         #[SensitiveParameter] string $challengeToken,
         array $credential
     ): bool {
+        return $this->verifyBoundAssertion(
+            $admin,
+            $challengeToken,
+            $credential,
+            'admin_webauthn_assertion'
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $credential
+     */
+    public function verifyReauthenticationAssertion(
+        Admin $admin,
+        #[SensitiveParameter] string $challengeToken,
+        array $credential,
+        string $sessionIdHash
+    ): bool {
+        return $this->verifyBoundAssertion(
+            $admin,
+            $challengeToken,
+            $credential,
+            'admin_webauthn_reauthentication',
+            $sessionIdHash
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $credential
+     */
+    private function verifyBoundAssertion(
+        Admin $admin,
+        #[SensitiveParameter] string $challengeToken,
+        array $credential,
+        string $purpose,
+        ?string $sessionIdHash = null
+    ): bool {
         try {
             $payload = $this->transactions->consume(
                 $challengeToken,
-                'admin_webauthn_assertion'
+                $purpose
             );
         } catch (\Throwable) {
             return false;
         }
-        if ((int) ($payload['admin_id'] ?? 0) !== (int) $admin->getKey()) {
+        if (
+            (int) ($payload['admin_id'] ?? 0) !== (int) $admin->getKey()
+            || ($sessionIdHash !== null
+                && ! hash_equals(
+                    $sessionIdHash,
+                    is_string($payload['session_id_hash'] ?? null)
+                        ? $payload['session_id_hash']
+                        : ''
+                ))
+        ) {
             return false;
         }
         $publicKeyCredential = $this->deserializeCredential($credential);

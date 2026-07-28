@@ -3,6 +3,8 @@
 namespace App\Domain\Identity\Services;
 
 use App\Domain\Identity\Enums\V2Realm;
+use App\Models\V2\AdminSession;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use SensitiveParameter;
@@ -67,6 +69,48 @@ final class V2SessionManager
         $raw = $request->cookies->get($configuration['cookie']);
 
         return is_string($raw) && preg_match('/\A[0-9a-f]{64}\z/', $raw) ? $raw : null;
+    }
+
+    public function sessionIdHash(Request $request, V2Realm $realm): ?string
+    {
+        $raw = $this->rawToken($request, $realm);
+
+        return $raw === null ? null : $this->policy->hashSessionId($raw);
+    }
+
+    /**
+     * @return array{token: string, absolute_expires_at: CarbonImmutable}
+     */
+    public function rotateLockedAdminSession(AdminSession $session): array
+    {
+        if ($session->revoked_at !== null) {
+            throw new \RuntimeException('The Admin Session is no longer active.');
+        }
+        $now = CarbonImmutable::now()->startOfSecond();
+        $absolute = CarbonImmutable::parse($session->absolute_expires_at);
+        if (! $absolute->greaterThan($now)) {
+            throw new \RuntimeException('The Admin Session has expired.');
+        }
+        $configuration = $this->policy->forRealm(V2Realm::Admin);
+        $idle = $now->addMinutes($configuration['idle_minutes']);
+        if ($idle->greaterThan($absolute)) {
+            $idle = $absolute;
+        }
+        $token = $this->tokens->generate();
+        $session->forceFill(['revoked_at' => $now])->save();
+        DB::table($configuration['table'])->insert([
+            'session_id_hash' => $this->policy->hashSessionId($token),
+            'admin_id' => $session->admin_id,
+            'mfa_verified_at' => $now,
+            'requires_mfa_enrollment' => false,
+            'created_at' => $now,
+            'last_activity_at' => $now,
+            'idle_expires_at' => $idle,
+            'absolute_expires_at' => $absolute,
+            'revoked_at' => null,
+        ]);
+
+        return ['token' => $token, 'absolute_expires_at' => $absolute];
     }
 
     public function attachSession(

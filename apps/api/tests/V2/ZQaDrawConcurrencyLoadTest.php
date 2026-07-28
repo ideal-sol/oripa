@@ -4,6 +4,7 @@ namespace Tests\V2;
 
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Draw\Services\V2DrawService;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
@@ -12,6 +13,7 @@ use App\Domain\Point\Services\V2PointService;
 use App\Domain\QaDraw\Services\V2QaDrawAdminService;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -271,16 +273,16 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
             'qa-load-points-'.$user->public_id
         );
         $service = app(V2QaDrawAdminService::class);
+        $context = $this->adminContext($owner);
         $service->saveMode(
-            $owner,
+            $context,
             $user->public_id,
             'QA load verification',
             null,
-            now()->addHours(2)->toIso8601String(),
-            (string) Str::uuid7()
+            now()->addHours(2)->toIso8601String()
         );
         $service->createPlan(
-            $owner,
+            $context,
             $user->public_id,
             self::GACHA_ID,
             'QA load plan',
@@ -291,11 +293,43 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
                 'prize_id' => self::PRIZE_ID,
                 'quantity' => $quantity,
                 'sort_order' => 1,
-            ]],
-            (string) Str::uuid7()
+            ]]
+        );
+        app(RateLimiter::class)->clear(
+            'critical_admin_mutation:subject:'.hash_hmac(
+                'sha256',
+                $owner->public_id,
+                (string) config('app.key')
+            )
         );
 
         return $user;
+    }
+
+    private function adminContext(Admin $admin): V2AdminAuthorizationContext
+    {
+        $hash = hash('sha256', bin2hex(random_bytes(32)));
+        DB::table('admin_sessions')->insert([
+            'session_id_hash' => $hash,
+            'admin_id' => $admin->id,
+            'mfa_verified_at' => now(),
+            'requires_mfa_enrollment' => false,
+            'created_at' => now(),
+            'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15),
+            'absolute_expires_at' => now()->addHours(8),
+            'revoked_at' => null,
+        ]);
+
+        return new V2AdminAuthorizationContext(
+            (int) $admin->id,
+            $admin->public_id,
+            $admin->role,
+            $hash,
+            app(\App\Domain\Audit\V2\Services\V2AuditHasher::class)
+                ->correlation($hash),
+            (string) Str::uuid7()
+        );
     }
 
     private function owner(): Admin

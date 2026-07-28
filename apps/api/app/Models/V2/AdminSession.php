@@ -2,6 +2,7 @@
 
 namespace App\Models\V2;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
 
 final class AdminSession extends Model
@@ -38,5 +39,10 @@ final class AdminSession extends Model
             'absolute_expires_at' => 'immutable_datetime',
             'revoked_at' => 'immutable_datetime',
         ];
+    }
+
+    public function admin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'admin_id');
     }
 }

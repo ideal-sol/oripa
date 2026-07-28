@@ -62,6 +62,16 @@ Route::prefix('v2/auth')
             V2AdminAuthController::class,
             'regenerateRecoveryCodes',
         ])->name('v2.admin.auth.recovery-codes.regenerate');
+        Route::middleware('auth:v2_admin')->group(function (): void {
+            Route::post('/reauthenticate/webauthn/options', [
+                V2AdminAuthController::class,
+                'reauthenticationWebauthnOptions',
+            ])->name('v2.admin.auth.reauthenticate.webauthn.options');
+            Route::post('/reauthenticate', [
+                V2AdminAuthController::class,
+                'reauthenticate',
+            ])->name('v2.admin.auth.reauthenticate');
+        });
     });
 
 Route::prefix('v2')

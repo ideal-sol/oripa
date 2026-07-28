@@ -6,6 +6,8 @@ use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Draw\Services\V2CryptographicRandomSource;
 use App\Domain\Draw\Services\V2DrawService;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
+use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
@@ -106,13 +108,13 @@ final class QaDrawVerticalSliceTest extends TestCase
     {
         [$user, $owner] = $this->fixture();
         $service = app(V2QaDrawAdminService::class);
+        $ownerContext = $this->adminContext($owner);
         $mode = $service->saveMode(
-            $owner,
+            $ownerContext,
             $user->public_id,
             'QA release verification',
             null,
-            now()->addHours(24)->toIso8601String(),
-            $this->requestId()
+            now()->addHours(24)->toIso8601String()
         );
         self::assertTrue($mode['is_active']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.mode.enabled']);
@@ -120,27 +122,26 @@ final class QaDrawVerticalSliceTest extends TestCase
         $admin = $this->admin(V2AdminRole::Admin);
         foreach ([$admin, $this->admin(V2AdminRole::Operator)] as $denied) {
             try {
-                $service->mode($denied, $user->public_id);
+                $service->mode($this->adminContext($denied), $user->public_id);
                 self::fail('Non-Owner must not read QA Mode.');
-            } catch (V2QaDrawException $exception) {
+            } catch (V2AuthenticationException $exception) {
                 self::assertSame(403, $exception->status);
             }
         }
         try {
             $service->saveMode(
-                $owner,
+                $ownerContext,
                 $user->public_id,
                 'Too long',
                 null,
-                now()->addHours(25)->toIso8601String(),
-                $this->requestId()
+                now()->addHours(25)->toIso8601String()
             );
             self::fail('QA Mode longer than 24 hours must fail.');
         } catch (V2QaDrawException $exception) {
             self::assertSame('QA_CONFIGURATION_INVALID', $exception->errorCode);
         }
 
-        $disabled = $service->disableMode($owner, $user->public_id, $this->requestId());
+        $disabled = $service->disableMode($ownerContext, $user->public_id);
         self::assertFalse($disabled['is_enabled']);
         self::assertNotNull($disabled['disabled_at']);
         self::assertDatabaseCount('qa_test_user_modes', 1);
@@ -157,12 +158,11 @@ final class QaDrawVerticalSliceTest extends TestCase
         $unauthenticated = $controller->showMode($request, $user->public_id);
         self::assertSame(401, $unauthenticated->status());
 
-        Auth::guard('v2_admin')->setUser($this->admin(V2AdminRole::Admin));
+        $request = $this->adminRequest($this->admin(V2AdminRole::Admin), $request->path());
         $forbidden = $controller->showMode($request, $user->public_id);
         self::assertSame(403, $forbidden->status());
 
-        Auth::forgetGuards();
-        Auth::guard('v2_admin')->setUser($this->admin(V2AdminRole::Owner));
+        $request = $this->adminRequest($this->admin(V2AdminRole::Owner), $request->path());
         self::assertSame(200, $controller->showMode($request, $user->public_id)->status());
     }
 
@@ -200,18 +200,18 @@ final class QaDrawVerticalSliceTest extends TestCase
         $service = app(V2QaDrawAdminService::class);
         self::assertSame(
             'paused',
-            $service->pausePlan($owner, $plan['id'], $this->requestId())['status']
+            $service->pausePlan($this->adminContext($owner), $plan['id'])['status']
         );
         self::assertSame(
             'active',
-            $service->activatePlan($owner, $plan['id'], $this->requestId())['status']
+            $service->activatePlan($this->adminContext($owner), $plan['id'])['status']
         );
         self::assertSame(
             'disabled',
-            $service->disablePlan($owner, $plan['id'], $this->requestId())['status']
+            $service->disablePlan($this->adminContext($owner), $plan['id'])['status']
         );
         try {
-            $service->activatePlan($owner, $plan['id'], $this->requestId());
+            $service->activatePlan($this->adminContext($owner), $plan['id']);
             self::fail('Disabled Plan must not reactivate.');
         } catch (V2QaDrawException $exception) {
             self::assertSame(422, $exception->status);
@@ -222,12 +222,11 @@ final class QaDrawVerticalSliceTest extends TestCase
     {
         [$user, $owner] = $this->fixture(randomValues: [150_000]);
         app(V2QaDrawAdminService::class)->saveMode(
-            $owner,
+            $this->adminContext($owner),
             $user->public_id,
             'Future QA window',
             now()->addHour()->toIso8601String(),
-            now()->addHours(2)->toIso8601String(),
-            $this->requestId()
+            now()->addHours(2)->toIso8601String()
         );
         $response = $this->draw($user, 1, 'qa-inactive-normal-key-0001');
 
@@ -399,12 +398,11 @@ final class QaDrawVerticalSliceTest extends TestCase
     {
         [$user, $owner] = $this->fixture();
         app(V2QaDrawAdminService::class)->saveMode(
-            $owner,
+            $this->adminContext($owner),
             $user->public_id,
             'Expiry transition verification',
             null,
-            now()->addHours(4)->toIso8601String(),
-            $this->requestId()
+            now()->addHours(4)->toIso8601String()
         );
         $plan = $this->qaPlan($owner, $user, [
             $this->item(self::PRIZE_A_ID, 1, 1),
@@ -543,12 +541,12 @@ final class QaDrawVerticalSliceTest extends TestCase
         ]);
 
         $admin = app(V2QaDrawAdminService::class);
-        $list = $admin->executions($owner, ['draw_request_id' => $response['id']]);
+        $context = $this->adminContext($owner);
+        $list = $admin->executions($context, ['draw_request_id' => $response['id']]);
         self::assertCount(1, $list['items']);
         $detail = $admin->execution(
-            $owner,
-            $list['items'][0]['id'],
-            $this->requestId()
+            $context,
+            $list['items'][0]['id']
         );
         self::assertSame($response['id'], $detail['draw_request_id']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.execution.read']);
@@ -626,12 +624,11 @@ final class QaDrawVerticalSliceTest extends TestCase
     private function enableMode(Admin $owner, User $user): array
     {
         return app(V2QaDrawAdminService::class)->saveMode(
-            $owner,
+            $this->adminContext($owner),
             $user->public_id,
             'QA release verification',
             null,
-            now()->addHours(2)->toIso8601String(),
-            $this->requestId()
+            now()->addHours(2)->toIso8601String()
         );
     }
 
@@ -639,16 +636,61 @@ final class QaDrawVerticalSliceTest extends TestCase
     private function qaPlan(Admin $owner, User $user, array $items): array
     {
         return app(V2QaDrawAdminService::class)->createPlan(
-            $owner,
+            $this->adminContext($owner),
             $user->public_id,
             self::GACHA_ID,
             'QA deterministic plan',
             'QA release verification',
             null,
             now()->addHours(2)->toIso8601String(),
-            $items,
+            $items
+        );
+    }
+
+    private function adminContext(Admin $admin): V2AdminAuthorizationContext
+    {
+        $raw = bin2hex(random_bytes(32));
+        $hash = hash('sha256', $raw);
+        $this->insertAdminSession($admin, $hash);
+
+        return new V2AdminAuthorizationContext(
+            (int) $admin->id,
+            $admin->public_id,
+            $admin->role,
+            $hash,
+            app(\App\Domain\Audit\V2\Services\V2AuditHasher::class)
+                ->correlation($hash),
             $this->requestId()
         );
+    }
+
+    private function insertAdminSession(Admin $admin, string $hash): void
+    {
+        DB::table('admin_sessions')->insert([
+            'session_id_hash' => $hash,
+            'admin_id' => $admin->id,
+            'mfa_verified_at' => now(),
+            'requires_mfa_enrollment' => false,
+            'created_at' => now(),
+            'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15),
+            'absolute_expires_at' => now()->addHours(8),
+            'revoked_at' => null,
+        ]);
+    }
+
+    private function adminRequest(Admin $admin, string $path): Request
+    {
+        $raw = bin2hex(random_bytes(32));
+        $this->insertAdminSession($admin, hash('sha256', $raw));
+        $request = Request::create('/'.$path);
+        $request->cookies->set(
+            '__Host-oripa_admin_session',
+            $raw
+        );
+        $request->headers->set('Accept', 'application/json');
+
+        return $request;
     }
 
     /** @return array<string, mixed> */

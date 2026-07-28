@@ -338,17 +338,23 @@ V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "packages/storefront-testkit/src/generated/public-contract.ts",
 }
 V2_QA_DRAW_REQUIRED_FILES = {
+    "apps/api/app/Domain/Identity/Contracts/V2AdminAuthorizationContext.php",
+    "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php",
+    "apps/api/app/Domain/Identity/Services/V2AdminReauthenticationService.php",
     "apps/api/app/Domain/QaDraw/Exceptions/V2QaDrawException.php",
     "apps/api/app/Domain/QaDraw/Services/V2QaDrawAdminService.php",
     "apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php",
     "apps/api/app/Http/Controllers/V2/V2AdminQaDrawController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminAuthController.php",
     "apps/api/app/Models/V2/QaDrawExecution.php",
     "apps/api/app/Models/V2/QaDrawPlan.php",
     "apps/api/app/Models/V2/QaDrawPlanItem.php",
     "apps/api/app/Models/V2/QaTestUserMode.php",
     "apps/api/config/v2_qa_draw.php",
+    "apps/api/config/v2_identity.php",
     "apps/api/database/migrations-v2/2026_07_31_000011_create_v2_qa_draw_vertical_slice.php",
     "apps/api/tests/V2/QaDrawVerticalSliceTest.php",
+    "apps/api/tests/V2/AdminFreshMfaQaTest.php",
     "apps/api/tests/V2/ZQaDrawConcurrencyLoadTest.php",
     "docs/operations/qa-draw/README.md",
     "openapi/admin/openapi.yaml",
@@ -546,7 +552,7 @@ def metadata_value(body: str, label: str) -> str:
 
 def section_bullets(body: str, heading: str) -> list[str]:
     match = re.search(
-        rf"^###\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^##{{2,3}}\s+|\Z)",
+        rf"^###\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^#{{2,3}}\s+|\Z)",
         body,
         re.MULTILINE,
     )
@@ -2565,6 +2571,64 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     if "'qa.draw.manage'" in admin or "'qa.draw.manage'" in operator:
         raise PolicyFailure("V2 QA Draw permission must be Owner-only")
 
+    fresh_authorizer = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "FRESH_AUTHENTICATION_REQUIRED",
+        "admin.fresh_mfa.required",
+        "lessThan",
+        "requires_mfa_enrollment",
+        "critical_admin_mutation",
+        "session_correlation_hash",
+    ):
+        if required not in fresh_authorizer:
+            raise PolicyFailure(f"Admin Fresh MFA Authorizer missing {required}")
+
+    reauthentication = (
+        repository
+        / "apps/api/app/Domain/Identity/Services/V2AdminReauthenticationService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "verifyReauthenticationAssertion",
+        "rotateLockedAdminSession",
+        "admin.reauthentication.succeeded",
+        "admin.reauthentication.failed",
+        "admin.reauthentication.rate_limited",
+        "'totp'",
+        "'webauthn'",
+    ):
+        if required not in reauthentication:
+            raise PolicyFailure(f"Admin reauthentication missing {required}")
+    for prohibited in ("'password' =>", "'recovery_code' =>"):
+        if prohibited in reauthentication:
+            raise PolicyFailure(
+                f"Admin Fresh MFA permits prohibited method {prohibited}"
+            )
+
+    identity_config = (
+        repository / "apps/api/config/v2_identity.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "'fresh_mfa'",
+        "'minutes' => 5",
+        "'critical_admin_mutation' => [10, 600]",
+    ):
+        if required not in identity_config:
+            raise PolicyFailure(f"Admin Fresh MFA configuration missing {required}")
+
+    admin_service = (
+        repository
+        / "apps/api/app/Domain/QaDraw/Services/V2QaDrawAdminService.php"
+    ).read_text(encoding="utf-8")
+    if "V2AdminAuthorizationContext" not in admin_service:
+        raise PolicyFailure("V2 QA Domain Service lacks Admin Authorization Context")
+    if "public function mode(Admin " in admin_service:
+        raise PolicyFailure("V2 QA Domain Service permits direct Admin bypass")
+    if admin_service.count("authorizeQa(") < 9:
+        raise PolicyFailure("V2 QA Domain Service does not enforce Fresh MFA")
+
     resolver = (
         repository
         / "apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php"
@@ -2615,6 +2679,8 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         if isinstance(operation, dict)
     }
     required_operations = {
+        "createAdminReauthenticationWebauthnOptions",
+        "reauthenticateAdmin",
         "getQaTestUserMode",
         "saveQaTestUserMode",
         "disableQaTestUserMode",
@@ -2630,6 +2696,10 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     }
     if not required_operations.issubset(admin_operations):
         raise PolicyFailure("V2 Admin QA Draw operation set is incomplete")
+    if json.dumps(admin_bundle, sort_keys=True).count(
+        '"x-fresh-mfa": "5-minutes"'
+    ) != 12:
+        raise PolicyFailure("Every V2 Admin QA operation must require Fresh MFA")
     public_text = json.dumps(public_bundle, sort_keys=True)
     for prohibited in ("QaMode", "QaPlan", "QaExecution", "/qa-draw"):
         if prohibited in public_text:
@@ -2651,6 +2721,17 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 QA Draw test missing {required}")
+    fresh_tests = (
+        repository / "apps/api/tests/V2/AdminFreshMfaQaTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "expires_at_exactly_five_minutes",
+        "rotates_session_without_extending_absolute_expiry",
+        "password_recovery_and_invalid_totp",
+        "rate_limit_is_session_scoped_and_audited",
+    ):
+        if required not in fresh_tests:
+            raise PolicyFailure(f"Admin Fresh MFA test missing {required}")
 
     runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")
     workflow = (

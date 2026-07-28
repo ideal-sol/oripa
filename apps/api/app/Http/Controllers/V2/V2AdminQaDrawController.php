@@ -2,28 +2,27 @@
 
 namespace App\Http\Controllers\V2;
 
-use App\Domain\Identity\Enums\V2Permission;
-use App\Domain\Identity\Services\V2PermissionAuthorizer;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
+use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\Services\V2QaDrawAdminService;
-use App\Models\V2\Admin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 final class V2AdminQaDrawController
 {
     public function __construct(
         private readonly V2QaDrawAdminService $service,
-        private readonly V2PermissionAuthorizer $permissions
+        private readonly V2AdminFreshMfaAuthorizer $freshMfa
     ) {
     }
 
     public function showMode(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, fn (): array =>
-            $this->service->mode($this->admin(), $userId));
+            $this->service->mode($this->context($request), $userId));
     }
 
     public function saveMode(Request $request, string $userId): JsonResponse
@@ -36,12 +35,11 @@ final class V2AdminQaDrawController
             }
 
             return $this->service->saveMode(
-                $this->admin(),
+                $this->context($request),
                 $userId,
                 $reason,
                 is_string($request->input('starts_at')) ? $request->input('starts_at') : null,
-                $endsAt,
-                $this->requestId($request)
+                $endsAt
             );
         });
     }
@@ -49,16 +47,15 @@ final class V2AdminQaDrawController
     public function disableMode(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->disableMode(
-            $this->admin(),
-            $userId,
-            $this->requestId($request)
+            $this->context($request),
+            $userId
         ));
     }
 
     public function plans(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, fn (): array =>
-            $this->service->plans($this->admin(), $userId));
+            $this->service->plans($this->context($request), $userId));
     }
 
     public function createPlan(Request $request, string $userId): JsonResponse
@@ -78,15 +75,14 @@ final class V2AdminQaDrawController
             }
 
             return $this->service->createPlan(
-                $this->admin(),
+                $this->context($request),
                 $userId,
                 $gachaId,
                 $title,
                 $reason,
                 is_string($request->input('starts_at')) ? $request->input('starts_at') : null,
                 is_string($request->input('ends_at')) ? $request->input('ends_at') : null,
-                $items,
-                $this->requestId($request)
+                $items
             );
         });
     }
@@ -94,7 +90,7 @@ final class V2AdminQaDrawController
     public function showPlan(Request $request, string $planId): JsonResponse
     {
         return $this->handle($request, fn (): array =>
-            $this->service->plan($this->admin(), $planId));
+            $this->service->plan($this->context($request), $planId));
     }
 
     public function updatePlan(Request $request, string $planId): JsonResponse
@@ -107,13 +103,12 @@ final class V2AdminQaDrawController
             }
 
             return $this->service->updatePlan(
-                $this->admin(),
+                $this->context($request),
                 $planId,
                 $title,
                 $reason,
                 is_string($request->input('starts_at')) ? $request->input('starts_at') : null,
-                is_string($request->input('ends_at')) ? $request->input('ends_at') : null,
-                $this->requestId($request)
+                is_string($request->input('ends_at')) ? $request->input('ends_at') : null
             );
         });
     }
@@ -121,34 +116,31 @@ final class V2AdminQaDrawController
     public function pausePlan(Request $request, string $planId): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->pausePlan(
-            $this->admin(),
-            $planId,
-            $this->requestId($request)
+            $this->context($request),
+            $planId
         ));
     }
 
     public function activatePlan(Request $request, string $planId): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->activatePlan(
-            $this->admin(),
-            $planId,
-            $this->requestId($request)
+            $this->context($request),
+            $planId
         ));
     }
 
     public function disablePlan(Request $request, string $planId): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->disablePlan(
-            $this->admin(),
-            $planId,
-            $this->requestId($request)
+            $this->context($request),
+            $planId
         ));
     }
 
     public function executions(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->executions(
-            $this->admin(),
+            $this->context($request),
             $request->only([
                 'user_id',
                 'gacha_id',
@@ -164,31 +156,14 @@ final class V2AdminQaDrawController
     public function showExecution(Request $request, string $executionId): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->execution(
-            $this->admin(),
-            $executionId,
-            $this->requestId($request)
+            $this->context($request),
+            $executionId
         ));
     }
 
-    private function admin(): Admin
+    private function context(Request $request): V2AdminAuthorizationContext
     {
-        $admin = Auth::guard('v2_admin')->user();
-        if (! $admin instanceof Admin) {
-            throw new V2QaDrawException(
-                'AUTHENTICATION_REQUIRED',
-                401,
-                'Authentication is required.'
-            );
-        }
-        if (! $this->permissions->allows($admin->role, V2Permission::ManageQaDraw)) {
-            throw new V2QaDrawException(
-                'AUTHORIZATION_DENIED',
-                403,
-                'The QA Draw operation is restricted to Owners.'
-            );
-        }
-
-        return $admin;
+        return $this->freshMfa->context($request, $this->requestId($request));
     }
 
     private function handle(Request $request, callable $callback): JsonResponse
@@ -200,7 +175,7 @@ final class V2AdminQaDrawController
                 'X-Request-Id' => $requestId,
                 'X-Oripa-Api-Version' => '2',
             ]);
-        } catch (V2QaDrawException $exception) {
+        } catch (V2QaDrawException|V2AuthenticationException $exception) {
             return response()->json([
                 'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
                 'title' => $exception->getMessage(),
