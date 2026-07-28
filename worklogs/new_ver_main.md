@@ -4291,7 +4291,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Migration Row SHA-256は
   `b035e90a3e58d3864bb88e040603e814de688633ecf8ef3c72a6571b321493f0`、
   Backup SHA-256は
-  `cb7448a0f56efa4af308191e9010fcb9342f2493b26cad713c0ce9aa5cb05fc3`
+  `f35e536bc91149d36d122207ab1100b0b2bf79939b99ab191714d77504bc4e8a`
   で一致した。Host Port公開なし、Task Resource CleanupはPASSした。
 - QA 100回5回はp50約124ms、p95約154ms、最大65 Queryだった。
   QA 1000回5回はp50約687ms、p95約825ms、最大76 Query、Response最大約18.6KB、
@@ -4316,7 +4316,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   秒境界を跨ぐと60分TTL Constraintへ1秒違反する既存不具合を再現した。
   `created_at`をModel Allowlistへ追加し、Serviceが既に生成している同一固定時刻を
   保存する最小修正で解消した。TTL、Token、Session、Migration、認証Contractは
-  変更していない。修正後の全V2 SuiteとIdentity TestはPASSした。
+  変更していない。同じTransaction時刻依存があったInitial Owner Invitationも、
+  作成時刻と30分期限を同一固定時刻から保存し、TTLを直接Assertionした。
+  修正後の全V2 SuiteとIdentity TestはPASSした。
 - OpenAPI Lint／Bundle、Storefront Client生成差分／Typecheck／Lint／Build／11 Test、
   Site Schema生成差分／Typecheck／Lint／Build／10 Test、Storefront Testkit生成差分／
   Typecheck／Lint／Build／19 Test／Export／実Network禁止、Admin Typecheck／Lint／Build、

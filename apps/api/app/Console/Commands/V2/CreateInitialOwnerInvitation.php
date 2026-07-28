@@ -48,10 +48,12 @@ final class CreateInitialOwnerInvitation extends Command
                 'role' => V2AdminRole::Owner,
                 'state' => V2AdminState::Invited,
             ]);
+            $invitationCreatedAt = now()->startOfSecond();
             AdminInvitation::query()->create([
                 'admin_id' => $admin->getKey(),
                 'token_hash' => $tokens->hash($token),
-                'expires_at' => now()->addMinutes(30),
+                'expires_at' => $invitationCreatedAt->copy()->addMinutes(30),
+                'created_at' => $invitationCreatedAt,
             ]);
             $events->record('admin_invitation', [
                 'realm' => 'admin',
