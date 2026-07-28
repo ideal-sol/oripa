@@ -232,6 +232,70 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertStringNotContainsString($this->address()['phone_number'], $audit);
     }
 
+    public function test_address_mutations_rollback_when_pii_access_audit_fails(): void
+    {
+        [$user] = $this->fixture(1);
+        $service = app(V2PrizeShippingService::class);
+        $validKey = config('v2_audit.hmac_keys.v1');
+
+        $failed = false;
+        config(['v2_audit.hmac_keys.v1' => 'base64:invalid']);
+        try {
+            $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        } catch (\RuntimeException) {
+            $failed = true;
+        } finally {
+            config(['v2_audit.hmac_keys.v1' => $validKey]);
+        }
+        self::assertTrue($failed, 'Address creation must fail closed when Audit fails.');
+        self::assertSame(0, DB::table('shipping_addresses')->count());
+
+        $address = $service->createAddress(
+            $user,
+            $this->address(),
+            (string) Str::uuid7()
+        );
+        $failed = false;
+        config(['v2_audit.hmac_keys.v1' => 'base64:invalid']);
+        try {
+            $service->updateAddress(
+                $user,
+                $address['id'],
+                [...$this->address(), 'city' => '監査失敗市'],
+                (string) Str::uuid7()
+            );
+        } catch (\RuntimeException) {
+            $failed = true;
+        } finally {
+            config(['v2_audit.hmac_keys.v1' => $validKey]);
+        }
+        self::assertTrue($failed, 'Address update must fail closed when Audit fails.');
+        self::assertSame(1, DB::table('shipping_addresses')->count());
+        self::assertSame(
+            $this->address()['city'],
+            $service->addressDetail(
+                $user,
+                $address['id'],
+                (string) Str::uuid7()
+            )['city']
+        );
+
+        $failed = false;
+        config(['v2_audit.hmac_keys.v1' => 'base64:invalid']);
+        try {
+            $service->deleteAddress($user, $address['id'], (string) Str::uuid7());
+        } catch (\RuntimeException) {
+            $failed = true;
+        } finally {
+            config(['v2_audit.hmac_keys.v1' => $validKey]);
+        }
+        self::assertTrue($failed, 'Address deletion must fail closed when Audit fails.');
+        self::assertSame(
+            0,
+            DB::table('shipping_addresses')->whereNotNull('deleted_at')->count()
+        );
+    }
+
     public function test_shipping_request_is_atomic_replay_safe_and_tracks_admin_transitions(): void
     {
         [$user, $prizes] = $this->fixture(3);

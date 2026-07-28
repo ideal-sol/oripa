@@ -283,19 +283,22 @@ final class V2PrizeShippingService
     public function createAddress(User $user, array $input, string $requestId): array
     {
         $plain = $this->validatedAddress($input);
-        $address = new ShippingAddress();
-        $address->forceFill([
-            'user_id' => $user->id,
-            ...$this->encryptedAddress($plain),
-        ])->save();
-        $this->audit->record('shipping.address_created', $this->auditAttributes(
-            $user,
-            'shipping_address',
-            $address->public_id,
-            $requestId
-        ));
 
-        return $this->address($address, true);
+        return $this->transaction(function () use ($user, $plain, $requestId): array {
+            $address = new ShippingAddress();
+            $address->forceFill([
+                'user_id' => $user->id,
+                ...$this->encryptedAddress($plain),
+            ])->save();
+            $this->audit->record('shipping.address_created', $this->auditAttributes(
+                $user,
+                'shipping_address',
+                $address->public_id,
+                $requestId
+            ));
+
+            return $this->address($address, true);
+        });
     }
 
     /** @param array<string, string|null> $input @return array<string, mixed> */
@@ -305,28 +308,39 @@ final class V2PrizeShippingService
         array $input,
         string $requestId
     ): array {
-        $address = $this->ownedAddress($user, $publicId);
-        $address->forceFill($this->encryptedAddress($this->validatedAddress($input)))->save();
-        $this->audit->record('shipping.address_updated', $this->auditAttributes(
-            $user,
-            'shipping_address',
-            $address->public_id,
-            $requestId
-        ));
+        $plain = $this->validatedAddress($input);
 
-        return $this->address($address->refresh(), true);
+        return $this->transaction(function () use (
+            $user,
+            $publicId,
+            $plain,
+            $requestId
+        ): array {
+            $address = $this->ownedAddress($user, $publicId);
+            $address->forceFill($this->encryptedAddress($plain))->save();
+            $this->audit->record('shipping.address_updated', $this->auditAttributes(
+                $user,
+                'shipping_address',
+                $address->public_id,
+                $requestId
+            ));
+
+            return $this->address($address->refresh(), true);
+        });
     }
 
     public function deleteAddress(User $user, string $publicId, string $requestId): void
     {
-        $address = $this->ownedAddress($user, $publicId);
-        $address->delete();
-        $this->audit->record('shipping.address_deleted', $this->auditAttributes(
-            $user,
-            'shipping_address',
-            $address->public_id,
-            $requestId
-        ));
+        $this->transaction(function () use ($user, $publicId, $requestId): void {
+            $address = $this->ownedAddress($user, $publicId);
+            $address->delete();
+            $this->audit->record('shipping.address_deleted', $this->auditAttributes(
+                $user,
+                'shipping_address',
+                $address->public_id,
+                $requestId
+            ));
+        });
     }
 
     /**

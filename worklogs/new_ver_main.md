@@ -4118,7 +4118,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   拒否結果はPIIを含まない相関HashとReason Codeで永続Auditへ記録する。
 - 配送先詳細取得、Address CRUD、Shipping Request作成、Admin配送先参照、
   Tracking登録、状態変更、Point交換、Hold拒否をAuditする。住所全文、電話番号、
-  Full Email、Cookie、Session ID、TokenはAudit／Log／Errorへ保存しない。
+  Full Email、Cookie、Session ID、TokenはAudit／Log／Errorへ保存しない。Address
+  作成／更新／削除はAudit永続化と同一Transactionで実行し、Audit障害時はPII Mutationも
+  Rollbackする。
 - Lock順はIdempotency Record、User／Wallet、User Prize内部ID昇順、Point Lot、
   Shipping Request、Payment Adjustment Prize Action、History／Audit／Outboxである。
   `SKIP LOCKED`や外部配送通信をTransaction内で使用していない。
@@ -4126,13 +4128,15 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ### Test／Performance
 
 - Persistent V2 PostgreSQL 17／Redis 7とTask専用Ephemeral Source／Restoreで
-  V2 `migrate:fresh`を各2回実行した。V2全Testは116件／774 Assertion、
+  V2 `migrate:fresh`を各2回実行した。V2全Testは117件／781 Assertion、
   Performance Test 19 Assertion、実Process並行Test 9 Assertionを含めPASSした。
   通常Suiteでは明示的Load Test 1件をSkippedとし、Ephemeral Smokeの専用Load工程で
   別途PASSを確認した。
 - 同一景品のPoint交換とShipping Requestを独立Process 2本で同時開始し、片方だけが成立、
   もう片方は状態競合として拒否された。重複Request、二重Point付与、二重Shipping Item、
   未解決Deadlock、部分成功は0件だった。
+- Audit HMAC Keyを意図的に無効化するNegative Testで、Shipping Addressの作成／更新／削除が
+  すべてFail Closedとなり、PII Mutationが残らないことを確認した。
 - User Prize 1,000件のCursor一覧は10 Page／10 Query、Page p50 9.840ms、
   p95 11.192msだった。100件一括Point交換5回はp50 328.579ms、
   p95 367.675ms、各525 Queryだった。100件Shipping Request 5回は
@@ -4146,7 +4150,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Migration Row SHA-256は
   `1b502dcbedeeff9865e3f187f1b0ee4abfd932c8dc1a7a7d80928945c25c1118`、
   Backup SHA-256は
-  `13212d6c8d7853efee7f59b78f3eb9b57feb7e68ff6a570f5d33663cfba8be10`
+  `e9f5b35c5a73d5e705be5aae4fc702585fb64602b0ea6e82e7d4325a1ce5ada7`
   である。Task専用Container／Network／Volume CleanupはPASSした。
 - OpenAPI Lint／Bundle／Checksum、Storefront Client生成差分／Typecheck／Lint／Build／
   11 Test、Site Schema生成差分／Typecheck／Lint／Build／10 Test、
