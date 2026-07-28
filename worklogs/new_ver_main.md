@@ -4864,3 +4864,147 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   残るためGate G4／G5は`NOT COMPLETE`である。次Task候補は
   `MIG-058 Google OIDC／LINE Identity Linking Vertical Slice`だが、
   MIG-057完了後には開始しない。
+
+## MIG-057 Closeout／MIG-058A External Identity・Google OIDC Vertical Slice
+
+### MIG-057 Closeout
+
+- Issue `#117`はClosed、PR `#118`はSquash Mergedである。Final Headは
+  `2f2f28d29bab4ce59b1458f6aacd49994e7b3970`、Squash Commitは
+  `84da69e78d9ed877699427448a29b78e83fabd12`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-057 Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／V1 Characterization
+
+- Task IDは`MIG-058A`、Riskは`R3`、Issueは`#119`、Branchは
+  `feat/MIG-058A-google-oidc`、Base SHAは
+  `84da69e78d9ed877699427448a29b78e83fabd12`である。GoogleとLINEを分離し、
+  LINE Loginは`MIG-058B`へ延期した。
+- V1 Google LoginはCache StateとAuthorization Code交換後のUserInfoを使用し、
+  Nonce／PKCE／ID Token署名検証を行わず、Provider Subject、Email、
+  Profileを保存していた。既存Subject Login、Verified Email新規登録、
+  Verified Email衝突拒否を業務結果としてCharacterizationした。
+  V1のEmail識別、Raw Subject／Token／Profile保存、脆弱なProtocol処理はCopyしていない。
+- Google公式OpenID Connect／OAuth 2.0文書を正本として、Server-side
+  Authorization Code Flow、State、Nonce、PKCE S256、固定Issuer／Endpoint、
+  RS256署名、Audience／`azp`／`exp`／`iat`／`sub`／`email_verified`検証を採用した。
+
+### Schema／Protocol／Account
+
+- V2 Migrationへ`external_identity_accounts`、
+  `external_identity_transactions`、`external_identity_account_histories`を追加し、
+  `users.password_login_enabled`をForward-safeに追加した。Public IDはUUIDv7、
+  内部PKはbigint、Providerは`google`だけ、`tenant_id`はない。
+- `(provider, issuer, subject_hash)`とUser当たりProviderをUniqueにし、
+  Raw SubjectはRepository外KeyによるHMAC相関値だけを保存する。
+  Transactionは10分、1回限り、State／Nonce／Browser BindingはHash、
+  Code VerifierはApplication-level Encryptionで保存する。Account Identity、
+  Transaction状態遷移、History Append-onlyをDB Triggerで保護する。
+- Google Token／JWKS EndpointとIssuerは固定し、任意Discovery URLを受け入れない。
+  Redirect URI Exact Match、PKCE S256、RS256 Algorithm Allowlist、`kid`再取得、
+  Clock Skew 60秒、Nonce／Issuer／Audience／`azp`／Expiry／Issued At／Subject／
+  Verified EmailをFail Closedで検証する。Provider通信はDB Transaction外である。
+- 既存SubjectはEmail変更に影響されずLoginし、新規UserはVerified Emailの場合だけ
+  `active`で作成する。Password Loginは明示的に無効で、内部Argon2id Hashを
+  Loginへ使用させない。既存Verified Email一致では自動Linkせず、
+  明示Login後のGoogle再認証を要求する。Password Reset成功時だけ
+  Password Loginを有効化する。
+
+### Link／Unlink／Session／Security
+
+- Public OpenAPIへGoogle Login Start／Callback、Link Start／Callback、
+  Linked Identity一覧、Google Reauthentication、Unlink、
+  User Password Reauthenticationの7 Operationを追加した。
+  Public Operationは42件、Admin 67件、Webhook 0件である。
+- Link／Google ReauthenticationはUser Session、Browser Transaction、
+  Google Subject再検証へBindingする。Link、Reauthentication、Unlink、
+  Password Reauthentication成功時にSession／CSRFをRotationし、
+  Absolute Session期限を延長しない。
+- UnlinkはServer DBの`reauthenticated_at`とServer時刻を正本とする5分境界を使用し、
+  Passwordまたは残るCredentialがない場合は拒否する。Unlink成功時はRemember Deviceと
+  他Sessionを失効する。
+- Login StartはIP 10回／10分、Callback FailureはTransaction＋IP、
+  Link／Reauthentication StartはUser 5回／10分、Password Reauthenticationは
+  Session 5回／5分、UnlinkはUser 5回／1時間である。識別値はHMAC相関値、
+  Limiter障害時はFail Closedである。
+- OIDC Start／Protocol拒否／Provider Failure／新規User／Login／Link／Unlink／
+  Reauthentication／Rate LimitをAppend-only Auditへ接続し、新規User、Link、
+  Unlink通知をTransactional Outboxへ接続した。Token、Code、ID Token、Raw Subject、
+  State、Nonce、Verifier、Full Email、Cookie、Raw Session ID、Client Secretを
+  Audit／Log／Error／Outbox Metadataへ保存しない。
+- `firebase/php-jwt` `7.1.0`をExact Versionで追加した。Google Client ID／Secret／
+  Redirect URIはRepository外Environmentだけを使用し、未設定時はFail Closedである。
+
+### Test／Migration／非変更
+
+- Persistent V2 DBで`migrate:fresh`を2回、最新Migrationの1 Step
+  Rollback／Reapply、Migration Status、Schema Inventory、PostgreSQL／Redis Health、
+  Host Port非公開、全V2 SuiteをGuard経由で確認した。
+- Task専用Ephemeral Source／Restoreでも`migrate:fresh`を2回、全V2 Suite、
+  Draw／QA Draw Load、Reporting／Content／Contact Performance、API／Admin Health、
+  Backup／Restore、Schema／Migration Checksum一致、Task Resource Cleanupを確認した。
+- V2 Migrationは15件、Migration Set SHA-256は
+  `53cbd05cae2fa794d39a3fd5c71ad87cefcb398e69eafc066a29ec9356e4f27a`である。
+  Source／Restore Schema SHA-256は
+  `7ae754f3fcbf1cff5cdf48961f0e03293e0e4e432124e92b0bbb399dcec60090`、
+  Migration Row SHA-256は
+  `3e9d7878e58a77810819042186ef4ac43acb4926d74a7e619296657e382fd4ea`
+  で一致した。Backup SHA-256は
+  `21a549606f240faafe86703a359dbbf3916878d7ab9f09eaf3e9a3ac8f14f773`である。
+- State／Nonce／PKCE、Code／Transaction Replay、Expiry、Issuer、Audience、`azp`、
+  Token Expiry／Future `iat`、Algorithm、Unknown／Rotated Key、Invalid Signature、
+  JWKS／Provider Failure、SSRF固定境界、既存Identity Login、新規User、
+  Email衝突、Account State、Link／Unlink、5分Fresh境界、Session／CSRF Rotation、
+  Remember Device、同一Callback並行実行を検証した。
+- 並行Callbackで後着Replayが先着Workerの`processing` Transactionを
+  `failed`へ変更できる競合を検出し、Claim成功したWorkerだけが自身のTransactionを
+  失敗化できる所有境界へ修正した。並行実行は1 User／1 Identity／1 Sessionだけが
+  成功し、後着はGeneric ErrorでFail Closedする。
+- 期限切れCallbackは既にFail Closedだったが、Transaction状態が`pending`のまま残る
+  不備をFresh self-reviewで検出した。Server時刻で期限切れを再確認して`expired`へ
+  明示遷移し、状態をTestで固定した。
+- Public Auth Controllerの存在しない基底Controller継承をHTTP Route Testで検出し、
+  他V2 Controllerと同じStandalone Controllerへ修正した。
+- Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Testkit生成差分／Typecheck／Lint／Build／22 Test／固定Export／実Network禁止、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Admin Typecheck／Lint／Build、OpenAPI Unit 4件、Policy Unit 80件、
+  Quality Unit 5件、Security Unit 4件、Site Template Unit 6件、
+  DB Guard Unit 25件、Release Unit 10件はPASSした。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは既存11 Finding、Composer Auditは既存期限付き10 Findingである。
+  `policy-gate`、`quality-gate`、`security-gate`、OpenAPI Contract Gate、
+  `git diff --check`はPASSし、Secret／PII Candidate、新規Critical／High、
+  Baseline追加／拡張は0件だった。Legacy Lintは既存8 Error／1 Warningと一致し、
+  Typecheck／BuildはPASSした。
+- V1 Migration 40件の正本Checksum、
+  V1 Runtime／本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。実Google Account E2E、
+  UI、実Mail、LINE、Payment Provider、Domain／TLS、Staging／Production Deploymentは
+  未実行であり、PASSとは記録しない。
+
+### 時間を要した作業／Gate
+
+- Guard付きPersistent検証はImage Build、Migration 2回、全V2 Suiteを含み、
+  1回あたり約2分07秒～2分36秒を要した。初回Test Harness 2件、HTTP Route 500、
+  並行Replay競合の検出ごとに再実行し、対象修正後の正規環境結果を正本とした。
+- Ephemeral Smokeは全Suite／Load／Backup／Restoreを含み、成功Runは4分53秒だった。
+  事前のHost Storage不足、並行Replay競合、CHECK式のPostgreSQL Canonical表現差で
+  Fail Closedし、未使用Build Cache／Dangling Imageだけを限定Cleanupした後、
+  所有境界修正とCanonical CHECK式で解決した。
+- 今後はSmoke前のDisk Preflight、Guardへの対象Test Mode、Migration CHECK式Templateの
+  Canonical化、HTTP Route Smokeの早期実行により再Build回数を短縮する。
+- Canonical Migration確定後の最終Persistent Guardは1分39秒でPASSした。
+- 期限切れTransaction状態の補完後にPersistent Guardを再実行し、2分10.6秒で
+  Migration 15件、全V2 Suite、PostgreSQL／Redis Healthを含めPASSした。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。UI、通知Transport、実Google Browser E2E、
+  Staging E2Eが残るためGate G4／G5は`NOT COMPLETE`である。
+  次Task候補は`MIG-058B LINE Login v2.1 Identity Linking Vertical Slice`だが、
+  MIG-058Bは本Task内で開始しない。

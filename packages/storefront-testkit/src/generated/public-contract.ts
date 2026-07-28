@@ -5,7 +5,7 @@
 
 export const PUBLIC_CONTRACT_FIXTURE = {
   openapi: "3.1.1",
-  operation_count: 35,
-  operation_ids: ["confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","updateShippingAddress","verifySmsCode","verifyUserEmail"],
-  bundle_sha256: "174292584ac12e9e999816cb84f59191005218053d2a1b2b1399fb1970ee4d77",
+  operation_count: 42,
+  operation_ids: ["completeGoogleOidc","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","unlinkGoogleIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"],
+  bundle_sha256: "fbafa579412afbe31b9230919af71d4e506e6b543760df1a9615430fb9bd856d",
 } as const;

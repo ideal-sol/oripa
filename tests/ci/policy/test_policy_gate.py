@@ -348,6 +348,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_01_000012_create_v2_reporting_export_foundation.php",
             "apps/api/database/migrations-v2/2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
             "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
+            "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1500,8 +1501,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 35",
-                    "operation_count: 36",
+                    "operation_count: 42",
+                    "operation_count: 43",
                 ),
                 encoding="utf-8",
             )

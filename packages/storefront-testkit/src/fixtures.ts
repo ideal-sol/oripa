@@ -279,3 +279,38 @@ export const PUBLIC_IDENTITY_RECOVERY_FIXTURE = Object.freeze({
   password_reset: PublicComponents["schemas"]["PasswordResetAccepted"];
   sms_status: PublicComponents["schemas"]["SmsVerificationStatus"];
 });
+
+export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
+  start: {
+    provider: "google",
+    purpose: "link",
+    authorization_url:
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=fixture",
+    expires_at: "2026-07-28T10:10:00Z",
+  },
+  linked: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000401",
+        provider: "google",
+        linked_at: "2026-07-28T10:00:00Z",
+        last_authenticated_at: "2026-07-28T10:00:00Z",
+      },
+    ],
+  },
+  session: {
+    authenticated: true,
+    purpose: "login",
+    provider: "google",
+    return_path: "/",
+    user: {
+      id: "0198a001-0000-7000-8000-000000000402",
+      state: "active",
+      email_verified: true,
+    },
+  },
+} as const satisfies {
+  start: PublicComponents["schemas"]["ExternalIdentityStart"];
+  linked: PublicComponents["schemas"]["ExternalIdentityCollection"];
+  session: PublicComponents["schemas"]["ExternalIdentitySession"];
+});

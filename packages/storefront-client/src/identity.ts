@@ -11,6 +11,33 @@ export interface IdentityMutationOptions {
 }
 
 export interface StorefrontIdentityClient {
+  startGoogleLogin(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  completeGoogleOidc(input: {
+    code: string;
+    state: string;
+    iss?: "https://accounts.google.com";
+  }): Promise<StorefrontResponse<Schemas["ExternalIdentitySession"]>>;
+  listExternalIdentities(): Promise<
+    StorefrontResponse<Schemas["ExternalIdentityCollection"]>
+  >;
+  startGoogleIdentityLink(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  startGoogleReauthentication(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  reauthenticateUserPassword(
+    input: Schemas["UserPasswordReauthenticationRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["UserReauthentication"]>>;
+  unlinkGoogleIdentity(
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<undefined>>;
   requestPasswordReset(
     input: Schemas["PasswordResetRequest"],
     options: IdentityMutationOptions,
@@ -59,6 +86,54 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    startGoogleLogin: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/auth/external/google/start",
+        input,
+        options,
+      ),
+    completeGoogleOidc: (input) => {
+      if (!/^[0-9a-f]{64}$/.test(input.state) || input.code.length === 0) {
+        throw new TypeError("OIDC callback input is invalid");
+      }
+      const query = new URLSearchParams({
+        code: input.code,
+        state: input.state,
+      });
+      if (input.iss !== undefined) {
+        query.set("iss", input.iss);
+      }
+      return transport.request({
+        path: `/auth/external/google/callback?${query.toString()}`,
+      });
+    },
+    listExternalIdentities: () =>
+      transport.request({ path: "/me/external-identities" }),
+    startGoogleIdentityLink: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/me/external-identities/google/link",
+        input,
+        options,
+      ),
+    startGoogleReauthentication: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/me/external-identities/google/reauthenticate",
+        input,
+        options,
+      ),
+    reauthenticateUserPassword: (input, options) =>
+      mutation<Schemas["UserReauthentication"]>(
+        "/me/password/reauthenticate",
+        input,
+        options,
+      ),
+    unlinkGoogleIdentity: (options) =>
+      transport.request<undefined>({
+        path: "/me/external-identities/google",
+        method: "DELETE",
+        headers: csrf(options.csrf_token),
+        csrf: "required",
+      }),
     requestPasswordReset: (input, options) =>
       mutation<Schemas["PasswordResetAccepted"]>(
         "/auth/password/forgot",

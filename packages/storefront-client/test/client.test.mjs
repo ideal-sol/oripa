@@ -293,6 +293,13 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "sendSmsVerification",
     "resendSmsVerification",
     "verifySmsCode",
+    "startGoogleLogin",
+    "completeGoogleOidc",
+    "listExternalIdentities",
+    "startGoogleIdentityLink",
+    "startGoogleReauthentication",
+    "reauthenticateUserPassword",
+    "unlinkGoogleIdentity",
     "listContentBanners",
     "listContentNotices",
     "getContentNotice",
@@ -353,6 +360,58 @@ test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る"
     assert.equal(request.headers["X-XSRF-TOKEN"], "d".repeat(64));
     assert.equal(request.csrf, "required");
   }
+});
+
+test("Identity FacadeはGoogle OIDC Tokenを保持せずContractどおり送る", async () => {
+  const requests = [];
+  const identity = createStorefrontIdentityClient({
+    request: async (options) => {
+      requests.push(options);
+      return {
+        data: { status: "accepted" },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+  const options = { csrf_token: "e".repeat(64) };
+  await identity.startGoogleLogin({ return_path: "/" }, options);
+  await identity.completeGoogleOidc({
+    code: "authorization-code",
+    state: "a".repeat(64),
+    iss: "https://accounts.google.com",
+  });
+  await identity.listExternalIdentities();
+  await identity.startGoogleIdentityLink({ return_path: "/" }, options);
+  await identity.startGoogleReauthentication({ return_path: "/" }, options);
+  await identity.reauthenticateUserPassword(
+    { password: "valid fixture password" },
+    options,
+  );
+  await identity.unlinkGoogleIdentity(options);
+
+  assert.equal(requests[0].path, "/auth/external/google/start");
+  assert.match(
+    requests[1].path,
+    /^\/auth\/external\/google\/callback\?code=authorization-code&state=a{64}&iss=/,
+  );
+  assert.equal(requests[2].path, "/me/external-identities");
+  assert.equal(requests[3].path, "/me/external-identities/google/link");
+  assert.equal(
+    requests[4].path,
+    "/me/external-identities/google/reauthenticate",
+  );
+  assert.equal(requests[5].path, "/me/password/reauthenticate");
+  assert.equal(requests[6].path, "/me/external-identities/google");
+  assert.equal(requests[6].method, "DELETE");
+  assert.equal(requests[6].headers["X-XSRF-TOKEN"], "e".repeat(64));
+  assert.throws(
+    () =>
+      identity.completeGoogleOidc({
+        code: "",
+        state: "invalid",
+      }),
+    /invalid/,
+  );
 });
 
 test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを送る", async () => {

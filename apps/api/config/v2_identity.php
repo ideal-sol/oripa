@@ -65,6 +65,19 @@ return [
         'minutes' => 10,
     ],
 
+    'external_identity' => [
+        'transaction_ttl_minutes' => 10,
+        'clock_skew_seconds' => 60,
+        'recent_auth_minutes' => 5,
+        'transaction_cookie' => '__Host-oripa_oidc_transaction',
+        'return_path_allowlist' => ['/'],
+        'google' => [
+            'client_id' => env('V2_GOOGLE_OIDC_CLIENT_ID'),
+            'client_secret' => env('V2_GOOGLE_OIDC_CLIENT_SECRET'),
+            'redirect_uri' => env('V2_GOOGLE_OIDC_REDIRECT_URI'),
+        ],
+    ],
+
     'transactions' => [
         'store' => env('V2_AUTH_TRANSACTION_STORE', 'redis'),
         'admin_preauth_ttl_seconds' => 300,
@@ -106,6 +119,11 @@ return [
         'sms_phone_day' => [10, 86400],
         'sms_ip' => [5, 3600],
         'sms_verify' => [5, 300],
+        'oidc_login_start' => [10, 600],
+        'oidc_callback_failure' => [5, 600],
+        'oidc_link_start' => [5, 600],
+        'user_password_reauthentication' => [5, 300],
+        'oidc_unlink' => [5, 3600],
     ],
 
     'audit_persistence_ready' => true,
