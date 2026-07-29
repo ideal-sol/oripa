@@ -83,7 +83,7 @@
 - Admin OpenAPI Operation: Public 42／Admin 87／Webhook 0
 - Admin Contract生成差分: 0
 - Admin Typecheck／Lint／Production Build: PASS
-- Admin Unit／Component: 32 Test PASS
+- Admin Unit／Component: 33 Test PASS
 - Chromium Browser E2E: 9 Test PASS
 - Policy Unit: 88 Test PASS
 - Quality Unit: 5 Test PASS
@@ -154,7 +154,8 @@
   Fail-closed化と、Idempotency Request Hashへの操作種別固定を追加した。
 - GitHub `quality-gate`が既存Read Schemaへのrequired追加を破壊的変更として検出したため、
   Server Responseは属性を常時返しつつOpenAPIではoptional拡張へ修正した。UIは
-  `revision`欠落時にMutation操作を表示せず、直接呼出も拒否する。
+  `revision`欠落時にMutation操作を表示せず、直接呼出も拒否する。旧Read Responseを
+  模したFail-closed Component Testを追加した。
 - Local Fresh Self-review: SEV-0／SEV-1 0件
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、CleanupはPR完了時に確定。
 - 次Task候補:

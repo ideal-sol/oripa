@@ -5,6 +5,7 @@ import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirma
 import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import { CatalogDataTable } from "@/components/catalog/catalog-data-table";
 import { CatalogMutationForm } from "@/components/catalog/catalog-mutation-form";
+import { hasCatalogMutationRevision } from "@/components/catalog/catalog-workspace";
 import {
   PublicAssetPreview,
   safePublicPath,
@@ -151,5 +152,22 @@ describe("Admin Catalog read components", () => {
   it("registers catalog.manage without changing read-only Operator navigation", () => {
     expect(ADMIN_PERMISSION_CODES).toContain("catalog.manage");
     expect(ADMIN_PERMISSION_CODES).toContain("catalog.read");
+  });
+
+  it("fails closed when an older read response has no mutation revision", () => {
+    expect(hasCatalogMutationRevision(null)).toBe(true);
+    expect(
+      hasCatalogMutationRevision({
+        code: "category-a",
+        created_at: "2026-07-29T00:00:00Z",
+        description: null,
+        id: "01910191-0191-7191-8191-019101910193",
+        is_visible: true,
+        name: "Category A",
+        slug: "category-a",
+        sort_order: 1,
+        updated_at: "2026-07-29T00:00:00Z",
+      }),
+    ).toBe(false);
   });
 });

@@ -149,7 +149,7 @@ export function CatalogWorkspace({
       : null;
   const canManage = hasPermission("catalog.manage") && isMasterResource(section.resource);
   const canMutateMaster =
-    canManage && (master === null || typeof master.revision === "number");
+    canManage && hasCatalogMutationRevision(master);
 
   async function submitMutation(draft: CatalogMasterDraft) {
     const fingerprint = JSON.stringify({
@@ -675,4 +675,10 @@ function mutationRevision(current: CatalogMasterItem | null): number {
     throw new Error("Catalog mutation revision is unavailable.");
   }
   return current.revision;
+}
+
+export function hasCatalogMutationRevision(
+  current: CatalogMasterItem | null,
+): boolean {
+  return current === null || typeof current.revision === "number";
 }

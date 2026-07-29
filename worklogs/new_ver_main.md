@@ -5439,7 +5439,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Audit／Outbox Rollback、物理Delete API不存在、Service迂回拒否を検証した。
 - Admin OpenAPI Unit／BundleはPASSし、Operation数はPublic 42、Admin 87、
   Webhook 0である。Admin Contract生成差分は0である。
-- Admin Typecheck、Lint、Production Build、Unit／Component 32 Test、
+- Admin Typecheck、Lint、Production Build、Unit／Component 33 Test、
   Chromium Browser E2E 9 TestはPASSした。Owner MutationのCSRF／Idempotency Header、
   Canonical再取得、Operator Read-only、Mobile／Keyboard／Focusを確認した。
 - Policy Unit 88 Test、Quality Unit 5 Test、Security Unit 4 Test、
@@ -5502,8 +5502,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Governanceの必須見出しへ修正し、Server Responseは新属性を常時返しながら
   OpenAPIではoptional拡張へ変更した。Mutation UIは`revision`欠落時に操作を
   表示せず、直接呼出もFail Closedにした。OpenAPI Bundle／Contract Gate、
-  Admin生成差分、Typecheck、Lint、32 Test、Production Build、Browser E2E 9 Testを
-  再実行してPASSした。この修正・再検証には約8分を要した。
+  Admin生成差分、Typecheck、Lint、Production Build、Browser E2E 9 Testを
+  再実行してPASSした。旧Read Responseで`revision`がない場合のFail-closed
+  Component Testも追加し、Admin Unit／Component 33 TestがPASSした。
+  この修正・再検証には約8分を要した。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。Prize／Asset Mutation、
   Gacha／Probability、他業務Admin画面、Storefront画面、通知Transport、
