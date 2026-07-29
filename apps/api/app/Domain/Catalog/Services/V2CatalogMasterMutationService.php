@@ -65,6 +65,12 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if ($resource === 'prize') {
+            return $this->createPrize($context, $idempotencyKey, $input);
+        }
+        if ($resource === 'asset') {
+            return $this->createAsset($context, $idempotencyKey, $input);
+        }
         $admin = $this->authorize($context, 'create', $resource);
         $this->rateLimit($context, $admin, 'create', $resource);
         $definition = $this->definition($resource);
@@ -113,6 +119,12 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if ($resource === 'prize') {
+            return $this->updatePrize($context, $publicId, $idempotencyKey, $input);
+        }
+        if ($resource === 'asset') {
+            return $this->updateAsset($context, $publicId, $idempotencyKey, $input);
+        }
         $admin = $this->authorize($context, 'update', $resource);
         $this->rateLimit($context, $admin, 'update', $resource);
         $definition = $this->definition($resource);
@@ -163,6 +175,15 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if ($resource === 'prize' || $resource === 'asset') {
+            return $this->archiveExtendedResource(
+                $context,
+                $resource,
+                $publicId,
+                $idempotencyKey,
+                $input
+            );
+        }
         $admin = $this->authorize($context, 'archive', $resource);
         $this->rateLimit($context, $admin, 'archive', $resource);
         $definition = $this->definition($resource);
@@ -188,6 +209,262 @@ final class V2CatalogMasterMutationService
                 ]);
 
                 return $this->find($definition['table'], $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function createPrize(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'prize');
+        $this->rateLimit($context, $admin, 'create', 'prize');
+        $payload = $this->validatePrizeCreate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'prize',
+            'create',
+            $idempotencyKey,
+            $payload,
+            201,
+            function () use ($payload): object {
+                $now = now()->startOfSecond();
+                $rank = $this->resolveReference(
+                    'catalog_ranks',
+                    $payload['rank_id'],
+                    'is_visible'
+                );
+                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+                $publicId = (string) Str::uuid7();
+                DB::table('catalog_prizes')->insert([
+                    'public_id' => $publicId,
+                    'code' => $payload['code'],
+                    'rank_id' => $rank->id,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'description' => $payload['description'],
+                    'display_price' => $payload['display_price'],
+                    'exchange_points' => $payload['exchange_points'],
+                    'is_visible' => $payload['is_visible'],
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                return $this->find('catalog_prizes', $publicId, true);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function updatePrize(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'prize');
+        $this->rateLimit($context, $admin, 'update', 'prize');
+        if (array_key_exists('code', $input)) {
+            throw new V2CatalogException(
+                'CATALOG_CODE_IMMUTABLE',
+                409,
+                'Catalog master codes cannot be changed.'
+            );
+        }
+        $payload = $this->validatePrizeUpdate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'prize',
+            'update',
+            $idempotencyKey,
+            ['id' => $publicId, ...$payload],
+            200,
+            function () use ($publicId, $payload): object {
+                $row = $this->find('catalog_prizes', $publicId, true);
+                $this->assertMutable($row, $payload['expected_revision']);
+                $rank = $this->resolveReference(
+                    'catalog_ranks',
+                    $payload['rank_id'],
+                    'is_visible'
+                );
+                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+                $changes = [
+                    'rank_id' => $rank->id,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'description' => $payload['description'],
+                    'display_price' => $payload['display_price'],
+                    'exchange_points' => $payload['exchange_points'],
+                    'is_visible' => $payload['is_visible'],
+                ];
+                if ($this->changesPublishedPresentation($row, $changes)) {
+                    $this->assertNoPublishedReference('catalog_prizes', (int) $row->id);
+                }
+                DB::table('catalog_prizes')->where('id', $row->id)->update([
+                    ...$changes,
+                    'revision' => (int) $row->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return $this->find('catalog_prizes', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function createAsset(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'asset');
+        $this->rateLimit($context, $admin, 'create', 'asset');
+        $payload = $this->validateAssetCreate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'asset',
+            'create',
+            $idempotencyKey,
+            $payload,
+            201,
+            function () use ($payload): object {
+                $now = now()->startOfSecond();
+                $publicId = (string) Str::uuid7();
+                DB::table('catalog_presentation_assets')->insert([
+                    'public_id' => $publicId,
+                    'storage_identifier' => $payload['storage_identifier'],
+                    'public_path' => $payload['public_path'],
+                    'checksum_sha256' => $payload['checksum_sha256'],
+                    'media_type' => $payload['media_type'],
+                    'mime_type' => $payload['mime_type'],
+                    'byte_size' => $payload['byte_size'],
+                    'alt_text' => $payload['alt_text'],
+                    'is_public' => $payload['is_public'],
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                return $this->find('catalog_presentation_assets', $publicId, true);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function updateAsset(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'asset');
+        $this->rateLimit($context, $admin, 'update', 'asset');
+        foreach ([
+            'storage_identifier',
+            'public_path',
+            'checksum_sha256',
+            'media_type',
+            'mime_type',
+            'byte_size',
+        ] as $immutable) {
+            if (array_key_exists($immutable, $input)) {
+                throw new V2CatalogException(
+                    'CATALOG_ASSET_IDENTITY_IMMUTABLE',
+                    409,
+                    'Presentation Asset object identity cannot be changed.'
+                );
+            }
+        }
+        $this->assertFields(
+            $input,
+            ['expected_revision', 'alt_text', 'is_public'],
+            ['expected_revision', 'alt_text', 'is_public']
+        );
+        $payload = [
+            'expected_revision' => $this->revision($input['expected_revision']),
+            'alt_text' => $this->nullablePlainText($input['alt_text'], 191),
+            'is_public' => $this->boolean($input['is_public']),
+        ];
+
+        return $this->execute(
+            $context,
+            $admin,
+            'asset',
+            'update',
+            $idempotencyKey,
+            ['id' => $publicId, ...$payload],
+            200,
+            function () use ($publicId, $payload): object {
+                $row = $this->find('catalog_presentation_assets', $publicId, true);
+                $this->assertMutable($row, $payload['expected_revision']);
+                $changes = [
+                    'alt_text' => $payload['alt_text'],
+                    'is_public' => $payload['is_public'],
+                ];
+                if ($this->changesPublishedPresentation($row, $changes)) {
+                    $this->assertNoPublishedReference(
+                        'catalog_presentation_assets',
+                        (int) $row->id
+                    );
+                }
+                DB::table('catalog_presentation_assets')->where('id', $row->id)->update([
+                    ...$changes,
+                    'revision' => (int) $row->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return $this->find('catalog_presentation_assets', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function archiveExtendedResource(
+        V2AdminAuthorizationContext $context,
+        string $resource,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'archive', $resource);
+        $this->rateLimit($context, $admin, 'archive', $resource);
+        $payload = $this->validateArchive($input);
+        $table = $resource === 'prize'
+            ? 'catalog_prizes'
+            : 'catalog_presentation_assets';
+        $visibility = $resource === 'prize' ? 'is_visible' : 'is_public';
+
+        return $this->execute(
+            $context,
+            $admin,
+            $resource,
+            'archive',
+            $idempotencyKey,
+            ['id' => $publicId, ...$payload],
+            200,
+            function () use ($table, $visibility, $publicId, $payload): object {
+                $row = $this->find($table, $publicId, true);
+                $this->assertMutable($row, $payload['expected_revision']);
+                $this->assertNoPublishedReference($table, (int) $row->id);
+                DB::table($table)->where('id', $row->id)->update([
+                    $visibility => false,
+                    'archived_at' => now()->startOfSecond(),
+                    'revision' => (int) $row->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return $this->find($table, $publicId, false);
             }
         );
     }
@@ -446,6 +723,105 @@ final class V2CatalogMasterMutationService
         return ['expected_revision' => $this->revision($input['expected_revision'])];
     }
 
+    /** @return array<string, mixed> */
+    private function validatePrizeCreate(array $input): array
+    {
+        $allowed = [
+            'code',
+            'rank_id',
+            'presentation_asset_id',
+            'name',
+            'description',
+            'display_price',
+            'exchange_points',
+            'is_visible',
+        ];
+        $this->assertFields($input, $allowed, $allowed);
+
+        return [
+            'code' => $this->code($input['code'], 64),
+            ...$this->validatePrizeFields($input),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validatePrizeUpdate(array $input): array
+    {
+        $allowed = [
+            'expected_revision',
+            'rank_id',
+            'presentation_asset_id',
+            'name',
+            'description',
+            'display_price',
+            'exchange_points',
+            'is_visible',
+        ];
+        $this->assertFields($input, $allowed, $allowed);
+
+        return [
+            'expected_revision' => $this->revision($input['expected_revision']),
+            ...$this->validatePrizeFields($input),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validatePrizeFields(array $input): array
+    {
+        return [
+            'rank_id' => $this->uuid($input['rank_id']),
+            'presentation_asset_id' => $this->nullableUuid(
+                $input['presentation_asset_id']
+            ),
+            'name' => $this->plainText($input['name'], 1, 191),
+            'description' => $this->nullablePlainText($input['description'], 2000),
+            'display_price' => $this->nonNegativeInteger($input['display_price']),
+            'exchange_points' => $this->nonNegativeInteger($input['exchange_points']),
+            'is_visible' => $this->boolean($input['is_visible']),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateAssetCreate(array $input): array
+    {
+        $allowed = [
+            'storage_identifier',
+            'public_path',
+            'checksum_sha256',
+            'media_type',
+            'mime_type',
+            'byte_size',
+            'alt_text',
+            'is_public',
+        ];
+        $this->assertFields($input, $allowed, $allowed);
+        $mediaType = $input['media_type'] ?? null;
+        $mimeType = $input['mime_type'] ?? null;
+        if (
+            ! is_string($mediaType)
+            || ! in_array($mediaType, ['image', 'video'], true)
+            || ! is_string($mimeType)
+            || strlen($mimeType) > 128
+            || preg_match('/\A[a-z0-9.+-]+\/[a-z0-9.+-]+\z/', $mimeType) !== 1
+            || ! str_starts_with($mimeType, $mediaType.'/')
+        ) {
+            throw $this->validationException();
+        }
+
+        return [
+            'storage_identifier' => $this->storageIdentifier(
+                $input['storage_identifier']
+            ),
+            'public_path' => $this->publicPath($input['public_path']),
+            'checksum_sha256' => $this->checksum($input['checksum_sha256']),
+            'media_type' => $mediaType,
+            'mime_type' => $mimeType,
+            'byte_size' => $this->nonNegativeInteger($input['byte_size']),
+            'alt_text' => $this->nullablePlainText($input['alt_text'], 191),
+            'is_public' => $this->boolean($input['is_public']),
+        ];
+    }
+
     /**
      * @param list<string> $allowed
      * @param list<string> $required
@@ -532,6 +908,73 @@ final class V2CatalogMasterMutationService
         return $value;
     }
 
+    private function nonNegativeInteger(mixed $value): int
+    {
+        if (! is_int($value) || $value < 0 || $value > PHP_INT_MAX) {
+            throw $this->validationException();
+        }
+
+        return $value;
+    }
+
+    private function uuid(mixed $value): string
+    {
+        if (! is_string($value) || ! Str::isUuid($value)) {
+            throw $this->validationException();
+        }
+
+        return $value;
+    }
+
+    private function nullableUuid(mixed $value): ?string
+    {
+        return $value === null ? null : $this->uuid($value);
+    }
+
+    private function checksum(mixed $value): string
+    {
+        if (! is_string($value) || preg_match('/\A[0-9a-f]{64}\z/', $value) !== 1) {
+            throw $this->validationException();
+        }
+
+        return $value;
+    }
+
+    private function storageIdentifier(mixed $value): string
+    {
+        if (
+            ! is_string($value)
+            || strlen($value) < 1
+            || strlen($value) > 512
+            || str_contains($value, '..')
+            || str_contains($value, '\\')
+            || str_starts_with($value, '/')
+            || preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9._\/-]*\z/', $value) !== 1
+        ) {
+            throw $this->validationException();
+        }
+
+        return $value;
+    }
+
+    private function publicPath(mixed $value): string
+    {
+        if (
+            ! is_string($value)
+            || strlen($value) < 2
+            || strlen($value) > 512
+            || ! str_starts_with($value, '/')
+            || str_starts_with($value, '//')
+            || str_contains($value, '..')
+            || str_contains($value, '\\')
+            || preg_match('/[?#\x00-\x20]/', $value) === 1
+        ) {
+            throw $this->validationException();
+        }
+
+        return $value;
+    }
+
     private function boolean(mixed $value): bool
     {
         if (! is_bool($value)) {
@@ -585,6 +1028,43 @@ final class V2CatalogMasterMutationService
                 ->join('catalog_gacha_version_prizes as gvp', 'gvp.prize_id', '=', 'p.id')
                 ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'gvp.gacha_version_id')
                 ->where('p.rank_id', $id),
+            'catalog_prizes' => DB::table('catalog_gacha_version_prizes as gvp')
+                ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'gvp.gacha_version_id')
+                ->where('gvp.prize_id', $id),
+            'catalog_presentation_assets' => DB::query()->fromSub(
+                DB::table('catalog_gacha_versions as direct')
+                    ->select('direct.id as gacha_version_id')
+                    ->where('direct.presentation_asset_id', $id)
+                    ->union(
+                        DB::table('catalog_prizes as p')
+                            ->join(
+                                'catalog_gacha_version_prizes as prize_relation',
+                                'prize_relation.prize_id',
+                                '=',
+                                'p.id'
+                            )
+                            ->select('prize_relation.gacha_version_id')
+                            ->where('p.presentation_asset_id', $id)
+                    )
+                    ->union(
+                        DB::table('catalog_rank_assets as ra')
+                            ->join('catalog_prizes as rp', 'rp.rank_id', '=', 'ra.rank_id')
+                            ->join(
+                                'catalog_gacha_version_prizes as rank_relation',
+                                'rank_relation.prize_id',
+                                '=',
+                                'rp.id'
+                            )
+                            ->select('rank_relation.gacha_version_id')
+                            ->where('ra.presentation_asset_id', $id)
+                    ),
+                'asset_reference'
+            )->join(
+                'catalog_gacha_versions as gv',
+                'gv.id',
+                '=',
+                'asset_reference.gacha_version_id'
+            ),
             default => throw new \LogicException('Unsupported Catalog table.'),
         };
         if (
@@ -601,6 +1081,37 @@ final class V2CatalogMasterMutationService
                 'A Published Catalog version protects this master record.'
             );
         }
+    }
+
+    private function resolveReference(
+        string $table,
+        string $publicId,
+        string $visibilityColumn
+    ): object {
+        $row = $this->find($table, $publicId, true);
+        if (
+            ($row->archived_at ?? null) !== null
+            || ! (bool) $row->{$visibilityColumn}
+        ) {
+            throw new V2CatalogException(
+                'CATALOG_REFERENCE_INVALID',
+                422,
+                'The selected Catalog reference is unavailable.'
+            );
+        }
+
+        return $row;
+    }
+
+    private function resolveNullableAsset(?string $publicId): ?object
+    {
+        return $publicId === null
+            ? null
+            : $this->resolveReference(
+                'catalog_presentation_assets',
+                $publicId,
+                'is_public'
+            );
     }
 
     private function find(string $table, string $publicId, bool $lock): object
@@ -623,6 +1134,13 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     private function map(string $resource, object $row): array
     {
+        if ($resource === 'prize') {
+            return $this->mapPrize($row);
+        }
+        if ($resource === 'asset') {
+            return $this->mapAsset($row);
+        }
+
         return [
             'id' => $row->public_id,
             'code' => $row->code,
@@ -631,6 +1149,66 @@ final class V2CatalogMasterMutationService
             ...($resource === 'category' ? ['description' => $row->description] : []),
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapPrize(object $row): array
+    {
+        $rank = DB::table('catalog_ranks')->where('id', $row->rank_id)->firstOrFail();
+        $asset = $row->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $row->presentation_asset_id)
+                ->firstOrFail();
+
+        return [
+            'id' => $row->public_id,
+            'code' => $row->code,
+            'name' => $row->display_name,
+            'description' => $row->description,
+            'display_price' => (int) $row->display_price,
+            'exchange_points' => (int) $row->exchange_points,
+            'is_visible' => (bool) $row->is_visible,
+            'rank' => [
+                'id' => $rank->public_id,
+                'code' => $rank->code,
+                'name' => $rank->display_name,
+                'sort_order' => (int) $rank->sort_order,
+            ],
+            'presentation_asset' => $asset === null ? null : [
+                'id' => $asset->public_id,
+                'media_type' => $asset->media_type,
+                'mime_type' => $asset->mime_type,
+                'alt_text' => $asset->alt_text,
+                'public_path' => $asset->is_public ? $asset->public_path : null,
+                'is_public' => (bool) $asset->is_public,
+            ],
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapAsset(object $row): array
+    {
+        return [
+            'id' => $row->public_id,
+            'media_type' => $row->media_type,
+            'mime_type' => $row->mime_type,
+            'byte_size' => (int) $row->byte_size,
+            'alt_text' => $row->alt_text,
+            'public_path' => $row->is_public ? $row->public_path : null,
+            'checksum_sha256' => $row->checksum_sha256,
+            'is_public' => (bool) $row->is_public,
             'is_archived' => $row->archived_at !== null,
             'revision' => (int) $row->revision,
             'archived_at' => $row->archived_at,
@@ -696,6 +1274,16 @@ final class V2CatalogMasterMutationService
                 'CATALOG_CODE_IMMUTABLE',
                 409,
                 'Catalog master codes cannot be changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Presentation Asset object identity is immutable')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_ASSET_IDENTITY_IMMUTABLE',
+                409,
+                'Presentation Asset object identity cannot be changed.'
             );
         }
         if (

@@ -61,6 +61,23 @@ final class AdminCatalogMutationTest extends TestCase
                     ->assertJsonPath('idempotent_replay', false)
                     ->assertHeader('Cache-Control', 'no-store, private');
             }
+
+            Auth::forgetGuards();
+            $asset = $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/presentation-assets',
+                $this->assetInput($role->value.'-asset')
+            )->assertCreated()->json('data');
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/prizes',
+                $this->prizeInput($role->value.'-prize', $asset['id'])
+            )->assertCreated()
+                ->assertJsonPath('data.presentation_asset.id', $asset['id'])
+                ->assertJsonPath('data.revision', 1);
         }
 
         $operator = $this->createAdminSession(V2AdminRole::Operator);
@@ -71,6 +88,21 @@ final class AdminCatalogMutationTest extends TestCase
             '/admin/api/v2/catalog/categories',
             $this->categoryInput('operator-category')
         )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+        foreach ([
+            [
+                '/admin/api/v2/catalog/prizes/0198a001-0000-7000-8000-000000000009',
+                ['code' => 'must-not-leak-immutability'],
+            ],
+            [
+                '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000005',
+                ['public_path' => '/must-not-leak-immutability.png'],
+            ],
+        ] as [$uri, $payload]) {
+            Auth::forgetGuards();
+            $this->mutatingRequest($operator, 'PUT', $uri, $payload)
+                ->assertForbidden()
+                ->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+        }
         self::assertDatabaseHas('audit_logs', [
             'action_code' => 'catalog.master.permission_denied',
             'outcome' => 'failure',
@@ -443,6 +475,147 @@ final class AdminCatalogMutationTest extends TestCase
         ]);
     }
 
+    public function test_prize_and_asset_create_update_archive_use_shared_mutation_boundary(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $asset = $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/presentation-assets',
+            $this->assetInput('created-asset'),
+            'asset-create-key'
+        )->assertCreated()
+            ->assertJsonMissingPath('data.storage_identifier')
+            ->assertJsonPath('data.revision', 1)
+            ->assertJsonPath('data.is_archived', false)
+            ->json('data');
+
+        Auth::forgetGuards();
+        $prize = $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/prizes',
+            $this->prizeInput('created-prize', $asset['id']),
+            'prize-create-key'
+        )->assertCreated()
+            ->assertJsonPath('data.presentation_asset.id', $asset['id'])
+            ->assertJsonPath('data.rank.id', '0198a001-0000-7000-8000-000000000004')
+            ->assertJsonPath('data.revision', 1)
+            ->json('data');
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/prizes/'.$prize['id'],
+            [
+                ...array_diff_key($this->prizeInput('ignored', $asset['id']), ['code' => true]),
+                'expected_revision' => 1,
+                'name' => "Cafe\u{0301} Prize",
+            ],
+            'prize-update-key'
+        )->assertOk()
+            ->assertJsonPath('data.name', 'Café Prize')
+            ->assertJsonPath('data.revision', 2);
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/presentation-assets/'.$asset['id'],
+            ['expected_revision' => 1, 'alt_text' => 'Updated Asset', 'is_public' => true],
+            'asset-update-key'
+        )->assertOk()
+            ->assertJsonPath('data.alt_text', 'Updated Asset')
+            ->assertJsonPath('data.revision', 2);
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/prizes/'.$prize['id'].'/archive',
+            ['expected_revision' => 2],
+            'prize-archive-key'
+        )->assertOk()->assertJsonPath('data.is_archived', true);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/presentation-assets/'.$asset['id'].'/archive',
+            ['expected_revision' => 2],
+            'asset-archive-key'
+        )->assertOk()->assertJsonPath('data.is_archived', true);
+    }
+
+    public function test_published_prize_and_asset_mutation_is_rejected_without_side_effects(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Admin);
+        foreach ([
+            [
+                '/admin/api/v2/catalog/prizes/0198a001-0000-7000-8000-000000000009',
+                [
+                    'expected_revision' => 1,
+                    'rank_id' => '0198a001-0000-7000-8000-000000000003',
+                    'presentation_asset_id' => '0198a001-0000-7000-8000-000000000007',
+                    'name' => 'Published Prize Changed',
+                    'description' => 'Rejected',
+                    'display_price' => 10000,
+                    'exchange_points' => 8000,
+                    'is_visible' => true,
+                ],
+            ],
+            [
+                '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000007',
+                ['expected_revision' => 1, 'alt_text' => 'Changed', 'is_public' => true],
+            ],
+        ] as [$uri, $payload]) {
+            Auth::forgetGuards();
+            $this->mutatingRequest($token, 'PUT', $uri, $payload)
+                ->assertConflict()
+                ->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
+        }
+        self::assertDatabaseHas('catalog_prizes', [
+            'public_id' => '0198a001-0000-7000-8000-000000000009',
+            'display_name' => 'Fixture S景品',
+            'revision' => 1,
+        ]);
+        self::assertDatabaseHas('catalog_presentation_assets', [
+            'public_id' => '0198a001-0000-7000-8000-000000000007',
+            'alt_text' => 'Fixture S景品',
+            'revision' => 1,
+        ]);
+    }
+
+    public function test_asset_identity_and_physical_delete_are_rejected_by_service_and_db(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000005',
+            [
+                'expected_revision' => 1,
+                'alt_text' => 'Fixture',
+                'is_public' => true,
+                'public_path' => '/changed.png',
+            ]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_ASSET_IDENTITY_IMMUTABLE');
+
+        foreach (['catalog_prizes', 'catalog_presentation_assets'] as $table) {
+            $row = DB::table($table)->orderBy('id')->firstOrFail();
+            DB::beginTransaction();
+            try {
+                DB::table($table)->where('id', $row->id)->delete();
+                DB::rollBack();
+                self::fail('Physical delete must be rejected.');
+            } catch (QueryException $exception) {
+                DB::rollBack();
+                self::assertSame('P0001', $exception->errorInfo[0]);
+            }
+        }
+    }
+
     /** @return array<string, mixed> */
     private function categoryInput(string $code): array
     {
@@ -476,6 +649,36 @@ final class AdminCatalogMutationTest extends TestCase
             'name' => strtoupper($code),
             'sort_order' => 1,
             'is_visible' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function prizeInput(string $code, ?string $assetId): array
+    {
+        return [
+            'code' => $code,
+            'rank_id' => '0198a001-0000-7000-8000-000000000004',
+            'presentation_asset_id' => $assetId,
+            'name' => ucfirst(str_replace('-', ' ', $code)),
+            'description' => 'Plain text prize',
+            'display_price' => 3000,
+            'exchange_points' => 2000,
+            'is_visible' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function assetInput(string $name): array
+    {
+        return [
+            'storage_identifier' => "catalog/{$name}.png",
+            'public_path' => "/assets/catalog/{$name}.png",
+            'checksum_sha256' => hash('sha256', $name),
+            'media_type' => 'image',
+            'mime_type' => 'image/png',
+            'byte_size' => 1024,
+            'alt_text' => ucfirst(str_replace('-', ' ', $name)),
+            'is_public' => true,
         ];
     }
 

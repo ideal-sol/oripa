@@ -122,9 +122,22 @@ final class AdminCatalogReadTest extends TestCase
 
     public function test_prize_and_asset_responses_do_not_expose_internal_fields(): void
     {
-        DB::table('catalog_presentation_assets')
-            ->where('public_id', '0198a001-0000-7000-8000-000000000005')
-            ->update(['is_public' => false]);
+        $privateAssetId = (string) Str::uuid7();
+        DB::table('catalog_presentation_assets')->insert([
+            'public_id' => $privateAssetId,
+            'storage_identifier' => 'fixture/catalog/private-read.png',
+            'public_path' => '/assets/fixture/catalog/private-read.png',
+            'checksum_sha256' => hash('sha256', 'private-read'),
+            'media_type' => 'image',
+            'mime_type' => 'image/png',
+            'byte_size' => 100,
+            'alt_text' => 'Private Read Asset',
+            'is_public' => false,
+            'revision' => 1,
+            'archived_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $token = $this->createAdminSession(V2AdminRole::Admin);
         $prize = $this->asAdmin($token)
             ->getJson('/admin/api/v2/catalog/prizes')
@@ -134,7 +147,7 @@ final class AdminCatalogReadTest extends TestCase
         $asset = $this->asAdmin($token)
             ->getJson(
                 '/admin/api/v2/catalog/presentation-assets/'
-                .'0198a001-0000-7000-8000-000000000005'
+                .$privateAssetId
             )
             ->assertOk()
             ->assertJsonPath('data.public_path', null)
@@ -176,7 +189,7 @@ final class AdminCatalogReadTest extends TestCase
         app(V2AdminCatalogReadService::class)->categories($context, []);
     }
 
-    public function test_prize_and_asset_contracts_remain_read_only(): void
+    public function test_prize_and_asset_contracts_have_no_physical_delete_endpoint(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         foreach ([
@@ -184,7 +197,9 @@ final class AdminCatalogReadTest extends TestCase
             '/admin/api/v2/catalog/presentation-assets',
         ] as $path) {
             Auth::forgetGuards();
-            $this->asAdmin($token)->postJson($path, [])
+            $this->asAdmin($token)->deleteJson(
+                $path.'/0198a001-0000-7000-8000-000000000009'
+            )
                 ->assertStatus(405);
         }
     }

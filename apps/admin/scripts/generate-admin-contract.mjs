@@ -52,11 +52,26 @@ const operations = {
     "/catalog/ranks/{catalog_resource_id}/archive",
   ],
   listAdminCatalogPrizes: ["get", "/catalog/prizes"],
+  createAdminCatalogPrize: ["post", "/catalog/prizes"],
   getAdminCatalogPrize: ["get", "/catalog/prizes/{catalog_resource_id}"],
+  updateAdminCatalogPrize: ["put", "/catalog/prizes/{catalog_resource_id}"],
+  archiveAdminCatalogPrize: [
+    "post",
+    "/catalog/prizes/{catalog_resource_id}/archive",
+  ],
   listAdminCatalogPresentationAssets: ["get", "/catalog/presentation-assets"],
+  createAdminCatalogPresentationAsset: ["post", "/catalog/presentation-assets"],
   getAdminCatalogPresentationAsset: [
     "get",
     "/catalog/presentation-assets/{catalog_resource_id}",
+  ],
+  updateAdminCatalogPresentationAsset: [
+    "put",
+    "/catalog/presentation-assets/{catalog_resource_id}",
+  ],
+  archiveAdminCatalogPresentationAsset: [
+    "post",
+    "/catalog/presentation-assets/{catalog_resource_id}/archive",
   ],
 };
 
@@ -92,8 +107,14 @@ const requiredSchemas = [
   "AdminCatalogCategoryUpdate",
   "AdminCatalogCategoryCollection",
   "AdminCatalogPresentationAsset",
+  "AdminCatalogPresentationAssetCreate",
+  "AdminCatalogPresentationAssetMutationResult",
+  "AdminCatalogPresentationAssetUpdate",
   "AdminCatalogPresentationAssetCollection",
   "AdminCatalogPrize",
+  "AdminCatalogPrizeCreate",
+  "AdminCatalogPrizeMutationResult",
+  "AdminCatalogPrizeUpdate",
   "AdminCatalogPrizeCollection",
   "AdminCatalogRank",
   "AdminCatalogRankCreate",
@@ -293,6 +314,9 @@ export interface AdminCatalogPrize {
   is_visible: boolean;
   rank: AdminCatalogRankReference;
   presentation_asset: AdminCatalogAssetReference | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -300,6 +324,9 @@ export interface AdminCatalogPrize {
 export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReference {
   byte_size: number;
   checksum_sha256: string;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -350,6 +377,45 @@ export interface AdminCatalogRankUpdate {
   name: string;
   sort_order: number;
   is_visible: boolean;
+}
+
+export interface AdminCatalogPrizeCreate {
+  code: string;
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogPrizeUpdate {
+  expected_revision: number;
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogPresentationAssetCreate {
+  storage_identifier: string;
+  public_path: string;
+  checksum_sha256: string;
+  media_type: "image" | "video";
+  mime_type: string;
+  byte_size: number;
+  alt_text: string | null;
+  is_public: boolean;
+}
+
+export interface AdminCatalogPresentationAssetUpdate {
+  expected_revision: number;
+  alt_text: string | null;
+  is_public: boolean;
 }
 
 export interface AdminCatalogArchiveRequest {

@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 876e687dc687cb8d634d79aea6192d626fe5eaf9d606b5fd8f030bd4179040de
+// Contract SHA-256: 12d1f450c63caf7ec85b7edaeda940d154337ecef6337e00eb30baf03e9751d3
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -183,6 +183,9 @@ export interface AdminCatalogPrize {
   is_visible: boolean;
   rank: AdminCatalogRankReference;
   presentation_asset: AdminCatalogAssetReference | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -190,6 +193,9 @@ export interface AdminCatalogPrize {
 export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReference {
   byte_size: number;
   checksum_sha256: string;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -240,6 +246,45 @@ export interface AdminCatalogRankUpdate {
   name: string;
   sort_order: number;
   is_visible: boolean;
+}
+
+export interface AdminCatalogPrizeCreate {
+  code: string;
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogPrizeUpdate {
+  expected_revision: number;
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogPresentationAssetCreate {
+  storage_identifier: string;
+  public_path: string;
+  checksum_sha256: string;
+  media_type: "image" | "video";
+  mime_type: string;
+  byte_size: number;
+  alt_text: string | null;
+  is_public: boolean;
+}
+
+export interface AdminCatalogPresentationAssetUpdate {
+  expected_revision: number;
+  alt_text: string | null;
+  is_public: boolean;
 }
 
 export interface AdminCatalogArchiveRequest {
