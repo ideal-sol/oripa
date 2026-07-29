@@ -18,6 +18,7 @@ export interface CatalogTableRow {
     public_path: string | null;
     is_public: boolean;
   } | null;
+  archived?: boolean;
 }
 
 export function CatalogDataTable({
@@ -55,7 +56,7 @@ export function CatalogDataTable({
                 <code>{row.code}</code>
               </td>
               <td>
-                <StatusBadge visible={row.visible} />
+                <StatusBadge archived={row.archived} visible={row.visible} />
               </td>
               <td>
                 <Link

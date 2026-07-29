@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 232d9e75e73c12030dd2db56e24ef6b3bf02ed3ba0437e617e8ec6fcd04c5669
+// Contract SHA-256: 1c264a50b16007ba3d0d4f20c7ad5d01f80e80981ae73a9298c6627a3ad971d8
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -12,6 +12,7 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.free.approve",
   "point.adjustment.paid.approve",
   "catalog.read",
+  "catalog.manage",
   "shipping.request.manage",
   "qa.draw.manage",
   "reporting.financial.read",
@@ -122,6 +123,9 @@ export interface AdminCatalogCategory {
   description: string | null;
   sort_order: number;
   is_visible: boolean;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +137,9 @@ export interface AdminCatalogTag {
   name: string;
   sort_order: number;
   is_visible: boolean;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +150,9 @@ export interface AdminCatalogRank {
   name: string;
   sort_order: number;
   is_visible: boolean;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -182,6 +192,63 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
   checksum_sha256: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminCatalogCategoryCreate {
+  code: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogCategoryUpdate {
+  expected_revision: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogTagCreate {
+  code: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogTagUpdate {
+  expected_revision: number;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogRankCreate {
+  code: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogRankUpdate {
+  expected_revision: number;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogArchiveRequest {
+  expected_revision: number;
+}
+
+export interface AdminCatalogMutationResult<T> {
+  data: T;
+  idempotent_replay: boolean;
 }
 
 export interface AdminCatalogCollection<T> {

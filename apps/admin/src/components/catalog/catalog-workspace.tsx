@@ -1,9 +1,11 @@
 "use client";
 
-import { Database, LoaderCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Archive, Database, LoaderCircle, Pencil, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
+import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
+import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import { CatalogBreadcrumb } from "@/components/catalog/catalog-breadcrumb";
 import {
   type CatalogFilters,
@@ -15,11 +17,16 @@ import {
   type CatalogTableRow,
 } from "@/components/catalog/catalog-data-table";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
+import {
+  type CatalogMasterDraft,
+  CatalogMutationForm,
+} from "@/components/catalog/catalog-mutation-form";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { StatusBadge } from "@/components/catalog/status-badge";
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import {
@@ -48,6 +55,11 @@ type CatalogItem =
   | AdminCatalogPrize
   | AdminCatalogPresentationAsset;
 
+type CatalogMasterItem =
+  | AdminCatalogCategory
+  | AdminCatalogTag
+  | AdminCatalogRank;
+
 type LoadState =
   | { kind: "loading" }
   | { kind: "error"; error: AdminApiError }
@@ -61,10 +73,12 @@ export function CatalogWorkspace({
   id?: string;
   resource: CatalogResource;
 }) {
-  const section = catalogSection(resource);
-  if (!section) throw new Error("Unknown catalog resource");
+  const resolvedSection = catalogSection(resource);
+  if (!resolvedSection) throw new Error("Unknown catalog resource");
+  const section: CatalogSection = resolvedSection;
   const client = useMemo(() => new AdminApiClient(), []);
   const { expireSession } = useAdminAuth();
+  const { hasPermission } = usePermissions();
   const [filters, setFilters] = useState<CatalogFilters>({
     direction: section.resource === "presentation-assets" ? "desc" : "asc",
     mediaType: "all",
@@ -76,6 +90,11 @@ export function CatalogWorkspace({
   const [cursorIndex, setCursorIndex] = useState(0);
   const [reload, setReload] = useState(0);
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [mutationMode, setMutationMode] = useState<"create" | "edit" | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [mutationError, setMutationError] = useState<AdminApiError | null>(null);
+  const pendingMutation = useRef<{ fingerprint: string; key: string } | null>(null);
   const cursor = cursorHistory[cursorIndex] ?? null;
 
   useEffect(() => {
@@ -124,6 +143,94 @@ export function CatalogWorkspace({
 
   const title =
     state.kind === "detail" ? itemName(state.item) : section.label;
+  const master =
+    state.kind === "detail" && isMasterResource(section.resource)
+      ? (state.item as CatalogMasterItem)
+      : null;
+  const canManage = hasPermission("catalog.manage") && isMasterResource(section.resource);
+
+  async function submitMutation(draft: CatalogMasterDraft) {
+    const fingerprint = JSON.stringify({
+      draft,
+      id: master?.id ?? null,
+      mode: mutationMode,
+      resource: section.resource,
+      revision: master?.revision ?? null,
+    });
+    const key =
+      pendingMutation.current?.fingerprint === fingerprint
+        ? pendingMutation.current.key
+        : crypto.randomUUID();
+    pendingMutation.current = { fingerprint, key };
+    try {
+      const result = await mutateMaster(
+        client,
+        section.resource,
+        mutationMode,
+        master,
+        draft,
+        key,
+      );
+      pendingMutation.current = null;
+      setMutationError(null);
+      setMutationMode(null);
+      if (state.kind === "detail") {
+        setState({ kind: "detail", item: result });
+      } else {
+        setReload((value) => value + 1);
+      }
+    } catch (cause) {
+      const error =
+        cause instanceof AdminApiError
+          ? cause
+          : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
+      if (!error.retryable) pendingMutation.current = null;
+      if (error.isSessionExpired) expireSession();
+      setMutationError(error);
+      if ([401, 403, 409, 412, 429].includes(error.status)) {
+        setMutationMode(null);
+      }
+      throw error;
+    }
+  }
+
+  async function archiveMaster() {
+    if (!master || !isMasterResource(section.resource)) return;
+    setArchiveBusy(true);
+    const fingerprint = JSON.stringify({
+      action: "archive",
+      id: master.id,
+      revision: master.revision,
+    });
+    const key =
+      pendingMutation.current?.fingerprint === fingerprint
+        ? pendingMutation.current.key
+        : crypto.randomUUID();
+    pendingMutation.current = { fingerprint, key };
+    try {
+      const result = await archiveCatalogMaster(
+        client,
+        section.resource,
+        master,
+        key,
+      );
+      pendingMutation.current = null;
+      setMutationError(null);
+      setArchiveOpen(false);
+      setState({ kind: "detail", item: result });
+    } catch (cause) {
+      const error =
+        cause instanceof AdminApiError
+          ? cause
+          : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
+      if (!error.retryable) pendingMutation.current = null;
+      if (error.isSessionExpired) expireSession();
+      setMutationError(error);
+      setArchiveOpen(false);
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
 
   return (
     <AdminShell>
@@ -134,6 +241,41 @@ export function CatalogWorkspace({
             description={id ? "Read-onlyのMaster詳細です。" : section.description}
             eyebrow="Catalog"
             title={title}
+            action={
+              canManage && !master?.is_archived ? (
+                <div className="catalog-header-actions">
+                  {master ? (
+                    <>
+                      <button
+                        className="secondary-button"
+                        onClick={() => setMutationMode("edit")}
+                        type="button"
+                      >
+                        <Pencil size={16} aria-hidden="true" />
+                        編集
+                      </button>
+                      <button
+                        className="danger-button"
+                        onClick={() => setArchiveOpen(true)}
+                        type="button"
+                      >
+                        <Archive size={16} aria-hidden="true" />
+                        Archive
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="primary-button"
+                      onClick={() => setMutationMode("create")}
+                      type="button"
+                    >
+                      <Plus size={16} aria-hidden="true" />
+                      新規作成
+                    </button>
+                  )}
+                </div>
+              ) : undefined
+            }
           />
           <CatalogSectionNavigation active={section.resource} />
           {id ? null : (
@@ -162,6 +304,21 @@ export function CatalogWorkspace({
                 setState({ kind: "loading" });
                 setReload((value) => value + 1);
               }}
+            />
+          ) : null}
+          {mutationError && [409, 412].includes(mutationError.status) ? (
+            <CatalogConflictBoundary
+              onReload={() => {
+                setMutationError(null);
+                setState({ kind: "loading" });
+                setReload((value) => value + 1);
+              }}
+            />
+          ) : null}
+          {mutationError && ![409, 412].includes(mutationError.status) ? (
+            <CatalogApiErrorBoundary
+              error={mutationError}
+              retry={() => setMutationError(null)}
             />
           ) : null}
           {state.kind === "list" && state.items.length === 0 ? (
@@ -197,6 +354,23 @@ export function CatalogWorkspace({
             </>
           ) : null}
           {state.kind === "detail" ? <CatalogDetail item={state.item} /> : null}
+          {mutationMode && canManage ? (
+            <CatalogMutationForm
+              initial={master ? masterDraft(master) : undefined}
+              mode={mutationMode}
+              onCancel={() => setMutationMode(null)}
+              onSubmit={submitMutation}
+              resource={section.resource as "categories" | "tags" | "ranks"}
+            />
+          ) : null}
+          {archiveOpen && master ? (
+            <CatalogConfirmationDialog
+              busy={archiveBusy}
+              name={master.name}
+              onCancel={() => setArchiveOpen(false)}
+              onConfirm={archiveMaster}
+            />
+          ) : null}
         </div>
       </ProtectedAdminRoute>
     </AdminShell>
@@ -243,6 +417,7 @@ function CatalogDetail({ item }: { item: CatalogItem }) {
           <dt>公開状態</dt>
           <dd>
             <StatusBadge
+              archived={"is_archived" in item && item.is_archived}
               visible={"is_visible" in item ? item.is_visible : item.is_public}
             />
           </dd>
@@ -325,6 +500,7 @@ function tableRow(item: CatalogItem): CatalogTableRow {
     name: item.name,
     secondary,
     visible: item.is_visible,
+    archived: "is_archived" in item ? item.is_archived : false,
     asset: "presentation_asset" in item ? item.presentation_asset : null,
   };
 }
@@ -359,6 +535,133 @@ function detailEntries(item: CatalogItem): [string, string][] {
     );
   } else {
     entries.push(["表示順", item.sort_order.toLocaleString()]);
+    if ("revision" in item) {
+      entries.push(
+        ["Revision", item.revision.toLocaleString()],
+        ["Archive日時", item.archived_at ?? "未Archive"],
+      );
+    }
   }
   return [...entries, ...common];
+}
+
+function isMasterResource(
+  resource: CatalogSection["resource"],
+): resource is "categories" | "tags" | "ranks" {
+  return ["categories", "tags", "ranks"].includes(resource);
+}
+
+function masterDraft(item: CatalogMasterItem): CatalogMasterDraft {
+  return {
+    code: item.code,
+    description: "description" in item ? item.description : null,
+    isVisible: item.is_visible,
+    name: item.name,
+    slug: "slug" in item ? item.slug : "",
+    sortOrder: item.sort_order,
+  };
+}
+
+async function mutateMaster(
+  client: AdminApiClient,
+  resource: CatalogSection["resource"],
+  mode: "create" | "edit" | null,
+  current: CatalogMasterItem | null,
+  draft: CatalogMasterDraft,
+  key: string,
+): Promise<CatalogMasterItem> {
+  if (!isMasterResource(resource) || mode === null) {
+    throw new Error("Unsupported Catalog mutation.");
+  }
+  if (resource === "categories") {
+    const response =
+      mode === "create"
+        ? await client.createCatalogCategory(
+            {
+              code: draft.code,
+              description: draft.description,
+              is_visible: draft.isVisible,
+              name: draft.name,
+              slug: draft.slug,
+              sort_order: draft.sortOrder,
+            },
+            key,
+          )
+        : await client.updateCatalogCategory(
+            current!.id,
+            {
+              description: draft.description,
+              expected_revision: current!.revision,
+              is_visible: draft.isVisible,
+              name: draft.name,
+              slug: draft.slug,
+              sort_order: draft.sortOrder,
+            },
+            key,
+          );
+    return response.data;
+  }
+  if (resource === "tags") {
+    const response =
+      mode === "create"
+        ? await client.createCatalogTag(
+            {
+              code: draft.code,
+              is_visible: draft.isVisible,
+              name: draft.name,
+              slug: draft.slug,
+              sort_order: draft.sortOrder,
+            },
+            key,
+          )
+        : await client.updateCatalogTag(
+            current!.id,
+            {
+              expected_revision: current!.revision,
+              is_visible: draft.isVisible,
+              name: draft.name,
+              slug: draft.slug,
+              sort_order: draft.sortOrder,
+            },
+            key,
+          );
+    return response.data;
+  }
+  const response =
+    mode === "create"
+      ? await client.createCatalogRank(
+          {
+            code: draft.code,
+            is_visible: draft.isVisible,
+            name: draft.name,
+            sort_order: draft.sortOrder,
+          },
+          key,
+        )
+      : await client.updateCatalogRank(
+          current!.id,
+          {
+            expected_revision: current!.revision,
+            is_visible: draft.isVisible,
+            name: draft.name,
+            sort_order: draft.sortOrder,
+          },
+          key,
+        );
+  return response.data;
+}
+
+async function archiveCatalogMaster(
+  client: AdminApiClient,
+  resource: "categories" | "tags" | "ranks",
+  current: CatalogMasterItem,
+  key: string,
+): Promise<CatalogMasterItem> {
+  if (resource === "categories") {
+    return (await client.archiveCatalogCategory(current.id, current.revision, key)).data;
+  }
+  if (resource === "tags") {
+    return (await client.archiveCatalogTag(current.id, current.revision, key)).data;
+  }
+  return (await client.archiveCatalogRank(current.id, current.revision, key)).data;
 }

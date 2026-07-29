@@ -621,6 +621,9 @@ final class V2AdminCatalogReadService
             'description' => $row->description,
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
         ];
@@ -636,6 +639,9 @@ final class V2AdminCatalogReadService
             'name' => $row->display_name,
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
         ];
@@ -650,6 +656,9 @@ final class V2AdminCatalogReadService
             'name' => $row->display_name,
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
         ];

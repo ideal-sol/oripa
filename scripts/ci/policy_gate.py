@@ -302,6 +302,8 @@ V2_PAYMENT_REQUIRED_FILES = {
 }
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
+    "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
+    "apps/api/app/Domain/Catalog/Services/V2CatalogMutationRateLimiter.php",
     "apps/api/app/Domain/Catalog/Exceptions/V2CatalogException.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php",
@@ -309,8 +311,10 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Http/Controllers/V2/V2AdminCatalogController.php",
     "apps/api/config/v2_catalog.php",
     "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
+    "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
+    "apps/api/tests/V2/AdminCatalogMutationTest.php",
     "apps/api/tests/V2/Fixtures/catalog-alpha.json",
     "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
     "docs/operations/catalog-probability/README.md",
@@ -1811,6 +1815,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
         "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
         "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
+        "2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1819,7 +1824,11 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         (repository / "apps/api/database/migrations-v2" / name).read_text(
             encoding="utf-8"
         )
-        for name in [*expected_migrations[:4], *expected_migrations[-2:]]
+        for name in [
+            *expected_migrations[:4],
+            "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
+            "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
+        ]
     )
     for required in (
         "users",
@@ -2567,6 +2576,43 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
                 f"V2 Catalog migration contains prohibited {prohibited}"
             )
 
+    mutation_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "revision",
+        "archived_at",
+        "Catalog master records cannot be deleted",
+        "Catalog master code is immutable",
+        "Published Catalog references protect this master record",
+    ):
+        if required not in mutation_migration:
+            raise PolicyFailure(f"V2 Catalog mutation migration missing {required}")
+    if "tenant_id" in mutation_migration:
+        raise PolicyFailure("V2 Catalog mutation migration contains prohibited tenant_id")
+
+    mutation_service = (
+        repository
+        / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "V2Permission::ManageCatalog",
+        "catalog_master_mutation",
+        "expected_revision",
+        "IDEMPOTENCY_KEY_REUSED",
+        "CATALOG_PUBLISHED_REFERENCE_CONFLICT",
+        "catalog.change",
+    ):
+        if required not in mutation_service:
+            raise PolicyFailure(f"V2 Catalog mutation service missing {required}")
+    for prohibited in ("->delete(", "forceDelete(", "tenant_id"):
+        if prohibited in mutation_service:
+            raise PolicyFailure(
+                f"V2 Catalog mutation service contains prohibited {prohibited}"
+            )
+
     service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php"
@@ -2646,9 +2692,44 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "getAdminCatalogPrize",
         "listAdminCatalogPresentationAssets",
         "getAdminCatalogPresentationAsset",
+        "createAdminCatalogCategory",
+        "updateAdminCatalogCategory",
+        "archiveAdminCatalogCategory",
+        "createAdminCatalogTag",
+        "updateAdminCatalogTag",
+        "archiveAdminCatalogTag",
+        "createAdminCatalogRank",
+        "updateAdminCatalogRank",
+        "archiveAdminCatalogRank",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
+    allowed_admin_catalog_methods = {
+        "/catalog/categories": {"get", "post"},
+        "/catalog/categories/{catalog_resource_id}": {"get", "put"},
+        "/catalog/categories/{catalog_resource_id}/archive": {"post"},
+        "/catalog/tags": {"get", "post"},
+        "/catalog/tags/{catalog_resource_id}": {"get", "put"},
+        "/catalog/tags/{catalog_resource_id}/archive": {"post"},
+        "/catalog/ranks": {"get", "post"},
+        "/catalog/ranks/{catalog_resource_id}": {"get", "put"},
+        "/catalog/ranks/{catalog_resource_id}/archive": {"post"},
+        "/catalog/prizes": {"get"},
+        "/catalog/prizes/{catalog_resource_id}": {"get"},
+        "/catalog/presentation-assets": {"get"},
+        "/catalog/presentation-assets/{catalog_resource_id}": {"get"},
+    }
+    actual_admin_catalog_methods = {
+        path: {
+            method
+            for method, operation in path_item.items()
+            if isinstance(operation, dict)
+        }
+        for path, path_item in admin_bundle.get("paths", {}).items()
+        if path.startswith("/catalog/") and isinstance(path_item, dict)
+    }
+    if actual_admin_catalog_methods != allowed_admin_catalog_methods:
+        raise PolicyFailure("V2 Admin Catalog contract contains prohibited mutation")
     admin_catalog_contract = json.dumps(
         {
             "paths": {
@@ -2670,8 +2751,6 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "storage_identifier",
         "probability_ppm",
         "cost_price",
-        '"post"',
-        '"put"',
         '"patch"',
         '"delete"',
     ):

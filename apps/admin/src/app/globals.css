@@ -236,7 +236,8 @@ label {
 
 .primary-button,
 .secondary-button,
-.method-button {
+.method-button,
+.danger-button {
   align-items: center;
   border: 1px solid transparent;
   cursor: pointer;
@@ -247,6 +248,25 @@ label {
   min-height: 44px;
   padding: 10px 16px;
   text-decoration: none;
+}
+
+.danger-button {
+  align-items: center;
+  background: var(--danger);
+  border: 1px solid var(--danger);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  gap: 9px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .primary-button {
@@ -1021,6 +1041,86 @@ label {
 .catalog-status.is-hidden {
   background: var(--surface-muted);
   color: var(--muted);
+}
+
+.catalog-status.is-archived {
+  background: var(--danger-soft);
+  border-color: #e4aeb4;
+  color: var(--danger);
+}
+
+.catalog-header-actions,
+.catalog-dialog-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.catalog-mutation-panel {
+  max-height: calc(100vh - 40px);
+  max-width: 560px;
+  overflow-y: auto;
+}
+
+.catalog-mutation-form {
+  display: grid;
+  gap: 16px;
+}
+
+.catalog-mutation-form input:not([type="checkbox"]),
+.catalog-mutation-form textarea {
+  border: 1px solid var(--line);
+  min-height: 44px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.catalog-mutation-form textarea {
+  min-height: 112px;
+}
+
+.catalog-checkbox {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.catalog-checkbox input {
+  height: 18px;
+  width: 18px;
+}
+
+.catalog-dialog-actions {
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.catalog-immutable-code {
+  background: var(--surface-muted);
+  margin: 0;
+  padding: 11px 12px;
+}
+
+.form-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.catalog-conflict {
+  align-items: center;
+  background: var(--warning-soft);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+}
+
+.catalog-conflict p {
+  color: var(--muted);
+  margin: 4px 0 0;
 }
 
 .cursor-pagination {

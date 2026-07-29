@@ -5365,3 +5365,136 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
   `MIG-060D Admin Catalog Mutation Foundation`だが、
   MIG-060Dは本Task内で開始しない。
+
+## MIG-060C Closeout／MIG-060D Admin Category／Tag／Rank Mutation Foundation
+
+### MIG-060C Closeout
+
+- Issue `#125`はClosed、PR `#126`はSquash Mergedである。Final Headは
+  `2e3572aac804384122d8b7deb6aa60126330a360`、Squash Commitは
+  `3fe45e39ed05564a70d03419da8a20db62a81373`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-060C Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／Characterization／Permission
+
+- Task IDは`MIG-060D`、Riskは`R3`、Issueは`#127`、Branchは
+  `feat/MIG-060D-admin-catalog-master-mutation`、Base SHAは
+  `3fe45e39ed05564a70d03419da8a20db62a81373`である。
+- V1のCategory／TagはCreate／Update、RankはGacha配下のCreate／Updateであり、
+  物理Delete／Archive APIを持たない。V2では公開表示がMasterを動的参照するため、
+  公開中または公開予定Versionが参照するName、Slug、Description、Sort Order、
+  Visibility、Archiveの変更をFail Closedとした。Published Version自体は変更しない。
+- 中央Permission Matrixへ`catalog.manage`を追加し、Owner／Adminへ許可、
+  Operatorへ不許可とした。Operatorは既存`catalog.read`だけを維持する。
+  UI／ControllerでRole名を直接比較せず、Backendの有効Permissionを正本とする。
+
+### Contract／Schema／Domain
+
+- Admin OpenAPIへCategory／Tag／RankのCreate、Update、Archiveを合計9 Operation追加した。
+  Admin Realm、有効Session、MFA Enrollment、`catalog.manage`、CSRF、Exact Origin、
+  JSON Content-Type、RFC 9457、Request ID、`private, no-store`を適用した。
+  Public／Webhook Contractは非変更で、Storefront ClientへAdmin型を公開していない。
+- 全Mutationは`Idempotency-Key`必須で、同一Admin＋同一Key＋同一Requestは
+  Canonical Replay、異なるRequest／OperationへのKey再利用は409とする。
+  既存共通Idempotency Recordの24時間Retentionを使用する。
+- Category／Tag／Rankへ`revision`と`archived_at`を追加した。
+  Revisionは1ずつ増加し、Stale Updateは409、Codeは作成後immutable、
+  Archive後は通常Update不可、物理Delete不可、暗黙復元不可である。
+- DB TriggerでもCode変更、Archive後Update、Revision飛越し、物理Delete、
+  公開中／公開予定参照を破壊する表示変更を拒否する。既存Migrationは編集していない。
+- Unknown Field、長さ超過、HTML／制御文字、不正Code／Slug、負Sort Orderを拒否し、
+  Name／DescriptionはUnicode NFCへ正規化する。Core Fieldは型付きColumnを使用する。
+- Mutation Service自身でAuthorization Contextを検証し、Controller直接／Service直接の
+  迂回を拒否する。Deadlock／Serialization Failureは同一Keyで最大3回に限定する。
+- Create／Update／Archive、Replay、Conflict、公開参照拒否、Permission拒否、
+  Rate LimitをAppend-only Auditへ接続した。成功Mutationは`catalog.change` Outboxと
+  同一Transactionで確定し、内部ID、Cookie、Session ID、PIIを保存しない。
+- 管理MutationはAdmin相関HMAC Keyで合計30回／10分に制限し、
+  Limiter障害時はFail Closed、429は`Retry-After`を返す。Read APIは対象外である。
+
+### Admin UI／共通Mutation基盤
+
+- MIG-060CのCategory／Tag／Rank一覧・詳細へ新規作成、編集、Archiveを追加した。
+  `catalog.manage`がないOperatorには操作UIを表示せず、Read-onlyを維持する。
+- 共通Mutation Form、Archive Confirmation、Conflict Boundary、Dirty State Guardを
+  実装した。Code immutable、Client Validation、未保存変更警告、二重送信防止、
+  409／412時のStale Data再取得、成功後の一覧／詳細再取得を共通化した。
+- Network結果不明時は同じ入力Fingerprintに同じIdempotency-Keyを再利用し、
+  成功または確定失敗後の新規操作では新しいBrowser CSPRNG UUIDを生成する。
+- Existing Admin Shell、PermissionProvider、ProtectedAdminRoute、Error Boundaryを
+  再利用し、架空Data、Role比較、Local／Session Storage Tokenを追加していない。
+  Desktop／Mobile、Keyboard、Focus、Dialogを既存Design System内で実装した。
+
+### Test／Migration／Security
+
+- Catalog Backend対象は24 Test／364 AssertionでPASSした。このうち新規Mutationは
+  9 Test／110 Assertionで、Owner／Admin、Operator 403、Create／Update／Archive、OCC、
+  Idempotent Replay／Key Conflict、公開参照保護、DB Trigger、Rate Limit、
+  Audit／Outbox Rollback、物理Delete API不存在、Service迂回拒否を検証した。
+- Admin OpenAPI Unit／BundleはPASSし、Operation数はPublic 42、Admin 87、
+  Webhook 0である。Admin Contract生成差分は0である。
+- Admin Typecheck、Lint、Production Build、Unit／Component 32 Test、
+  Chromium Browser E2E 9 TestはPASSした。Owner MutationのCSRF／Idempotency Header、
+  Canonical再取得、Operator Read-only、Mobile／Keyboard／Focusを確認した。
+- Policy Unit 88 Test、Quality Unit 5 Test、Security Unit 4 Test、
+  Release Unit 10 Test、DB Guard UnitはPASSした。`quality-gate`、
+  `security-gate`はPASSし、Commit固定後に`policy-gate`を再確認する。
+- Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／22 Test、
+  Export／Network BoundaryはPASSした。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは既存11 Finding、Composer Auditは既存期限付き10 Findingである。
+  Baseline追加／拡張、新規Critical／High、Secret／PII Candidateは0件だった。
+- Guard付きPersistent V2 DBで`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、PostgreSQL／Redis Healthを確認した。
+  Task専用Ephemeralでは`migrate:fresh` 2回、全V2 Suite、
+  Draw／QA／Reporting／Content Load、API／Admin Health、Backup／Restore、
+  Task Resource Cleanupを確認した。
+- V2 Migrationは16件、Migration Set SHA-256は
+  `5e1cc64eaa3b8ea05d6500f1bc2d4866283ed8dd21785bd9f7d96ed5ffe49ffa`である。
+  Source／Restore Schema SHA-256は
+  `e868893e67fa303f6f656a067df32f33c5c921d9318b19a566674086ff0b2043`、
+  Migration Row SHA-256は
+  `7c10bd058debe42bde7b379d1a91aab80fbc08d6670552328f5244e602aa9311`
+  で一致した。Backup SHA-256は
+  `8a7d5438763983acf66150e2fb70de78c139e0d51ff6d6c4b67440f63e535b1d`である。
+- Persistent Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-060D/persistent-result.json`、
+  Ephemeral Evidenceは`/var/lib/oripa-v2-evidence/MIG-060D/smoke/`へ
+  Repository外保全した。Task専用Container／Network／VolumeはCleanup済みである。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 時間を要した作業／Gate
+
+- Guard付きPersistent検証の初回は約2分で203 Test中、新規Testの
+  Cache-Control Directive順序だけが一致せず停止した。Framework実値は
+  `no-store, private`で要件を満たしており、Directiveを正しく検査するよう修正後、
+  Migration 2回と全Suiteを最初から再実行してPASSした。
+- Browser E2E初回は52秒で新規TestのLabel Locatorが既存Sort Selectと曖昧になった。
+  Dialog内のExact Accessible Nameへ限定し、成功Run 9 Testは50.6秒だった。
+- Guard付きEphemeral Smokeは全Suite、Load、Backup／Restore、
+  Source／Restore比較、Resource Cleanupを含み308秒を要した。
+  Backup／Schema／Migration Rowは一致し、Host Port公開と残存Resourceは0だった。
+- Catalog固有のRate Limit／Limiter障害／Outbox Rollback Test追加後は、
+  Classic BuilderでTask API Imageを再構築し、Mutation 9 Test／110 Assertionと
+  Catalog対象24 Test／364 Assertionを再実行してPASSした。
+- Frozen InstallとPackage／Admin／Gate検証は依存順に実行した。
+  未Commit新規Fileを`git ls-files`で列挙するPolicy本体だけが作業途中に停止したため、
+  Worklog／Reportを含む固定Commit後に再実行する。GateやBaselineは弱めていない。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。Prize／Asset Mutation、
+  Gacha／Probability、他業務Admin画面、Storefront画面、通知Transport、
+  Staging E2Eが残るためGate G4／G5は`NOT COMPLETE`である。
+- LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
+  `MIG-060E Admin Prize／Presentation Asset Mutation`だが、
+  MIG-060Eは本Task内で開始しない。

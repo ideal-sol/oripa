@@ -2,13 +2,20 @@ import {
   ADMIN_API_BASE_PATH,
   type AdminEffectivePermissions,
   type AdminCatalogCategory,
+  type AdminCatalogCategoryCreate,
+  type AdminCatalogCategoryUpdate,
   type AdminCatalogCollection,
   type AdminCatalogDetail,
   type AdminCatalogDirection,
   type AdminCatalogPresentationAsset,
   type AdminCatalogPrize,
   type AdminCatalogRank,
+  type AdminCatalogRankCreate,
+  type AdminCatalogRankUpdate,
   type AdminCatalogTag,
+  type AdminCatalogTagCreate,
+  type AdminCatalogTagUpdate,
+  type AdminCatalogMutationResult,
   type AdminCatalogVisibility,
   type AdminLoginRequest,
   type AdminMfaVerifyRequest,
@@ -33,6 +40,7 @@ type FetchImplementation = typeof fetch;
 
 interface RequestOptions {
   body?: unknown;
+  idempotencyKey?: string;
   signal?: AbortSignal;
   transactionToken?: string;
 }
@@ -104,6 +112,32 @@ export class AdminApiClient {
     return this.catalogDetail("categories", id, signal);
   }
 
+  createCatalogCategory(
+    body: AdminCatalogCategoryCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogCategory>> {
+    return this.catalogMutation("POST", "categories", null, body, idempotencyKey, signal);
+  }
+
+  updateCatalogCategory(
+    id: string,
+    body: AdminCatalogCategoryUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogCategory>> {
+    return this.catalogMutation("PUT", "categories", id, body, idempotencyKey, signal);
+  }
+
+  archiveCatalogCategory(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogCategory>> {
+    return this.catalogArchive("categories", id, expectedRevision, idempotencyKey, signal);
+  }
+
   listCatalogTags(
     query: AdminCatalogQuery,
     signal?: AbortSignal,
@@ -118,6 +152,32 @@ export class AdminApiClient {
     return this.catalogDetail("tags", id, signal);
   }
 
+  createCatalogTag(
+    body: AdminCatalogTagCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogTag>> {
+    return this.catalogMutation("POST", "tags", null, body, idempotencyKey, signal);
+  }
+
+  updateCatalogTag(
+    id: string,
+    body: AdminCatalogTagUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogTag>> {
+    return this.catalogMutation("PUT", "tags", id, body, idempotencyKey, signal);
+  }
+
+  archiveCatalogTag(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogTag>> {
+    return this.catalogArchive("tags", id, expectedRevision, idempotencyKey, signal);
+  }
+
   listCatalogRanks(
     query: AdminCatalogQuery,
     signal?: AbortSignal,
@@ -130,6 +190,32 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminCatalogRank>> {
     return this.catalogDetail("ranks", id, signal);
+  }
+
+  createCatalogRank(
+    body: AdminCatalogRankCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
+    return this.catalogMutation("POST", "ranks", null, body, idempotencyKey, signal);
+  }
+
+  updateCatalogRank(
+    id: string,
+    body: AdminCatalogRankUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
+    return this.catalogMutation("PUT", "ranks", id, body, idempotencyKey, signal);
+  }
+
+  archiveCatalogRank(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
+    return this.catalogArchive("ranks", id, expectedRevision, idempotencyKey, signal);
   }
 
   listCatalogPrizes(
@@ -280,8 +366,53 @@ export class AdminApiClient {
     });
   }
 
+  private catalogMutation<TBody, TResult>(
+    method: "POST" | "PUT",
+    resource: "categories" | "tags" | "ranks",
+    id: string | null,
+    body: TBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<TResult>> {
+    if ((id !== null && !isOpaqueId(id)) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    const suffix = id === null ? "" : `/${encodeURIComponent(id)}`;
+    return this.request(method, `/catalog/${resource}${suffix}`, {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  private catalogArchive<TResult>(
+    resource: "categories" | "tags" | "ranks",
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<TResult>> {
+    if (
+      !isOpaqueId(id) ||
+      !Number.isSafeInteger(expectedRevision) ||
+      expectedRevision < 1 ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", `/catalog/${resource}/${encodeURIComponent(id)}/archive`, {
+      body: { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    });
+  }
+
   private async request<T>(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PUT",
     path: `/auth/${string}` | `/catalog/${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
@@ -307,6 +438,9 @@ export class AdminApiClient {
     }
     if (options.transactionToken) {
       headers.set("X-Oripa-Auth-Transaction", options.transactionToken);
+    }
+    if (options.idempotencyKey) {
+      headers.set("Idempotency-Key", options.idempotencyKey);
     }
 
     const timeout = new AbortController();
@@ -361,6 +495,10 @@ function isOpaqueId(value: string): boolean {
   );
 }
 
+function isIdempotencyKey(value: string): boolean {
+  return value.length > 0 && value.length <= 255 && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
 export function readAdminCsrfCookie(): string | null {
   if (typeof document === "undefined") {
     return null;
@@ -411,6 +549,9 @@ function publicErrorMessage(status: number, code: string): string {
   }
   if (status === 403) return "この操作を実行する権限がありません。";
   if (status === 429) return "試行回数が上限に達しました。時間をおいてください。";
+  if (status === 409 || status === 412) {
+    return "別の操作で更新されています。最新状態を再取得してください。";
+  }
   if (code === "REQUEST_ABORTED") return "リクエストを中止しました。";
   if (code === "NETWORK_ERROR") return "管理APIへ接続できませんでした。";
   return "管理APIで処理できませんでした。";
