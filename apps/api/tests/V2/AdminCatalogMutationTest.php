@@ -2,7 +2,6 @@
 
 namespace Tests\V2;
 
-use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
 use App\Domain\Catalog\Services\V2CatalogMutationRateLimiter;
@@ -415,10 +414,10 @@ final class AdminCatalogMutationTest extends TestCase
                 $this->categoryInput('catalog-outbox-rollback')
             );
             self::fail('Catalog mutation must roll back when Outbox persistence fails.');
-        } catch (V2CatalogException $exception) {
-            self::assertSame(
-                'CATALOG_PUBLISHED_REFERENCE_CONFLICT',
-                $exception->errorCode
+        } catch (QueryException $exception) {
+            self::assertStringContainsString(
+                'synthetic Catalog outbox failure',
+                $exception->getMessage()
             );
         } finally {
             DB::statement(

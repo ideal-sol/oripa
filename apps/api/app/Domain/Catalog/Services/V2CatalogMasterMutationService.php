@@ -677,11 +677,45 @@ final class V2CatalogMasterMutationService
                 'The Catalog code or slug is already in use.'
             );
         }
-        if ($state === 'P0001') {
+        $message = $exception->getMessage();
+        if (
+            $state === 'P0001'
+            && str_contains(
+                $message,
+                'Published Catalog references protect this master record'
+            )
+        ) {
             return new V2CatalogException(
                 'CATALOG_PUBLISHED_REFERENCE_CONFLICT',
                 409,
                 'A Catalog master invariant rejected the mutation.'
+            );
+        }
+        if ($state === 'P0001' && str_contains($message, 'Catalog master code is immutable')) {
+            return new V2CatalogException(
+                'CATALOG_CODE_IMMUTABLE',
+                409,
+                'Catalog master codes cannot be changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Archived Catalog master records are immutable')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_RESOURCE_ARCHIVED',
+                409,
+                'Archived Catalog master records cannot be changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Catalog master revision must increase by one')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_REVISION_CONFLICT',
+                409,
+                'The Catalog master record has changed.'
             );
         }
 
