@@ -14,6 +14,7 @@ enum V2Permission: string
     case ApprovePaidPointAdjustment = 'point.adjustment.paid.approve';
     case ReadCatalog = 'catalog.read';
     case ManageCatalog = 'catalog.manage';
+    case PublishCatalog = 'catalog.publish';
     case ManageShippingRequest = 'shipping.request.manage';
     case ManageQaDraw = 'qa.draw.manage';
     case ReadFinancialReporting = 'reporting.financial.read';

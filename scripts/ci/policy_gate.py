@@ -343,6 +343,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
     "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
     "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
+    "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -1866,6 +1867,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_07_000020_add_line_friend_reward_enabled.php",
         "2026_08_08_000021_add_v2_gacha_draft_management.php",
         "2026_08_09_000022_add_v2_probability_draft_management.php",
+        "2026_08_10_000023_protect_v2_published_probability_relations.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2912,6 +2914,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "cloneAdminCatalogProbabilityDraft",
         "replaceAdminCatalogProbabilityDraftEntries",
         "validateAdminCatalogProbabilityDraft",
+        "preflightAdminCatalogProbabilityPublish",
+        "publishAdminCatalogProbabilityDraft",
         "archiveAdminCatalogProbabilityDraft",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
@@ -2953,6 +2957,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             "put",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/validate": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish-preflight": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish": {
             "post",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive": {
@@ -3083,6 +3093,25 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 Catalog test missing {required}")
+
+    publish_tests = (
+        repository / "apps/api/tests/V2/AdminProbabilityDraftManagementTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_publish_preflight_and_publish_create_an_immutable_snapshot_only",
+        "test_publish_rejects_invalid_archived_and_non_fresh_requests",
+        "test_publish_revalidates_totals_and_revision_on_the_server",
+        "test_publish_rate_limit_is_fail_closed",
+        "test_publish_limiter_failure_is_fail_closed",
+        "test_publish_outbox_failure_rolls_back_snapshot_and_idempotency",
+    ):
+        if required not in publish_tests:
+            raise PolicyFailure(f"V2 Probability Publish test missing {required}")
+    concurrency_tests = (
+        repository / "apps/api/tests/V2/ZAdminProbabilityConcurrencyTest.php"
+    ).read_text(encoding="utf-8")
+    if "test_concurrent_publish_has_one_immutable_winner" not in concurrency_tests:
+        raise PolicyFailure("V2 Probability Publish concurrency test is missing")
 
     workflow = (
         repository / ".github/workflows/platform-ci.yml"

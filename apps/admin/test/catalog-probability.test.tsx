@@ -49,6 +49,15 @@ describe("Admin Draft Probability editor", () => {
       isMutableProbabilityVersion({ is_archived: true, status: "draft" }),
     ).toBe(false);
   });
+
+  it("registers the dedicated publish permission once", async () => {
+    const { ADMIN_PERMISSION_CODES } = await import("@/lib/admin-api/generated");
+
+    expect(ADMIN_PERMISSION_CODES).toContain("catalog.publish");
+    expect(
+      ADMIN_PERMISSION_CODES.filter((code) => code === "catalog.publish"),
+    ).toHaveLength(1);
+  });
 });
 
 function stage(

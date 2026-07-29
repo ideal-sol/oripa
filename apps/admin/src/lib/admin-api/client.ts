@@ -629,6 +629,46 @@ export class AdminApiClient {
     );
   }
 
+  preflightCatalogProbabilityPublish(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "publish-preflight",
+      { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  publishCatalogProbabilityDraft(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "publish",
+      { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
   discardCatalogProbabilityDraft(
     gachaId: string,
     gachaVersionId: string,
@@ -890,7 +930,14 @@ export class AdminApiClient {
     gachaId: string,
     gachaVersionId: string,
     probabilityVersionId: string | null,
-    action: "clone" | "entries" | "validate" | "archive" | null,
+    action:
+      | "clone"
+      | "entries"
+      | "validate"
+      | "publish-preflight"
+      | "publish"
+      | "archive"
+      | null,
     body: TBody,
     idempotencyKey: string,
     signal?: AbortSignal,

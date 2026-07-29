@@ -126,6 +126,14 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/validate",
   ],
+  preflightAdminCatalogProbabilityPublish: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish-preflight",
+  ],
+  publishAdminCatalogProbabilityDraft: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish",
+  ],
   archiveAdminCatalogProbabilityDraft: [
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive",

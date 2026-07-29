@@ -557,6 +557,10 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
   const prizeAId = "01910191-0191-7191-8191-019101910224";
   let revision = 1;
   let firstPpm = 500_000;
+  let probabilityStatus: "draft" | "published" = "draft";
+  let publishedAt: string | null = null;
+  let preflightAttempts = 0;
+  const preflightKeys: string[] = [];
   let mutationHeaders: Record<string, string> | null = null;
   const prize = (id: string, code: string) => ({
     code: `prize-${code.toLowerCase()}`,
@@ -600,7 +604,7 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
     gacha_version_id: versionId,
     id: probabilityId,
     is_archived: false,
-    published_at: null,
+    published_at: publishedAt,
     revision,
     snapshot_sha256: "a".repeat(64),
     stages: [{
@@ -625,7 +629,7 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
       name: "Stage 1",
       sort_order: 10,
     }],
-    status: "draft",
+    status: probabilityStatus,
     updated_at: "2026-07-29T00:00:00Z",
     validation: {
       current_total_ppm: firstPpm + 400_000,
@@ -658,6 +662,13 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
     if (url.pathname.endsWith("/auth/permissions")) {
       return json(route, permissionResponse("owner"));
     }
+    if (url.pathname.endsWith("/auth/reauthenticate")) {
+      return json(route, {
+        admin: adminIdentity(),
+        authenticated: true,
+        fresh_mfa_expires_in: 300,
+      });
+    }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
       return json(route, { data: gachaVersion });
     }
@@ -689,6 +700,41 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
         idempotent_replay: false,
       });
     }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/probability-versions/${probabilityId}/publish-preflight`,
+      )
+    ) {
+      preflightAttempts += 1;
+      preflightKeys.push(request.headers()["idempotency-key"] ?? "");
+      if (preflightAttempts === 1) {
+        return json(route, {
+          code: "FRESH_AUTHENTICATION_REQUIRED",
+          request_id: "01910191-0191-7191-8191-019101910193",
+          retryable: false,
+          status: 403,
+          title: "Fresh authentication is required.",
+          type: "about:blank",
+        }, 403, { "Content-Type": "application/problem+json" });
+      }
+      return json(route, {
+        data: probability(),
+        idempotent_replay: false,
+      });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/probability-versions/${probabilityId}/publish`,
+      )
+    ) {
+      probabilityStatus = "published";
+      publishedAt = "2026-08-10T03:04:05Z";
+      revision += 1;
+      return json(route, {
+        data: probability(),
+        idempotent_replay: false,
+      });
+    }
     return route.fulfill({ status: 404 });
   });
 
@@ -703,6 +749,22 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
   await expect(page.getByText("Validation passed")).toBeVisible();
   expect(mutationHeaders?.["x-xsrf-token"]).toBe(csrf);
   expect(mutationHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+  await page.getByRole("button", { name: "Publish Preflight" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByLabel("認証アプリの6桁コード").fill("654321");
+  await page.getByRole("button", { name: "再認証", exact: true }).click();
+  await expect.poll(() => preflightAttempts).toBe(2);
+  expect(preflightKeys[0]).toMatch(/^[0-9a-f-]{36}$/u);
+  expect(preflightKeys[1]).toBe(preflightKeys[0]);
+  await page.getByRole("button", { name: "Probability Publish" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Probabilityを公開しますか" }),
+  ).toBeFocused();
+  await expect(page.getByText("Gacha Version自体は公開されません。")).toBeVisible();
+  await page.getByRole("button", { name: "公開", exact: true }).click();
+  await expect(page.getByText("published", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Probability Publish" })).toHaveCount(0);
+  await expect(page.getByText("2026-08-10T03:04:05Z")).toBeVisible();
 
   await page.setViewportSize({ height: 844, width: 390 });
   expect(
@@ -876,6 +938,7 @@ function permissionResponse(role: "owner" | "admin" | "operator") {
       ...(role === "owner" ? ["qa.draw.manage"] : []),
       ...(role === "owner" ? ["identity.line.manage"] : []),
       ...(role !== "operator" ? ["catalog.manage"] : []),
+      ...(role !== "operator" ? ["catalog.publish"] : []),
       ...(role !== "operator" ? ["reporting.financial.read"] : []),
     ],
     request_id: "01910191-0191-7191-8191-019101910193",
