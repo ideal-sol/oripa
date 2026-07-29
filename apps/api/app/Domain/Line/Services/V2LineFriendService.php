@@ -95,7 +95,8 @@ final class V2LineFriendService
             $friendship,
             $setting,
             $user,
-            CarbonImmutable::now()->startOfSecond()
+            CarbonImmutable::now()->startOfSecond(),
+            $requestId
         );
         $pending->forceFill([
             'status' => 'claimed',
@@ -210,7 +211,13 @@ final class V2LineFriendService
             if ($account instanceof ExternalIdentityAccount) {
                 $user = User::query()->whereKey($account->user_id)->lockForUpdate()->firstOrFail();
                 $friendship = $this->friendship($subjectHash, $user, $occurredAt);
-                $this->grantReward($friendship, $setting, $user, $occurredAt);
+                $this->grantReward(
+                    $friendship,
+                    $setting,
+                    $user,
+                    $occurredAt,
+                    $requestId
+                );
                 $template = $setting->linked_follow_message;
                 $targetPublicId = $friendship->public_id;
                 $eventType = 'identity.line_follow.linked';
@@ -323,15 +330,26 @@ final class V2LineFriendService
         LineFriendship $friendship,
         LineMessagingSetting $setting,
         User $user,
-        \DateTimeInterface $occurredAt
+        \DateTimeInterface $occurredAt,
+        string $requestId
     ): void {
         if ($friendship->point_operation_id !== null) {
             return;
         }
-        $amount = (int) $setting->reward_point_amount;
-        if ($amount === 0) {
+        if (! $setting->reward_enabled) {
+            $this->audit->record('line.friend.reward.skipped', [
+                'request_id' => $requestId,
+                'actor_type' => 'system',
+                'auth_realm' => 'system',
+                'target_type' => 'line_friendship',
+                'target_public_id' => $friendship->public_id,
+                'outcome' => 'success',
+                'reason_code' => 'reward_disabled',
+            ]);
+
             return;
         }
+        $amount = (int) $setting->reward_point_amount;
         $operation = $this->points->grantLineFriendReward(
             (int) $user->getKey(),
             (int) $friendship->getKey(),

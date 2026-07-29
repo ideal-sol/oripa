@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 1f4e994b869347381fb940bce16f797897d321f796e0fa0cf92878e5dfcf431a
+// Contract SHA-256: b1567f71a0dee2f831be6070d23010cd24f788f048ab2efa627df837594d6a97
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -121,6 +121,9 @@ export interface AdminLineMessagingSetting {
   linked_follow_message: string;
   pending_follow_message: string;
   login_relative_path: string;
+  reward_enabled: boolean;
+  reward_point_amount: number;
+  reward_expiration_days: number;
   revision: number;
   updated_at: string;
 }
@@ -134,16 +137,25 @@ export interface AdminLineMessagingSettingUpdate {
   expected_revision: number;
   linked_follow_message: string;
   pending_follow_message: string;
+  reward_enabled: boolean;
+  reward_point_amount: number;
+  reward_expiration_days: number;
 }
 
 export interface AdminLineMessagingPreviewRequest {
   linked_follow_message: string;
   pending_follow_message: string;
+  reward_enabled: boolean;
+  reward_point_amount: number;
+  reward_expiration_days: number;
 }
 
 export interface AdminLineMessagingPreview {
   linked_follow_message: string;
   pending_follow_message: string;
+  reward_enabled: boolean;
+  reward_point_amount: number;
+  reward_expiration_days: number;
   request_id: string;
 }
 

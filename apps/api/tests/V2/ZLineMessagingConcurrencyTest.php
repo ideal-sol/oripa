@@ -62,6 +62,7 @@ final class ZLineMessagingConcurrencyTest extends TestCase
             'last_authenticated_at' => now(),
         ]);
         LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
             'reward_point_amount' => 100,
         ]);
 

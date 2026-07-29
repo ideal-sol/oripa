@@ -191,6 +191,9 @@ describe("AdminApiClient", () => {
       linked_follow_message: "完了",
       login_relative_path: "/login",
       pending_follow_message: "{login_url}",
+      reward_enabled: false,
+      reward_expiration_days: 180,
+      reward_point_amount: 0,
       revision: 1,
       updated_at: "2026-07-29T00:00:00Z",
     };
@@ -199,6 +202,9 @@ describe("AdminApiClient", () => {
       .mockResolvedValueOnce(jsonResponse({
         linked_follow_message: "完了",
         pending_follow_message: "/login",
+        reward_enabled: false,
+        reward_expiration_days: 180,
+        reward_point_amount: 0,
         request_id: setting.id,
       }))
       .mockResolvedValueOnce(jsonResponse({
@@ -212,12 +218,18 @@ describe("AdminApiClient", () => {
     await client.previewLineMessagingSetting({
       linked_follow_message: "完了",
       pending_follow_message: "{login_url}",
+      reward_enabled: false,
+      reward_expiration_days: 180,
+      reward_point_amount: 0,
     });
     await client.updateLineMessagingSetting(
       {
         expected_revision: 1,
         linked_follow_message: "完了",
         pending_follow_message: "{login_url}",
+        reward_enabled: false,
+        reward_expiration_days: 180,
+        reward_point_amount: 0,
       },
       "line-setting-update-key",
     );

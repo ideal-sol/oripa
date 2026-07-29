@@ -245,6 +245,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
     "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
     "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+    "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -1853,6 +1854,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
         "2026_08_07_000018_add_line_external_identity_provider.php",
         "2026_08_07_000019_create_line_messaging_follow_foundation.php",
+        "2026_08_07_000020_add_line_friend_reward_enabled.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2179,6 +2181,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "apps/api/app/Domain/Identity/Services/V2LineOidcHttpTransport.php",
             "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
             "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+            "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
             "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
             "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
             "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",
@@ -2197,6 +2200,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "provider = 'google' OR provider = 'line'",
         "LINE_MESSAGING_CHANNEL_SECRET",
         "LINE_MESSAGING_CHANNEL_ACCESS_TOKEN",
+        "reward_enabled",
+        "MAX_REWARD_POINT_AMOUNT",
         "X-Line-Signature",
         "webhookEventId",
         "line_pending_follows",

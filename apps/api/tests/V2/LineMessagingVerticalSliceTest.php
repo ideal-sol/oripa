@@ -16,6 +16,8 @@ use App\Models\V2\LineMessagingSetting;
 use App\Models\V2\LinePendingFollow;
 use App\Models\V2\LineWebhookEvent;
 use App\Models\V2\PointLedgerEntry;
+use App\Models\V2\PointLot;
+use App\Models\V2\PointOperation;
 use App\Models\V2\User;
 use App\Models\V2\Wallet;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +66,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
             ->getJson('/admin/api/v2/identity/line-messaging')
             ->assertOk()
             ->assertJsonPath('data.revision', 1)
+            ->assertJsonPath('data.reward_enabled', false)
+            ->assertJsonPath('data.reward_point_amount', 0)
+            ->assertJsonPath('data.reward_expiration_days', 180)
             ->assertJsonPath('data.login_relative_path', '/login');
         self::assertTrue(Str::isUuid($read->json('request_id')));
 
@@ -71,6 +76,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
             'expected_revision' => 1,
             'linked_follow_message' => '友だち追加が完了しました。',
             'pending_follow_message' => '{login_url} からログインしてください。',
+            'reward_enabled' => true,
+            'reward_point_amount' => 500,
+            'reward_expiration_days' => 365,
         ];
         $preview = $this->adminMutation(
             $owner,
@@ -82,6 +90,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
             '/login からログインしてください。',
             $preview->json('pending_follow_message')
         );
+        self::assertTrue($preview->json('reward_enabled'));
+        self::assertSame(500, $preview->json('reward_point_amount'));
+        self::assertSame(365, $preview->json('reward_expiration_days'));
 
         $key = 'line-message-setting-canonical';
         $updated = $this->adminMutation(
@@ -109,6 +120,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 'linked_follow_message' => $setting->linked_follow_message,
                 'pending_follow_message' => $setting->pending_follow_message,
                 'login_relative_path' => $setting->login_relative_path,
+                'reward_enabled' => (bool) $setting->reward_enabled,
+                'reward_point_amount' => (int) $setting->reward_point_amount,
+                'reward_expiration_days' => (int) $setting->reward_expiration_days,
                 'revision' => (int) $setting->revision,
                 'updated_at' => $setting->updated_at->toIso8601String(),
             ])->sole());
@@ -141,6 +155,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 'expected_revision' => 1,
                 'linked_follow_message' => '完了',
                 'pending_follow_message' => '{login_url}',
+                'reward_enabled' => false,
+                'reward_point_amount' => 0,
+                'reward_expiration_days' => 180,
             ]
         )->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
 
@@ -159,6 +176,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 [
                     'linked_follow_message' => $invalid,
                     'pending_follow_message' => '{login_url}',
+                    'reward_enabled' => false,
+                    'reward_point_amount' => 0,
+                    'reward_expiration_days' => 180,
                 ]
             )->assertUnprocessable()->assertJsonPath(
                 'code',
@@ -167,9 +187,138 @@ final class LineMessagingVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_reward_settings_enforce_enablement_amount_expiration_occ_and_idempotency(): void
+    {
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $base = [
+            'expected_revision' => 1,
+            'linked_follow_message' => '友だち追加が完了しました。',
+            'pending_follow_message' => '{login_url} からログインしてください。',
+        ];
+        foreach ([
+            ['reward_enabled' => true, 'reward_point_amount' => 0, 'reward_expiration_days' => 180],
+            ['reward_enabled' => false, 'reward_point_amount' => 1, 'reward_expiration_days' => 180],
+            ['reward_enabled' => true, 'reward_point_amount' => -1, 'reward_expiration_days' => 180],
+            ['reward_enabled' => true, 'reward_point_amount' => 1_000_001, 'reward_expiration_days' => 180],
+            ['reward_enabled' => true, 'reward_point_amount' => 1, 'reward_expiration_days' => 0],
+            ['reward_enabled' => true, 'reward_point_amount' => 1, 'reward_expiration_days' => 3651],
+        ] as $invalid) {
+            Auth::forgetGuards();
+            $this->adminMutation(
+                $owner,
+                'PUT',
+                '/admin/api/v2/identity/line-messaging',
+                [...$base, ...$invalid],
+                'invalid-reward-'.hash('sha256', json_encode($invalid, JSON_THROW_ON_ERROR))
+            )->assertUnprocessable()
+                ->assertJsonPath('code', 'LINE_MESSAGING_SETTING_INVALID');
+        }
+        Cache::store('array')->clear();
+
+        $minimum = [
+            ...$base,
+            'reward_enabled' => true,
+            'reward_point_amount' => 1,
+            'reward_expiration_days' => 1,
+        ];
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            $minimum,
+            'reward-minimum'
+        )->assertOk()
+            ->assertJsonPath('data.reward_enabled', true)
+            ->assertJsonPath('data.reward_point_amount', 1)
+            ->assertJsonPath('data.reward_expiration_days', 1)
+            ->assertJsonPath('data.revision', 2);
+
+        Auth::forgetGuards();
+        $maximum = [
+            ...$base,
+            'expected_revision' => 2,
+            'reward_enabled' => true,
+            'reward_point_amount' => 1_000_000,
+            'reward_expiration_days' => 3650,
+        ];
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            $maximum,
+            'reward-maximum'
+        )->assertOk()
+            ->assertJsonPath('data.reward_point_amount', 1_000_000)
+            ->assertJsonPath('data.reward_expiration_days', 3650)
+            ->assertJsonPath('data.revision', 3);
+
+        Auth::forgetGuards();
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            $maximum,
+            'reward-maximum'
+        )->assertOk()
+            ->assertJsonPath('idempotent_replay', true)
+            ->assertJsonPath('data.revision', 3);
+
+        Auth::forgetGuards();
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            [...$maximum, 'reward_point_amount' => 999_999],
+            'reward-maximum'
+        )->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
+
+        Auth::forgetGuards();
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            [...$maximum, 'expected_revision' => 2],
+            'reward-stale'
+        )->assertConflict()
+            ->assertJsonPath('code', 'LINE_MESSAGING_REVISION_CONFLICT');
+    }
+
+    public function test_disabled_reward_records_friendship_without_point_records(): void
+    {
+        $user = $this->user('line-disabled-reward@example.test');
+        $this->lineAccount($user, 'disabled-reward-subject');
+
+        $this->postWebhook($this->followEvent(
+            'event-disabled-reward',
+            'disabled-reward-subject',
+            'reply-disabled-reward'
+        ))->assertOk();
+
+        $friendship = LineFriendship::query()
+            ->where('user_id', $user->getKey())
+            ->sole();
+        self::assertNull($friendship->point_operation_id);
+        self::assertNull($friendship->rewarded_at);
+        self::assertSame(0, PointOperation::query()
+            ->where('source_type', 'line_friend')->count());
+        self::assertSame(0, PointLot::query()->count());
+        self::assertSame(0, PointLedgerEntry::query()->count());
+        self::assertFalse(Wallet::query()
+            ->where('user_id', $user->getKey())
+            ->exists());
+        self::assertTrue(DB::table('audit_logs')
+            ->where('action_code', 'line.friend.reward.skipped')
+            ->where('reason_code', 'reward_disabled')
+            ->exists());
+    }
+
     public function test_signed_follow_replies_for_linked_and_pending_users_without_duplication(): void
     {
-        LineMessagingSetting::query()->whereKey(1)->update(['reward_point_amount' => 100]);
+        LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
+            'reward_point_amount' => 100,
+            'reward_expiration_days' => 30,
+        ]);
         $user = $this->user('line-friend@example.test');
         $this->lineAccount($user, 'linked-subject');
 
@@ -178,6 +327,11 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertSame([['reply-linked', '友だち追加が完了しました。']], $this->messaging->sent);
         self::assertSame(100, Wallet::query()->where('user_id', $user->getKey())->sole()->free_balance);
         self::assertSame(1, PointLedgerEntry::query()->count());
+        $lot = PointLot::query()->sole();
+        self::assertEquals(
+            30,
+            $lot->granted_at->startOfDay()->diffInDays($lot->expire_at->startOfDay())
+        );
         self::assertSame('sent', LineWebhookEvent::query()->sole()->reply_status);
 
         $this->postWebhook($this->followEvent('event-linked', 'linked-subject', 'reply-linked'))
@@ -185,11 +339,30 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertCount(1, $this->messaging->sent);
         self::assertSame(1, PointLedgerEntry::query()->count());
 
+        LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_point_amount' => 500,
+        ]);
+        $this->postWebhook([
+            'type' => 'unfollow',
+            'timestamp' => now()->addSecond()->getTimestampMs(),
+            'source' => ['type' => 'user', 'userId' => 'linked-subject'],
+            'webhookEventId' => 'event-linked-unfollow',
+            'deliveryContext' => ['isRedelivery' => false],
+        ])->assertOk();
+        $this->postWebhook($this->followEvent(
+            'event-linked-refollow',
+            'linked-subject',
+            'reply-linked-refollow'
+        ))->assertOk();
+        self::assertSame(100, Wallet::query()
+            ->where('user_id', $user->getKey())->sole()->free_balance);
+        self::assertSame(1, PointLedgerEntry::query()->count());
+
         $this->postWebhook($this->followEvent('event-pending', 'pending-subject', 'reply-pending'))
             ->assertOk();
         self::assertSame(
             ['reply-pending', '/login からLINEログインを完了してください。'],
-            $this->messaging->sent[1]
+            $this->messaging->sent[2]
         );
         self::assertSame('pending', LinePendingFollow::query()->sole()->status);
     }
@@ -218,6 +391,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertSame(0, LineWebhookEvent::query()->count());
 
         LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
             'reward_point_amount' => 100,
         ]);
         $user = $this->user('line-point-failure@example.test');

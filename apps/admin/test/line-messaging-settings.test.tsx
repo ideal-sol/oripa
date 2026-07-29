@@ -26,6 +26,9 @@ const setting = {
   linked_follow_message: "完了しました",
   login_relative_path: "/login",
   pending_follow_message: "{login_url} からログイン",
+  reward_enabled: false,
+  reward_expiration_days: 180,
+  reward_point_amount: 0,
   revision: 1,
   updated_at: "2026-07-29T00:00:00Z",
 };
@@ -44,6 +47,9 @@ describe("LINE Messaging settings", () => {
     ).mockResolvedValue({
       linked_follow_message: "更新済み",
       pending_follow_message: "/login からログイン",
+      reward_enabled: true,
+      reward_expiration_days: 365,
+      reward_point_amount: 500,
       request_id: setting.id,
     });
     const update = vi.spyOn(
@@ -60,12 +66,24 @@ describe("LINE Messaging settings", () => {
       name: "ログイン済みユーザー向け",
     });
     fireEvent.change(linked, { target: { value: "更新済み" } });
+    fireEvent.click(screen.getByRole("checkbox", {
+      name: "ポイント付与を有効にする",
+    }));
+    fireEvent.change(screen.getByLabelText("付与ポイント数"), {
+      target: { value: "500" },
+    });
+    fireEvent.change(screen.getByLabelText("有効期限日数"), {
+      target: { value: "365" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "プレビュー" }));
 
     await waitFor(() => expect(preview).toHaveBeenCalledWith(
       {
         linked_follow_message: "更新済み",
         pending_follow_message: "{login_url} からログイン",
+        reward_enabled: true,
+        reward_expiration_days: 365,
+        reward_point_amount: 500,
       },
     ));
     expect(await screen.findByText("/login からログイン")).toBeVisible();
@@ -75,8 +93,36 @@ describe("LINE Messaging settings", () => {
     expect(update.mock.calls[0][0]).toMatchObject({
       expected_revision: 1,
       linked_follow_message: "更新済み",
+      reward_enabled: true,
+      reward_expiration_days: 365,
+      reward_point_amount: 500,
     });
     expect(update.mock.calls[0][1]).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it("requires a positive bounded reward when enabled and resets it when disabled", async () => {
+    vi.spyOn(AdminApiClient.prototype, "getLineMessagingSetting").mockResolvedValue({
+      data: setting,
+      request_id: setting.id,
+    });
+
+    render(<LineMessagingSettings />);
+    const toggle = await screen.findByRole("checkbox", {
+      name: "ポイント付与を有効にする",
+    });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("付与ポイント数"), {
+      target: { value: "1000001" },
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("1～1,000,000");
+    fireEvent.change(screen.getByLabelText("付与ポイント数"), {
+      target: { value: "100" },
+    });
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    fireEvent.click(toggle);
+    expect(screen.getByLabelText("付与ポイント数")).toHaveValue(0);
+    expect(screen.getByLabelText("付与ポイント数")).toBeDisabled();
   });
 
   it("opens the shared Fresh MFA boundary for a stale session", async () => {
