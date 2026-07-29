@@ -114,6 +114,8 @@
 | Ephemeral Final | 約348秒 | Backup／Restore、全Load／Performance、Cleanup | PASS |
 | Admin／First-party Package | 約2分 | 依存Build前の並列実行を避けSerial実行 | 全PASS |
 | Push前Secret検査 | 約10秒 | Test用Bearer文字列が高確度Patternに一致 | `test-token`へ短縮、Final Tree 0件 |
+| GitHub Quality初回 | 62秒 | 既存Admin Schemaへ新Fieldをrequired追加しBreaking判定 | Optional互換Contractへ修正 |
+| Persistent互換回帰 | 約140秒 | 旧Request省略互換と部分指定拒否をClean DBで確認 | 全V2 Suite PASS |
 
 - 追加の効率改善指示に従い、既に完了したFull Suite Evidenceを破棄せず、
   3回目の重いGuard前に対象HTTP／Admin Smokeを先行した。
@@ -132,6 +134,13 @@
   Clean DBでの最終回帰は同一HeadのGitHub Checkで確認する。
 - Policy Gateの明示Migration集合だけを新Migrationへ同期し、Gate、Baseline、
   Assertion、Security／Quality範囲は縮小していない。
+- GitHub Quality Gate初回は、既存Admin Setting／Update／Preview Schemaへ
+  Reward Fieldをrequired追加したためBreaking Changeを検出した。Gateを緩めず、
+  OpenAPI上はOptional、Server Responseは常時返却、旧Requestの全省略時は
+  現在設定を保持、部分指定は422とする後方互換境界へ修正した。
+- 互換修正後はOpenAPI Breaking Check、Admin生成差分0、Typecheck／Lint／
+  Unit 39件／Build、Clean DB全V2 SuiteがPASSした。重い回帰前にRoot空き3.8GBと
+  未使用Build Cache 1.885GBを確認し、Build Cacheだけを追加Cleanupした。
 
 ## 非変更
 

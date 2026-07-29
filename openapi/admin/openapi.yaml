@@ -1966,9 +1966,6 @@ components:
         - linked_follow_message
         - pending_follow_message
         - login_relative_path
-        - reward_enabled
-        - reward_point_amount
-        - reward_expiration_days
         - revision
         - updated_at
       properties:
@@ -2018,9 +2015,10 @@ components:
         - expected_revision
         - linked_follow_message
         - pending_follow_message
-        - reward_enabled
-        - reward_point_amount
-        - reward_expiration_days
+      dependentRequired:
+        reward_enabled: [reward_point_amount, reward_expiration_days]
+        reward_point_amount: [reward_enabled, reward_expiration_days]
+        reward_expiration_days: [reward_enabled, reward_point_amount]
       properties:
         expected_revision:
           type: integer
@@ -2049,9 +2047,10 @@ components:
       required:
         - linked_follow_message
         - pending_follow_message
-        - reward_enabled
-        - reward_point_amount
-        - reward_expiration_days
+      dependentRequired:
+        reward_enabled: [reward_point_amount, reward_expiration_days]
+        reward_point_amount: [reward_enabled, reward_expiration_days]
+        reward_expiration_days: [reward_enabled, reward_point_amount]
       properties:
         linked_follow_message:
           type: string
@@ -2077,9 +2076,6 @@ components:
       required:
         - linked_follow_message
         - pending_follow_message
-        - reward_enabled
-        - reward_point_amount
-        - reward_expiration_days
         - request_id
       properties:
         linked_follow_message:

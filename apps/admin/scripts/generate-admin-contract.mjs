@@ -263,9 +263,9 @@ export interface AdminLineMessagingSetting {
   linked_follow_message: string;
   pending_follow_message: string;
   login_relative_path: string;
-  reward_enabled: boolean;
-  reward_point_amount: number;
-  reward_expiration_days: number;
+  reward_enabled?: boolean;
+  reward_point_amount?: number;
+  reward_expiration_days?: number;
   revision: number;
   updated_at: string;
 }
@@ -279,25 +279,25 @@ export interface AdminLineMessagingSettingUpdate {
   expected_revision: number;
   linked_follow_message: string;
   pending_follow_message: string;
-  reward_enabled: boolean;
-  reward_point_amount: number;
-  reward_expiration_days: number;
+  reward_enabled?: boolean;
+  reward_point_amount?: number;
+  reward_expiration_days?: number;
 }
 
 export interface AdminLineMessagingPreviewRequest {
   linked_follow_message: string;
   pending_follow_message: string;
-  reward_enabled: boolean;
-  reward_point_amount: number;
-  reward_expiration_days: number;
+  reward_enabled?: boolean;
+  reward_point_amount?: number;
+  reward_expiration_days?: number;
 }
 
 export interface AdminLineMessagingPreview {
   linked_follow_message: string;
   pending_follow_message: string;
-  reward_enabled: boolean;
-  reward_point_amount: number;
-  reward_expiration_days: number;
+  reward_enabled?: boolean;
+  reward_point_amount?: number;
+  reward_expiration_days?: number;
   request_id: string;
 }
 

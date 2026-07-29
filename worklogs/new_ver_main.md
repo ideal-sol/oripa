@@ -6047,6 +6047,16 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   高確度Secret候補は0件、PHP構文はPASSした。置換後の単独Test再実行は常駐
   Persistent DBの既存Fixtureと件数前提が衝突したため採用せず、Clean DBで成功した
   全V2 Suite Evidenceを維持し、同一HeadのGitHub Checkで最終回帰を確認する。
+- GitHub Quality Gate初回は、既存Admin Setting／Update／Preview Schemaへ
+  Reward Fieldをrequired追加したBreaking Changeを検出した。Gateを緩めず、
+  Reward Fieldを後方互換なOptional Contractへ修正した。Server Responseは常時
+  新Fieldを返し、旧Requestが3 Fieldを全省略した場合は現在設定を保持し、
+  一部だけの指定は422で拒否する。Idempotency hashは省略状態を維持する。
+- 修正後のOpenAPI Breaking Check、Admin生成差分0、Typecheck／Lint／Unit 39件／
+  BuildがPASSした。Clean DBのPersistent互換回帰も`migrate:fresh` 2回、
+  全V2 Suite、最新Migration Rollback／Reapply、Health、Migration Checksumが
+  PASSした。重い回帰前にRoot空き3.8GBと未使用Build Cache 1.885GBを確認し、
+  稼働Resourceへ触れずBuild Cacheだけを追加Cleanupした。
 - V1 Migration 40件の正本Checksum
   `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
   は不変である。Final Head、GitHub Check、Fresh Self-review、Squash Commit、

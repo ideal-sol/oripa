@@ -187,6 +187,42 @@ final class LineMessagingVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_legacy_message_contract_preserves_current_reward_setting(): void
+    {
+        LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
+            'reward_point_amount' => 250,
+            'reward_expiration_days' => 90,
+        ]);
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $messages = [
+            'linked_follow_message' => '友だち追加が完了しました。',
+            'pending_follow_message' => '{login_url} からログインしてください。',
+        ];
+
+        $this->adminMutation(
+            $owner,
+            'POST',
+            '/admin/api/v2/identity/line-messaging/preview',
+            $messages
+        )->assertOk()
+            ->assertJsonPath('reward_enabled', true)
+            ->assertJsonPath('reward_point_amount', 250)
+            ->assertJsonPath('reward_expiration_days', 90);
+
+        Auth::forgetGuards();
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            ['expected_revision' => 1, ...$messages],
+            'line-message-setting-legacy-contract'
+        )->assertOk()
+            ->assertJsonPath('data.reward_enabled', true)
+            ->assertJsonPath('data.reward_point_amount', 250)
+            ->assertJsonPath('data.reward_expiration_days', 90);
+    }
+
     public function test_reward_settings_enforce_enablement_amount_expiration_occ_and_idempotency(): void
     {
         $owner = $this->adminSession(V2AdminRole::Owner);
@@ -196,6 +232,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
             'pending_follow_message' => '{login_url} からログインしてください。',
         ];
         foreach ([
+            ['reward_enabled' => true, 'reward_point_amount' => 1],
             ['reward_enabled' => true, 'reward_point_amount' => 0, 'reward_expiration_days' => 180],
             ['reward_enabled' => false, 'reward_point_amount' => 1, 'reward_expiration_days' => 180],
             ['reward_enabled' => true, 'reward_point_amount' => -1, 'reward_expiration_days' => 180],

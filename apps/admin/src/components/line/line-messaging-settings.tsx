@@ -28,14 +28,13 @@ import type {
 } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
-type Draft = Pick<
-  AdminLineMessagingSetting,
-  | "linked_follow_message"
-  | "pending_follow_message"
-  | "reward_enabled"
-  | "reward_point_amount"
-  | "reward_expiration_days"
->;
+type Draft = {
+  linked_follow_message: string;
+  pending_follow_message: string;
+  reward_enabled: boolean;
+  reward_point_amount: number;
+  reward_expiration_days: number;
+};
 
 const MAX_REWARD_POINT_AMOUNT = 1_000_000;
 
@@ -72,9 +71,9 @@ export function LineMessagingSettings() {
     setDraft({
       linked_follow_message: next.linked_follow_message,
       pending_follow_message: next.pending_follow_message,
-      reward_enabled: next.reward_enabled,
-      reward_point_amount: next.reward_point_amount,
-      reward_expiration_days: next.reward_expiration_days,
+      reward_enabled: next.reward_enabled ?? false,
+      reward_point_amount: next.reward_point_amount ?? 0,
+      reward_expiration_days: next.reward_expiration_days ?? 180,
     });
     setPreview(null);
     pendingKey.current = null;
@@ -301,7 +300,7 @@ export function LineMessagingSettings() {
                     <strong>友だち追加ポイント</strong>
                     <p>
                       {preview.reward_enabled
-                        ? `無償 ${preview.reward_point_amount.toLocaleString("ja-JP")} Point／有効期限 ${preview.reward_expiration_days}日`
+                        ? `無償 ${(preview.reward_point_amount ?? 0).toLocaleString("ja-JP")} Point／有効期限 ${preview.reward_expiration_days ?? 180}日`
                         : "無効"}
                     </p>
                   </div>
