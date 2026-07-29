@@ -362,7 +362,7 @@ test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る"
   }
 });
 
-test("Identity FacadeはGoogle OIDC Tokenを保持せずContractどおり送る", async () => {
+test("Identity FacadeはGoogle／LINE Tokenを保持せずContractどおり送る", async () => {
   const requests = [];
   const identity = createStorefrontIdentityClient({
     request: async (options) => {
@@ -388,6 +388,14 @@ test("Identity FacadeはGoogle OIDC Tokenを保持せずContractどおり送る"
     options,
   );
   await identity.unlinkGoogleIdentity(options);
+  await identity.startLineLogin({ return_path: "/" }, options);
+  await identity.completeLineLogin({
+    code: "line-authorization-code",
+    state: "b".repeat(64),
+  });
+  await identity.startLineIdentityLink({ return_path: "/" }, options);
+  await identity.startLineReauthentication({ return_path: "/" }, options);
+  await identity.unlinkLineIdentity(options);
 
   assert.equal(requests[0].path, "/auth/external/google/start");
   assert.match(
@@ -404,9 +412,30 @@ test("Identity FacadeはGoogle OIDC Tokenを保持せずContractどおり送る"
   assert.equal(requests[6].path, "/me/external-identities/google");
   assert.equal(requests[6].method, "DELETE");
   assert.equal(requests[6].headers["X-XSRF-TOKEN"], "e".repeat(64));
+  assert.equal(requests[7].path, "/auth/external/line/start");
+  assert.match(
+    requests[8].path,
+    /^\/auth\/external\/line\/callback\?code=line-authorization-code&state=b{64}$/,
+  );
+  assert.equal(requests[9].path, "/me/external-identities/line/link");
+  assert.equal(
+    requests[10].path,
+    "/me/external-identities/line/reauthenticate",
+  );
+  assert.equal(requests[11].path, "/me/external-identities/line");
+  assert.equal(requests[11].method, "DELETE");
+  assert.equal(requests[11].headers["X-XSRF-TOKEN"], "e".repeat(64));
   assert.throws(
     () =>
       identity.completeGoogleOidc({
+        code: "",
+        state: "invalid",
+      }),
+    /invalid/,
+  );
+  assert.throws(
+    () =>
+      identity.completeLineLogin({
         code: "",
         state: "invalid",
       }),

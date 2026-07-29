@@ -5655,3 +5655,145 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gacha／Probability Mutation、他業務Admin画面、Storefront画面、通知Transport、
   Staging E2Eが残るため、Gate G4／G5は`NOT COMPLETE`である。
 - LINE Login `MIG-058B`は人間指示まで保留する。
+
+## MIG-060E Closeout／MIG-058B LINE Login v2.1 Identity Linking Vertical Slice
+
+### MIG-060E Closeout
+
+- Issue `#129`はClosed、PR `#130`はSquash Mergedである。Final Headは
+  `cf81ab2519adf8b5ecea623a8091e771b8d7ecc9`、Squash Commitは
+  `e10748d2d7b8d8a435b1bcf9e2e94ddf7c834a4e`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-060E Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／Characterization／共通基盤
+
+- Task IDは`MIG-058B`、Riskは`R3`、Issueは`#131`、Branchは
+  `feat/MIG-058B-line-login`、Base SHAは
+  `e10748d2d7b8d8a435b1bcf9e2e94ddf7c834a4e`である。
+- V1固定SourceにLINE Login実装は存在しなかった。V1由来の架空互換は作らず、
+  LINE Login v2.1公式仕様、Identity／Security正本、MIG-058AのExternal Identity
+  Transaction／Account／History／Session／Audit／Outboxを正本とした。
+- Google固有だったProvider処理を共通Provider Interface／Registryへ分離し、
+  Googleの既存Login／Link／Reauthentication／Unlinkを同じ共通Service上で維持した。
+  LINE専用Identity Table、別Session、別Idempotency／Rate Limit基盤は作成していない。
+
+### Contract／Protocol／Account
+
+- Public OpenAPIへLINE Login Start／Callback、Link Start、Reauthentication Start、
+  Unlinkの5 Operationを追加した。Public Operationは47件である。
+  Admin／Webhook Contractは非変更で、Raw Subject、Token、内部Transaction ID、
+  Channel Secretを公開しない。
+- Authorization、Token、ID Token VerifyはLINE公式の固定HTTPS Endpointだけを使用する。
+  CSPRNG State／Nonce、PKCE S256、Exact Redirect URI、Relative Return Path、
+  Browser／User Session Binding、10分、1回限りの既存Transaction境界を再利用する。
+  任意URL、Discovery URL、Provider応答URLへ接続しない。
+- Verify応答は固定Issuer `https://access.line.me`、Audience＝Channel ID、
+  `exp`、`iat`、Nonce、Subject、必須型をServer時刻で検査する。Provider Timeout、
+  429、5xx、Verify拒否はFail Closedとし、曖昧なAuthorization Codeを再利用しない。
+- 基本Scopeは`openid profile`である。Repository外設定
+  `V2_LINE_LOGIN_EMAIL_SCOPE_ENABLED`が明示的に有効な場合だけ`email`を要求する。
+  Client ID／Secret／Redirect URIもRepository外Environmentだけを使用する。
+- Identity Keyは`provider + issuer + HMAC(subject)`であり、Email／Display Nameを
+  Keyにしない。Raw Subject、Access／Refresh Token、Authorization Code、ID Tokenを
+  永続化しない。
+- 既存LINE IdentityはEmailなしでSubject Loginでき、認証済みUserへのLinkも
+  Emailを要求しない。新規UserはEmail Claimがある場合だけ作成し、
+  `password_login_enabled=false`とする。Emailがない場合はActive Userや架空Emailを
+  作らず`EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED`を返す。
+- Verified Email衝突で既存Userへ自動Linkしない。明示Link、Concurrent Callback／Link、
+  Session／CSRF Rotation、Recent Reauthentication、最後のCredential保護、
+  Remember Device失効はMIG-058A共通規則を維持する。
+
+### Schema／Audit／Client
+
+- Forward-safe Migration
+  `2026_08_07_000018_add_line_external_identity_provider.php`でProvider Allowlistと
+  Issuer Pair Constraintを`google`／`line`へ拡張した。既存Migrationは編集せず、
+  External Identity Tableを追加していない。
+- `(provider, issuer, subject_hash)`一意、User＋Provider一意、Transaction TTL／状態、
+  Account／HistoryのMutation Guardを既存Schemaで維持する。RollbackはLINE Recordが
+  存在する場合に履歴保持のためFail Closedとする。
+- OIDC Start／成功／拒否、Email不足／衝突、Provider障害、Link／Unlink／
+  Reauthentication、Rate LimitをAppend-only Auditへ接続した。
+  Protocol値、Full Email、Cookie、Raw Session ID、Secretを保存しない。
+- Storefront ClientへLINE Facade、生成型、Callback境界を追加し、TestkitへLINE Start、
+  Linked Identity Fixtureを追加した。Google／LINEのTokenをClient永続Storageへ
+  保存せず、Admin型を公開しない。
+
+### Test／Migration／Security
+
+- LINE専用は12 Testで、固定Endpoint、PKCE、Email Scope、Email有無、新規User、
+  既存Identity、Email衝突、Link／Reauthentication／Unlink、Session／CSRF Rotation、
+  Claim拒否、Provider Timeout／429／5xx、DB Constraint、Audit Redactionを確認した。
+  同一LINE CallbackのProcess Concurrency Testも追加し、1 User／1 Identityだけが
+  成立することを確認した。State／Transaction／Rate Limit等の共通境界は既存Google
+  OIDC Testと全V2回帰で確認した。
+- OpenAPI Unit／BundleはPASSし、Operation数はPublic 47、Admin 93、Webhook 0である。
+  Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／22 TestがPASSした。
+- Admin生成差分0、Typecheck、Lint、Unit／Component 35 Test、Production Build、
+  Release Unit 10 Test、Policy Unit 88 Test、Quality Unit 5 Test、
+  Security Unit 4 Test、DB Guard Unit 25 TestがPASSした。
+- `policy-gate`、`quality-gate`、`security-gate`、OpenAPI Contract GateはPASSした。
+  Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは既存11 Finding、Composer Auditは既存期限付き10 Findingである。
+  Legacy Typecheck／BuildはPASSし、Lintは既存8 Error／1 Warningと一致した。
+  Baseline追加／拡張、新規Critical／High、Secret／PII Candidateは0件だった。
+- Guard付きPersistent V2 DBで`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、PostgreSQL／Redis Healthを確認した。
+  Task専用Ephemeralでは`migrate:fresh` 2回、全V2 Suite、
+  Draw／QA／Reporting／Content Load、API／Admin Health、Backup／Restore、
+  Task Resource Cleanupを確認した。
+- V2 Migrationは18件、Migration Set SHA-256は
+  `4f8323fde23415f4a38daccae1d175d6d25a9962b8290523e24fd2ece219a40e`である。
+  Source／Restore Schema SHA-256は
+  `638f04f706db84f3f5cbd1c97ff77099dd68d1d0dce6265a03e151a9f2dd7b02`、
+  Migration Row SHA-256は
+  `2057fae3cf8684b8e4bf327b049b586df05ef6608291d3e145ce4ce8b106fab3`
+  で一致した。Backup SHA-256は
+  `c535512b233623e49011692395d3377f27b633eddd955d3b92c01cbb17940f76`である。
+- Persistent Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final/persistent-result.json`、
+  Ephemeral Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-058B/ephemeral-final/`へRepository外保全した。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 時間を要した作業／再試行
+
+- API Imageの初回BuildはBuildx環境が`--allow`を解釈できず停止した。
+  Repository既定のClassic Builderへ切り替え、約30秒で成功した。
+- First-party Package並行検証では、TestkitがStorefront／Site Schema Build前に
+  型解決できず停止した。依存Packageを先にBuildして順次再実行し、全PackageがPASSした。
+- Persistent Guard初回は40.06秒でPHPUnit final methodと新Test Helper名の衝突を検出した。
+  Helper名修正後の再実行は137.99秒で、Email不足Audit EventのAllowlist漏れと
+  HTTP Fake差替えによるTest不整合を検出した。監査Eventを正式登録し429 Testを
+  独立させ、全工程を再実行した。
+- Ephemeral Smoke初回は340.49秒でBackup／Restore Schema比較に停止した。
+  `IN` CHECKがRestore時に等価な別表現へ正規化されたことが原因であり、
+  決定的な明示OR Constraintへ変更した。最終Ephemeral Runは303.69秒で
+  全Suite／Load／Backup／Restore／CleanupがPASSした。
+- Migration最終SourceでPersistent Guardを108.89秒かけて再実行し、
+  `migrate:fresh` 2回、Rollback／Reapply、全SuiteがPASSした。
+  Gate、Baseline、Assertionは弱めていない。
+- Fresh Self-reviewでLINE固有のState／PKCE／Expiry／Completed Replay Testを
+  追加した。最終候補のPersistent Guardは142.60秒、Ephemeral Smokeは275.16秒で
+  再実行し、全Suite、Backup／Restore、Resource CleanupがPASSした。
+
+### Closeout待ち／Gate
+
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。
+- Storefront／Admin業務画面、通知Transport、Staging E2E等が残るため、
+  Gate G4／G5は`NOT COMPLETE`である。
+- 次Task候補は`MIG-060F Admin Gacha Version Management`だが、
+  MIG-060Fは本Task内で開始しない。

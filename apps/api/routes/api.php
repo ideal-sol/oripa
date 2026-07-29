@@ -119,6 +119,18 @@ Route::prefix('v2')
             V2PublicAuthController::class,
             'unlinkGoogle',
         ])->name('v2.public.external-identities.google.destroy');
+        Route::post('/me/external-identities/line/link', [
+            V2PublicAuthController::class,
+            'startLineLink',
+        ])->name('v2.public.external-identities.line.link');
+        Route::post('/me/external-identities/line/reauthenticate', [
+            V2PublicAuthController::class,
+            'startLineReauthentication',
+        ])->name('v2.public.external-identities.line.reauthenticate');
+        Route::delete('/me/external-identities/line', [
+            V2PublicAuthController::class,
+            'unlinkLine',
+        ])->name('v2.public.external-identities.line.destroy');
         Route::post('/me/password/reauthenticate', [
             V2PublicAuthController::class,
             'reauthenticatePassword',
@@ -140,6 +152,14 @@ Route::prefix('v2/auth')
             V2PublicAuthController::class,
             'completeGoogle',
         ])->name('v2.public.auth.external.google.callback');
+        Route::post('/external/line/start', [
+            V2PublicAuthController::class,
+            'startLineLogin',
+        ])->name('v2.public.auth.external.line.start');
+        Route::get('/external/line/callback', [
+            V2PublicAuthController::class,
+            'completeLine',
+        ])->name('v2.public.auth.external.line.callback');
         Route::post('/password/forgot', [
             V2PublicAuthController::class,
             'requestPasswordReset',

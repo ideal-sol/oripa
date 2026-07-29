@@ -20,6 +20,14 @@ export interface StorefrontIdentityClient {
     state: string;
     iss?: "https://accounts.google.com";
   }): Promise<StorefrontResponse<Schemas["ExternalIdentitySession"]>>;
+  startLineLogin(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  completeLineLogin(input: {
+    code: string;
+    state: string;
+  }): Promise<StorefrontResponse<Schemas["ExternalIdentitySession"]>>;
   listExternalIdentities(): Promise<
     StorefrontResponse<Schemas["ExternalIdentityCollection"]>
   >;
@@ -31,11 +39,22 @@ export interface StorefrontIdentityClient {
     input: Schemas["ExternalIdentityStartRequest"],
     options: IdentityMutationOptions,
   ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  startLineIdentityLink(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
+  startLineReauthentication(
+    input: Schemas["ExternalIdentityStartRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ExternalIdentityStart"]>>;
   reauthenticateUserPassword(
     input: Schemas["UserPasswordReauthenticationRequest"],
     options: IdentityMutationOptions,
   ): Promise<StorefrontResponse<Schemas["UserReauthentication"]>>;
   unlinkGoogleIdentity(
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<undefined>>;
+  unlinkLineIdentity(
     options: IdentityMutationOptions,
   ): Promise<StorefrontResponse<undefined>>;
   requestPasswordReset(
@@ -107,6 +126,24 @@ export function createStorefrontIdentityClient(
         path: `/auth/external/google/callback?${query.toString()}`,
       });
     },
+    startLineLogin: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/auth/external/line/start",
+        input,
+        options,
+      ),
+    completeLineLogin: (input) => {
+      if (!/^[0-9a-f]{64}$/.test(input.state) || input.code.length === 0) {
+        throw new TypeError("LINE callback input is invalid");
+      }
+      const query = new URLSearchParams({
+        code: input.code,
+        state: input.state,
+      });
+      return transport.request({
+        path: `/auth/external/line/callback?${query.toString()}`,
+      });
+    },
     listExternalIdentities: () =>
       transport.request({ path: "/me/external-identities" }),
     startGoogleIdentityLink: (input, options) =>
@@ -121,6 +158,18 @@ export function createStorefrontIdentityClient(
         input,
         options,
       ),
+    startLineIdentityLink: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/me/external-identities/line/link",
+        input,
+        options,
+      ),
+    startLineReauthentication: (input, options) =>
+      mutation<Schemas["ExternalIdentityStart"]>(
+        "/me/external-identities/line/reauthenticate",
+        input,
+        options,
+      ),
     reauthenticateUserPassword: (input, options) =>
       mutation<Schemas["UserReauthentication"]>(
         "/me/password/reauthenticate",
@@ -130,6 +179,13 @@ export function createStorefrontIdentityClient(
     unlinkGoogleIdentity: (options) =>
       transport.request<undefined>({
         path: "/me/external-identities/google",
+        method: "DELETE",
+        headers: csrf(options.csrf_token),
+        csrf: "required",
+      }),
+    unlinkLineIdentity: (options) =>
+      transport.request<undefined>({
+        path: "/me/external-identities/line",
         method: "DELETE",
         headers: csrf(options.csrf_token),
         csrf: "required",

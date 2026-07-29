@@ -1,10 +1,11 @@
-# V2 External Identity／Google OIDC
+# V2 External Identity／Google OIDC／LINE Login v2.1
 
 ## Scope
 
 MIG-058AはV2 User Realm向けの共通External Identity基盤とGoogle OIDCを
-提供する。LINE Login、Admin Social Login、UI、実Google Account E2E、
-Provider Tokenの長期保存、Production Deploymentは対象外である。
+提供する。MIG-058Bは同じTransaction、Account、Session、Audit、Outbox境界を
+再利用し、LINE Login v2.1を追加する。Admin Social Login、UI、実Provider
+Account E2E、Provider Tokenの長期保存、Production Deploymentは対象外である。
 
 ## Authority
 
@@ -14,11 +15,23 @@ Provider Tokenの長期保存、Production Deploymentは対象外である。
   <https://developers.google.com/identity/sign-in/web/backend-auth>
 - OAuth 2.0 Web Server flow:
   <https://developers.google.com/identity/protocols/oauth2/web-server>
+- LINE Login v2.1 API:
+  <https://developers.line.biz/en/reference/line-login/>
+- LINE Login PKCE:
+  <https://developers.line.biz/en/docs/line-login/integrate-pkce/>
+- LINE Login web integration:
+  <https://developers.line.biz/en/docs/line-login/integrate-line-login/>
 
 Googleの固定Issuerは`https://accounts.google.com`、固定Token Endpointは
 `https://oauth2.googleapis.com/token`、固定JWKS Endpointは
 `https://www.googleapis.com/oauth2/v3/certs`である。Provider応答のURLを
 動的な通信先として採用しない。
+
+LINEの固定Issuerは`https://access.line.me`、Authorization Endpointは
+`https://access.line.me/oauth2/v2.1/authorize`、Token Endpointは
+`https://api.line.me/oauth2/v2.1/token`、ID Token Verify Endpointは
+`https://api.line.me/oauth2/v2.1/verify`である。任意URL、Discovery URL、
+Provider応答のURLを通信先として採用しない。
 
 ## V1 Characterization
 
@@ -30,6 +43,9 @@ Nonce、PKCE、ID Token署名検証、明示Link／Unlinkは存在しなかっ�
 V2は業務上の「既存Subject Login」「Verified Emailが必要」「Email衝突拒否」
 だけをCharacterizationとして維持する。V1のToken処理、Email識別、
 Profile保存、Bearer Token Sessionは移植しない。
+
+V1固定SourceにはLINE Login実装が存在しない。MIG-058BはLINE公式仕様と
+既存External Identity共通境界を正本とし、V1由来の架空互換を追加しない。
 
 ## Protocol Boundary
 
@@ -44,12 +60,20 @@ Profile保存、Bearer Token Sessionは移植しない。
 - Unknown `kid`では固定JWKSを1回更新してからFail Closed
 - Raw Code、Token、State、Nonce、Verifier、Subjectを永続化しない
 
+LINEは固定Verify Endpointの応答についてIssuer、Audience、`exp`、`iat`、
+Nonce、Subjectと型を検証する。Provider Timeout、429、5xx、Verify拒否は
+Fail Closedとし、曖昧なAuthorization Code交換を無制限に再試行しない。
+
 Repository外Environmentには次の値を設定する。値そのものを
 `.env.example`、Log、Worklog、GitHubへ記録しない。
 
 - `V2_GOOGLE_OIDC_CLIENT_ID`
 - `V2_GOOGLE_OIDC_CLIENT_SECRET`
 - `V2_GOOGLE_OIDC_REDIRECT_URI`
+- `V2_LINE_LOGIN_CHANNEL_ID`
+- `V2_LINE_LOGIN_CHANNEL_SECRET`
+- `V2_LINE_LOGIN_REDIRECT_URI`
+- `V2_LINE_LOGIN_EMAIL_SCOPE_ENABLED`
 
 未設定、HTTP Redirect URI、Provider通信障害、JWKS障害はFail Closedである。
 
@@ -57,13 +81,21 @@ Repository外Environmentには次の値を設定する。値そのものを
 
 Identity Keyは`provider + issuer + HMAC(subject)`であり、Emailではない。
 Verified Emailが既存Verified Userと一致しても自動Linkしない。認証済みUserが
-新しいGoogle認証を完了した場合だけLinkする。Google由来新規Userは
+新しいProvider認証を完了した場合だけLinkする。Provider由来新規Userは
 `password_login_enabled=false`とし、Password Reset成功時だけ有効化する。
 
 UnlinkはServer DB時刻による5分以内のRecent User Authenticationを要求する。
-Password Login無効UserはGoogle Reauthenticationを使用する。最後の利用可能な
-Credentialは削除せず、Unlink時はRemember Deviceと他Sessionを失効し、
-現在SessionとCSRFをRotationする。
+Password Login無効Userは残るGoogleまたはLINE Identityによる
+Reauthenticationを使用する。最後の利用可能なCredentialは削除せず、
+Unlink時はRemember Deviceと他Sessionを失効し、現在SessionとCSRFを
+Rotationする。
+
+LINEの基本Scopeは`openid profile`である。`email`はLINE Developers Consoleで
+取得許可済みかつRepository外設定が明示的に有効な場合だけ要求する。既存LINE
+IdentityはEmail ClaimなしでもSubjectでLoginでき、認証済みUserへのLinkも
+Emailを要求しない。新規User作成だけはEmail Claimを必須とし、存在しない場合は
+Active Userや架空Emailを作成せず
+`EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED`境界を返す。
 
 ## Transaction／Retention
 

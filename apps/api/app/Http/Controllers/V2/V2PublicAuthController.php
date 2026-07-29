@@ -115,10 +115,21 @@ final class V2PublicAuthController
 
     public function startGoogleLogin(Request $request): JsonResponse
     {
+        return $this->startExternalLogin($request, 'google');
+    }
+
+    public function startLineLogin(Request $request): JsonResponse
+    {
+        return $this->startExternalLogin($request, 'line');
+    }
+
+    private function startExternalLogin(Request $request, string $provider): JsonResponse
+    {
         $data = $this->validate($request, [
             'return_path' => ['sometimes', 'string', 'max:255'],
         ]);
-        $result = $this->externalIdentities->start(
+        $result = $this->externalIdentities->startForProvider(
+            $provider,
             'login',
             $data['return_path'] ?? '/',
             $request->ip() ?? 'unknown',
@@ -127,7 +138,7 @@ final class V2PublicAuthController
             $request
         );
         $response = response()->json([
-            'provider' => 'google',
+            'provider' => $provider,
             'authorization_url' => $result['authorization_url'],
             'expires_at' => $result['expires_at']->format(DATE_ATOM),
         ]);
@@ -142,12 +153,28 @@ final class V2PublicAuthController
 
     public function completeGoogle(Request $request): JsonResponse
     {
+        return $this->completeExternal($request, 'google');
+    }
+
+    public function completeLine(Request $request): JsonResponse
+    {
+        return $this->completeExternal($request, 'line');
+    }
+
+    private function completeExternal(Request $request, string $provider): JsonResponse
+    {
         $data = $this->validate($request, [
             'code' => ['required', 'string', 'max:4096'],
             'state' => ['required', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
             'iss' => ['sometimes', 'string', 'max:255'],
         ]);
-        if (isset($data['iss']) && $data['iss'] !== 'https://accounts.google.com') {
+        if (
+            isset($data['iss'])
+            && (
+                $provider !== 'google'
+                || $data['iss'] !== 'https://accounts.google.com'
+            )
+        ) {
             throw new V2AuthenticationException(
                 'EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
                 401,
@@ -166,7 +193,8 @@ final class V2PublicAuthController
                 'The external identity request could not be completed.'
             );
         }
-        $result = $this->externalIdentities->callback(
+        $result = $this->externalIdentities->callbackForProvider(
+            $provider,
             $data['state'],
             $data['code'],
             $binding,
@@ -177,7 +205,7 @@ final class V2PublicAuthController
         $response = response()->json([
             'authenticated' => true,
             'purpose' => $result['purpose'],
-            'provider' => 'google',
+            'provider' => $provider,
             'return_path' => $result['return_path'],
             'user' => [
                 'id' => $result['user']->public_id,
@@ -199,12 +227,30 @@ final class V2PublicAuthController
 
     public function startGoogleLink(Request $request): JsonResponse
     {
-        return $this->startAuthenticatedGoogleTransaction($request, 'link');
+        return $this->startAuthenticatedExternalTransaction($request, 'google', 'link');
     }
 
     public function startGoogleReauthentication(Request $request): JsonResponse
     {
-        return $this->startAuthenticatedGoogleTransaction($request, 'reauthentication');
+        return $this->startAuthenticatedExternalTransaction(
+            $request,
+            'google',
+            'reauthentication'
+        );
+    }
+
+    public function startLineLink(Request $request): JsonResponse
+    {
+        return $this->startAuthenticatedExternalTransaction($request, 'line', 'link');
+    }
+
+    public function startLineReauthentication(Request $request): JsonResponse
+    {
+        return $this->startAuthenticatedExternalTransaction(
+            $request,
+            'line',
+            'reauthentication'
+        );
     }
 
     public function linkedIdentities(): JsonResponse
@@ -241,7 +287,21 @@ final class V2PublicAuthController
 
     public function unlinkGoogle(Request $request): JsonResponse
     {
-        $session = $this->externalIdentities->unlinkGoogle($this->currentUser(), $request);
+        return $this->unlinkExternal($request, 'google');
+    }
+
+    public function unlinkLine(Request $request): JsonResponse
+    {
+        return $this->unlinkExternal($request, 'line');
+    }
+
+    private function unlinkExternal(Request $request, string $provider): JsonResponse
+    {
+        $session = $this->externalIdentities->unlink(
+            $provider,
+            $this->currentUser(),
+            $request
+        );
         $response = response()->json(null, 204);
         $this->sessions->attachSession(
             $response,
@@ -420,15 +480,17 @@ final class V2PublicAuthController
         return $user;
     }
 
-    private function startAuthenticatedGoogleTransaction(
+    private function startAuthenticatedExternalTransaction(
         Request $request,
+        string $provider,
         string $purpose
     ): JsonResponse {
         $data = $this->validate($request, [
             'return_path' => ['sometimes', 'string', 'max:255'],
         ]);
         $user = $this->currentUser();
-        $result = $this->externalIdentities->start(
+        $result = $this->externalIdentities->startForProvider(
+            $provider,
             $purpose,
             $data['return_path'] ?? '/',
             $request->ip() ?? 'unknown',
@@ -437,7 +499,7 @@ final class V2PublicAuthController
             $request
         );
         $response = response()->json([
-            'provider' => 'google',
+            'provider' => $provider,
             'purpose' => $purpose,
             'authorization_url' => $result['authorization_url'],
             'expires_at' => $result['expires_at']->format(DATE_ATOM),

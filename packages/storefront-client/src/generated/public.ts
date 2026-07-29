@@ -399,6 +399,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/external/line/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** LINE Login v2.1 Transactionを開始する */
+        post: operations["startLineLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/external/line/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** LINE Login v2.1 Authorization Code Callbackを検証する */
+        get: operations["completeLineLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/forgot": {
         parameters: {
             query?: never;
@@ -564,6 +598,57 @@ export interface paths {
         post?: never;
         /** Recent User Reauthentication後にGoogle IdentityをUnlinkする */
         delete: operations["unlinkGoogleIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/line/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 認証済みUserへLINE IdentityをLinkするTransactionを開始する */
+        post: operations["startLineIdentityLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/line/reauthenticate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** LINE IdentityによるRecent User Reauthenticationを開始する */
+        post: operations["startLineReauthentication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/external-identities/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Recent User Reauthentication後にLINE IdentityをUnlinkする */
+        delete: operations["unlinkLineIdentity"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1122,8 +1207,8 @@ export interface components {
             return_path: string;
         };
         ExternalIdentityStart: {
-            /** @constant */
-            provider: "google";
+            /** @enum {string} */
+            provider: "google" | "line";
             /** @enum {string} */
             purpose?: "link" | "reauthentication";
             /** Format: uri */
@@ -1135,15 +1220,15 @@ export interface components {
             authenticated: true;
             /** @enum {string} */
             purpose: "login" | "link" | "reauthentication";
-            /** @constant */
-            provider: "google";
+            /** @enum {string} */
+            provider: "google" | "line";
             return_path: string;
             user: components["schemas"]["PublicUser"];
         };
         ExternalIdentity: {
             id: components["schemas"]["OpaqueId"];
-            /** @constant */
-            provider: "google";
+            /** @enum {string} */
+            provider: "google" | "line";
             linked_at: components["schemas"]["UtcDateTime"];
             /** Format: date-time */
             last_authenticated_at: string | null;
@@ -1158,7 +1243,7 @@ export interface components {
             /** @constant */
             reauthenticated: true;
             /** @enum {string} */
-            method: "password" | "google";
+            method: "password" | "google" | "line";
         };
         Accepted: {
             /** @constant */
@@ -1879,6 +1964,72 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    startLineLogin: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description 固定LINE Login v2.1 Authorization URL。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    completeLineLogin: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LINE Transactionを1回だけ確定してSessionを発行またはRotationした。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentitySession"];
+                };
+            };
+            409: components["responses"]["Problem"];
+            /** @description Verified Emailがなく新規Accountを安全に作成できない。 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"] & {
+                        /** @constant */
+                        code?: "EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED";
+                    };
+                };
+            };
+            429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
     requestPasswordReset: {
         parameters: {
             query?: never;
@@ -2113,6 +2264,81 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Google Identityを失効しRemember Deviceと他Sessionを失効した。 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    startLineIdentityLink: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description User SessionへBindingしたLINE Login Transaction。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    startLineReauthentication: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIdentityStartRequest"];
+            };
+        };
+        responses: {
+            /** @description User SessionへBindingしたLINE Reauthentication Transaction。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityStart"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    unlinkLineIdentity: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LINE Identityを失効しRemember Deviceと他Sessionを失効した。 */
             204: {
                 headers: {
                     [name: string]: unknown;

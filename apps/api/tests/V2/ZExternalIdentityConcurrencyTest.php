@@ -3,6 +3,7 @@
 namespace Tests\V2;
 
 use App\Domain\Identity\Contracts\V2GoogleOidcTransport;
+use App\Domain\Identity\Contracts\V2LineOidcTransport;
 use App\Domain\Identity\Services\V2ExternalIdentityService;
 use App\Models\V2\ExternalIdentityAccount;
 use App\Models\V2\ExternalIdentityTransaction;
@@ -32,6 +33,11 @@ final class ZExternalIdentityConcurrencyTest extends TestCase
             'v2_identity.external_identity.google.client_secret' => 'synthetic-client-secret',
             'v2_identity.external_identity.google.redirect_uri' =>
                 'https://storefront.example.test/api/v2/auth/external/google/callback',
+            'v2_identity.external_identity.line.client_id' => 'line-channel.test',
+            'v2_identity.external_identity.line.client_secret' => 'synthetic-line-secret',
+            'v2_identity.external_identity.line.redirect_uri' =>
+                'https://storefront.example.test/api/v2/auth/external/line/callback',
+            'v2_identity.external_identity.line.email_scope_enabled' => true,
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
         ]);
@@ -103,6 +109,74 @@ final class ZExternalIdentityConcurrencyTest extends TestCase
             ->status);
     }
 
+    public function test_same_line_transaction_concurrently_creates_one_user_and_identity(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $transport = new ConcurrentLineOidcTransport();
+        $this->app->instance(V2LineOidcTransport::class, $transport);
+        $service = app(V2ExternalIdentityService::class);
+        $callbackUrl = 'https://storefront.example.test/api/v2/auth/external/line/callback';
+        $start = $service->startForProvider(
+            'line',
+            'login',
+            '/',
+            '192.0.2.52',
+            (string) Str::uuid7(),
+            null,
+            Request::create('/api/v2/auth/external/line/start', 'POST')
+        );
+        parse_str(parse_url($start['authorization_url'], PHP_URL_QUERY), $query);
+        $transport->issue(
+            $query['nonce'],
+            'line-concurrent-'.$runId,
+            "line-concurrent-{$runId}@example.test"
+        );
+        $statuses = $this->concurrent(
+            function () use ($query, $service, $start, $callbackUrl): string {
+                $request = Request::create($callbackUrl, 'GET');
+                $request->cookies->set(
+                    '__Host-oripa_oidc_transaction',
+                    $start['binding_token']
+                );
+                try {
+                    $service->callbackForProvider(
+                        'line',
+                        $query['state'],
+                        'line-concurrent-code',
+                        $start['binding_token'],
+                        $callbackUrl,
+                        '192.0.2.53',
+                        $request
+                    );
+
+                    return 'succeeded';
+                } catch (
+                    \App\Domain\Identity\Exceptions\V2AuthenticationException $exception
+                ) {
+                    return $exception->errorCode;
+                } catch (\Throwable $exception) {
+                    return $exception::class;
+                }
+            }
+        );
+
+        sort($statuses);
+        self::assertSame(
+            ['EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', 'succeeded'],
+            $statuses
+        );
+        self::assertSame(1, User::query()
+            ->where('email_normalized', "line-concurrent-{$runId}@example.test")
+            ->count());
+        self::assertSame(1, ExternalIdentityAccount::query()
+            ->where('subject_hash', app(
+                \App\Domain\Identity\Services\V2IdentityCorrelation::class
+            )->hash(
+                'line|https://access.line.me|line-concurrent-'.$runId
+            ))
+            ->count());
+    }
+
     /** @return list<string> */
     private function concurrent(callable $operation): array
     {
@@ -152,6 +226,39 @@ final class ZExternalIdentityConcurrencyTest extends TestCase
         rmdir($directory);
 
         return $statuses;
+    }
+}
+
+final class ConcurrentLineOidcTransport implements V2LineOidcTransport
+{
+    /** @var array<string, mixed> */
+    private array $claims = [];
+
+    public function issue(string $nonce, string $subject, string $email): void
+    {
+        $now = now()->getTimestamp();
+        $this->claims = [
+            'iss' => 'https://access.line.me',
+            'sub' => $subject,
+            'aud' => 'line-channel.test',
+            'exp' => $now + 300,
+            'iat' => $now,
+            'nonce' => $nonce,
+            'email' => $email,
+        ];
+    }
+
+    public function exchangeAuthorizationCode(
+        #[SensitiveParameter] string $authorizationCode,
+        #[SensitiveParameter] string $codeVerifier,
+        string $redirectUri
+    ): string {
+        return 'synthetic-line-id-token';
+    }
+
+    public function verifyIdToken(#[SensitiveParameter] string $idToken): array
+    {
+        return $this->claims;
     }
 }
 

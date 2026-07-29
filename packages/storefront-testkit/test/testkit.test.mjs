@@ -356,11 +356,12 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつGoogle OIDCを含むOperation 42件である", () => {
+test("Public OpenAPIは3.1.1かつGoogle／LINEを含むOperation 47件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 42);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 47);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
+    "completeLineLogin",
     "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",
@@ -398,7 +399,11 @@ test("Public OpenAPIは3.1.1かつGoogle OIDCを含むOperation 42件である",
     "startGoogleIdentityLink",
     "startGoogleLogin",
     "startGoogleReauthentication",
+    "startLineIdentityLink",
+    "startLineLogin",
+    "startLineReauthentication",
     "unlinkGoogleIdentity",
+    "unlinkLineIdentity",
     "updateShippingAddress",
     "verifySmsCode",
     "verifyUserEmail",
@@ -408,7 +413,8 @@ test("Public OpenAPIは3.1.1かつGoogle OIDCを含むOperation 42件である",
 
 test("External Identity FixtureはProvider Subject／Token／Secretを公開しない", () => {
   assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.start.provider, "google");
-  assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.linked.items.length, 1);
+  assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.line_start.provider, "line");
+  assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.linked.items.length, 2);
   const serialized = JSON.stringify(PUBLIC_EXTERNAL_IDENTITY_FIXTURE);
   assert.doesNotMatch(
     serialized,

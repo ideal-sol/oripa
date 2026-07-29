@@ -288,6 +288,12 @@ export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
       "https://accounts.google.com/o/oauth2/v2/auth?client_id=fixture",
     expires_at: "2026-07-28T10:10:00Z",
   },
+  line_start: {
+    provider: "line",
+    authorization_url:
+      "https://access.line.me/oauth2/v2.1/authorize?client_id=fixture",
+    expires_at: "2026-07-28T10:10:00Z",
+  },
   linked: {
     items: [
       {
@@ -295,6 +301,12 @@ export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
         provider: "google",
         linked_at: "2026-07-28T10:00:00Z",
         last_authenticated_at: "2026-07-28T10:00:00Z",
+      },
+      {
+        id: "0198a001-0000-7000-8000-000000000403",
+        provider: "line",
+        linked_at: "2026-07-28T10:01:00Z",
+        last_authenticated_at: "2026-07-28T10:02:00Z",
       },
     ],
   },
@@ -311,6 +323,7 @@ export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
   },
 } as const satisfies {
   start: PublicComponents["schemas"]["ExternalIdentityStart"];
+  line_start: PublicComponents["schemas"]["ExternalIdentityStart"];
   linked: PublicComponents["schemas"]["ExternalIdentityCollection"];
   session: PublicComponents["schemas"]["ExternalIdentitySession"];
 });

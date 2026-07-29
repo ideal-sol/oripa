@@ -76,6 +76,15 @@ return [
             'client_secret' => env('V2_GOOGLE_OIDC_CLIENT_SECRET'),
             'redirect_uri' => env('V2_GOOGLE_OIDC_REDIRECT_URI'),
         ],
+        'line' => [
+            'client_id' => env('V2_LINE_LOGIN_CHANNEL_ID'),
+            'client_secret' => env('V2_LINE_LOGIN_CHANNEL_SECRET'),
+            'redirect_uri' => env('V2_LINE_LOGIN_REDIRECT_URI'),
+            'email_scope_enabled' => (bool) env(
+                'V2_LINE_LOGIN_EMAIL_SCOPE_ENABLED',
+                false
+            ),
+        ],
     ],
 
     'transactions' => [

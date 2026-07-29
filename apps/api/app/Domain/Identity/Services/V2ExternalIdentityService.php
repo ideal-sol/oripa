@@ -2,7 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
-use App\Domain\Identity\Contracts\V2GoogleOidcTransport;
+use App\Domain\Identity\Contracts\V2ExternalIdentityProvider;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
@@ -26,13 +26,8 @@ use Throwable;
 
 final class V2ExternalIdentityService
 {
-    private const PROVIDER = 'google';
-    private const ISSUER = 'https://accounts.google.com';
-    private const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
-
     public function __construct(
-        private readonly V2GoogleOidcTransport $transport,
-        private readonly V2GoogleIdTokenVerifier $idTokens,
+        private readonly V2ExternalIdentityProviderRegistry $providers,
         private readonly V2IdentityCorrelation $correlation,
         private readonly V2SecureToken $tokens,
         private readonly V2PasswordPolicy $passwords,
@@ -54,13 +49,36 @@ final class V2ExternalIdentityService
         ?User $user,
         Request $request
     ): array {
+        return $this->startForProvider(
+            'google',
+            $purpose,
+            $returnPath,
+            $ip,
+            $requestId,
+            $user,
+            $request
+        );
+    }
+
+    /**
+     * @return array{authorization_url: string, binding_token: string, expires_at: \DateTimeInterface}
+     */
+    public function startForProvider(
+        string $providerCode,
+        string $purpose,
+        string $returnPath,
+        string $ip,
+        string $requestId,
+        ?User $user,
+        Request $request
+    ): array {
         if (! in_array($purpose, ['login', 'link', 'reauthentication'], true)) {
             throw $this->invalidRequest();
         }
         if ($purpose !== 'login' && $user === null) {
             throw new V2AuthenticationException('AUTHENTICATION_REQUIRED', 401);
         }
-        $this->assertConfiguration();
+        $provider = $this->provider($providerCode);
         $this->assertReturnPath($returnPath);
         try {
             if ($purpose === 'login') {
@@ -97,12 +115,27 @@ final class V2ExternalIdentityService
         $nonce = $this->tokens->generate();
         $verifier = $this->pkceVerifier();
         $binding = $this->tokens->generate();
-        $redirectUri = $this->configuration('redirect_uri');
+        try {
+            $redirectUri = $provider->redirectUri();
+            $authorizationUrl = $provider->authorizationUrl(
+                $state,
+                $nonce,
+                $this->base64Url(hash('sha256', $verifier, true))
+            );
+        } catch (V2OidcProtocolException) {
+            throw new V2AuthenticationException(
+                'EXTERNAL_IDENTITY_UNAVAILABLE',
+                503,
+                'External identity authentication is unavailable.',
+                true,
+                30
+            );
+        }
         $expiresAt = now()->startOfSecond()->addMinutes(
             (int) config('v2_identity.external_identity.transaction_ttl_minutes', 10)
         );
         ExternalIdentityTransaction::query()->create([
-            'provider' => self::PROVIDER,
+            'provider' => $provider->code(),
             'purpose' => $purpose,
             'state_hash' => $this->tokens->hash($state),
             'nonce_hash' => $this->tokens->hash($nonce),
@@ -119,22 +152,12 @@ final class V2ExternalIdentityService
         $this->events->record('oidc_start', [
             'realm' => $user === null ? 'system' : 'user',
             'subject_id' => $user?->public_id,
-            'method' => self::PROVIDER,
+            'method' => $provider->code(),
             'stage' => $purpose,
         ]);
 
         return [
-            'authorization_url' => self::AUTHORIZATION_ENDPOINT.'?'.http_build_query([
-                'client_id' => $this->configuration('client_id'),
-                'redirect_uri' => $redirectUri,
-                'response_type' => 'code',
-                'scope' => 'openid email',
-                'state' => $state,
-                'nonce' => $nonce,
-                'code_challenge' => $this->base64Url(hash('sha256', $verifier, true)),
-                'code_challenge_method' => 'S256',
-                'prompt' => 'select_account',
-            ], '', '&', PHP_QUERY_RFC3986),
+            'authorization_url' => $authorizationUrl,
             'binding_token' => $binding,
             'expires_at' => $expiresAt,
         ];
@@ -156,28 +179,59 @@ final class V2ExternalIdentityService
         string $ip,
         Request $request
     ): array {
+        return $this->callbackForProvider(
+            'google',
+            $state,
+            $authorizationCode,
+            $bindingToken,
+            $callbackUrl,
+            $ip,
+            $request
+        );
+    }
+
+    /**
+     * @return array{
+     *   purpose: string,
+     *   return_path: string,
+     *   user: User,
+     *   session: array{token: string, absolute_expires_at: \DateTimeInterface}
+     * }
+     */
+    public function callbackForProvider(
+        string $providerCode,
+        #[SensitiveParameter] string $state,
+        #[SensitiveParameter] string $authorizationCode,
+        #[SensitiveParameter] string $bindingToken,
+        string $callbackUrl,
+        string $ip,
+        Request $request
+    ): array {
+        $provider = $this->provider($providerCode);
         $stateHash = $this->tokens->hash($state);
         $claimedTransactionId = null;
         try {
             $this->rateLimiter->assertAccount('oidc_callback_failure', $stateHash, $ip);
             $claimed = $this->claimTransaction(
+                $provider->code(),
                 $stateHash,
                 $bindingToken,
                 $callbackUrl,
                 $request
             );
             $claimedTransactionId = $claimed['transaction']->getKey();
-            $idToken = $this->transport->exchangeAuthorizationCode(
+            $identity = $provider->verifyAuthorizationCode(
                 $authorizationCode,
                 $claimed['verifier'],
-                $claimed['transaction']->redirect_uri
-            );
-            $identity = $this->idTokens->verify(
-                $idToken,
                 $claimed['transaction']->nonce_hash
             );
 
-            return $this->complete($claimedTransactionId, $identity, $request);
+            return $this->complete(
+                $claimedTransactionId,
+                $provider,
+                $identity,
+                $request
+            );
         } catch (V2OidcProtocolException $exception) {
             if ($claimedTransactionId === null) {
                 $this->expirePendingTransaction($stateHash);
@@ -186,7 +240,7 @@ final class V2ExternalIdentityService
             $this->rateLimiter->hitAccount('oidc_callback_failure', $stateHash, $ip);
             $this->events->record($this->protocolEvent($exception->reasonCode), [
                 'realm' => 'system',
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => $exception->reasonCode,
             ]);
             throw $this->invalidExternalIdentity();
@@ -207,7 +261,7 @@ final class V2ExternalIdentityService
             $this->failTransaction($claimedTransactionId);
             $this->events->record('oidc_provider_failure', [
                 'realm' => 'system',
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => 'processing_failed',
             ]);
             throw $this->invalidExternalIdentity();
@@ -296,6 +350,15 @@ final class V2ExternalIdentityService
      */
     public function unlinkGoogle(User $user, Request $request): array
     {
+        return $this->unlink('google', $user, $request);
+    }
+
+    /**
+     * @return array{token: string, absolute_expires_at: \DateTimeInterface}
+     */
+    public function unlink(string $providerCode, User $user, Request $request): array
+    {
+        $provider = $this->provider($providerCode);
         try {
             $this->rateLimiter->assertSubject('oidc_unlink', $user->public_id);
         } catch (V2AuthenticationException $exception) {
@@ -308,7 +371,7 @@ final class V2ExternalIdentityService
         }
 
         try {
-            return DB::transaction(function () use ($user, $request): array {
+            return DB::transaction(function () use ($provider, $user, $request): array {
                 $session = $this->sessions->requireFreshUserSession(
                     $request,
                     (int) $user->getKey(),
@@ -318,11 +381,19 @@ final class V2ExternalIdentityService
                 $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
                 $account = ExternalIdentityAccount::query()
                     ->where('user_id', $lockedUser->getKey())
-                    ->where('provider', self::PROVIDER)
+                    ->where('provider', $provider->code())
                     ->whereNull('revoked_at')
                     ->lockForUpdate()
                     ->first();
-                if ($account === null || ! $lockedUser->password_login_enabled) {
+                $hasOtherCredential = ExternalIdentityAccount::query()
+                    ->where('user_id', $lockedUser->getKey())
+                    ->where('provider', '!=', $provider->code())
+                    ->whereNull('revoked_at')
+                    ->exists();
+                if (
+                    $account === null
+                    || (! $lockedUser->password_login_enabled && ! $hasOtherCredential)
+                ) {
                     throw new V2AuthenticationException(
                         'LAST_CREDENTIAL_REQUIRED',
                         409,
@@ -348,13 +419,13 @@ final class V2ExternalIdentityService
                     'user',
                     $lockedUser->public_id,
                     'identity.external_identity.unlinked',
-                    ['provider' => self::PROVIDER],
+                    ['provider' => $provider->code()],
                     'external-unlinked:'.$account->public_id
                 );
                 $this->events->record('external_unlink_succeeded', [
                     'realm' => 'user',
                     'subject_id' => $lockedUser->public_id,
-                    'method' => self::PROVIDER,
+                    'method' => $provider->code(),
                 ]);
 
                 return $rotated;
@@ -363,7 +434,7 @@ final class V2ExternalIdentityService
             $this->events->record('external_unlink_rejected', [
                 'realm' => 'user',
                 'subject_id' => $user->public_id,
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => strtolower($exception->errorCode),
             ]);
             throw $exception;
@@ -371,7 +442,7 @@ final class V2ExternalIdentityService
             $this->events->record('external_unlink_rejected', [
                 'realm' => 'user',
                 'subject_id' => $user->public_id,
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => 'fresh_authentication_required',
             ]);
             throw new V2AuthenticationException(
@@ -386,18 +457,21 @@ final class V2ExternalIdentityService
      * @return array{transaction: ExternalIdentityTransaction, verifier: string}
      */
     private function claimTransaction(
+        string $provider,
         string $stateHash,
         #[SensitiveParameter] string $bindingToken,
         string $callbackUrl,
         Request $request
     ): array {
         return DB::transaction(function () use (
+            $provider,
             $stateHash,
             $bindingToken,
             $callbackUrl,
             $request
         ): array {
             $transaction = ExternalIdentityTransaction::query()
+                ->where('provider', $provider)
                 ->where('state_hash', $stateHash)
                 ->lockForUpdate()
                 ->first();
@@ -454,30 +528,48 @@ final class V2ExternalIdentityService
      */
     private function complete(
         int $transactionId,
-        V2VerifiedGoogleIdentity $identity,
+        V2ExternalIdentityProvider $provider,
+        V2VerifiedExternalIdentity $identity,
         Request $request
     ): array {
-        return DB::transaction(function () use ($transactionId, $identity, $request): array {
+        return DB::transaction(function () use (
+            $transactionId,
+            $provider,
+            $identity,
+            $request
+        ): array {
             $transaction = ExternalIdentityTransaction::query()
                 ->whereKey($transactionId)
                 ->where('status', 'processing')
                 ->lockForUpdate()
                 ->firstOrFail();
             $subjectHash = $this->correlation->hash(
-                self::PROVIDER.'|'.$identity->issuer.'|'.$identity->subject
+                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
             );
             $account = ExternalIdentityAccount::query()
-                ->where('provider', self::PROVIDER)
-                ->where('issuer', self::ISSUER)
+                ->where('provider', $provider->code())
+                ->where('issuer', $provider->issuer())
                 ->where('subject_hash', $subjectHash)
                 ->lockForUpdate()
                 ->first();
 
             $result = match ($transaction->purpose) {
-                'login' => $this->completeLogin($transaction, $identity, $account),
-                'link' => $this->completeLink($transaction, $identity, $account, $request),
+                'login' => $this->completeLogin(
+                    $transaction,
+                    $provider,
+                    $identity,
+                    $account
+                ),
+                'link' => $this->completeLink(
+                    $transaction,
+                    $provider,
+                    $identity,
+                    $account,
+                    $request
+                ),
                 'reauthentication' => $this->completeReauthentication(
                     $transaction,
+                    $provider,
                     $account,
                     $request
                 ),
@@ -501,25 +593,38 @@ final class V2ExternalIdentityService
      */
     private function completeLogin(
         ExternalIdentityTransaction $transaction,
-        V2VerifiedGoogleIdentity $identity,
+        V2ExternalIdentityProvider $provider,
+        V2VerifiedExternalIdentity $identity,
         ?ExternalIdentityAccount $account
     ): array {
         if ($account !== null && $account->revoked_at === null) {
             $user = User::query()->whereKey($account->user_id)->lockForUpdate()->firstOrFail();
-            $this->assertLoginState($user);
+            $this->assertLoginState($user, $provider->code());
             $account->forceFill(['last_authenticated_at' => now()->startOfSecond()])->save();
             $this->history($account, 'authenticated', $transaction->request_id);
             $session = $this->sessions->issue(V2Realm::User, (int) $user->getKey());
             $this->events->record('external_login_succeeded', [
                 'realm' => 'user',
                 'subject_id' => $user->public_id,
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
             ]);
 
             return compact('user', 'session');
         }
         if ($account !== null) {
             throw $this->invalidExternalIdentity();
+        }
+        if (! $identity->hasVerifiedEmail()) {
+            $this->events->record('external_email_required', [
+                'realm' => 'system',
+                'method' => $provider->code(),
+                'reason' => 'verified_email_unavailable',
+            ]);
+            throw new V2AuthenticationException(
+                'EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED',
+                422,
+                'A verified email is required to complete account creation.'
+            );
         }
         $collision = User::query()
             ->where('email_normalized', $identity->emailNormalized)
@@ -529,7 +634,7 @@ final class V2ExternalIdentityService
         if ($collision) {
             $this->events->record('external_email_conflict', [
                 'realm' => 'system',
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => 'explicit_link_required',
             ]);
             throw new V2AuthenticationException(
@@ -549,10 +654,10 @@ final class V2ExternalIdentityService
         ]);
         $account = ExternalIdentityAccount::query()->create([
             'user_id' => $user->getKey(),
-            'provider' => self::PROVIDER,
-            'issuer' => self::ISSUER,
+            'provider' => $provider->code(),
+            'issuer' => $provider->issuer(),
             'subject_hash' => $this->correlation->hash(
-                self::PROVIDER.'|'.$identity->issuer.'|'.$identity->subject
+                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
             ),
             'linked_at' => now()->startOfSecond(),
             'last_authenticated_at' => now()->startOfSecond(),
@@ -564,13 +669,13 @@ final class V2ExternalIdentityService
             'user',
             $user->public_id,
             'identity.external_user.created',
-            ['provider' => self::PROVIDER],
+            ['provider' => $provider->code()],
             'external-user-created:'.$account->public_id
         );
         $this->events->record('external_user_created', [
             'realm' => 'user',
             'subject_id' => $user->public_id,
-            'method' => self::PROVIDER,
+            'method' => $provider->code(),
         ]);
 
         return compact('user', 'session');
@@ -581,23 +686,24 @@ final class V2ExternalIdentityService
      */
     private function completeLink(
         ExternalIdentityTransaction $transaction,
-        V2VerifiedGoogleIdentity $identity,
+        V2ExternalIdentityProvider $provider,
+        V2VerifiedExternalIdentity $identity,
         ?ExternalIdentityAccount $account,
         Request $request
     ): array {
         $user = User::query()->whereKey($transaction->user_id)->lockForUpdate()->firstOrFail();
-        $this->assertLoginState($user);
+        $this->assertLoginState($user, $provider->code());
         if (
             $account !== null
             || ExternalIdentityAccount::query()
                 ->where('user_id', $user->getKey())
-                ->where('provider', self::PROVIDER)
+                ->where('provider', $provider->code())
                 ->exists()
         ) {
             $this->events->record('external_link_rejected', [
                 'realm' => 'user',
                 'subject_id' => $user->public_id,
-                'method' => self::PROVIDER,
+                'method' => $provider->code(),
                 'reason' => 'identity_already_bound',
             ]);
             throw new V2AuthenticationException(
@@ -608,10 +714,10 @@ final class V2ExternalIdentityService
         }
         $account = ExternalIdentityAccount::query()->create([
             'user_id' => $user->getKey(),
-            'provider' => self::PROVIDER,
-            'issuer' => self::ISSUER,
+            'provider' => $provider->code(),
+            'issuer' => $provider->issuer(),
             'subject_hash' => $this->correlation->hash(
-                self::PROVIDER.'|'.$identity->issuer.'|'.$identity->subject
+                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
             ),
             'linked_at' => now()->startOfSecond(),
             'last_authenticated_at' => now()->startOfSecond(),
@@ -624,13 +730,13 @@ final class V2ExternalIdentityService
             'user',
             $user->public_id,
             'identity.external_identity.linked',
-            ['provider' => self::PROVIDER],
+            ['provider' => $provider->code()],
             'external-linked:'.$account->public_id
         );
         $this->events->record('external_link_succeeded', [
             'realm' => 'user',
             'subject_id' => $user->public_id,
-            'method' => self::PROVIDER,
+            'method' => $provider->code(),
         ]);
 
         return ['user' => $user, 'session' => $rotated];
@@ -641,6 +747,7 @@ final class V2ExternalIdentityService
      */
     private function completeReauthentication(
         ExternalIdentityTransaction $transaction,
+        V2ExternalIdentityProvider $provider,
         ?ExternalIdentityAccount $account,
         Request $request
     ): array {
@@ -652,7 +759,7 @@ final class V2ExternalIdentityService
             throw $this->invalidExternalIdentity();
         }
         $user = User::query()->whereKey($transaction->user_id)->lockForUpdate()->firstOrFail();
-        $this->assertLoginState($user);
+        $this->assertLoginState($user, $provider->code());
         $account->forceFill(['last_authenticated_at' => now()->startOfSecond()])->save();
         $this->history($account, 'authenticated', $transaction->request_id);
         $session = $this->lockedBoundSession($transaction, $request);
@@ -660,7 +767,7 @@ final class V2ExternalIdentityService
         $this->events->record('user_reauthentication_succeeded', [
             'realm' => 'user',
             'subject_id' => $user->public_id,
-            'method' => self::PROVIDER,
+            'method' => $provider->code(),
         ]);
 
         return ['user' => $user, 'session' => $rotated];
@@ -749,44 +856,24 @@ final class V2ExternalIdentityService
         ]);
     }
 
-    private function assertLoginState(User $user): void
+    private function assertLoginState(User $user, string $provider): void
     {
         if (! in_array($user->state, [V2UserState::Active, V2UserState::Restricted], true)) {
             $this->events->record('external_login_rejected', [
                 'realm' => 'user',
                 'subject_id' => $user->public_id,
-                'method' => self::PROVIDER,
+                'method' => $provider,
                 'reason' => 'account_state',
             ]);
             throw $this->invalidExternalIdentity();
         }
     }
 
-    private function assertConfiguration(): void
+    private function provider(string $provider): V2ExternalIdentityProvider
     {
-        $this->configuration('client_id');
-        $this->configuration('client_secret');
-        $redirect = $this->configuration('redirect_uri');
-        if (
-            parse_url($redirect, PHP_URL_SCHEME) !== 'https'
-            || parse_url($redirect, PHP_URL_HOST) === null
-            || parse_url($redirect, PHP_URL_USER) !== null
-            || parse_url($redirect, PHP_URL_PASS) !== null
-        ) {
-            throw new V2AuthenticationException(
-                'EXTERNAL_IDENTITY_UNAVAILABLE',
-                503,
-                'External identity authentication is unavailable.',
-                true,
-                30
-            );
-        }
-    }
-
-    private function configuration(string $key): string
-    {
-        $value = config('v2_identity.external_identity.google.'.$key);
-        if (! is_string($value) || $value === '') {
+        try {
+            return $this->providers->get($provider);
+        } catch (V2OidcProtocolException) {
             throw new V2AuthenticationException(
                 'EXTERNAL_IDENTITY_UNAVAILABLE',
                 503,
@@ -796,7 +883,6 @@ final class V2ExternalIdentityService
             );
         }
 
-        return $value;
     }
 
     private function assertReturnPath(string $returnPath): void
@@ -846,6 +932,9 @@ final class V2ExternalIdentityService
             'unknown_key_id',
             'invalid_jwks' => 'oidc_signature_rejected',
             'provider_transport_failed',
+            'provider_rate_limited',
+            'provider_unavailable',
+            'line_verify_rejected',
             'jwks_unavailable',
             'provider_configuration_unavailable' => 'oidc_provider_failure',
             default => 'oidc_state_rejected',

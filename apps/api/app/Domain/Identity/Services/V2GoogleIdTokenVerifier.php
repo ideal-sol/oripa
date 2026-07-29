@@ -24,7 +24,7 @@ final class V2GoogleIdTokenVerifier
     public function verify(
         #[SensitiveParameter] string $idToken,
         #[SensitiveParameter] string $expectedNonceHash
-    ): V2VerifiedGoogleIdentity {
+    ): V2VerifiedExternalIdentity {
         $header = $this->header($idToken);
         if (($header['alg'] ?? null) !== self::ALGORITHM) {
             throw new V2OidcProtocolException('unsupported_algorithm');
@@ -104,7 +104,7 @@ final class V2GoogleIdTokenVerifier
             throw new V2OidcProtocolException('verified_identity_required');
         }
 
-        return new V2VerifiedGoogleIdentity(
+        return new V2VerifiedExternalIdentity(
             self::ISSUER,
             $subject,
             $email,
