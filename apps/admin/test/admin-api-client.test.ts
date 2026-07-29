@@ -185,6 +185,55 @@ describe("AdminApiClient", () => {
       .toBe("asset-update-key");
   });
 
+  it("uses the same-origin LINE settings surface with preview and idempotent update", async () => {
+    const setting = {
+      id: "01910191-0191-7191-8191-019101910191",
+      linked_follow_message: "完了",
+      login_relative_path: "/login",
+      pending_follow_message: "{login_url}",
+      revision: 1,
+      updated_at: "2026-07-29T00:00:00Z",
+    };
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: setting, request_id: setting.id }))
+      .mockResolvedValueOnce(jsonResponse({
+        linked_follow_message: "完了",
+        pending_follow_message: "/login",
+        request_id: setting.id,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: { ...setting, revision: 2 },
+        idempotent_replay: false,
+        request_id: setting.id,
+      }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.getLineMessagingSetting();
+    await client.previewLineMessagingSetting({
+      linked_follow_message: "完了",
+      pending_follow_message: "{login_url}",
+    });
+    await client.updateLineMessagingSetting(
+      {
+        expected_revision: 1,
+        linked_follow_message: "完了",
+        pending_follow_message: "{login_url}",
+      },
+      "line-setting-update-key",
+    );
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/identity/line-messaging",
+      "/admin/api/v2/identity/line-messaging/preview",
+      "/admin/api/v2/identity/line-messaging",
+    ]);
+    const previewHeaders = new Headers(fetcher.mock.calls[1][1]?.headers);
+    const updateHeaders = new Headers(fetcher.mock.calls[2][1]?.headers);
+    expect(previewHeaders.get("X-XSRF-TOKEN")).toBe(csrf);
+    expect(updateHeaders.get("Idempotency-Key")).toBe("line-setting-update-key");
+    expect(updateHeaders.get("Authorization")).toBeNull();
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

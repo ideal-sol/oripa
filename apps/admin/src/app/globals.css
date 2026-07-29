@@ -1406,6 +1406,66 @@ label {
   }
 }
 
+.line-settings-form {
+  display: grid;
+  gap: 18px;
+  max-width: 820px;
+}
+
+.line-settings-form > label {
+  display: grid;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.line-settings-form textarea {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.6;
+  min-height: 132px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.line-settings-form textarea:focus {
+  border-color: var(--forest);
+  outline: 2px solid color-mix(in srgb, var(--forest) 24%, transparent);
+}
+
+.line-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.line-message-preview {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+}
+
+.line-message-preview h2 {
+  font-size: 18px;
+}
+
+.line-message-preview > div {
+  background: var(--surface-muted);
+  border-left: 3px solid var(--forest);
+  padding: 12px 14px;
+}
+
+.line-message-preview p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

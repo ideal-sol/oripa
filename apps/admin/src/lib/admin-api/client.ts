@@ -22,6 +22,11 @@ import {
   type AdminCatalogMutationResult,
   type AdminCatalogVisibility,
   type AdminLoginRequest,
+  type AdminLineMessagingMutationResult,
+  type AdminLineMessagingPreview,
+  type AdminLineMessagingPreviewRequest,
+  type AdminLineMessagingSettingResponse,
+  type AdminLineMessagingSettingUpdate,
   type AdminMfaVerifyRequest,
   type AdminPreauth,
   type AdminReauthenticationRequest,
@@ -100,6 +105,45 @@ export class AdminApiClient {
 
   getPermissions(signal?: AbortSignal): Promise<AdminEffectivePermissions> {
     return this.request("GET", "/auth/permissions", { signal });
+  }
+
+  getLineMessagingSetting(
+    signal?: AbortSignal,
+  ): Promise<AdminLineMessagingSettingResponse> {
+    return this.request("GET", "/identity/line-messaging", { signal });
+  }
+
+  previewLineMessagingSetting(
+    body: AdminLineMessagingPreviewRequest,
+    signal?: AbortSignal,
+  ): Promise<AdminLineMessagingPreview> {
+    return this.request("POST", "/identity/line-messaging/preview", {
+      body,
+      signal,
+    });
+  }
+
+  updateLineMessagingSetting(
+    body: AdminLineMessagingSettingUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminLineMessagingMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(
+          422,
+          "LINE_MESSAGING_SETTING_INVALID",
+          null,
+          null,
+          false,
+        ),
+      );
+    }
+    return this.request("PUT", "/identity/line-messaging", {
+      body,
+      idempotencyKey,
+      signal,
+    });
   }
 
   listCatalogCategories(
@@ -489,11 +533,13 @@ export class AdminApiClient {
 
   private async request<T>(
     method: "GET" | "POST" | "PUT",
-    path: `/auth/${string}` | `/catalog/${string}`,
+    path: `/auth/${string}` | `/catalog/${string}` | `/identity/${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
     if (
-      (!path.startsWith("/auth/") && !path.startsWith("/catalog/")) ||
+      (!path.startsWith("/auth/") &&
+        !path.startsWith("/catalog/") &&
+        !path.startsWith("/identity/")) ||
       path.includes("://") ||
       path.includes("..")
     ) {

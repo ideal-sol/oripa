@@ -1,17 +1,19 @@
-# MIG-058B LINE Login v2.1 Identity Linking Vertical Slice 提出用レポート
+# MIG-058B LINE Login v2.1／Messaging Follow Vertical Slice 提出用レポート
 
 ## 基本情報
 
 - Task ID: `MIG-058B`
 - Risk: `R3`
 - Issue: `#131`
+- PR: `#132`
 - Branch: `feat/MIG-058B-line-login`
 - Base: `e10748d2d7b8d8a435b1bcf9e2e94ddf7c834a4e`
-- 対象: External Identity共通基盤のProvider化、LINE Login／Link／
-  Reauthentication／Unlink、Public Contract／Client／Testkit
-- 対象外: LIFF、LINE MINI App、Official Account、Storefront UI、
-  Admin Social Login、実LINE Account E2E、Provider Token保持、
-  Payment Provider、Domain／TLS、Deployment
+- 対象: External Identity共通基盤のLINE Provider拡張、LINE Login／Link／
+  Reauthentication／Unlink、Messaging Webhook `follow`／`unfollow`、
+  Reply Message、Pending Follow、友だち追加Point、Admin Message設定
+- 対象外: Push／Broadcast／Multicast／Narrowcast、Message本文処理、
+  LINE連携Code、Messaging Channel ID設定、LIFF、LINE MINI App、
+  Storefront UI、実LINE Account E2E、Payment Provider、Domain／TLS、Deployment
 
 ## MIG-060E Closeout
 
@@ -23,106 +25,133 @@
 - Remote／Local Branch、Worktree Cleanup済み。
 - Local `main = origin/main`、Working Tree clean、V1非変更。
 
-## 実装結果
+## 最新仕様変更
 
-### 共通External Identity基盤
+- PR作業中の人間決定により、旧「Messaging API送信なし」「Channel Access Token不要」
+  「Admin設定画面なし」を廃止した。Issue／Branch／Worktree／PRは作り直さず、
+  既存LINE Login実装とCommit履歴を維持した。
+- 最新正本に従い、Messaging APIは署名済みWebhookとFollowイベントのReply Message
+  だけを実装した。Push系APIへのFallbackやEndpointは追加していない。
+- Repository外設定は`LINE_LOGIN_CHANNEL_ID`、
+  `LINE_LOGIN_CHANNEL_SECRET`、`LINE_MESSAGING_CHANNEL_SECRET`、
+  `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`である。Messaging Channel IDは使用しない。
+- LINE公式仕様どおり、生のRequest BodyへHMAC-SHA256署名検証を行い、
+  Reply Tokenを1回だけ使用する。資格情報、Reply Token、Raw Subjectは永続化しない。
 
-- MIG-058AのAccount、Transaction、History、Session／CSRF Rotation、
-  Rate Limit、Audit／Outboxを再利用。
-- Google固有処理をProvider Interface／Registryへ分離し、GoogleとLINEを
-  同じLifecycle Serviceで処理。
-- LINE専用Identity Table、別Session、別Rate Limiterは未作成。
+## 再利用した基盤
 
-### LINE Protocol
+- MIG-058Aの`external_identity_accounts`、`external_identity_transactions`、
+  Identity History、Provider Registry、Login／Link／Reauthentication／Unlink、
+  Session／CSRF Rotation、HMAC Subject、Rate Limit、Audit／Outboxを再利用した。
+- MIG-043のPoint Service／Wallet／Operation／Lot／Ledgerを再利用し、
+  `line.friend_reward:<friendship_public_id>`を一意Business Keyとした。
+- MIG-042のAppend-only Audit／Transactional Outbox、MIG-053AのFresh MFA、
+  MIG-060A～EのAdmin Shell／Permission／API Client／Conflict境界を再利用した。
+- Google OIDCを複製せず、LINE専用Identity Table、別Session、別Token Storageを
+  作成していない。
 
-- 固定Authorization／Token／Verify Endpointだけを使用。
-- CSPRNG State／Nonce、PKCE S256、Exact Redirect URI、Relative Return Path、
-  Browser／User Session Binding、10分、1回限りを実装。
-- Issuer、Audience、`exp`、`iat`、Nonce、Subject、必須型を検証。
-- Timeout、429、5xx、Verify拒否はFail Closed。任意URL／Discovery／SSRFなし。
-- Raw Subject、Code、Access／Refresh Token、ID Tokenを永続化しない。
+## LINE Login／Account
 
-### Account／Email
-
-- Identity Keyは`provider + issuer + HMAC(subject)`。
-- 既存LINE Identity LoginとAuthenticated LinkはEmail Claim不要。
-- Email ScopeはRepository外設定が明示的に有効な場合だけ追加。
-- 新規UserはEmail Claimがある場合だけ作成し、Password Login無効。
-- EmailなしではActive User／架空Emailを作らず
+- 固定Authorization／Token／Verify Endpoint、CSPRNG State／Nonce、PKCE S256、
+  Exact Redirect URI、Relative Return Path、10分、1回限りを実装した。
+- Issuer、Audience、`exp`、`iat`、Nonce、Subject、必須型を検証し、
+  Timeout／429／5xx／Verify拒否をFail Closedとした。
+- Identity Keyは`provider + issuer + HMAC(subject)`。既存LINE Identity Loginと
+  Authenticated LinkはEmail Claim不要である。
+- 新規UserはVerified Email Claimがある場合だけ作成し、Password Loginを無効化する。
+  EmailなしではActive User／架空Emailを作成せず
   `EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED`を返す。
-- Email衝突で自動Linkせず、既存Credential Login後の明示Linkを要求。
-- Link／Reauthentication／UnlinkでSession／CSRF Rotation、最後のCredential保護、
-  Remember Device失効を維持。
+- Email衝突で自動Linkせず、明示Link、Session／CSRF Rotation、
+  Recent Reauthentication、最後のCredential保護を維持する。
 
-### Contract／Client
+## Messaging／Point
 
-- Public OpenAPIへLINE Operationを5件追加。Public 47／Admin 93／Webhook 0。
-- Storefront ClientへLINE Login／Link／Reauthentication／Unlink Facadeを追加。
-- TestkitへLINE FixtureとContract Operationを追加。
-- Admin／Webhook型、Subject、Token、SecretをPublicへ非公開。
+- Webhook Contractへ`POST /webhooks/v2/line`を追加した。生Body署名検証後にだけ
+  `follow`／`unfollow`を処理し、その他Eventは保存しない。
+- `webhookEventId`はHMAC化してUnique保存し、Redeliveryと並行Followを重複排除する。
+  Raw User IDはExternal Identityと同じHMAC方式で照合する。
+- Login済みFollowはFriendshipを有効化し、設定Pointをfree Pointとして冪等付与する。
+  Point、Friendship、Webhook Event、Audit、Outboxは同一Transactionで確定する。
+- Login前Followは`line_pending_follows`へHMAC Subject単位で保存する。
+  後続LINE Login／Link成功Transactionで照合し、FriendshipとPointを一度だけ確定する。
+  Login後のPush Messageは送信しない。
+- Point付与または設定読込が失敗した場合はFollow処理をRollbackし、完了Messageを
+  送らない。Reply失敗は確定済みPoint／FriendshipをRollbackしない。
+- Replyは固定`/v2/bot/message/reply`、Bearer Access Token、1 Text Messageだけを使用。
+  Reply Tokenを保存せず、Event状態`pending → processing → sent|failed`で一回性を
+  DB Guardする。429／5xx／TimeoutをRedaction済みFailure Codeで記録し、
+  PushへFallbackしない。
 
-### Migration／Audit
+## Admin設定
+
+- Admin OpenAPIへ設定取得、Preview、更新を追加した。
+- `identity.line.manage`はOwnerだけに付与し、更新はFresh MFA 5分、CSRF、
+  Exact Origin、JSON、Admin Realm、Critical Mutation Rate Limitを必須とした。
+- 2種類の本文をDB Singleton設定とし、Unicode NFC、1～1,000文字、空文字／
+  HTML／Script／制御文字を拒否する。許可Placeholderは`{login_url}`だけである。
+- Login URLはServer固定Relative Path `/login`から展開し、Browser入力や外部URLを
+  使用しない。資格情報、内部情報、Reward設定はPublic Contractへ公開しない。
+- Revision OCC、Idempotency-Key、Canonical Replay、Append-only Audit、
+  Transactional Outboxを実装した。
+- Admin UIへ編集、Preview、Conflict再読込、Dirty State、二重送信防止、
+  Fresh MFA Dialog、Canonical Response再取得を追加した。
+- Migration Default Messageを明示した。Reward Pointは未承認値を推測せず初期値0とし、
+  Domainは正の設定値がある場合だけ冪等付与する。
+
+## Schema／Contract
 
 - Forward-safe Migration:
   `2026_08_07_000018_add_line_external_identity_provider.php`
-- Provider／Issuer CHECKをGoogle／LINEへ拡張。既存Migration編集なし。
-- LINE Record存在時のRollbackは履歴保持のためFail Closed。
-- Start、Callback、Protocol拒否、Email不足／衝突、Provider障害、Link／Unlink、
-  Reauthentication、Rate LimitをAppend-only Auditへ接続。
-- Raw Protocol値、Full Email、Cookie、Session ID、SecretはAudit／Logへ非保存。
+- Forward-safe Migration:
+  `2026_08_07_000019_create_line_messaging_follow_foundation.php`
+- 新規Table:
+  `line_messaging_settings`、`line_friendships`、`line_pending_follows`、
+  `line_webhook_events`
+- Provider／Issuer、Subject HMAC、Friendship／Pending状態、Reward一回性、
+  Webhook Event／Reply遷移をUnique Constraint、CHECK、Triggerで保証する。
+- OpenAPI Operation数: Public 47、Admin 96、Webhook 1。
+- Public Storefront ClientへAdmin／Webhook型、Message設定、Subject、Token、
+  SecretをExportしない。
 
-## Test結果
+## Local Test結果
 
-- LINE専用: 12 Test PASS
-- LINE同一Login／Link Callback Process Concurrency: PASS
-- 全V2 Suite: PASS
-- OpenAPI Unit／Bundle: PASS、Public 47／Admin 93／Webhook 0
-- Storefront Client: 生成差分0、Typecheck／Lint／Build、14 Test PASS
-- Site Schema: 生成差分0、Typecheck／Lint／Build、10 Test PASS
-- Storefront Testkit: 生成差分0、Typecheck／Lint／Build、22 Test PASS
-- Admin: 生成差分0、Typecheck／Lint、35 Test、Production Build PASS
-- Policy Unit 88／Quality Unit 5／Security Unit 4／Release Unit 10／
-  DB Guard Unit 25: PASS
-- `policy-gate`／`quality-gate`／`security-gate`／OpenAPI Contract Gate: PASS
-- Root／Legacy Frozen Install: PASS
-- Root Audit: 0 Finding
-- Legacy Audit: 既存11 Finding
-- Composer Audit: 既存期限付き10 Finding、Baseline拡張なし
-- Legacy Lint: 既存8 Error／1 Warningと一致
-- Secret／PII Candidate: 0
-- 新規Critical／High: 0
+- LINE Login専用: 13 Test PASS。
+- LINE Messaging専用: 8 Test PASS。
+- LINE Login／Link Process Concurrency: PASS。
+- Webhook Redelivery／Concurrent Follow 2 Process: PASS。
+- Persistent全V2 Suite、`migrate:fresh` 2回、Migration Rollback／Reapply、
+  Schema Inventory: PASS。
+- Admin Unit／Component: 38 Test PASS。
+- Admin Browser E2E: 11 Test PASS。
+- Admin Typecheck／Lint／Production Build／生成差分0: PASS。
+- OpenAPI Unit 4件、Bundle／生成差分: PASS。
+- Storefront Client 14 Test、Testkit 22 Test、Site Schema 10 Testと
+  各Typecheck／Lint／Build／生成差分: PASS。
+- Policy／DB Guard Unit: 114 Test PASS。Quality Unit 5、Security Unit 4 PASS。
+- Root／Legacy Frozen Install: PASS。
+- Root Audit: 0 Finding。
+- Legacy Audit: 既存11 Finding。Composer Audit: 既存Baseline対象のみ。
+- 新規Critical／High、Baseline追加／拡張: 0。
+- Browser E2E以外の実LINE Account／Credential通信: 未実行（対象外）。
 
 ## V2 DB回帰
 
-- Persistent `migrate:fresh`: 2回 PASS
-- Ephemeral `migrate:fresh`: 2回 PASS
-- 最新Migration Rollback／Reapply: PASS
-- 全V2 Suite／Draw／QA／Reporting／Content負荷回帰: PASS
-- API／Admin／PostgreSQL／Redis Health: PASS
-- Backup／Restore、Schema／Migration Row Checksum一致: PASS
-- Task Resource Cleanup: PASS
-- Migration数: 18
-- Migration Set SHA-256:
-  `4f8323fde23415f4a38daccae1d175d6d25a9962b8290523e24fd2ece219a40e`
-- Schema SHA-256:
-  `638f04f706db84f3f5cbd1c97ff77099dd68d1d0dce6265a03e151a9f2dd7b02`
-- Migration Row SHA-256:
-  `2057fae3cf8684b8e4bf327b049b586df05ef6608291d3e145ce4ce8b106fab3`
-- Backup SHA-256:
-  `b3cace19b28d7dcb21317f228448b08dbe654a3795d6f9b1527f56cf054d7190`
 - Persistent Evidence:
-  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final/persistent-result.json`
-- Ephemeral Evidence:
-  `/var/lib/oripa-v2-evidence/MIG-058B/ephemeral-final/`
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-messaging-pass/persistent-result.json`
+- Migration数: 19。
+- Migration Set SHA-256:
+  `3ae1148aa1c847bca97a4531dd673e354ae4d9070849aeeb29f5b9506b538e90`
+- Ephemeral `migrate:fresh`、Load、Backup／Restore、Health、Cleanupは
+  Final候補で実行し、最終値をCloseout時に確定する。
 
 ## 時間を要した作業
 
 | 作業 | 所要 | 原因／再試行 | 結果 |
 | --- | ---: | --- | --- |
-| API Image Build | 約30秒 | Buildxの`--allow`非対応で初回停止 | Classic BuilderでPASS |
-| Package検証 | 初回並行失敗後に依存順再実行 | Testkitが依存Package Build前に型解決不可 | 全Package PASS |
-| Persistent Guard | 40.06秒停止、137.99秒停止、108.89秒成功、Protocol補強後142.60秒、Concurrent Link補強後141.68秒 | PHPUnit Helper名、Audit Event Allowlist、HTTP Fakeを修正。LINE固有Protocol／Link並行Test追加後に再固定 | Migration 2回、Rollback／Reapply、全Suite PASS |
-| Ephemeral Smoke | 340.49秒停止、303.69秒成功、Protocol補強後275.16秒、Concurrent Link補強後275.18秒 | Restore時にCHECK式が等価な別表現へ正規化。最終Test集合で再固定 | 決定的OR Constraint、Backup／Restore／Cleanup PASS |
+| API Image Build | 各約30秒、複数回 | Buildxの`--allow`非対応後、Classic Builderで候補更新を反映 | PASS |
+| Persistent Guard | 約150秒失敗、約143秒失敗、約143秒失敗、約143秒成功 | Webhook署名Test Header、Audit Actor正本、Pending日時、HTTP Fake、Schema Inventory順を段階修正 | 全V2 Suite／Migration PASS |
+| Admin Browser E2E | 約52秒 | LINE設定のFresh MFA再送を含む11 Scenario | PASS |
+| First-party Package | 約90秒 | Contract／Client／Testkit／Site Schemaを依存順で検証 | PASS |
 
 ## 非変更
 
@@ -130,8 +159,8 @@
   `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
 - V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
   Archive Branch、Annotated Tagは非変更。
-- Google OIDC挙動、Password Reset／SMS、Admin Contract／App、
-  Payment Provider、Domain／TLS、Staging／Production Deploymentは非変更。
+- Google OIDCの公開挙動、Draw、Payment、Production Resource、
+  Domain／TLS、Deploymentは非変更。
 
 ## Gate／Closeout
 

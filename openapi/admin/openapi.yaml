@@ -66,9 +66,80 @@ x-oripa-error-codes:
     status: 409
     retryable: false
     description: Idempotency-Keyが異なるRequestへ再利用された。
+  LINE_MESSAGING_SETTING_INVALID:
+    status: 422
+    retryable: false
+    description: LINE Message設定が空、不正なHTMLを含む、または未知の置換変数を含む。
+  LINE_MESSAGING_REVISION_CONFLICT:
+    status: 409
+    retryable: false
+    description: LINE Message設定が別の操作で更新済み。
 servers:
   - url: /admin/api/v2
 paths:
+  /identity/line-messaging:
+    get:
+      operationId: getAdminLineMessagingSetting
+      summary: LINE Follow自動応答Message設定を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: Ownerだけが参照できるMessage設定。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLineMessagingSettingResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminLineMessagingSetting
+      summary: LINE Follow自動応答Message設定を更新する
+      description: Ownerかつ5分以内のFresh MFA、Revision OCC、Idempotency-Keyを必須とする。
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLineMessagingSettingUpdate'}
+      responses:
+        '200':
+          description: 更新済みMessage設定。
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLineMessagingMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /identity/line-messaging/preview:
+    post:
+      operationId: previewAdminLineMessagingSetting
+      summary: LINE Follow自動応答Messageを送信せずPreviewする
+      x-idempotency: not-supported
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLineMessagingPreviewRequest'}
+      responses:
+        '200':
+          description: Server側Allowlistで置換済みのPreview。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLineMessagingPreview'}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/categories:
     get:
       operationId: listAdminCatalogCategories
@@ -1887,6 +1958,101 @@ components:
       in: cookie
       name: __Host-oripa_admin_session
   schemas:
+    AdminLineMessagingSetting:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - linked_follow_message
+        - pending_follow_message
+        - login_relative_path
+        - revision
+        - updated_at
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        linked_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        pending_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        login_relative_path:
+          type: string
+          pattern: '^/[A-Za-z0-9/_?&=.-]*$'
+          readOnly: true
+        revision:
+          type: integer
+          minimum: 1
+        updated_at:
+          type: string
+          format: date-time
+    AdminLineMessagingSettingResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/AdminLineMessagingSetting'
+        request_id:
+          $ref: '#/components/schemas/OpaqueId'
+    AdminLineMessagingSettingUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, linked_follow_message, pending_follow_message]
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        linked_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        pending_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    AdminLineMessagingPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [linked_follow_message, pending_follow_message]
+      properties:
+        linked_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        pending_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    AdminLineMessagingPreview:
+      type: object
+      additionalProperties: false
+      required: [linked_follow_message, pending_follow_message, request_id]
+      properties:
+        linked_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        pending_follow_message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        request_id:
+          $ref: '#/components/schemas/OpaqueId'
+    AdminLineMessagingMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/AdminLineMessagingSetting'
+        idempotent_replay:
+          type: boolean
+        request_id:
+          $ref: '#/components/schemas/OpaqueId'
     AdminCatalogCategory:
       type: object
       additionalProperties: false
@@ -2894,6 +3060,7 @@ components:
         - identity.admin.read
         - identity.admin.manage
         - identity.admin.session.revoke
+        - identity.line.manage
         - point.ledger.read
         - point.adjustment.request
         - point.adjustment.free.approve

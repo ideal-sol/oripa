@@ -147,6 +147,96 @@ final class V2PointService
         });
     }
 
+    public function grantLineFriendReward(
+        int $userId,
+        int $friendshipId,
+        string $friendshipPublicId,
+        int $amount,
+        CarbonInterface $expireAt,
+        CarbonInterface $occurredAt
+    ): ?PointOperation {
+        if ($amount === 0) {
+            return null;
+        }
+        if (
+            DB::transactionLevel() < 1
+            || $userId < 1
+            || $friendshipId < 1
+            || ! Str::isUuid($friendshipPublicId)
+            || $amount < 1
+        ) {
+            throw new V2PointException('LINE friend reward input is invalid.');
+        }
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
+        if ($expiry->lessThanOrEqualTo($occurred)) {
+            throw new V2PointException('LINE friend reward expiry is invalid.');
+        }
+        $businessKey = 'line.friend_reward:'.$friendshipPublicId;
+        $existing = PointOperation::query()
+            ->where('business_key', $businessKey)
+            ->first();
+        if ($existing instanceof PointOperation) {
+            return $existing;
+        }
+
+        $user = User::query()->whereKey($userId)->firstOrFail();
+        $wallet = $this->lockWallet($userId);
+        $before = (int) $wallet->free_balance;
+        $operation = $this->operation(
+            $userId,
+            'free_grant',
+            'line_friend',
+            $businessKey,
+            $occurred,
+            'webhook',
+            null,
+            $friendshipId
+        );
+        $lot = new PointLot();
+        $lot->forceFill([
+            'user_id' => $userId,
+            'grant_operation_id' => $operation->id,
+            'point_type' => 'free',
+            'granted_amount' => $amount,
+            'remaining_amount' => $amount,
+            'reserved_amount' => 0,
+            'granted_at' => $occurred,
+            'expire_at' => $expiry,
+        ])->save();
+        $wallet->forceFill([
+            'free_balance' => $before + $amount,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+        $this->ledger(
+            $operation,
+            $wallet,
+            $lot,
+            1,
+            'free',
+            'grant',
+            $amount,
+            (int) $wallet->free_balance,
+            $amount,
+            $occurred
+        );
+        $this->audit->record('point.line_friend_granted', [
+            'actor_type' => 'system',
+            'auth_realm' => 'system',
+            'target_type' => 'line_friendship',
+            'target_public_id' => $friendshipPublicId,
+            'before' => ['free_balance' => $before],
+            'after' => ['free_balance' => (int) $wallet->free_balance],
+            'metadata' => [
+                'amount' => $amount,
+                'operation_public_id' => $operation->public_id,
+                'user_public_id' => $user->public_id,
+            ],
+        ]);
+
+        return $operation;
+    }
+
     /**
      * Prize Exchange Transaction内でfree Pointを付与する。
      *

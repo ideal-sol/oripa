@@ -15,7 +15,11 @@ use App\Domain\Identity\Services\V2SessionManager;
 use App\Models\V2\AuditLog;
 use App\Models\V2\ExternalIdentityAccount;
 use App\Models\V2\ExternalIdentityTransaction;
+use App\Models\V2\LineFriendship;
+use App\Models\V2\LineMessagingSetting;
+use App\Models\V2\LinePendingFollow;
 use App\Models\V2\User;
+use App\Models\V2\Wallet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +125,39 @@ final class LineLoginVerticalSliceTest extends TestCase
         foreach (['line-subject-new', 'line-code-new', 'line-new@example.test'] as $secret) {
             self::assertStringNotContainsString($secret, $serialized);
         }
+    }
+
+    public function test_line_login_claims_pending_follow_and_grants_reward_once(): void
+    {
+        config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
+        LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_point_amount' => 75,
+        ]);
+        $subject = 'pending-before-login';
+        $pending = new LinePendingFollow();
+        $pending->forceFill([
+            'public_id' => (string) Str::uuid7(),
+            'subject_hash' => app(V2IdentityCorrelation::class)
+                ->hash('line|https://access.line.me|'.$subject),
+            'status' => 'pending',
+            'followed_at' => now()->subMinute(),
+        ])->save();
+        $started = $this->start('login');
+        $this->provider->claims(
+            $started['query']['nonce'],
+            $subject,
+            'pending-before-login@example.test'
+        );
+        $result = $this->completeLine($started, 'pending-before-login-code');
+
+        self::assertSame('claimed', LinePendingFollow::query()->sole()->status);
+        self::assertSame(
+            $result['user']->getKey(),
+            LinePendingFollow::query()->sole()->claimed_by_user_id
+        );
+        self::assertSame(75, Wallet::query()
+            ->where('user_id', $result['user']->getKey())->sole()->free_balance);
+        self::assertNotNull(LineFriendship::query()->sole()->point_operation_id);
     }
 
     public function test_line_login_without_email_requires_completion_and_creates_no_user(): void

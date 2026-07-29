@@ -244,6 +244,13 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
     "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
     "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
+    "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+    "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
+    "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
+    "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",
+    "apps/api/app/Http/Controllers/V2/V2LineMessagingWebhookController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminLineMessagingController.php",
+    "apps/api/config/v2_line.php",
     "apps/api/tests/V2/AuthenticationFlowTest.php",
     "apps/api/tests/V2/BrowserSecurityTest.php",
     "apps/api/tests/V2/AdminMfaPolicyTest.php",
@@ -1831,6 +1838,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
         "2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
         "2026_08_07_000018_add_line_external_identity_provider.php",
+        "2026_08_07_000019_create_line_messaging_follow_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2156,6 +2164,12 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "apps/api/app/Domain/Identity/Services/V2LineExternalIdentityProvider.php",
             "apps/api/app/Domain/Identity/Services/V2LineOidcHttpTransport.php",
             "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
+            "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+            "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
+            "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
+            "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",
+            "apps/api/app/Http/Controllers/V2/V2LineMessagingWebhookController.php",
+            "apps/api/config/v2_line.php",
         )
     )
     for required in (
@@ -2167,6 +2181,13 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "email_scope_enabled",
         "subject_hash",
         "provider = 'google' OR provider = 'line'",
+        "LINE_MESSAGING_CHANNEL_SECRET",
+        "LINE_MESSAGING_CHANNEL_ACCESS_TOKEN",
+        "X-Line-Signature",
+        "webhookEventId",
+        "line_pending_follows",
+        "ManageLineMessaging",
+        "https://api.line.me/v2/bot/message/reply",
     ):
         if required not in line_sources:
             raise PolicyFailure(f"V2 LINE Login boundary missing {required}")
@@ -2176,6 +2197,9 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "tenant_id",
         "discovery_url",
         "Math.random",
+        "/push",
+        "/broadcast",
+        "LINE_MESSAGING_CHANNEL_ID",
     ):
         if prohibited in line_sources:
             raise PolicyFailure(f"V2 LINE Login boundary contains prohibited {prohibited}")

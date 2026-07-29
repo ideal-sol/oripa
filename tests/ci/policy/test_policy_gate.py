@@ -355,6 +355,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
             "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
             "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
+            "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

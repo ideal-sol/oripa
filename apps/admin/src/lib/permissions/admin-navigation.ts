@@ -7,7 +7,8 @@ export type AdminRouteId =
   | "shipping"
   | "reports"
   | "content"
-  | "contacts";
+  | "contacts"
+  | "line-settings";
 
 export type AdminNavigationIcon =
   | "dashboard"
@@ -16,7 +17,8 @@ export type AdminNavigationIcon =
   | "shipping"
   | "reports"
   | "content"
-  | "contacts";
+  | "contacts"
+  | "line-settings";
 
 export interface AdminNavigationItem {
   id: AdminRouteId;
@@ -106,6 +108,17 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigati
     section: "support",
     sortOrder: 70,
     implementation: "planned",
+    freshMfaBoundary: "module-actions",
+  },
+  {
+    id: "line-settings",
+    label: "LINE設定",
+    path: "/settings/line",
+    permission: "identity.line.manage",
+    icon: "line-settings",
+    section: "support",
+    sortOrder: 80,
+    implementation: "available",
     freshMfaBoundary: "module-actions",
   },
 ]);

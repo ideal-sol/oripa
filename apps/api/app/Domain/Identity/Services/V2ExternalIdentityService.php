@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Exceptions\V2OidcProtocolException;
+use App\Domain\Line\Services\V2LineFriendService;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Models\V2\ExternalIdentityAccount;
 use App\Models\V2\ExternalIdentityAccountHistory;
@@ -34,7 +35,8 @@ final class V2ExternalIdentityService
         private readonly V2SessionManager $sessions,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2OutboxService $outbox,
-        private readonly V2SecurityEventSink $events
+        private readonly V2SecurityEventSink $events,
+        private readonly V2LineFriendService $lineFriends
     ) {
     }
 
@@ -575,6 +577,16 @@ final class V2ExternalIdentityService
                 ),
                 default => throw $this->invalidExternalIdentity(),
             };
+            if (
+                $provider->code() === 'line'
+                && in_array($transaction->purpose, ['login', 'link'], true)
+            ) {
+                $this->lineFriends->reconcileIdentity(
+                    $subjectHash,
+                    $result['user'],
+                    $transaction->request_id
+                );
+            }
             $transaction->forceFill([
                 'status' => 'completed',
                 'used_at' => now()->startOfSecond(),

@@ -6,6 +6,7 @@ import {
   FileText,
   Gift,
   MessagesSquare,
+  MessageSquareText,
   PackageSearch,
   type LucideProps,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const icons = {
   reports: FileBarChart,
   content: FileText,
   contacts: MessagesSquare,
+  "line-settings": MessageSquareText,
 } satisfies Record<AdminNavigationIcon, ComponentType<LucideProps>>;
 
 export function NavigationIcon({

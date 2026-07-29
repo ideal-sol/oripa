@@ -12,6 +12,7 @@ final class V2PermissionAuthorizer
             'identity.admin.read',
             'identity.admin.manage',
             'identity.admin.session.revoke',
+            'identity.line.manage',
             'point.ledger.read',
             'point.adjustment.request',
             'point.adjustment.free.approve',

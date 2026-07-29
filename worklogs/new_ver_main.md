@@ -5799,3 +5799,94 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Gate G4／G5は`NOT COMPLETE`である。
 - 次Task候補は`MIG-060F Admin Gacha Version Management`だが、
   MIG-060Fは本Task内で開始しない。
+
+### MIG-058B 最新仕様変更／Messaging API Follow統合
+
+- PR作業中の最新人間決定により、旧「Messaging API送信なし」、
+  「Channel Access Token不要」、「Adminメッセージ設定画面なし」を廃止した。
+  新Task、Branch、Worktree、PRは作成せず、Issue `#131`、PR `#132`、
+  `feat/MIG-058B-line-login`上の既存LINE Login実装とCommit履歴を維持した。
+- MIG-058A由来のExternal Identity Account／Transaction／History、
+  Provider Registry、HMAC Subject、Login／Link／Reauthentication／Unlink、
+  Session／CSRF Rotation、Rate Limit、Audit／Outboxを再利用した。
+  Google OIDCの複製、LINE専用Identity Table、Messaging Channel ID設定は追加していない。
+- Repository外Environmentは`LINE_LOGIN_CHANNEL_ID`、
+  `LINE_LOGIN_CHANNEL_SECRET`、`LINE_MESSAGING_CHANNEL_SECRET`、
+  `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`を使用する。Messaging Secretは
+  Webhook署名、Access TokenはReply MessageのBearer認証だけに使用し、
+  値をResponse、Log、Audit、Error、Worklogへ記録しない。
+
+### Webhook／Reply／Pending Follow／Point
+
+- Webhook Contractへ`POST /webhooks/v2/line`を追加し、生Request Bodyの
+  HMAC-SHA256署名をDeserialize前に検証する。`follow`／`unfollow`だけを処理し、
+  User Message本文は保存しない。
+- `webhookEventId`と`source.userId`はHMAC相関値だけを保存する。
+  `line_webhook_events`のUnique Constraintと
+  `pending → processing → sent|failed` DB TriggerでRedelivery、並行Follow、
+  Reply Tokenの二重使用を防止する。Reply Token、Raw User ID、Access Tokenは
+  DB／Log／Auditへ保存しない。
+- Login済みFollowはIdentity HMACでUserを特定し、Friendship、free Point、
+  Point Operation／Lot／Ledger／Wallet、Webhook Event、Audit、Outboxを
+  同一Transactionで確定する。Business KeyはFriendship Public ID由来で一意である。
+- Login前Followは`line_pending_follows`へ保存する。後続LINE Login／Link成功時に
+  同じIdentity Transaction内でClaimし、FriendshipとPointを一度だけ付与する。
+  Login後のPush Messageは送信しない。
+- Point／設定失敗時はFollow TransactionをRollbackし、完了Messageを送らない。
+  Transaction成功後に固定LINE Reply Endpointへ1 Text Messageだけを送信する。
+  Reply 429／5xx／TimeoutはRedaction済みResultとしてAuditし、Pointを取消さず、
+  Push／Broadcast／Multicast／NarrowcastへFallbackしない。
+
+### Admin LINE Message設定
+
+- Forward-safe Migration
+  `2026_08_07_000019_create_line_messaging_follow_foundation.php`で
+  `line_messaging_settings`、`line_friendships`、`line_pending_follows`、
+  `line_webhook_events`を追加した。既存Migrationは編集していない。
+- Admin OpenAPIへ設定取得、Preview、更新を追加した。`identity.line.manage`は
+  Ownerだけに付与し、更新はFresh MFA 5分、Admin Realm、CSRF、Exact Origin、
+  JSON、Revision OCC、Idempotency-Key、Critical Mutation Rate Limit、
+  Audit／Outboxを必須とする。
+- 2種類の本文はUnicode NFC、1～1,000文字、空文字／HTML／Script／制御文字を
+  拒否し、`{login_url}`だけを置換する。Login URLはServer固定Relative Path
+  `/login`から生成する。Default MessageはMigrationへ明示した。
+- Admin Appへ編集、Server Preview、Conflict再読込、Dirty State、
+  二重送信防止、Fresh MFA Dialog、Canonical Response再取得を実装した。
+  Reward Point量は未承認値を推測せず初期値0とし、Domainは正の設定値が存在する
+  場合だけ冪等付与する。
+
+### 最新検証／時間を要した作業
+
+- OpenAPI Operation数はPublic 47、Admin 96、Webhook 1である。
+  Public Storefront ClientへAdmin／Webhook型、Message設定、Subject、Token、
+  SecretをExportしていない。
+- LINE Messaging専用8 Test、LINE Login専用13 Test、
+  Webhook 2 Process同時Redelivery Testを追加した。Valid／Invalid署名、
+  Login済み／前Message、Placeholder、設定／Access Token不在、
+  Reply成功／429／5xx／Timeout、Point失敗、Redelivery、Pending Claim、
+  Unfollow、Audit Redaction、Push系Endpoint非使用を検査する。
+- Persistent Guardは最終候補前の成功時点でMigration 19件、
+  Migration Set SHA-256
+  `3ae1148aa1c847bca97a4531dd673e354ae4d9070849aeeb29f5b9506b538e90`、
+  `migrate:fresh` 2回、最新Migration Rollback／Reapply、全V2 Suite、
+  Schema Inventory、PostgreSQL／Redis HealthがPASSした。
+- Admin Typecheck／Lint／Production Build、Unit／Component 38 Test、
+  Browser E2E 11 TestがPASSした。BrowserではOwner、Preview、Fresh MFA、
+  同一Idempotency-Key再送、Canonical Revision更新を確認した。
+- Storefront Client 14 Test、Testkit 22 Test、Site Schema 10 Testと
+  各生成差分／Typecheck／Lint／Build、OpenAPI Unit 4件がPASSした。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Audit 0、
+  Legacy Auditは既存11 Finding、Composerは既存Baseline対象だけであり、
+  Baseline追加／拡張、新規Critical／Highは0件である。
+- API Image Buildは候補反映ごとに約30秒を要した。Persistent Guardは
+  Webhook Header、Audit Actor、Pending日時、HTTP Fake、Schema Inventory順の
+  Fail Closed検出ごとに約143～150秒を要し、修正後に全工程を成功させた。
+  Admin Browser E2Eは約52秒、First-party Package一式は約90秒を要した。
+- Final Ephemeral Smoke、Fresh Self-review、Final Head／GitHub Check／
+  Squash Commit／CleanupはCloseout時に確定する。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番DB／Redis／Storage、Nginx、
+  `v1/early-release`、Archive Branch、Annotated Tagを変更していない。
+- Gate G4／G5は`NOT COMPLETE`である。次Task候補は
+  `MIG-060F Admin Gacha Version Management`だが、本Task内で開始しない。

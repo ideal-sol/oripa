@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('api')
                 ->prefix('admin/api')
                 ->group(base_path('routes/admin.php'));
+
+            Route::middleware('api')
+                ->prefix('webhooks')
+                ->group(base_path('routes/webhook.php'));
         },
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
@@ -32,7 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(fn ($request, $e): bool => $request->is('api/*') || $request->is('admin/api/*') || $request->expectsJson());
+        $exceptions->shouldRenderJsonWhen(fn ($request, $e): bool => $request->is('api/*') || $request->is('admin/api/*') || $request->is('webhooks/*') || $request->expectsJson());
 
         $exceptions->render(function (AuthenticationException $exception, $request) {
             if ($request->is('api/*') || $request->is('admin/api/*')) {
