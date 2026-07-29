@@ -74,7 +74,7 @@
 ## Test結果
 
 - LINE専用: 12 Test PASS
-- LINE同一Callback Process Concurrency: PASS
+- LINE同一Login／Link Callback Process Concurrency: PASS
 - 全V2 Suite: PASS
 - OpenAPI Unit／Bundle: PASS、Public 47／Admin 93／Webhook 0
 - Storefront Client: 生成差分0、Typecheck／Lint／Build、14 Test PASS
@@ -109,7 +109,7 @@
 - Migration Row SHA-256:
   `2057fae3cf8684b8e4bf327b049b586df05ef6608291d3e145ce4ce8b106fab3`
 - Backup SHA-256:
-  `c535512b233623e49011692395d3377f27b633eddd955d3b92c01cbb17940f76`
+  `b3cace19b28d7dcb21317f228448b08dbe654a3795d6f9b1527f56cf054d7190`
 - Persistent Evidence:
   `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final/persistent-result.json`
 - Ephemeral Evidence:
@@ -121,8 +121,8 @@
 | --- | ---: | --- | --- |
 | API Image Build | 約30秒 | Buildxの`--allow`非対応で初回停止 | Classic BuilderでPASS |
 | Package検証 | 初回並行失敗後に依存順再実行 | Testkitが依存Package Build前に型解決不可 | 全Package PASS |
-| Persistent Guard | 40.06秒停止、137.99秒停止、108.89秒成功、Self-review後142.60秒 | PHPUnit Helper名、Audit Event Allowlist、HTTP Fakeを修正。LINE固有Protocol Test追加後に再固定 | Migration 2回、Rollback／Reapply、全Suite PASS |
-| Ephemeral Smoke | 340.49秒停止、303.69秒成功、Self-review後275.16秒 | Restore時にCHECK式が等価な別表現へ正規化。最終Test集合で再固定 | 決定的OR Constraint、Backup／Restore／Cleanup PASS |
+| Persistent Guard | 40.06秒停止、137.99秒停止、108.89秒成功、Protocol補強後142.60秒、Concurrent Link補強後141.68秒 | PHPUnit Helper名、Audit Event Allowlist、HTTP Fakeを修正。LINE固有Protocol／Link並行Test追加後に再固定 | Migration 2回、Rollback／Reapply、全Suite PASS |
+| Ephemeral Smoke | 340.49秒停止、303.69秒成功、Protocol補強後275.16秒、Concurrent Link補強後275.18秒 | Restore時にCHECK式が等価な別表現へ正規化。最終Test集合で再固定 | 決定的OR Constraint、Backup／Restore／Cleanup PASS |
 
 ## 非変更
 

@@ -5731,8 +5731,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - LINE専用は12 Testで、固定Endpoint、PKCE、Email Scope、Email有無、新規User、
   既存Identity、Email衝突、Link／Reauthentication／Unlink、Session／CSRF Rotation、
   Claim拒否、Provider Timeout／429／5xx、DB Constraint、Audit Redactionを確認した。
-  同一LINE CallbackのProcess Concurrency Testも追加し、1 User／1 Identityだけが
-  成立することを確認した。State／Transaction／Rate Limit等の共通境界は既存Google
+  同一LINE Login／Link CallbackのProcess Concurrency Testも追加し、
+  1 User／1 Identityだけが成立することを確認した。State／Transaction／Rate Limit等の共通境界は既存Google
   OIDC Testと全V2回帰で確認した。
 - OpenAPI Unit／BundleはPASSし、Operation数はPublic 47、Admin 93、Webhook 0である。
   Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
@@ -5758,7 +5758,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Migration Row SHA-256は
   `2057fae3cf8684b8e4bf327b049b586df05ef6608291d3e145ce4ce8b106fab3`
   で一致した。Backup SHA-256は
-  `c535512b233623e49011692395d3377f27b633eddd955d3b92c01cbb17940f76`である。
+  `b3cace19b28d7dcb21317f228448b08dbe654a3795d6f9b1527f56cf054d7190`である。
 - Persistent Evidenceは
   `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final/persistent-result.json`、
   Ephemeral Evidenceは
@@ -5785,8 +5785,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration最終SourceでPersistent Guardを108.89秒かけて再実行し、
   `migrate:fresh` 2回、Rollback／Reapply、全SuiteがPASSした。
   Gate、Baseline、Assertionは弱めていない。
-- Fresh Self-reviewでLINE固有のState／PKCE／Expiry／Completed Replay Testを
-  追加した。最終候補のPersistent Guardは142.60秒、Ephemeral Smokeは275.16秒で
+- Fresh Self-reviewでLINE固有のState／PKCE／Expiry／Completed Replay Testと
+  Concurrent Link Testを追加した。最終候補のPersistent／Ephemeral Guardは
+  141.68秒／275.18秒で再実行し、全Suite、Backup／Restore、Resource Cleanupが
+  PASSした。
   再実行し、全Suite、Backup／Restore、Resource CleanupがPASSした。
 
 ### Closeout待ち／Gate

@@ -177,6 +177,103 @@ final class ZExternalIdentityConcurrencyTest extends TestCase
             ->count());
     }
 
+    public function test_same_line_link_transaction_concurrently_links_identity_once(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $transport = new ConcurrentLineOidcTransport();
+        $this->app->instance(V2LineOidcTransport::class, $transport);
+        $service = app(V2ExternalIdentityService::class);
+        $user = User::query()->create([
+            'email_display' => "line-link-{$runId}@example.test",
+            'email_normalized' => "line-link-{$runId}@example.test",
+            'email_verified_at' => now(),
+            'password_hash' => app(
+                \App\Domain\Identity\Services\V2PasswordPolicy::class
+            )->hash('valid fixture password'),
+            'password_login_enabled' => true,
+            'state' => \App\Domain\Identity\Enums\V2UserState::Active,
+        ]);
+        $session = app(
+            \App\Domain\Identity\Services\V2SessionManager::class
+        )->issue(
+            \App\Domain\Identity\Enums\V2Realm::User,
+            (int) $user->getKey()
+        );
+        $startRequest = Request::create(
+            '/api/v2/me/external-identities/line/link',
+            'POST'
+        );
+        $startRequest->cookies->set(
+            '__Host-oripa_user_session',
+            $session['token']
+        );
+        $callbackUrl = 'https://storefront.example.test/api/v2/auth/external/line/callback';
+        $start = $service->startForProvider(
+            'line',
+            'link',
+            '/',
+            '192.0.2.54',
+            (string) Str::uuid7(),
+            $user,
+            $startRequest
+        );
+        parse_str(parse_url($start['authorization_url'], PHP_URL_QUERY), $query);
+        $transport->issue(
+            $query['nonce'],
+            'line-link-subject-'.$runId,
+            "provider-profile-{$runId}@example.test"
+        );
+        $statuses = $this->concurrent(
+            function () use (
+                $query,
+                $service,
+                $start,
+                $callbackUrl,
+                $session
+            ): string {
+                $request = Request::create($callbackUrl, 'GET');
+                $request->cookies->set(
+                    '__Host-oripa_oidc_transaction',
+                    $start['binding_token']
+                );
+                $request->cookies->set(
+                    '__Host-oripa_user_session',
+                    $session['token']
+                );
+                try {
+                    $service->callbackForProvider(
+                        'line',
+                        $query['state'],
+                        'line-concurrent-link-code',
+                        $start['binding_token'],
+                        $callbackUrl,
+                        '192.0.2.55',
+                        $request
+                    );
+
+                    return 'succeeded';
+                } catch (
+                    \App\Domain\Identity\Exceptions\V2AuthenticationException $exception
+                ) {
+                    return $exception->errorCode;
+                } catch (\Throwable $exception) {
+                    return $exception::class;
+                }
+            }
+        );
+
+        sort($statuses);
+        self::assertSame(
+            ['EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', 'succeeded'],
+            $statuses
+        );
+        self::assertSame(1, ExternalIdentityAccount::query()
+            ->where('user_id', $user->getKey())
+            ->where('provider', 'line')
+            ->whereNull('revoked_at')
+            ->count());
+    }
+
     /** @return list<string> */
     private function concurrent(callable $operation): array
     {
