@@ -5444,7 +5444,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Canonical再取得、Operator Read-only、Mobile／Keyboard／Focusを確認した。
 - Policy Unit 88 Test、Quality Unit 5 Test、Security Unit 4 Test、
   Release Unit 10 Test、DB Guard UnitはPASSした。`quality-gate`、
-  `security-gate`はPASSし、Commit固定後に`policy-gate`を再確認する。
+  `security-gate`、Commit固定後の`policy-gate`はPASSした。
 - Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
   Site Schema生成差分／Typecheck／Lint／Build／10 Test、
   Storefront Testkit生成差分／Typecheck／Lint／Build／22 Test、
@@ -5489,8 +5489,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Classic BuilderでTask API Imageを再構築し、Mutation 9 Test／110 Assertionと
   Catalog対象24 Test／364 Assertionを再実行してPASSした。
 - Frozen InstallとPackage／Admin／Gate検証は依存順に実行した。
-  未Commit新規Fileを`git ls-files`で列挙するPolicy本体だけが作業途中に停止したため、
-  Worklog／Reportを含む固定Commit後に再実行する。GateやBaselineは弱めていない。
+  未Commit新規Fileを`git ls-files`で列挙するPolicy本体だけが作業途中に停止したが、
+  Worklog／Reportを含む固定Commit後にPolicy／Quality／Security Gateを再実行して
+  すべてPASSした。GateやBaselineは弱めていない。
+- Fresh Self-reviewでは、未知のPostgreSQL `P0001`を既知Catalog Conflictへ
+  誤分類しないFail-closed化と、Idempotency Request Hashへの操作種別固定を追加した。
+  後者のFinal候補ではGuard付きPersistent検証を再実行し、`migrate:fresh` 2回、
+  最新Migration Rollback／Reapply、全V2 SuiteがPASSした。Local判定の
+  SEV-0／SEV-1は0件である。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。Prize／Asset Mutation、
   Gacha／Probability、他業務Admin画面、Storefront画面、通知Transport、

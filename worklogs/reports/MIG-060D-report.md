@@ -100,7 +100,7 @@
 - Composer Audit: 既存期限付き10 Finding、Baseline拡張なし
 - Secret／PII Candidate: 0
 - 新規Critical／High: 0
-- Commit固定後に`policy-gate`本体を再実行する。
+- Commit固定後の`policy-gate`、`quality-gate`、`security-gate`はすべてPASSした。
 
 ## V2 DB回帰
 
@@ -133,7 +133,8 @@
 | Browser E2E | 初回52秒、成功Run 50.6秒 | 新規Locatorが既存Sort Selectと曖昧 | Dialog内Exact Accessible Nameへ限定、9 Test PASS |
 | Ephemeral V2 Smoke | 308秒 | 全Suite、Load、Backup／Restore、Source／Restore比較を実行 | 1成功Run、Checksum一致、Resource Cleanup PASS |
 | Catalog固有Security再検証 | 約34秒 | Rate Limit／Limiter障害／Outbox Rollback Testを追加しTask API Imageを再構築 | Mutation 9 Test／110 Assertion、Catalog対象24 Test／364 Assertion PASS |
-| Frozen Install／Package／Admin／Gate | 約4分 | First-party Packageを依存順に全検証 | 生成差分0。未CommitFile列挙PolicyだけCommit固定後に再実行 |
+| Frozen Install／Package／Admin／Gate | 約4分 | First-party Packageを依存順に全検証 | 生成差分0。Commit固定後のPolicy／Quality／Security GateもPASS |
+| Final候補Persistent再検証 | 約2分 | Self-reviewでIdempotency Hashへ操作種別を固定 | Migration 2回、Rollback／Reapply、全V2 Suiteを再実行してPASS |
 
 ## 非変更／未実行
 
@@ -148,6 +149,9 @@
 
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`
+- Fresh Self-reviewで、未知のPostgreSQL `P0001`を既知Catalog Conflictへ誤分類しない
+  Fail-closed化と、Idempotency Request Hashへの操作種別固定を追加した。
+- Local Fresh Self-review: SEV-0／SEV-1 0件
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、CleanupはPR完了時に確定。
 - 次Task候補:
   `MIG-060E Admin Prize／Presentation Asset Mutation`
