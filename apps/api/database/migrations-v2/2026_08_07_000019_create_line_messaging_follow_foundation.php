@@ -86,8 +86,10 @@ return new class extends Migration
         DB::statement(
             'ALTER TABLE line_messaging_settings ADD CONSTRAINT '.
             'line_messaging_settings_values_check CHECK ('.
-            'char_length(linked_follow_message) BETWEEN 1 AND 1000 AND '.
-            'char_length(pending_follow_message) BETWEEN 1 AND 1000 AND '.
+            'char_length(linked_follow_message) >= 1 AND '.
+            'char_length(linked_follow_message) <= 1000 AND '.
+            'char_length(pending_follow_message) >= 1 AND '.
+            'char_length(pending_follow_message) <= 1000 AND '.
             "linked_follow_message !~ '[<>]' AND pending_follow_message !~ '[<>]' AND ".
             "login_relative_path ~ '^/[A-Za-z0-9/_?&=.-]*$' AND ".
             'reward_point_amount >= 0 AND reward_expiration_days BETWEEN 1 AND 3650 AND '.
@@ -125,7 +127,8 @@ return new class extends Migration
             "'skipped'::text]) AND ".
             "((event_type = 'follow' AND reply_status <> 'skipped') OR ".
             "(event_type = 'unfollow' AND reply_status = 'skipped')) AND ".
-            "((reply_status IN ('pending', 'skipped') AND reply_attempted_at IS NULL ".
+            "((reply_status::text = ANY (ARRAY['pending'::text, 'skipped'::text]) ".
+            'AND reply_attempted_at IS NULL '.
             'AND reply_failure_code IS NULL) OR '.
             "(reply_status = 'processing' AND reply_attempted_at IS NOT NULL ".
             'AND reply_failure_code IS NULL) OR '.

@@ -137,12 +137,22 @@
 ## V2 DB回帰
 
 - Persistent Evidence:
-  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-messaging-pass/persistent-result.json`
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-messaging-stable/persistent-result.json`
+- Ephemeral Evidence:
+  `/var/lib/oripa-v2-evidence/MIG-058B/ephemeral-final-messaging-stable/ephemeral-result.json`
 - Migration数: 19。
 - Migration Set SHA-256:
-  `3ae1148aa1c847bca97a4531dd673e354ae4d9070849aeeb29f5b9506b538e90`
-- Ephemeral `migrate:fresh`、Load、Backup／Restore、Health、Cleanupは
-  Final候補で実行し、最終値をCloseout時に確定する。
+  `96a6b7501d1291f5103f1b23438c4670f8ae04449e851e2120622f1f8f520836`
+- Persistentは`migrate:fresh` 2回、最新Migration Rollback／Reapply、
+  全V2 Suite、Schema Inventory、PostgreSQL／Redis HealthがPASSした。
+- Ephemeralは`migrate:fresh` 2回、全V2 Suite、Draw／QA／Reporting／Content
+  Load、API／Admin Health、Backup／Restore、Task Resource CleanupがPASSした。
+- Source／Restore Schema SHA-256:
+  `3d59ccfb05abd0c1954c6d6ff8eef435ccd913fa7aef72972ea75087edd472a2`
+- Source／Restore Migration Row SHA-256:
+  `77cbd2fc2bce85ea8830e6ff3a8d7b50086fac778c29672e6e10cdff242cd623`
+- Backup SHA-256:
+  `21b173ef40c209bbea8cea48df2fe4d2c318693465fed6c54b36b56dace64fd3`
 
 ## 時間を要した作業
 
@@ -152,6 +162,10 @@
 | Persistent Guard | 約150秒失敗、約143秒失敗、約143秒失敗、約143秒成功 | Webhook署名Test Header、Audit Actor正本、Pending日時、HTTP Fake、Schema Inventory順を段階修正 | 全V2 Suite／Migration PASS |
 | Admin Browser E2E | 約52秒 | LINE設定のFresh MFA再送を含む11 Scenario | PASS |
 | First-party Package | 約90秒 | Contract／Client／Testkit／Site Schemaを依存順で検証 | PASS |
+| Ephemeral Smoke初回 | 245.49秒 | Host root filesystemが100%となり、QA Load Testが`/tmp`へ結果を書けず停止。稼働Resourceに触れず未使用Docker Build Cache 12.34GBだけを削除 | Infrastructure容量不足を解消 |
+| Ephemeral Smoke再試行 | 374.94秒 | 新規CHECK式がDump／Restoreで等価な別表現へ正規化されSchema Checksum不一致 | CHECKを明示比較／`text[]`へ安定化 |
+| Persistent Guard最終 | 144.41秒 | 安定化後Migrationと全V2回帰を再実行 | PASS |
+| Ephemeral Smoke最終 | 278.80秒 | Source／Restore双方の全Suite、Load、Backup／Restore、Cleanup | PASS |
 
 ## 非変更
 

@@ -5890,3 +5890,44 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `v1/early-release`、Archive Branch、Annotated Tagを変更していない。
 - Gate G4／G5は`NOT COMPLETE`である。次Task候補は
   `MIG-060F Admin Gacha Version Management`だが、本Task内で開始しない。
+
+### MIG-058B Messaging統合 最終Local検証
+
+- LINE Messaging統合後の最終Migration数は19件、Migration Set SHA-256は
+  `96a6b7501d1291f5103f1b23438c4670f8ae04449e851e2120622f1f8f520836`
+  である。
+- Persistent Guardを144.41秒で完了し、`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、Schema Inventory、PostgreSQL／Redis Healthが
+  PASSした。Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-messaging-stable/persistent-result.json`
+  である。
+- Task専用Ephemeral Guardを278.80秒で完了し、`migrate:fresh` 2回、
+  全V2 Suite、Draw／QA／Reporting／Content Load、API／Admin Health、
+  Backup／Restore、Resource CleanupがPASSした。Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-058B/ephemeral-final-messaging-stable/ephemeral-result.json`
+  である。
+- Source／Restore Schema SHA-256は
+  `3d59ccfb05abd0c1954c6d6ff8eef435ccd913fa7aef72972ea75087edd472a2`、
+  Migration Row SHA-256は
+  `77cbd2fc2bce85ea8830e6ff3a8d7b50086fac778c29672e6e10cdff242cd623`
+  で一致した。Backup SHA-256は
+  `21b173ef40c209bbea8cea48df2fe4d2c318693465fed6c54b36b56dace64fd3`
+  である。
+- Ephemeral初回は245.49秒後にHost root filesystem容量不足で停止した。
+  Source、稼働Container／Image、DB Volumeを変更せず、未使用Docker Build Cache
+  12.34GBだけを削除して空き容量を確保した。
+- 2回目は374.94秒後に、新規CHECK式がPostgreSQL Dump／Restoreで等価な別表現へ
+  正規化されるためSchema Checksum不一致となった。CHECKを意味不変の明示比較と
+  `text = ANY(text[])`へ安定化し、Persistent／Ephemeralを最初から再実行した。
+  Gate、Baseline、Assertion、Timeout、Memory設定は弱めていない。
+- Policy Unit 88件、Policy Gate、Quality Gate、Security Unit 4件、
+  Security Gateは最終差分でPASSした。Root Audit 0、Legacy Audit 11、
+  新規Critical／High 0、Secret Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変であり、V1 Runtime、本番DB／Redis／Storage、Nginx、
+  `v1/early-release`、Archive Branch、Annotated Tagを変更していない。
+- Final Head、GitHub 8 Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR Closeoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持する。次Task候補は
+  `MIG-060F Admin Gacha Version Management`であり、本Taskでは開始しない。
