@@ -34,9 +34,183 @@ x-oripa-error-codes:
     status: 404
     retryable: false
     description: Contact Inquiryが存在しない、または参照できない。
+  INVALID_CATALOG_QUERY:
+    status: 422
+    retryable: false
+    description: Catalog検索条件が不正。
+  INVALID_CURSOR:
+    status: 422
+    retryable: false
+    description: Catalog Cursorが不正、改ざん済み、または検索条件と不一致。
+  CATALOG_RESOURCE_NOT_FOUND:
+    status: 404
+    retryable: false
+    description: Catalog Resourceが存在しない。
 servers:
   - url: /admin/api/v2
 paths:
+  /catalog/categories:
+    get:
+      operationId: listAdminCatalogCategories
+      summary: Category一覧を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {$ref: '#/components/parameters/CatalogSearch'}
+        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {$ref: '#/components/parameters/CatalogDirection'}
+        - {name: sort, in: query, schema: {type: string, enum: [sort_order, name, code], default: sort_order}}
+      responses:
+        '200': {description: Category一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogCategoryCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/categories/{catalog_resource_id}:
+    get:
+      operationId: getAdminCatalogCategory
+      summary: Category詳細を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
+      responses:
+        '200': {description: Category詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogCategoryDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/tags:
+    get:
+      operationId: listAdminCatalogTags
+      summary: Tag一覧を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {$ref: '#/components/parameters/CatalogSearch'}
+        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {$ref: '#/components/parameters/CatalogDirection'}
+        - {name: sort, in: query, schema: {type: string, enum: [sort_order, name, code], default: sort_order}}
+      responses:
+        '200': {description: Tag一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogTagCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/tags/{catalog_resource_id}:
+    get:
+      operationId: getAdminCatalogTag
+      summary: Tag詳細を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
+      responses:
+        '200': {description: Tag詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogTagDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/ranks:
+    get:
+      operationId: listAdminCatalogRanks
+      summary: Rank一覧を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {$ref: '#/components/parameters/CatalogSearch'}
+        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {$ref: '#/components/parameters/CatalogDirection'}
+        - {name: sort, in: query, schema: {type: string, enum: [sort_order, name, code], default: sort_order}}
+      responses:
+        '200': {description: Rank一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/ranks/{catalog_resource_id}:
+    get:
+      operationId: getAdminCatalogRank
+      summary: Rank詳細を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
+      responses:
+        '200': {description: Rank詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/prizes:
+    get:
+      operationId: listAdminCatalogPrizes
+      summary: Prize一覧を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {$ref: '#/components/parameters/CatalogSearch'}
+        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {$ref: '#/components/parameters/CatalogDirection'}
+        - {name: sort, in: query, schema: {type: string, enum: [name, code, rank], default: name}}
+        - {name: rank_id, in: query, schema: {$ref: '#/components/schemas/OpaqueId'}}
+      responses:
+        '200': {description: Prize一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/prizes/{catalog_resource_id}:
+    get:
+      operationId: getAdminCatalogPrize
+      summary: Prize詳細を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
+      responses:
+        '200': {description: Prize詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/presentation-assets:
+    get:
+      operationId: listAdminCatalogPresentationAssets
+      summary: Presentation Asset一覧を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {$ref: '#/components/parameters/CatalogSearch'}
+        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {$ref: '#/components/parameters/CatalogDirection'}
+        - {name: sort, in: query, schema: {type: string, enum: [created_at, media_type], default: created_at}}
+        - {name: media_type, in: query, schema: {type: string, enum: [all, image, video], default: all}}
+      responses:
+        '200': {description: Presentation Asset一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/presentation-assets/{catalog_resource_id}:
+    get:
+      operationId: getAdminCatalogPresentationAsset
+      summary: Presentation Asset詳細を参照する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
+      responses:
+        '200': {description: Presentation Asset詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /content/banners:
     get:
       operationId: listAdminContentBanners
@@ -1413,6 +1587,159 @@ components:
       in: cookie
       name: __Host-oripa_admin_session
   schemas:
+    AdminCatalogCategory:
+      type: object
+      additionalProperties: false
+      required: [id, code, slug, name, description, sort_order, is_visible, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 64}
+        slug: {type: string, maxLength: 128}
+        name: {type: string, maxLength: 191}
+        description: {type: [string, 'null']}
+        sort_order: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminCatalogTag:
+      type: object
+      additionalProperties: false
+      required: [id, code, slug, name, sort_order, is_visible, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 64}
+        slug: {type: string, maxLength: 128}
+        name: {type: string, maxLength: 191}
+        sort_order: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminCatalogRank:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, sort_order, is_visible, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 32}
+        name: {type: string, maxLength: 128}
+        sort_order: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminCatalogRankReference:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, sort_order]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 32}
+        name: {type: string, maxLength: 128}
+        sort_order: {type: integer, minimum: 0}
+    AdminCatalogAssetReference:
+      type: object
+      additionalProperties: false
+      required: [id, media_type, mime_type, alt_text, public_path, is_public]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        media_type: {type: string, enum: [image, video]}
+        mime_type: {type: string, maxLength: 128}
+        alt_text: {type: [string, 'null'], maxLength: 191}
+        public_path: {type: [string, 'null'], maxLength: 512}
+        is_public: {type: boolean}
+    AdminCatalogPrize:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, description, display_price, exchange_points, is_visible, rank, presentation_asset, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 64}
+        name: {type: string, maxLength: 191}
+        description: {type: [string, 'null']}
+        display_price: {type: integer, minimum: 0}
+        exchange_points: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+        rank: {$ref: '#/components/schemas/AdminCatalogRankReference'}
+        presentation_asset:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
+            - {type: 'null'}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminCatalogPresentationAsset:
+      type: object
+      additionalProperties: false
+      required: [id, media_type, mime_type, byte_size, alt_text, public_path, checksum_sha256, is_public, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        media_type: {type: string, enum: [image, video]}
+        mime_type: {type: string, maxLength: 128}
+        byte_size: {type: integer, minimum: 0}
+        alt_text: {type: [string, 'null'], maxLength: 191}
+        public_path: {type: [string, 'null'], maxLength: 512}
+        checksum_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        is_public: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminCatalogCategoryCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogCategory'}}
+        next_cursor: {type: [string, 'null']}
+    AdminCatalogTagCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogTag'}}
+        next_cursor: {type: [string, 'null']}
+    AdminCatalogRankCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogRank'}}
+        next_cursor: {type: [string, 'null']}
+    AdminCatalogPrizeCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogPrize'}}
+        next_cursor: {type: [string, 'null']}
+    AdminCatalogPresentationAssetCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogPresentationAsset'}}
+        next_cursor: {type: [string, 'null']}
+    AdminCatalogCategoryDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties: {data: {$ref: '#/components/schemas/AdminCatalogCategory'}}
+    AdminCatalogTagDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties: {data: {$ref: '#/components/schemas/AdminCatalogTag'}}
+    AdminCatalogRankDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties: {data: {$ref: '#/components/schemas/AdminCatalogRank'}}
+    AdminCatalogPrizeDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties: {data: {$ref: '#/components/schemas/AdminCatalogPrize'}}
+    AdminCatalogPresentationAssetDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties: {data: {$ref: '#/components/schemas/AdminCatalogPresentationAsset'}}
     ContentVersionBase:
       type: object
       additionalProperties: false
@@ -2589,6 +2916,23 @@ components:
           type: integer
           minimum: 0
   parameters:
+    CatalogResourceId:
+      name: catalog_resource_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    CatalogSearch:
+      name: q
+      in: query
+      schema: {type: string, maxLength: 100}
+    CatalogVisibility:
+      name: visibility
+      in: query
+      schema: {type: string, enum: [all, visible, hidden], default: all}
+    CatalogDirection:
+      name: direction
+      in: query
+      schema: {type: string, enum: [asc, desc], default: asc}
     ContentId:
       name: content_id
       in: path

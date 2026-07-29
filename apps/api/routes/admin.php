@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
+use App\Http\Controllers\V2\V2AdminCatalogController;
 use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
@@ -82,6 +83,26 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function (): void {
+        Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
+            ->name('v2.admin.catalog.categories.index');
+        Route::get('/catalog/categories/{catalogResourceId}', [V2AdminCatalogController::class, 'category'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.categories.show');
+        Route::get('/catalog/tags', [V2AdminCatalogController::class, 'tags'])
+            ->name('v2.admin.catalog.tags.index');
+        Route::get('/catalog/tags/{catalogResourceId}', [V2AdminCatalogController::class, 'tag'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.tags.show');
+        Route::get('/catalog/ranks', [V2AdminCatalogController::class, 'ranks'])
+            ->name('v2.admin.catalog.ranks.index');
+        Route::get('/catalog/ranks/{catalogResourceId}', [V2AdminCatalogController::class, 'rank'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.show');
+        Route::get('/catalog/prizes', [V2AdminCatalogController::class, 'prizes'])
+            ->name('v2.admin.catalog.prizes.index');
+        Route::get('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'prize'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.show');
+        Route::get('/catalog/presentation-assets', [V2AdminCatalogController::class, 'assets'])
+            ->name('v2.admin.catalog.presentation-assets.index');
+        Route::get('/catalog/presentation-assets/{catalogResourceId}', [V2AdminCatalogController::class, 'asset'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.show');
         Route::get('/content/banners', [V2AdminContentContactController::class, 'banners']);
         Route::post('/content/banners', [V2AdminContentContactController::class, 'createBanner']);
         Route::get('/content/banners/{contentId}', [V2AdminContentContactController::class, 'banner'])->whereUuid('contentId');

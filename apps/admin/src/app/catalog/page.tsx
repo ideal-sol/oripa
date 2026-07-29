@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { CatalogOverview } from "@/components/catalog/catalog-overview";
 
 export const metadata: Metadata = { title: "カタログ" };
 
 export default function CatalogPage() {
-  return <ModuleRoutePage routeId="catalog" />;
+  return <CatalogOverview />;
 }

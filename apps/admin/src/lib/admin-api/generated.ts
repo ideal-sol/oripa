@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 48a31f4acd9eeda30db6d97d486a33d60ccd47f867a66fb21abb2c34ce00fb54
+// Contract SHA-256: 232d9e75e73c12030dd2db56e24ef6b3bf02ed3ba0437e617e8ec6fcd04c5669
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -113,6 +113,88 @@ export interface AdminReauthenticationResponse {
   fresh_mfa_expires_in: 300;
   admin: AdminIdentity;
 }
+
+export interface AdminCatalogCategory {
+  id: string;
+  code: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogTag {
+  id: string;
+  code: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogRank {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogRankReference {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+}
+
+export interface AdminCatalogAssetReference {
+  id: string;
+  media_type: "image" | "video";
+  mime_type: string;
+  alt_text: string | null;
+  public_path: string | null;
+  is_public: boolean;
+}
+
+export interface AdminCatalogPrize {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+  rank: AdminCatalogRankReference;
+  presentation_asset: AdminCatalogAssetReference | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReference {
+  byte_size: number;
+  checksum_sha256: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogCollection<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
+export interface AdminCatalogDetail<T> {
+  data: T;
+}
+
+export type AdminCatalogVisibility = "all" | "visible" | "hidden";
+export type AdminCatalogDirection = "asc" | "desc";
 
 export interface StatusResponse {
   status: string;

@@ -27,6 +27,19 @@ const operations = {
     "/auth/reauthenticate/webauthn/options",
   ],
   reauthenticateAdmin: ["post", "/auth/reauthenticate"],
+  listAdminCatalogCategories: ["get", "/catalog/categories"],
+  getAdminCatalogCategory: ["get", "/catalog/categories/{catalog_resource_id}"],
+  listAdminCatalogTags: ["get", "/catalog/tags"],
+  getAdminCatalogTag: ["get", "/catalog/tags/{catalog_resource_id}"],
+  listAdminCatalogRanks: ["get", "/catalog/ranks"],
+  getAdminCatalogRank: ["get", "/catalog/ranks/{catalog_resource_id}"],
+  listAdminCatalogPrizes: ["get", "/catalog/prizes"],
+  getAdminCatalogPrize: ["get", "/catalog/prizes/{catalog_resource_id}"],
+  listAdminCatalogPresentationAssets: ["get", "/catalog/presentation-assets"],
+  getAdminCatalogPresentationAsset: [
+    "get",
+    "/catalog/presentation-assets/{catalog_resource_id}",
+  ],
 };
 
 if (contract.servers?.[0]?.url !== "/admin/api/v2") {
@@ -55,6 +68,16 @@ const requiredSchemas = [
   "WebauthnOptionsRequest",
   "WebauthnRegistration",
   "AdminPermissionCode",
+  "AdminCatalogCategory",
+  "AdminCatalogCategoryCollection",
+  "AdminCatalogPresentationAsset",
+  "AdminCatalogPresentationAssetCollection",
+  "AdminCatalogPrize",
+  "AdminCatalogPrizeCollection",
+  "AdminCatalogRank",
+  "AdminCatalogRankCollection",
+  "AdminCatalogTag",
+  "AdminCatalogTagCollection",
 ];
 for (const name of requiredSchemas) {
   if (!schemas[name]) {
@@ -174,6 +197,88 @@ export interface AdminReauthenticationResponse {
   fresh_mfa_expires_in: 300;
   admin: AdminIdentity;
 }
+
+export interface AdminCatalogCategory {
+  id: string;
+  code: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogTag {
+  id: string;
+  code: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogRank {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogRankReference {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+}
+
+export interface AdminCatalogAssetReference {
+  id: string;
+  media_type: "image" | "video";
+  mime_type: string;
+  alt_text: string | null;
+  public_path: string | null;
+  is_public: boolean;
+}
+
+export interface AdminCatalogPrize {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  display_price: number;
+  exchange_points: number;
+  is_visible: boolean;
+  rank: AdminCatalogRankReference;
+  presentation_asset: AdminCatalogAssetReference | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReference {
+  byte_size: number;
+  checksum_sha256: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogCollection<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
+export interface AdminCatalogDetail<T> {
+  data: T;
+}
+
+export type AdminCatalogVisibility = "all" | "visible" | "hidden";
+export type AdminCatalogDirection = "asc" | "desc";
 
 export interface StatusResponse {
   status: string;
