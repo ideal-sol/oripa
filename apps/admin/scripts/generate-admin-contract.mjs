@@ -102,6 +102,34 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive",
   ],
+  listAdminCatalogProbabilityVersions: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions",
+  ],
+  createAdminCatalogProbabilityDraft: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions",
+  ],
+  getAdminCatalogProbabilityVersion: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}",
+  ],
+  cloneAdminCatalogProbabilityDraft: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/clone",
+  ],
+  replaceAdminCatalogProbabilityDraftEntries: [
+    "put",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/entries",
+  ],
+  validateAdminCatalogProbabilityDraft: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/validate",
+  ],
+  archiveAdminCatalogProbabilityDraft: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive",
+  ],
 };
 
 if (contract.servers?.[0]?.url !== "/admin/api/v2") {
@@ -171,6 +199,10 @@ const requiredSchemas = [
   "AdminCatalogGachaVersionUpdate",
   "AdminCatalogGachaVersionMutationResult",
   "AdminCatalogGachaVersionCollection",
+  "AdminCatalogProbabilityVersion",
+  "AdminCatalogProbabilityEntriesReplace",
+  "AdminCatalogProbabilityVersionMutationResult",
+  "AdminCatalogProbabilityVersionCollection",
 ];
 for (const name of requiredSchemas) {
   if (!schemas[name]) {
@@ -618,6 +650,99 @@ export interface AdminCatalogGachaVersionCreate {
 export interface AdminCatalogGachaVersionUpdate
   extends AdminCatalogGachaVersionCreate {
   expected_revision: number;
+}
+
+export interface AdminCatalogProbabilityPrizeReference {
+  id: string;
+  code: string;
+  name: string;
+  rank: AdminCatalogRankReference;
+}
+
+export interface AdminCatalogProbabilityTarget {
+  result_type: "prize" | "point_back";
+  prize: AdminCatalogProbabilityPrizeReference | null;
+  point_amount: number | null;
+  probability_ppm: number;
+}
+
+export interface AdminCatalogProbabilityEntry
+  extends AdminCatalogProbabilityTarget {
+  sort_order: number;
+}
+
+export interface AdminCatalogProbabilityStage {
+  id: string;
+  code: string;
+  name: string;
+  condition_type: "sold_count";
+  min_draw_number: number;
+  max_draw_number: number | null;
+  sort_order: number;
+  entries: AdminCatalogProbabilityEntry[];
+  minimum_guarantee: AdminCatalogProbabilityTarget | null;
+}
+
+export interface AdminCatalogProbabilityStageValidation {
+  stage_id: string | null;
+  code: string;
+  current_total_ppm: number;
+  required_total_ppm: 1000000;
+  remaining_ppm: number;
+  excess_ppm: number;
+  errors: string[];
+}
+
+export interface AdminCatalogProbabilityValidation {
+  is_valid: boolean;
+  current_total_ppm: number;
+  required_total_ppm: number;
+  remaining_ppm: number;
+  excess_ppm: number;
+  errors: string[];
+  stages: AdminCatalogProbabilityStageValidation[];
+}
+
+export interface AdminCatalogProbabilityVersion {
+  id: string;
+  gacha_version_id: string;
+  version_number: number;
+  status: "draft" | "published";
+  snapshot_sha256: string;
+  cloned_from_version: {
+    id: string;
+    version_number: number;
+    status: "draft" | "published";
+  } | null;
+  stages: AdminCatalogProbabilityStage[];
+  validation: AdminCatalogProbabilityValidation;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogProbabilityTargetInput {
+  result_type: "prize" | "point_back";
+  prize_id: string | null;
+  point_amount: number | null;
+  probability_ppm: number;
+}
+
+export interface AdminCatalogProbabilityStageInput {
+  code: string;
+  name: string;
+  min_draw_number: number;
+  max_draw_number: number | null;
+  entries: AdminCatalogProbabilityTargetInput[];
+  minimum_guarantee: AdminCatalogProbabilityTargetInput | null;
+}
+
+export interface AdminCatalogProbabilityEntriesReplace {
+  expected_revision: number;
+  stages: AdminCatalogProbabilityStageInput[];
 }
 
 export interface AdminCatalogArchiveRequest {

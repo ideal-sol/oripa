@@ -13,6 +13,8 @@ import {
   type AdminCatalogGachaVersion,
   type AdminCatalogGachaVersionCreate,
   type AdminCatalogGachaVersionUpdate,
+  type AdminCatalogProbabilityEntriesReplace,
+  type AdminCatalogProbabilityVersion,
   type AdminCatalogPresentationAsset,
   type AdminCatalogPresentationAssetCreate,
   type AdminCatalogPresentationAssetUpdate,
@@ -511,6 +513,142 @@ export class AdminApiClient {
     );
   }
 
+  listCatalogProbabilityVersions(
+    gachaId: string,
+    gachaVersionId: string,
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogProbabilityVersion>> {
+    const path = this.probabilityVersionPath(gachaId, gachaVersionId);
+    if (path === null) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") parameters.set(name, String(value));
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request("GET", `${path}${suffix}`, { signal });
+  }
+
+  getCatalogProbabilityVersion(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogProbabilityVersion>> {
+    const path = this.probabilityVersionPath(
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+    );
+    if (path === null) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", path, { signal });
+  }
+
+  createCatalogProbabilityDraft(
+    gachaId: string,
+    gachaVersionId: string,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      null,
+      null,
+      {},
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  cloneCatalogProbabilityDraft(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "clone",
+      {},
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  replaceCatalogProbabilityEntries(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    body: AdminCatalogProbabilityEntriesReplace,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "PUT",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "entries",
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  validateCatalogProbabilityDraft(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "validate",
+      { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  discardCatalogProbabilityDraft(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    return this.probabilityVersionMutation(
+      "POST",
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId,
+      "archive",
+      { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
   login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {
     return this.request("POST", "/auth/login", { body, signal });
   }
@@ -723,6 +861,53 @@ export class AdminApiClient {
     return this.request(
       method,
       `/catalog/gachas/${encodeURIComponent(gachaId)}/versions${versionPath}${actionPath}`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  private probabilityVersionPath(
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId?: string,
+  ): `/catalog/${string}` | null {
+    if (
+      !isOpaqueId(gachaId) ||
+      !isOpaqueId(gachaVersionId) ||
+      (probabilityVersionId !== undefined && !isOpaqueId(probabilityVersionId))
+    ) {
+      return null;
+    }
+    const root =
+      `/catalog/gachas/${encodeURIComponent(gachaId)}` +
+      `/versions/${encodeURIComponent(gachaVersionId)}/probability-versions`;
+    return (probabilityVersionId === undefined
+      ? root
+      : `${root}/${encodeURIComponent(probabilityVersionId)}`) as `/catalog/${string}`;
+  }
+
+  private probabilityVersionMutation<TBody>(
+    method: "POST" | "PUT",
+    gachaId: string,
+    gachaVersionId: string,
+    probabilityVersionId: string | null,
+    action: "clone" | "entries" | "validate" | "archive" | null,
+    body: TBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogProbabilityVersion>> {
+    const path = this.probabilityVersionPath(
+      gachaId,
+      gachaVersionId,
+      probabilityVersionId ?? undefined,
+    );
+    if (path === null || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      method,
+      action === null ? path : `${path}/${action}`,
       { body, idempotencyKey, signal },
     );
   }

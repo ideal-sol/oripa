@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 10df0b173818af634856cd271e8d91d9826f07df1970e3485f45f3654a9f6b03
+// Contract SHA-256: 3f8fd89f1c6ec0eabd6fba0a53136953aae8e158bdd61a6707fb021e31155eec
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -443,6 +443,99 @@ export interface AdminCatalogGachaVersionCreate {
 export interface AdminCatalogGachaVersionUpdate
   extends AdminCatalogGachaVersionCreate {
   expected_revision: number;
+}
+
+export interface AdminCatalogProbabilityPrizeReference {
+  id: string;
+  code: string;
+  name: string;
+  rank: AdminCatalogRankReference;
+}
+
+export interface AdminCatalogProbabilityTarget {
+  result_type: "prize" | "point_back";
+  prize: AdminCatalogProbabilityPrizeReference | null;
+  point_amount: number | null;
+  probability_ppm: number;
+}
+
+export interface AdminCatalogProbabilityEntry
+  extends AdminCatalogProbabilityTarget {
+  sort_order: number;
+}
+
+export interface AdminCatalogProbabilityStage {
+  id: string;
+  code: string;
+  name: string;
+  condition_type: "sold_count";
+  min_draw_number: number;
+  max_draw_number: number | null;
+  sort_order: number;
+  entries: AdminCatalogProbabilityEntry[];
+  minimum_guarantee: AdminCatalogProbabilityTarget | null;
+}
+
+export interface AdminCatalogProbabilityStageValidation {
+  stage_id: string | null;
+  code: string;
+  current_total_ppm: number;
+  required_total_ppm: 1000000;
+  remaining_ppm: number;
+  excess_ppm: number;
+  errors: string[];
+}
+
+export interface AdminCatalogProbabilityValidation {
+  is_valid: boolean;
+  current_total_ppm: number;
+  required_total_ppm: number;
+  remaining_ppm: number;
+  excess_ppm: number;
+  errors: string[];
+  stages: AdminCatalogProbabilityStageValidation[];
+}
+
+export interface AdminCatalogProbabilityVersion {
+  id: string;
+  gacha_version_id: string;
+  version_number: number;
+  status: "draft" | "published";
+  snapshot_sha256: string;
+  cloned_from_version: {
+    id: string;
+    version_number: number;
+    status: "draft" | "published";
+  } | null;
+  stages: AdminCatalogProbabilityStage[];
+  validation: AdminCatalogProbabilityValidation;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogProbabilityTargetInput {
+  result_type: "prize" | "point_back";
+  prize_id: string | null;
+  point_amount: number | null;
+  probability_ppm: number;
+}
+
+export interface AdminCatalogProbabilityStageInput {
+  code: string;
+  name: string;
+  min_draw_number: number;
+  max_draw_number: number | null;
+  entries: AdminCatalogProbabilityTargetInput[];
+  minimum_guarantee: AdminCatalogProbabilityTargetInput | null;
+}
+
+export interface AdminCatalogProbabilityEntriesReplace {
+  expected_revision: number;
+  stages: AdminCatalogProbabilityStageInput[];
 }
 
 export interface AdminCatalogArchiveRequest {

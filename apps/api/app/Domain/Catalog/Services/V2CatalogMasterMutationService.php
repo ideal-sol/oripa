@@ -575,6 +575,295 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function createProbabilityDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'probability_version');
+        $this->rateLimit($context, $admin, 'create', 'probability_version');
+        $this->assertFields($input, [], []);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            'create',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+            ],
+            201,
+            function () use ($gachaPublicId, $gachaVersionPublicId): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+
+                return $this->insertProbabilityDraft($gachaVersion, null, []);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function cloneProbabilityDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $sourcePublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'clone', 'probability_version');
+        $this->rateLimit($context, $admin, 'clone', 'probability_version');
+        $this->assertFields($input, [], []);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            'clone',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'source_probability_version_id' => $sourcePublicId,
+            ],
+            201,
+            function () use (
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $sourcePublicId
+            ): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+                $source = $this->find(
+                    'catalog_probability_versions',
+                    $sourcePublicId,
+                    true
+                );
+                if (
+                    (int) $source->gacha_version_id !== (int) $gachaVersion->id
+                    || $source->archived_at !== null
+                ) {
+                    throw $this->notFound();
+                }
+
+                return $this->insertProbabilityDraft(
+                    $gachaVersion,
+                    (int) $source->id,
+                    $this->probabilityStructure((int) $source->id)
+                );
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function replaceProbabilityEntries(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'probability_version');
+        $this->rateLimit($context, $admin, 'update', 'probability_version');
+        $payload = $this->validateProbabilityStructure($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            'update',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'probability_version_id' => $probabilityVersionPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use (
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $probabilityVersionPublicId,
+                $payload
+            ): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+                $version = $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    true
+                );
+                $this->assertProbabilityVersionMutable(
+                    $version,
+                    (int) $gachaVersion->id,
+                    $payload['expected_revision']
+                );
+                $structure = $this->resolveProbabilityStructure(
+                    (int) $gachaVersion->id,
+                    $payload['stages']
+                );
+                $this->replaceProbabilityStructure((int) $version->id, $structure);
+                DB::table('catalog_probability_versions')
+                    ->where('id', $version->id)
+                    ->update([
+                        'snapshot_sha256' => $this->probabilityChecksum($structure),
+                        'revision' => (int) $version->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+
+                return $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    false
+                );
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function validateProbabilityDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'validate', 'probability_version');
+        $this->rateLimit($context, $admin, 'validate', 'probability_version');
+        $this->assertFields($input, ['expected_revision'], ['expected_revision']);
+        $expectedRevision = $this->revision($input['expected_revision']);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            'validate',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'probability_version_id' => $probabilityVersionPublicId,
+                'expected_revision' => $expectedRevision,
+            ],
+            200,
+            function () use (
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $probabilityVersionPublicId,
+                $expectedRevision
+            ): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+                $version = $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    true
+                );
+                $this->assertProbabilityVersionMutable(
+                    $version,
+                    (int) $gachaVersion->id,
+                    $expectedRevision
+                );
+
+                return $version;
+            },
+            false
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function archiveProbabilityDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'archive', 'probability_version');
+        $this->rateLimit($context, $admin, 'archive', 'probability_version');
+        $payload = $this->validateArchive($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            'discard',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'probability_version_id' => $probabilityVersionPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use (
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $probabilityVersionPublicId,
+                $payload
+            ): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+                $version = $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    true
+                );
+                $this->assertProbabilityVersionMutable(
+                    $version,
+                    (int) $gachaVersion->id,
+                    $payload['expected_revision']
+                );
+                if (
+                    (int) ($gachaVersion->published_probability_version_id ?? 0)
+                    === (int) $version->id
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_PUBLISHED_REFERENCE_CONFLICT',
+                        409,
+                        'A Published Gacha Version protects this Probability Version.'
+                    );
+                }
+                DB::table('catalog_probability_versions')
+                    ->where('id', $version->id)
+                    ->update([
+                        'archived_at' => now()->startOfSecond(),
+                        'revision' => (int) $version->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+
+                return $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    false
+                );
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
     private function createPrize(
         V2AdminAuthorizationContext $context,
         string $idempotencyKey,
@@ -843,7 +1132,8 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $request,
         int $status,
-        callable $mutation
+        callable $mutation,
+        bool $enqueueOutbox = true
     ): array {
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 255) {
             throw new V2CatalogException(
@@ -866,7 +1156,8 @@ final class V2CatalogMasterMutationService
                 $idempotencyKey,
                 $request,
                 $status,
-                $mutation
+                $mutation,
+                $enqueueOutbox
             ): array {
                 try {
                     $claim = $this->idempotency->claim(
@@ -910,6 +1201,7 @@ final class V2CatalogMasterMutationService
                     'archive' => 'archived',
                     'clone' => 'cloned',
                     'discard' => 'discarded',
+                    'validate' => 'validated',
                     default => throw new \LogicException(
                         'Unsupported Catalog mutation action.'
                     ),
@@ -925,18 +1217,20 @@ final class V2CatalogMasterMutationService
                     $data['id'],
                     ['revision' => $data['revision']]
                 );
-                $this->outbox->enqueue(
-                    'catalog.change',
-                    'catalog_'.$resource,
-                    $data['id'],
-                    $event,
-                    [
-                        'catalog_public_id' => $data['id'],
-                        'catalog_resource' => $resource,
-                        'revision' => $data['revision'],
-                    ],
-                    'catalog-'.$action.'-'.$claim->record->public_id
-                );
+                if ($enqueueOutbox) {
+                    $this->outbox->enqueue(
+                        'catalog.change',
+                        'catalog_'.$resource,
+                        $data['id'],
+                        $event,
+                        [
+                            'catalog_public_id' => $data['id'],
+                            'catalog_resource' => $resource,
+                            'revision' => $data['revision'],
+                        ],
+                        'catalog-'.$action.'-'.$claim->record->public_id
+                    );
+                }
                 $this->idempotency->complete(
                     $claim->record,
                     'catalog_'.$resource,
@@ -1211,6 +1505,160 @@ final class V2CatalogMasterMutationService
             'publish_start_at' => $startsAt,
             'publish_end_at' => $endsAt,
             'prizes' => $prizes,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @return array{expected_revision: int, stages: array<int, array<string, mixed>>}
+     */
+    private function validateProbabilityStructure(array $input): array
+    {
+        $this->assertFields(
+            $input,
+            ['expected_revision', 'stages'],
+            ['expected_revision', 'stages']
+        );
+        if (! is_array($input['stages'])) {
+            throw $this->validationException();
+        }
+
+        $stages = [];
+        $codes = [];
+        $previousMaximum = null;
+        foreach (array_values($input['stages']) as $stageIndex => $stage) {
+            if (! is_array($stage)) {
+                throw $this->validationException();
+            }
+            $this->assertFields(
+                $stage,
+                [
+                    'code',
+                    'name',
+                    'min_draw_number',
+                    'max_draw_number',
+                    'entries',
+                    'minimum_guarantee',
+                ],
+                [
+                    'code',
+                    'name',
+                    'min_draw_number',
+                    'max_draw_number',
+                    'entries',
+                    'minimum_guarantee',
+                ]
+            );
+            $code = $this->code($stage['code'], 64);
+            if (isset($codes[$code]) || ! is_array($stage['entries'])) {
+                throw $this->validationException();
+            }
+            $codes[$code] = true;
+            $minimum = $this->positiveInteger($stage['min_draw_number']);
+            $maximum = $stage['max_draw_number'] === null
+                ? null
+                : $this->positiveInteger($stage['max_draw_number']);
+            if (
+                ($maximum !== null && $maximum < $minimum)
+                || ($stageIndex === 0 && $minimum !== 1)
+                || ($stageIndex > 0 && $previousMaximum === null)
+                || (
+                    $stageIndex > 0
+                    && $minimum !== ((int) $previousMaximum + 1)
+                )
+            ) {
+                throw $this->validationException();
+            }
+            if (
+                $stageIndex < count($input['stages']) - 1
+                && $maximum === null
+            ) {
+                throw $this->validationException();
+            }
+
+            $entries = [];
+            $entryPrizeIds = [];
+            foreach (array_values($stage['entries']) as $entry) {
+                $target = $this->validateProbabilityTarget($entry);
+                if (
+                    $target['result_type'] === 'prize'
+                    && isset($entryPrizeIds[$target['prize_id']])
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_PROBABILITY_DUPLICATE_PRIZE',
+                        422,
+                        'A Probability Stage cannot contain duplicate Prize entries.'
+                    );
+                }
+                if ($target['result_type'] === 'prize') {
+                    $entryPrizeIds[$target['prize_id']] = true;
+                }
+                $entries[] = [
+                    ...$target,
+                    'sort_order' => count($entries) * 10 + 10,
+                ];
+            }
+            $guarantee = $stage['minimum_guarantee'] === null
+                ? null
+                : $this->validateProbabilityTarget($stage['minimum_guarantee']);
+            $stages[] = [
+                'code' => $code,
+                'name' => $this->plainText($stage['name'], 1, 128),
+                'condition_type' => 'sold_count',
+                'min_draw_number' => $minimum,
+                'max_draw_number' => $maximum,
+                'sort_order' => $stageIndex * 10 + 10,
+                'entries' => $entries,
+                'minimum_guarantee' => $guarantee,
+            ];
+            $previousMaximum = $maximum;
+        }
+
+        return [
+            'expected_revision' => $this->revision($input['expected_revision']),
+            'stages' => $stages,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateProbabilityTarget(mixed $target): array
+    {
+        if (! is_array($target)) {
+            throw $this->validationException();
+        }
+        $this->assertFields(
+            $target,
+            ['result_type', 'prize_id', 'point_amount', 'probability_ppm'],
+            ['result_type', 'prize_id', 'point_amount', 'probability_ppm']
+        );
+        if (! in_array($target['result_type'], ['prize', 'point_back'], true)) {
+            throw $this->validationException();
+        }
+        $ppm = $this->nonNegativeInteger($target['probability_ppm']);
+        if ($ppm > 1000000) {
+            throw $this->validationException();
+        }
+        if ($target['result_type'] === 'prize') {
+            if ($target['point_amount'] !== null) {
+                throw $this->validationException();
+            }
+
+            return [
+                'result_type' => 'prize',
+                'prize_id' => $this->uuid($target['prize_id']),
+                'point_amount' => null,
+                'probability_ppm' => $ppm,
+            ];
+        }
+        if ($target['prize_id'] !== null) {
+            throw $this->validationException();
+        }
+
+        return [
+            'result_type' => 'point_back',
+            'prize_id' => null,
+            'point_amount' => $this->nonNegativeInteger($target['point_amount']),
+            'probability_ppm' => $ppm,
         ];
     }
 
@@ -1854,6 +2302,345 @@ final class V2CatalogMasterMutationService
         return $this->find('catalog_gacha_versions', $publicId, false);
     }
 
+    private function probabilityParent(
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        bool $lock
+    ): object {
+        $gacha = $this->find('catalog_gachas', $gachaPublicId, $lock);
+        $this->assertGachaAvailable($gacha);
+        $version = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId,
+            $lock
+        );
+        if (
+            (int) $version->gacha_id !== (int) $gacha->id
+            || $version->archived_at !== null
+        ) {
+            throw $this->notFound();
+        }
+
+        return $version;
+    }
+
+    private function assertProbabilityVersionMutable(
+        object $version,
+        int $gachaVersionId,
+        int $expectedRevision
+    ): void {
+        if ((int) $version->gacha_version_id !== $gachaVersionId) {
+            throw $this->notFound();
+        }
+        if ($version->status !== 'draft') {
+            throw new V2CatalogException(
+                'CATALOG_PROBABILITY_VERSION_IMMUTABLE',
+                409,
+                'Published Probability Versions cannot be changed.'
+            );
+        }
+        $this->assertMutable($version, $expectedRevision);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stages
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveProbabilityStructure(
+        int $gachaVersionId,
+        array $stages
+    ): array {
+        $relations = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('relation.gacha_version_id', $gachaVersionId)
+            ->where('prize.is_visible', true)
+            ->whereNull('prize.archived_at')
+            ->get([
+                'relation.id',
+                'prize.public_id',
+            ])->keyBy('public_id');
+        $resolved = [];
+        foreach ($stages as $stage) {
+            $entries = [];
+            foreach ($stage['entries'] as $entry) {
+                $entries[] = $this->resolveProbabilityTarget($entry, $relations);
+            }
+            $resolved[] = [
+                ...$stage,
+                'entries' => $entries,
+                'minimum_guarantee' => $stage['minimum_guarantee'] === null
+                    ? null
+                    : $this->resolveProbabilityTarget(
+                        $stage['minimum_guarantee'],
+                        $relations
+                    ),
+            ];
+        }
+
+        return $resolved;
+    }
+
+    /** @param \Illuminate\Support\Collection<int, object> $relations */
+    private function resolveProbabilityTarget(
+        array $target,
+        $relations
+    ): array {
+        if ($target['result_type'] === 'point_back') {
+            return [
+                ...$target,
+                'gacha_version_prize_id' => null,
+                'prize_public_id' => null,
+            ];
+        }
+        $relation = $relations->get($target['prize_id']);
+        if ($relation === null) {
+            throw new V2CatalogException(
+                'CATALOG_PROBABILITY_PRIZE_INVALID',
+                422,
+                'A Probability Prize is unavailable for this Gacha Version.'
+            );
+        }
+
+        return [
+            ...$target,
+            'gacha_version_prize_id' => (int) $relation->id,
+            'prize_public_id' => $relation->public_id,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function probabilityStructure(int $probabilityVersionId): array
+    {
+        return DB::table('catalog_probability_stages')
+            ->where('probability_version_id', $probabilityVersionId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->map(function (object $stage): array {
+                $entries = DB::table('catalog_probability_entries as entry')
+                    ->leftJoin(
+                        'catalog_gacha_version_prizes as relation',
+                        'relation.id',
+                        '=',
+                        'entry.gacha_version_prize_id'
+                    )
+                    ->leftJoin(
+                        'catalog_prizes as prize',
+                        'prize.id',
+                        '=',
+                        'relation.prize_id'
+                    )
+                    ->where('entry.probability_stage_id', $stage->id)
+                    ->orderBy('entry.sort_order')
+                    ->orderBy('entry.id')
+                    ->get([
+                        'entry.result_type',
+                        'entry.gacha_version_prize_id',
+                        'entry.point_amount',
+                        'entry.probability_ppm',
+                        'entry.sort_order',
+                        'prize.public_id as prize_public_id',
+                    ])->map(fn (object $entry): array => [
+                        'result_type' => $entry->result_type,
+                        'prize_id' => $entry->prize_public_id,
+                        'point_amount' => $entry->point_amount === null
+                            ? null
+                            : (int) $entry->point_amount,
+                        'probability_ppm' => (int) $entry->probability_ppm,
+                        'sort_order' => (int) $entry->sort_order,
+                        'gacha_version_prize_id' =>
+                            $entry->gacha_version_prize_id === null
+                                ? null
+                                : (int) $entry->gacha_version_prize_id,
+                        'prize_public_id' => $entry->prize_public_id,
+                    ])->all();
+                $guarantee = DB::table('catalog_minimum_guarantees as guarantee')
+                    ->leftJoin(
+                        'catalog_gacha_version_prizes as relation',
+                        'relation.id',
+                        '=',
+                        'guarantee.gacha_version_prize_id'
+                    )
+                    ->leftJoin(
+                        'catalog_prizes as prize',
+                        'prize.id',
+                        '=',
+                        'relation.prize_id'
+                    )
+                    ->where('guarantee.probability_stage_id', $stage->id)
+                    ->first([
+                        'guarantee.result_type',
+                        'guarantee.gacha_version_prize_id',
+                        'guarantee.point_amount',
+                        'guarantee.probability_ppm',
+                        'prize.public_id as prize_public_id',
+                    ]);
+
+                return [
+                    'id' => $stage->public_id,
+                    'code' => $stage->code,
+                    'name' => $stage->display_name,
+                    'condition_type' => $stage->condition_type,
+                    'min_draw_number' => (int) $stage->min_draw_number,
+                    'max_draw_number' => $stage->max_draw_number === null
+                        ? null
+                        : (int) $stage->max_draw_number,
+                    'sort_order' => (int) $stage->sort_order,
+                    'entries' => $entries,
+                    'minimum_guarantee' => $guarantee === null ? null : [
+                        'result_type' => $guarantee->result_type,
+                        'prize_id' => $guarantee->prize_public_id,
+                        'point_amount' => $guarantee->point_amount === null
+                            ? null
+                            : (int) $guarantee->point_amount,
+                        'probability_ppm' => (int) $guarantee->probability_ppm,
+                        'gacha_version_prize_id' =>
+                            $guarantee->gacha_version_prize_id === null
+                                ? null
+                                : (int) $guarantee->gacha_version_prize_id,
+                        'prize_public_id' => $guarantee->prize_public_id,
+                    ],
+                ];
+            })->all();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stages
+     */
+    private function replaceProbabilityStructure(
+        int $probabilityVersionId,
+        array $stages
+    ): void {
+        $stageIds = DB::table('catalog_probability_stages')
+            ->where('probability_version_id', $probabilityVersionId)
+            ->pluck('id');
+        if ($stageIds->isNotEmpty()) {
+            DB::table('catalog_minimum_guarantees')
+                ->whereIn('probability_stage_id', $stageIds)->delete();
+            DB::table('catalog_probability_entries')
+                ->whereIn('probability_stage_id', $stageIds)->delete();
+            DB::table('catalog_probability_stages')
+                ->whereIn('id', $stageIds)->delete();
+        }
+        $now = now()->startOfSecond();
+        foreach ($stages as $stage) {
+            $stageId = DB::table('catalog_probability_stages')->insertGetId([
+                'public_id' => (string) Str::uuid7(),
+                'probability_version_id' => $probabilityVersionId,
+                'code' => $stage['code'],
+                'display_name' => $stage['name'],
+                'condition_type' => 'sold_count',
+                'min_draw_number' => $stage['min_draw_number'],
+                'max_draw_number' => $stage['max_draw_number'],
+                'sort_order' => $stage['sort_order'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            foreach ($stage['entries'] as $entry) {
+                DB::table('catalog_probability_entries')->insert([
+                    'probability_stage_id' => $stageId,
+                    'result_type' => $entry['result_type'],
+                    'gacha_version_prize_id' => $entry['gacha_version_prize_id'],
+                    'point_amount' => $entry['point_amount'],
+                    'probability_ppm' => $entry['probability_ppm'],
+                    'sort_order' => $entry['sort_order'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+            if ($stage['minimum_guarantee'] !== null) {
+                $guarantee = $stage['minimum_guarantee'];
+                DB::table('catalog_minimum_guarantees')->insert([
+                    'probability_stage_id' => $stageId,
+                    'result_type' => $guarantee['result_type'],
+                    'gacha_version_prize_id' =>
+                        $guarantee['gacha_version_prize_id'],
+                    'point_amount' => $guarantee['point_amount'],
+                    'probability_ppm' => $guarantee['probability_ppm'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stages
+     */
+    private function probabilityChecksum(array $stages): string
+    {
+        $canonical = array_map(function (array $stage): array {
+            $target = static fn (array $value): array => [
+                'result_type' => $value['result_type'],
+                'prize_id' => $value['prize_public_id'] ?? $value['prize_id'] ?? null,
+                'point_amount' => $value['point_amount'],
+                'probability_ppm' => $value['probability_ppm'],
+            ];
+
+            return [
+                'code' => $stage['code'],
+                'name' => $stage['name'],
+                'condition_type' => 'sold_count',
+                'min_draw_number' => $stage['min_draw_number'],
+                'max_draw_number' => $stage['max_draw_number'],
+                'sort_order' => $stage['sort_order'],
+                'entries' => array_map(
+                    fn (array $entry): array => [
+                        ...$target($entry),
+                        'sort_order' => $entry['sort_order'],
+                    ],
+                    $stage['entries']
+                ),
+                'minimum_guarantee' => $stage['minimum_guarantee'] === null
+                    ? null
+                    : $target($stage['minimum_guarantee']),
+            ];
+        }, $stages);
+
+        return hash(
+            'sha256',
+            json_encode(
+                ['stages' => $canonical],
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            )
+        );
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stages
+     */
+    private function insertProbabilityDraft(
+        object $gachaVersion,
+        ?int $clonedFromVersionId,
+        array $stages
+    ): object {
+        $versionNumber = (int) DB::table('catalog_probability_versions')
+            ->where('gacha_version_id', $gachaVersion->id)
+            ->max('version_number') + 1;
+        $now = now()->startOfSecond();
+        $publicId = (string) Str::uuid7();
+        $versionId = DB::table('catalog_probability_versions')->insertGetId([
+            'public_id' => $publicId,
+            'gacha_version_id' => $gachaVersion->id,
+            'version_number' => $versionNumber,
+            'status' => 'draft',
+            'snapshot_sha256' => $this->probabilityChecksum($stages),
+            'published_at' => null,
+            'revision' => 1,
+            'archived_at' => null,
+            'cloned_from_probability_version_id' => $clonedFromVersionId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        if ($stages !== []) {
+            $this->replaceProbabilityStructure((int) $versionId, $stages);
+        }
+
+        return $this->find('catalog_probability_versions', $publicId, false);
+    }
+
     private function find(string $table, string $publicId, bool $lock): object
     {
         if (! Str::isUuid($publicId)) {
@@ -1879,6 +2666,9 @@ final class V2CatalogMasterMutationService
         }
         if ($resource === 'gacha_version') {
             return $this->mapGachaVersion($row);
+        }
+        if ($resource === 'probability_version') {
+            return $this->mapProbabilityVersion($row);
         }
         if ($resource === 'prize') {
             return $this->mapPrize($row);
@@ -2049,6 +2839,160 @@ final class V2CatalogMasterMutationService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function mapProbabilityVersion(object $row): array
+    {
+        $gachaVersion = DB::table('catalog_gacha_versions')
+            ->where('id', $row->gacha_version_id)
+            ->firstOrFail();
+        $clonedFrom = $row->cloned_from_probability_version_id === null
+            ? null
+            : DB::table('catalog_probability_versions')
+                ->where('id', $row->cloned_from_probability_version_id)
+                ->firstOrFail();
+        $structure = $this->probabilityStructure((int) $row->id);
+        $prizes = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->where('relation.gacha_version_id', $row->gacha_version_id)
+            ->get([
+                'prize.public_id',
+                'prize.code',
+                'prize.display_name',
+                'rank.public_id as rank_public_id',
+                'rank.code as rank_code',
+                'rank.display_name as rank_name',
+                'rank.sort_order as rank_sort_order',
+            ])->keyBy('public_id');
+        $target = static function (array $value) use ($prizes): array {
+            $prize = $value['prize_public_id'] === null
+                ? null
+                : $prizes->get($value['prize_public_id']);
+
+            return [
+                'result_type' => $value['result_type'],
+                'prize' => $prize === null ? null : [
+                    'id' => $prize->public_id,
+                    'code' => $prize->code,
+                    'name' => $prize->display_name,
+                    'rank' => [
+                        'id' => $prize->rank_public_id,
+                        'code' => $prize->rank_code,
+                        'name' => $prize->rank_name,
+                        'sort_order' => (int) $prize->rank_sort_order,
+                    ],
+                ],
+                'point_amount' => $value['point_amount'],
+                'probability_ppm' => $value['probability_ppm'],
+            ];
+        };
+        $mappedStages = array_map(
+            static fn (array $stage): array => [
+                'id' => $stage['id'],
+                'code' => $stage['code'],
+                'name' => $stage['name'],
+                'condition_type' => $stage['condition_type'],
+                'min_draw_number' => $stage['min_draw_number'],
+                'max_draw_number' => $stage['max_draw_number'],
+                'sort_order' => $stage['sort_order'],
+                'entries' => array_map(
+                    static fn (array $entry): array => [
+                        ...$target($entry),
+                        'sort_order' => $entry['sort_order'],
+                    ],
+                    $stage['entries']
+                ),
+                'minimum_guarantee' => $stage['minimum_guarantee'] === null
+                    ? null
+                    : $target($stage['minimum_guarantee']),
+            ],
+            $structure
+        );
+
+        return [
+            'id' => $row->public_id,
+            'gacha_version_id' => $gachaVersion->public_id,
+            'version_number' => (int) $row->version_number,
+            'status' => $row->status,
+            'snapshot_sha256' => $row->snapshot_sha256,
+            'cloned_from_version' => $clonedFrom === null ? null : [
+                'id' => $clonedFrom->public_id,
+                'version_number' => (int) $clonedFrom->version_number,
+                'status' => $clonedFrom->status,
+            ],
+            'stages' => $mappedStages,
+            'validation' => $this->probabilityValidation(
+                $mappedStages,
+                (int) $gachaVersion->total_count
+            ),
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'published_at' => $row->published_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stages
+     * @return array<string, mixed>
+     */
+    private function probabilityValidation(array $stages, int $totalCount): array
+    {
+        $required = count($stages) * 1000000;
+        $current = 0;
+        $errors = [];
+        $stageResults = [];
+        if ($stages === []) {
+            $errors[] = 'PROBABILITY_STAGE_REQUIRED';
+        }
+        foreach ($stages as $index => $stage) {
+            $stageCurrent = array_sum(
+                array_column($stage['entries'], 'probability_ppm')
+            ) + (int) ($stage['minimum_guarantee']['probability_ppm'] ?? 0);
+            $stageErrors = [];
+            if ($stage['minimum_guarantee'] === null) {
+                $stageErrors[] = 'MINIMUM_GUARANTEE_REQUIRED';
+            }
+            if ($stageCurrent < 1000000) {
+                $stageErrors[] = 'PROBABILITY_TOTAL_INCOMPLETE';
+            } elseif ($stageCurrent > 1000000) {
+                $stageErrors[] = 'PROBABILITY_TOTAL_EXCEEDED';
+            }
+            if (
+                $index === count($stages) - 1
+                && $stage['max_draw_number'] !== null
+                && $stage['max_draw_number'] < $totalCount
+            ) {
+                $stageErrors[] = 'PROBABILITY_STAGE_RANGE_INCOMPLETE';
+            }
+            $current += $stageCurrent;
+            $stageResults[] = [
+                'stage_id' => $stage['id'],
+                'code' => $stage['code'],
+                'current_total_ppm' => $stageCurrent,
+                'required_total_ppm' => 1000000,
+                'remaining_ppm' => max(0, 1000000 - $stageCurrent),
+                'excess_ppm' => max(0, $stageCurrent - 1000000),
+                'errors' => $stageErrors,
+            ];
+            foreach ($stageErrors as $stageError) {
+                $errors[] = $stage['code'].':'.$stageError;
+            }
+        }
+
+        return [
+            'is_valid' => $errors === [],
+            'current_total_ppm' => $current,
+            'required_total_ppm' => $required,
+            'remaining_ppm' => max(0, $required - $current),
+            'excess_ppm' => max(0, $current - $required),
+            'errors' => $errors,
+            'stages' => $stageResults,
         ];
     }
 

@@ -1178,6 +1178,141 @@ label {
   padding: 20px 0;
 }
 
+.catalog-probability-back {
+  margin-bottom: 16px;
+}
+
+.catalog-probability-link {
+  display: inline-flex;
+  margin-top: 16px;
+  width: fit-content;
+}
+
+.catalog-probability-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.catalog-probability-heading,
+.catalog-probability-actions,
+.catalog-probability-stage-actions,
+.catalog-probability-entry,
+.catalog-probability-validation > div,
+.catalog-probability-total {
+  align-items: center;
+  display: flex;
+}
+
+.catalog-probability-heading {
+  justify-content: space-between;
+}
+
+.catalog-probability-heading h2 {
+  font-size: 18px;
+  margin: 4px 0 0;
+}
+
+.catalog-probability-total {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  gap: 18px;
+  margin: 16px 0;
+  padding: 12px;
+}
+
+.catalog-probability-stage {
+  border: 1px solid #d7dee8;
+  margin: 0 0 16px;
+  padding: 16px;
+}
+
+.catalog-probability-stage legend {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+.catalog-probability-entry-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  max-height: 480px;
+  overflow: auto;
+}
+
+.catalog-probability-entry {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.5fr) minmax(120px, 0.8fr) 40px;
+  padding: 12px;
+}
+
+.catalog-probability-entry label {
+  display: grid;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.catalog-probability-entry input,
+.catalog-probability-entry select {
+  border: 1px solid #cbd5e1;
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.catalog-probability-stage-actions,
+.catalog-probability-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.catalog-probability-guarantee {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.catalog-probability-guarantee > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.catalog-probability-validation {
+  border: 1px solid;
+  padding: 14px 16px;
+}
+
+.catalog-probability-validation.is-valid {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.catalog-probability-validation.is-invalid {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.catalog-probability-validation > div {
+  gap: 8px;
+}
+
+.catalog-probability-validation p {
+  margin: 8px 0 0;
+}
+
+.catalog-probability-validation ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.danger-icon {
+  color: #b42318;
+}
+
 .catalog-dialog-actions {
   justify-content: flex-end;
   padding-top: 6px;
@@ -1459,6 +1594,21 @@ label {
   .catalog-detail dl > div {
     gap: 4px;
     grid-template-columns: 1fr;
+  }
+
+  .catalog-probability-heading,
+  .catalog-probability-total {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .catalog-probability-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-probability-entry .icon-button {
+    justify-self: end;
   }
 
   .module-grid {

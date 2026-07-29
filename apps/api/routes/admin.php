@@ -166,6 +166,27 @@ Route::prefix('v2')
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/archive', [V2AdminCatalogController::class, 'archiveGachaDraft'])
             ->whereUuid('gachaId')->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.archive');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions', [V2AdminCatalogController::class, 'probabilityVersions'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.probability-versions.index');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions', [V2AdminCatalogController::class, 'createProbabilityDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.probability-versions.create');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}', [V2AdminCatalogController::class, 'probabilityVersion'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
+            ->name('v2.admin.catalog.probability-versions.show');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/clone', [V2AdminCatalogController::class, 'cloneProbabilityDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
+            ->name('v2.admin.catalog.probability-versions.clone');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/entries', [V2AdminCatalogController::class, 'replaceProbabilityEntries'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
+            ->name('v2.admin.catalog.probability-versions.entries.replace');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/validate', [V2AdminCatalogController::class, 'validateProbabilityDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
+            ->name('v2.admin.catalog.probability-versions.validate');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/archive', [V2AdminCatalogController::class, 'archiveProbabilityDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
+            ->name('v2.admin.catalog.probability-versions.archive');
         Route::get('/content/banners', [V2AdminContentContactController::class, 'banners']);
         Route::post('/content/banners', [V2AdminContentContactController::class, 'createBanner']);
         Route::get('/content/banners/{contentId}', [V2AdminContentContactController::class, 'banner'])->whereUuid('contentId');

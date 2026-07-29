@@ -547,6 +547,169 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
   ).toBe(true);
 });
 
+test("Draft Probability editor saves integer ppm and reloads canonical validation", async ({
+  page,
+}) => {
+  const gachaId = "01910191-0191-7191-8191-019101910220";
+  const versionId = "01910191-0191-7191-8191-019101910221";
+  const probabilityId = "01910191-0191-7191-8191-019101910222";
+  const prizeSId = "01910191-0191-7191-8191-019101910223";
+  const prizeAId = "01910191-0191-7191-8191-019101910224";
+  let revision = 1;
+  let firstPpm = 500_000;
+  let mutationHeaders: Record<string, string> | null = null;
+  const prize = (id: string, code: string) => ({
+    code: `prize-${code.toLowerCase()}`,
+    id,
+    name: `${code} Prize`,
+    rank: {
+      code,
+      id: `${id.slice(0, -1)}9`,
+      name: `${code} Rank`,
+      sort_order: code === "S" ? 10 : 20,
+    },
+  });
+  const gachaVersion = {
+    archived_at: null,
+    cloned_from_version_id: null,
+    created_at: "2026-07-29T00:00:00Z",
+    description: null,
+    id: versionId,
+    is_archived: false,
+    notices: null,
+    presentation_asset: null,
+    price_points: 100,
+    prizes: [
+      { initial_inventory: 1000, prize: prize(prizeSId, "S"), sort_order: 10 },
+      { initial_inventory: 1000, prize: prize(prizeAId, "A"), sort_order: 20 },
+    ],
+    publish_end_at: null,
+    publish_start_at: "2026-07-29T00:00:00Z",
+    published_probability_version: null,
+    revision: 1,
+    status: "draft",
+    title: "Probability E2E",
+    total_count: 1000,
+    updated_at: "2026-07-29T00:00:00Z",
+    version_number: 1,
+  };
+  const probability = () => ({
+    archived_at: null,
+    cloned_from_version: null,
+    created_at: "2026-07-29T00:00:00Z",
+    gacha_version_id: versionId,
+    id: probabilityId,
+    is_archived: false,
+    published_at: null,
+    revision,
+    snapshot_sha256: "a".repeat(64),
+    stages: [{
+      code: "stage-1",
+      condition_type: "sold_count",
+      entries: [{
+        point_amount: null,
+        prize: prize(prizeSId, "S"),
+        probability_ppm: firstPpm,
+        result_type: "prize",
+        sort_order: 10,
+      }],
+      id: "01910191-0191-7191-8191-019101910225",
+      max_draw_number: null,
+      min_draw_number: 1,
+      minimum_guarantee: {
+        point_amount: null,
+        prize: prize(prizeAId, "A"),
+        probability_ppm: 400_000,
+        result_type: "prize",
+      },
+      name: "Stage 1",
+      sort_order: 10,
+    }],
+    status: "draft",
+    updated_at: "2026-07-29T00:00:00Z",
+    validation: {
+      current_total_ppm: firstPpm + 400_000,
+      errors: firstPpm === 600_000 ? [] : [
+        "stage-1:PROBABILITY_TOTAL_INCOMPLETE",
+      ],
+      excess_ppm: 0,
+      is_valid: firstPpm === 600_000,
+      remaining_ppm: 600_000 - firstPpm,
+      required_total_ppm: 1_000_000,
+      stages: [{
+        code: "stage-1",
+        current_total_ppm: firstPpm + 400_000,
+        errors: firstPpm === 600_000 ? [] : [
+          "PROBABILITY_TOTAL_INCOMPLETE",
+        ],
+        excess_ppm: 0,
+        remaining_ppm: 600_000 - firstPpm,
+        required_total_ppm: 1_000_000,
+        stage_id: "01910191-0191-7191-8191-019101910225",
+      }],
+    },
+    version_number: 2,
+  });
+
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
+      return json(route, { data: gachaVersion });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/probability-versions/${probabilityId}`,
+      ) &&
+      request.method() === "GET"
+    ) {
+      return json(route, { data: probability() });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/probability-versions/${probabilityId}/entries`,
+      ) &&
+      request.method() === "PUT"
+    ) {
+      mutationHeaders = request.headers();
+      const input = request.postDataJSON() as {
+        expected_revision: number;
+        stages: Array<{ entries: Array<{ probability_ppm: number }> }>;
+      };
+      expect(input.expected_revision).toBe(1);
+      expect(input.stages[0].entries[0].probability_ppm).toBe(600_000);
+      firstPpm = 600_000;
+      revision = 2;
+      return json(route, {
+        data: probability(),
+        idempotent_replay: false,
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto(
+    `/catalog/gachas/${gachaId}/versions/${versionId}/probability-versions/${probabilityId}`,
+  );
+  await expect(page.getByRole("heading", { name: "Probability v2" })).toBeVisible();
+  await expect(page.getByText("Remaining 100,000")).toBeVisible();
+  await page.getByLabel("ppm").first().fill("600000");
+  await expect(page.getByText("Current 1,000,000 ppm")).toBeVisible();
+  await page.getByRole("button", { name: "Draft保存" }).click();
+  await expect(page.getByText("Validation passed")).toBeVisible();
+  expect(mutationHeaders?.["x-xsrf-token"]).toBe(csrf);
+  expect(mutationHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});
+
 test("Owner updates LINE reply messages through preview and Fresh MFA retry", async ({
   page,
 }) => {

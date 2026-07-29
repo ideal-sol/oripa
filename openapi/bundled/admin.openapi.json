@@ -1879,6 +1879,385 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
+      "get": {
+        "operationId": "listAdminCatalogProbabilityVersions",
+        "summary": "Probability Version一覧を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogDirection"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "draft",
+                "published"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "archive",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "active",
+                "archived"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Probability Version一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminCatalogProbabilityDraft",
+        "summary": "Server採番で空のDraft Probability Versionを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityVersionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft Probability Version作成結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}": {
+      "get": {
+        "operationId": "getAdminCatalogProbabilityVersion",
+        "summary": "Probability Version詳細とServer Validationを参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Probability Version詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/clone": {
+      "post": {
+        "operationId": "cloneAdminCatalogProbabilityDraft",
+        "summary": "DraftまたはPublished Probability VersionからDraftをCloneする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityVersionClone"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Clone済みDraft Probability Version。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/entries": {
+      "put": {
+        "operationId": "replaceAdminCatalogProbabilityDraftEntries",
+        "summary": "Draft Probability Stage／Entry／Minimum Guaranteeを一括置換する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityEntriesReplace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "一括置換後のCanonical Draft。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/validate": {
+      "post": {
+        "operationId": "validateAdminCatalogProbabilityDraft",
+        "summary": "保存済みDraft Probability VersionをServerで検証する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityValidationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server Validation結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive": {
+      "post": {
+        "operationId": "archiveAdminCatalogProbabilityDraft",
+        "summary": "Draft Probability VersionをDiscardする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft Probability Version Discard結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/content/banners": {
       "get": {
         "operationId": "listAdminContentBanners",
@@ -6711,6 +7090,578 @@
           }
         }
       },
+      "AdminCatalogProbabilityPrizeReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "name",
+          "rank"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "rank": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "code",
+              "name",
+              "sort_order"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "code": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "sort_order": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "AdminCatalogProbabilityEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result_type",
+          "prize",
+          "point_amount",
+          "probability_ppm",
+          "sort_order"
+        ],
+        "properties": {
+          "result_type": {
+            "type": "string",
+            "enum": [
+              "prize",
+              "point_back"
+            ]
+          },
+          "prize": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityPrizeReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "probability_ppm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminCatalogProbabilityGuarantee": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result_type",
+          "prize",
+          "point_amount",
+          "probability_ppm"
+        ],
+        "properties": {
+          "result_type": {
+            "type": "string",
+            "enum": [
+              "prize",
+              "point_back"
+            ]
+          },
+          "prize": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityPrizeReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "probability_ppm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        }
+      },
+      "AdminCatalogProbabilityStage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "name",
+          "condition_type",
+          "min_draw_number",
+          "max_draw_number",
+          "sort_order",
+          "entries",
+          "minimum_guarantee"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "condition_type": {
+            "type": "string",
+            "enum": [
+              "sold_count"
+            ]
+          },
+          "min_draw_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_draw_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityEntry"
+            }
+          },
+          "minimum_guarantee": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityGuarantee"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminCatalogProbabilityStageValidation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage_id",
+          "code",
+          "current_total_ppm",
+          "required_total_ppm",
+          "remaining_ppm",
+          "excess_ppm",
+          "errors"
+        ],
+        "properties": {
+          "stage_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "current_total_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "required_total_ppm": {
+            "type": "integer",
+            "const": 1000000
+          },
+          "remaining_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "excess_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdminCatalogProbabilityValidation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "is_valid",
+          "current_total_ppm",
+          "required_total_ppm",
+          "remaining_ppm",
+          "excess_ppm",
+          "errors",
+          "stages"
+        ],
+        "properties": {
+          "is_valid": {
+            "type": "boolean"
+          },
+          "current_total_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "required_total_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "excess_ppm": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityStageValidation"
+            }
+          }
+        }
+      },
+      "AdminCatalogProbabilityVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "gacha_version_id",
+          "version_number",
+          "status",
+          "snapshot_sha256",
+          "cloned_from_version",
+          "stages",
+          "validation",
+          "is_archived",
+          "revision",
+          "archived_at",
+          "published_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "snapshot_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "cloned_from_version": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityStage"
+            }
+          },
+          "validation": {
+            "$ref": "#/components/schemas/AdminCatalogProbabilityValidation"
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminCatalogProbabilityVersionCreate": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AdminCatalogProbabilityVersionClone": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AdminCatalogProbabilityTargetInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result_type",
+          "prize_id",
+          "point_amount",
+          "probability_ppm"
+        ],
+        "properties": {
+          "result_type": {
+            "type": "string",
+            "enum": [
+              "prize",
+              "point_back"
+            ]
+          },
+          "prize_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "probability_ppm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        }
+      },
+      "AdminCatalogProbabilityStageInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "min_draw_number",
+          "max_draw_number",
+          "entries",
+          "minimum_guarantee"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "min_draw_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_draw_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityTargetInput"
+            }
+          },
+          "minimum_guarantee": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityTargetInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminCatalogProbabilityEntriesReplace": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "stages"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityStageInput"
+            }
+          }
+        }
+      },
+      "AdminCatalogProbabilityValidationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminCatalogProbabilityVersionMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCatalogProbabilityVersion"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogProbabilityVersionCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogProbabilityVersion"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminCatalogProbabilityVersionDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCatalogProbabilityVersion"
+          }
+        }
+      },
       "ContentVersionBase": {
         "type": "object",
         "additionalProperties": false,
@@ -9213,6 +10164,14 @@
       },
       "GachaVersionId": {
         "name": "gacha_version_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "ProbabilityVersionId": {
+        "name": "probability_version_id",
         "in": "path",
         "required": true,
         "schema": {

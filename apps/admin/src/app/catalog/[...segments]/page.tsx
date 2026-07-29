@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CatalogGachaWorkspace } from "@/components/catalog/catalog-gacha-workspace";
+import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
 
@@ -29,6 +30,20 @@ export default async function CatalogResourcePage({
           gachaId={segments[1]}
           key={`${segments[1]}:${segments[3]}`}
           versionId={segments[3]}
+        />
+      );
+    }
+    if (
+      (segments.length === 5 || segments.length === 6) &&
+      segments[2] === "versions" &&
+      segments[4] === "probability-versions"
+    ) {
+      return (
+        <CatalogProbabilityWorkspace
+          gachaId={segments[1]}
+          gachaVersionId={segments[3]}
+          key={segments.join(":")}
+          probabilityVersionId={segments[5]}
         />
       );
     }

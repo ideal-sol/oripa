@@ -427,7 +427,7 @@ export function CatalogGachaWorkspace({
             />
           ) : null}
           {state.kind === "version" ? (
-            <VersionDetail version={state.version} />
+            <VersionDetail gachaId={state.gacha.id} version={state.version} />
           ) : null}
           {formMode === "create-master" || formMode === "edit-master" ? (
             <CatalogGachaMasterForm
@@ -712,7 +712,13 @@ function GachaDetail({
   );
 }
 
-function VersionDetail({ version }: { version: AdminCatalogGachaVersion }) {
+function VersionDetail({
+  gachaId,
+  version,
+}: {
+  gachaId: string;
+  version: AdminCatalogGachaVersion;
+}) {
   return (
     <section className="catalog-detail catalog-gacha-detail">
       <dl>
@@ -749,6 +755,12 @@ function VersionDetail({ version }: { version: AdminCatalogGachaVersion }) {
         />
         <Detail label="Revision" value={String(version.revision)} />
       </dl>
+      <Link
+        className="secondary-button catalog-probability-link"
+        href={`/catalog/gachas/${gachaId}/versions/${version.id}/probability-versions`}
+      >
+        Probability Editor
+      </Link>
     </section>
   );
 }
