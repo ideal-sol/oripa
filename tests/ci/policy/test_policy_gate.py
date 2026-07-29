@@ -353,6 +353,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
             "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
             "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
+            "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -619,14 +620,14 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "individual_ppm"):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
 
-    def test_v2_admin_catalog_mutation_contract_fails(self):
+    def test_v2_admin_catalog_physical_delete_contract_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.copy_v2_catalog_boundary(root)
             bundle = root / "openapi/bundled/admin.openapi.json"
             document = json.loads(bundle.read_text(encoding="utf-8"))
-            document["paths"]["/catalog/prizes"]["post"] = {
-                "operationId": "createAdminCatalogPrize"
+            document["paths"]["/catalog/prizes/{catalog_resource_id}"]["delete"] = {
+                "operationId": "deleteAdminCatalogPrize"
             }
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited"):

@@ -115,12 +115,24 @@ Route::prefix('v2')
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.archive');
         Route::get('/catalog/prizes', [V2AdminCatalogController::class, 'prizes'])
             ->name('v2.admin.catalog.prizes.index');
+        Route::post('/catalog/prizes', [V2AdminCatalogController::class, 'createPrize'])
+            ->name('v2.admin.catalog.prizes.create');
         Route::get('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'prize'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.show');
+        Route::put('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'updatePrize'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.update');
+        Route::post('/catalog/prizes/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archivePrize'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.archive');
         Route::get('/catalog/presentation-assets', [V2AdminCatalogController::class, 'assets'])
             ->name('v2.admin.catalog.presentation-assets.index');
+        Route::post('/catalog/presentation-assets', [V2AdminCatalogController::class, 'createAsset'])
+            ->name('v2.admin.catalog.presentation-assets.create');
         Route::get('/catalog/presentation-assets/{catalogResourceId}', [V2AdminCatalogController::class, 'asset'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.show');
+        Route::put('/catalog/presentation-assets/{catalogResourceId}', [V2AdminCatalogController::class, 'updateAsset'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.update');
+        Route::post('/catalog/presentation-assets/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveAsset'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.archive');
         Route::get('/content/banners', [V2AdminContentContactController::class, 'banners']);
         Route::post('/content/banners', [V2AdminContentContactController::class, 'createBanner']);
         Route::get('/content/banners/{contentId}', [V2AdminContentContactController::class, 'banner'])->whereUuid('contentId');

@@ -107,6 +107,21 @@ final class V2AdminCatalogController
         return $this->detail($request, 'prize', $catalogResourceId);
     }
 
+    public function createPrize(Request $request): JsonResponse
+    {
+        return $this->create($request, 'prize');
+    }
+
+    public function updatePrize(Request $request, string $catalogResourceId): JsonResponse
+    {
+        return $this->update($request, 'prize', $catalogResourceId);
+    }
+
+    public function archivePrize(Request $request, string $catalogResourceId): JsonResponse
+    {
+        return $this->archive($request, 'prize', $catalogResourceId);
+    }
+
     public function assets(Request $request): JsonResponse
     {
         return $this->list($request, 'assets');
@@ -115,6 +130,21 @@ final class V2AdminCatalogController
     public function asset(Request $request, string $catalogResourceId): JsonResponse
     {
         return $this->detail($request, 'asset', $catalogResourceId);
+    }
+
+    public function createAsset(Request $request): JsonResponse
+    {
+        return $this->create($request, 'asset');
+    }
+
+    public function updateAsset(Request $request, string $catalogResourceId): JsonResponse
+    {
+        return $this->update($request, 'asset', $catalogResourceId);
+    }
+
+    public function archiveAsset(Request $request, string $catalogResourceId): JsonResponse
+    {
+        return $this->archive($request, 'asset', $catalogResourceId);
     }
 
     private function list(Request $request, string $method): JsonResponse

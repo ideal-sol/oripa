@@ -151,6 +151,40 @@ describe("AdminApiClient", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("uses the shared mutation transport for Prize and Presentation Asset", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }, 201))
+      .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.createCatalogPrize(
+      {
+        code: "prize-a",
+        description: null,
+        display_price: 3000,
+        exchange_points: 2000,
+        is_visible: true,
+        name: "Prize A",
+        presentation_asset_id: null,
+        rank_id: "01910191-0191-7191-8191-019101910191",
+      },
+      "prize-create-key",
+    );
+    await client.updateCatalogPresentationAsset(
+      "01910191-0191-7191-8191-019101910192",
+      { alt_text: "Asset A", expected_revision: 1, is_public: true },
+      "asset-update-key",
+    );
+
+    expect(fetcher.mock.calls[0][0]).toBe("/admin/api/v2/catalog/prizes");
+    expect(fetcher.mock.calls[1][0]).toBe(
+      "/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910192",
+    );
+    expect(fetcher.mock.calls[1][1]?.method).toBe("PUT");
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
+      .toBe("asset-update-key");
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

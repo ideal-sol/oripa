@@ -5,6 +5,7 @@ import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirma
 import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import { CatalogDataTable } from "@/components/catalog/catalog-data-table";
 import { CatalogMutationForm } from "@/components/catalog/catalog-mutation-form";
+import { CatalogPrizeAssetMutationForm } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { hasCatalogMutationRevision } from "@/components/catalog/catalog-workspace";
 import {
   PublicAssetPreview,
@@ -147,6 +148,47 @@ describe("Admin Catalog read components", () => {
     rerender(<CatalogConflictBoundary onReload={reload} />);
     fireEvent.click(screen.getByRole("button", { name: "再取得" }));
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("submits Presentation Asset registration without inventing upload behavior", async () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CatalogPrizeAssetMutationForm
+        mode="create"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+        resource="presentation-assets"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Storage識別子"), {
+      target: { value: "catalog/prize/new.png" },
+    });
+    fireEvent.change(screen.getByLabelText("Public Path"), {
+      target: { value: "/assets/catalog/prize/new.png" },
+    });
+    fireEvent.change(screen.getByLabelText("SHA-256"), {
+      target: { value: "a".repeat(64) },
+    });
+    fireEvent.change(screen.getByLabelText("MIME Type"), {
+      target: { value: "image/png" },
+    });
+    fireEvent.change(screen.getByLabelText("Byte Size"), {
+      target: { value: "128" },
+    });
+    fireEvent.change(screen.getByLabelText("Alt"), {
+      target: { value: "新しい景品画像" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "asset",
+        storageIdentifier: "catalog/prize/new.png",
+        publicPath: "/assets/catalog/prize/new.png",
+        checksumSha256: "a".repeat(64),
+        byteSize: 128,
+      }),
+    );
   });
 
   it("registers catalog.manage without changing read-only Operator navigation", () => {

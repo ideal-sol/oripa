@@ -21,6 +21,10 @@ import {
   type CatalogMasterDraft,
   CatalogMutationForm,
 } from "@/components/catalog/catalog-mutation-form";
+import {
+  type CatalogPrizeAssetDraft,
+  CatalogPrizeAssetMutationForm,
+} from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { StatusBadge } from "@/components/catalog/status-badge";
@@ -59,6 +63,7 @@ type CatalogMasterItem =
   | AdminCatalogCategory
   | AdminCatalogTag
   | AdminCatalogRank;
+type CatalogMutableItem = CatalogItem;
 
 type LoadState =
   | { kind: "loading" }
@@ -143,21 +148,20 @@ export function CatalogWorkspace({
 
   const title =
     state.kind === "detail" ? itemName(state.item) : section.label;
-  const master =
-    state.kind === "detail" && isMasterResource(section.resource)
-      ? (state.item as CatalogMasterItem)
+  const current =
+    state.kind === "detail" && isMutableResource(section.resource)
+      ? (state.item as CatalogMutableItem)
       : null;
-  const canManage = hasPermission("catalog.manage") && isMasterResource(section.resource);
-  const canMutateMaster =
-    canManage && hasCatalogMutationRevision(master);
+  const canManage = hasPermission("catalog.manage") && isMutableResource(section.resource);
+  const canMutateMaster = canManage && hasCatalogMutationRevision(current);
 
   async function submitMutation(draft: CatalogMasterDraft) {
     const fingerprint = JSON.stringify({
       draft,
-      id: master?.id ?? null,
+      id: current?.id ?? null,
       mode: mutationMode,
       resource: section.resource,
-      revision: master?.revision ?? null,
+      revision: current?.revision ?? null,
     });
     const key =
       pendingMutation.current?.fingerprint === fingerprint
@@ -169,7 +173,7 @@ export function CatalogWorkspace({
         client,
         section.resource,
         mutationMode,
-        master,
+        current as CatalogMasterItem | null,
         draft,
         key,
       );
@@ -196,13 +200,52 @@ export function CatalogWorkspace({
     }
   }
 
+  async function submitPrizeAssetMutation(draft: CatalogPrizeAssetDraft) {
+    const fingerprint = JSON.stringify({
+      draft,
+      id: current?.id ?? null,
+      mode: mutationMode,
+      resource: section.resource,
+      revision: current && "revision" in current ? current.revision : null,
+    });
+    const key =
+      pendingMutation.current?.fingerprint === fingerprint
+        ? pendingMutation.current.key
+        : crypto.randomUUID();
+    pendingMutation.current = { fingerprint, key };
+    try {
+      const result = await mutatePrizeAsset(
+        client,
+        section.resource,
+        mutationMode,
+        current,
+        draft,
+        key,
+      );
+      pendingMutation.current = null;
+      setMutationError(null);
+      setMutationMode(null);
+      if (state.kind === "detail") setState({ kind: "detail", item: result });
+      else setReload((value) => value + 1);
+    } catch (cause) {
+      const error = cause instanceof AdminApiError
+        ? cause
+        : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
+      if (!error.retryable) pendingMutation.current = null;
+      if (error.isSessionExpired) expireSession();
+      setMutationError(error);
+      if ([401, 403, 409, 412, 429].includes(error.status)) setMutationMode(null);
+      throw error;
+    }
+  }
+
   async function archiveMaster() {
-    if (!master || !isMasterResource(section.resource)) return;
+    if (!current || !isMutableResource(section.resource)) return;
     setArchiveBusy(true);
     const fingerprint = JSON.stringify({
       action: "archive",
-      id: master.id,
-      revision: master.revision,
+      id: current.id,
+      revision: "revision" in current ? current.revision : null,
     });
     const key =
       pendingMutation.current?.fingerprint === fingerprint
@@ -213,7 +256,7 @@ export function CatalogWorkspace({
       const result = await archiveCatalogMaster(
         client,
         section.resource,
-        master,
+        current,
         key,
       );
       pendingMutation.current = null;
@@ -244,9 +287,9 @@ export function CatalogWorkspace({
             eyebrow="Catalog"
             title={title}
             action={
-              canMutateMaster && !master?.is_archived ? (
+              canMutateMaster && !(current && "is_archived" in current && current.is_archived) ? (
                 <div className="catalog-header-actions">
-                  {master ? (
+                  {current ? (
                     <>
                       <button
                         className="secondary-button"
@@ -356,19 +399,32 @@ export function CatalogWorkspace({
             </>
           ) : null}
           {state.kind === "detail" ? <CatalogDetail item={state.item} /> : null}
-          {mutationMode && canManage ? (
+          {mutationMode && canManage && isMasterResource(section.resource) ? (
             <CatalogMutationForm
-              initial={master ? masterDraft(master) : undefined}
+              initial={current ? masterDraft(current as CatalogMasterItem) : undefined}
               mode={mutationMode}
               onCancel={() => setMutationMode(null)}
               onSubmit={submitMutation}
               resource={section.resource as "categories" | "tags" | "ranks"}
             />
           ) : null}
-          {archiveOpen && master ? (
+          {mutationMode && canManage && isPrizeAssetResource(section.resource) ? (
+            <CatalogPrizeAssetMutationForm
+              current={
+                current
+                  ? (current as AdminCatalogPrize | AdminCatalogPresentationAsset)
+                  : undefined
+              }
+              mode={mutationMode}
+              onCancel={() => setMutationMode(null)}
+              onSubmit={submitPrizeAssetMutation}
+              resource={section.resource}
+            />
+          ) : null}
+          {archiveOpen && current ? (
             <CatalogConfirmationDialog
               busy={archiveBusy}
-              name={master.name}
+              name={itemName(current)}
               onCancel={() => setArchiveOpen(false)}
               onConfirm={archiveMaster}
             />
@@ -487,6 +543,7 @@ function tableRow(item: CatalogItem): CatalogTableRow {
       name: item.alt_text ?? "Presentation Asset",
       secondary: item.mime_type,
       visible: item.is_public,
+      archived: item.is_archived ?? false,
       asset: item,
     };
   }
@@ -520,6 +577,12 @@ function detailEntries(item: CatalogItem): [string, string][] {
       ["Byte Size", item.byte_size.toLocaleString()],
       ["Alt", item.alt_text ?? "未設定"],
       ["Checksum", item.checksum_sha256],
+      ...(typeof item.revision === "number"
+        ? [
+            ["Revision", item.revision.toLocaleString()],
+            ["Archive日時", item.archived_at ?? "未Archive"],
+          ] as [string, string][]
+        : []),
       ...common,
     ];
   }
@@ -535,6 +598,12 @@ function detailEntries(item: CatalogItem): [string, string][] {
       ["表示価格", item.display_price.toLocaleString()],
       ["交換Point", item.exchange_points.toLocaleString()],
     );
+    if (typeof item.revision === "number") {
+      entries.push(
+        ["Revision", item.revision.toLocaleString()],
+        ["Archive日時", item.archived_at ?? "未Archive"],
+      );
+    }
   } else {
     entries.push(["表示順", item.sort_order.toLocaleString()]);
     if ("revision" in item && typeof item.revision === "number") {
@@ -551,6 +620,16 @@ function isMasterResource(
   resource: CatalogSection["resource"],
 ): resource is "categories" | "tags" | "ranks" {
   return ["categories", "tags", "ranks"].includes(resource);
+}
+
+function isPrizeAssetResource(
+  resource: CatalogSection["resource"],
+): resource is "prizes" | "presentation-assets" {
+  return resource === "prizes" || resource === "presentation-assets";
+}
+
+function isMutableResource(resource: CatalogSection["resource"]): boolean {
+  return isMasterResource(resource) || isPrizeAssetResource(resource);
 }
 
 function masterDraft(item: CatalogMasterItem): CatalogMasterDraft {
@@ -656,10 +735,10 @@ async function mutateMaster(
 
 async function archiveCatalogMaster(
   client: AdminApiClient,
-  resource: "categories" | "tags" | "ranks",
-  current: CatalogMasterItem,
+  resource: CatalogSection["resource"],
+  current: CatalogMutableItem,
   key: string,
-): Promise<CatalogMasterItem> {
+): Promise<CatalogMutableItem> {
   const revision = mutationRevision(current);
   if (resource === "categories") {
     return (await client.archiveCatalogCategory(current.id, revision, key)).data;
@@ -667,18 +746,93 @@ async function archiveCatalogMaster(
   if (resource === "tags") {
     return (await client.archiveCatalogTag(current.id, revision, key)).data;
   }
-  return (await client.archiveCatalogRank(current.id, revision, key)).data;
+  if (resource === "ranks") {
+    return (await client.archiveCatalogRank(current.id, revision, key)).data;
+  }
+  if (resource === "prizes") {
+    return (await client.archiveCatalogPrize(current.id, revision, key)).data;
+  }
+  if (resource === "presentation-assets") {
+    return (
+      await client.archiveCatalogPresentationAsset(current.id, revision, key)
+    ).data;
+  }
+  throw new Error("Unsupported Catalog archive.");
 }
 
-function mutationRevision(current: CatalogMasterItem | null): number {
-  if (!current || typeof current.revision !== "number") {
+function mutationRevision(current: CatalogMutableItem | null): number {
+  if (!current || !("revision" in current) || typeof current.revision !== "number") {
     throw new Error("Catalog mutation revision is unavailable.");
   }
   return current.revision;
 }
 
 export function hasCatalogMutationRevision(
-  current: CatalogMasterItem | null,
+  current: CatalogMutableItem | null,
 ): boolean {
-  return current === null || typeof current.revision === "number";
+  return current === null || ("revision" in current && typeof current.revision === "number");
+}
+
+async function mutatePrizeAsset(
+  client: AdminApiClient,
+  resource: CatalogSection["resource"],
+  mode: "create" | "edit" | null,
+  current: CatalogMutableItem | null,
+  draft: CatalogPrizeAssetDraft,
+  key: string,
+): Promise<CatalogMutableItem> {
+  if (mode === null || !isPrizeAssetResource(resource)) {
+    throw new Error("Unsupported Catalog mutation.");
+  }
+  const revision = mode === "edit" ? mutationRevision(current) : null;
+  if (resource === "prizes" && draft.kind === "prize") {
+    const body = {
+      description: draft.description,
+      display_price: draft.displayPrice,
+      exchange_points: draft.exchangePoints,
+      is_visible: draft.isVisible,
+      name: draft.name,
+      presentation_asset_id: draft.presentationAssetId,
+      rank_id: draft.rankId,
+    };
+    return mode === "create"
+      ? (await client.createCatalogPrize({ code: draft.code, ...body }, key)).data
+      : (
+          await client.updateCatalogPrize(
+            current!.id,
+            { expected_revision: revision!, ...body },
+            key,
+          )
+        ).data;
+  }
+  if (resource === "presentation-assets" && draft.kind === "asset") {
+    return mode === "create"
+      ? (
+          await client.createCatalogPresentationAsset(
+            {
+              alt_text: draft.altText,
+              byte_size: draft.byteSize,
+              checksum_sha256: draft.checksumSha256,
+              is_public: draft.isPublic,
+              media_type: draft.mediaType,
+              mime_type: draft.mimeType,
+              public_path: draft.publicPath,
+              storage_identifier: draft.storageIdentifier,
+            },
+            key,
+          )
+        ).data
+      : (
+          await client.updateCatalogPresentationAsset(
+            current!.id,
+            {
+              alt_text: draft.altText,
+              expected_revision: revision!,
+              is_public: draft.isPublic,
+            },
+            key,
+          )
+        ).data;
+  }
+  throw new Error("Catalog mutation resource mismatch.");
 }

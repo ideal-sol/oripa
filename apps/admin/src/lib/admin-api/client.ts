@@ -8,7 +8,11 @@ import {
   type AdminCatalogDetail,
   type AdminCatalogDirection,
   type AdminCatalogPresentationAsset,
+  type AdminCatalogPresentationAssetCreate,
+  type AdminCatalogPresentationAssetUpdate,
   type AdminCatalogPrize,
+  type AdminCatalogPrizeCreate,
+  type AdminCatalogPrizeUpdate,
   type AdminCatalogRank,
   type AdminCatalogRankCreate,
   type AdminCatalogRankUpdate,
@@ -232,6 +236,32 @@ export class AdminApiClient {
     return this.catalogDetail("prizes", id, signal);
   }
 
+  createCatalogPrize(
+    body: AdminCatalogPrizeCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.catalogMutation("POST", "prizes", null, body, idempotencyKey, signal);
+  }
+
+  updateCatalogPrize(
+    id: string,
+    body: AdminCatalogPrizeUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.catalogMutation("PUT", "prizes", id, body, idempotencyKey, signal);
+  }
+
+  archiveCatalogPrize(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.catalogArchive("prizes", id, expectedRevision, idempotencyKey, signal);
+  }
+
   listCatalogPresentationAssets(
     query: AdminCatalogQuery,
     signal?: AbortSignal,
@@ -244,6 +274,52 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminCatalogPresentationAsset>> {
     return this.catalogDetail("presentation-assets", id, signal);
+  }
+
+  createCatalogPresentationAsset(
+    body: AdminCatalogPresentationAssetCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPresentationAsset>> {
+    return this.catalogMutation(
+      "POST",
+      "presentation-assets",
+      null,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  updateCatalogPresentationAsset(
+    id: string,
+    body: AdminCatalogPresentationAssetUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPresentationAsset>> {
+    return this.catalogMutation(
+      "PUT",
+      "presentation-assets",
+      id,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  archiveCatalogPresentationAsset(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPresentationAsset>> {
+    return this.catalogArchive(
+      "presentation-assets",
+      id,
+      expectedRevision,
+      idempotencyKey,
+      signal,
+    );
   }
 
   login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {
@@ -368,7 +444,7 @@ export class AdminApiClient {
 
   private catalogMutation<TBody, TResult>(
     method: "POST" | "PUT",
-    resource: "categories" | "tags" | "ranks",
+    resource: AdminCatalogResource,
     id: string | null,
     body: TBody,
     idempotencyKey: string,
@@ -388,7 +464,7 @@ export class AdminApiClient {
   }
 
   private catalogArchive<TResult>(
-    resource: "categories" | "tags" | "ranks",
+    resource: AdminCatalogResource,
     id: string,
     expectedRevision: number,
     idempotencyKey: string,

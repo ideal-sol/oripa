@@ -312,6 +312,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/config/v2_catalog.php",
     "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
     "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
+    "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -504,6 +505,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-data-table.tsx",
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-overview.tsx",
+    "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-section-navigation.tsx",
     "apps/admin/src/components/catalog/catalog-workspace.tsx",
     "apps/admin/src/components/catalog/cursor-pagination.tsx",
@@ -1213,7 +1215,6 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         if required not in catalog_source:
             raise PolicyFailure(f"apps/admin: Catalog read UI missing {required}")
     for prohibited in (
-        "storage_identifier",
         "probability_ppm",
         "cost_price",
         "autoplay",
@@ -1819,6 +1820,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
         "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
         "2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
+        "2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2596,6 +2598,27 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     if "tenant_id" in mutation_migration:
         raise PolicyFailure("V2 Catalog mutation migration contains prohibited tenant_id")
 
+    prize_asset_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_prizes",
+        "catalog_presentation_assets",
+        "revision",
+        "archived_at",
+        "cannot be deleted",
+        "Presentation Asset object identity is immutable",
+        "Published Catalog references protect this master record",
+    ):
+        if required not in prize_asset_migration:
+            raise PolicyFailure(
+                f"V2 Catalog Prize/Asset mutation migration missing {required}"
+            )
+    if "tenant_id" in prize_asset_migration:
+        raise PolicyFailure("V2 Catalog Prize/Asset migration contains prohibited tenant_id")
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -2704,6 +2727,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "createAdminCatalogRank",
         "updateAdminCatalogRank",
         "archiveAdminCatalogRank",
+        "createAdminCatalogPrize",
+        "updateAdminCatalogPrize",
+        "archiveAdminCatalogPrize",
+        "createAdminCatalogPresentationAsset",
+        "updateAdminCatalogPresentationAsset",
+        "archiveAdminCatalogPresentationAsset",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
@@ -2717,10 +2746,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/ranks": {"get", "post"},
         "/catalog/ranks/{catalog_resource_id}": {"get", "put"},
         "/catalog/ranks/{catalog_resource_id}/archive": {"post"},
-        "/catalog/prizes": {"get"},
-        "/catalog/prizes/{catalog_resource_id}": {"get"},
-        "/catalog/presentation-assets": {"get"},
-        "/catalog/presentation-assets/{catalog_resource_id}": {"get"},
+        "/catalog/prizes": {"get", "post"},
+        "/catalog/prizes/{catalog_resource_id}": {"get", "put"},
+        "/catalog/prizes/{catalog_resource_id}/archive": {"post"},
+        "/catalog/presentation-assets": {"get", "post"},
+        "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
+        "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
     }
     actual_admin_catalog_methods = {
         path: {
@@ -2746,6 +2777,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
                 .get("schemas", {})
                 .items()
                 if name.startswith("AdminCatalog")
+                and not name.endswith(("Create", "Update"))
             },
         },
         sort_keys=True,

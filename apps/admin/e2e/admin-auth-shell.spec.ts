@@ -374,6 +374,77 @@ test("Operator Catalog remains read-only even on a direct module URL", async ({
   await expect(page.getByRole("button", { name: "新規作成" })).toHaveCount(0);
 });
 
+test("Prize and Presentation Asset mutation reuse selection and canonical reload", async ({
+  page,
+}) => {
+  const rankId = "01910191-0191-7191-8191-019101910196";
+  const assetId = "01910191-0191-7191-8191-019101910197";
+  let createdPrize: Record<string, unknown> | null = null;
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (url.pathname.endsWith("/catalog/ranks")) {
+      return json(route, {
+        items: [{
+          archived_at: null, code: "A", created_at: "2026-07-29T00:00:00Z",
+          id: rankId, is_archived: false, is_visible: true, name: "Aランク",
+          revision: 1, sort_order: 10, updated_at: "2026-07-29T00:00:00Z",
+        }],
+        next_cursor: null,
+      });
+    }
+    if (url.pathname.endsWith("/catalog/presentation-assets")) {
+      return json(route, {
+        items: [{
+          alt_text: "A景品画像", archived_at: null, byte_size: 128,
+          checksum_sha256: "a".repeat(64), created_at: "2026-07-29T00:00:00Z",
+          id: assetId, is_archived: false, is_public: true, media_type: "image",
+          mime_type: "image/png", public_path: "/assets/a.png", revision: 1,
+          updated_at: "2026-07-29T00:00:00Z",
+        }],
+        next_cursor: null,
+      });
+    }
+    if (url.pathname.endsWith("/catalog/prizes") && request.method() === "GET") {
+      return json(route, { items: createdPrize ? [createdPrize] : [], next_cursor: null });
+    }
+    if (url.pathname.endsWith("/catalog/prizes") && request.method() === "POST") {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      createdPrize = {
+        archived_at: null, code: input.code, created_at: "2026-07-29T00:00:00Z",
+        description: input.description, display_price: input.display_price,
+        exchange_points: input.exchange_points,
+        id: "01910191-0191-7191-8191-019101910198",
+        is_archived: false, is_visible: true, name: input.name,
+        presentation_asset: {
+          alt_text: "A景品画像", id: assetId, is_public: true,
+          media_type: "image", mime_type: "image/png", public_path: "/assets/a.png",
+        },
+        rank: { code: "A", id: rankId, name: "Aランク", sort_order: 10 },
+        revision: 1, updated_at: "2026-07-29T00:00:00Z",
+      };
+      return json(route, { data: createdPrize, idempotent_replay: false }, 201);
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/catalog/prizes");
+  await page.getByRole("button", { name: "新規作成" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "Code", exact: true }).fill("e2e-prize");
+  await dialog.getByLabel("Rank").selectOption(rankId);
+  await dialog.getByLabel("Presentation Asset").selectOption(assetId);
+  await dialog.getByRole("textbox", { name: "名称", exact: true }).fill("E2E Prize");
+  await dialog.getByLabel("表示価格").fill("3000");
+  await dialog.getByLabel("交換Point").fill("2000");
+  await dialog.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByText("E2E Prize")).toBeVisible();
+});
+
 async function installAdminApi(
   page: Page,
   handler: (route: Route) => Promise<unknown>,

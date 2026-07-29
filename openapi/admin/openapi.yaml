@@ -58,6 +58,10 @@ x-oripa-error-codes:
     status: 409
     retryable: false
     description: 公開中または公開予定のGachaがCatalog Masterを参照中。
+  CATALOG_ASSET_IDENTITY_IMMUTABLE:
+    status: 409
+    retryable: false
+    description: Presentation AssetのObject識別情報は作成後変更不可。
   IDEMPOTENCY_KEY_REUSED:
     status: 409
     retryable: false
@@ -349,6 +353,23 @@ paths:
       responses:
         '200': {description: Prize一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminCatalogPrize
+      summary: Prizeを作成する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogPrizeCreate'}
+      responses:
+        '201': {description: Prize作成結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/prizes/{catalog_resource_id}:
     get:
       operationId: getAdminCatalogPrize
@@ -361,6 +382,45 @@ paths:
       parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
       responses:
         '200': {description: Prize詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminCatalogPrize
+      summary: Prizeを更新する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CatalogResourceId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogPrizeUpdate'}
+      responses:
+        '200': {description: Prize更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/prizes/{catalog_resource_id}/archive:
+    post:
+      operationId: archiveAdminCatalogPrize
+      summary: PrizeをArchiveする
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CatalogResourceId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogArchiveRequest'}
+      responses:
+        '200': {description: Prize Archive結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /catalog/presentation-assets:
     get:
@@ -382,6 +442,23 @@ paths:
       responses:
         '200': {description: Presentation Asset一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminCatalogPresentationAsset
+      summary: Presentation Assetを登録する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetCreate'}
+      responses:
+        '201': {description: Presentation Asset登録結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/presentation-assets/{catalog_resource_id}:
     get:
       operationId: getAdminCatalogPresentationAsset
@@ -394,6 +471,45 @@ paths:
       parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
       responses:
         '200': {description: Presentation Asset詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminCatalogPresentationAsset
+      summary: Presentation Asset表示情報を更新する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CatalogResourceId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetUpdate'}
+      responses:
+        '200': {description: Presentation Asset更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/presentation-assets/{catalog_resource_id}/archive:
+    post:
+      operationId: archiveAdminCatalogPresentationAsset
+      summary: Presentation AssetをArchiveする
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CatalogResourceId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogArchiveRequest'}
+      responses:
+        '200': {description: Presentation Asset Archive結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPresentationAssetMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /content/banners:
     get:
@@ -1879,6 +1995,59 @@ components:
         name: {type: string, minLength: 1, maxLength: 128}
         sort_order: {type: integer, minimum: 0, maximum: 4294967295}
         is_visible: {type: boolean}
+    AdminCatalogPrizeCreate:
+      type: object
+      additionalProperties: false
+      required: [code, rank_id, presentation_asset_id, name, description, display_price, exchange_points, is_visible]
+      properties:
+        code: {type: string, pattern: '^[a-z][a-z0-9_-]{0,63}$'}
+        rank_id: {$ref: '#/components/schemas/OpaqueId'}
+        presentation_asset_id:
+          oneOf:
+            - {$ref: '#/components/schemas/OpaqueId'}
+            - {type: 'null'}
+        name: {type: string, minLength: 1, maxLength: 191}
+        description: {type: [string, 'null'], maxLength: 2000}
+        display_price: {type: integer, minimum: 0}
+        exchange_points: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+    AdminCatalogPrizeUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, rank_id, presentation_asset_id, name, description, display_price, exchange_points, is_visible]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        rank_id: {$ref: '#/components/schemas/OpaqueId'}
+        presentation_asset_id:
+          oneOf:
+            - {$ref: '#/components/schemas/OpaqueId'}
+            - {type: 'null'}
+        name: {type: string, minLength: 1, maxLength: 191}
+        description: {type: [string, 'null'], maxLength: 2000}
+        display_price: {type: integer, minimum: 0}
+        exchange_points: {type: integer, minimum: 0}
+        is_visible: {type: boolean}
+    AdminCatalogPresentationAssetCreate:
+      type: object
+      additionalProperties: false
+      required: [storage_identifier, public_path, checksum_sha256, media_type, mime_type, byte_size, alt_text, is_public]
+      properties:
+        storage_identifier: {type: string, minLength: 1, maxLength: 512}
+        public_path: {type: string, pattern: '^/(?!/)', maxLength: 512}
+        checksum_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        media_type: {type: string, enum: [image, video]}
+        mime_type: {type: string, minLength: 3, maxLength: 128}
+        byte_size: {type: integer, minimum: 0}
+        alt_text: {type: [string, 'null'], maxLength: 191}
+        is_public: {type: boolean}
+    AdminCatalogPresentationAssetUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, alt_text, is_public]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        alt_text: {type: [string, 'null'], maxLength: 191}
+        is_public: {type: boolean}
     AdminCatalogArchiveRequest:
       type: object
       additionalProperties: false
@@ -1905,6 +2074,20 @@ components:
       required: [data, idempotent_replay]
       properties:
         data: {$ref: '#/components/schemas/AdminCatalogRank'}
+        idempotent_replay: {type: boolean}
+    AdminCatalogPrizeMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminCatalogPrize'}
+        idempotent_replay: {type: boolean}
+    AdminCatalogPresentationAssetMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminCatalogPresentationAsset'}
         idempotent_replay: {type: boolean}
     AdminCatalogRankReference:
       type: object
@@ -1943,6 +2126,9 @@ components:
           oneOf:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
             - {type: 'null'}
+        is_archived: {type: boolean}
+        revision: {type: integer, minimum: 1}
+        archived_at: {type: [string, 'null'], format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     AdminCatalogPresentationAsset:
@@ -1958,6 +2144,9 @@ components:
         public_path: {type: [string, 'null'], maxLength: 512}
         checksum_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
         is_public: {type: boolean}
+        is_archived: {type: boolean}
+        revision: {type: integer, minimum: 1}
+        archived_at: {type: [string, 'null'], format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     AdminCatalogCategoryCollection:
