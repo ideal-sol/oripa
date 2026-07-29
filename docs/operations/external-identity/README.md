@@ -99,6 +99,26 @@ Emailを要求しない。新規User作成だけはEmail Claimを必須とし、
 Active Userや架空Emailを作成せず
 `EXTERNAL_IDENTITY_EMAIL_COMPLETION_REQUIRED`境界を返す。
 
+## Messaging Follow Boundary
+
+Messaging Webhookは固定Route `POST /webhooks/v2/line`で受け付け、生Request
+Bodyと`LINE_MESSAGING_CHANNEL_SECRET`で署名を検証してからJSONを解釈する。
+処理対象は`follow`／`unfollow`だけであり、Message本文は受信・保存しない。
+`webhookEventId`とLINE SubjectはHMAC相関値として保存し、Raw User ID、
+Reply Token、Channel Access Tokenは永続化・Log・Auditしない。
+
+Login済みFollowではFriendship、任意のfree Point Reward、Audit、Outboxを
+同一DB Transactionで確定する。Login前FollowはPendingとして保存し、後続の
+LINE Login／Link成功Transactionで一度だけClaimする。Pointまたは設定確定に
+失敗した場合はReplyを送らない。
+
+Follow Transaction成功後だけ、固定Reply Endpointへ
+`LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`のBearer認証で1 Text Messageを送る。
+Reply EventはDB状態で一度だけClaimし、Redeliveryや並行処理で同じReply Tokenを
+再利用しない。Replyの429、5xx、TimeoutはPoint／FriendshipをRollbackせず、
+Redaction済みFailure CodeをAuditする。Push、Broadcast、Multicast、
+NarrowcastへのFallbackは行わない。
+
 ## Transaction／Retention
 
 Identity、User、Session、Audit、OutboxはDomain確定Transaction内で保存する。
