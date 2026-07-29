@@ -5597,7 +5597,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Chromium Browser E2E 10 TestはPASSした。
 - Policy Unit 88 Test、Quality Unit 5 Test、Security Unit 4 Test、
   Release Unit 10 Test、DB Guard Unit 25 TestはPASSした。
-  `quality-gate`、`security-gate`はPASSし、Final Commit後に`policy-gate`を確定する。
+  `policy-gate`、`quality-gate`、`security-gate`はPASSした。
 - Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
   Site Schema生成差分／Typecheck／Lint／Build／10 Test、
   Storefront Testkit生成差分／Typecheck／Lint／Build／22 Test、
@@ -5643,7 +5643,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   型解決できず停止した。Storefront Client／Site Schema Build完了後に依存順で
   Testkitを再実行し、22 Testと全BoundaryがPASSした。Code変更は不要だった。
 - 未Commitの新規Migrationを追跡対象として要求する`policy-gate`は作業途中に
-  Fail Closedとなった。Worklog／Reportを含む固定Commit後に再実行して確定する。
+  Fail Closedとなった。固定Commit後は新Admin Componentの明示Allowlist登録漏れも
+  検出したため、既存の限定列挙へ1 Pathだけを追加した。Wildcardや任意Path許可へ
+  緩和せず、Policy Unit 88件とPolicy Gate本体を再実行してPASSした。
   Gate、Baseline、Assertionは弱めていない。
 
 ### Closeout待ち／Gate

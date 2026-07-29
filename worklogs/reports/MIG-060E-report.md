@@ -99,7 +99,7 @@
 - Security Unit: 4 Test PASS
 - Release Unit: 10 Test PASS
 - DB Guard Unit: 25 Test PASS
-- `quality-gate`／`security-gate`: PASS
+- `policy-gate`／`quality-gate`／`security-gate`: PASS
 - Storefront Client: 生成差分0、Typecheck／Lint／Build、14 Test PASS
 - Site Schema: 生成差分0、Typecheck／Lint／Build、10 Test PASS
 - Storefront Testkit: 生成差分0、Typecheck／Lint／Build、22 Test PASS
@@ -110,8 +110,6 @@
 - Legacy Lint: 既存8 Error／1 Warningと一致
 - Secret／PII Candidate: 0
 - 新規Critical／High: 0
-- `policy-gate`は未Commit新規Migrationを追跡対象外として途中で拒否した。
-  Final Commit固定後に再実行して確定する。
 
 ## V2 DB回帰
 
@@ -144,7 +142,7 @@
 | Ephemeral V2 Smoke | 約5分 | 全Suite、Load、Backup／Restore、Source／Restore比較 | Checksum一致、Resource Cleanup PASS |
 | Browser E2E | 約1分18秒 | Auth ShellからPrize／Asset Mutationまで10 Scenario | 10 Test PASS |
 | First-party Package | 再実行約22秒 | 並列初回はTestkitが依存Package Build前に型解決できず停止 | 依存Build後に再実行し22 Test／全Boundary PASS |
-| Policy Gate | Final Commit後に再実行 | 未Commit新規Migrationを追跡対象外としてFail Closed | Gateを弱めずFinal Headで確定する |
+| Policy Gate | 2回の途中拒否後にPASS | 未Commit Migrationと新Admin Componentの明示Allowlist漏れをFail Closed | 既存限定列挙へ1 Pathだけ追加。Wildcard化せずPolicy Unit 88件／Gate PASS |
 
 ## 非変更
 

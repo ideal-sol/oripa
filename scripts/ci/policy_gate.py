@@ -505,6 +505,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-data-table.tsx",
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-overview.tsx",
+    "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-section-navigation.tsx",
     "apps/admin/src/components/catalog/catalog-workspace.tsx",
     "apps/admin/src/components/catalog/cursor-pagination.tsx",
