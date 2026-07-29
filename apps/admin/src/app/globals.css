@@ -1418,7 +1418,8 @@ label {
   gap: 8px;
 }
 
-.line-settings-form textarea {
+.line-settings-form textarea,
+.line-reward-settings input[type="number"] {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1431,9 +1432,67 @@ label {
   width: 100%;
 }
 
-.line-settings-form textarea:focus {
+.line-settings-form textarea:focus,
+.line-reward-settings input:focus {
   border-color: var(--forest);
   outline: 2px solid color-mix(in srgb, var(--forest) 24%, transparent);
+}
+
+.line-reward-settings {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 16px;
+}
+
+.line-reward-settings legend {
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.line-reward-toggle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: 10px;
+}
+
+.line-reward-toggle input {
+  height: 20px;
+  width: 20px;
+}
+
+.line-reward-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.line-reward-grid label {
+  display: grid;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.line-reward-settings input[type="number"] {
+  min-height: 44px;
+}
+
+.line-reward-settings input:disabled {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+}
+
+.line-reward-note,
+.line-reward-status {
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.line-reward-status {
+  font-weight: 700;
 }
 
 .line-settings-actions {
@@ -1464,6 +1523,12 @@ label {
   margin: 6px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .line-reward-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -475,6 +475,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
           linked_follow_message: "友だち追加が完了しました。",
           login_relative_path: "/login",
           pending_follow_message: "{login_url} からログインしてください。",
+          reward_enabled: false,
+          reward_expiration_days: 180,
+          reward_point_amount: 0,
           revision,
           updated_at: "2026-07-29T00:00:00Z",
         },
@@ -485,6 +488,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
       const input = request.postDataJSON() as {
         linked_follow_message: string;
         pending_follow_message: string;
+        reward_enabled: boolean;
+        reward_expiration_days: number;
+        reward_point_amount: number;
       };
       return json(route, {
         linked_follow_message: input.linked_follow_message,
@@ -492,6 +498,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
           "{login_url}",
           "/login",
         ),
+        reward_enabled: input.reward_enabled,
+        reward_expiration_days: input.reward_expiration_days,
+        reward_point_amount: input.reward_point_amount,
         request_id: "01910191-0191-7191-8191-019101910193",
       });
     }
@@ -514,6 +523,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
       const input = request.postDataJSON() as {
         linked_follow_message: string;
         pending_follow_message: string;
+        reward_enabled: boolean;
+        reward_expiration_days: number;
+        reward_point_amount: number;
       };
       revision = 2;
       return json(route, {
@@ -522,6 +534,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
           linked_follow_message: input.linked_follow_message,
           login_relative_path: "/login",
           pending_follow_message: input.pending_follow_message,
+          reward_enabled: input.reward_enabled,
+          reward_expiration_days: input.reward_expiration_days,
+          reward_point_amount: input.reward_point_amount,
           revision,
           updated_at: "2026-07-29T00:01:00Z",
         },
@@ -537,10 +552,16 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
   await page
     .getByLabel("ログイン前ユーザー向け")
     .fill("{login_url} からLINEログインを完了してください。");
+  await page.getByRole("checkbox", {
+    name: "ポイント付与を有効にする",
+  }).check();
+  await page.getByLabel("付与ポイント数").fill("500");
+  await page.getByLabel("有効期限日数").fill("365");
   await page.getByRole("button", { name: "プレビュー" }).click();
   await expect(
     page.getByText("/login からLINEログインを完了してください。"),
   ).toBeVisible();
+  await expect(page.getByText("無償 500 Point／有効期限 365日")).toBeVisible();
   await page.getByRole("button", { name: "保存" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("認証アプリの6桁コード").fill("654321");

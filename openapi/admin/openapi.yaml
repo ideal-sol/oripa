@@ -1983,6 +1983,16 @@ components:
           type: string
           pattern: '^/[A-Za-z0-9/_?&=.-]*$'
           readOnly: true
+        reward_enabled:
+          type: boolean
+        reward_point_amount:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        reward_expiration_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
         revision:
           type: integer
           minimum: 1
@@ -2001,7 +2011,14 @@ components:
     AdminLineMessagingSettingUpdate:
       type: object
       additionalProperties: false
-      required: [expected_revision, linked_follow_message, pending_follow_message]
+      required:
+        - expected_revision
+        - linked_follow_message
+        - pending_follow_message
+      dependentRequired:
+        reward_enabled: [reward_point_amount, reward_expiration_days]
+        reward_point_amount: [reward_enabled, reward_expiration_days]
+        reward_expiration_days: [reward_enabled, reward_point_amount]
       properties:
         expected_revision:
           type: integer
@@ -2014,10 +2031,26 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+        reward_enabled:
+          type: boolean
+        reward_point_amount:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        reward_expiration_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
     AdminLineMessagingPreviewRequest:
       type: object
       additionalProperties: false
-      required: [linked_follow_message, pending_follow_message]
+      required:
+        - linked_follow_message
+        - pending_follow_message
+      dependentRequired:
+        reward_enabled: [reward_point_amount, reward_expiration_days]
+        reward_point_amount: [reward_enabled, reward_expiration_days]
+        reward_expiration_days: [reward_enabled, reward_point_amount]
       properties:
         linked_follow_message:
           type: string
@@ -2027,10 +2060,23 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+        reward_enabled:
+          type: boolean
+        reward_point_amount:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        reward_expiration_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
     AdminLineMessagingPreview:
       type: object
       additionalProperties: false
-      required: [linked_follow_message, pending_follow_message, request_id]
+      required:
+        - linked_follow_message
+        - pending_follow_message
+        - request_id
       properties:
         linked_follow_message:
           type: string
@@ -2040,6 +2086,16 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+        reward_enabled:
+          type: boolean
+        reward_point_amount:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        reward_expiration_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
         request_id:
           $ref: '#/components/schemas/OpaqueId'
     AdminLineMessagingMutationResult:

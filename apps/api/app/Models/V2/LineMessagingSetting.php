@@ -13,6 +13,7 @@ final class LineMessagingSetting extends Model
     protected function casts(): array
     {
         return [
+            'reward_enabled' => 'boolean',
             'reward_point_amount' => 'integer',
             'reward_expiration_days' => 'integer',
             'revision' => 'integer',

@@ -5932,6 +5932,138 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。次Task候補は
   `MIG-060F Admin Gacha Version Management`であり、本Taskでは開始しない。
 
+## MIG-058B Closeout／MIG-058C LINE Friend Reward Configuration Completion
+
+### MIG-058B Closeout
+
+- Issue `#131`はClosed、PR `#132`はSquash Mergedである。
+- Final Headは`cc2511973eb49a5d8e4fa088d0361c6fb52e8ab7`、Squash Commitは
+  `2834eba8242867a5b7400e4bada7cafe0f91f86c`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとMIG-058B Worktreeは削除済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-058C Task／設計
+
+- Task IDは`MIG-058C`、Riskは`R3`、Issueは`#133`、Branchは
+  `fix/MIG-058C-line-friend-reward-settings`、Base SHAは
+  `2834eba8242867a5b7400e4bada7cafe0f91f86c`である。
+- MIG-058BのLINE Login、Webhook署名、Reply Message、Pending Follow、
+  External Identity、Point Service、Admin Message設定、Fresh MFA、
+  Idempotency／OCC、Audit／Outboxを再利用した。Login／Webhook／Replyの
+  Endpoint、Token保持方針、Push禁止境界は変更していない。
+- Forward-safe Migration
+  `2026_08_07_000020_add_line_friend_reward_enabled.php`で
+  `line_messaging_settings.reward_enabled`を追加した。Defaultは`false`、
+  Amountは0、Expirationは180日であり、既存Migrationは編集していない。
+- DB CHECKは無効時Amount 0、有効時Amount 1～1,000,000、Expiration 1～3,650日、
+  Revision 1以上を保証する。Dump／Restore安定性のため、Amount、Expiration、
+  Revisionへ明示的PostgreSQL Castを付け、`BETWEEN`を使わないCanonical比較とした。
+- 1,000,000 Point上限は承認済みV1 Point管理境界を正本にし、
+  V2 Point Domain、Admin OpenAPI、Server Validation、Admin UI、DB CHECKで
+  同じ値を使用する。Pointはfreeとして付与し、設定日数をLot期限に使用する。
+- Reward無効時はFriendshipを確定するが、Wallet、Point Operation、Lot、Ledger、
+  Rewarded状態を作成しない。`reward_disabled`をRedaction済みAppend-only Auditへ
+  記録する。
+- Reward有効時は既存Friendship Public ID由来Business Keyを用い、Webhook Redelivery、
+  Concurrent Follow、Unfollow／Re-follow、設定変更後も一度だけ付与する。
+  Point失敗時は完了Replyを送らず、Reply失敗時は確定済みPointをRollbackしない。
+
+### MIG-058C Contract／Admin UI
+
+- Admin OpenAPIの既存LINE Messaging設定取得／Preview／更新へ
+  `reward_enabled`、`reward_point_amount`、`reward_expiration_days`を追加した。
+  Public／Webhook Operation数とStorefront Client Contractは変更していない。
+- 既存`identity.line.manage`、Owner-only、Admin Realm、Fresh MFA 5分、
+  CSRF、Exact Origin、JSON、Critical Mutation Rate Limit、
+  Idempotency-Key、Revision OCC、Canonical Replay、Audit／Outboxを維持した。
+- Admin設定画面へ有効Toggle、free Point表示、Amount、Expiration、現在状態、
+  Server Preview、Validation／Conflict／Fresh MFA／Canonical再取得を追加した。
+  無効化時はAmountを0へ固定し、1～1,000,000 Pointと1～3,650日の範囲を
+  Client／Server双方で検証する。Secret／資格情報は表示・変更しない。
+
+### MIG-058C 途中検証／効率改善
+
+- Root Frozen Installはpnpm `10.12.1`でPASSした。OpenAPI Bundle／Check、
+  Admin Contract生成／生成差分0、Admin Typecheck／Lint、Unit／Component
+  39 TestはPASSした。
+- Admin Browser E2Eは既存11 Scenarioを55.6秒で実行し、LINE設定のReward入力、
+  Preview、Fresh MFA再送、同一Idempotency-Key、Canonical Revision更新を含めPASSした。
+- Persistent全V2 Suite初回は106.8秒後、追加TestのWallet非生成期待、Rate Limit状態共有、
+  Carbon型比較の3点で停止した。実装／Gateを弱めずTestを正した。
+- Persistent全V2 Suite再試行は106.4秒後、Audit Column名のTest誤記だけで停止した。
+  `action`を正本`action_code`へ修正した。
+- 重い3回目の前に、対象HTTP TestとAdmin Smokeを先行する効率改善方針を適用した。
+  LINE Messaging／Login対象は23 Test／194 Assertion、Webhook 2 Process並行Testは
+  1 Test／10 AssertionでPASSした。
+- 対象Testの最初の手動実行は、先行Full Suite失敗後のPersistent V2開発DB Fixtureと
+  `artisan test`既定DB名の影響でEvidenceに採用しなかった。V2専用
+  `oripa-v2-dev`だけを`migrate:fresh`し、`vendor/bin/phpunit`と
+  `phpunit.v2.xml`を明示して短時間で正本対象結果を得た。
+- 重い検証前のRead-only容量確認はRoot 4.2GB、`/tmp` 3.3GBであり、
+  容量不足Cleanupは実施していない。稼働Container、Named Volume、
+  V1 Resourceへ触れていない。
+- First-party Packageは依存Build順にSerial実行する。Buildx／Host Toolchain更新は
+  行わず、既存Docker Builderを使用する。
+
+### MIG-058C Closeout予定
+
+- Final Persistent Guardは`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、PostgreSQL／Redis Health、Schema Inventoryが
+  PASSした。Ephemeral Guardは`migrate:fresh` 2回、全V2／Load／Performance、
+  Backup／Restore、API／Admin Health、Task Resource CleanupがPASSした。
+- Migration Setは20件、SHA-256は
+  `2bbfb220d6fd5412eba404ce2331cbd4df922422ba01c4aff8a9b5f45f49532f`。
+  Backup SHA-256は
+  `e8ecd6c43cfa8c6c216a7149e9e97e6450c73474590699ffa24c046bb974f193`。
+  Source／Restore Schema SHA-256
+  `ac0dcef6f79ed025b50b83c4e57ee90dfdea61c59b4df3934a1a683e8622e025`、
+  Migration Row SHA-256
+  `280948a670af7612bc6449adee96e1dae5d22e5cbe756605d0fcc072a875826a`
+  は一致した。
+- Storefront Client 14 Test、Site Schema 10 Test、Storefront Testkit
+  22 Testを依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+  AdminはTypecheck／Lint／Build、Unit 39 Test、Browser E2E 11 TestがPASSした。
+- Policy Unit 88件、Policy Gate、Quality Unit 5件、Quality Gate、
+  Security Unit 4件、Security GateがPASSした。Root Audit 0、Legacy Audit 11、
+  Composer既存Baseline 10、新規Critical／High 0、Secret Candidate 0である。
+  Release Unit 10件、Artifact Source Validation、Legacy Typecheck、
+  Lint既存8 Error／1 Warning完全一致、Composer Manifest、
+  `git diff --check`もPASSした。
+- 重い検証前にRoot／`/tmp`／Docker CacheをRead-only確認した。Root空き4.2GBは
+  直前Taskの容量不足再発リスクがあったため、稼働Resource、Image、Named Volumeへ
+  触れず、未使用Build Cacheだけ2.33GB削除した。以降はRoot 5.1GB／4.7GBを
+  確認し、追加Cleanupを行っていない。
+- Persistent Final初回は約52秒で、新CHECK式のReward OR節の閉じ括弧不足を
+  PostgreSQLが検出した。明示CastとCanonical比較を維持して括弧だけを修正し、
+  約126秒のPersistent Finalと約348秒のEphemeral Finalを成功させた。
+  対象HTTP／Admin Smokeを先行し、既に成功したFull Suite／Package Evidenceを
+  重複実行せず維持した。Host Toolchainは更新していない。
+- Push前検査でTest用Bearer文字列が高確度Secret Patternへ一致したため、
+  同じConfig値とHeader期待値を短い`test-token`へ置換した。Final Treeの
+  高確度Secret候補は0件、PHP構文はPASSした。置換後の単独Test再実行は常駐
+  Persistent DBの既存Fixtureと件数前提が衝突したため採用せず、Clean DBで成功した
+  全V2 Suite Evidenceを維持し、同一HeadのGitHub Checkで最終回帰を確認する。
+- GitHub Quality Gate初回は、既存Admin Setting／Update／Preview Schemaへ
+  Reward Fieldをrequired追加したBreaking Changeを検出した。Gateを緩めず、
+  Reward Fieldを後方互換なOptional Contractへ修正した。Server Responseは常時
+  新Fieldを返し、旧Requestが3 Fieldを全省略した場合は現在設定を保持し、
+  一部だけの指定は422で拒否する。Idempotency hashは省略状態を維持する。
+- 修正後のOpenAPI Breaking Check、Admin生成差分0、Typecheck／Lint／Unit 39件／
+  BuildがPASSした。Clean DBのPersistent互換回帰も`migrate:fresh` 2回、
+  全V2 Suite、最新Migration Rollback／Reapply、Health、Migration Checksumが
+  PASSした。重い回帰前にRoot空き3.8GBと未使用Build Cache 1.885GBを確認し、
+  稼働Resourceへ触れずBuild Cacheだけを追加Cleanupした。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。Final Head、GitHub Check、Fresh Self-review、Squash Commit、
+  CleanupはPR Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`である。
+- 次Task候補は`MIG-060F Admin Gacha Version Management`であり、
+  MIG-060Fは本Task内で開始しない。
+
 ### MIG-058B Fresh Self-review補正
 
 - Fresh Self-reviewで、LINE Login Channel資格情報が正式名を優先しながら

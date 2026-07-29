@@ -131,6 +131,7 @@ final class LineLoginVerticalSliceTest extends TestCase
     {
         config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
         LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
             'reward_point_amount' => 75,
         ]);
         $subject = 'pending-before-login';

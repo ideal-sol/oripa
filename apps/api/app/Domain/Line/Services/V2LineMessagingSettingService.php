@@ -12,6 +12,7 @@ use App\Domain\Line\Exceptions\V2LineMessagingException;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
+use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\LineMessagingSetting;
 use Illuminate\Support\Facades\DB;
 
@@ -42,7 +43,13 @@ final class V2LineMessagingSettingService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{linked_follow_message: string, pending_follow_message: string}
+     * @return array{
+     *   linked_follow_message: string,
+     *   pending_follow_message: string,
+     *   reward_enabled: bool,
+     *   reward_point_amount: int,
+     *   reward_expiration_days: int
+     * }
      */
     public function preview(
         V2AdminAuthorizationContext $context,
@@ -55,6 +62,7 @@ final class V2LineMessagingSettingService
             'identity.line.messaging.preview'
         );
         $payload = $this->validateMessages($input, false);
+        $setting = $this->setting();
 
         return [
             'linked_follow_message' => $this->templates->render(
@@ -63,6 +71,12 @@ final class V2LineMessagingSettingService
             'pending_follow_message' => $this->templates->render(
                 $payload['pending_follow_message']
             ),
+            'reward_enabled' => $payload['reward_enabled']
+                ?? (bool) $setting->reward_enabled,
+            'reward_point_amount' => $payload['reward_point_amount']
+                ?? (int) $setting->reward_point_amount,
+            'reward_expiration_days' => $payload['reward_expiration_days']
+                ?? (int) $setting->reward_expiration_days,
         ];
     }
 
@@ -152,6 +166,12 @@ final class V2LineMessagingSettingService
                         'The LINE Messaging setting was updated by another operation.'
                     );
                 }
+                $rewardEnabled = $request['reward_enabled']
+                    ?? (bool) $setting->reward_enabled;
+                $rewardPointAmount = $request['reward_point_amount']
+                    ?? (int) $setting->reward_point_amount;
+                $rewardExpirationDays = $request['reward_expiration_days']
+                    ?? (int) $setting->reward_expiration_days;
                 $before = [
                     'linked_follow_message_checksum' => hash(
                         'sha256',
@@ -161,11 +181,17 @@ final class V2LineMessagingSettingService
                         'sha256',
                         $setting->pending_follow_message
                     ),
+                    'reward_enabled' => (bool) $setting->reward_enabled,
+                    'reward_point_amount' => (int) $setting->reward_point_amount,
+                    'reward_expiration_days' => (int) $setting->reward_expiration_days,
                     'revision' => (int) $setting->revision,
                 ];
                 $setting->forceFill([
                     'linked_follow_message' => $request['linked_follow_message'],
                     'pending_follow_message' => $request['pending_follow_message'],
+                    'reward_enabled' => $rewardEnabled,
+                    'reward_point_amount' => $rewardPointAmount,
+                    'reward_expiration_days' => $rewardExpirationDays,
                     'revision' => (int) $setting->revision + 1,
                     'updated_by_admin_id' => $admin->getKey(),
                     'updated_at' => now()->startOfSecond(),
@@ -190,6 +216,9 @@ final class V2LineMessagingSettingService
                             'sha256',
                             $setting->pending_follow_message
                         ),
+                        'reward_enabled' => (bool) $setting->reward_enabled,
+                        'reward_point_amount' => (int) $setting->reward_point_amount,
+                        'reward_expiration_days' => (int) $setting->reward_expiration_days,
                         'revision' => (int) $setting->revision,
                     ],
                     'outcome' => 'success',
@@ -249,20 +278,49 @@ final class V2LineMessagingSettingService
     /** @param array<string, mixed> $input */
     private function validateMessages(array $input, bool $allowRevision): array
     {
-        $allowed = ['linked_follow_message', 'pending_follow_message'];
+        $allowed = [
+            'linked_follow_message',
+            'pending_follow_message',
+            'reward_enabled',
+            'reward_point_amount',
+            'reward_expiration_days',
+        ];
         if ($allowRevision) {
             $allowed[] = 'expected_revision';
         }
+        $rewardFields = [
+            'reward_enabled',
+            'reward_point_amount',
+            'reward_expiration_days',
+        ];
+        $providedRewardFields = array_filter(
+            $rewardFields,
+            static fn (string $field): bool => array_key_exists($field, $input)
+        );
+        $hasRewardFields = count($providedRewardFields) === count($rewardFields);
         if (
             array_diff(array_keys($input), $allowed) !== []
             || ! isset($input['linked_follow_message'], $input['pending_follow_message'])
             || ! is_string($input['linked_follow_message'])
             || ! is_string($input['pending_follow_message'])
+            || ($providedRewardFields !== [] && ! $hasRewardFields)
+            || ($hasRewardFields && (
+                ! is_bool($input['reward_enabled'])
+                || ! is_int($input['reward_point_amount'])
+                || ! is_int($input['reward_expiration_days'])
+                || $input['reward_point_amount'] < 0
+                || $input['reward_point_amount']
+                    > V2PointService::MAX_LINE_FRIEND_REWARD_AMOUNT
+                || ($input['reward_enabled'] && $input['reward_point_amount'] === 0)
+                || (! $input['reward_enabled'] && $input['reward_point_amount'] !== 0)
+                || $input['reward_expiration_days'] < 1
+                || $input['reward_expiration_days'] > 3650
+            ))
         ) {
             throw $this->invalid();
         }
 
-        return [
+        $validated = [
             'linked_follow_message' => $this->templates->normalize(
                 $input['linked_follow_message']
             ),
@@ -270,6 +328,13 @@ final class V2LineMessagingSettingService
                 $input['pending_follow_message']
             ),
         ];
+        if ($hasRewardFields) {
+            $validated['reward_enabled'] = $input['reward_enabled'];
+            $validated['reward_point_amount'] = $input['reward_point_amount'];
+            $validated['reward_expiration_days'] = $input['reward_expiration_days'];
+        }
+
+        return $validated;
     }
 
     /** @return array<string, mixed> */
@@ -280,6 +345,9 @@ final class V2LineMessagingSettingService
             'linked_follow_message' => $setting->linked_follow_message,
             'pending_follow_message' => $setting->pending_follow_message,
             'login_relative_path' => $setting->login_relative_path,
+            'reward_enabled' => (bool) $setting->reward_enabled,
+            'reward_point_amount' => (int) $setting->reward_point_amount,
+            'reward_expiration_days' => (int) $setting->reward_expiration_days,
             'revision' => (int) $setting->revision,
             'updated_at' => $setting->updated_at->toIso8601String(),
         ];

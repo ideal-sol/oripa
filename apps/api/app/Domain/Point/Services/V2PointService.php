@@ -17,6 +17,8 @@ use Illuminate\Support\Str;
 
 final class V2PointService
 {
+    public const MAX_LINE_FRIEND_REWARD_AMOUNT = 1_000_000;
+
     public function __construct(
         private readonly V2PointTransactionRunner $transactions,
         private readonly V2PointIdempotencyService $idempotency,
@@ -164,6 +166,7 @@ final class V2PointService
             || $friendshipId < 1
             || ! Str::isUuid($friendshipPublicId)
             || $amount < 1
+            || $amount > self::MAX_LINE_FRIEND_REWARD_AMOUNT
         ) {
             throw new V2PointException('LINE friend reward input is invalid.');
         }
