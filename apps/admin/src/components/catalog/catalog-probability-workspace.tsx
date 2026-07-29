@@ -6,6 +6,7 @@ import {
   Copy,
   LoaderCircle,
   Plus,
+  Rocket,
   Save,
   ShieldAlert,
   Trash2,
@@ -14,6 +15,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
+import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogBreadcrumb } from "@/components/catalog/catalog-breadcrumb";
 import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
@@ -67,6 +69,7 @@ export function CatalogProbabilityWorkspace({
   const { expireSession } = useAdminAuth();
   const { hasPermission } = usePermissions();
   const canManage = hasPermission("catalog.manage");
+  const canPublish = hasPermission("catalog.publish");
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [cursorIndex, setCursorIndex] = useState(0);
@@ -279,6 +282,7 @@ export function CatalogProbabilityWorkspace({
           {state.kind === "detail" ? (
             <ProbabilityDetail
               canManage={canManage}
+              canPublish={canPublish}
               client={client}
               gachaId={gachaId}
               gachaVersion={state.gachaVersion}
@@ -400,6 +404,7 @@ function ProbabilityList({
 
 function ProbabilityDetail({
   canManage,
+  canPublish,
   client,
   gachaId,
   gachaVersion,
@@ -410,6 +415,7 @@ function ProbabilityDetail({
   probability,
 }: {
   canManage: boolean;
+  canPublish: boolean;
   client: AdminApiClient;
   gachaId: string;
   gachaVersion: AdminCatalogGachaVersion;
@@ -425,6 +431,11 @@ function ProbabilityDetail({
     toProbabilityDraft(probability),
   );
   const [busy, setBusy] = useState(false);
+  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [preflightReady, setPreflightReady] = useState(false);
+  const pendingPublishAction = useRef<"preflight" | "publish" | null>(null);
+  const publishHeading = useRef<HTMLHeadingElement>(null);
   const initial = useMemo(
     () => JSON.stringify(toProbabilityDraft(probability)),
     [probability],
@@ -437,6 +448,10 @@ function ProbabilityDetail({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+
+  useEffect(() => {
+    if (publishConfirmOpen) publishHeading.current?.focus();
+  }, [publishConfirmOpen]);
 
   async function save() {
     if (!isValidProbabilityDraft(draft)) return;
@@ -489,6 +504,70 @@ function ProbabilityDetail({
     }
   }
 
+  async function preflight() {
+    const fingerprint = JSON.stringify({
+      action: "publish-preflight",
+      id: probability.id,
+      revision: probability.revision,
+    });
+    setBusy(true);
+    try {
+      const result = await client.preflightCatalogProbabilityPublish(
+        gachaId,
+        gachaVersion.id,
+        probability.id,
+        probability.revision,
+        pendingKey(fingerprint),
+      );
+      onCanonical(result.data);
+      setPreflightReady(result.data.validation.is_valid);
+      pendingPublishAction.current = null;
+    } catch (cause) {
+      const error = normalizeError(cause);
+      if (error.requiresFreshMfa) {
+        pendingPublishAction.current = "preflight";
+        setFreshMfaOpen(true);
+      } else {
+        onError(error);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function publish() {
+    const fingerprint = JSON.stringify({
+      action: "publish",
+      id: probability.id,
+      revision: probability.revision,
+    });
+    setBusy(true);
+    try {
+      const result = await client.publishCatalogProbabilityDraft(
+        gachaId,
+        gachaVersion.id,
+        probability.id,
+        probability.revision,
+        pendingKey(fingerprint),
+      );
+      onCanonical(result.data);
+      setPublishConfirmOpen(false);
+      setPreflightReady(false);
+      pendingPublishAction.current = null;
+    } catch (cause) {
+      const error = normalizeError(cause);
+      if (error.requiresFreshMfa) {
+        pendingPublishAction.current = "publish";
+        setPublishConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        onError(error);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="catalog-probability-layout">
       <section className="catalog-detail catalog-gacha-detail">
@@ -496,7 +575,15 @@ function ProbabilityDetail({
           <Detail label="Public ID" value={probability.id} />
           <Detail label="Status" value={probability.status} />
           <Detail label="Revision" value={String(probability.revision)} />
-          <Detail label="Snapshot" value={probability.snapshot_sha256} />
+          <Detail
+            label="Snapshot"
+            value={
+              probability.status === "published"
+                ? probability.snapshot_sha256.slice(0, 12)
+                : probability.snapshot_sha256
+            }
+          />
+          <Detail label="Published At" value={probability.published_at ?? "未公開"} />
           <Detail
             label="Clone元"
             value={
@@ -541,6 +628,28 @@ function ProbabilityDetail({
             <CheckCircle2 size={16} aria-hidden="true" />
             Server Validation
           </button>
+          {canPublish ? (
+            <>
+              <button
+                className="secondary-button"
+                disabled={busy || dirty}
+                onClick={preflight}
+                type="button"
+              >
+                <ShieldAlert size={16} aria-hidden="true" />
+                Publish Preflight
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy || dirty || !preflightReady}
+                onClick={() => setPublishConfirmOpen(true)}
+                type="button"
+              >
+                <Rocket size={16} aria-hidden="true" />
+                Probability Publish
+              </button>
+            </>
+          ) : null}
           <button
             className="danger-button"
             disabled={busy}
@@ -552,6 +661,63 @@ function ProbabilityDetail({
           </button>
         </div>
       ) : null}
+      {publishConfirmOpen ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="probability-publish-heading"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            <Rocket size={24} aria-hidden="true" />
+            <h2
+              id="probability-publish-heading"
+              ref={publishHeading}
+              tabIndex={-1}
+            >
+              Probabilityを公開しますか
+            </h2>
+            <p>
+              公開後はVersion、Stage、Entry、Minimum Guaranteeを変更できません。
+              Gacha Version自体は公開されません。
+            </p>
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setPublishConfirmOpen(false)}
+                type="button"
+              >
+                取り消し
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={publish}
+                type="button"
+              >
+                <Rocket size={16} aria-hidden="true" />
+                公開
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      <FreshMfaDialog
+        onClose={() => {
+          pendingPublishAction.current = null;
+          setFreshMfaOpen(false);
+        }}
+        onSuccess={async () => {
+          setFreshMfaOpen(false);
+          if (pendingPublishAction.current === "preflight") {
+            await preflight();
+          } else if (pendingPublishAction.current === "publish") {
+            await publish();
+          }
+        }}
+        open={freshMfaOpen}
+      />
     </div>
   );
 }

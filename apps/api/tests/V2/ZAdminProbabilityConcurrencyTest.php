@@ -127,6 +127,111 @@ final class ZAdminProbabilityConcurrencyTest extends TestCase
         }
     }
 
+    public function test_concurrent_publish_has_one_immutable_winner(): void
+    {
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for Probability concurrency verification.');
+        }
+        $this->configureTestBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $context = $this->createAdminContext();
+        $draft = app(V2CatalogMasterMutationService::class)->cloneProbabilityDraft(
+            $context,
+            self::GACHA_ID,
+            self::GACHA_VERSION_ID,
+            '0198a001-0000-7000-8000-000000000013',
+            'probability-publish-concurrency-clone',
+            []
+        )['data'];
+        $token = (string) Str::uuid7();
+        $startPath = "/tmp/mig060h-publish-{$token}.start";
+        $resultPaths = [
+            "/tmp/mig060h-publish-{$token}-a.json",
+            "/tmp/mig060h-publish-{$token}-b.json",
+        ];
+        DB::disconnect();
+
+        try {
+            $children = [];
+            foreach ($resultPaths as $index => $resultPath) {
+                $pid = pcntl_fork();
+                if ($pid === -1) {
+                    self::fail('Unable to start the Probability publish process.');
+                }
+                if ($pid === 0) {
+                    $this->runPublish(
+                        $context,
+                        $draft['id'],
+                        (int) $draft['revision'],
+                        "probability-publish-concurrency-{$index}",
+                        $startPath,
+                        $resultPath
+                    );
+                }
+                $children[] = $pid;
+            }
+            file_put_contents($startPath, 'start');
+            foreach ($children as $pid) {
+                pcntl_waitpid($pid, $status);
+                self::assertTrue(pcntl_wifexited($status));
+                self::assertSame(0, pcntl_wexitstatus($status));
+            }
+
+            $results = array_map(
+                static fn (string $path): array => json_decode(
+                    file_get_contents($path),
+                    true,
+                    flags: JSON_THROW_ON_ERROR
+                ),
+                $resultPaths
+            );
+            self::assertCount(1, array_filter(
+                $results,
+                static fn (array $result): bool => $result['result'] === 'success'
+            ));
+            $failures = array_values(array_filter(
+                $results,
+                static fn (array $result): bool => $result['result'] === 'failure'
+            ));
+            self::assertCount(1, $failures);
+            self::assertContains(
+                $failures[0]['code'],
+                [
+                    'CATALOG_PROBABILITY_VERSION_IMMUTABLE',
+                    'CATALOG_REVISION_CONFLICT',
+                ]
+            );
+
+            DB::reconnect();
+            self::assertDatabaseHas('catalog_probability_versions', [
+                'public_id' => $draft['id'],
+                'status' => 'published',
+                'revision' => (int) $draft['revision'] + 1,
+            ]);
+            self::assertSame(
+                1,
+                DB::table('outbox_messages')
+                    ->where('aggregate_public_id', $draft['id'])
+                    ->where('event_type', 'catalog.master.published')
+                    ->count()
+            );
+        } finally {
+            DB::reconnect();
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+            @unlink($startPath);
+            foreach ($resultPaths as $resultPath) {
+                @unlink($resultPath);
+            }
+        }
+    }
+
     private function runReplacement(
         V2AdminAuthorizationContext $context,
         string $probabilityVersionId,
@@ -169,6 +274,40 @@ final class ZAdminProbabilityConcurrencyTest extends TestCase
                         ],
                     ]],
                 ]
+            );
+            $result = ['result' => 'success', 'code' => null];
+        } catch (V2CatalogException $exception) {
+            $result = ['result' => 'failure', 'code' => $exception->errorCode];
+        } catch (Throwable $exception) {
+            $result = ['result' => 'unexpected', 'code' => $exception::class];
+        }
+        file_put_contents($resultPath, json_encode($result, JSON_THROW_ON_ERROR));
+        DB::disconnect();
+        exit(0);
+    }
+
+    private function runPublish(
+        V2AdminAuthorizationContext $context,
+        string $probabilityVersionId,
+        int $revision,
+        string $idempotencyKey,
+        string $startPath,
+        string $resultPath
+    ): never {
+        DB::purge();
+        DB::reconnect();
+        while (! file_exists($startPath)) {
+            usleep(1000);
+        }
+
+        try {
+            app(V2CatalogMasterMutationService::class)->publishProbabilityDraft(
+                $context,
+                self::GACHA_ID,
+                self::GACHA_VERSION_ID,
+                $probabilityVersionId,
+                $idempotencyKey,
+                ['expected_revision' => $revision]
             );
             $result = ['result' => 'success', 'code' => null];
         } catch (V2CatalogException $exception) {

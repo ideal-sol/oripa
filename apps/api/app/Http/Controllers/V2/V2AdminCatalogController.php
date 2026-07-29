@@ -420,6 +420,46 @@ final class V2AdminCatalogController
         );
     }
 
+    public function preflightProbabilityPublish(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $probabilityVersionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightProbabilityPublish(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $probabilityVersionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function publishProbabilityDraft(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $probabilityVersionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->publishProbabilityDraft(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $probabilityVersionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     private function list(Request $request, string $method): JsonResponse
     {
         return $this->handle(

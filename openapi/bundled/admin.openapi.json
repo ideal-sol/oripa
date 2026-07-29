@@ -2204,6 +2204,116 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish-preflight": {
+      "post": {
+        "operationId": "preflightAdminCatalogProbabilityPublish",
+        "summary": "Draft Probability Versionの公開前検証をServerで再実行する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityValidationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "公開前Server Validation結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/publish": {
+      "post": {
+        "operationId": "publishAdminCatalogProbabilityDraft",
+        "summary": "検証済みDraft Probability Versionを不変Snapshotとして公開する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ProbabilityVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityValidationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published Probability Snapshot。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogProbabilityVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive": {
       "post": {
         "operationId": "archiveAdminCatalogProbabilityDraft",
@@ -9339,6 +9449,7 @@
           "point.adjustment.paid.approve",
           "catalog.read",
           "catalog.manage",
+          "catalog.publish",
           "shipping.request.manage",
           "qa.draw.manage",
           "reporting.financial.read",

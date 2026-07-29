@@ -8,6 +8,7 @@ use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -50,6 +51,7 @@ final class V2CatalogMasterMutationService
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
         private readonly V2CatalogMutationRateLimiter $rateLimiter,
+        private readonly V2RateLimiter $criticalRateLimiter,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox
@@ -790,6 +792,125 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function preflightProbabilityPublish(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        return $this->executeProbabilityPublish(
+            $context,
+            $gachaPublicId,
+            $gachaVersionPublicId,
+            $probabilityVersionPublicId,
+            $idempotencyKey,
+            $input,
+            true
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function publishProbabilityDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        return $this->executeProbabilityPublish(
+            $context,
+            $gachaPublicId,
+            $gachaVersionPublicId,
+            $probabilityVersionPublicId,
+            $idempotencyKey,
+            $input,
+            false
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    private function executeProbabilityPublish(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId,
+        string $idempotencyKey,
+        array $input,
+        bool $preflight
+    ): array {
+        $action = $preflight ? 'publish_preflight' : 'publish';
+        $admin = $this->authorizeProbabilityPublish($context, $action);
+        $this->rateLimitProbabilityPublish($context, $admin, $action);
+        $this->assertFields($input, ['expected_revision'], ['expected_revision']);
+        $expectedRevision = $this->revision($input['expected_revision']);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'probability_version',
+            $action,
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'probability_version_id' => $probabilityVersionPublicId,
+                'expected_revision' => $expectedRevision,
+            ],
+            200,
+            function () use (
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $probabilityVersionPublicId,
+                $expectedRevision,
+                $preflight
+            ): object {
+                $gachaVersion = $this->probabilityParent(
+                    $gachaPublicId,
+                    $gachaVersionPublicId,
+                    true
+                );
+                $version = $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    true
+                );
+                $this->assertProbabilityVersionMutable(
+                    $version,
+                    (int) $gachaVersion->id,
+                    $expectedRevision
+                );
+                $checksum = $this->validateProbabilityForPublish(
+                    $version,
+                    $gachaVersion
+                );
+                if ($preflight) {
+                    return $version;
+                }
+
+                DB::table('catalog_probability_versions')
+                    ->where('id', $version->id)
+                    ->update([
+                        'status' => 'published',
+                        'snapshot_sha256' => $checksum,
+                        'published_at' => now()->startOfSecond(),
+                        'revision' => (int) $version->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+
+                return $this->find(
+                    'catalog_probability_versions',
+                    $probabilityVersionPublicId,
+                    false
+                );
+            },
+            ! $preflight
+        );
+    }
+
+    /** @param array<string, mixed> $input */
     public function archiveProbabilityDraft(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -1202,6 +1323,8 @@ final class V2CatalogMasterMutationService
                     'clone' => 'cloned',
                     'discard' => 'discarded',
                     'validate' => 'validated',
+                    'publish_preflight' => 'publish_preflight_completed',
+                    'publish' => 'published',
                     default => throw new \LogicException(
                         'Unsupported Catalog mutation action.'
                     ),
@@ -1298,6 +1421,60 @@ final class V2CatalogMasterMutationService
                 'outcome' => 'failure',
                 'reason_code' => strtolower($exception->errorCode),
             ]);
+            throw $exception;
+        }
+    }
+
+    private function authorizeProbabilityPublish(
+        V2AdminAuthorizationContext $context,
+        string $action
+    ): Admin {
+        try {
+            return $this->authorization->authorizePermission(
+                $context,
+                V2Permission::PublishCatalog,
+                true,
+                'catalog.probability_version.'.$action
+            );
+        } catch (V2AuthenticationException $exception) {
+            $this->audit->record('catalog.probability.publish.authorization_failed', [
+                'request_id' => $context->requestId,
+                'actor_type' => 'admin',
+                'actor_public_id' => $context->adminPublicId,
+                'actor_role' => $context->role->value,
+                'auth_realm' => 'admin',
+                'session_correlation_hash' => $context->sessionCorrelationHash,
+                'action' => 'catalog.probability_version.'.$action,
+                'target_type' => 'catalog_probability_version',
+                'outcome' => 'failure',
+                'reason_code' => strtolower($exception->errorCode),
+            ]);
+            throw $exception;
+        }
+    }
+
+    private function rateLimitProbabilityPublish(
+        V2AdminAuthorizationContext $context,
+        Admin $admin,
+        string $action
+    ): void {
+        try {
+            $this->criticalRateLimiter->assertSubject(
+                'critical_admin_mutation',
+                $admin->public_id
+            );
+        } catch (V2AuthenticationException $exception) {
+            $this->recordAudit(
+                $exception->errorCode === 'RATE_LIMITED'
+                    ? 'catalog.probability.publish.rate_limited'
+                    : 'catalog.probability.publish.authorization_failed',
+                $context,
+                $admin,
+                'probability_version',
+                $action,
+                'failure',
+                strtolower($exception->errorCode)
+            );
             throw $exception;
         }
     }
@@ -2605,6 +2782,53 @@ final class V2CatalogMasterMutationService
                 ['stages' => $canonical],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
             )
+        );
+    }
+
+    private function validateProbabilityForPublish(
+        object $version,
+        object $gachaVersion
+    ): string {
+        $structure = $this->resolveProbabilityStructure(
+            (int) $gachaVersion->id,
+            $this->probabilityStructure((int) $version->id)
+        );
+        $validation = $this->probabilityValidation(
+            $structure,
+            (int) $gachaVersion->total_count
+        );
+        $previousMaximum = null;
+        foreach ($structure as $index => $stage) {
+            if (
+                $stage['condition_type'] !== 'sold_count'
+                || ($index === 0 && $stage['min_draw_number'] !== 1)
+                || ($index > 0 && $previousMaximum === null)
+                || (
+                    $index > 0
+                    && $stage['min_draw_number'] !== ((int) $previousMaximum + 1)
+                )
+                || (
+                    $index < count($structure) - 1
+                    && $stage['max_draw_number'] === null
+                )
+            ) {
+                throw $this->probabilityPublishException();
+            }
+            $previousMaximum = $stage['max_draw_number'];
+        }
+        if (! $validation['is_valid']) {
+            throw $this->probabilityPublishException();
+        }
+
+        return $this->probabilityChecksum($structure);
+    }
+
+    private function probabilityPublishException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_PROBABILITY_PUBLISH_INVALID',
+            422,
+            'The Probability Draft cannot be published.'
         );
     }
 

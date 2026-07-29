@@ -6340,3 +6340,141 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 次Task候補は
   `MIG-060H Admin Probability Publish／Gacha Version Publish・Schedule`であり、
   MIG-060Hは本Task内で開始しない。
+
+## MIG-060G Closeout／MIG-060H Admin Probability Publish Foundation
+
+### MIG-060G Closeout
+
+- Issue `#137`はClosed、PR `#138`はSquash Mergedである。
+- Final Headは`f5ea26f72c4f3b857283c194aac6d1003ab96379`、Squash Commitは
+  `515f30cd38e3cefc83e50d9067c5a3b0252e4c7d`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとWorktreeはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060H Task／Characterization
+
+- Task IDは`MIG-060H`、Riskは`R3`、Issueは`#139`、Branchは
+  `feat/MIG-060H-probability-publish`、Base SHAは
+  `515f30cd38e3cefc83e50d9067c5a3b0252e4c7d`である。
+- MIG-050のCatalog／Probability Schema、MIG-060FのGacha Draft、
+  MIG-060GのProbability Draft Editor／Validationと中央Permission Matrixを
+  正本として再利用した。
+- 同一Gacha Versionには複数の不変Published Probability Snapshotを保持できる。
+  Gacha Versionの`published_probability_version_id`による選択と、
+  Gacha Version Publish／Schedule／UnpublishはMIG-060Iへ延期した。
+- Probability PublishだけではGacha Version、Gacha Master、Public Catalog、
+  Draw参照を変更しない。Draw LogicとPublic／Webhook Contractも非変更である。
+
+### Contract／Permission／Publish Domain
+
+- Admin OpenAPIへPublish PreflightとDraft Probability Publishの2 Operationを
+  追加した。既存Published Probability詳細取得Contractを再利用し、
+  Admin Operation数は116、Public 47、Webhook 1である。
+- 中央Permission Matrixへ`catalog.publish`を追加し、Owner／Adminを許可、
+  Operatorを拒否した。Admin Realm、MFA Enrollment、Fresh MFA 5分、
+  CSRF、Exact Origin、JSON、Idempotency-Key、Revision OCCを強制する。
+- Critical Admin Mutation Rate Limitは既存共通Limiterの10回／10分を使用し、
+  Limiter障害時はFail Closedとする。
+- PublishはIdempotency Record、親Gacha、Gacha Version、Probability Versionを
+  既存順でLockし、ServerがStage／Entry／Minimum Guaranteeを毎回再検証する。
+- 全Stageは整数`1,000,000 ppm`、連続した`sold_count`範囲、
+  ActiveなPrize Relation、正本Minimum Guaranteeを必須とする。
+- ClientからSnapshot HashやPublish可否は受け取らない。正規化したStage構造から
+  Server側でSHA-256を決定的に再計算し、Published状態、Published At、
+  Revision、Audit、`catalog.change` Outboxを同一Transactionで確定する。
+- 同一Key／同一RequestはCanonical Replay、同一Key／異内容、Stale Revision、
+  Concurrent後着、再Publish、Archived／不完全Draftは明示Conflictまたは
+  Validation ErrorでFail Closedとする。
+
+### Schema／DB Guard
+
+- Forward-safe Migration
+  `2026_08_10_000023_protect_v2_published_probability_relations.php`を追加した。
+  既存Migrationは編集していない。
+- MIG-060GのTriggerによりPublished Probability Version、Stage、Entry、
+  Minimum Guarantee、Revision、Snapshot Hashは更新／削除不能である。
+- 新TriggerはPublished Entry／Minimum Guaranteeが参照する
+  `catalog_gacha_version_prizes`のGacha Version／Prize付替えと削除を拒否し、
+  Draft親を経由したFK付替え迂回を防止する。
+- Gacha VersionのPublished Probability選択Pointerは変更せず、
+  Migration Apply／Rollback／ReapplyとDump／Restore後もTriggerが一致した。
+
+### Admin UI
+
+- 既存Probability EditorへPublish Preflight、Server Validation結果、
+  Publish可能／不可状態、Fresh MFA Dialog、最終確認、Publish、
+  Conflict／Rate Limit、Published At、Snapshot Hash短縮表示を追加した。
+- Fresh MFA再認証後は同じ未確定操作のIdempotency-Keyを維持し、
+  成功後はCanonical Responseを再取得する。
+- Published後はEditorをRead-onlyとし、Gacha Version Publish／Schedule Buttonは
+  追加していない。OperatorにはPublish操作を表示せず、Backend 403を最終境界とする。
+- Dirty State、二重送信防止、Mobile、Keyboard、Focusは既存Admin基盤を再利用した。
+  TailAdmin無料版を視覚基準としたが、Dependency、CSP、認証境界は変更していない。
+
+### Test／Evidence
+
+- Probability Publish対象Testは`11 Test／125 Assertion`、専用Concurrency Test、
+  DB Guard TestがPASSした。
+- Persistent／Ephemeral Guardの双方で全V2 Suite、Probability／Catalog／Draw／QA、
+  Point、Payment、Shipping、Reporting、Content／Contact回帰がPASSした。
+  GuardはSuite件数を出力しないため、件数は推測して記録していない。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component `47 Test`、Browser E2E `13 Test`がPASSした。
+- Persistent／Ephemeral V2 `migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、API／DB／Redis／Storage HealthがPASSした。
+- Migration数は23、Migration Set SHA-256は
+  `2779a163800e46d06d0dc094fc41b1ee80ea4f027a9e5df63115f1defcf0e4a5`。
+- Backup SHA-256は
+  `120a687894055484887ae94ef7d4c11102ab3b2bdc35549c7222ce1ea47134ed`、
+  Source／Restore正規化Schema SHA-256は
+  `76b283dad2b68bd2a042f1de5e048f645cd9532e6d70be2fe77a582ef36bdfa4`、
+  Migration Row SHA-256は
+  `691a9fc0a40da64e4659e0117c4e9c101b6d1ff73f5263e8044e364cd5838a6c`
+  で一致した。Evidenceは`/var/lib/oripa-v2-evidence/MIG-060H/`である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testを
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 88、Quality Unit 5、Security Unit 4、DB Guard Unit 26、
+  OpenAPI Unit 4、Release Unit 10と各Local GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／Build、
+  Lint既存8 Error／1 Warning FingerprintがPASSした。
+- Root Audit 0、Legacy Audit既存11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+
+### 時間を要した作業／効率改善
+
+- 開始時Root空き8.2GBからBuild後6.7GBとなったため、稼働Container、
+  Named Volume、V1 Resourceへ触れず、未使用Build CacheとDangling Imageだけを
+  Cleanupし、重い検証前にRoot空き13GBを確保した。
+- Admin Browser E2Eは約59秒、Persistent Guardは約3分、
+  Ephemeral Guardは約5分、API Image Buildは約30秒を要した。
+- 初回Browser E2EでFresh MFA再認証時に新しいIdempotency-Keyを生成する不足を
+  検出した。同一操作Keyを維持するよう修正し、Browser E2Eを再実行した。
+- Policy Unit初回は新MigrationのFixture集合が未同期だったためFailureとなった。
+  Gateを弱めずFixtureを23 Migrationへ同期し、88 TestがPASSした。
+- 旧Task DBに対するMigration Rollback確認は対象Migrationが存在せずNo-opだった。
+  既存DBを変更せず、Task専用Clean DBへ切り替えてApply／Rollback／Reapplyと
+  Dump／Restoreを完了した。
+- OpenAPI検証の初回はWorktreeの依存未展開を検出した。Host Toolchainを更新せず、
+  Rootの固定RedoclyとFrozen Offline Installを使用して完了した。
+- Syntax／OpenAPI／対象Unit／HTTP／Admin Smokeを全回帰より先に実行し、
+  First-party Packageは依存順にSerial実行した。成功済みEvidenceを同一Headで
+  重複実行せず、Gate、Baseline、Assertion、Timeout、Memory設定は緩和していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は
+  `MIG-060I Admin Gacha Version Publish／Schedule`であり、
+  MIG-060Iは本Task内で開始しない。

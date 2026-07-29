@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3f8fd89f1c6ec0eabd6fba0a53136953aae8e158bdd61a6707fb021e31155eec
+// Contract SHA-256: 091765ee148872f2300df870a5ed8c7f946d652c685cdb722645687df1fc5441
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -14,6 +14,7 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.paid.approve",
   "catalog.read",
   "catalog.manage",
+  "catalog.publish",
   "shipping.request.manage",
   "qa.draw.manage",
   "reporting.financial.read",

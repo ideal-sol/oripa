@@ -359,6 +359,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
             "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
             "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
+            "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
