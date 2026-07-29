@@ -5497,6 +5497,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   後者のFinal候補ではGuard付きPersistent検証を再実行し、`migrate:fresh` 2回、
   最新Migration Rollback／Reapply、全V2 SuiteがPASSした。Local判定の
   SEV-0／SEV-1は0件である。
+- 初回GitHub CheckはPR必須見出し不足と、既存Category／Tag／Rank Read Schemaへ
+  `revision`／Archive属性をrequired追加した後方互換違反を検出した。PR本文は
+  Governanceの必須見出しへ修正し、Server Responseは新属性を常時返しながら
+  OpenAPIではoptional拡張へ変更した。Mutation UIは`revision`欠落時に操作を
+  表示せず、直接呼出もFail Closedにした。OpenAPI Bundle／Contract Gate、
+  Admin生成差分、Typecheck、Lint、32 Test、Production Build、Browser E2E 9 Testを
+  再実行してPASSした。この修正・再検証には約8分を要した。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。Prize／Asset Mutation、
   Gacha／Probability、他業務Admin画面、Storefront画面、通知Transport、

@@ -135,6 +135,7 @@
 | Catalog固有Security再検証 | 約34秒 | Rate Limit／Limiter障害／Outbox Rollback Testを追加しTask API Imageを再構築 | Mutation 9 Test／110 Assertion、Catalog対象24 Test／364 Assertion PASS |
 | Frozen Install／Package／Admin／Gate | 約4分 | First-party Packageを依存順に全検証 | 生成差分0。Commit固定後のPolicy／Quality／Security GateもPASS |
 | Final候補Persistent再検証 | 約2分 | Self-reviewでIdempotency Hashへ操作種別を固定 | Migration 2回、Rollback／Reapply、全V2 Suiteを再実行してPASS |
+| 初回GitHub Check修正 | 約8分 | PR必須見出し不足と既存Read Schemaへのrequired追加を検出 | PR本文を規定見出しへ修正。新Catalog属性を後方互換なoptional Contractにし、Mutation UIは欠落時Fail Closed。OpenAPI／Admin全検証PASS |
 
 ## 非変更／未実行
 
@@ -151,6 +152,9 @@
 - Gate G5: `NOT COMPLETE`
 - Fresh Self-reviewで、未知のPostgreSQL `P0001`を既知Catalog Conflictへ誤分類しない
   Fail-closed化と、Idempotency Request Hashへの操作種別固定を追加した。
+- GitHub `quality-gate`が既存Read Schemaへのrequired追加を破壊的変更として検出したため、
+  Server Responseは属性を常時返しつつOpenAPIではoptional拡張へ修正した。UIは
+  `revision`欠落時にMutation操作を表示せず、直接呼出も拒否する。
 - Local Fresh Self-review: SEV-0／SEV-1 0件
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、CleanupはPR完了時に確定。
 - 次Task候補:

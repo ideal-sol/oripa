@@ -3719,9 +3719,6 @@
           "description",
           "sort_order",
           "is_visible",
-          "is_archived",
-          "revision",
-          "archived_at",
           "created_at",
           "updated_at"
         ],
@@ -3788,9 +3785,6 @@
           "name",
           "sort_order",
           "is_visible",
-          "is_archived",
-          "revision",
-          "archived_at",
           "created_at",
           "updated_at"
         ],
@@ -3850,9 +3844,6 @@
           "name",
           "sort_order",
           "is_visible",
-          "is_archived",
-          "revision",
-          "archived_at",
           "created_at",
           "updated_at"
         ],

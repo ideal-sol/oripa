@@ -1774,7 +1774,7 @@ components:
     AdminCatalogCategory:
       type: object
       additionalProperties: false
-      required: [id, code, slug, name, description, sort_order, is_visible, is_archived, revision, archived_at, created_at, updated_at]
+      required: [id, code, slug, name, description, sort_order, is_visible, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
@@ -1791,7 +1791,7 @@ components:
     AdminCatalogTag:
       type: object
       additionalProperties: false
-      required: [id, code, slug, name, sort_order, is_visible, is_archived, revision, archived_at, created_at, updated_at]
+      required: [id, code, slug, name, sort_order, is_visible, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
@@ -1807,7 +1807,7 @@ components:
     AdminCatalogRank:
       type: object
       additionalProperties: false
-      required: [id, code, name, sort_order, is_visible, is_archived, revision, archived_at, created_at, updated_at]
+      required: [id, code, name, sort_order, is_visible, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 32}

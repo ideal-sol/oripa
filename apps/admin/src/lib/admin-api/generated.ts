@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 1c264a50b16007ba3d0d4f20c7ad5d01f80e80981ae73a9298c6627a3ad971d8
+// Contract SHA-256: 876e687dc687cb8d634d79aea6192d626fe5eaf9d606b5fd8f030bd4179040de
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -123,9 +123,9 @@ export interface AdminCatalogCategory {
   description: string | null;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -137,9 +137,9 @@ export interface AdminCatalogTag {
   name: string;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,9 +150,9 @@ export interface AdminCatalogRank {
   name: string;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }

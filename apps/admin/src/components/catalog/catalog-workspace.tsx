@@ -148,6 +148,8 @@ export function CatalogWorkspace({
       ? (state.item as CatalogMasterItem)
       : null;
   const canManage = hasPermission("catalog.manage") && isMasterResource(section.resource);
+  const canMutateMaster =
+    canManage && (master === null || typeof master.revision === "number");
 
   async function submitMutation(draft: CatalogMasterDraft) {
     const fingerprint = JSON.stringify({
@@ -242,7 +244,7 @@ export function CatalogWorkspace({
             eyebrow="Catalog"
             title={title}
             action={
-              canManage && !master?.is_archived ? (
+              canMutateMaster && !master?.is_archived ? (
                 <div className="catalog-header-actions">
                   {master ? (
                     <>
@@ -535,7 +537,7 @@ function detailEntries(item: CatalogItem): [string, string][] {
     );
   } else {
     entries.push(["表示順", item.sort_order.toLocaleString()]);
-    if ("revision" in item) {
+    if ("revision" in item && typeof item.revision === "number") {
       entries.push(
         ["Revision", item.revision.toLocaleString()],
         ["Archive日時", item.archived_at ?? "未Archive"],
@@ -573,6 +575,7 @@ async function mutateMaster(
   if (!isMasterResource(resource) || mode === null) {
     throw new Error("Unsupported Catalog mutation.");
   }
+  const revision = mode === "edit" ? mutationRevision(current) : null;
   if (resource === "categories") {
     const response =
       mode === "create"
@@ -591,7 +594,7 @@ async function mutateMaster(
             current!.id,
             {
               description: draft.description,
-              expected_revision: current!.revision,
+              expected_revision: revision!,
               is_visible: draft.isVisible,
               name: draft.name,
               slug: draft.slug,
@@ -617,7 +620,7 @@ async function mutateMaster(
         : await client.updateCatalogTag(
             current!.id,
             {
-              expected_revision: current!.revision,
+              expected_revision: revision!,
               is_visible: draft.isVisible,
               name: draft.name,
               slug: draft.slug,
@@ -641,7 +644,7 @@ async function mutateMaster(
       : await client.updateCatalogRank(
           current!.id,
           {
-            expected_revision: current!.revision,
+            expected_revision: revision!,
             is_visible: draft.isVisible,
             name: draft.name,
             sort_order: draft.sortOrder,
@@ -657,11 +660,19 @@ async function archiveCatalogMaster(
   current: CatalogMasterItem,
   key: string,
 ): Promise<CatalogMasterItem> {
+  const revision = mutationRevision(current);
   if (resource === "categories") {
-    return (await client.archiveCatalogCategory(current.id, current.revision, key)).data;
+    return (await client.archiveCatalogCategory(current.id, revision, key)).data;
   }
   if (resource === "tags") {
-    return (await client.archiveCatalogTag(current.id, current.revision, key)).data;
+    return (await client.archiveCatalogTag(current.id, revision, key)).data;
   }
-  return (await client.archiveCatalogRank(current.id, current.revision, key)).data;
+  return (await client.archiveCatalogRank(current.id, revision, key)).data;
+}
+
+function mutationRevision(current: CatalogMasterItem | null): number {
+  if (!current || typeof current.revision !== "number") {
+    throw new Error("Catalog mutation revision is unavailable.");
+  }
+  return current.revision;
 }

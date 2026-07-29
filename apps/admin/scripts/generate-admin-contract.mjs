@@ -233,9 +233,9 @@ export interface AdminCatalogCategory {
   description: string | null;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -247,9 +247,9 @@ export interface AdminCatalogTag {
   name: string;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -260,9 +260,9 @@ export interface AdminCatalogRank {
   name: string;
   sort_order: number;
   is_visible: boolean;
-  is_archived: boolean;
-  revision: number;
-  archived_at: string | null;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
