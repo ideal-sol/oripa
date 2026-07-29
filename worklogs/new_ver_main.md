@@ -6140,6 +6140,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Category／Tag／Prize／Asset選択、Create／Edit／Archive／Clone／Discard、
   Dirty State、Confirmation、Conflict再読込、二重送信防止、Canonical再取得を
   実装した。Published VersionはRead-onlyで、Publish操作は表示しない。
+- Fresh Self-reviewでVersion一覧のCursor操作がUIへ接続されていない不足を検出し、
+  Master詳細へ前後ページ導線とRoute単位の状態分離を追加した。
 - 既存Admin Shell、PermissionProvider、ProtectedAdminRoute、Catalog共通Componentを
   再利用した。新規画面はTailAdmin無料版の密度と階層を視覚基準にしつつ、
   App全体のTemplate置換、Dependency更新、CSP緩和は行っていない。
@@ -6151,7 +6153,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Operator 403、Delete／Probability Endpoint不存在、DB Guardを検証した。
 - Admin Typecheck、Lint、Production Build、Unit／Component 43 Test、
   Browser E2E 12 TestがPASSした。BrowserではGacha一覧→Master詳細→Draft詳細、
-  Owner Mutation表示、Mobile横溢れなしを確認した。
+  Version一覧の次ページ取得／前ページ復帰、Owner Mutation表示、
+  Mobile横溢れなしを確認した。
 - Persistent Guardは約141秒で、Migration 21件、`migrate:fresh` 2回、
   最新Migration Rollback／Reapply、全V2 Suite、Schema Inventory、
   PostgreSQL／Redis HealthがPASSした。Migration Set SHA-256は
@@ -6193,6 +6196,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Persistent Guard約141秒、Ephemeral Guard約426秒、Admin Browser E2E約59秒が
   主な長時間作業である。Gate、Baseline、Assertion、Timeout、Memory設定は
   縮小・緩和していない。
+- Fresh Self-review後の修正はAdmin範囲だけだったため、Admin Typecheck、Lint、
+  Unit 43件、Production Build／Browser E2E 12件を再実行した。Backend、
+  Migration、Packageに差分がないため、Persistent／Ephemeral Guardは
+  重複実行せず既存Evidenceを維持した。
 
 ### Closeout予定
 

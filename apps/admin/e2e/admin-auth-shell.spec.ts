@@ -450,6 +450,7 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
 }) => {
   const gachaId = "01910191-0191-7191-8191-019101910210";
   const versionId = "01910191-0191-7191-8191-019101910211";
+  const nextVersionId = "01910191-0191-7191-8191-019101910213";
   const category = {
     code: "cards",
     id: "01910191-0191-7191-8191-019101910212",
@@ -495,6 +496,12 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     updated_at: "2026-07-29T00:00:00Z",
     version_number: 1,
   };
+  const nextVersion = {
+    ...version,
+    id: nextVersionId,
+    title: "E2E Draft Page 2",
+    version_number: 2,
+  };
 
   await installAdminApi(page, async (route) => {
     const request = route.request();
@@ -510,7 +517,9 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
       return json(route, { data: gacha });
     }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions`)) {
-      return json(route, { items: [version], next_cursor: null });
+      return url.searchParams.get("cursor") === "next-version-page"
+        ? json(route, { items: [nextVersion], next_cursor: null })
+        : json(route, { items: [version], next_cursor: "next-version-page" });
     }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
       return json(route, { data: version });
@@ -524,6 +533,9 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
   await page.getByRole("link", { name: "開く" }).click();
   await expect(page.getByRole("heading", { name: "e2e-gacha" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Draft作成" })).toBeVisible();
+  await page.getByRole("button", { name: "次へ" }).last().click();
+  await expect(page.getByText("E2E Draft Page 2")).toBeVisible();
+  await page.getByRole("button", { name: "前へ" }).last().click();
   await page.getByRole("link", { name: "詳細" }).click();
   await expect(page.getByRole("heading", { name: "e2e-gacha / Version 1" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Draft編集" })).toBeVisible();

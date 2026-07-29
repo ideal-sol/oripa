@@ -16,12 +16,18 @@ export default async function CatalogResourcePage({
   if (segments[0] === "gachas") {
     if (segments.length === 1) return <CatalogGachaWorkspace />;
     if (segments.length === 2) {
-      return <CatalogGachaWorkspace gachaId={segments[1]} />;
+      return (
+        <CatalogGachaWorkspace
+          gachaId={segments[1]}
+          key={segments[1]}
+        />
+      );
     }
     if (segments.length === 4 && segments[2] === "versions") {
       return (
         <CatalogGachaWorkspace
           gachaId={segments[1]}
+          key={`${segments[1]}:${segments[3]}`}
           versionId={segments[3]}
         />
       );

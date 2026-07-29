@@ -79,6 +79,10 @@ export function CatalogGachaWorkspace({
   const [query, setQuery] = useState("");
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [cursorIndex, setCursorIndex] = useState(0);
+  const [versionCursorHistory, setVersionCursorHistory] = useState<(string | null)[]>([
+    null,
+  ]);
+  const [versionCursorIndex, setVersionCursorIndex] = useState(0);
   const [reload, setReload] = useState(0);
   const [formMode, setFormMode] = useState<FormMode | null>(null);
   const [confirmMode, setConfirmMode] = useState<ConfirmMode | null>(null);
@@ -87,16 +91,17 @@ export function CatalogGachaWorkspace({
   const pendingMutation = useRef<{ fingerprint: string; key: string } | null>(null);
   const canManage = hasPermission("catalog.manage");
   const cursor = cursorHistory[cursorIndex] ?? null;
+  const versionCursor = versionCursorHistory[versionCursorIndex] ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ kind: "loading" });
     loadState(
       client,
       { cursor: cursor ?? undefined, direction: "desc", limit: 20, q: query || undefined },
       controller.signal,
       gachaId,
       versionId,
+      versionCursor,
     )
       .then(setState)
       .catch((cause: unknown) => {
@@ -106,7 +111,16 @@ export function CatalogGachaWorkspace({
         setState({ kind: "error", error });
       });
     return () => controller.abort();
-  }, [client, cursor, expireSession, gachaId, query, reload, versionId]);
+  }, [
+    client,
+    cursor,
+    expireSession,
+    gachaId,
+    query,
+    reload,
+    versionCursor,
+    versionId,
+  ]);
 
   const currentGacha =
     state.kind === "gacha" || state.kind === "version" ? state.gacha : null;
@@ -394,8 +408,21 @@ export function CatalogGachaWorkspace({
           ) : null}
           {state.kind === "gacha" ? (
             <GachaDetail
+              canGoBack={versionCursorIndex > 0}
               gacha={state.gacha}
+              nextCursor={state.versionsNextCursor}
+              onBack={() =>
+                setVersionCursorIndex((value) => Math.max(0, value - 1))
+              }
               onClone={cloneVersion}
+              onNext={() => {
+                if (!state.versionsNextCursor) return;
+                setVersionCursorHistory((history) => [
+                  ...history.slice(0, versionCursorIndex + 1),
+                  state.versionsNextCursor,
+                ]);
+                setVersionCursorIndex((value) => value + 1);
+              }}
               versions={state.versions}
             />
           ) : null}
@@ -588,12 +615,20 @@ function GachaList({
 }
 
 function GachaDetail({
+  canGoBack,
   gacha,
+  nextCursor,
+  onBack,
   onClone,
+  onNext,
   versions,
 }: {
+  canGoBack: boolean;
   gacha: AdminCatalogGacha;
+  nextCursor: string | null;
+  onBack: () => void;
   onClone: (version: AdminCatalogGachaVersion) => void;
+  onNext: () => void;
   versions: AdminCatalogGachaVersion[];
 }) {
   return (
@@ -666,6 +701,12 @@ function GachaDetail({
             </table>
           </div>
         )}
+        <CursorPagination
+          canGoBack={canGoBack}
+          canGoNext={nextCursor !== null}
+          onBack={onBack}
+          onNext={onNext}
+        />
       </section>
     </>
   );
@@ -736,6 +777,7 @@ async function loadState(
   signal: AbortSignal,
   gachaId?: string,
   versionId?: string,
+  versionCursor?: string | null,
 ): Promise<ViewState> {
   if (!gachaId) {
     const response = await client.listCatalogGachas(query, signal);
@@ -750,7 +792,13 @@ async function loadState(
   }
   const versions = await client.listCatalogGachaVersions(
     gachaId,
-    { direction: "desc", limit: 100, status: "all", archive: "all" },
+    {
+      archive: "all",
+      cursor: versionCursor ?? undefined,
+      direction: "desc",
+      limit: 20,
+      status: "all",
+    },
     signal,
   );
   return {

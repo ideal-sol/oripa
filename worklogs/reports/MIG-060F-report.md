@@ -57,6 +57,8 @@
 - Public／Webhook Contract、Storefront Client Admin非公開境界は非変更。
 - `/catalog/gachas`へ一覧、検索、Pagination、Master／Version詳細、
   Create／Edit／Archive／Clone／Discardを追加。
+- Fresh Self-reviewでVersion一覧のCursor操作がUIへ接続されていない不足を検出し、
+  Master詳細へ前後ページ導線とRoute単位の状態分離を追加した。
 - Category／Tag／Prize／Asset選択、Dirty State、Confirmation、Conflict再読込、
   二重送信防止、Canonical再取得、Mobile／Keyboard／Focusを実装。
 - Published VersionはRead-only。Publish Buttonや架空Dataは追加していない。
@@ -65,7 +67,7 @@
 
 - Clean DB対象: 5 Test／76 Assertion PASS。
 - Admin: Typecheck、Lint、Production Build、Unit／Component 43 Test、
-  Browser E2E 12 Test PASS。
+  Browser E2E 12 Test PASS。Version一覧の次ページ取得と前ページ復帰を含む。
 - Persistent Guard: Migration 21件、`migrate:fresh` 2回、
   Rollback／Reapply、全V2 Suite、Health、Schema Inventory PASS。
 - Ephemeral Guard: `migrate:fresh` 2回、全V2／Load／Performance、
@@ -109,6 +111,10 @@
   Ephemeral、Package／Gateの順を維持した。
 - 成功済みAdmin／Package EvidenceはBackend／Policyだけの修正後に重複実行せず、
   Full Persistent／Ephemeralを最終候補で各1回実行した。
+- Fresh Self-review後のCursor UI修正はAdmin範囲だけだったため、Admin Typecheck、
+  Lint、Unit 43件、Production Build／Browser E2E 12件を再実行した。
+  Backend、Migration、Packageに差分がないことを確認し、約9分半を要した
+  Persistent／Ephemeral Guardは重複実行せず既存Evidenceを維持した。
 - Gate、Baseline、Assertion、Timeout、Memory設定は弱めていない。
 
 ## 非変更
