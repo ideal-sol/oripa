@@ -33,26 +33,6 @@ Opaque Public IDを使う。V1 Table名やV1 Codeを機械的にCopyしない。
 Published Gacha VersionとPublished Probability Version、その子RecordはApplicationと
 DB Triggerの両方で変更を拒否する。
 
-## Admin Probability Publish
-
-MIG-060Hは、Admin Realmの`catalog.publish`権限と5分以内のFresh MFAを満たす
-Owner／Adminだけに、Draft Probability VersionのPreflightとPublishを許可する。
-Publish時はIdempotency、Revision OCC、Critical Mutation Rate Limitを検査し、
-Probability Version、親Gacha、親Gacha VersionをLockした後、保存済みStage／Entry／
-Minimum Guaranteeと参照PrizeをServer側で再検証する。各Stageは整数ppmで正確に
-`1,000,000`、Stage範囲は1から連続し、Prize RelationはActiveでなければならない。
-
-検証済みDraftは同一Transactionで`published`へ遷移し、`published_at`、Revision、
-Canonical JSONから再計算したSHA-256、Audit、`catalog.change` Outboxを確定する。
-ClientからSnapshot HashやPublish可否は受け取らない。Published Version本体、その
-Stage／Entry／Minimum Guarantee、参照するGacha Version Prize RelationはDB Guardでも
-変更、付替え、Archive、物理Deleteを拒否する。
-
-同一Gacha Versionには複数の不変Published Probability Snapshotを候補として保持できる。
-MIG-060Hは`catalog_gacha_versions.published_probability_version_id`を変更せず、
-Gacha Versionの状態、公開期間、Public Catalog表示、Draw参照も変更しない。候補の選択と
-Gacha Version Publish／Schedule／UnpublishはMIG-060Iの責任範囲である。
-
 ## Public Contract
 
 Public OpenAPIはCategory／Tag、Gacha一覧、Public IDまたはSlugによるGacha詳細を提供する。
