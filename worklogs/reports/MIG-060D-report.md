@@ -135,7 +135,7 @@
 | Catalog固有Security再検証 | 約34秒 | Rate Limit／Limiter障害／Outbox Rollback Testを追加しTask API Imageを再構築 | Mutation 9 Test／110 Assertion、Catalog対象24 Test／364 Assertion PASS |
 | Frozen Install／Package／Admin／Gate | 約4分 | First-party Packageを依存順に全検証 | 生成差分0。Commit固定後のPolicy／Quality／Security GateもPASS |
 | Final候補Persistent再検証 | 約2分 | Self-reviewでIdempotency Hashへ操作種別を固定 | Migration 2回、Rollback／Reapply、全V2 Suiteを再実行してPASS |
-| 初回GitHub Check修正 | 約8分 | PR必須見出し不足と既存Read Schemaへのrequired追加を検出 | PR本文を規定見出しへ修正。新Catalog属性を後方互換なoptional Contractにし、Mutation UIは欠落時Fail Closed。OpenAPI／Admin全検証PASS |
+| GitHub Check修正 | 約12分 | PR必須見出し／Metadata節不足と既存Read Schemaへのrequired追加を検出 | PR本文をPolicyの厳密なMetadata／節名へ修正。新Catalog属性を後方互換なoptional Contractにし、Mutation UIは欠落時Fail Closed。OpenAPI／Admin全検証PASS |
 
 ## 非変更／未実行
 
@@ -156,6 +156,10 @@
   Server Responseは属性を常時返しつつOpenAPIではoptional拡張へ修正した。UIは
   `revision`欠落時にMutation操作を表示せず、直接呼出も拒否する。旧Read Responseを
   模したFail-closed Component Testを追加した。
+- GitHub `policy-gate`がPR本文の厳密なTask Metadataと
+  `Allowed paths`／`Changed files`節不足を検出した。Repository PolicyのParserへ
+  PR本文を直接照合し、全必須Heading、Task ID、Risk、Base SHA、全33 Changed Pathを
+  固定した。
 - Local Fresh Self-review: SEV-0／SEV-1 0件
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、CleanupはPR完了時に確定。
 - 次Task候補:

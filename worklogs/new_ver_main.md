@@ -5505,7 +5505,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Admin生成差分、Typecheck、Lint、Production Build、Browser E2E 9 Testを
   再実行してPASSした。旧Read Responseで`revision`がない場合のFail-closed
   Component Testも追加し、Admin Unit／Component 33 TestがPASSした。
-  この修正・再検証には約8分を要した。
+  続くPolicy CheckでPR本文のTask Metadataと`Allowed paths`／`Changed files`の
+  厳密な節不足も検出したため、Repository Policy Parserへ本文を直接照合し、
+  Task ID、Risk、Base SHA、全33 Changed Pathを固定した。一連のGitHub修正と
+  再検証には約12分を要した。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
   Branch／Worktree CleanupはPR上で確定する。Prize／Asset Mutation、
   Gacha／Probability、他業務Admin画面、Storefront画面、通知Transport、
