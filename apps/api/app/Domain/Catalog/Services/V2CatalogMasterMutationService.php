@@ -236,7 +236,7 @@ final class V2CatalogMasterMutationService
                         'admin',
                         $admin->public_id,
                         $idempotencyKey,
-                        ['resource' => $resource, ...$request]
+                        ['resource' => $resource, 'action' => $action, ...$request]
                     );
                 } catch (V2PointException $exception) {
                     throw $this->idempotencyException($exception);
