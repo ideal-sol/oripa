@@ -6080,3 +6080,126 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   PostgreSQL／Redis HealthがPASSした。Evidenceは
   `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-head/persistent-result.json`
   である。
+
+## MIG-058C Closeout／MIG-060F Admin Gacha Master／Draft Version Management
+
+### MIG-058C Closeout
+
+- Issue `#133`はClosed、PR `#134`はSquash Mergedである。
+- Final Headは`9a918c8b492f7acfc2abe92a4f0c22e102f41053`、Squash Commitは
+  `236f2842003779aeb9e86b24858a0a5619ae1753`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとWorktreeはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060F Task／Characterization
+
+- Task IDは`MIG-060F`、Riskは`R3`、Issueは`#135`、Branchは
+  `feat/MIG-060F-admin-gacha-draft-management`、Base SHAは
+  `236f2842003779aeb9e86b24858a0a5619ae1753`である。
+- MIG-050のGacha Master、Version、Category／Tag／Prize／Presentation Asset
+  Relationを正本とした。GachaのCode／Slug、Version番号、Published Version、
+  Draw履歴を破壊せず、Draftだけを更新可能とした。
+- `catalog.read`はOwner／Admin／Operator、`catalog.manage`はOwner／Adminだけに
+  許可する既存中央Permission Matrixを再利用した。Publish用Permissionは追加していない。
+- Probability Entry／ppm、Gacha Version Publish／Schedule、Public Contract、
+  Draw Logicは変更していない。
+
+### Schema／Domain
+
+- Forward-safe Migration
+  `2026_08_08_000021_add_v2_gacha_draft_management.php`で
+  Gacha／VersionへRevision、Archive日時、Clone元Version参照を追加した。
+  既存Migrationは編集していない。
+- CHECKはRevision正数とArchive状態を明示Cast付きCanonical式で保証する。
+  DB Triggerは物理Delete、Code／Slug・Version identity変更、Revision bypass、
+  Published Version変更、Published／Draw参照を持つMasterの破壊的変更、
+  Archive後の本体／Relation変更を拒否する。
+- Create／Update／Archive、Draft Create／Clone／Update／Discardは既存の
+  Catalog Mutation Executorを再利用し、Admin Realm、MFA Enrollment、
+  CSRF、Exact Origin、JSON、`catalog.manage`、Idempotency-Key、Revision OCC、
+  Rate Limit、Audit、`catalog.change` Outboxを同一Transactionで確定する。
+- Version番号はGacha Row Lock下でServer生成する。Category／Tag／Prize／Assetは
+  ActiveなPublic IDだけを受理し、重複Relation、公開期間逆転、負数、
+  Unknown Field、HTML／Script／制御文字を拒否する。
+- Tag／Prize参照は内部ID昇順で一括Lockし、RelationはTransaction内でSet-basedに
+  置換する。一般利用可能なRaw Mutation Helperは追加していない。
+
+### Contract／Admin UI
+
+- Admin OpenAPIへGacha Master一覧／詳細／Create／Update／Archiveと、
+  Version一覧／詳細、Draft Create／Clone／Update／Discardの11 Operationを追加した。
+  Admin Operation数は107、Public 47、Webhook 1である。
+- Opaque Cursor、Stable Sort、Public ID、RFC 9457、Request ID、
+  `private, no-store`を維持した。Public／Webhook ContractとStorefront Clientの
+  Admin非公開境界は変更していない。
+- `/catalog/gachas`、Master詳細、Version詳細へ一覧、検索、Pagination、
+  Category／Tag／Prize／Asset選択、Create／Edit／Archive／Clone／Discard、
+  Dirty State、Confirmation、Conflict再読込、二重送信防止、Canonical再取得を
+  実装した。Published VersionはRead-onlyで、Publish操作は表示しない。
+- 既存Admin Shell、PermissionProvider、ProtectedAdminRoute、Catalog共通Componentを
+  再利用した。新規画面はTailAdmin無料版の密度と階層を視覚基準にしつつ、
+  App全体のTemplate置換、Dependency更新、CSP緩和は行っていない。
+
+### Test／Evidence
+
+- 対象Clean DB Testは5 Test／76 AssertionがPASSした。Create／Update／Archive、
+  Clone、Published保護、Unknown／Duplicate Relation、OCC、Idempotent Replay、
+  Operator 403、Delete／Probability Endpoint不存在、DB Guardを検証した。
+- Admin Typecheck、Lint、Production Build、Unit／Component 43 Test、
+  Browser E2E 12 TestがPASSした。BrowserではGacha一覧→Master詳細→Draft詳細、
+  Owner Mutation表示、Mobile横溢れなしを確認した。
+- Persistent Guardは約141秒で、Migration 21件、`migrate:fresh` 2回、
+  最新Migration Rollback／Reapply、全V2 Suite、Schema Inventory、
+  PostgreSQL／Redis HealthがPASSした。Migration Set SHA-256は
+  `649d695a3960257fe1a5c591d6d6516bff0e93d83dcbf92d8d23e8ff3608fef5`である。
+- Ephemeral Guardは約426秒で、`migrate:fresh` 2回、全V2 Suite、
+  Draw／QA／Reporting／Content Load、API／Admin Health、Backup／Restore、
+  Task Resource CleanupがPASSした。Backup SHA-256は
+  `01dcbbb7ba849d1ce19f4e260953a6896b7c14a6caed90411f83415e7bcfc98b`、
+  Source／Restore Schema SHA-256は
+  `56523b1ffeaf71e48214cd39dc1ca02c73b4b1989ea2d099195b4a0672d31b72`、
+  Migration Row SHA-256は
+  `5ea638643e79ea811a2278d3cf7d5b6e996724a2c0e5795a06bfc8d8283b700c`
+  で一致した。
+- Site Schema 10 Test、Storefront Client 14 Test、Storefront Testkit 22 Testを
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 88件／Policy Gate、Quality Unit 5件／Quality Gate、
+  DB Guard Unit 26件、OpenAPI Unit 4件、Release Unit 10件／Source Validation、
+  Composer Manifest、Legacy Typecheck／Build／Lint BaselineがPASSした。
+- Root Audit 0、Legacy Audit 11、Composer既存Baseline 10、新規Critical／High 0、
+  Secret Candidate 0である。V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+
+### 時間を要した作業／効率改善
+
+- 開始時はRoot空き4.6GBであったため、稼働Resource、Named Volumeへ触れず、
+  未使用Build Cache 192MBとDangling Image 5.684GBだけを削除し、
+  Final Guard開始前はRoot空き12GBを確保した。
+- Docker Compose v2.40.1とBuildx v0.12.1の組合せで`--allow`不一致が発生した。
+  Host Toolchainは更新せず、既存Classic Builderを明示して完了した。
+- Task専用Env名の初回入力がGuard規則外で拒否されたため、許可された
+  `mig060f` namespaceへ修正した。GuardやResource分離は回避していない。
+- Clean DB対象Testで、Draw RequestがGachaを直接参照するという誤ったTrigger Joinと、
+  正規Publish遷移まで拒否する過剰なstate保護を検出した。
+  `gacha_draw_states`経由の参照と、破壊的`disabled`遷移だけの保護へ修正した。
+- 対象Syntax／OpenAPI／Unit／HTTP／Admin Smokeを先行し、First-party Packageは
+  依存順にSerial実行した。成功済みのAdmin／Package EvidenceはBackend／Policyだけの
+  修正後に重複実行せず維持し、Full Persistent／Ephemeralは最終候補で各1回実行した。
+- Persistent Guard約141秒、Ephemeral Guard約426秒、Admin Browser E2E約59秒が
+  主な長時間作業である。Gate、Baseline、Assertion、Timeout、Memory設定は
+  縮小・緩和していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree CleanupはPR Closeoutで確定する。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は`MIG-060G Admin Probability Editor／Publish`であり、
+  本Task内で開始しない。
