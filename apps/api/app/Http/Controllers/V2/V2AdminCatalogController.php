@@ -147,6 +147,146 @@ final class V2AdminCatalogController
         return $this->archive($request, 'asset', $catalogResourceId);
     }
 
+    public function gachas(Request $request): JsonResponse
+    {
+        return $this->list($request, 'gachas');
+    }
+
+    public function gacha(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->detail($request, 'gacha', $gachaId);
+    }
+
+    public function createGacha(Request $request): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGacha(
+                    $context,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateGacha(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateGacha(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function archiveGacha(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->archiveGacha(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function gachaVersions(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaVersions($context, $gachaId, $request->query())
+        );
+    }
+
+    public function gachaVersion(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaVersion($context, $gachaId, $versionId)
+        );
+    }
+
+    public function createGachaDraft(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGachaDraft(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function cloneGachaDraft(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->cloneGachaDraft(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateGachaDraft(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateGachaDraft(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function archiveGachaDraft(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->archiveGachaDraft(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     private function list(Request $request, string $method): JsonResponse
     {
         return $this->handle(

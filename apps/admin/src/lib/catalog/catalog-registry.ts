@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Dices,
   Image,
   Medal,
   PackageSearch,
@@ -9,6 +10,7 @@ import {
 
 export type CatalogResource =
   | "categories"
+  | "gachas"
   | "tags"
   | "ranks"
   | "prizes"
@@ -25,6 +27,19 @@ export interface CatalogSection {
 }
 
 export const CATALOG_SECTIONS: readonly CatalogSection[] = [
+  {
+    resource: "gachas",
+    label: "Gacha",
+    description: "Gacha MasterとDraft Versionを管理します。",
+    path: "/catalog/gachas",
+    icon: Dices,
+    sortOptions: [
+      { label: "作成日時", value: "created_at" },
+      { label: "Code", value: "code" },
+      { label: "状態", value: "state" },
+    ],
+    supportsMediaType: false,
+  },
   {
     resource: "categories",
     label: "Category",

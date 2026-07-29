@@ -27,8 +27,8 @@ const image = {
 
 describe("Admin Catalog read components", () => {
   it("keeps the Catalog registry typed, unique, and available", () => {
-    expect(CATALOG_SECTIONS).toHaveLength(5);
-    expect(new Set(CATALOG_SECTIONS.map((item) => item.resource)).size).toBe(5);
+    expect(CATALOG_SECTIONS).toHaveLength(6);
+    expect(new Set(CATALOG_SECTIONS.map((item) => item.resource)).size).toBe(6);
     expect(navigationItem("catalog").implementation).toBe("available");
   });
 

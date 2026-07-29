@@ -328,20 +328,24 @@ final class V2CatalogFixtureImporter
             DB::table('catalog_probability_versions')
                 ->where('id', $probabilityVersionId)
                 ->update(['status' => 'published', 'updated_at' => $now]);
+            $gachaVersionRevision = (int) DB::table('catalog_gacha_versions')
+                ->where('id', $gachaVersionId)->value('revision');
             DB::table('catalog_gacha_versions')
                 ->where('id', $gachaVersionId)
                 ->update([
                     'published_probability_version_id' => $probabilityVersionId,
+                    'status' => 'published',
+                    'revision' => $gachaVersionRevision + 1,
                     'updated_at' => $now,
                 ]);
-            DB::table('catalog_gacha_versions')
-                ->where('id', $gachaVersionId)
-                ->update(['status' => 'published', 'updated_at' => $now]);
             $gachaId = (int) DB::table('catalog_gacha_versions')
                 ->where('id', $gachaVersionId)->value('gacha_id');
+            $gachaRevision = (int) DB::table('catalog_gachas')
+                ->where('id', $gachaId)->value('revision');
             DB::table('catalog_gachas')->where('id', $gachaId)->update([
                 'state' => 'active',
                 'published_version_id' => $gachaVersionId,
+                'revision' => $gachaRevision + 1,
                 'updated_at' => $now,
             ]);
         }

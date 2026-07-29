@@ -341,9 +341,11 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
     "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
     "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
+    "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
+    "apps/api/tests/V2/AdminGachaDraftManagementTest.php",
     "apps/api/tests/V2/Fixtures/catalog-alpha.json",
     "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
     "docs/operations/catalog-probability/README.md",
@@ -532,6 +534,8 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-conflict-boundary.tsx",
     "apps/admin/src/components/catalog/catalog-controls.tsx",
     "apps/admin/src/components/catalog/catalog-data-table.tsx",
+    "apps/admin/src/components/catalog/catalog-gacha-forms.tsx",
+    "apps/admin/src/components/catalog/catalog-gacha-workspace.tsx",
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-overview.tsx",
     "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
@@ -562,6 +566,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/admin-api-client.test.ts",
     "apps/admin/test/auth-components.test.tsx",
     "apps/admin/test/catalog-read.test.tsx",
+    "apps/admin/test/catalog-gacha.test.tsx",
     "apps/admin/test/permission-provider.test.tsx",
     "apps/admin/test/permissions-navigation.test.tsx",
     "apps/admin/test/line-messaging-settings.test.tsx",
@@ -1855,6 +1860,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_07_000018_add_line_external_identity_provider.php",
         "2026_08_07_000019_create_line_messaging_follow_foundation.php",
         "2026_08_07_000020_add_line_friend_reward_enabled.php",
+        "2026_08_08_000021_add_v2_gacha_draft_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2709,6 +2715,29 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     if "tenant_id" in prize_asset_migration:
         raise PolicyFailure("V2 Catalog Prize/Asset migration contains prohibited tenant_id")
 
+    gacha_draft_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_08_000021_add_v2_gacha_draft_management.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_gachas",
+        "catalog_gacha_versions",
+        "revision",
+        "archived_at",
+        "cloned_from_version_id",
+        "Catalog Gacha records cannot be deleted",
+        "Published Gacha Version is immutable",
+        "Published or drawn Gacha references protect this record",
+        "gacha_draw_states",
+    ):
+        if required not in gacha_draft_migration:
+            raise PolicyFailure(
+                f"V2 Gacha Draft management migration missing {required}"
+            )
+    if "tenant_id" in gacha_draft_migration:
+        raise PolicyFailure("V2 Gacha Draft migration contains prohibited tenant_id")
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -2723,10 +2752,26 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in mutation_service:
             raise PolicyFailure(f"V2 Catalog mutation service missing {required}")
-    for prohibited in ("->delete(", "forceDelete(", "tenant_id"):
+    for prohibited in ("forceDelete(", "tenant_id"):
         if prohibited in mutation_service:
             raise PolicyFailure(
                 f"V2 Catalog mutation service contains prohibited {prohibited}"
+            )
+    for table in (
+        "catalog_categories",
+        "catalog_tags",
+        "catalog_ranks",
+        "catalog_prizes",
+        "catalog_presentation_assets",
+        "catalog_gachas",
+        "catalog_gacha_versions",
+    ):
+        if re.search(
+            rf"DB::table\(['\"]{table}['\"]\)[\s\S]{{0,800}}?->delete\(",
+            mutation_service,
+        ):
+            raise PolicyFailure(
+                f"V2 Catalog mutation service physically deletes {table}"
             )
 
     service = (
@@ -2823,6 +2868,17 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "createAdminCatalogPresentationAsset",
         "updateAdminCatalogPresentationAsset",
         "archiveAdminCatalogPresentationAsset",
+        "listAdminCatalogGachas",
+        "getAdminCatalogGacha",
+        "createAdminCatalogGacha",
+        "updateAdminCatalogGacha",
+        "archiveAdminCatalogGacha",
+        "listAdminCatalogGachaVersions",
+        "getAdminCatalogGachaVersion",
+        "createAdminCatalogGachaDraft",
+        "cloneAdminCatalogGachaDraft",
+        "updateAdminCatalogGachaDraft",
+        "archiveAdminCatalogGachaDraft",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
@@ -2842,6 +2898,13 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/presentation-assets": {"get", "post"},
         "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
         "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
+        "/catalog/gachas": {"get", "post"},
+        "/catalog/gachas/{gacha_id}": {"get", "put"},
+        "/catalog/gachas/{gacha_id}/archive": {"post"},
+        "/catalog/gachas/{gacha_id}/versions": {"get", "post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
     }
     actual_admin_catalog_methods = {
         path: {

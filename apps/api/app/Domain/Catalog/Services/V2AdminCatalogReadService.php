@@ -108,6 +108,155 @@ final class V2AdminCatalogReadService
     }
 
     /** @param array<string, mixed> $filters */
+    public function gachas(
+        V2AdminAuthorizationContext $context,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $sort = $this->enum($filters, 'sort', ['created_at', 'code', 'state'], 'created_at');
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $columns = [
+            'created_at' => 'gacha.created_at',
+            'code' => 'gacha.code',
+            'state' => 'gacha.state',
+        ];
+        $query = DB::table('catalog_gachas as gacha')
+            ->join('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
+            ->select([
+                'gacha.*',
+                'category.public_id as category_public_id',
+                'category.code as category_code',
+                'category.display_name as category_name',
+            ]);
+        $this->applySearch($query, $filters, [
+            'gacha.code',
+            'gacha.slug',
+            'category.code',
+            'category.display_name',
+        ]);
+        $state = $this->enum(
+            $filters,
+            'state',
+            ['all', 'draft', 'active', 'disabled'],
+            'all'
+        );
+        if ($state !== 'all') {
+            $query->where('gacha.state', $state);
+        }
+        $archive = $this->enum(
+            $filters,
+            'archive',
+            ['all', 'active', 'archived'],
+            'all'
+        );
+        if ($archive === 'active') {
+            $query->whereNull('gacha.archived_at');
+        } elseif ($archive === 'archived') {
+            $query->whereNotNull('gacha.archived_at');
+        }
+
+        return $this->paginate(
+            'gachas',
+            $query,
+            $filters,
+            $columns[$sort],
+            'gacha.public_id',
+            $sort,
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array => $this->mapGacha($row)
+        );
+    }
+
+    public function gacha(
+        V2AdminAuthorizationContext $context,
+        string $publicId
+    ): array {
+        $this->authorize($context);
+        $this->assertUuid($publicId);
+        $row = DB::table('catalog_gachas as gacha')
+            ->join('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
+            ->where('gacha.public_id', $publicId)
+            ->select([
+                'gacha.*',
+                'category.public_id as category_public_id',
+                'category.code as category_code',
+                'category.display_name as category_name',
+            ])->first();
+        if ($row === null) {
+            throw $this->notFound();
+        }
+
+        return ['data' => $this->mapGacha($row)];
+    }
+
+    /** @param array<string, mixed> $filters */
+    public function gachaVersions(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $status = $this->enum(
+            $filters,
+            'status',
+            ['all', 'draft', 'published'],
+            'all'
+        );
+        $archive = $this->enum(
+            $filters,
+            'archive',
+            ['all', 'active', 'archived'],
+            'all'
+        );
+        $query = DB::table('catalog_gacha_versions as version')
+            ->where('version.gacha_id', $gacha->id)
+            ->select('version.*');
+        $this->applySearch($query, $filters, [
+            'version.title',
+            'version.description',
+            'version.notices',
+        ]);
+        if ($status !== 'all') {
+            $query->where('version.status', $status);
+        }
+        if ($archive === 'active') {
+            $query->whereNull('version.archived_at');
+        } elseif ($archive === 'archived') {
+            $query->whereNotNull('version.archived_at');
+        }
+
+        return $this->paginate(
+            'gacha_versions:'.$gachaPublicId,
+            $query,
+            $filters,
+            'version.version_number',
+            'version.public_id',
+            'version_number',
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array => $this->mapGachaVersion($row)
+        );
+    }
+
+    public function gachaVersion(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $version = $this->find('catalog_gacha_versions', $versionPublicId);
+        if ((int) $version->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+
+        return ['data' => $this->mapGachaVersion($version)];
+    }
+
+    /** @param array<string, mixed> $filters */
     public function prizes(
         V2AdminAuthorizationContext $context,
         array $filters
@@ -664,6 +813,152 @@ final class V2AdminCatalogReadService
             'name' => $row->display_name,
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGacha(object $row): array
+    {
+        $tags = DB::table('catalog_gacha_tags as relation')
+            ->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
+            ->where('relation.gacha_id', $row->id)
+            ->orderBy('tag.sort_order')
+            ->orderBy('tag.public_id')
+            ->get([
+                'tag.public_id',
+                'tag.code',
+                'tag.display_name',
+            ])->map(fn (object $tag): array => [
+                'id' => $tag->public_id,
+                'code' => $tag->code,
+                'name' => $tag->display_name,
+            ])->all();
+        $publishedVersion = $row->published_version_id === null
+            ? null
+            : DB::table('catalog_gacha_versions')
+                ->where('id', $row->published_version_id)
+                ->first();
+
+        return [
+            'id' => $row->public_id,
+            'code' => $row->code,
+            'slug' => $row->slug,
+            'state' => $row->state,
+            'sold_count' => (int) $row->sold_count,
+            'category' => [
+                'id' => $row->category_public_id,
+                'code' => $row->category_code,
+                'name' => $row->category_name,
+            ],
+            'tags' => $tags,
+            'published_version' => $publishedVersion === null ? null : [
+                'id' => $publishedVersion->public_id,
+                'version_number' => (int) $publishedVersion->version_number,
+                'status' => $publishedVersion->status,
+                'title' => $publishedVersion->title,
+            ],
+            'version_count' => DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $row->id)->count(),
+            'has_draw_history' => DB::table('draw_requests as draw')
+                ->join(
+                    'gacha_draw_states as state',
+                    'state.id',
+                    '=',
+                    'draw.gacha_draw_state_id'
+                )
+                ->where('state.gacha_id', $row->id)
+                ->exists(),
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGachaVersion(object $row): array
+    {
+        $asset = $row->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $row->presentation_asset_id)
+                ->firstOrFail();
+        $probability = $row->published_probability_version_id === null
+            ? null
+            : DB::table('catalog_probability_versions')
+                ->where('id', $row->published_probability_version_id)
+                ->firstOrFail();
+        $clonedFrom = $row->cloned_from_version_id === null
+            ? null
+            : DB::table('catalog_gacha_versions')
+                ->where('id', $row->cloned_from_version_id)
+                ->firstOrFail();
+        $prizes = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->where('relation.gacha_version_id', $row->id)
+            ->orderBy('relation.sort_order')
+            ->orderBy('relation.id')
+            ->get([
+                'prize.public_id as prize_id',
+                'prize.code as prize_code',
+                'prize.display_name as prize_name',
+                'rank.public_id as rank_id',
+                'rank.code as rank_code',
+                'rank.display_name as rank_name',
+                'relation.initial_inventory',
+                'relation.sort_order',
+            ])->map(fn (object $relation): array => [
+                'prize' => [
+                    'id' => $relation->prize_id,
+                    'code' => $relation->prize_code,
+                    'name' => $relation->prize_name,
+                    'rank' => [
+                        'id' => $relation->rank_id,
+                        'code' => $relation->rank_code,
+                        'name' => $relation->rank_name,
+                    ],
+                ],
+                'initial_inventory' => (int) $relation->initial_inventory,
+                'sort_order' => (int) $relation->sort_order,
+            ])->all();
+
+        return [
+            'id' => $row->public_id,
+            'version_number' => (int) $row->version_number,
+            'status' => $row->status,
+            'title' => $row->title,
+            'description' => $row->description,
+            'notices' => $row->notices,
+            'price_points' => (int) $row->price_points,
+            'total_count' => (int) $row->total_count,
+            'presentation_asset' => $asset === null ? null : [
+                'id' => $asset->public_id,
+                'media_type' => $asset->media_type,
+                'mime_type' => $asset->mime_type,
+                'alt_text' => $asset->alt_text,
+                'public_path' => $asset->is_public ? $asset->public_path : null,
+                'is_public' => (bool) $asset->is_public,
+            ],
+            'published_probability_version' => $probability === null ? null : [
+                'id' => $probability->public_id,
+                'version_number' => (int) $probability->version_number,
+                'status' => $probability->status,
+            ],
+            'cloned_from_version' => $clonedFrom === null ? null : [
+                'id' => $clonedFrom->public_id,
+                'version_number' => (int) $clonedFrom->version_number,
+            ],
+            'publish_start_at' => $row->publish_start_at,
+            'publish_end_at' => $row->publish_end_at,
+            'published_at' => $row->published_at,
+            'prizes' => $prizes,
             'is_archived' => $row->archived_at !== null,
             'revision' => (int) $row->revision,
             'archived_at' => $row->archived_at,

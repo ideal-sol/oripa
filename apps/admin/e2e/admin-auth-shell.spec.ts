@@ -445,6 +445,108 @@ test("Prize and Presentation Asset mutation reuse selection and canonical reload
   await expect(page.getByText("E2E Prize")).toBeVisible();
 });
 
+test("Gacha master and Draft Version remain navigable and permission-aware", async ({
+  page,
+}) => {
+  const gachaId = "01910191-0191-7191-8191-019101910210";
+  const versionId = "01910191-0191-7191-8191-019101910211";
+  const nextVersionId = "01910191-0191-7191-8191-019101910213";
+  const category = {
+    code: "cards",
+    id: "01910191-0191-7191-8191-019101910212",
+    name: "Cards",
+    slug: "cards",
+    sort_order: 10,
+  };
+  const gacha = {
+    archived_at: null,
+    category,
+    code: "e2e-gacha",
+    created_at: "2026-07-29T00:00:00Z",
+    has_draw_history: false,
+    id: gachaId,
+    is_archived: false,
+    published_version: null,
+    revision: 1,
+    slug: "e2e-gacha",
+    sold_count: 0,
+    state: "active",
+    tags: [],
+    updated_at: "2026-07-29T00:00:00Z",
+    version_count: 1,
+  };
+  const version = {
+    archived_at: null,
+    cloned_from_version_id: null,
+    created_at: "2026-07-29T00:00:00Z",
+    description: "Browser draft fixture",
+    id: versionId,
+    is_archived: false,
+    notices: null,
+    presentation_asset: null,
+    price_points: 100,
+    prizes: [],
+    publish_end_at: null,
+    publish_start_at: "2026-07-29T00:00:00Z",
+    published_probability_version: null,
+    revision: 1,
+    status: "draft",
+    title: "E2E Draft",
+    total_count: 1000,
+    updated_at: "2026-07-29T00:00:00Z",
+    version_number: 1,
+  };
+  const nextVersion = {
+    ...version,
+    id: nextVersionId,
+    title: "E2E Draft Page 2",
+    version_number: 2,
+  };
+
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (url.pathname.endsWith("/catalog/gachas") && request.method() === "GET") {
+      return json(route, { items: [gacha], next_cursor: null });
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}`)) {
+      return json(route, { data: gacha });
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions`)) {
+      return url.searchParams.get("cursor") === "next-version-page"
+        ? json(route, { items: [nextVersion], next_cursor: null })
+        : json(route, { items: [version], next_cursor: "next-version-page" });
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
+      return json(route, { data: version });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/catalog/gachas");
+  await expect(page.getByRole("heading", { name: "Gacha" })).toBeVisible();
+  await expect(page.getByText("e2e-gacha").first()).toBeVisible();
+  await page.getByRole("link", { name: "開く" }).click();
+  await expect(page.getByRole("heading", { name: "e2e-gacha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Draft作成" })).toBeVisible();
+  await page.getByRole("button", { name: "次へ" }).last().click();
+  await expect(page.getByText("E2E Draft Page 2")).toBeVisible();
+  await page.getByRole("button", { name: "前へ" }).last().click();
+  await page.getByRole("link", { name: "詳細" }).click();
+  await expect(page.getByRole("heading", { name: "e2e-gacha / Version 1" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Draft編集" })).toBeVisible();
+  await expect(page.getByText("Browser draft fixture")).toBeVisible();
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});
+
 test("Owner updates LINE reply messages through preview and Fresh MFA retry", async ({
   page,
 }) => {

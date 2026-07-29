@@ -1,0 +1,219 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  CatalogGachaMasterForm,
+  CatalogGachaVersionForm,
+} from "@/components/catalog/catalog-gacha-forms";
+import { isEditableGachaVersion } from "@/components/catalog/catalog-gacha-workspace";
+import { AdminApiClient } from "@/lib/admin-api/client";
+import { CATALOG_SECTIONS } from "@/lib/catalog/catalog-registry";
+
+const CATEGORY_ID = "01910191-0191-7191-8191-019101910191";
+const TAG_ID = "01910191-0191-7191-8191-019101910192";
+const PRIZE_ID = "01910191-0191-7191-8191-019101910193";
+const ASSET_ID = "01910191-0191-7191-8191-019101910194";
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("Admin Gacha Draft management", () => {
+  it("registers Gacha as a stable Catalog section", () => {
+    const gacha = CATALOG_SECTIONS.find((section) => section.resource === "gachas");
+    expect(gacha).toMatchObject({
+      path: "/catalog/gachas",
+      supportsMediaType: false,
+    });
+    expect(new Set(CATALOG_SECTIONS.map((section) => section.resource)).size).toBe(
+      CATALOG_SECTIONS.length,
+    );
+  });
+
+  it("submits a Gacha Master with Public Category and Tag IDs", async () => {
+    mockMasterSelections();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CatalogGachaMasterForm
+        mode="create"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+    await screen.findByRole("option", { name: "Category A (category-a)" });
+    fireEvent.change(screen.getByLabelText("Code"), {
+      target: { value: "new-gacha" },
+    });
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "new-gacha" },
+    });
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: CATEGORY_ID },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Featured" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledWith({
+      categoryId: CATEGORY_ID,
+      code: "new-gacha",
+      slug: "new-gacha",
+      tagIds: [TAG_ID],
+    });
+  });
+
+  it("submits a typed Draft Version without Probability mutation fields", async () => {
+    mockVersionSelections();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CatalogGachaVersionForm
+        mode="create"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+    await screen.findByRole("option", { name: "S / Prize S" });
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Draft Version" },
+    });
+    fireEvent.change(screen.getByLabelText("販売Point"), {
+      target: { value: "100" },
+    });
+    fireEvent.change(screen.getByLabelText("販売口数"), {
+      target: { value: "1000" },
+    });
+    fireEvent.change(screen.getByLabelText("Presentation Asset"), {
+      target: { value: ASSET_ID },
+    });
+    fireEvent.change(screen.getByLabelText("公開開始"), {
+      target: { value: "2026-08-01T09:00" },
+    });
+    fireEvent.change(screen.getByLabelText("公開終了"), {
+      target: { value: "2027-08-01T09:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Prize"), {
+      target: { value: PRIZE_ID },
+    });
+    fireEvent.change(screen.getByLabelText("初期在庫"), {
+      target: { value: "50" },
+    });
+    fireEvent.change(screen.getByLabelText("表示順"), {
+      target: { value: "10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    const submitted = submit.mock.calls[0][0];
+    expect(submitted).toMatchObject({
+      presentationAssetId: ASSET_ID,
+      pricePoints: 100,
+      prizes: [
+        {
+          initialInventory: 50,
+          prizeId: PRIZE_ID,
+          sortOrder: 10,
+        },
+      ],
+      title: "Draft Version",
+      totalCount: 1000,
+    });
+    expect(submitted).not.toHaveProperty("probability");
+    expect(submitted.publishStartAt).toMatch(/Z$/);
+  });
+
+  it("keeps Published and archived Versions read-only", () => {
+    expect(isEditableGachaVersion({ is_archived: false, status: "draft" })).toBe(
+      true,
+    );
+    expect(
+      isEditableGachaVersion({ is_archived: false, status: "published" }),
+    ).toBe(false);
+    expect(isEditableGachaVersion({ is_archived: true, status: "draft" })).toBe(
+      false,
+    );
+  });
+});
+
+function mockMasterSelections() {
+  vi.spyOn(AdminApiClient.prototype, "listCatalogCategories").mockResolvedValue({
+    items: [
+      {
+        code: "category-a",
+        created_at: "2026-08-01T00:00:00Z",
+        description: null,
+        id: CATEGORY_ID,
+        is_archived: false,
+        is_visible: true,
+        name: "Category A",
+        revision: 1,
+        slug: "category-a",
+        sort_order: 1,
+        updated_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  vi.spyOn(AdminApiClient.prototype, "listCatalogTags").mockResolvedValue({
+    items: [
+      {
+        code: "featured",
+        created_at: "2026-08-01T00:00:00Z",
+        id: TAG_ID,
+        is_archived: false,
+        is_visible: true,
+        name: "Featured",
+        revision: 1,
+        slug: "featured",
+        sort_order: 1,
+        updated_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+}
+
+function mockVersionSelections() {
+  vi.spyOn(
+    AdminApiClient.prototype,
+    "listCatalogPresentationAssets",
+  ).mockResolvedValue({
+    items: [
+      {
+        alt_text: "Gacha Main",
+        byte_size: 128,
+        checksum_sha256: "a".repeat(64),
+        created_at: "2026-08-01T00:00:00Z",
+        id: ASSET_ID,
+        is_archived: false,
+        is_public: true,
+        media_type: "image",
+        mime_type: "image/png",
+        public_path: "/assets/gacha-main.png",
+        revision: 1,
+        updated_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  vi.spyOn(AdminApiClient.prototype, "listCatalogPrizes").mockResolvedValue({
+    items: [
+      {
+        code: "prize-s",
+        created_at: "2026-08-01T00:00:00Z",
+        description: null,
+        display_price: 10_000,
+        exchange_points: 8_000,
+        id: PRIZE_ID,
+        is_archived: false,
+        is_visible: true,
+        name: "Prize S",
+        presentation_asset: null,
+        rank: {
+          code: "S",
+          id: "01910191-0191-7191-8191-019101910195",
+          name: "S",
+          sort_order: 1,
+        },
+        revision: 1,
+        updated_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+}

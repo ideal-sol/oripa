@@ -1062,13 +1062,19 @@ label {
   overflow-y: auto;
 }
 
+.catalog-mutation-panel.is-wide {
+  max-width: 920px;
+}
+
 .catalog-mutation-form {
   display: grid;
   gap: 16px;
 }
 
 .catalog-mutation-form input:not([type="checkbox"]),
+.catalog-mutation-form select,
 .catalog-mutation-form textarea {
+  background: var(--surface);
   border: 1px solid var(--line);
   min-height: 44px;
   padding: 10px 12px;
@@ -1089,6 +1095,87 @@ label {
 .catalog-checkbox input {
   height: 18px;
   width: 18px;
+}
+
+.catalog-choice-fieldset,
+.catalog-prize-fieldset {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+}
+
+.catalog-choice-fieldset {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.catalog-choice-fieldset legend,
+.catalog-prize-fieldset legend {
+  font-size: 12px;
+  font-weight: 750;
+  padding: 0 5px;
+}
+
+.catalog-form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.catalog-fieldset-heading,
+.catalog-table-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.catalog-prize-row {
+  align-items: end;
+  border-bottom: 1px solid var(--soft-line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(200px, 2fr) minmax(110px, 1fr) minmax(100px, 0.8fr) 40px;
+  padding-bottom: 12px;
+}
+
+.catalog-prize-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.catalog-gacha-search {
+  max-width: 460px;
+  width: 100%;
+}
+
+.catalog-gacha-search input {
+  border: 1px solid var(--line);
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.catalog-gacha-detail {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-version-section {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 22px 24px;
+}
+
+.catalog-version-section h2 {
+  font-size: 17px;
+  margin: 5px 0 16px;
+}
+
+.catalog-version-empty {
+  color: var(--muted);
+  margin: 0;
+  padding: 20px 0;
 }
 
 .catalog-dialog-actions {
@@ -1344,6 +1431,15 @@ label {
   .catalog-overview-grid,
   .catalog-detail {
     grid-template-columns: 1fr;
+  }
+
+  .catalog-form-grid,
+  .catalog-prize-row {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-prize-row .icon-button {
+    justify-self: end;
   }
 
   .catalog-toolbar {
