@@ -1,6 +1,15 @@
 import {
   ADMIN_API_BASE_PATH,
   type AdminEffectivePermissions,
+  type AdminCatalogCategory,
+  type AdminCatalogCollection,
+  type AdminCatalogDetail,
+  type AdminCatalogDirection,
+  type AdminCatalogPresentationAsset,
+  type AdminCatalogPrize,
+  type AdminCatalogRank,
+  type AdminCatalogTag,
+  type AdminCatalogVisibility,
   type AdminLoginRequest,
   type AdminMfaVerifyRequest,
   type AdminPreauth,
@@ -27,6 +36,24 @@ interface RequestOptions {
   signal?: AbortSignal;
   transactionToken?: string;
 }
+
+export interface AdminCatalogQuery {
+  cursor?: string;
+  direction?: AdminCatalogDirection;
+  limit?: number;
+  media_type?: "all" | "image" | "video";
+  q?: string;
+  rank_id?: string;
+  sort?: string;
+  visibility?: AdminCatalogVisibility;
+}
+
+export type AdminCatalogResource =
+  | "categories"
+  | "tags"
+  | "ranks"
+  | "prizes"
+  | "presentation-assets";
 
 export class AdminApiError extends Error {
   constructor(
@@ -61,6 +88,76 @@ export class AdminApiClient {
 
   getPermissions(signal?: AbortSignal): Promise<AdminEffectivePermissions> {
     return this.request("GET", "/auth/permissions", { signal });
+  }
+
+  listCatalogCategories(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogCategory>> {
+    return this.catalogList("categories", query, signal);
+  }
+
+  getCatalogCategory(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogCategory>> {
+    return this.catalogDetail("categories", id, signal);
+  }
+
+  listCatalogTags(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogTag>> {
+    return this.catalogList("tags", query, signal);
+  }
+
+  getCatalogTag(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogTag>> {
+    return this.catalogDetail("tags", id, signal);
+  }
+
+  listCatalogRanks(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogRank>> {
+    return this.catalogList("ranks", query, signal);
+  }
+
+  getCatalogRank(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogRank>> {
+    return this.catalogDetail("ranks", id, signal);
+  }
+
+  listCatalogPrizes(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogPrize>> {
+    return this.catalogList("prizes", query, signal);
+  }
+
+  getCatalogPrize(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogPrize>> {
+    return this.catalogDetail("prizes", id, signal);
+  }
+
+  listCatalogPresentationAssets(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogPresentationAsset>> {
+    return this.catalogList("presentation-assets", query, signal);
+  }
+
+  getCatalogPresentationAsset(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogPresentationAsset>> {
+    return this.catalogDetail("presentation-assets", id, signal);
   }
 
   login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {
@@ -153,12 +250,46 @@ export class AdminApiClient {
     await this.request("POST", "/auth/logout", { body: {}, signal });
   }
 
+  private catalogList<T>(
+    resource: AdminCatalogResource,
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<T>> {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") {
+        parameters.set(name, String(value));
+      }
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request("GET", `/catalog/${resource}${suffix}`, { signal });
+  }
+
+  private catalogDetail<T>(
+    resource: AdminCatalogResource,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<T>> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `/catalog/${resource}/${encodeURIComponent(id)}`, {
+      signal,
+    });
+  }
+
   private async request<T>(
     method: "GET" | "POST",
-    path: `/auth/${string}`,
+    path: `/auth/${string}` | `/catalog/${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
-    if (!path.startsWith("/auth/") || path.includes("://") || path.includes("..")) {
+    if (
+      (!path.startsWith("/auth/") && !path.startsWith("/catalog/")) ||
+      path.includes("://") ||
+      path.includes("..")
+    ) {
       throw new Error("Admin API path is outside the approved surface.");
     }
     const requestId = crypto.randomUUID();
@@ -222,6 +353,12 @@ export class AdminApiClient {
       options.signal?.removeEventListener("abort", abort);
     }
   }
+}
+
+function isOpaqueId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 export function readAdminCsrfCookie(): string | null {

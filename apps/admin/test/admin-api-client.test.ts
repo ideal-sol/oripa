@@ -63,6 +63,39 @@ describe("AdminApiClient", () => {
     expect(headers.get("Authorization")).toBeNull();
   });
 
+  it("reads only the same-origin Admin Catalog surface with encoded filters", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({ items: [], next_cursor: null }),
+    );
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listCatalogPrizes({
+      direction: "asc",
+      q: "S Prize",
+      sort: "rank",
+      visibility: "visible",
+    });
+
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe(
+      "/admin/api/v2/catalog/prizes?direction=asc&q=S+Prize&sort=rank&visibility=visible",
+    );
+    expect(request?.credentials).toBe("include");
+    expect(new Headers(request?.headers).get("Authorization")).toBeNull();
+    expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBeNull();
+  });
+
+  it("rejects malformed Catalog detail IDs before transport", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await expect(client.getCatalogPrize("../internal")).rejects.toMatchObject({
+      code: "CATALOG_RESOURCE_NOT_FOUND",
+      status: 404,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

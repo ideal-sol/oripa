@@ -195,11 +195,96 @@ for (const role of ["owner", "admin", "operator"] as const) {
   });
 }
 
+test("Catalog list, search, detail, and mobile view use the Admin read contract", async ({
+  page,
+}) => {
+  await installAdminApi(page, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("operator"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("operator"));
+    }
+    if (url.pathname.endsWith("/catalog/prizes")) {
+      return json(route, {
+        items: [
+          {
+            code: "fixture-s",
+            created_at: "2026-07-28T00:00:00Z",
+            description: "Read-only fixture",
+            display_price: 10000,
+            exchange_points: 8000,
+            id: "01910191-0191-7191-8191-019101910194",
+            is_visible: true,
+            name: "Fixture S景品",
+            presentation_asset: {
+              alt_text: "Fixture S景品",
+              id: "01910191-0191-7191-8191-019101910195",
+              is_public: true,
+              media_type: "image",
+              mime_type: "image/png",
+              public_path: "/fixture-prize.png",
+            },
+            rank: {
+              code: "S",
+              id: "01910191-0191-7191-8191-019101910196",
+              name: "Sランク",
+              sort_order: 10,
+            },
+            updated_at: "2026-07-28T00:00:00Z",
+          },
+        ],
+        next_cursor: null,
+      });
+    }
+    if (url.pathname.endsWith("/catalog/prizes/01910191-0191-7191-8191-019101910194")) {
+      return json(route, {
+        data: {
+          code: "fixture-s",
+          created_at: "2026-07-28T00:00:00Z",
+          description: "Read-only fixture",
+          display_price: 10000,
+          exchange_points: 8000,
+          id: "01910191-0191-7191-8191-019101910194",
+          is_visible: true,
+          name: "Fixture S景品",
+          presentation_asset: null,
+          rank: {
+            code: "S",
+            id: "01910191-0191-7191-8191-019101910196",
+            name: "Sランク",
+            sort_order: 10,
+          },
+          updated_at: "2026-07-28T00:00:00Z",
+        },
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/catalog/prizes");
+  await expect(page.getByRole("heading", { name: "Prize" })).toBeVisible();
+  await expect(page.getByText("Fixture S景品")).toBeVisible();
+  await page.getByPlaceholder("名称・Codeで検索").fill("Fixture");
+  await page.getByRole("button", { name: "検索" }).click();
+  await expect(page.getByText("Fixture S景品")).toBeVisible();
+  await page.getByRole("link", { name: "Fixture S景品の詳細" }).click();
+  await expect(page.getByText("Read-only fixture")).toBeVisible();
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto("/catalog/prizes");
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.getByPlaceholder("名称・Codeで検索").focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "検索" })).toBeFocused();
+});
+
 async function installAdminApi(
   page: Page,
   handler: (route: Route) => Promise<unknown>,
 ): Promise<void> {
-  await page.route(/\/admin\/api\/v2\/auth\/[^?]+(?:\?.*)?$/u, handler);
+  await page.route(/\/admin\/api\/v2\/(?:auth|catalog)\/[^?]+(?:\?.*)?$/u, handler);
 }
 
 function adminIdentity(role: "owner" | "admin" | "operator" = "owner") {

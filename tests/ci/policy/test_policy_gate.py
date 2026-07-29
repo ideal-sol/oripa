@@ -618,6 +618,32 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "individual_ppm"):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
 
+    def test_v2_admin_catalog_mutation_contract_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/admin.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["paths"]["/catalog/prizes"]["post"] = {
+                "operationId": "createAdminCatalogPrize"
+            }
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_admin_catalog_storage_identifier_leak_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/admin.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["components"]["schemas"]["AdminCatalogPresentationAsset"][
+                "properties"
+            ]["storage_identifier"] = {"type": "string"}
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "storage_identifier"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
     def copy_v2_draw_boundary(self, root):
         paths = set(policy_gate.V2_DRAW_REQUIRED_FILES)
         supporting = {

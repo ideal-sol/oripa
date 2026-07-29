@@ -50,7 +50,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigati
     icon: "catalog",
     section: "operations",
     sortOrder: 20,
-    implementation: "planned",
+    implementation: "available",
     freshMfaBoundary: "module-actions",
   },
   {

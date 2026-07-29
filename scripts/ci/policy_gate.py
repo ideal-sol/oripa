@@ -301,17 +301,22 @@ V2_PAYMENT_REQUIRED_FILES = {
     "docs/operations/payment-model/README.md",
 }
 V2_CATALOG_REQUIRED_FILES = {
+    "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Exceptions/V2CatalogException.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php",
     "apps/api/app/Http/Controllers/V2/V2CatalogController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminCatalogController.php",
     "apps/api/config/v2_catalog.php",
     "apps/api/database/migrations-v2/2026_07_28_000008_create_v2_catalog_probability_foundation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
+    "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/Fixtures/catalog-alpha.json",
     "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
     "docs/operations/catalog-probability/README.md",
     "openapi/bundled/public.openapi.json",
+    "openapi/admin/openapi.yaml",
+    "openapi/bundled/admin.openapi.json",
     "openapi/public/openapi.yaml",
     "packages/storefront-client/src/catalog.ts",
     "packages/storefront-client/src/generated/public.ts",
@@ -472,6 +477,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/page.tsx",
     "apps/admin/src/app/api/health/route.ts",
     "apps/admin/src/app/catalog/page.tsx",
+    "apps/admin/src/app/catalog/[...segments]/page.tsx",
     "apps/admin/src/app/contacts/page.tsx",
     "apps/admin/src/app/content/page.tsx",
     "apps/admin/src/app/qa/page.tsx",
@@ -486,6 +492,16 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/auth/mfa-form.tsx",
     "apps/admin/src/components/auth/recovery-panel.tsx",
     "apps/admin/src/components/auth/route-guard.tsx",
+    "apps/admin/src/components/catalog/catalog-api-error-boundary.tsx",
+    "apps/admin/src/components/catalog/catalog-breadcrumb.tsx",
+    "apps/admin/src/components/catalog/catalog-controls.tsx",
+    "apps/admin/src/components/catalog/catalog-data-table.tsx",
+    "apps/admin/src/components/catalog/catalog-overview.tsx",
+    "apps/admin/src/components/catalog/catalog-section-navigation.tsx",
+    "apps/admin/src/components/catalog/catalog-workspace.tsx",
+    "apps/admin/src/components/catalog/cursor-pagination.tsx",
+    "apps/admin/src/components/catalog/public-asset-preview.tsx",
+    "apps/admin/src/components/catalog/status-badge.tsx",
     "apps/admin/src/components/navigation/admin-navigation.tsx",
     "apps/admin/src/components/navigation/breadcrumb.tsx",
     "apps/admin/src/components/navigation/navigation-icon.tsx",
@@ -501,10 +517,12 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/lib/admin-api/client.ts",
     "apps/admin/src/lib/admin-api/generated.ts",
     "apps/admin/src/lib/admin-api/webauthn.ts",
+    "apps/admin/src/lib/catalog/catalog-registry.ts",
     "apps/admin/src/lib/permissions/admin-navigation.ts",
     "apps/admin/src/proxy.ts",
     "apps/admin/test/admin-api-client.test.ts",
     "apps/admin/test/auth-components.test.tsx",
+    "apps/admin/test/catalog-read.test.tsx",
     "apps/admin/test/permission-provider.test.tsx",
     "apps/admin/test/permissions-navigation.test.tsx",
     "apps/admin/test/security-shell.test.tsx",
@@ -1059,6 +1077,16 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
             raise PolicyFailure(f"apps/admin: Admin API boundary missing {required}")
     if 'headers.set("Authorization"' in client:
         raise PolicyFailure("apps/admin: bearer Authorization storage is prohibited")
+    for required in (
+        'path.startsWith("/catalog/")',
+        "listCatalogCategories",
+        "listCatalogTags",
+        "listCatalogRanks",
+        "listCatalogPrizes",
+        "listCatalogPresentationAssets",
+    ):
+        if required not in client:
+            raise PolicyFailure(f"apps/admin: Catalog API boundary missing {required}")
 
     generated = (
         repository / "apps/admin/src/lib/admin-api/generated.ts"
@@ -1071,6 +1099,9 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         "RecoveryCodes",
         "AdminEffectivePermissions",
         "AdminPermissionCode",
+        "AdminCatalogCategory",
+        "AdminCatalogPrize",
+        "AdminCatalogPresentationAsset",
     ):
         if required not in generated:
             raise PolicyFailure(f"apps/admin: generated Admin contract missing {required}")
@@ -1156,6 +1187,36 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         or "production_ready: false" not in health
     ):
         raise PolicyFailure("apps/admin: deterministic Skeleton health is required")
+
+    catalog_source = "\n".join(
+        (repository / relative).read_text(encoding="utf-8", errors="replace")
+        for relative in sorted(actual)
+        if relative.startswith("apps/admin/src/components/catalog/")
+        or relative.startswith("apps/admin/src/lib/catalog/")
+    )
+    for required in (
+        "ProtectedAdminRoute",
+        'permission="catalog.read"',
+        "CatalogSectionNavigation",
+        "CursorPagination",
+        "PublicAssetPreview",
+        "safePublicPath",
+        "presentation-assets",
+    ):
+        if required not in catalog_source:
+            raise PolicyFailure(f"apps/admin: Catalog read UI missing {required}")
+    for prohibited in (
+        "storage_identifier",
+        "probability_ppm",
+        "cost_price",
+        "autoplay",
+        "http://",
+        "https://",
+    ):
+        if prohibited in catalog_source:
+            raise PolicyFailure(
+                f"apps/admin: Catalog read UI exposes prohibited {prohibited}"
+            )
 
     workflow = (
         repository / ".github/workflows/platform-ci.yml"
@@ -2534,6 +2595,89 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         if prohibited in service:
             raise PolicyFailure(
                 f"V2 Catalog read service contains prohibited {prohibited}"
+            )
+
+    admin_service = (
+        repository
+        / "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "V2Permission::ReadCatalog",
+        "authorizePermission",
+        "Crypt::encryptString",
+        "catalog_categories",
+        "catalog_tags",
+        "catalog_ranks",
+        "catalog_prizes",
+        "catalog_presentation_assets",
+        "'public_path' => $row->is_public ? $row->public_path : null",
+    ):
+        if required not in admin_service:
+            raise PolicyFailure(f"V2 Admin Catalog read service missing {required}")
+    for prohibited in (
+        "storage_identifier' =>",
+        "probability_ppm' =>",
+        "cost_price' =>",
+        "->insert(",
+        "->update(",
+        "->delete(",
+    ):
+        if prohibited in admin_service:
+            raise PolicyFailure(
+                f"V2 Admin Catalog read service contains prohibited {prohibited}"
+            )
+
+    admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
+    admin_operation_ids = {
+        operation.get("operationId")
+        for path_item in admin_bundle.get("paths", {}).values()
+        if isinstance(path_item, dict)
+        for operation in path_item.values()
+        if isinstance(operation, dict)
+    }
+    required_admin_operations = {
+        "listAdminCatalogCategories",
+        "getAdminCatalogCategory",
+        "listAdminCatalogTags",
+        "getAdminCatalogTag",
+        "listAdminCatalogRanks",
+        "getAdminCatalogRank",
+        "listAdminCatalogPrizes",
+        "getAdminCatalogPrize",
+        "listAdminCatalogPresentationAssets",
+        "getAdminCatalogPresentationAsset",
+    }
+    if not required_admin_operations.issubset(admin_operation_ids):
+        raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
+    admin_catalog_contract = json.dumps(
+        {
+            "paths": {
+                path: value
+                for path, value in admin_bundle.get("paths", {}).items()
+                if path.startswith("/catalog/")
+            },
+            "schemas": {
+                name: value
+                for name, value in admin_bundle.get("components", {})
+                .get("schemas", {})
+                .items()
+                if name.startswith("AdminCatalog")
+            },
+        },
+        sort_keys=True,
+    ).lower()
+    for prohibited in (
+        "storage_identifier",
+        "probability_ppm",
+        "cost_price",
+        '"post"',
+        '"put"',
+        '"patch"',
+        '"delete"',
+    ):
+        if prohibited in admin_catalog_contract:
+            raise PolicyFailure(
+                f"V2 Admin Catalog contract contains prohibited {prohibited}"
             )
 
     bundle = load_json(repository, "openapi/bundled/public.openapi.json")

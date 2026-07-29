@@ -5248,3 +5248,120 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
   `MIG-060C Admin Catalog／Gacha／Probability Management`だが、
   MIG-060Cは本Task内で開始しない。
+
+## MIG-060B Closeout／MIG-060C Admin Catalog Read／Selection Foundation
+
+### MIG-060B Closeout
+
+- Issue `#123`はClosed、PR `#124`はSquash Mergedである。Final Headは
+  `f7feb8cb2af69f6ba0acbefa16f292e413ff8b28`、Squash Commitは
+  `34e074e4ea5e72c736a4a1139a3ba57c9ea31cc1`である。
+- Required 5 Check、CodeQL、`CodeQL (javascript-typescript)`、Dependency Reviewを
+  含む8 Checkは成功した。Final Headと一致するFresh Self-reviewを確認し、
+  SEV-0／SEV-1は0件だった。
+- Remote／Local Task BranchとMIG-060B Worktreeは削除済みである。
+  Local `main = origin/main`、Main Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### Task／Admin Catalog Contract
+
+- Task IDは`MIG-060C`、Riskは`R3`、Issueは`#125`、Branchは
+  `feat/MIG-060C-admin-catalog-read`、Base SHAは
+  `34e074e4ea5e72c736a4a1139a3ba57c9ea31cc1`である。
+- Admin OpenAPIへCategory、Tag、Rank、Prize、Presentation Assetの
+  一覧／詳細を合計10 Operation追加した。全OperationはAdmin Realm、
+  有効Session、MFA Enrollment、中央Permission Matrixの`catalog.read`を必須とし、
+  `private, no-store`、Request ID、RFC 9457 Errorを返す。
+- Opaque Cursor PaginationはResource、Sort、Direction、値、Public IDを
+  暗号化してBindingする。Stable SortとPublic ID tie-breakを使用し、
+  Cursorの別Resource／Sort流用、改ざん、無効UUIDをFail Closedとする。
+- Search、Visibility、Rank、Media Type、Sortは既存Schemaから確定した範囲だけを
+  Allowlist化した。Mutation Endpoint、DB Migration、Public／Webhook Contract変更は
+  追加していない。Storefront ClientへAdmin型をExportしていない。
+- ResponseはUUIDv7 Public IDと表示用Fieldだけを返し、内部DB ID、原価、
+  個別ppm、Storage Identifier、非公開Asset Pathを公開しない。
+  非公開AssetはRelationを維持しつつPreview URLを`null`にする。
+- `V2AdminCatalogReadService`自身でもAuthorization Contextと
+  `catalog.read`を検証し、Controller／Route Guardだけに依存しない。
+
+### Admin Catalog UI／Selection Foundation
+
+- `/catalog`の準備中画面をCatalog Overviewへ置き換え、
+  `/catalog/categories`、`/tags`、`/ranks`、`/prizes`、
+  `/presentation-assets`と各詳細Routeを追加した。
+- 共通Catalog Registry、Section Navigation、Search／Filter、
+  Data Table、Opaque Cursor Pagination、Detail、Status Badge、
+  Public Asset Preview、API Error Boundary、Breadcrumbを実装した。
+- Loading、Empty、Network Error、401、403、429、再試行を共通表示し、
+  Backend 403を最終判断として扱う。既存`PermissionProvider`、
+  `ProtectedAdminRoute`、Admin Shellを再利用し、Role比較による別権限基盤や
+  架空Dataを追加していない。
+- Image／Video PreviewはPublicかつ同一Origin Relative Pathだけを許可し、
+  Video自動再生を行わない。不正外部URL、非公開Asset、読込失敗はFallback表示とし、
+  CSPや許可Domainを変更していない。
+- Desktop／Mobile、Keyboard、Focus、Breadcrumb、Active Navigationを
+  Chromium Browser E2Eで確認した。Server ComponentからClient Componentへ
+  Lucide Component参照を渡す境界違反を初回E2Eで検出し、
+  SerializableなResource IDだけを渡す構造へ修正した。
+
+### Test／Migration／Security
+
+- Admin Catalog Backend対象Testは5 Test／146 AssertionでPASSした。
+  Owner／Admin／Operator、5 Resource一覧／詳細、Search／Filter／Sort／Cursor、
+  Field非露出、未認証／MFA未完了、Service直接呼出、Mutation Route不存在を確認した。
+- Admin OpenAPI Unit／BundleはPASSし、Operation数はPublic 42、Admin 78、
+  Webhook 0である。Admin Contract生成差分は0である。
+- Admin Typecheck、Lint、Production Build、Unit／Component 27 Test、
+  Chromium Browser E2E 7 TestはPASSした。
+- Policy Unit 88 Test、Quality Unit 5 Test、Security Unit 4 Test、
+  Release Unit 10 Test、`policy-gate`、`quality-gate`、`security-gate`はPASSした。
+- Storefront Client生成差分／Typecheck／Lint／Build／14 Test、
+  Site Schema生成差分／Typecheck／Lint／Build／10 Test、
+  Storefront Testkit生成差分／Typecheck／Lint／Build／22 Test、
+  Export／Network BoundaryはPASSした。PHP Syntax 558 FileはPASSした。
+- Root／Legacy Frozen Installはpnpm `10.12.1`でPASSした。Root Auditは0 Finding、
+  Legacy Auditは既存11 Finding、Composer Auditは既存期限付き10 Findingである。
+  Legacy Lintは既存8 Error／1 Warningと完全一致し、Baseline追加／拡張、
+  新規Critical／High、Secret／PII Candidateは0件だった。
+- Guard付きPersistent V2 DBで`migrate:fresh` 2回、最新Migration
+  Rollback／Reapply、全V2 Suite、PostgreSQL／Redis Healthを確認した。
+  Task専用Ephemeralでは`migrate:fresh` 2回、全V2 Suite、
+  Draw／QA／Reporting／Content Load、API／Admin Health、Backup／Restore、
+  Task Resource Cleanupを確認した。
+- V2 Migrationは15件、Migration Set SHA-256は
+  `53cbd05cae2fa794d39a3fd5c71ad87cefcb398e69eafc066a29ec9356e4f27a`である。
+  Source／Restore Schema SHA-256は
+  `7ae754f3fcbf1cff5cdf48961f0e03293e0e4e432124e92b0bbb399dcec60090`、
+  Migration Row SHA-256は
+  `3e9d7878e58a77810819042186ef4ac43acb4926d74a7e619296657e382fd4ea`
+  で一致した。Backup SHA-256は
+  `f0ee5e6ae4efee3ce6f5b2c1c1985297fa0a09506dfaa093dfd1d632164a1e1b`である。
+- Persistent Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-060C/persistent/persistent-result.json`、
+  Ephemeral Evidenceは`/var/lib/oripa-v2-evidence/MIG-060C/smoke/`へ
+  Repository外保全した。Task専用Container／Network／VolumeはCleanup済みである。
+- V1 Migration 40件の正本Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  で不変である。V1 Runtime、本番Resource、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagを変更していない。
+
+### 時間を要した作業／Gate
+
+- Task専用API ImageはHostのCompose `2.40.1`と旧Buildx `0.12.1`の組合せで
+  BuildKitの`--allow`を解釈できず、Classic Builderで構築した。
+  Composer依存層を再評価するため対象Test再実行まで約2分を要した。
+  GateやDependencyを変更せず解決し、環境互換性を提出レポートへ残した。
+- Browser E2E初回はServer／Client Component境界違反を検出した。
+  Resource IDだけをClientへ渡す修正後、Unit 27件とE2E 7件を再実行し、
+  E2E成功Runは約44秒だった。
+- Guard付きPersistent回帰は約2分、Ephemeral Smokeは全Suite、
+  100,000件Contact等のLoad、Backup／Restoreを含み約6分を要した。
+  Admin-only変更でも全V2 Domain非回帰を1回の成功Runで確認した。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree CleanupはPR上で確定する。Catalog Mutation、Gacha／Probability、
+  他業務Admin画面、Storefront画面、通知Transport、Staging E2Eが残るため、
+  Gate G4／G5は`NOT COMPLETE`である。
+- LINE Login `MIG-058B`は人間指示まで保留する。次Task候補は
+  `MIG-060D Admin Catalog Mutation Foundation`だが、
+  MIG-060Dは本Task内で開始しない。
