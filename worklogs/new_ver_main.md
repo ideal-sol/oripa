@@ -5931,3 +5931,20 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Branch／Worktree CleanupはPR Closeoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持する。次Task候補は
   `MIG-060F Admin Gacha Version Management`であり、本Taskでは開始しない。
+
+### MIG-058B Fresh Self-review補正
+
+- Fresh Self-reviewで、LINE Login Channel資格情報が正式名を優先しながら
+  旧`V2_LINE_*`へFallbackする実装と、空／閉じていない波括弧を未知Placeholderとして
+  拒否できない境界を検出した。
+- Login Channel資格情報は`LINE_LOGIN_CHANNEL_ID`／
+  `LINE_LOGIN_CHANNEL_SECRET`だけをRepository外正本とし、運用READMEも同期した。
+  Messaging資格情報は`LINE_MESSAGING_CHANNEL_SECRET`／
+  `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`のままである。
+- Message Templateは`{login_url}`を除去した後に残る`{`／`}`を拒否し、
+  `{unknown}`、`{}`、`{unknown`の回帰Testを固定した。
+- 補正後のPersistent Guardを144.66秒で再実行し、`migrate:fresh` 2回、
+  最新Migration Rollback／Reapply、全V2 Suite、Schema Inventory、
+  PostgreSQL／Redis HealthがPASSした。Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-head/persistent-result.json`
+  である。

@@ -145,7 +145,12 @@ final class LineMessagingVerticalSliceTest extends TestCase
         )->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
 
         $owner = $this->adminSession(V2AdminRole::Owner);
-        foreach (['<script>alert(1)</script>', '{unknown}'] as $invalid) {
+        foreach ([
+            '<script>alert(1)</script>',
+            '{unknown}',
+            '{}',
+            '{unknown',
+        ] as $invalid) {
             Auth::forgetGuards();
             $this->adminMutation(
                 $owner,

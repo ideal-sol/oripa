@@ -29,11 +29,16 @@ final class V2LineMessageTemplate
         ) {
             throw $this->invalid();
         }
-        preg_match_all('/\{[^{}\r\n]+\}/u', $normalized, $matches);
-        foreach ($matches[0] as $placeholder) {
-            if ($placeholder !== self::ALLOWED_PLACEHOLDER) {
-                throw $this->invalid();
-            }
+        $withoutAllowedPlaceholder = str_replace(
+            self::ALLOWED_PLACEHOLDER,
+            '',
+            $normalized
+        );
+        if (
+            str_contains($withoutAllowedPlaceholder, '{')
+            || str_contains($withoutAllowedPlaceholder, '}')
+        ) {
+            throw $this->invalid();
         }
 
         return $normalized;

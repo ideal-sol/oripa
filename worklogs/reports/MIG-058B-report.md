@@ -137,7 +137,7 @@
 ## V2 DB回帰
 
 - Persistent Evidence:
-  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-messaging-stable/persistent-result.json`
+  `/var/lib/oripa-v2-evidence/MIG-058B/persistent-final-head/persistent-result.json`
 - Ephemeral Evidence:
   `/var/lib/oripa-v2-evidence/MIG-058B/ephemeral-final-messaging-stable/ephemeral-result.json`
 - Migration数: 19。
@@ -166,6 +166,13 @@
 | Ephemeral Smoke再試行 | 374.94秒 | 新規CHECK式がDump／Restoreで等価な別表現へ正規化されSchema Checksum不一致 | CHECKを明示比較／`text[]`へ安定化 |
 | Persistent Guard最終 | 144.41秒 | 安定化後Migrationと全V2回帰を再実行 | PASS |
 | Ephemeral Smoke最終 | 278.80秒 | Source／Restore双方の全Suite、Load、Backup／Restore、Cleanup | PASS |
+| Fresh Self-review後Persistent | 144.66秒 | Environment名統一とMalformed Placeholder拒否を含む全V2回帰 | PASS |
+
+Fresh Self-reviewでは、Login Channel資格情報の旧`V2_LINE_*`Fallbackと、
+空／閉じていない波括弧を未知Placeholderとして拒否できない境界を検出した。
+資格情報の出所を`LINE_LOGIN_CHANNEL_ID`／`LINE_LOGIN_CHANNEL_SECRET`へ一本化し、
+`{login_url}`除去後に残る波括弧をFail Closedとした。回帰Testと全V2 Suiteで
+修正を確認した。
 
 ## 非変更
 
