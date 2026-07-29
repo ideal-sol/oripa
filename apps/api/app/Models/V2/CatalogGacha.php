@@ -17,6 +17,8 @@ final class CatalogGacha extends Model
         'state',
         'sold_count',
         'published_version_id',
+        'revision',
+        'archived_at',
     ];
 
     protected static function booted(): void
@@ -30,6 +32,8 @@ final class CatalogGacha extends Model
     {
         return [
             'sold_count' => 'integer',
+            'revision' => 'integer',
+            'archived_at' => 'immutable_datetime',
         ];
     }
 }

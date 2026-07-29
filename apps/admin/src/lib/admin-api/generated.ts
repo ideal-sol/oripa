@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 1be91e5f6b33348af2cee0ab380b392b21bca4200f84d0debe7be686a167e29c
+// Contract SHA-256: 10df0b173818af634856cd271e8d91d9826f07df1970e3485f45f3654a9f6b03
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -335,6 +335,114 @@ export interface AdminCatalogPresentationAssetUpdate {
   expected_revision: number;
   alt_text: string | null;
   is_public: boolean;
+}
+
+export interface AdminCatalogReference {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface AdminCatalogGachaVersionSummary {
+  id: string;
+  version_number: number;
+  status: "draft" | "published";
+  title: string;
+}
+
+export interface AdminCatalogGacha {
+  id: string;
+  code: string;
+  slug: string;
+  state: "draft" | "active" | "disabled";
+  sold_count: number;
+  category: AdminCatalogReference;
+  tags: AdminCatalogReference[];
+  published_version: AdminCatalogGachaVersionSummary | null;
+  version_count: number;
+  has_draw_history: boolean;
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogGachaCreate {
+  code: string;
+  slug: string;
+  category_id: string;
+  tag_ids: string[];
+}
+
+export interface AdminCatalogGachaUpdate {
+  expected_revision: number;
+  category_id: string;
+  tag_ids: string[];
+}
+
+export interface AdminCatalogGachaVersionPrizeInput {
+  prize_id: string;
+  initial_inventory: number;
+  sort_order: number;
+}
+
+export interface AdminCatalogGachaVersionPrize {
+  prize: {
+    id: string;
+    code: string;
+    name: string;
+    rank: AdminCatalogReference;
+  };
+  initial_inventory: number;
+  sort_order: number;
+}
+
+export interface AdminCatalogGachaVersion {
+  id: string;
+  version_number: number;
+  status: "draft" | "published";
+  title: string;
+  description: string | null;
+  notices: string | null;
+  price_points: number;
+  total_count: number;
+  presentation_asset: AdminCatalogAssetReference | null;
+  published_probability_version: {
+    id: string;
+    version_number: number;
+    status: "draft" | "published";
+  } | null;
+  cloned_from_version: {
+    id: string;
+    version_number: number;
+  } | null;
+  publish_start_at: string;
+  publish_end_at: string | null;
+  published_at: string | null;
+  prizes: AdminCatalogGachaVersionPrize[];
+  is_archived: boolean;
+  revision: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminCatalogGachaVersionCreate {
+  title: string;
+  description: string | null;
+  notices: string | null;
+  price_points: number;
+  total_count: number;
+  presentation_asset_id: string | null;
+  publish_start_at: string;
+  publish_end_at: string | null;
+  prizes: AdminCatalogGachaVersionPrizeInput[];
+}
+
+export interface AdminCatalogGachaVersionUpdate
+  extends AdminCatalogGachaVersionCreate {
+  expected_revision: number;
 }
 
 export interface AdminCatalogArchiveRequest {

@@ -1,0 +1,685 @@
+"use client";
+
+import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
+import { AdminApiClient } from "@/lib/admin-api/client";
+import type {
+  AdminCatalogCategory,
+  AdminCatalogGacha,
+  AdminCatalogGachaVersion,
+  AdminCatalogPresentationAsset,
+  AdminCatalogPrize,
+  AdminCatalogTag,
+} from "@/lib/admin-api/generated";
+
+export interface GachaMasterDraft {
+  categoryId: string;
+  code: string;
+  slug: string;
+  tagIds: string[];
+}
+
+export interface GachaVersionPrizeDraft {
+  initialInventory: number;
+  prizeId: string;
+  sortOrder: number;
+}
+
+export interface GachaVersionDraft {
+  description: string | null;
+  notices: string | null;
+  presentationAssetId: string | null;
+  pricePoints: number;
+  prizes: GachaVersionPrizeDraft[];
+  publishEndAt: string | null;
+  publishStartAt: string;
+  title: string;
+  totalCount: number;
+}
+
+export function CatalogGachaMasterForm({
+  current,
+  mode,
+  onCancel,
+  onSubmit,
+}: {
+  current?: AdminCatalogGacha;
+  mode: "create" | "edit";
+  onCancel: () => void;
+  onSubmit: (draft: GachaMasterDraft) => Promise<void>;
+}) {
+  const initial = useMemo<GachaMasterDraft>(
+    () => ({
+      categoryId: current?.category.id ?? "",
+      code: current?.code ?? "",
+      slug: current?.slug ?? "",
+      tagIds: current?.tags.map((tag) => tag.id) ?? [],
+    }),
+    [current],
+  );
+  const [draft, setDraft] = useState(initial);
+  const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
+  const [tags, setTags] = useState<AdminCatalogTag[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  useEffect(() => heading.current?.focus(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const client = new AdminApiClient();
+    Promise.all([
+      client.listCatalogCategories(
+        { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
+        controller.signal,
+      ),
+      client.listCatalogTags(
+        { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
+        controller.signal,
+      ),
+    ])
+      .then(([categoryResponse, tagResponse]) => {
+        setCategories(categoryResponse.items.filter((item) => !item.is_archived));
+        setTags(tagResponse.items.filter((item) => !item.is_archived));
+      })
+      .catch(() => setError("Category／Tagの選択肢を取得できませんでした。"));
+    return () => controller.abort();
+  }, []);
+  useDirtyGuard(dirty);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (
+      !draft.categoryId ||
+      (mode === "create" &&
+        (!/^[a-z][a-z0-9_-]{0,63}$/.test(draft.code) ||
+          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.slug)))
+    ) {
+      setError("Code、Slug、Categoryを確認してください。");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        ...draft,
+        code: draft.code.normalize("NFC").trim(),
+        slug: draft.slug.normalize("NFC").trim(),
+        tagIds: [...draft.tagIds].sort(),
+      });
+    } catch {
+      setError("保存できませんでした。画面の案内に従って再試行してください。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function cancel() {
+    if (dirty && !window.confirm("未保存の変更を破棄しますか。")) return;
+    onCancel();
+  }
+
+  return (
+    <DialogShell
+      busy={submitting}
+      heading={mode === "create" ? "Gacha Master新規作成" : "Gacha Master編集"}
+      headingRef={heading}
+      onCancel={cancel}
+    >
+      <form className="catalog-mutation-form" onSubmit={submit}>
+        {mode === "create" ? (
+          <>
+            <TextField
+              label="Code"
+              maxLength={64}
+              onChange={(code) => setDraft({ ...draft, code })}
+              value={draft.code}
+            />
+            <TextField
+              label="Slug"
+              maxLength={191}
+              onChange={(slug) => setDraft({ ...draft, slug })}
+              value={draft.slug}
+            />
+          </>
+        ) : (
+          <p className="catalog-immutable-code">
+            Code <code>{draft.code}</code> ／ Slug <code>{draft.slug}</code>
+          </p>
+        )}
+        <label>
+          Category
+          <select
+            onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}
+            required
+            value={draft.categoryId}
+          >
+            <option value="">選択してください</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name} ({category.code})
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset className="catalog-choice-fieldset">
+          <legend>Tag</legend>
+          {tags.length === 0 ? <p>選択可能なTagはありません。</p> : null}
+          {tags.map((tag) => (
+            <label className="catalog-checkbox" key={tag.id}>
+              <input
+                checked={draft.tagIds.includes(tag.id)}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    tagIds: event.target.checked
+                      ? [...draft.tagIds, tag.id]
+                      : draft.tagIds.filter((id) => id !== tag.id),
+                  })
+                }
+                type="checkbox"
+              />
+              {tag.name}
+            </label>
+          ))}
+        </fieldset>
+        <FormActions
+          dirty={dirty}
+          submitting={submitting}
+          onCancel={cancel}
+        />
+        {error ? <FormError message={error} /> : null}
+      </form>
+    </DialogShell>
+  );
+}
+
+export function CatalogGachaVersionForm({
+  current,
+  mode,
+  onCancel,
+  onSubmit,
+}: {
+  current?: AdminCatalogGachaVersion;
+  mode: "create" | "edit";
+  onCancel: () => void;
+  onSubmit: (draft: GachaVersionDraft) => Promise<void>;
+}) {
+  const initial = useMemo(() => versionDraft(current), [current]);
+  const [draft, setDraft] = useState(initial);
+  const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [prizes, setPrizes] = useState<AdminCatalogPrize[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  useEffect(() => heading.current?.focus(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const client = new AdminApiClient();
+    Promise.all([
+      client.listCatalogPresentationAssets(
+        { direction: "desc", limit: 100, sort: "created_at", visibility: "visible" },
+        controller.signal,
+      ),
+      client.listCatalogPrizes(
+        { direction: "asc", limit: 100, sort: "rank", visibility: "visible" },
+        controller.signal,
+      ),
+    ])
+      .then(([assetResponse, prizeResponse]) => {
+        setAssets(assetResponse.items.filter((item) => !item.is_archived));
+        setPrizes(prizeResponse.items.filter((item) => !item.is_archived));
+      })
+      .catch(() => setError("Prize／Assetの選択肢を取得できませんでした。"));
+    return () => controller.abort();
+  }, []);
+  useDirtyGuard(dirty);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (!validVersionDraft(draft)) {
+      setError("必須項目、公開期間、Prizeの重複と数量を確認してください。");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit(normalizeVersionDraft(draft));
+    } catch {
+      setError("保存できませんでした。画面の案内に従って再試行してください。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function cancel() {
+    if (dirty && !window.confirm("未保存の変更を破棄しますか。")) return;
+    onCancel();
+  }
+
+  function updatePrize(index: number, patch: Partial<GachaVersionPrizeDraft>) {
+    setDraft({
+      ...draft,
+      prizes: draft.prizes.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    });
+  }
+
+  return (
+    <DialogShell
+      busy={submitting}
+      heading={mode === "create" ? "Draft Version新規作成" : "Draft Version編集"}
+      headingRef={heading}
+      onCancel={cancel}
+      wide
+    >
+      <form className="catalog-mutation-form" onSubmit={submit}>
+        <TextField
+          label="Title"
+          maxLength={191}
+          onChange={(title) => setDraft({ ...draft, title })}
+          value={draft.title}
+        />
+        <TextArea
+          label="Description"
+          onChange={(description) => setDraft({ ...draft, description })}
+          value={draft.description ?? ""}
+        />
+        <TextArea
+          label="Notice"
+          onChange={(notices) => setDraft({ ...draft, notices })}
+          value={draft.notices ?? ""}
+        />
+        <div className="catalog-form-grid">
+          <NumberField
+            label="販売Point"
+            min={1}
+            onChange={(pricePoints) => setDraft({ ...draft, pricePoints })}
+            value={draft.pricePoints}
+          />
+          <NumberField
+            label="販売口数"
+            min={1}
+            onChange={(totalCount) => setDraft({ ...draft, totalCount })}
+            value={draft.totalCount}
+          />
+        </div>
+        <label>
+          Presentation Asset
+          <select
+            onChange={(event) =>
+              setDraft({ ...draft, presentationAssetId: event.target.value || null })
+            }
+            value={draft.presentationAssetId ?? ""}
+          >
+            <option value="">未設定</option>
+            {assets.map((asset) => (
+              <option key={asset.id} value={asset.id}>
+                {asset.alt_text ?? asset.media_type}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="catalog-form-grid">
+          <DateTimeField
+            label="公開開始"
+            onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })}
+            value={draft.publishStartAt}
+          />
+          <DateTimeField
+            label="公開終了"
+            onChange={(publishEndAt) =>
+              setDraft({ ...draft, publishEndAt: publishEndAt || null })
+            }
+            required={false}
+            value={draft.publishEndAt ?? ""}
+          />
+        </div>
+        <fieldset className="catalog-prize-fieldset">
+          <div className="catalog-fieldset-heading">
+            <legend>Prize Relation</legend>
+            <button
+              className="secondary-button"
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  prizes: [
+                    ...draft.prizes,
+                    {
+                      initialInventory: 0,
+                      prizeId: "",
+                      sortOrder: nextSortOrder(draft.prizes),
+                    },
+                  ],
+                })
+              }
+              type="button"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Prize追加
+            </button>
+          </div>
+          {draft.prizes.map((item, index) => (
+            <div className="catalog-prize-row" key={`${index}-${item.prizeId}`}>
+              <label>
+                Prize
+                <select
+                  onChange={(event) => updatePrize(index, { prizeId: event.target.value })}
+                  required
+                  value={item.prizeId}
+                >
+                  <option value="">選択してください</option>
+                  {prizes.map((prize) => (
+                    <option key={prize.id} value={prize.id}>
+                      {prize.rank.code} / {prize.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <NumberField
+                label="初期在庫"
+                min={0}
+                onChange={(initialInventory) => updatePrize(index, { initialInventory })}
+                value={item.initialInventory}
+              />
+              <NumberField
+                label="表示順"
+                min={0}
+                onChange={(sortOrder) => updatePrize(index, { sortOrder })}
+                value={item.sortOrder}
+              />
+              <button
+                aria-label={`${index + 1}行目を削除`}
+                className="icon-button"
+                disabled={draft.prizes.length === 1}
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    prizes: draft.prizes.filter((_, itemIndex) => itemIndex !== index),
+                  })
+                }
+                type="button"
+              >
+                <Trash2 size={17} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </fieldset>
+        <FormActions
+          dirty={dirty}
+          submitting={submitting}
+          onCancel={cancel}
+        />
+        {error ? <FormError message={error} /> : null}
+      </form>
+    </DialogShell>
+  );
+}
+
+function DialogShell({
+  busy,
+  children,
+  heading,
+  headingRef,
+  onCancel,
+  wide = false,
+}: {
+  busy: boolean;
+  children: React.ReactNode;
+  heading: string;
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  onCancel: () => void;
+  wide?: boolean;
+}) {
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section
+        aria-labelledby="catalog-gacha-form-heading"
+        aria-modal="true"
+        className={`dialog-panel catalog-mutation-panel${wide ? " is-wide" : ""}`}
+        role="dialog"
+      >
+        <header className="dialog-header">
+          <div>
+            <span className="eyebrow">Gacha Draft Management</span>
+            <h2 id="catalog-gacha-form-heading" ref={headingRef} tabIndex={-1}>
+              {heading}
+            </h2>
+          </div>
+          <button
+            aria-label="閉じる"
+            className="icon-button"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function FormActions({
+  dirty,
+  onCancel,
+  submitting,
+}: {
+  dirty: boolean;
+  onCancel: () => void;
+  submitting: boolean;
+}) {
+  return (
+    <div className="catalog-dialog-actions">
+      <button
+        className="secondary-button"
+        disabled={submitting}
+        onClick={onCancel}
+        type="button"
+      >
+        取り消し
+      </button>
+      <button className="primary-button" disabled={submitting || !dirty} type="submit">
+        {submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}
+        保存
+      </button>
+    </div>
+  );
+}
+
+function FormError({ message }: { message: string }) {
+  return (
+    <p aria-live="assertive" className="form-error" role="alert">
+      {message}
+    </p>
+  );
+}
+
+function TextField({
+  label,
+  maxLength,
+  onChange,
+  value,
+}: {
+  label: string;
+  maxLength: number;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        required
+        value={value}
+      />
+    </label>
+  );
+}
+
+function TextArea({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string | null) => void;
+  value: string;
+}) {
+  return (
+    <label>
+      {label}
+      <textarea
+        maxLength={10_000}
+        onChange={(event) => onChange(event.target.value || null)}
+        rows={3}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function NumberField({
+  label,
+  min,
+  onChange,
+  value,
+}: {
+  label: string;
+  min: number;
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        min={min}
+        onChange={(event) => onChange(Number(event.target.value))}
+        required
+        step={1}
+        type="number"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function DateTimeField({
+  label,
+  onChange,
+  required = true,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  value: string;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        type="datetime-local"
+        value={toLocalInput(value)}
+      />
+    </label>
+  );
+}
+
+function useDirtyGuard(dirty: boolean) {
+  useEffect(() => {
+    if (!dirty) return;
+    const guard = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [dirty]);
+}
+
+function versionDraft(current?: AdminCatalogGachaVersion): GachaVersionDraft {
+  return {
+    description: current?.description ?? null,
+    notices: current?.notices ?? null,
+    presentationAssetId: current?.presentation_asset?.id ?? null,
+    pricePoints: current?.price_points ?? 1,
+    prizes:
+      current?.prizes.map((item) => ({
+        initialInventory: item.initial_inventory,
+        prizeId: item.prize.id,
+        sortOrder: item.sort_order,
+      })) ?? [{ initialInventory: 0, prizeId: "", sortOrder: 10 }],
+    publishEndAt: current?.publish_end_at ?? null,
+    publishStartAt: current?.publish_start_at ?? "",
+    title: current?.title ?? "",
+    totalCount: current?.total_count ?? 1,
+  };
+}
+
+function validVersionDraft(draft: GachaVersionDraft): boolean {
+  const prizeIds = draft.prizes.map((item) => item.prizeId);
+  const sortOrders = draft.prizes.map((item) => item.sortOrder);
+  const startsAt = Date.parse(draft.publishStartAt);
+  const endsAt = draft.publishEndAt ? Date.parse(draft.publishEndAt) : null;
+  return (
+    draft.title.trim().length > 0 &&
+    Number.isSafeInteger(draft.pricePoints) &&
+    draft.pricePoints > 0 &&
+    Number.isSafeInteger(draft.totalCount) &&
+    draft.totalCount > 0 &&
+    draft.prizes.length > 0 &&
+    prizeIds.every(Boolean) &&
+    new Set(prizeIds).size === prizeIds.length &&
+    new Set(sortOrders).size === sortOrders.length &&
+    draft.prizes.every(
+      (item) =>
+        Number.isSafeInteger(item.initialInventory) &&
+        item.initialInventory >= 0 &&
+        Number.isSafeInteger(item.sortOrder) &&
+        item.sortOrder >= 0,
+    ) &&
+    Number.isFinite(startsAt) &&
+    (endsAt === null || (Number.isFinite(endsAt) && endsAt > startsAt))
+  );
+}
+
+function normalizeVersionDraft(draft: GachaVersionDraft): GachaVersionDraft {
+  return {
+    ...draft,
+    description: draft.description?.normalize("NFC").trim() || null,
+    notices: draft.notices?.normalize("NFC").trim() || null,
+    prizes: [...draft.prizes].sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder || left.prizeId.localeCompare(right.prizeId),
+    ),
+    publishEndAt: draft.publishEndAt
+      ? new Date(draft.publishEndAt).toISOString()
+      : null,
+    publishStartAt: new Date(draft.publishStartAt).toISOString(),
+    title: draft.title.normalize("NFC").trim(),
+  };
+}
+
+function toLocalInput(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value.slice(0, 16);
+  const local = new Date(date.valueOf() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function nextSortOrder(items: GachaVersionPrizeDraft[]): number {
+  return items.length === 0
+    ? 10
+    : Math.max(...items.map((item) => item.sortOrder)) + 10;
+}

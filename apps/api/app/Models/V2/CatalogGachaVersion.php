@@ -25,6 +25,9 @@ final class CatalogGachaVersion extends Model
         'publish_start_at',
         'publish_end_at',
         'published_at',
+        'revision',
+        'archived_at',
+        'cloned_from_version_id',
     ];
 
     protected static function booted(): void
@@ -53,6 +56,8 @@ final class CatalogGachaVersion extends Model
             'publish_start_at' => 'immutable_datetime',
             'publish_end_at' => 'immutable_datetime',
             'published_at' => 'immutable_datetime',
+            'revision' => 'integer',
+            'archived_at' => 'immutable_datetime',
         ];
     }
 }

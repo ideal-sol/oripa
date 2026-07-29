@@ -52,6 +52,11 @@ import {
   type CatalogSection,
 } from "@/lib/catalog/catalog-registry";
 
+type CatalogReferenceResource = Exclude<CatalogResource, "gachas">;
+type CatalogReferenceSection = CatalogSection & {
+  resource: CatalogReferenceResource;
+};
+
 type CatalogItem =
   | AdminCatalogCategory
   | AdminCatalogTag
@@ -76,11 +81,11 @@ export function CatalogWorkspace({
   resource,
 }: {
   id?: string;
-  resource: CatalogResource;
+  resource: CatalogReferenceResource;
 }) {
   const resolvedSection = catalogSection(resource);
   if (!resolvedSection) throw new Error("Unknown catalog resource");
-  const section: CatalogSection = resolvedSection;
+  const section = resolvedSection as CatalogReferenceSection;
   const client = useMemo(() => new AdminApiClient(), []);
   const { expireSession } = useAdminAuth();
   const { hasPermission } = usePermissions();
@@ -437,7 +442,7 @@ export function CatalogWorkspace({
 
 async function loadCatalogState(
   client: AdminApiClient,
-  section: CatalogSection,
+  section: CatalogReferenceSection,
   query: AdminCatalogQuery,
   signal: AbortSignal,
   id?: string,
@@ -487,7 +492,7 @@ function CatalogDetail({ item }: { item: CatalogItem }) {
 
 async function getList(
   client: AdminApiClient,
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
   query: AdminCatalogQuery,
   signal: AbortSignal,
 ): Promise<AdminCatalogCollection<CatalogItem>> {
@@ -507,7 +512,7 @@ async function getList(
 
 async function getDetail(
   client: AdminApiClient,
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
   id: string,
   signal: AbortSignal,
 ): Promise<CatalogItem> {
@@ -617,18 +622,18 @@ function detailEntries(item: CatalogItem): [string, string][] {
 }
 
 function isMasterResource(
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
 ): resource is "categories" | "tags" | "ranks" {
   return ["categories", "tags", "ranks"].includes(resource);
 }
 
 function isPrizeAssetResource(
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
 ): resource is "prizes" | "presentation-assets" {
   return resource === "prizes" || resource === "presentation-assets";
 }
 
-function isMutableResource(resource: CatalogSection["resource"]): boolean {
+function isMutableResource(resource: CatalogReferenceResource): boolean {
   return isMasterResource(resource) || isPrizeAssetResource(resource);
 }
 
@@ -645,7 +650,7 @@ function masterDraft(item: CatalogMasterItem): CatalogMasterDraft {
 
 async function mutateMaster(
   client: AdminApiClient,
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
   mode: "create" | "edit" | null,
   current: CatalogMasterItem | null,
   draft: CatalogMasterDraft,
@@ -735,7 +740,7 @@ async function mutateMaster(
 
 async function archiveCatalogMaster(
   client: AdminApiClient,
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
   current: CatalogMutableItem,
   key: string,
 ): Promise<CatalogMutableItem> {
@@ -775,7 +780,7 @@ export function hasCatalogMutationRevision(
 
 async function mutatePrizeAsset(
   client: AdminApiClient,
-  resource: CatalogSection["resource"],
+  resource: CatalogReferenceResource,
   mode: "create" | "edit" | null,
   current: CatalogMutableItem | null,
   draft: CatalogPrizeAssetDraft,

@@ -7,6 +7,12 @@ import {
   type AdminCatalogCollection,
   type AdminCatalogDetail,
   type AdminCatalogDirection,
+  type AdminCatalogGacha,
+  type AdminCatalogGachaCreate,
+  type AdminCatalogGachaUpdate,
+  type AdminCatalogGachaVersion,
+  type AdminCatalogGachaVersionCreate,
+  type AdminCatalogGachaVersionUpdate,
   type AdminCatalogPresentationAsset,
   type AdminCatalogPresentationAssetCreate,
   type AdminCatalogPresentationAssetUpdate,
@@ -55,6 +61,7 @@ interface RequestOptions {
 }
 
 export interface AdminCatalogQuery {
+  archive?: "all" | "active" | "archived";
   cursor?: string;
   direction?: AdminCatalogDirection;
   limit?: number;
@@ -62,11 +69,14 @@ export interface AdminCatalogQuery {
   q?: string;
   rank_id?: string;
   sort?: string;
+  state?: "all" | "draft" | "active" | "disabled";
+  status?: "all" | "draft" | "published";
   visibility?: AdminCatalogVisibility;
 }
 
 export type AdminCatalogResource =
   | "categories"
+  | "gachas"
   | "tags"
   | "ranks"
   | "prizes"
@@ -366,6 +376,141 @@ export class AdminApiClient {
     );
   }
 
+  listCatalogGachas(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogGacha>> {
+    return this.catalogList("gachas", query, signal);
+  }
+
+  getCatalogGacha(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogGacha>> {
+    return this.catalogDetail("gachas", id, signal);
+  }
+
+  createCatalogGacha(
+    body: AdminCatalogGachaCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGacha>> {
+    return this.catalogMutation("POST", "gachas", null, body, idempotencyKey, signal);
+  }
+
+  updateCatalogGacha(
+    id: string,
+    body: AdminCatalogGachaUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGacha>> {
+    return this.catalogMutation("PUT", "gachas", id, body, idempotencyKey, signal);
+  }
+
+  archiveCatalogGacha(
+    id: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGacha>> {
+    return this.catalogArchive("gachas", id, expectedRevision, idempotencyKey, signal);
+  }
+
+  listCatalogGachaVersions(
+    gachaId: string,
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminCatalogGachaVersion>> {
+    return this.gachaVersionList(gachaId, query, signal);
+  }
+
+  getCatalogGachaVersion(
+    gachaId: string,
+    versionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminCatalogGachaVersion>> {
+    if (!isOpaqueId(gachaId) || !isOpaqueId(versionId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}`,
+      { signal },
+    );
+  }
+
+  createCatalogGachaDraft(
+    gachaId: string,
+    body: AdminCatalogGachaVersionCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    return this.gachaVersionMutation(
+      "POST",
+      gachaId,
+      null,
+      null,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  cloneCatalogGachaDraft(
+    gachaId: string,
+    sourceVersionId: string,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    return this.gachaVersionMutation(
+      "POST",
+      gachaId,
+      sourceVersionId,
+      "clone",
+      {},
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  updateCatalogGachaDraft(
+    gachaId: string,
+    versionId: string,
+    body: AdminCatalogGachaVersionUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    return this.gachaVersionMutation(
+      "PUT",
+      gachaId,
+      versionId,
+      null,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  discardCatalogGachaDraft(
+    gachaId: string,
+    versionId: string,
+    expectedRevision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    return this.gachaVersionMutation(
+      "POST",
+      gachaId,
+      versionId,
+      "archive",
+      { expected_revision: expectedRevision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
   login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {
     return this.request("POST", "/auth/login", { body, signal });
   }
@@ -529,6 +674,57 @@ export class AdminApiClient {
       idempotencyKey,
       signal,
     });
+  }
+
+  private gachaVersionList<T>(
+    gachaId: string,
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<T>> {
+    if (!isOpaqueId(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") parameters.set(name, String(value));
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/versions${suffix}`,
+      { signal },
+    );
+  }
+
+  private gachaVersionMutation<TBody>(
+    method: "POST" | "PUT",
+    gachaId: string,
+    versionId: string | null,
+    action: "clone" | "archive" | null,
+    body: TBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    if (
+      !isOpaqueId(gachaId) ||
+      (versionId !== null && !isOpaqueId(versionId)) ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    const versionPath = versionId === null
+      ? ""
+      : `/${encodeURIComponent(versionId)}`;
+    const actionPath = action === null ? "" : `/${action}`;
+    return this.request(
+      method,
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/versions${versionPath}${actionPath}`,
+      { body, idempotencyKey, signal },
+    );
   }
 
   private async request<T>(

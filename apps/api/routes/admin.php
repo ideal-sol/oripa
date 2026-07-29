@@ -140,6 +140,32 @@ Route::prefix('v2')
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.update');
         Route::post('/catalog/presentation-assets/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveAsset'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.archive');
+        Route::get('/catalog/gachas', [V2AdminCatalogController::class, 'gachas'])
+            ->name('v2.admin.catalog.gachas.index');
+        Route::post('/catalog/gachas', [V2AdminCatalogController::class, 'createGacha'])
+            ->name('v2.admin.catalog.gachas.create');
+        Route::get('/catalog/gachas/{gachaId}', [V2AdminCatalogController::class, 'gacha'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.show');
+        Route::put('/catalog/gachas/{gachaId}', [V2AdminCatalogController::class, 'updateGacha'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.update');
+        Route::post('/catalog/gachas/{gachaId}/archive', [V2AdminCatalogController::class, 'archiveGacha'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.archive');
+        Route::get('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'gachaVersions'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gacha-versions.index');
+        Route::post('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'createGachaDraft'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gacha-versions.create');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'gachaVersion'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.show');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'updateGachaDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.update');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/clone', [V2AdminCatalogController::class, 'cloneGachaDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.clone');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/archive', [V2AdminCatalogController::class, 'archiveGachaDraft'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.archive');
         Route::get('/content/banners', [V2AdminContentContactController::class, 'banners']);
         Route::post('/content/banners', [V2AdminContentContactController::class, 'createBanner']);
         Route::get('/content/banners/{contentId}', [V2AdminContentContactController::class, 'banner'])->whereUuid('contentId');

@@ -12,6 +12,7 @@ use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Models\V2\Admin;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -209,6 +210,366 @@ final class V2CatalogMasterMutationService
                 ]);
 
                 return $this->find($definition['table'], $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function createGacha(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'gacha');
+        $this->rateLimit($context, $admin, 'create', 'gacha');
+        $payload = $this->validateGachaCreate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha',
+            'create',
+            $idempotencyKey,
+            $payload,
+            201,
+            function () use ($payload): object {
+                $now = now()->startOfSecond();
+                $category = $this->resolveReference(
+                    'catalog_categories',
+                    $payload['category_id'],
+                    'is_visible'
+                );
+                $tags = $this->resolveReferences(
+                    'catalog_tags',
+                    $payload['tag_ids'],
+                    'is_visible'
+                );
+                $publicId = (string) Str::uuid7();
+                $gachaId = DB::table('catalog_gachas')->insertGetId([
+                    'public_id' => $publicId,
+                    'code' => $payload['code'],
+                    'slug' => $payload['slug'],
+                    'category_id' => $category->id,
+                    'state' => 'draft',
+                    'sold_count' => 0,
+                    'published_version_id' => null,
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $this->replaceGachaTags((int) $gachaId, $tags);
+
+                return $this->find('catalog_gachas', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function updateGacha(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        foreach (['code', 'slug', 'state', 'sold_count', 'published_version_id'] as $field) {
+            if (array_key_exists($field, $input)) {
+                throw new V2CatalogException(
+                    'CATALOG_GACHA_IDENTITY_IMMUTABLE',
+                    409,
+                    'Gacha identity and lifecycle fields cannot be changed here.'
+                );
+            }
+        }
+        $admin = $this->authorize($context, 'update', 'gacha');
+        $this->rateLimit($context, $admin, 'update', 'gacha');
+        $payload = $this->validateGachaUpdate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha',
+            'update',
+            $idempotencyKey,
+            ['id' => $publicId, ...$payload],
+            200,
+            function () use ($publicId, $payload): object {
+                $row = $this->find('catalog_gachas', $publicId, true);
+                $this->assertMutable($row, $payload['expected_revision']);
+                $this->assertGachaHasNoPublishedOrDrawnReference((int) $row->id);
+                $category = $this->resolveReference(
+                    'catalog_categories',
+                    $payload['category_id'],
+                    'is_visible'
+                );
+                $tags = $this->resolveReferences(
+                    'catalog_tags',
+                    $payload['tag_ids'],
+                    'is_visible'
+                );
+                DB::table('catalog_gachas')->where('id', $row->id)->update([
+                    'category_id' => $category->id,
+                    'revision' => (int) $row->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+                $this->replaceGachaTags((int) $row->id, $tags);
+
+                return $this->find('catalog_gachas', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function archiveGacha(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'archive', 'gacha');
+        $this->rateLimit($context, $admin, 'archive', 'gacha');
+        $payload = $this->validateArchive($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha',
+            'archive',
+            $idempotencyKey,
+            ['id' => $publicId, ...$payload],
+            200,
+            function () use ($publicId, $payload): object {
+                $row = $this->find('catalog_gachas', $publicId, true);
+                $this->assertMutable($row, $payload['expected_revision']);
+                $this->assertGachaHasNoPublishedOrDrawnReference((int) $row->id);
+                DB::table('catalog_gachas')->where('id', $row->id)->update([
+                    'state' => 'disabled',
+                    'archived_at' => now()->startOfSecond(),
+                    'revision' => (int) $row->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return $this->find('catalog_gachas', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function createGachaDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'gacha_version');
+        $this->rateLimit($context, $admin, 'create', 'gacha_version');
+        $payload = $this->validateGachaVersion($input, false);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_version',
+            'create',
+            $idempotencyKey,
+            ['gacha_id' => $gachaPublicId, ...$payload],
+            201,
+            function () use ($gachaPublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $this->assertGachaAvailable($gacha);
+
+                return $this->insertGachaDraft(
+                    $gacha,
+                    $payload,
+                    null
+                );
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function cloneGachaDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $sourceVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'clone', 'gacha_version');
+        $this->rateLimit($context, $admin, 'clone', 'gacha_version');
+        $this->assertFields($input, [], []);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_version',
+            'clone',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'source_version_id' => $sourceVersionPublicId,
+            ],
+            201,
+            function () use ($gachaPublicId, $sourceVersionPublicId): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $this->assertGachaAvailable($gacha);
+                $source = $this->find('catalog_gacha_versions', $sourceVersionPublicId, true);
+                if ((int) $source->gacha_id !== (int) $gacha->id) {
+                    throw $this->notFound();
+                }
+                $payload = [
+                    'title' => $source->title,
+                    'description' => $source->description,
+                    'notices' => $source->notices,
+                    'price_points' => (int) $source->price_points,
+                    'total_count' => (int) $source->total_count,
+                    'presentation_asset_id' => $source->presentation_asset_id === null
+                        ? null
+                        : DB::table('catalog_presentation_assets')
+                            ->where('id', $source->presentation_asset_id)
+                            ->value('public_id'),
+                    'publish_start_at' => CarbonImmutable::parse(
+                        (string) $source->publish_start_at
+                    )->toIso8601String(),
+                    'publish_end_at' => $source->publish_end_at === null
+                        ? null
+                        : CarbonImmutable::parse(
+                            (string) $source->publish_end_at
+                        )->toIso8601String(),
+                    'prizes' => DB::table('catalog_gacha_version_prizes as relation')
+                        ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+                        ->where('relation.gacha_version_id', $source->id)
+                        ->orderBy('relation.sort_order')
+                        ->orderBy('relation.id')
+                        ->get([
+                            'prize.public_id as prize_id',
+                            'relation.initial_inventory',
+                            'relation.sort_order',
+                        ])
+                        ->map(fn (object $row): array => [
+                            'prize_id' => $row->prize_id,
+                            'initial_inventory' => (int) $row->initial_inventory,
+                            'sort_order' => (int) $row->sort_order,
+                        ])->all(),
+                ];
+
+                return $this->insertGachaDraft(
+                    $gacha,
+                    $this->validateGachaVersion($payload, false),
+                    (int) $source->id
+                );
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function updateGachaDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        foreach ([
+            'version_number',
+            'status',
+            'published_probability_version_id',
+            'published_at',
+            'cloned_from_version_id',
+        ] as $field) {
+            if (array_key_exists($field, $input)) {
+                throw new V2CatalogException(
+                    'CATALOG_GACHA_VERSION_IDENTITY_IMMUTABLE',
+                    409,
+                    'Gacha Version identity and publication fields cannot be changed here.'
+                );
+            }
+        }
+        $admin = $this->authorize($context, 'update', 'gacha_version');
+        $this->rateLimit($context, $admin, 'update', 'gacha_version');
+        $payload = $this->validateGachaVersion($input, true);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_version',
+            'update',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use ($gachaPublicId, $versionPublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $this->assertGachaAvailable($gacha);
+                $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                $this->assertGachaVersionMutable(
+                    $version,
+                    (int) $gacha->id,
+                    $payload['expected_revision']
+                );
+                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+                $prizes = $this->resolveGachaPrizes($payload['prizes']);
+                DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
+                    'title' => $payload['title'],
+                    'description' => $payload['description'],
+                    'notices' => $payload['notices'],
+                    'price_points' => $payload['price_points'],
+                    'total_count' => $payload['total_count'],
+                    'presentation_asset_id' => $asset?->id,
+                    'publish_start_at' => $payload['publish_start_at'],
+                    'publish_end_at' => $payload['publish_end_at'],
+                    'revision' => (int) $version->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+                $this->replaceGachaVersionPrizes((int) $version->id, $prizes);
+
+                return $this->find('catalog_gacha_versions', $versionPublicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function archiveGachaDraft(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'archive', 'gacha_version');
+        $this->rateLimit($context, $admin, 'archive', 'gacha_version');
+        $payload = $this->validateArchive($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_version',
+            'discard',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use ($gachaPublicId, $versionPublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $this->assertGachaAvailable($gacha);
+                $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                $this->assertGachaVersionMutable(
+                    $version,
+                    (int) $gacha->id,
+                    $payload['expected_revision']
+                );
+                DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
+                    'archived_at' => now()->startOfSecond(),
+                    'revision' => (int) $version->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return $this->find('catalog_gacha_versions', $versionPublicId, false);
             }
         );
     }
@@ -543,7 +904,16 @@ final class V2CatalogMasterMutationService
 
                 $row = $mutation();
                 $data = $this->map($resource, $row);
-                $event = 'catalog.master.'.$action.'d';
+                $event = 'catalog.master.'.match ($action) {
+                    'create' => 'created',
+                    'update' => 'updated',
+                    'archive' => 'archived',
+                    'clone' => 'cloned',
+                    'discard' => 'discarded',
+                    default => throw new \LogicException(
+                        'Unsupported Catalog mutation action.'
+                    ),
+                };
                 $this->recordAudit(
                     $event,
                     $context,
@@ -721,6 +1091,127 @@ final class V2CatalogMasterMutationService
         $this->assertFields($input, ['expected_revision'], ['expected_revision']);
 
         return ['expected_revision' => $this->revision($input['expected_revision'])];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateGachaCreate(array $input): array
+    {
+        $this->assertFields(
+            $input,
+            ['code', 'slug', 'category_id', 'tag_ids'],
+            ['code', 'slug', 'category_id', 'tag_ids']
+        );
+
+        return [
+            'code' => $this->code($input['code'], 64),
+            'slug' => $this->slug($input['slug']),
+            'category_id' => $this->uuid($input['category_id']),
+            'tag_ids' => $this->uuidList($input['tag_ids'], true),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateGachaUpdate(array $input): array
+    {
+        $this->assertFields(
+            $input,
+            ['expected_revision', 'category_id', 'tag_ids'],
+            ['expected_revision', 'category_id', 'tag_ids']
+        );
+
+        return [
+            'expected_revision' => $this->revision($input['expected_revision']),
+            'category_id' => $this->uuid($input['category_id']),
+            'tag_ids' => $this->uuidList($input['tag_ids'], true),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateGachaVersion(array $input, bool $updating): array
+    {
+        $allowed = [
+            'title',
+            'description',
+            'notices',
+            'price_points',
+            'total_count',
+            'presentation_asset_id',
+            'publish_start_at',
+            'publish_end_at',
+            'prizes',
+        ];
+        if ($updating) {
+            array_unshift($allowed, 'expected_revision');
+        }
+        $this->assertFields($input, $allowed, $allowed);
+        if (! is_array($input['prizes']) || $input['prizes'] === []) {
+            throw $this->validationException();
+        }
+        $prizes = [];
+        $prizeIds = [];
+        $sortOrders = [];
+        foreach ($input['prizes'] as $prize) {
+            if (! is_array($prize)) {
+                throw $this->validationException();
+            }
+            $this->assertFields(
+                $prize,
+                ['prize_id', 'initial_inventory', 'sort_order'],
+                ['prize_id', 'initial_inventory', 'sort_order']
+            );
+            $prizeId = $this->uuid($prize['prize_id']);
+            $sortOrder = $this->sortOrder($prize['sort_order']);
+            if (isset($prizeIds[$prizeId]) || isset($sortOrders[$sortOrder])) {
+                throw $this->validationException();
+            }
+            $prizeIds[$prizeId] = true;
+            $sortOrders[$sortOrder] = true;
+            $prizes[] = [
+                'prize_id' => $prizeId,
+                'initial_inventory' => $this->nonNegativeInteger(
+                    $prize['initial_inventory']
+                ),
+                'sort_order' => $sortOrder,
+            ];
+        }
+        if (count($prizes) > 1000) {
+            throw $this->validationException();
+        }
+        usort(
+            $prizes,
+            fn (array $left, array $right): int =>
+                [$left['sort_order'], $left['prize_id']]
+                <=> [$right['sort_order'], $right['prize_id']]
+        );
+        $startsAt = $this->timestamp($input['publish_start_at']);
+        $endsAt = $input['publish_end_at'] === null
+            ? null
+            : $this->timestamp($input['publish_end_at']);
+        if (
+            $endsAt !== null
+            && CarbonImmutable::parse($endsAt)->lessThanOrEqualTo(
+                CarbonImmutable::parse($startsAt)
+            )
+        ) {
+            throw $this->validationException();
+        }
+
+        return [
+            ...($updating
+                ? ['expected_revision' => $this->revision($input['expected_revision'])]
+                : []),
+            'title' => $this->plainText($input['title'], 1, 191),
+            'description' => $this->nullablePlainText($input['description'], 10000),
+            'notices' => $this->nullablePlainText($input['notices'], 10000),
+            'price_points' => $this->positiveInteger($input['price_points']),
+            'total_count' => $this->positiveInteger($input['total_count']),
+            'presentation_asset_id' => $this->nullableUuid(
+                $input['presentation_asset_id']
+            ),
+            'publish_start_at' => $startsAt,
+            'publish_end_at' => $endsAt,
+            'prizes' => $prizes,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -917,6 +1408,52 @@ final class V2CatalogMasterMutationService
         return $value;
     }
 
+    private function positiveInteger(mixed $value): int
+    {
+        $number = $this->nonNegativeInteger($value);
+        if ($number === 0) {
+            throw $this->validationException();
+        }
+
+        return $number;
+    }
+
+    /** @return list<string> */
+    private function uuidList(mixed $value, bool $allowEmpty): array
+    {
+        if (! is_array($value) || (! $allowEmpty && $value === [])) {
+            throw $this->validationException();
+        }
+        $ids = [];
+        foreach ($value as $item) {
+            $id = $this->uuid($item);
+            if (isset($ids[$id])) {
+                throw $this->validationException();
+            }
+            $ids[$id] = true;
+        }
+        if (count($ids) > 1000) {
+            throw $this->validationException();
+        }
+
+        return array_keys($ids);
+    }
+
+    private function timestamp(mixed $value): string
+    {
+        if (
+            ! is_string($value)
+            || preg_match('/(?:Z|[+-][0-9]{2}:[0-9]{2})\z/', $value) !== 1
+        ) {
+            throw $this->validationException();
+        }
+        try {
+            return CarbonImmutable::parse($value)->utc()->toIso8601String();
+        } catch (\Throwable) {
+            throw $this->validationException();
+        }
+    }
+
     private function uuid(mixed $value): string
     {
         if (! is_string($value) || ! Str::isUuid($value)) {
@@ -1103,6 +1640,54 @@ final class V2CatalogMasterMutationService
         return $row;
     }
 
+    /**
+     * @param list<string> $publicIds
+     * @return list<object>
+     */
+    private function resolveReferences(
+        string $table,
+        array $publicIds,
+        string $visibilityColumn
+    ): array {
+        if ($publicIds === []) {
+            return [];
+        }
+
+        $rowsByPublicId = DB::table($table)
+            ->whereIn('public_id', $publicIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('public_id');
+        if ($rowsByPublicId->count() !== count($publicIds)) {
+            throw new V2CatalogException(
+                'CATALOG_REFERENCE_INVALID',
+                422,
+                'The selected Catalog reference is unavailable.'
+            );
+        }
+
+        return array_map(function (string $publicId) use (
+            $rowsByPublicId,
+            $visibilityColumn
+        ): object {
+            $row = $rowsByPublicId->get($publicId);
+            if (
+                $row === null
+                || ($row->archived_at ?? null) !== null
+                || ! (bool) $row->{$visibilityColumn}
+            ) {
+                throw new V2CatalogException(
+                    'CATALOG_REFERENCE_INVALID',
+                    422,
+                    'The selected Catalog reference is unavailable.'
+                );
+            }
+
+            return $row;
+        }, $publicIds);
+    }
+
     private function resolveNullableAsset(?string $publicId): ?object
     {
         return $publicId === null
@@ -1112,6 +1697,161 @@ final class V2CatalogMasterMutationService
                 $publicId,
                 'is_public'
             );
+    }
+
+    /** @param list<object> $tags */
+    private function replaceGachaTags(int $gachaId, array $tags): void
+    {
+        DB::table('catalog_gacha_tags')->where('gacha_id', $gachaId)->delete();
+        if ($tags === []) {
+            return;
+        }
+        DB::table('catalog_gacha_tags')->insert(array_map(
+            fn (object $tag): array => [
+                'gacha_id' => $gachaId,
+                'tag_id' => (int) $tag->id,
+            ],
+            $tags
+        ));
+    }
+
+    /**
+     * @param list<array{prize_id: string, initial_inventory: int, sort_order: int}> $prizes
+     * @return list<array{prize_id: int, initial_inventory: int, sort_order: int}>
+     */
+    private function resolveGachaPrizes(array $prizes): array
+    {
+        $resolved = $this->resolveReferences(
+            'catalog_prizes',
+            array_column($prizes, 'prize_id'),
+            'is_visible'
+        );
+        $prizesByPublicId = [];
+        foreach ($resolved as $prize) {
+            $prizesByPublicId[$prize->public_id] = $prize;
+        }
+
+        return array_map(function (array $relation) use ($prizesByPublicId): array {
+            return [
+                'prize_id' => (int) $prizesByPublicId[$relation['prize_id']]->id,
+                'initial_inventory' => $relation['initial_inventory'],
+                'sort_order' => $relation['sort_order'],
+            ];
+        }, $prizes);
+    }
+
+    /**
+     * @param list<array{prize_id: int, initial_inventory: int, sort_order: int}> $prizes
+     */
+    private function replaceGachaVersionPrizes(int $versionId, array $prizes): void
+    {
+        DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $versionId)
+            ->delete();
+        $now = now()->startOfSecond();
+        DB::table('catalog_gacha_version_prizes')->insert(array_map(
+            fn (array $relation): array => [
+                'gacha_version_id' => $versionId,
+                ...$relation,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            $prizes
+        ));
+    }
+
+    private function assertGachaAvailable(object $gacha): void
+    {
+        if ($gacha->archived_at !== null || $gacha->state === 'disabled') {
+            throw new V2CatalogException(
+                'CATALOG_RESOURCE_ARCHIVED',
+                409,
+                'Archived Gacha records cannot be changed.'
+            );
+        }
+    }
+
+    private function assertGachaHasNoPublishedOrDrawnReference(int $gachaId): void
+    {
+        $published = DB::table('catalog_gacha_versions')
+            ->where('gacha_id', $gachaId)
+            ->where('status', 'published')
+            ->exists();
+        $drawn = DB::table('draw_requests as draw')
+            ->join(
+                'gacha_draw_states as state',
+                'state.id',
+                '=',
+                'draw.gacha_draw_state_id'
+            )
+            ->where('state.gacha_id', $gachaId)
+            ->exists();
+        if ($published || $drawn) {
+            throw new V2CatalogException(
+                'CATALOG_PUBLISHED_REFERENCE_CONFLICT',
+                409,
+                'Published or drawn Gacha references protect this record.'
+            );
+        }
+    }
+
+    private function assertGachaVersionMutable(
+        object $version,
+        int $gachaId,
+        int $expectedRevision
+    ): void {
+        if ((int) $version->gacha_id !== $gachaId) {
+            throw $this->notFound();
+        }
+        if ($version->status !== 'draft') {
+            throw new V2CatalogException(
+                'CATALOG_GACHA_VERSION_IMMUTABLE',
+                409,
+                'Published Gacha Versions cannot be changed.'
+            );
+        }
+        $this->assertMutable($version, $expectedRevision);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function insertGachaDraft(
+        object $gacha,
+        array $payload,
+        ?int $clonedFromVersionId
+    ): object {
+        $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+        $prizes = $this->resolveGachaPrizes($payload['prizes']);
+        $versionNumber = (int) DB::table('catalog_gacha_versions')
+            ->where('gacha_id', $gacha->id)
+            ->max('version_number') + 1;
+        $now = now()->startOfSecond();
+        $publicId = (string) Str::uuid7();
+        $versionId = DB::table('catalog_gacha_versions')->insertGetId([
+            'public_id' => $publicId,
+            'gacha_id' => $gacha->id,
+            'version_number' => $versionNumber,
+            'status' => 'draft',
+            'title' => $payload['title'],
+            'description' => $payload['description'],
+            'notices' => $payload['notices'],
+            'price_points' => $payload['price_points'],
+            'total_count' => $payload['total_count'],
+            'presentation_asset_id' => $asset?->id,
+            'published_probability_version_id' => null,
+            'publish_start_at' => $payload['publish_start_at'],
+            'publish_end_at' => $payload['publish_end_at'],
+            'published_at' => null,
+            'revision' => 1,
+            'archived_at' => null,
+            'cloned_from_version_id' => $clonedFromVersionId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $this->replaceGachaVersionPrizes((int) $versionId, $prizes);
+
+        return $this->find('catalog_gacha_versions', $publicId, false);
     }
 
     private function find(string $table, string $publicId, bool $lock): object
@@ -1134,6 +1874,12 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     private function map(string $resource, object $row): array
     {
+        if ($resource === 'gacha') {
+            return $this->mapGacha($row);
+        }
+        if ($resource === 'gacha_version') {
+            return $this->mapGachaVersion($row);
+        }
         if ($resource === 'prize') {
             return $this->mapPrize($row);
         }
@@ -1149,6 +1895,155 @@ final class V2CatalogMasterMutationService
             ...($resource === 'category' ? ['description' => $row->description] : []),
             'sort_order' => (int) $row->sort_order,
             'is_visible' => (bool) $row->is_visible,
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGacha(object $row): array
+    {
+        $category = DB::table('catalog_categories')
+            ->where('id', $row->category_id)
+            ->firstOrFail();
+        $tags = DB::table('catalog_gacha_tags as relation')
+            ->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
+            ->where('relation.gacha_id', $row->id)
+            ->orderBy('tag.sort_order')
+            ->orderBy('tag.public_id')
+            ->get([
+                'tag.public_id',
+                'tag.code',
+                'tag.display_name',
+            ])->map(fn (object $tag): array => [
+                'id' => $tag->public_id,
+                'code' => $tag->code,
+                'name' => $tag->display_name,
+            ])->all();
+        $publishedVersion = $row->published_version_id === null
+            ? null
+            : DB::table('catalog_gacha_versions')
+                ->where('id', $row->published_version_id)
+                ->first();
+
+        return [
+            'id' => $row->public_id,
+            'code' => $row->code,
+            'slug' => $row->slug,
+            'state' => $row->state,
+            'sold_count' => (int) $row->sold_count,
+            'category' => [
+                'id' => $category->public_id,
+                'code' => $category->code,
+                'name' => $category->display_name,
+            ],
+            'tags' => $tags,
+            'published_version' => $publishedVersion === null ? null : [
+                'id' => $publishedVersion->public_id,
+                'version_number' => (int) $publishedVersion->version_number,
+                'status' => $publishedVersion->status,
+                'title' => $publishedVersion->title,
+            ],
+            'version_count' => DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $row->id)->count(),
+            'has_draw_history' => DB::table('draw_requests as draw')
+                ->join(
+                    'gacha_draw_states as state',
+                    'state.id',
+                    '=',
+                    'draw.gacha_draw_state_id'
+                )
+                ->where('state.gacha_id', $row->id)
+                ->exists(),
+            'is_archived' => $row->archived_at !== null,
+            'revision' => (int) $row->revision,
+            'archived_at' => $row->archived_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGachaVersion(object $row): array
+    {
+        $asset = $row->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $row->presentation_asset_id)
+                ->firstOrFail();
+        $probability = $row->published_probability_version_id === null
+            ? null
+            : DB::table('catalog_probability_versions')
+                ->where('id', $row->published_probability_version_id)
+                ->firstOrFail();
+        $clonedFrom = $row->cloned_from_version_id === null
+            ? null
+            : DB::table('catalog_gacha_versions')
+                ->where('id', $row->cloned_from_version_id)
+                ->firstOrFail();
+        $prizes = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->where('relation.gacha_version_id', $row->id)
+            ->orderBy('relation.sort_order')
+            ->orderBy('relation.id')
+            ->get([
+                'prize.public_id as prize_id',
+                'prize.code as prize_code',
+                'prize.display_name as prize_name',
+                'rank.public_id as rank_id',
+                'rank.code as rank_code',
+                'rank.display_name as rank_name',
+                'relation.initial_inventory',
+                'relation.sort_order',
+            ])->map(fn (object $relation): array => [
+                'prize' => [
+                    'id' => $relation->prize_id,
+                    'code' => $relation->prize_code,
+                    'name' => $relation->prize_name,
+                    'rank' => [
+                        'id' => $relation->rank_id,
+                        'code' => $relation->rank_code,
+                        'name' => $relation->rank_name,
+                    ],
+                ],
+                'initial_inventory' => (int) $relation->initial_inventory,
+                'sort_order' => (int) $relation->sort_order,
+            ])->all();
+
+        return [
+            'id' => $row->public_id,
+            'version_number' => (int) $row->version_number,
+            'status' => $row->status,
+            'title' => $row->title,
+            'description' => $row->description,
+            'notices' => $row->notices,
+            'price_points' => (int) $row->price_points,
+            'total_count' => (int) $row->total_count,
+            'presentation_asset' => $asset === null ? null : [
+                'id' => $asset->public_id,
+                'media_type' => $asset->media_type,
+                'mime_type' => $asset->mime_type,
+                'alt_text' => $asset->alt_text,
+                'public_path' => $asset->is_public ? $asset->public_path : null,
+                'is_public' => (bool) $asset->is_public,
+            ],
+            'published_probability_version' => $probability === null ? null : [
+                'id' => $probability->public_id,
+                'version_number' => (int) $probability->version_number,
+                'status' => $probability->status,
+            ],
+            'cloned_from_version' => $clonedFrom === null ? null : [
+                'id' => $clonedFrom->public_id,
+                'version_number' => (int) $clonedFrom->version_number,
+            ],
+            'publish_start_at' => $row->publish_start_at,
+            'publish_end_at' => $row->publish_end_at,
+            'published_at' => $row->published_at,
+            'prizes' => $prizes,
             'is_archived' => $row->archived_at !== null,
             'revision' => (int) $row->revision,
             'archived_at' => $row->archived_at,
@@ -1304,6 +2199,59 @@ final class V2CatalogMasterMutationService
                 'CATALOG_REVISION_CONFLICT',
                 409,
                 'The Catalog master record has changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Published or drawn Gacha references protect')
+                || str_contains($message, 'Published Gacha Version is immutable')
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_PUBLISHED_REFERENCE_CONFLICT',
+                409,
+                'A Published or drawn Gacha invariant rejected the mutation.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Archived Catalog Gacha records are immutable')
+                || str_contains($message, 'Archived Gacha Draft Version is immutable')
+                || str_contains($message, 'Archived Gacha Draft Version relations are immutable')
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_RESOURCE_ARCHIVED',
+                409,
+                'Archived Catalog records cannot be changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Catalog Gacha revision must increase by one')
+                || str_contains($message, 'Gacha Draft Version revision must increase by one')
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_REVISION_CONFLICT',
+                409,
+                'The Catalog record has changed.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Catalog Gacha code and slug are immutable')
+                || str_contains($message, 'Gacha Draft Version identity is immutable')
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_GACHA_IDENTITY_IMMUTABLE',
+                409,
+                'Gacha identity fields cannot be changed.'
             );
         }
 
