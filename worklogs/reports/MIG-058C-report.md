@@ -113,6 +113,7 @@
 | Persistent Final | 約126秒 | `migrate:fresh` 2回、全V2 Suite、Rollback／Reapply | PASS |
 | Ephemeral Final | 約348秒 | Backup／Restore、全Load／Performance、Cleanup | PASS |
 | Admin／First-party Package | 約2分 | 依存Build前の並列実行を避けSerial実行 | 全PASS |
+| Push前Secret検査 | 約10秒 | Test用Bearer文字列が高確度Patternに一致 | `test-token`へ短縮、Final Tree 0件 |
 
 - 追加の効率改善指示に従い、既に完了したFull Suite Evidenceを破棄せず、
   3回目の重いGuard前に対象HTTP／Admin Smokeを先行した。
@@ -125,6 +126,10 @@
   Root／Legacy Install、対象HTTP Testは重複実行していない。
 - Runtime API ImageにComposerがないため空になったAudit採取は、
   Dockerfile固定Composer digestで再採取し、Host Toolchain更新を回避した。
+- Test用Bearer文字列置換後の単独Test再実行は、常駐Persistent DBの既存Fixtureと
+  件数前提が衝突したため正本Evidenceに採用していない。PHP構文とFinal Treeの
+  高確度Secret候補0を確認し、置換前にClean DBで成功した全V2 Suiteを維持した。
+  Clean DBでの最終回帰は同一HeadのGitHub Checkで確認する。
 - Policy Gateの明示Migration集合だけを新Migrationへ同期し、Gate、Baseline、
   Assertion、Security／Quality範囲は縮小していない。
 

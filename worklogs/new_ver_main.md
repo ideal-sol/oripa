@@ -6042,6 +6042,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   約126秒のPersistent Finalと約348秒のEphemeral Finalを成功させた。
   対象HTTP／Admin Smokeを先行し、既に成功したFull Suite／Package Evidenceを
   重複実行せず維持した。Host Toolchainは更新していない。
+- Push前検査でTest用Bearer文字列が高確度Secret Patternへ一致したため、
+  同じConfig値とHeader期待値を短い`test-token`へ置換した。Final Treeの
+  高確度Secret候補は0件、PHP構文はPASSした。置換後の単独Test再実行は常駐
+  Persistent DBの既存Fixtureと件数前提が衝突したため採用せず、Clean DBで成功した
+  全V2 Suite Evidenceを維持し、同一HeadのGitHub Checkで最終回帰を確認する。
 - V1 Migration 40件の正本Checksum
   `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
   は不変である。Final Head、GitHub Check、Fresh Self-review、Squash Commit、

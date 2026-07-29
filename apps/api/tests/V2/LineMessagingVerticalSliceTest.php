@@ -44,7 +44,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_line.messaging.channel_secret' => 'synthetic-messaging-secret',
-            'v2_line.messaging.channel_access_token' => 'synthetic-access-token',
+            'v2_line.messaging.channel_access_token' => 'test-token',
             'v2_line.messaging.login_relative_path' => '/login',
         ]);
         Cache::store('array')->clear();
@@ -490,7 +490,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         );
         self::assertStringNotContainsString($subject, $audit);
         self::assertStringNotContainsString($replyToken, $audit);
-        self::assertStringNotContainsString('synthetic-access-token', $audit);
+        self::assertStringNotContainsString('test-token', $audit);
     }
 
     public function test_reply_http_transport_uses_bearer_only_and_never_calls_push_or_broadcast(): void
@@ -508,7 +508,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertTrue($result->succeeded);
         Http::assertSent(function ($request): bool {
             self::assertSame(
-                'Bearer synthetic-access-token',
+                'Bearer test-token',
                 $request->header('Authorization')[0] ?? null
             );
             self::assertSame('synthetic-reply-token', $request['replyToken']);
@@ -526,7 +526,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertFalse($missing->succeeded);
         self::assertSame('configuration_unavailable', $missing->failureCode);
 
-        config(['v2_line.messaging.channel_access_token' => 'synthetic-access-token']);
+        config(['v2_line.messaging.channel_access_token' => 'test-token']);
         foreach (
             [
                 429 => 'rate_limited',
