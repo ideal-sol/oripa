@@ -1,13 +1,18 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
+import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
+import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import { CatalogDataTable } from "@/components/catalog/catalog-data-table";
+import { CatalogMutationForm } from "@/components/catalog/catalog-mutation-form";
+import { hasCatalogMutationRevision } from "@/components/catalog/catalog-workspace";
 import {
   PublicAssetPreview,
   safePublicPath,
 } from "@/components/catalog/public-asset-preview";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CATALOG_SECTIONS } from "@/lib/catalog/catalog-registry";
+import { ADMIN_PERMISSION_CODES } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
 const image = {
@@ -88,5 +93,81 @@ describe("Admin Catalog read components", () => {
     );
     expect(container.textContent).not.toContain("storage_identifier");
     expect(container.textContent).not.toContain("probability_ppm");
+  });
+
+  it("renders reusable create form validation and submits normalized master input", async () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CatalogMutationForm
+        mode="create"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+        resource="categories"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Code"), {
+      target: { value: "new-category" },
+    });
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "new-category" },
+    });
+    fireEvent.change(screen.getByLabelText("名称"), {
+      target: { value: "新しいCategory" },
+    });
+    fireEvent.change(screen.getByLabelText("説明"), {
+      target: { value: "Plain text" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "new-category",
+        description: "Plain text",
+        name: "新しいCategory",
+        slug: "new-category",
+      }),
+    );
+  });
+
+  it("provides focused Archive confirmation and stale conflict reload", () => {
+    const confirm = vi.fn();
+    const { rerender } = render(
+      <CatalogConfirmationDialog
+        busy={false}
+        name="Category A"
+        onCancel={vi.fn()}
+        onConfirm={confirm}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Archiveしますか" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    expect(confirm).toHaveBeenCalledOnce();
+
+    const reload = vi.fn();
+    rerender(<CatalogConflictBoundary onReload={reload} />);
+    fireEvent.click(screen.getByRole("button", { name: "再取得" }));
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("registers catalog.manage without changing read-only Operator navigation", () => {
+    expect(ADMIN_PERMISSION_CODES).toContain("catalog.manage");
+    expect(ADMIN_PERMISSION_CODES).toContain("catalog.read");
+  });
+
+  it("fails closed when an older read response has no mutation revision", () => {
+    expect(hasCatalogMutationRevision(null)).toBe(true);
+    expect(
+      hasCatalogMutationRevision({
+        code: "category-a",
+        created_at: "2026-07-29T00:00:00Z",
+        description: null,
+        id: "01910191-0191-7191-8191-019101910193",
+        is_visible: true,
+        name: "Category A",
+        slug: "category-a",
+        sort_order: 1,
+        updated_at: "2026-07-29T00:00:00Z",
+      }),
+    ).toBe(false);
   });
 });

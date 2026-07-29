@@ -176,13 +176,10 @@ final class AdminCatalogReadTest extends TestCase
         app(V2AdminCatalogReadService::class)->categories($context, []);
     }
 
-    public function test_catalog_contract_has_no_v2_mutation_routes(): void
+    public function test_prize_and_asset_contracts_remain_read_only(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         foreach ([
-            '/admin/api/v2/catalog/categories',
-            '/admin/api/v2/catalog/tags',
-            '/admin/api/v2/catalog/ranks',
             '/admin/api/v2/catalog/prizes',
             '/admin/api/v2/catalog/presentation-assets',
         ] as $path) {

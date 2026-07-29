@@ -280,6 +280,100 @@ test("Catalog list, search, detail, and mobile view use the Admin read contract"
   await expect(page.getByRole("button", { name: "検索" })).toBeFocused();
 });
 
+test("Catalog master mutation sends CSRF and idempotency headers then reloads canonical data", async ({
+  page,
+}) => {
+  let categories: Array<Record<string, unknown>> = [];
+  let mutationHeaders: Record<string, string> | null = null;
+  let mutationCount = 0;
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (url.pathname.endsWith("/catalog/categories") && request.method() === "GET") {
+      return json(route, { items: categories, next_cursor: null });
+    }
+    if (url.pathname.endsWith("/catalog/categories") && request.method() === "POST") {
+      mutationCount += 1;
+      mutationHeaders = request.headers();
+      const input = request.postDataJSON() as {
+        code: string;
+        description: string | null;
+        is_visible: boolean;
+        name: string;
+        slug: string;
+        sort_order: number;
+      };
+      const created = {
+        archived_at: null,
+        code: input.code,
+        created_at: "2026-07-29T00:00:00Z",
+        description: input.description,
+        id: "01910191-0191-7191-8191-019101910199",
+        is_archived: false,
+        is_visible: input.is_visible,
+        name: input.name,
+        revision: 1,
+        slug: input.slug,
+        sort_order: input.sort_order,
+        updated_at: "2026-07-29T00:00:00Z",
+      };
+      categories = [created];
+      return json(route, { data: created, idempotent_replay: false }, 201);
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/catalog/categories");
+  await page.getByRole("button", { name: "新規作成" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "Code", exact: true }).fill("e2e-category");
+  await dialog.getByRole("textbox", { name: "Slug", exact: true }).fill("e2e-category");
+  await dialog.getByRole("textbox", { name: "名称", exact: true }).fill("E2E Category");
+  await dialog
+    .getByRole("textbox", { name: "説明", exact: true })
+    .fill("Browser mutation fixture");
+  await dialog.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByText("E2E Category")).toBeVisible();
+  expect(mutationCount).toBe(1);
+  expect(mutationHeaders?.["x-xsrf-token"]).toBe(csrf);
+  expect(mutationHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+  expect(
+    (mutationHeaders as Record<string, string> | null)?.authorization,
+  ).toBeUndefined();
+
+  await page.screenshot({
+    fullPage: true,
+    path: "/tmp/oripa-mig-060d-catalog-mutation.png",
+  });
+});
+
+test("Operator Catalog remains read-only even on a direct module URL", async ({
+  page,
+}) => {
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) {
+      return json(route, adminSession("operator"));
+    }
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("operator"));
+    }
+    if (url.pathname.endsWith("/catalog/categories") && request.method() === "GET") {
+      return json(route, { items: [], next_cursor: null });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/catalog/categories");
+  await expect(page.getByRole("heading", { name: "Category" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新規作成" })).toHaveCount(0);
+});
+
 async function installAdminApi(
   page: Page,
   handler: (route: Route) => Promise<unknown>,
@@ -315,6 +409,7 @@ function permissionResponse(role: "owner" | "admin" | "operator") {
     permissions: [
       ...common,
       ...(role === "owner" ? ["qa.draw.manage"] : []),
+      ...(role !== "operator" ? ["catalog.manage"] : []),
       ...(role !== "operator" ? ["reporting.financial.read"] : []),
     ],
     request_id: "01910191-0191-7191-8191-019101910193",

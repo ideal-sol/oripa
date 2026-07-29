@@ -28,11 +28,29 @@ const operations = {
   ],
   reauthenticateAdmin: ["post", "/auth/reauthenticate"],
   listAdminCatalogCategories: ["get", "/catalog/categories"],
+  createAdminCatalogCategory: ["post", "/catalog/categories"],
   getAdminCatalogCategory: ["get", "/catalog/categories/{catalog_resource_id}"],
+  updateAdminCatalogCategory: ["put", "/catalog/categories/{catalog_resource_id}"],
+  archiveAdminCatalogCategory: [
+    "post",
+    "/catalog/categories/{catalog_resource_id}/archive",
+  ],
   listAdminCatalogTags: ["get", "/catalog/tags"],
+  createAdminCatalogTag: ["post", "/catalog/tags"],
   getAdminCatalogTag: ["get", "/catalog/tags/{catalog_resource_id}"],
+  updateAdminCatalogTag: ["put", "/catalog/tags/{catalog_resource_id}"],
+  archiveAdminCatalogTag: [
+    "post",
+    "/catalog/tags/{catalog_resource_id}/archive",
+  ],
   listAdminCatalogRanks: ["get", "/catalog/ranks"],
+  createAdminCatalogRank: ["post", "/catalog/ranks"],
   getAdminCatalogRank: ["get", "/catalog/ranks/{catalog_resource_id}"],
+  updateAdminCatalogRank: ["put", "/catalog/ranks/{catalog_resource_id}"],
+  archiveAdminCatalogRank: [
+    "post",
+    "/catalog/ranks/{catalog_resource_id}/archive",
+  ],
   listAdminCatalogPrizes: ["get", "/catalog/prizes"],
   getAdminCatalogPrize: ["get", "/catalog/prizes/{catalog_resource_id}"],
   listAdminCatalogPresentationAssets: ["get", "/catalog/presentation-assets"],
@@ -69,14 +87,23 @@ const requiredSchemas = [
   "WebauthnRegistration",
   "AdminPermissionCode",
   "AdminCatalogCategory",
+  "AdminCatalogCategoryCreate",
+  "AdminCatalogCategoryMutationResult",
+  "AdminCatalogCategoryUpdate",
   "AdminCatalogCategoryCollection",
   "AdminCatalogPresentationAsset",
   "AdminCatalogPresentationAssetCollection",
   "AdminCatalogPrize",
   "AdminCatalogPrizeCollection",
   "AdminCatalogRank",
+  "AdminCatalogRankCreate",
+  "AdminCatalogRankMutationResult",
+  "AdminCatalogRankUpdate",
   "AdminCatalogRankCollection",
   "AdminCatalogTag",
+  "AdminCatalogTagCreate",
+  "AdminCatalogTagMutationResult",
+  "AdminCatalogTagUpdate",
   "AdminCatalogTagCollection",
 ];
 for (const name of requiredSchemas) {
@@ -206,6 +233,9 @@ export interface AdminCatalogCategory {
   description: string | null;
   sort_order: number;
   is_visible: boolean;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -217,6 +247,9 @@ export interface AdminCatalogTag {
   name: string;
   sort_order: number;
   is_visible: boolean;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -227,6 +260,9 @@ export interface AdminCatalogRank {
   name: string;
   sort_order: number;
   is_visible: boolean;
+  is_archived?: boolean;
+  revision?: number;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -266,6 +302,63 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
   checksum_sha256: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminCatalogCategoryCreate {
+  code: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogCategoryUpdate {
+  expected_revision: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogTagCreate {
+  code: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogTagUpdate {
+  expected_revision: number;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogRankCreate {
+  code: string;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogRankUpdate {
+  expected_revision: number;
+  name: string;
+  sort_order: number;
+  is_visible: boolean;
+}
+
+export interface AdminCatalogArchiveRequest {
+  expected_revision: number;
+}
+
+export interface AdminCatalogMutationResult<T> {
+  data: T;
+  idempotent_replay: boolean;
 }
 
 export interface AdminCatalogCollection<T> {

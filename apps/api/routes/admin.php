@@ -85,16 +85,34 @@ Route::prefix('v2')
     ->group(function (): void {
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
+        Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])
+            ->name('v2.admin.catalog.categories.store');
         Route::get('/catalog/categories/{catalogResourceId}', [V2AdminCatalogController::class, 'category'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.categories.show');
+        Route::put('/catalog/categories/{catalogResourceId}', [V2AdminCatalogController::class, 'updateCategory'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.categories.update');
+        Route::post('/catalog/categories/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveCategory'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.categories.archive');
         Route::get('/catalog/tags', [V2AdminCatalogController::class, 'tags'])
             ->name('v2.admin.catalog.tags.index');
+        Route::post('/catalog/tags', [V2AdminCatalogController::class, 'createTag'])
+            ->name('v2.admin.catalog.tags.store');
         Route::get('/catalog/tags/{catalogResourceId}', [V2AdminCatalogController::class, 'tag'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.tags.show');
+        Route::put('/catalog/tags/{catalogResourceId}', [V2AdminCatalogController::class, 'updateTag'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.tags.update');
+        Route::post('/catalog/tags/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveTag'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.tags.archive');
         Route::get('/catalog/ranks', [V2AdminCatalogController::class, 'ranks'])
             ->name('v2.admin.catalog.ranks.index');
+        Route::post('/catalog/ranks', [V2AdminCatalogController::class, 'createRank'])
+            ->name('v2.admin.catalog.ranks.store');
         Route::get('/catalog/ranks/{catalogResourceId}', [V2AdminCatalogController::class, 'rank'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.show');
+        Route::put('/catalog/ranks/{catalogResourceId}', [V2AdminCatalogController::class, 'updateRank'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.update');
+        Route::post('/catalog/ranks/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveRank'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.archive');
         Route::get('/catalog/prizes', [V2AdminCatalogController::class, 'prizes'])
             ->name('v2.admin.catalog.prizes.index');
         Route::get('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'prize'])

@@ -75,6 +75,49 @@
             "$ref": "#/components/responses/Problem"
           }
         }
+      },
+      "post": {
+        "operationId": "createAdminCatalogCategory",
+        "summary": "Categoryを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogCategoryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category作成結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogCategoryMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
       }
     },
     "/catalog/categories/{catalog_resource_id}": {
@@ -102,6 +145,100 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminCatalogCategoryDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminCatalogCategory",
+        "summary": "Categoryを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogCategoryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogCategoryMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/categories/{catalog_resource_id}/archive": {
+      "post": {
+        "operationId": "archiveAdminCatalogCategory",
+        "summary": "CategoryをArchiveする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category Archive結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogCategoryMutationResult"
                 }
               }
             }
@@ -170,6 +307,49 @@
             "$ref": "#/components/responses/Problem"
           }
         }
+      },
+      "post": {
+        "operationId": "createAdminCatalogTag",
+        "summary": "Tagを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogTagCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tag作成結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogTagMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
       }
     },
     "/catalog/tags/{catalog_resource_id}": {
@@ -197,6 +377,100 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminCatalogTagDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminCatalogTag",
+        "summary": "Tagを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogTagUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tag更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogTagMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/tags/{catalog_resource_id}/archive": {
+      "post": {
+        "operationId": "archiveAdminCatalogTag",
+        "summary": "TagをArchiveする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tag Archive結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogTagMutationResult"
                 }
               }
             }
@@ -265,6 +539,49 @@
             "$ref": "#/components/responses/Problem"
           }
         }
+      },
+      "post": {
+        "operationId": "createAdminCatalogRank",
+        "summary": "Rankを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogRankCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rank作成結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogRankMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
       }
     },
     "/catalog/ranks/{catalog_resource_id}": {
@@ -292,6 +609,100 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminCatalogRankDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminCatalogRank",
+        "summary": "Rankを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogRankUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rank更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogRankMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/ranks/{catalog_resource_id}/archive": {
+      "post": {
+        "operationId": "archiveAdminCatalogRank",
+        "summary": "RankをArchiveする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCatalogArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rank Archive結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogRankMutationResult"
                 }
               }
             }
@@ -3340,6 +3751,20 @@
           "is_visible": {
             "type": "boolean"
           },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -3386,6 +3811,20 @@
           "is_visible": {
             "type": "boolean"
           },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -3427,6 +3866,20 @@
           "is_visible": {
             "type": "boolean"
           },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -3434,6 +3887,281 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AdminCatalogCategoryCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "slug",
+          "name",
+          "description",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogCategoryUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "slug",
+          "name",
+          "description",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogTagCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "slug",
+          "name",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogTagUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "slug",
+          "name",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogRankCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogRankUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "name",
+          "sort_order",
+          "is_visible"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "is_visible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogArchiveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminCatalogCategoryMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCatalogCategory"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogTagMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCatalogTag"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminCatalogRankMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCatalogRank"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },
@@ -5487,6 +6215,7 @@
           "point.adjustment.free.approve",
           "point.adjustment.paid.approve",
           "catalog.read",
+          "catalog.manage",
           "shipping.request.manage",
           "qa.draw.manage",
           "reporting.financial.read",
@@ -6576,6 +7305,26 @@
       "status": 404,
       "retryable": false,
       "description": "Catalog Resourceが存在しない。"
+    },
+    "CATALOG_MUTATION_INVALID": {
+      "status": 422,
+      "retryable": false,
+      "description": "Catalog Mutation入力が不正。"
+    },
+    "CATALOG_REVISION_CONFLICT": {
+      "status": 409,
+      "retryable": false,
+      "description": "Catalog Masterが別の操作で更新済み。"
+    },
+    "CATALOG_PUBLISHED_REFERENCE_CONFLICT": {
+      "status": 409,
+      "retryable": false,
+      "description": "公開中または公開予定のGachaがCatalog Masterを参照中。"
+    },
+    "IDEMPOTENCY_KEY_REUSED": {
+      "status": 409,
+      "retryable": false,
+      "description": "Idempotency-Keyが異なるRequestへ再利用された。"
     }
   }
 }

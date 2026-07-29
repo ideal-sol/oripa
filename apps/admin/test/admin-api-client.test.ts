@@ -96,6 +96,61 @@ describe("AdminApiClient", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("sends Catalog mutations with CSRF and the caller-owned Idempotency-Key", async () => {
+    const data = {
+      archived_at: null,
+      code: "cards",
+      created_at: "2026-07-29T00:00:00Z",
+      description: null,
+      id: "01910191-0191-7191-8191-019101910191",
+      is_archived: false,
+      is_visible: true,
+      name: "Cards",
+      revision: 1,
+      slug: "cards",
+      sort_order: 1,
+      updated_at: "2026-07-29T00:00:00Z",
+    };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({ data, idempotent_replay: false }, 201),
+    );
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.createCatalogCategory(
+      {
+        code: "cards",
+        description: null,
+        is_visible: true,
+        name: "Cards",
+        slug: "cards",
+        sort_order: 1,
+      },
+      "catalog-create-key",
+    );
+
+    const [url, request] = fetcher.mock.calls[0];
+    const headers = new Headers(request?.headers);
+    expect(url).toBe("/admin/api/v2/catalog/categories");
+    expect(request?.method).toBe("POST");
+    expect(headers.get("Idempotency-Key")).toBe("catalog-create-key");
+    expect(headers.get("X-XSRF-TOKEN")).toBe(csrf);
+    expect(headers.get("Authorization")).toBeNull();
+    expect(JSON.parse(String(request?.body))).not.toHaveProperty("code", undefined);
+  });
+
+  it("validates mutation IDs and concurrency input before transport", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await expect(
+      client.archiveCatalogRank("../internal", 0, "", undefined),
+    ).rejects.toMatchObject({
+      code: "CATALOG_MUTATION_INVALID",
+      status: 422,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
