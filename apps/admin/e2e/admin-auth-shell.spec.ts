@@ -445,11 +445,119 @@ test("Prize and Presentation Asset mutation reuse selection and canonical reload
   await expect(page.getByText("E2E Prize")).toBeVisible();
 });
 
+test("Owner updates LINE reply messages through preview and Fresh MFA retry", async ({
+  page,
+}) => {
+  let revision = 1;
+  let updateAttempts = 0;
+  const idempotencyKeys: string[] = [];
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (url.pathname.endsWith("/auth/reauthenticate")) {
+      return json(route, {
+        admin: adminIdentity(),
+        authenticated: true,
+        fresh_mfa_expires_in: 300,
+      });
+    }
+    if (
+      url.pathname.endsWith("/identity/line-messaging") &&
+      request.method() === "GET"
+    ) {
+      return json(route, {
+        data: {
+          id: "01910191-0191-7191-8191-019101910199",
+          linked_follow_message: "友だち追加が完了しました。",
+          login_relative_path: "/login",
+          pending_follow_message: "{login_url} からログインしてください。",
+          revision,
+          updated_at: "2026-07-29T00:00:00Z",
+        },
+        request_id: "01910191-0191-7191-8191-019101910193",
+      });
+    }
+    if (url.pathname.endsWith("/identity/line-messaging/preview")) {
+      const input = request.postDataJSON() as {
+        linked_follow_message: string;
+        pending_follow_message: string;
+      };
+      return json(route, {
+        linked_follow_message: input.linked_follow_message,
+        pending_follow_message: input.pending_follow_message.replace(
+          "{login_url}",
+          "/login",
+        ),
+        request_id: "01910191-0191-7191-8191-019101910193",
+      });
+    }
+    if (
+      url.pathname.endsWith("/identity/line-messaging") &&
+      request.method() === "PUT"
+    ) {
+      updateAttempts += 1;
+      idempotencyKeys.push(request.headers()["idempotency-key"] ?? "");
+      if (updateAttempts === 1) {
+        return json(route, {
+          code: "FRESH_AUTHENTICATION_REQUIRED",
+          request_id: "01910191-0191-7191-8191-019101910193",
+          retryable: false,
+          status: 403,
+          title: "Fresh authentication is required.",
+          type: "about:blank",
+        }, 403, { "Content-Type": "application/problem+json" });
+      }
+      const input = request.postDataJSON() as {
+        linked_follow_message: string;
+        pending_follow_message: string;
+      };
+      revision = 2;
+      return json(route, {
+        data: {
+          id: "01910191-0191-7191-8191-019101910199",
+          linked_follow_message: input.linked_follow_message,
+          login_relative_path: "/login",
+          pending_follow_message: input.pending_follow_message,
+          revision,
+          updated_at: "2026-07-29T00:01:00Z",
+        },
+        idempotent_replay: false,
+        request_id: "01910191-0191-7191-8191-019101910193",
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/settings/line");
+  await expect(page.getByRole("heading", { name: "自動応答メッセージ" })).toBeVisible();
+  await page
+    .getByLabel("ログイン前ユーザー向け")
+    .fill("{login_url} からLINEログインを完了してください。");
+  await page.getByRole("button", { name: "プレビュー" }).click();
+  await expect(
+    page.getByText("/login からLINEログインを完了してください。"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByLabel("認証アプリの6桁コード").fill("654321");
+  await page.getByRole("button", { name: "再認証", exact: true }).click();
+  await expect.poll(() => updateAttempts).toBe(2);
+  expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/u);
+  expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
+});
+
 async function installAdminApi(
   page: Page,
   handler: (route: Route) => Promise<unknown>,
 ): Promise<void> {
-  await page.route(/\/admin\/api\/v2\/(?:auth|catalog)\/[^?]+(?:\?.*)?$/u, handler);
+  await page.route(
+    /\/admin\/api\/v2\/(?:auth|catalog|identity)\/[^?]+(?:\?.*)?$/u,
+    handler,
+  );
 }
 
 function adminIdentity(role: "owner" | "admin" | "operator" = "owner") {
@@ -480,6 +588,7 @@ function permissionResponse(role: "owner" | "admin" | "operator") {
     permissions: [
       ...common,
       ...(role === "owner" ? ["qa.draw.manage"] : []),
+      ...(role === "owner" ? ["identity.line.manage"] : []),
       ...(role !== "operator" ? ["catalog.manage"] : []),
       ...(role !== "operator" ? ["reporting.financial.read"] : []),
     ],

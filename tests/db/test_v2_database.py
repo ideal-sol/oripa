@@ -258,6 +258,19 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 
+    def test_line_messaging_schema_inventory_is_explicit_and_sorted(self):
+        for table in (
+            "public.line_friendships",
+            "public.line_messaging_settings",
+            "public.line_pending_follows",
+            "public.line_webhook_events",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+
     def test_content_contact_performance_marker_is_required(self):
         marker = b"\nMIG056_CONTENT_CONTACT_PERFORMANCE={\"p95_ms\":12.5}\n"
         with mock.patch.object(v2_database, "run", return_value=marker):

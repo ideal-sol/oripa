@@ -33,6 +33,7 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         'verification_failure' => 'identity.verification_failure',
         'verification_success' => 'identity.verification_success',
         'external_email_conflict' => 'identity.external.email_conflict',
+        'external_email_required' => 'identity.external.email.required',
         'external_identity_rate_limited' => 'identity.external.rate_limited',
         'external_link_rejected' => 'identity.external.link.rejected',
         'external_link_succeeded' => 'identity.external.link.succeeded',

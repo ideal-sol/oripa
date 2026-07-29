@@ -27,6 +27,12 @@ const operations = {
     "/auth/reauthenticate/webauthn/options",
   ],
   reauthenticateAdmin: ["post", "/auth/reauthenticate"],
+  getAdminLineMessagingSetting: ["get", "/identity/line-messaging"],
+  updateAdminLineMessagingSetting: ["put", "/identity/line-messaging"],
+  previewAdminLineMessagingSetting: [
+    "post",
+    "/identity/line-messaging/preview",
+  ],
   listAdminCatalogCategories: ["get", "/catalog/categories"],
   createAdminCatalogCategory: ["post", "/catalog/categories"],
   getAdminCatalogCategory: ["get", "/catalog/categories/{catalog_resource_id}"],
@@ -101,6 +107,12 @@ const requiredSchemas = [
   "WebauthnOptionsRequest",
   "WebauthnRegistration",
   "AdminPermissionCode",
+  "AdminLineMessagingSetting",
+  "AdminLineMessagingSettingResponse",
+  "AdminLineMessagingSettingUpdate",
+  "AdminLineMessagingPreviewRequest",
+  "AdminLineMessagingPreview",
+  "AdminLineMessagingMutationResult",
   "AdminCatalogCategory",
   "AdminCatalogCategoryCreate",
   "AdminCatalogCategoryMutationResult",
@@ -244,6 +256,43 @@ export interface AdminReauthenticationResponse {
   authenticated: true;
   fresh_mfa_expires_in: 300;
   admin: AdminIdentity;
+}
+
+export interface AdminLineMessagingSetting {
+  id: string;
+  linked_follow_message: string;
+  pending_follow_message: string;
+  login_relative_path: string;
+  revision: number;
+  updated_at: string;
+}
+
+export interface AdminLineMessagingSettingResponse {
+  data: AdminLineMessagingSetting;
+  request_id: string;
+}
+
+export interface AdminLineMessagingSettingUpdate {
+  expected_revision: number;
+  linked_follow_message: string;
+  pending_follow_message: string;
+}
+
+export interface AdminLineMessagingPreviewRequest {
+  linked_follow_message: string;
+  pending_follow_message: string;
+}
+
+export interface AdminLineMessagingPreview {
+  linked_follow_message: string;
+  pending_follow_message: string;
+  request_id: string;
+}
+
+export interface AdminLineMessagingMutationResult {
+  data: AdminLineMessagingSetting;
+  idempotent_replay: boolean;
+  request_id: string;
 }
 
 export interface AdminCatalogCategory {

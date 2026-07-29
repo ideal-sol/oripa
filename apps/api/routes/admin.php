@@ -42,6 +42,7 @@ use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
+use App\Http\Controllers\V2\V2AdminLineMessagingController;
 
 Route::prefix('v2/auth')
     ->middleware('v2.browser:admin')
@@ -83,6 +84,12 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function (): void {
+        Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])
+            ->name('v2.admin.identity.line-messaging.show');
+        Route::put('/identity/line-messaging', [V2AdminLineMessagingController::class, 'update'])
+            ->name('v2.admin.identity.line-messaging.update');
+        Route::post('/identity/line-messaging/preview', [V2AdminLineMessagingController::class, 'preview'])
+            ->name('v2.admin.identity.line-messaging.preview');
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
         Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])

@@ -7,8 +7,8 @@
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
     },
-    "description": "外部Provider向けWebhook API v2のContract Skeleton。Provider固有Header、 Payload、Endpointは仕様確定後のContract-first Taskで追加する。",
-    "x-status": "skeleton"
+    "description": "外部Provider向けWebhook API v2。LINE Messaging APIは署名検証済みのfollow／unfollowだけを処理する。",
+    "x-status": "alpha"
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
@@ -16,7 +16,61 @@
       "url": "/webhooks/v2"
     }
   ],
-  "paths": {},
+  "paths": {
+    "/line": {
+      "post": {
+        "operationId": "receiveLineMessagingWebhook",
+        "summary": "LINE Messaging API Webhookを受信する",
+        "description": "Raw request bodyとX-Line-Signatureを先に検証する。follow／unfollow以外の EventはUser Message本文を保存せず無視する。RedeliveryはwebhookEventIdで 冪等に処理し、Reply Tokenを再利用しない。",
+        "x-idempotency": "provider-event-id",
+        "x-rate-limit": "provider-signed-webhook",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XLineSignature"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineWebhookEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "署名済みWebhookを受理した。空Event配列も200を返す。",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "OpaqueId": {
@@ -92,6 +146,99 @@
           }
         }
       },
+      "LineWebhookEnvelope": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "destination": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/LineWebhookEvent"
+            }
+          }
+        }
+      },
+      "LineWebhookEvent": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "timestamp",
+          "source",
+          "webhookEventId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "timestamp": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "webhookEventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "replyToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "userId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 191
+              }
+            }
+          },
+          "deliveryContext": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "isRedelivery": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "WebhookAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accepted",
+          "request_id"
+        ],
+        "properties": {
+          "accepted": {
+            "const": true
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
       "ValidationErrors": {
         "type": "object",
         "additionalProperties": {
@@ -99,6 +246,18 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "parameters": {
+      "XLineSignature": {
+        "name": "X-Line-Signature",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
         }
       }
     },

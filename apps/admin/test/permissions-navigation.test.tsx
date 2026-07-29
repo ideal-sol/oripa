@@ -60,6 +60,11 @@ describe("Admin permission navigation", () => {
     expect(screen.getByRole("link", { name: "景品・配送" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "QA Draw" })).toBeNull();
     expect(screen.queryByRole("link", { name: "レポート" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "LINE設定" })).toBeNull();
+
+    permissionState.permissions.add("identity.line.manage");
+    render(<AdminNavigation />);
+    expect(screen.getByRole("link", { name: "LINE設定" })).toBeVisible();
   });
 
   it("marks nested module paths active and keeps registry values unique", () => {

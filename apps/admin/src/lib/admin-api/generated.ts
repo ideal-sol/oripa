@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 12d1f450c63caf7ec85b7edaeda940d154337ecef6337e00eb30baf03e9751d3
+// Contract SHA-256: 1f4e994b869347381fb940bce16f797897d321f796e0fa0cf92878e5dfcf431a
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -7,6 +7,7 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.admin.read",
   "identity.admin.manage",
   "identity.admin.session.revoke",
+  "identity.line.manage",
   "point.ledger.read",
   "point.adjustment.request",
   "point.adjustment.free.approve",
@@ -113,6 +114,43 @@ export interface AdminReauthenticationResponse {
   authenticated: true;
   fresh_mfa_expires_in: 300;
   admin: AdminIdentity;
+}
+
+export interface AdminLineMessagingSetting {
+  id: string;
+  linked_follow_message: string;
+  pending_follow_message: string;
+  login_relative_path: string;
+  revision: number;
+  updated_at: string;
+}
+
+export interface AdminLineMessagingSettingResponse {
+  data: AdminLineMessagingSetting;
+  request_id: string;
+}
+
+export interface AdminLineMessagingSettingUpdate {
+  expected_revision: number;
+  linked_follow_message: string;
+  pending_follow_message: string;
+}
+
+export interface AdminLineMessagingPreviewRequest {
+  linked_follow_message: string;
+  pending_follow_message: string;
+}
+
+export interface AdminLineMessagingPreview {
+  linked_follow_message: string;
+  pending_follow_message: string;
+  request_id: string;
+}
+
+export interface AdminLineMessagingMutationResult {
+  data: AdminLineMessagingSetting;
+  idempotent_replay: boolean;
+  request_id: string;
 }
 
 export interface AdminCatalogCategory {

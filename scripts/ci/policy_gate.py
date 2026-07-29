@@ -227,6 +227,13 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Models/V2/UserPhoneNumber.php",
     "apps/api/app/Models/V2/UserRememberDevice.php",
     "apps/api/app/Models/V2/UserSession.php",
+    "apps/api/app/Domain/Identity/Contracts/V2ExternalIdentityProvider.php",
+    "apps/api/app/Domain/Identity/Contracts/V2LineOidcTransport.php",
+    "apps/api/app/Domain/Identity/Services/V2ExternalIdentityProviderRegistry.php",
+    "apps/api/app/Domain/Identity/Services/V2GoogleExternalIdentityProvider.php",
+    "apps/api/app/Domain/Identity/Services/V2LineExternalIdentityProvider.php",
+    "apps/api/app/Domain/Identity/Services/V2LineOidcHttpTransport.php",
+    "apps/api/app/Domain/Identity/Services/V2VerifiedExternalIdentity.php",
     "apps/api/app/Providers/V2AuthorizationServiceProvider.php",
     "apps/api/config/v2_identity.php",
     "apps/api/phpunit.v2.xml",
@@ -236,6 +243,25 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_24_000004_create_v2_authentication_flows.php",
     "apps/api/database/migrations-v2/2026_08_03_000014_create_v2_password_reset_sms_verification.php",
     "apps/api/database/migrations-v2/2026_08_04_000015_create_v2_external_identity_google_oidc.php",
+    "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
+    "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+    "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
+    "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
+    "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
+    "apps/api/app/Domain/Line/Services/V2LineMessageTemplate.php",
+    "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
+    "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",
+    "apps/api/app/Domain/Line/ValueObjects/V2LineReplyResult.php",
+    "apps/api/app/Http/Controllers/V2/V2LineMessagingWebhookController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminLineMessagingController.php",
+    "apps/api/app/Models/V2/LineFriendship.php",
+    "apps/api/app/Models/V2/LineMessagingSetting.php",
+    "apps/api/app/Models/V2/LinePendingFollow.php",
+    "apps/api/app/Models/V2/LineWebhookEvent.php",
+    "apps/api/config/v2_line.php",
+    "apps/api/routes/webhook.php",
+    "apps/api/tests/V2/LineMessagingVerticalSliceTest.php",
+    "apps/api/tests/V2/ZLineMessagingConcurrencyTest.php",
     "apps/api/tests/V2/AuthenticationFlowTest.php",
     "apps/api/tests/V2/BrowserSecurityTest.php",
     "apps/api/tests/V2/AdminMfaPolicyTest.php",
@@ -244,6 +270,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/tests/V2/PasswordResetSmsVerificationTest.php",
     "apps/api/tests/V2/ZIdentityRecoveryConcurrencyTest.php",
     "apps/api/tests/V2/GoogleOidcVerticalSliceTest.php",
+    "apps/api/tests/V2/LineLoginVerticalSliceTest.php",
     "apps/api/tests/V2/ZExternalIdentityConcurrencyTest.php",
     "apps/api/tests/V2/PermissionBoundaryTest.php",
     "apps/api/tests/V2/AdminPermissionContractTest.php",
@@ -488,6 +515,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/qa/page.tsx",
     "apps/admin/src/app/reports/page.tsx",
     "apps/admin/src/app/shipping/page.tsx",
+    "apps/admin/src/app/settings/line/page.tsx",
     "apps/admin/src/components/auth/admin-auth-provider.tsx",
     "apps/admin/src/components/auth/auth-frame.tsx",
     "apps/admin/src/components/auth/auth-status.tsx",
@@ -514,6 +542,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/navigation/admin-navigation.tsx",
     "apps/admin/src/components/navigation/breadcrumb.tsx",
     "apps/admin/src/components/navigation/navigation-icon.tsx",
+    "apps/admin/src/components/line/line-messaging-settings.tsx",
     "apps/admin/src/components/permissions/permission-gate.tsx",
     "apps/admin/src/components/permissions/permission-provider.tsx",
     "apps/admin/src/components/permissions/protected-admin-route.tsx",
@@ -534,6 +563,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/catalog-read.test.tsx",
     "apps/admin/test/permission-provider.test.tsx",
     "apps/admin/test/permissions-navigation.test.tsx",
+    "apps/admin/test/line-messaging-settings.test.tsx",
     "apps/admin/test/security-shell.test.tsx",
     "apps/admin/test/setup.ts",
     "apps/admin/test/webauthn.test.ts",
@@ -1581,7 +1611,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": "2.0.0-alpha.1",
         "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 42,
+        "publicApiOperationCount": 47,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1599,8 +1629,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 42",
-        '"completeGoogleOidc","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","unlinkGoogleIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        "operation_count: 47",
+        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -1821,6 +1851,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
         "2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
         "2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
+        "2026_08_07_000018_add_line_external_identity_provider.php",
+        "2026_08_07_000019_create_line_messaging_follow_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -1833,6 +1865,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             *expected_migrations[:4],
             "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
             "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
+            "2026_08_07_000018_add_line_external_identity_provider.php",
         ]
     )
     for required in (
@@ -2098,6 +2131,11 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "startGoogleReauthentication",
         "reauthenticateUserPassword",
         "unlinkGoogleIdentity",
+        "startLineLogin",
+        "completeLineLogin",
+        "startLineIdentityLink",
+        "startLineReauthentication",
+        "unlinkLineIdentity",
     ):
         if operation_id not in public_contract:
             raise PolicyFailure(f"Public Authentication Contract missing {operation_id}")
@@ -2107,6 +2145,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         (repository / relative).read_text(encoding="utf-8")
         for relative in (
             "apps/api/app/Domain/Identity/Services/V2ExternalIdentityService.php",
+            "apps/api/app/Domain/Identity/Services/V2GoogleExternalIdentityProvider.php",
             "apps/api/app/Domain/Identity/Services/V2GoogleIdTokenVerifier.php",
             "apps/api/app/Domain/Identity/Services/V2GoogleOidcHttpTransport.php",
         )
@@ -2132,6 +2171,52 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
     ):
         if prohibited in oidc_sources:
             raise PolicyFailure(f"V2 Google OIDC boundary contains prohibited {prohibited}")
+    line_sources = "\n".join(
+        (repository / relative).read_text(encoding="utf-8")
+        for relative in (
+            "apps/api/app/Domain/Identity/Services/V2ExternalIdentityService.php",
+            "apps/api/app/Domain/Identity/Services/V2LineExternalIdentityProvider.php",
+            "apps/api/app/Domain/Identity/Services/V2LineOidcHttpTransport.php",
+            "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
+            "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
+            "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
+            "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
+            "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",
+            "apps/api/app/Http/Controllers/V2/V2LineMessagingWebhookController.php",
+            "apps/api/config/v2_line.php",
+        )
+    )
+    for required in (
+        "https://access.line.me/oauth2/v2.1/authorize",
+        "https://api.line.me/oauth2/v2.1/token",
+        "https://api.line.me/oauth2/v2.1/verify",
+        "https://access.line.me",
+        "code_challenge_method",
+        "email_scope_enabled",
+        "subject_hash",
+        "provider = 'google' OR provider = 'line'",
+        "LINE_MESSAGING_CHANNEL_SECRET",
+        "LINE_MESSAGING_CHANNEL_ACCESS_TOKEN",
+        "X-Line-Signature",
+        "webhookEventId",
+        "line_pending_follows",
+        "ManageLineMessaging",
+        "https://api.line.me/v2/bot/message/reply",
+    ):
+        if required not in line_sources:
+            raise PolicyFailure(f"V2 LINE Login boundary missing {required}")
+    for prohibited in (
+        "refresh_token",
+        "raw_subject",
+        "tenant_id",
+        "discovery_url",
+        "Math.random",
+        "/push",
+        "/broadcast",
+        "LINE_MESSAGING_CHANNEL_ID",
+    ):
+        if prohibited in line_sources:
+            raise PolicyFailure(f"V2 LINE Login boundary contains prohibited {prohibited}")
     composer_manifest = json.loads(
         (repository / "apps/api/composer.json").read_text(encoding="utf-8")
     )
