@@ -17,6 +17,9 @@ final class CatalogProbabilityVersion extends Model
         'status',
         'snapshot_sha256',
         'published_at',
+        'revision',
+        'archived_at',
+        'cloned_from_probability_version_id',
     ];
 
     protected static function booted(): void
@@ -25,14 +28,15 @@ final class CatalogProbabilityVersion extends Model
             $version->public_id ??= (string) Str::uuid7();
         });
         static::updating(function (self $version): void {
-            if ($version->getRawOriginal('status') === 'published') {
+            if (
+                $version->getRawOriginal('status') === 'published'
+                || $version->getRawOriginal('archived_at') !== null
+            ) {
                 throw new LogicException('Published Probability Version is immutable.');
             }
         });
         static::deleting(function (self $version): void {
-            if ($version->status === 'published') {
-                throw new LogicException('Published Probability Version is immutable.');
-            }
+            throw new LogicException('Probability Version records cannot be deleted.');
         });
     }
 
@@ -41,6 +45,8 @@ final class CatalogProbabilityVersion extends Model
         return [
             'version_number' => 'integer',
             'published_at' => 'immutable_datetime',
+            'revision' => 'integer',
+            'archived_at' => 'immutable_datetime',
         ];
     }
 }

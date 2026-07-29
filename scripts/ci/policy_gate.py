@@ -342,10 +342,13 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_05_000016_add_v2_catalog_master_mutation_foundation.php",
     "apps/api/database/migrations-v2/2026_08_06_000017_add_v2_catalog_prize_asset_mutation_foundation.php",
     "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
+    "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
     "apps/api/tests/V2/AdminGachaDraftManagementTest.php",
+    "apps/api/tests/V2/AdminProbabilityDraftManagementTest.php",
+    "apps/api/tests/V2/ZAdminProbabilityConcurrencyTest.php",
     "apps/api/tests/V2/Fixtures/catalog-alpha.json",
     "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
     "docs/operations/catalog-probability/README.md",
@@ -536,6 +539,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-data-table.tsx",
     "apps/admin/src/components/catalog/catalog-gacha-forms.tsx",
     "apps/admin/src/components/catalog/catalog-gacha-workspace.tsx",
+    "apps/admin/src/components/catalog/catalog-probability-workspace.tsx",
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-overview.tsx",
     "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
@@ -567,6 +571,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/auth-components.test.tsx",
     "apps/admin/test/catalog-read.test.tsx",
     "apps/admin/test/catalog-gacha.test.tsx",
+    "apps/admin/test/catalog-probability.test.tsx",
     "apps/admin/test/permission-provider.test.tsx",
     "apps/admin/test/permissions-navigation.test.tsx",
     "apps/admin/test/line-messaging-settings.test.tsx",
@@ -1251,7 +1256,6 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         if required not in catalog_source:
             raise PolicyFailure(f"apps/admin: Catalog read UI missing {required}")
     for prohibited in (
-        "probability_ppm",
         "cost_price",
         "autoplay",
         "http://",
@@ -1861,6 +1865,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_07_000019_create_line_messaging_follow_foundation.php",
         "2026_08_07_000020_add_line_friend_reward_enabled.php",
         "2026_08_08_000021_add_v2_gacha_draft_management.php",
+        "2026_08_09_000022_add_v2_probability_draft_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2738,6 +2743,29 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     if "tenant_id" in gacha_draft_migration:
         raise PolicyFailure("V2 Gacha Draft migration contains prohibited tenant_id")
 
+    probability_draft_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_09_000022_add_v2_probability_draft_management.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_probability_versions",
+        "revision",
+        "archived_at",
+        "cloned_from_probability_version_id",
+        "Probability Version records cannot be deleted",
+        "Published Probability Version is immutable",
+        "Only active Draft Probability Version children are mutable",
+    ):
+        if required not in probability_draft_migration:
+            raise PolicyFailure(
+                f"V2 Probability Draft management migration missing {required}"
+            )
+    if "tenant_id" in probability_draft_migration:
+        raise PolicyFailure(
+            "V2 Probability Draft migration contains prohibited tenant_id"
+        )
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -2823,7 +2851,6 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             raise PolicyFailure(f"V2 Admin Catalog read service missing {required}")
     for prohibited in (
         "storage_identifier' =>",
-        "probability_ppm' =>",
         "cost_price' =>",
         "->insert(",
         "->update(",
@@ -2879,6 +2906,13 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "cloneAdminCatalogGachaDraft",
         "updateAdminCatalogGachaDraft",
         "archiveAdminCatalogGachaDraft",
+        "listAdminCatalogProbabilityVersions",
+        "getAdminCatalogProbabilityVersion",
+        "createAdminCatalogProbabilityDraft",
+        "cloneAdminCatalogProbabilityDraft",
+        "replaceAdminCatalogProbabilityDraftEntries",
+        "validateAdminCatalogProbabilityDraft",
+        "archiveAdminCatalogProbabilityDraft",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
@@ -2905,6 +2939,25 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
+            "get",
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}": {
+            "get",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/clone": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/entries": {
+            "put",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/validate": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions/{probability_version_id}/archive": {
+            "post",
+        },
     }
     actual_admin_catalog_methods = {
         path: {
@@ -2937,7 +2990,6 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ).lower()
     for prohibited in (
         "storage_identifier",
-        "probability_ppm",
         "cost_price",
         '"patch"',
         '"delete"',

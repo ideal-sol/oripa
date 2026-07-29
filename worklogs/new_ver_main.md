@@ -6210,3 +6210,133 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - 次Task候補は`MIG-060G Admin Probability Editor／Publish`であり、
   本Task内で開始しない。
+
+## MIG-060F Closeout／MIG-060G Admin Draft Probability Editor／Validation
+
+### MIG-060F Closeout
+
+- Issue `#135`はClosed、PR `#136`はSquash Mergedである。
+- Final Headは`1563c2abaa3dab6f241ddb059804ab49a35a80ac`、Squash Commitは
+  `eada85c353f0f6380d00632c05e81eef1243cb17`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとWorktreeはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060G Task／Characterization
+
+- Task IDは`MIG-060G`、Riskは`R3`、Issueは`#137`、Branchは
+  `feat/MIG-060G-admin-probability-editor`、Base SHAは
+  `eada85c353f0f6380d00632c05e81eef1243cb17`である。
+- MIG-050のProbability Version／Stage／Entry／Minimum Guaranteeと、
+  MIG-060D～FのCatalog Mutation／Gacha Draft基盤を正本として再利用した。
+- Probabilityは整数ppmのみを使用し、各Stageの公開可能合計を
+  `1,000,000 ppm`とする。保存途中のDraftは未達／超過を保持できるが、
+  Server ValidationでCurrent／Required／Remaining／Excessと公開不可理由を返す。
+- Entryは`prize`または`point_back`で、`no_prize`、Float、丸め、
+  自動補正、正本にないEntry上限は追加していない。
+- `catalog.read`／`catalog.manage`の中央Permission Matrixを再利用し、
+  Publish用Permissionは追加していない。
+
+### Schema／Domain／Concurrency
+
+- Forward-safe Migration
+  `2026_08_09_000022_add_v2_probability_draft_management.php`で
+  Probability VersionへRevision、Archive日時、Clone元Version参照を追加した。
+  既存Migrationは編集していない。
+- Canonical CHECKはRevision正数とArchive状態を明示Cast付きで保証し、
+  Partial Unique Indexは通常Entryの同一Stage／Prize重複を拒否する。
+- DB TriggerはVersion物理Delete、Published／Archived変更、Identity変更、
+  Revision bypass、Published／Archived配下のStage／Entry／Minimum Guarantee変更を
+  拒否する。
+- Fresh Self-reviewでChild FKをPublishedからDraftへ付け替えると旧親検査を
+  迂回できる不足を検出した。UPDATE時に旧親と新親の両方を検査するよう補強し、
+  Entry／Stage双方の回帰Testを追加した。
+- Draft Create／Clone／Entry一括置換／Validation／Discardは既存Catalog
+  Mutation Executorを再利用し、Admin Realm、MFA Enrollment、CSRF、Exact Origin、
+  JSON、Idempotency-Key、Revision OCC、Rate Limit、Auditを適用した。
+- Create／Clone／Replace／Discardは`catalog.change` Outboxと同一Transactionで
+  確定する。Validationは状態非変更のためOutboxを生成しない。
+- Probability Version Rowと親Gacha／Gacha VersionをLockし、Concurrent更新は
+  1件だけ成功、Stale Revisionと同一Key異内容は409でFail Closedとする。
+
+### Contract／Admin UI
+
+- Admin OpenAPIへProbability Version一覧／詳細、Draft作成、Clone、
+  Entry一括置換、Validation、Discardの7 Operationを追加した。
+  Admin Operation数は114、Public 47、Webhook 1である。
+- UUIDv7 Public ID、Opaque Cursor、Stable Sort、RFC 9457、Request ID、
+  `private, no-store`を維持した。Public／Webhook ContractとStorefront Clientの
+  Admin非公開境界は変更していない。
+- Gacha Version画面からProbability一覧／詳細へ遷移し、Draft作成／Clone、
+  Entry追加／削除、整数ppm、Prize／Rank、Point Back、Minimum Guarantee、
+  Current／Required Total、Remaining／Excess、Server Validation、保存／Discardを
+  操作できるEditorを実装した。
+- Published／Archived VersionはRead-onlyで、Publish Buttonは実装していない。
+  Dirty State、Confirmation、Conflict再読込、二重送信防止、Canonical再取得、
+  Mobile／Keyboard／Focusは既存Admin基盤を再利用した。
+- TailAdmin無料版を視覚基準としたが、App全体置換、Dependency更新、
+  Auth／Permission／CSP境界変更は行っていない。
+
+### Test／Evidence
+
+- Probability対象Clean DBは`6 Test／80 Assertion`、全V2 Suiteは
+  `246 Test／2038 Assertion／4 Skip`がPASSした。Skipは既存の明示的Load Test
+  境界であり、PASSとして数えていない。
+- Draw回帰の1000回p95は`678.193 ms`、最大58 Queryである。
+- Admin OpenAPI Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component 46 Test、Browser E2E 13 TestがPASSした。
+- Persistent／Ephemeral V2 `migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、API／DB／Redis／Storage HealthがPASSした。
+- Migration数は22、Migration Set SHA-256は
+  `5e7fe1193ce445c91c0feada4cfe446fbcfd926b0922d7455c322347a6e55974`。
+- Backup SHA-256は
+  `b15f5bba10939acb516f497871dceff64c7b739c179dedf9de8f94b484449477`、
+  Source／Restore正規化Schema SHA-256は
+  `b1872a79f4619b4ced8c4c6ba55c6e715fb109f9b428b5bb97dd35750f3b4874`、
+  Migration Row SHA-256は
+  `1cc47acfa6529df6ffe5a49d1cacc6c0fcc7dcf39e25c43538667223d42fee1e`
+  で一致した。Evidenceは`/var/lib/oripa-v2-evidence/MIG-060G/`である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testを
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 88件、Quality Unit 5件、Security Unit 4件、DB Guard Unit 26件、
+  OpenAPI Unit 4件、Release Unit 10件と各Local GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／Build、
+  Lint既存8 Error／1 Warning FingerprintがPASSした。
+- Root Audit 0、Legacy Audit既存11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+
+### 時間を要した作業／効率改善
+
+- Admin Browser E2Eは約1分6秒、全V2 Suiteは約1分55秒／回、
+  Backup／Restoreは約2分を要した。
+- 全V2 Suite初回は既存Google OIDCの4分59秒境界で一時Failureとなった。
+  Clean DB単独では成功し、残存DBでの再試行結果は正本に採用せず、
+  Clean DB全Suite成功をEvidenceとした。
+- Fresh Self-review後のDB Guard補強により全V2 Suiteを再実行した。
+  Backend／Migration／Testだけの変更であることを機械的に確認し、
+  Admin／Browser／Package Evidenceは重複実行せず維持した。
+- Policy Unit初回は新MigrationのFixture集合と、Admin専用ppm管理面を
+  旧Read-only禁止が誤検知した。Public個別ppm漏えい禁止を維持したまま、
+  Admin Operation許可集合とFixtureを同期し、88 TestがPASSした。
+- 開始時Root空き8.7GB／`/tmp` 3.3GB、重い検証後Root 7.9GB／
+  `/tmp` 3.2GBをRead-only確認した。安全閾値内のためCleanupは不要であった。
+- Existing Classic BuilderとFirst-party Package Serial順を維持し、
+  Host Toolchain、Gate、Baseline、Assertion、Timeout、Memory設定を変更していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は
+  `MIG-060H Admin Probability Publish／Gacha Version Publish・Schedule`であり、
+  MIG-060Hは本Task内で開始しない。

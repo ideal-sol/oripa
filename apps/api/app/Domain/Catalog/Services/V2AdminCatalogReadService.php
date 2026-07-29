@@ -19,7 +19,8 @@ final class V2AdminCatalogReadService
     private const MAX_LIMIT = 100;
 
     public function __construct(
-        private readonly V2AdminFreshMfaAuthorizer $authorizer
+        private readonly V2AdminFreshMfaAuthorizer $authorizer,
+        private readonly V2CatalogMasterMutationService $mutations
     ) {
     }
 
@@ -254,6 +255,90 @@ final class V2AdminCatalogReadService
         }
 
         return ['data' => $this->mapGachaVersion($version)];
+    }
+
+    /** @param array<string, mixed> $filters */
+    public function probabilityVersions(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $gachaVersion = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId
+        );
+        if ((int) $gachaVersion->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $status = $this->enum(
+            $filters,
+            'status',
+            ['all', 'draft', 'published'],
+            'all'
+        );
+        $archive = $this->enum(
+            $filters,
+            'archive',
+            ['all', 'active', 'archived'],
+            'all'
+        );
+        $query = DB::table('catalog_probability_versions as version')
+            ->where('version.gacha_version_id', $gachaVersion->id)
+            ->select('version.*');
+        if ($status !== 'all') {
+            $query->where('version.status', $status);
+        }
+        if ($archive === 'active') {
+            $query->whereNull('version.archived_at');
+        } elseif ($archive === 'archived') {
+            $query->whereNotNull('version.archived_at');
+        }
+
+        return $this->paginate(
+            'probability_versions:'.$gachaVersionPublicId,
+            $query,
+            $filters,
+            'version.version_number',
+            'version.public_id',
+            'version_number',
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array =>
+                $this->mutations->mapProbabilityVersion($row)
+        );
+    }
+
+    public function probabilityVersion(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $probabilityVersionPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $gachaVersion = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId
+        );
+        $probabilityVersion = $this->find(
+            'catalog_probability_versions',
+            $probabilityVersionPublicId
+        );
+        if (
+            (int) $gachaVersion->gacha_id !== (int) $gacha->id
+            || (int) $probabilityVersion->gacha_version_id
+                !== (int) $gachaVersion->id
+        ) {
+            throw $this->notFound();
+        }
+
+        return [
+            'data' => $this->mutations->mapProbabilityVersion($probabilityVersion),
+        ];
     }
 
     /** @param array<string, mixed> $filters */
