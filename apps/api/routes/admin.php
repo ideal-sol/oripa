@@ -288,6 +288,34 @@ Route::prefix('v2')
             ->name('v2.admin.qa-executions.index');
         Route::get('/qa-draw-executions/{executionId}', [V2AdminQaDrawController::class, 'showExecution'])
             ->whereUuid('executionId')->name('v2.admin.qa-executions.show');
+        Route::get('/qa/plans', [V2AdminQaDrawController::class, 'managementPlans'])
+            ->name('v2.admin.qa-management.plans.index');
+        Route::post('/qa/plans', [V2AdminQaDrawController::class, 'createManagementPlan'])
+            ->name('v2.admin.qa-management.plans.store');
+        Route::get('/qa/plans/{planId}', [V2AdminQaDrawController::class, 'showManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.show');
+        Route::put('/qa/plans/{planId}', [V2AdminQaDrawController::class, 'updateManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.update');
+        Route::post('/qa/plans/{planId}/enable', [V2AdminQaDrawController::class, 'enableManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.enable');
+        Route::post('/qa/plans/{planId}/disable', [V2AdminQaDrawController::class, 'disableManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.disable');
+        Route::post('/qa/plans/{planId}/archive', [V2AdminQaDrawController::class, 'archiveManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.archive');
+        Route::get('/qa/plans/{planId}/preflight', [V2AdminQaDrawController::class, 'preflightManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.plans.preflight');
+        Route::post('/qa/plans/{planId}/assignments', [V2AdminQaDrawController::class, 'assignManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.assignments.assign');
+        Route::post('/qa/plans/{planId}/assignments/unassign', [V2AdminQaDrawController::class, 'unassignManagementPlan'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.assignments.unassign');
+        Route::get('/qa/test-users', [V2AdminQaDrawController::class, 'managementTestUsers'])
+            ->name('v2.admin.qa-management.test-users.index');
+        Route::get('/qa/test-user-candidates', [V2AdminQaDrawController::class, 'managementTestUserCandidates'])
+            ->name('v2.admin.qa-management.test-users.candidates');
+        Route::put('/qa/test-users/{userId}', [V2AdminQaDrawController::class, 'saveManagementTestUser'])
+            ->whereUuid('userId')->name('v2.admin.qa-management.test-users.save');
+        Route::post('/qa/test-users/{userId}/disable', [V2AdminQaDrawController::class, 'disableManagementTestUser'])
+            ->whereUuid('userId')->name('v2.admin.qa-management.test-users.disable');
         Route::get('/shipping-requests', [V2AdminShippingController::class, 'index'])
             ->name('v2.admin.shipping-requests.index');
         Route::get('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'show'])

@@ -5269,6 +5269,687 @@
         }
       }
     },
+    "/qa/plans": {
+      "get": {
+        "operationId": "listQaManagementPlans",
+        "summary": "QA Plan管理一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 191
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "active",
+                "paused",
+                "completed",
+                "disabled"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Plan管理一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementPlanCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createQaManagementPlan",
+        "summary": "QA Planを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaManagementPlanCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "作成したQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}": {
+      "get": {
+        "operationId": "getQaManagementPlan",
+        "summary": "QA Plan管理詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Plan管理詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementPlanDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateQaManagementPlan",
+        "summary": "QA Planを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaManagementPlanUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/enable": {
+      "post": {
+        "operationId": "enableQaManagementPlan",
+        "summary": "QA Planを有効化する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "有効化したQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/disable": {
+      "post": {
+        "operationId": "disableQaManagementPlan",
+        "summary": "QA Planを一時無効化する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "無効化したQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/archive": {
+      "post": {
+        "operationId": "archiveQaManagementPlan",
+        "summary": "未実行QA PlanをArchiveする",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ArchiveしたQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/preflight": {
+      "get": {
+        "operationId": "preflightQaManagementPlan",
+        "summary": "QA Planを実行せずServer Validationする",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Plan Preflight結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementPreflight"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/assignments": {
+      "post": {
+        "operationId": "assignQaManagementTestUser",
+        "summary": "QA PlanへTest Userを割り当てる",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaAssignmentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test Userを割り当てたQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/assignments/unassign": {
+      "post": {
+        "operationId": "unassignQaManagementTestUser",
+        "summary": "QA PlanからTest Userを履歴保持型で解除する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaAssignmentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test Userを解除したQA Plan。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/test-users": {
+      "get": {
+        "operationId": "listQaManagementTestUsers",
+        "summary": "QA Test User一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Test User一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaTestUserCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/test-user-candidates": {
+      "get": {
+        "operationId": "searchQaManagementTestUserCandidates",
+        "summary": "Public IDでQA Test User候補を検索する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QA Test User候補。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaTestUserCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/test-users/{user_id}": {
+      "put": {
+        "operationId": "saveQaManagementTestUser",
+        "summary": "UserのQA Test Modeを作成または更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaTestUserSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "QA Test User状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/test-users/{user_id}/disable": {
+      "post": {
+        "operationId": "disableQaManagementTestUser",
+        "summary": "UserのQA Test Modeを論理無効化する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "無効化したQA Test User状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/shipping-requests": {
       "get": {
         "operationId": "listAdminShippingRequests",
@@ -10911,6 +11592,497 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "QaRevisionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "QaManagementPlanCreate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanCreateInput"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "user_id",
+              "gacha_id",
+              "title",
+              "reason",
+              "items"
+            ],
+            "properties": {
+              "user_id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "gacha_id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 191
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "starts_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "ends_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {
+                  "$ref": "#/components/schemas/QaPlanItemInput"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "QaManagementPlanUpdate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanUpdateInput"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "revision",
+              "title",
+              "reason"
+            ],
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 191
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "starts_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "ends_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "QaManagementPlanSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "revision",
+          "user_id",
+          "gacha_id",
+          "status",
+          "title",
+          "starts_at",
+          "ends_at",
+          "archived_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,63}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QaPlanStatus"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaManagementAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "revision",
+          "assigned_at",
+          "unassigned_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "assigned",
+              "unassigned"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assigned_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "unassigned_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaManagementPlanDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaPlanDetail"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code",
+              "revision",
+              "archived_at",
+              "assignments",
+              "execution_count"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "archived_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "assignments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QaManagementAssignment"
+                }
+              },
+              "execution_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ]
+      },
+      "QaManagementPlanCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaManagementPlanSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QaAssignmentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "user_id"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "QaTestUserSave": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QaModeInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        ]
+      },
+      "QaTestUserSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "user_state",
+          "mode_id",
+          "revision",
+          "is_enabled",
+          "is_active",
+          "starts_at",
+          "ends_at"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_state": {
+            "type": "string"
+          },
+          "mode_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaTestUserCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaTestUserSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QaManagementPreflight": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan_id",
+          "revision",
+          "valid",
+          "validation_codes",
+          "assigned_test_user_count",
+          "remaining_draw_count",
+          "gacha_version_id",
+          "probability_version_id"
+        ],
+        "properties": {
+          "plan_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "validation_codes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "PLAN_NOT_ACTIVE",
+                "GACHA_VERSION_UNAVAILABLE",
+                "PLAN_ITEMS_UNAVAILABLE",
+                "TEST_USER_UNAVAILABLE",
+                "PLAN_OUTSIDE_ACTIVE_PERIOD"
+              ]
+            }
+          },
+          "assigned_test_user_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_draw_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gacha_version_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "probability_version_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "QaManagementMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QaManagementPlanDetail"
+              },
+              {
+                "$ref": "#/components/schemas/QaTestUserSummary"
+              }
+            ]
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },

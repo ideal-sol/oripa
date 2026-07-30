@@ -7242,3 +7242,140 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `v1/early-release`、Archive Branch、Annotated Tagは非変更である。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - 次Task候補は`MIG-060N Admin QA Draw Management`であり、本Taskでは開始しない。
+
+## MIG-060M Closeout／MIG-060N Admin QA Plan／Test User Management
+
+### MIG-060M Closeout
+
+- Issue `#149`はClosed、PR `#150`はSquash Mergedである。
+- Final Headは`d0a77dd9149a5389d8c743fefcc9d2830bd931ff`、Squash Commitは
+  `373f51d9605da2881482899b4f7f59b6132ab410`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含むGitHub 8 Checkは
+  成功した。Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Branch／Worktree／Task ResourceはCleanup済みで、Local
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### Characterization／Permission
+
+- 既存QA正本はUser単位のQA Test ModeとUser＋Gacha単位のQA Planを持ち、
+  Plan状態は`active`、`paused`、`completed`、`disabled`である。
+- Plan Itemは対象Gachaの現在Published Versionに属するPrize Relationを参照し、
+  `sort_order`、`quantity`、`consumed_count`、任意のImage／Video Assetを保持する。
+- QA Drawは通常Drawと同じPoint、Inventory、販売口数、User Prizeへ実Dataとして
+  影響し、QA ResolverだけがActive Mode／Plan／Assignmentを解決する。
+- MIG-053／053Aで確定済みの`qa.draw.manage`はOwner-onlyかつ全QA管理APIで
+  Fresh MFA 5分必須である。既存正本を優先し、`qa.read`／`qa.manage`を新設して
+  Admin／Operatorへ権限を拡張していない。
+- 通常Userの新規作成やUser Realm Session変更は行わない。既存Active Userを
+  Candidateとして検索し、QA Mode有効化と履歴保持型Assignmentで管理する。
+
+### Contract／QA Plan／Test User
+
+- Admin OpenAPIへQA Plan一覧／詳細／作成／更新／有効化／無効化／Archive／
+  Preflight、Test User一覧／Candidate検索／Mode保存／無効化、Plan割当／解除を
+  Contract-firstで追加した。
+- Admin Realm、有効Session、MFA Enrollment、Fresh MFA、CSRF、Exact Origin、
+  JSON Content-Type、Idempotency-Key、Revision OCC、Critical Rate Limit、
+  RFC 9457、`private, no-store`を既存共通基盤で強制する。
+- UUIDv7 Public ID、Opaque Cursor、Stable Sort、Canonical Replay、
+  同一Key異内容409、Stale Revision 409を使用し、内部DB IDを公開しない。
+- Public／Webhook ContractとStorefront Clientは変更していない。
+  QA Draw実行／再実行／結果確定Endpointは追加していない。
+- QA PlanのCode、User、Gachaは作成後immutableとし、Unknown Field、危険文字、
+  期間逆転、Terminal／Archive後更新、実行済みPlanの破壊的変更を拒否する。
+- PreflightはPlan状態、Current Published Gacha Version、Published Probability
+  Snapshot SHA、全Stage 1,000,000 ppm、Prize Relation、残Draw数、Active Test User、
+  有効期間をServer側で再確認する。Point、Inventory、Draw Historyは変更しない。
+
+### Migration／Concurrency／Resolver
+
+- Forward-safe Migration
+  `2026_08_16_000029_add_v2_qa_plan_management.php`を追加し、既存Migrationは
+  編集していない。
+- QA Mode／PlanへRevision、Planへimmutable Code／Archive情報を追加し、
+  `qa_draw_plan_assignments`へUUIDv7、Plan／User、状態、Revision、割当／解除履歴を
+  型付きColumnで保存する。既存PlanのUser Relationは決定的にAssignmentへ移行する。
+- Canonical CHECK、Restrict FK、Revision／Identity／状態遷移TriggerでRevision
+  bypass、Code／User／Gacha付替え、Terminal／Archive後変更、Assignment付替え、
+  物理DeleteをFail Closedにした。
+- Plan、User、Mode、Assignmentを固定順でLockし、同一User＋GachaのActive Plan
+  競合、Concurrent Update／Assignmentを1件だけ成功させる。
+- Mutation、Audit、`qa.plan.change` Outbox、Idempotency完了を同一Transactionで
+  確定する。Deadlock／Serialization Failureは既存Transaction規則の最大3回を使う。
+- QA ResolverはActive Assignmentを必須とし、Archived Planを除外する。
+  既存QA Drawの抽選順、Point、Inventory、100／1000回Set-based Persistenceは
+  変更していない。
+
+### Admin UI
+
+- `/qa`準備中画面をQA Overview、Plan一覧／詳細／Form、Enable／Disable／Archive、
+  Preflight、Test User一覧／Candidate検索／Mode設定／割当／解除へ置き換えた。
+- Revision Conflict、Dirty State、Confirmation、二重送信防止、Canonical再取得、
+  Loading／Empty／Error、401／403／429、Fresh MFA Dialogを既存Shellで再利用した。
+- Owner以外はBackendで403とし、Permission取得不能時はFail Closedである。
+- `Asia/Tokyo`表示、UTC保存、Mobile、Keyboard、Focus、Accessible Name完全一致を
+  維持した。QA Draw実行Button、再実行Button、架空結果は存在しない。
+
+### Test／Evidence
+
+- QA Plan管理、既存QA Draw、HTTP、DB Guard対象回帰は
+  `20 Test／183 Assertion`、Process Concurrencyは`2 Test／14 Assertion`でPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component `58 Test`、Browser E2E `14 Test`がPASSした。
+- Persistent／Ephemeral双方で`migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、全V2 Suite、Backup／Restore、API／Admin HealthがPASSした。
+- Migration数は29、Migration Set SHA-256は
+  `49e6df42f64c7a3b4124fb9800bc13ea59ed523d155bb7e4a833dfb9ee8a4b29`。
+- Backup SHA-256は
+  `6b817a304ac8a039337e51278f09573820a5d74b0408fd6d7c1379f8c6b5dbc9`、
+  Source／Restore Schema SHA-256は
+  `339970b0c5baead71d527b6e86934f12bdf1ff12ef2c311c80ba373c71f6372d`
+  で一致した。
+- 通常100回p95は`157.390 ms`／Query 56、通常1000回p95は
+  `621.172 ms`／Query 58、QA 100回p95は`191.098 ms`／Query 65、
+  QA 1000回p95は`647.095 ms`／Query 76である。
+- QA同一Gacha 5 User最終は`4.039 s`、10 User最終は`8.279 s`、
+  通常同一Gacha 20 User最終は`16.032 s`である。未解決Deadlock、
+  Point／Inventory／History不一致、500／502／504は0件である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testを依存順Serialで
+  実行した。Policy Unit 89、Quality Unit 5、Security Unit 4、DB Guard Unit 29、
+  OpenAPI Unit 4、Release Unit 10とLocal GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／Build、Lint既存
+  8 Error／1 Warning FingerprintがPASSした。
+- Root Audit 0、Legacy Audit 11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060N/`へ保存した。
+
+### 時間を要した作業／効率改善
+
+- API Image Buildは約1分、Admin Browser E2Eは約1.1分、Persistent Guardは
+  約3分、Ephemeral Guardは約6分を要した。
+- Persistent Guard初回は約3分後、Migration追加に対するSchema Inventory不足を
+  Fail Closedで検出した。対象TableをDB Guard正本へ追加し、Guard Unit 29件を
+  先に通してからFinal Guardを1回だけ再実行した。
+- Root空き2.1GBが重い検証前の安全閾値を下回ったため、未使用Docker Build Cache
+  だけを削除して約1.9GBを回収した。稼働Container、Image、Named Volume、
+  V1 Resourceは削除していない。
+- WorktreeはLockfile固定Installを行い、First-party PackageをSite Schema、
+  Storefront Client、Storefront Testkitの依存順にSerial実行した。
+- 対象Unit／HTTP／Admin SmokeをFull Guard前に実行し、通過済みの全回帰を中断・
+  重複実行していない。Host Toolchain、Gate、Assertion、Timeout、Memoryを
+  更新または緩和していない。
+
+### Final予定／Gate
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 Backend隔離回帰はV1 Path／Checksum不変のため直前の承認済みEvidenceを再利用し、
+  GitHub Integrationで再実行する。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、Public／Admin状態、
+  `v1/early-release`、Archive Branch、Annotated Tagは非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は`MIG-060O Admin QA Draw Execution／Result Review`であり、
+  MIG-060Oは本Task内で開始しない。

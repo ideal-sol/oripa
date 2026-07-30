@@ -33,6 +33,23 @@ const operations = {
     "post",
     "/identity/line-messaging/preview",
   ],
+  listQaManagementPlans: ["get", "/qa/plans"],
+  createQaManagementPlan: ["post", "/qa/plans"],
+  getQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}"],
+  updateQaManagementPlan: ["put", "/qa/plans/{qa_plan_id}"],
+  enableQaManagementPlan: ["post", "/qa/plans/{qa_plan_id}/enable"],
+  disableQaManagementPlan: ["post", "/qa/plans/{qa_plan_id}/disable"],
+  archiveQaManagementPlan: ["post", "/qa/plans/{qa_plan_id}/archive"],
+  preflightQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}/preflight"],
+  assignQaManagementTestUser: ["post", "/qa/plans/{qa_plan_id}/assignments"],
+  unassignQaManagementTestUser: [
+    "post",
+    "/qa/plans/{qa_plan_id}/assignments/unassign",
+  ],
+  listQaManagementTestUsers: ["get", "/qa/test-users"],
+  searchQaManagementTestUserCandidates: ["get", "/qa/test-user-candidates"],
+  saveQaManagementTestUser: ["put", "/qa/test-users/{user_id}"],
+  disableQaManagementTestUser: ["post", "/qa/test-users/{user_id}/disable"],
   listAdminCatalogCategories: ["get", "/catalog/categories"],
   createAdminCatalogCategory: ["post", "/catalog/categories"],
   getAdminCatalogCategory: ["get", "/catalog/categories/{catalog_resource_id}"],
@@ -244,6 +261,16 @@ const requiredSchemas = [
   "AdminLineMessagingPreviewRequest",
   "AdminLineMessagingPreview",
   "AdminLineMessagingMutationResult",
+  "QaManagementPlanCreate",
+  "QaManagementPlanUpdate",
+  "QaManagementPlanSummary",
+  "QaManagementPlanDetail",
+  "QaManagementPlanCollection",
+  "QaManagementPreflight",
+  "QaManagementMutationResult",
+  "QaTestUserSave",
+  "QaTestUserSummary",
+  "QaTestUserCollection",
   "AdminCatalogCategory",
   "AdminCatalogCategoryCreate",
   "AdminCatalogCategoryMutationResult",
@@ -469,6 +496,116 @@ export interface AdminLineMessagingMutationResult {
   data: AdminLineMessagingSetting;
   idempotent_replay: boolean;
   request_id: string;
+}
+
+export type AdminQaPlanStatus =
+  | "active"
+  | "paused"
+  | "completed"
+  | "disabled";
+
+export interface AdminQaPlanItemInput {
+  prize_id: string;
+  quantity: number;
+  sort_order: number;
+  fixed_image_asset_id: string | null;
+  fixed_video_asset_id: string | null;
+}
+
+export interface AdminQaPlanItem extends AdminQaPlanItemInput {
+  id: string;
+  consumed_count: number;
+}
+
+export interface AdminQaPlanCreate {
+  user_id: string;
+  gacha_id: string;
+  title: string;
+  reason: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  items: AdminQaPlanItemInput[];
+}
+
+export interface AdminQaPlanUpdate {
+  revision: number;
+  title: string;
+  reason: string;
+  starts_at: string | null;
+  ends_at: string | null;
+}
+
+export interface AdminQaPlanSummary {
+  id: string;
+  code: string;
+  revision: number;
+  user_id: string;
+  gacha_id: string;
+  status: AdminQaPlanStatus;
+  title: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  archived_at: string | null;
+}
+
+export interface AdminQaPlanAssignment {
+  id: string;
+  user_id: string;
+  status: "assigned" | "unassigned";
+  revision: number;
+  assigned_at: string;
+  unassigned_at: string | null;
+}
+
+export interface AdminQaPlanDetail extends AdminQaPlanSummary {
+  reason: string;
+  items: AdminQaPlanItem[];
+  assignments: AdminQaPlanAssignment[];
+  execution_count: number;
+}
+
+export interface AdminQaPlanCollection {
+  items: AdminQaPlanSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminQaTestUser {
+  user_id: string;
+  user_state: string;
+  mode_id: string | null;
+  revision: number | null;
+  is_enabled: boolean;
+  is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+}
+
+export interface AdminQaTestUserCollection {
+  items: AdminQaTestUser[];
+  next_cursor: string | null;
+}
+
+export interface AdminQaTestUserSave {
+  revision?: number;
+  reason: string;
+  starts_at?: string | null;
+  ends_at: string;
+}
+
+export interface AdminQaPreflight {
+  plan_id: string;
+  revision: number;
+  valid: boolean;
+  validation_codes: string[];
+  assigned_test_user_count: number;
+  remaining_draw_count: number;
+  gacha_version_id: string | null;
+  probability_version_id: string | null;
+}
+
+export interface AdminQaMutationResult<T> {
+  data: T;
+  idempotent_replay: boolean;
 }
 
 export interface AdminCatalogCategory {

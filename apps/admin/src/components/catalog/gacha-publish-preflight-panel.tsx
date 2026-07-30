@@ -641,7 +641,6 @@ export function GachaPublishPreflightPanel({
       setUnpublishPreflight(null);
       setUnpublishConfirmOpen(false);
       setError(null);
-      setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
       if (next.requiresFreshMfa) {
