@@ -344,6 +344,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
     "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
     "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
+    "apps/api/database/migrations-v2/2026_08_11_000024_guard_v2_gacha_probability_selection.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -539,6 +540,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-controls.tsx",
     "apps/admin/src/components/catalog/catalog-data-table.tsx",
     "apps/admin/src/components/catalog/catalog-gacha-forms.tsx",
+    "apps/admin/src/components/catalog/gacha-publish-preflight-panel.tsx",
     "apps/admin/src/components/catalog/catalog-gacha-workspace.tsx",
     "apps/admin/src/components/catalog/catalog-probability-workspace.tsx",
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
@@ -572,6 +574,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/auth-components.test.tsx",
     "apps/admin/test/catalog-read.test.tsx",
     "apps/admin/test/catalog-gacha.test.tsx",
+    "apps/admin/test/gacha-publish-preflight.test.tsx",
     "apps/admin/test/catalog-probability.test.tsx",
     "apps/admin/test/permission-provider.test.tsx",
     "apps/admin/test/permissions-navigation.test.tsx",
@@ -1868,6 +1871,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_08_000021_add_v2_gacha_draft_management.php",
         "2026_08_09_000022_add_v2_probability_draft_management.php",
         "2026_08_10_000023_protect_v2_published_probability_relations.php",
+        "2026_08_11_000024_guard_v2_gacha_probability_selection.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2908,6 +2912,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "cloneAdminCatalogGachaDraft",
         "updateAdminCatalogGachaDraft",
         "archiveAdminCatalogGachaDraft",
+        "listAdminGachaPublishedProbabilityCandidates",
+        "getAdminGachaProbabilitySelection",
+        "selectAdminGachaPublishedProbability",
+        "preflightAdminGachaVersionPublish",
         "listAdminCatalogProbabilityVersions",
         "getAdminCatalogProbabilityVersion",
         "createAdminCatalogProbabilityDraft",
@@ -2943,6 +2951,16 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/published-probability-candidates": {
+            "get",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-selection": {
+            "get",
+            "put",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-preflight": {
+            "post",
+        },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
             "get",
             "post",
@@ -2992,7 +3010,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
                 for name, value in admin_bundle.get("components", {})
                 .get("schemas", {})
                 .items()
-                if name.startswith("AdminCatalog")
+                if name.startswith(("AdminCatalog", "AdminGacha"))
                 and not name.endswith(("Create", "Update"))
             },
         },

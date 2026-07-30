@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 091765ee148872f2300df870a5ed8c7f946d652c685cdb722645687df1fc5441
+// Contract SHA-256: b868fd6da545af53be18069b1d309a8ad7deb0f27c8e5f655697635af11eb0ed
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -443,6 +443,48 @@ export interface AdminCatalogGachaVersionCreate {
 
 export interface AdminCatalogGachaVersionUpdate
   extends AdminCatalogGachaVersionCreate {
+  expected_revision: number;
+}
+
+export interface AdminGachaPublishedProbabilityCandidate {
+  id: string;
+  version_number: number;
+  published_at: string | null;
+  snapshot_sha256: string;
+  stage_count: number;
+  validation_status: "valid" | "invalid";
+}
+
+export interface AdminGachaProbabilitySelection {
+  gacha_version_id: string;
+  gacha_version_revision: number;
+  selected_probability: AdminGachaPublishedProbabilityCandidate | null;
+}
+
+export interface AdminGachaProbabilitySelectionRequest {
+  expected_revision: number;
+  probability_version_id: string;
+}
+
+export interface AdminGachaPublishBlockingReason {
+  code: string;
+  message: string;
+}
+
+export interface AdminGachaPublishPreflight {
+  gacha_version_id: string;
+  publishable: boolean;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  gacha_version_revision: number;
+  request_id: string;
+}
+
+export interface AdminGachaPublishPreflightRequest {
   expected_revision: number;
 }
 

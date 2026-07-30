@@ -1879,6 +1879,193 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/published-probability-candidates": {
+      "get": {
+        "operationId": "listAdminGachaPublishedProbabilityCandidates",
+        "summary": "Draft Gacha Versionで選択可能なPublished Probability Snapshotを参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogDirection"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "選択可能なPublished Probability Snapshot一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishedProbabilityCandidateCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-selection": {
+      "get": {
+        "operationId": "getAdminGachaProbabilitySelection",
+        "summary": "Draft Gacha Versionで現在選択中のProbability Snapshotを参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "現在のProbability Selection。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaProbabilitySelectionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "selectAdminGachaPublishedProbability",
+        "summary": "Draft Gacha Versionで使用するPublished Probability Snapshotを選択する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaProbabilitySelectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "選択後のCanonical Gacha Version。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogGachaVersionMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-preflight": {
+      "post": {
+        "operationId": "preflightAdminGachaVersionPublish",
+        "summary": "Draft Gacha Versionの公開前Server Validationを実行する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaPublishPreflightRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "副作用を伴わないCanonical Publish Preflight結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishPreflightResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
       "get": {
         "operationId": "listAdminCatalogProbabilityVersions",
@@ -7197,6 +7384,243 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminCatalogGachaVersion"
+          }
+        }
+      },
+      "AdminGachaPublishedProbabilityCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version_number",
+          "published_at",
+          "snapshot_sha256",
+          "stage_count",
+          "validation_status"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "snapshot_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "stage_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "invalid"
+            ]
+          }
+        }
+      },
+      "AdminGachaPublishedProbabilityCandidateCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaPublishedProbabilityCandidate"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminGachaProbabilitySelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_version_id",
+          "gacha_version_revision",
+          "selected_probability"
+        ],
+        "properties": {
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "selected_probability": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminGachaPublishedProbabilityCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminGachaProbabilitySelectionDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGachaProbabilitySelection"
+          }
+        }
+      },
+      "AdminGachaProbabilitySelectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "probability_version_id"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "probability_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminGachaPublishPreflightRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaPublishBlockingReason": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+$"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "AdminGachaPublishSelectedProbability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "snapshot_sha256"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "snapshot_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "AdminGachaPublishPreflight": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_version_id",
+          "publishable",
+          "selected_probability",
+          "validation_codes",
+          "blocking_reasons",
+          "gacha_version_revision",
+          "request_id"
+        ],
+        "properties": {
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "publishable": {
+            "type": "boolean"
+          },
+          "selected_probability": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminGachaPublishSelectedProbability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation_codes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z0-9_]+$"
+            }
+          },
+          "blocking_reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaPublishBlockingReason"
+            }
+          },
+          "gacha_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminGachaPublishPreflightResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGachaPublishPreflight"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },

@@ -360,6 +360,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_08_000021_add_v2_gacha_draft_management.php",
             "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
             "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
+            "apps/api/database/migrations-v2/2026_08_11_000024_guard_v2_gacha_probability_selection.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -634,6 +635,23 @@ python3 scripts/db/v2_database.py smoke \\
             document = json.loads(bundle.read_text(encoding="utf-8"))
             document["paths"]["/catalog/prizes/{catalog_resource_id}"]["delete"] = {
                 "operationId": "deleteAdminCatalogPrize"
+            }
+            bundle.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_admin_gacha_publish_contract_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/admin.openapi.json"
+            document = json.loads(bundle.read_text(encoding="utf-8"))
+            document["paths"][
+                "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish"
+            ] = {
+                "post": {
+                    "operationId": "publishAdminGachaVersion",
+                }
             }
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited"):

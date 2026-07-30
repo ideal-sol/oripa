@@ -102,6 +102,22 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive",
   ],
+  listAdminGachaPublishedProbabilityCandidates: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/published-probability-candidates",
+  ],
+  getAdminGachaProbabilitySelection: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-selection",
+  ],
+  selectAdminGachaPublishedProbability: [
+    "put",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-selection",
+  ],
+  preflightAdminGachaVersionPublish: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-preflight",
+  ],
   listAdminCatalogProbabilityVersions: [
     "get",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions",
@@ -207,6 +223,13 @@ const requiredSchemas = [
   "AdminCatalogGachaVersionUpdate",
   "AdminCatalogGachaVersionMutationResult",
   "AdminCatalogGachaVersionCollection",
+  "AdminGachaPublishedProbabilityCandidate",
+  "AdminGachaPublishedProbabilityCandidateCollection",
+  "AdminGachaProbabilitySelection",
+  "AdminGachaProbabilitySelectionRequest",
+  "AdminGachaPublishPreflight",
+  "AdminGachaPublishPreflightRequest",
+  "AdminGachaPublishPreflightResult",
   "AdminCatalogProbabilityVersion",
   "AdminCatalogProbabilityEntriesReplace",
   "AdminCatalogProbabilityVersionMutationResult",
@@ -657,6 +680,48 @@ export interface AdminCatalogGachaVersionCreate {
 
 export interface AdminCatalogGachaVersionUpdate
   extends AdminCatalogGachaVersionCreate {
+  expected_revision: number;
+}
+
+export interface AdminGachaPublishedProbabilityCandidate {
+  id: string;
+  version_number: number;
+  published_at: string | null;
+  snapshot_sha256: string;
+  stage_count: number;
+  validation_status: "valid" | "invalid";
+}
+
+export interface AdminGachaProbabilitySelection {
+  gacha_version_id: string;
+  gacha_version_revision: number;
+  selected_probability: AdminGachaPublishedProbabilityCandidate | null;
+}
+
+export interface AdminGachaProbabilitySelectionRequest {
+  expected_revision: number;
+  probability_version_id: string;
+}
+
+export interface AdminGachaPublishBlockingReason {
+  code: string;
+  message: string;
+}
+
+export interface AdminGachaPublishPreflight {
+  gacha_version_id: string;
+  publishable: boolean;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  gacha_version_revision: number;
+  request_id: string;
+}
+
+export interface AdminGachaPublishPreflightRequest {
   expected_revision: number;
 }
 

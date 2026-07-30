@@ -1309,6 +1309,135 @@ label {
   padding-left: 20px;
 }
 
+.catalog-gacha-version-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.gacha-publish-preflight {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 22px 24px;
+}
+
+.gacha-publish-preflight > header,
+.gacha-publish-selection-actions,
+.catalog-inline-status,
+.gacha-preflight-result {
+  align-items: center;
+  display: flex;
+}
+
+.gacha-publish-preflight > header {
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.gacha-publish-preflight h2 {
+  font-size: 18px;
+  margin: 5px 0 0;
+}
+
+.catalog-readonly-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.catalog-inline-status {
+  color: var(--muted);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.gacha-publish-selection-grid {
+  align-items: end;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  margin-top: 18px;
+}
+
+.gacha-publish-selection-grid label {
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.gacha-publish-selection-grid select {
+  border: 1px solid #cbd5e1;
+  min-height: 42px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.gacha-publish-selection-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gacha-publish-current {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 16px 0 0;
+  padding: 14px;
+}
+
+.gacha-publish-current div {
+  min-width: 0;
+}
+
+.gacha-publish-current dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gacha-publish-current dd {
+  overflow-wrap: anywhere;
+}
+
+.gacha-preflight-result {
+  align-items: flex-start;
+  border: 1px solid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+}
+
+.gacha-preflight-result.is-ready {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.gacha-preflight-result.is-blocked {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.gacha-preflight-result h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.gacha-preflight-result p,
+.gacha-preflight-result ul {
+  margin: 8px 0;
+}
+
+.gacha-preflight-result li {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.gacha-preflight-result small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .danger-icon {
   color: #b42318;
 }
@@ -1609,6 +1738,22 @@ label {
 
   .catalog-probability-entry .icon-button {
     justify-self: end;
+  }
+
+  .gacha-publish-preflight > header,
+  .gacha-publish-selection-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gacha-publish-selection-grid,
+  .gacha-publish-current {
+    grid-template-columns: 1fr;
+  }
+
+  .gacha-publish-selection-actions button {
+    justify-content: center;
+    width: 100%;
   }
 
   .module-grid {

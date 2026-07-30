@@ -502,6 +502,16 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     title: "E2E Draft Page 2",
     version_number: 2,
   };
+  const probabilityId = "01910191-0191-7191-8191-019101910214";
+  const probability = {
+    id: probabilityId,
+    published_at: "2026-07-29T00:00:00Z",
+    snapshot_sha256: "a".repeat(64),
+    stage_count: 2,
+    validation_status: "valid",
+    version_number: 3,
+  };
+  let selected = false;
 
   await installAdminApi(page, async (route) => {
     const request = route.request();
@@ -520,6 +530,64 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
       return url.searchParams.get("cursor") === "next-version-page"
         ? json(route, { items: [nextVersion], next_cursor: null })
         : json(route, { items: [version], next_cursor: "next-version-page" });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/published-probability-candidates`,
+      )
+    ) {
+      return json(route, { items: [probability], next_cursor: null });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/probability-selection`,
+      )
+    ) {
+      if (request.method() === "PUT") {
+        expect(request.headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+        selected = true;
+        return json(route, {
+          data: {
+            ...version,
+            published_probability_version: {
+              id: probabilityId,
+              status: "published",
+              version_number: 3,
+            },
+            revision: 2,
+          },
+          idempotent_replay: false,
+        });
+      }
+      return json(route, {
+        data: {
+          gacha_version_id: versionId,
+          gacha_version_revision: selected ? 2 : 1,
+          selected_probability: selected ? probability : null,
+        },
+      });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/publish-preflight`,
+      )
+    ) {
+      expect(request.method()).toBe("POST");
+      return json(route, {
+        data: {
+          blocking_reasons: [],
+          gacha_version_id: versionId,
+          gacha_version_revision: 2,
+          publishable: true,
+          request_id: "01910191-0191-7191-8191-019101910215",
+          selected_probability: {
+            id: probabilityId,
+            snapshot_sha256: "a".repeat(64),
+          },
+          validation_codes: ["GACHA_PUBLISH_PREFLIGHT_READY"],
+        },
+        idempotent_replay: false,
+      });
     }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
       return json(route, { data: version });
@@ -540,6 +608,17 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
   await expect(page.getByRole("heading", { name: "e2e-gacha / Version 1" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Draft編集" })).toBeVisible();
   await expect(page.getByText("Browser draft fixture")).toBeVisible();
+  await page.getByLabel("Published Probability").selectOption(probabilityId);
+  await page.getByRole("button", { name: "選択を確定" }).click();
+  await page.getByRole("alertdialog").getByRole("button", {
+    name: "選択を確定",
+  }).click();
+  await expect(page.getByText(/v3.*01910191/u)).toBeVisible();
+  await page.getByRole("button", { name: "Publish Preflight" }).click();
+  await expect(page.getByText("Server Preflight完了")).toBeVisible();
+  await expect(page.getByText("公開操作は未実装")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Schedule", exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ height: 844, width: 390 });
   expect(
