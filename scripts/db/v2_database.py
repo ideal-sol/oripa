@@ -112,6 +112,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.prize_exchange_requests",
     "public.prize_inventories",
     "public.qa_draw_executions",
+    "public.qa_draw_plan_assignments",
     "public.qa_draw_plan_items",
     "public.qa_draw_plans",
     "public.qa_test_user_modes",

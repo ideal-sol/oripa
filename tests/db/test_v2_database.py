@@ -257,6 +257,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
         for table in (
             "public.qa_test_user_modes",
             "public.qa_draw_plans",
+            "public.qa_draw_plan_assignments",
             "public.qa_draw_plan_items",
             "public.qa_draw_executions",
         ):

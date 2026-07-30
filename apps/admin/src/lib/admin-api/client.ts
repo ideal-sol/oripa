@@ -56,6 +56,15 @@ import {
   type AdminLineMessagingSettingUpdate,
   type AdminMfaVerifyRequest,
   type AdminPreauth,
+  type AdminQaMutationResult,
+  type AdminQaPlanCollection,
+  type AdminQaPlanCreate,
+  type AdminQaPlanDetail,
+  type AdminQaPlanUpdate,
+  type AdminQaPreflight,
+  type AdminQaTestUser,
+  type AdminQaTestUserCollection,
+  type AdminQaTestUserSave,
   type AdminReauthenticationRequest,
   type AdminReauthenticationResponse,
   type AdminSession,
@@ -93,6 +102,13 @@ export interface AdminCatalogQuery {
   state?: "all" | "draft" | "active" | "disabled";
   status?: "all" | "draft" | "published";
   visibility?: AdminCatalogVisibility;
+}
+
+export interface AdminQaQuery {
+  cursor?: string;
+  limit?: number;
+  q?: string;
+  status?: "all" | "active" | "paused" | "completed" | "disabled";
 }
 
 export type AdminCatalogResource =
@@ -1119,6 +1135,180 @@ export class AdminApiClient {
     await this.request("POST", "/auth/logout", { body: {}, signal });
   }
 
+  listQaPlans(
+    query: AdminQaQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminQaPlanCollection> {
+    return this.qaList<AdminQaPlanCollection>("/qa/plans", query, signal);
+  }
+
+  getQaPlan(id: string, signal?: AbortSignal): Promise<AdminQaPlanDetail> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("GET", `/qa/plans/${id}`, { signal });
+  }
+
+  createQaPlan(
+    body: AdminQaPlanCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaPlanDetail>> {
+    return this.qaMutation("POST", "/qa/plans", body, idempotencyKey, signal);
+  }
+
+  updateQaPlan(
+    id: string,
+    body: AdminQaPlanUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaPlanDetail>> {
+    return this.qaMutation(
+      "PUT",
+      `/qa/plans/${id}`,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  transitionQaPlan(
+    id: string,
+    action: "enable" | "disable" | "archive",
+    revision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaPlanDetail>> {
+    return this.qaMutation(
+      "POST",
+      `/qa/plans/${id}/${action}`,
+      { revision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  preflightQaPlan(id: string, signal?: AbortSignal): Promise<AdminQaPreflight> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("GET", `/qa/plans/${id}/preflight`, { signal });
+  }
+
+  assignQaTestUser(
+    planId: string,
+    userId: string,
+    revision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaPlanDetail>> {
+    return this.qaMutation(
+      "POST",
+      `/qa/plans/${planId}/assignments`,
+      { revision, user_id: userId },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  unassignQaTestUser(
+    planId: string,
+    userId: string,
+    revision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaPlanDetail>> {
+    return this.qaMutation(
+      "POST",
+      `/qa/plans/${planId}/assignments/unassign`,
+      { revision, user_id: userId },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  listQaTestUsers(
+    query: AdminQaQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminQaTestUserCollection> {
+    return this.qaList<AdminQaTestUserCollection>("/qa/test-users", query, signal);
+  }
+
+  searchQaTestUserCandidates(
+    query: AdminQaQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminQaTestUserCollection> {
+    return this.qaList<AdminQaTestUserCollection>(
+      "/qa/test-user-candidates",
+      query,
+      signal,
+    );
+  }
+
+  saveQaTestUser(
+    userId: string,
+    body: AdminQaTestUserSave,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaTestUser>> {
+    return this.qaMutation(
+      "PUT",
+      `/qa/test-users/${userId}`,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  disableQaTestUser(
+    userId: string,
+    revision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaTestUser>> {
+    return this.qaMutation(
+      "POST",
+      `/qa/test-users/${userId}/disable`,
+      { revision },
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  private qaList<T>(
+    path: "/qa/plans" | "/qa/test-users" | "/qa/test-user-candidates",
+    query: AdminQaQuery,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") {
+        parameters.set(name, String(value));
+      }
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request("GET", `${path}${suffix}`, { signal });
+  }
+
+  private qaMutation<TBody, TResult>(
+    method: "POST" | "PUT",
+    path: `/qa/${string}`,
+    body: TBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<TResult>> {
+    if (!isIdempotencyKey(idempotencyKey) || path.includes("..")) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request(method, path, { body, idempotencyKey, signal });
+  }
+
   private catalogList<T>(
     resource: AdminCatalogResource,
     query: AdminCatalogQuery,
@@ -1339,13 +1529,18 @@ export class AdminApiClient {
 
   private async request<T>(
     method: "GET" | "POST" | "PUT",
-    path: `/auth/${string}` | `/catalog/${string}` | `/identity/${string}`,
+    path:
+      | `/auth/${string}`
+      | `/catalog/${string}`
+      | `/identity/${string}`
+      | `/qa/${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/catalog/") &&
-        !path.startsWith("/identity/")) ||
+        !path.startsWith("/identity/") &&
+        !path.startsWith("/qa/")) ||
       path.includes("://") ||
       path.includes("..")
     ) {

@@ -9,6 +9,7 @@ use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Models\V2\Admin;
 use App\Models\V2\QaDrawPlan;
+use App\Models\V2\QaDrawPlanAssignment;
 use App\Models\V2\QaDrawPlanItem;
 use App\Models\V2\QaTestUserMode;
 use App\Models\V2\User;
@@ -78,6 +79,7 @@ final class V2QaDrawAdminService
                 'enabled_by_admin_id' => $admin->id,
                 'disabled_at' => null,
                 'disabled_by_admin_id' => null,
+                'revision' => $mode->exists ? (int) $mode->revision + 1 : 1,
             ])->save();
             $this->adminAudit($action, $admin, $context, $mode->public_id, [
                 'user_public_id' => $user->public_id,
@@ -114,6 +116,7 @@ final class V2QaDrawAdminService
                     'is_enabled' => false,
                     'disabled_at' => now()->startOfSecond(),
                     'disabled_by_admin_id' => $admin->id,
+                    'revision' => (int) $mode->revision + 1,
                 ])->save();
                 $this->adminAudit(
                     'qa.mode.disabled',
@@ -134,10 +137,17 @@ final class V2QaDrawAdminService
         $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
         $plans = QaDrawPlan::query()
-            ->where('user_id', $user->id)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get()
+            ->join(
+                'qa_draw_plan_assignments as assignment',
+                'assignment.qa_draw_plan_id',
+                '=',
+                'qa_draw_plans.id'
+            )
+            ->where('assignment.user_id', $user->id)
+            ->where('assignment.status', 'assigned')
+            ->orderByDesc('qa_draw_plans.created_at')
+            ->orderByDesc('qa_draw_plans.id')
+            ->get(['qa_draw_plans.*'])
             ->map(fn (QaDrawPlan $plan): array => $this->planResource($plan, false))
             ->all();
 
@@ -184,6 +194,7 @@ final class V2QaDrawAdminService
             );
             $plan = new QaDrawPlan();
             $plan->forceFill([
+                'code' => 'QA-'.strtoupper(str_replace('-', '', (string) Str::uuid7())),
                 'user_id' => $user->id,
                 'gacha_id' => $gacha->id,
                 'status' => 'active',
@@ -193,6 +204,16 @@ final class V2QaDrawAdminService
                 'ends_at' => $ends,
                 'created_by_admin_id' => $admin->id,
                 'updated_by_admin_id' => $admin->id,
+                'revision' => 1,
+            ])->save();
+            $assignment = new QaDrawPlanAssignment();
+            $assignment->forceFill([
+                'qa_draw_plan_id' => $plan->id,
+                'user_id' => $user->id,
+                'status' => 'assigned',
+                'revision' => 1,
+                'assigned_at' => now()->startOfSecond(),
+                'assigned_by_admin_id' => $admin->id,
             ])->save();
             foreach ($validatedItems as $item) {
                 $row = new QaDrawPlanItem();
@@ -261,6 +282,7 @@ final class V2QaDrawAdminService
                 'starts_at' => $starts,
                 'ends_at' => $ends,
                 'updated_by_admin_id' => $admin->id,
+                'revision' => (int) $plan->revision + 1,
             ])->save();
             $this->adminAudit(
                 'qa.plan.updated',
@@ -319,6 +341,7 @@ final class V2QaDrawAdminService
             $plan->forceFill([
                 'status' => 'active',
                 'updated_by_admin_id' => $admin->id,
+                'revision' => (int) $plan->revision + 1,
             ])->save();
             $this->adminAudit(
                 'qa.plan.activated',
@@ -474,6 +497,7 @@ final class V2QaDrawAdminService
             $plan->forceFill([
                 'status' => $status,
                 'updated_by_admin_id' => $admin->id,
+                'revision' => (int) $plan->revision + 1,
             ])->save();
             $this->adminAudit(
                 'qa.plan.'.$status,
@@ -493,14 +517,22 @@ final class V2QaDrawAdminService
         ?int $exceptId = null
     ): void {
         $query = QaDrawPlan::query()
-            ->where('user_id', $userId)
-            ->where('gacha_id', $gachaId)
-            ->where('status', 'active')
+            ->join(
+                'qa_draw_plan_assignments as assignment',
+                'assignment.qa_draw_plan_id',
+                '=',
+                'qa_draw_plans.id'
+            )
+            ->where('assignment.user_id', $userId)
+            ->where('assignment.status', 'assigned')
+            ->where('qa_draw_plans.gacha_id', $gachaId)
+            ->where('qa_draw_plans.status', 'active')
+            ->whereNull('qa_draw_plans.archived_at')
             ->lockForUpdate();
         if ($exceptId !== null) {
-            $query->where('id', '!=', $exceptId);
+            $query->where('qa_draw_plans.id', '!=', $exceptId);
         }
-        foreach ($query->get() as $plan) {
+        foreach ($query->get(['qa_draw_plans.*']) as $plan) {
             $remaining = (int) DB::table('qa_draw_plan_items')
                 ->where('qa_draw_plan_id', $plan->id)
                 ->sum(DB::raw('quantity - consumed_count'));
@@ -511,7 +543,10 @@ final class V2QaDrawAdminService
                     'Only one active QA Plan is allowed for the User and Gacha.'
                 );
             }
-            $plan->forceFill(['status' => 'completed'])->save();
+            $plan->forceFill([
+                'status' => 'completed',
+                'revision' => (int) $plan->revision + 1,
+            ])->save();
             $this->audit->record('qa.plan.completed', [
                 'request_id' => $requestId,
                 'actor_type' => 'system',
@@ -534,6 +569,16 @@ final class V2QaDrawAdminService
         foreach ($items as $item) {
             if (! is_array($item)) {
                 throw $this->invalid('QA Plan Item is invalid.');
+            }
+            $unknown = array_diff(array_keys($item), [
+                'prize_id',
+                'quantity',
+                'sort_order',
+                'fixed_image_asset_id',
+                'fixed_video_asset_id',
+            ]);
+            if ($unknown !== []) {
+                throw $this->invalid('QA Plan Item contains unknown fields.');
             }
             $sortOrder = filter_var($item['sort_order'] ?? null, FILTER_VALIDATE_INT);
             $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT);
@@ -688,8 +733,14 @@ final class V2QaDrawAdminService
 
     private function text(string $value, int $maximum, string $label): string
     {
-        $value = trim($value);
-        if ($value === '' || strlen($value) > $maximum) {
+        $value = \Normalizer::normalize(trim($value), \Normalizer::FORM_C);
+        if (
+            ! is_string($value)
+            || $value === ''
+            || mb_strlen($value) > $maximum
+            || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $value) === 1
+            || preg_match('/<[^>]*>|<|>/u', $value) === 1
+        ) {
             throw $this->invalid("{$label} is invalid.");
         }
 
@@ -708,6 +759,7 @@ final class V2QaDrawAdminService
 
         return [
             'id' => $mode->public_id,
+            'revision' => (int) $mode->revision,
             'is_enabled' => (bool) $mode->is_enabled,
             'is_active' => $mode->is_enabled
                 && $mode->disabled_at === null
@@ -727,6 +779,8 @@ final class V2QaDrawAdminService
             ->where('id', $plan->gacha_id)->value('public_id');
         $resource = [
             'id' => $plan->public_id,
+            'code' => $plan->code,
+            'revision' => (int) $plan->revision,
             'user_id' => DB::table('users')->where('id', $plan->user_id)->value('public_id'),
             'gacha_id' => $gachaPublicId,
             'status' => $plan->status,
@@ -734,6 +788,7 @@ final class V2QaDrawAdminService
             'reason' => $plan->reason,
             'starts_at' => $plan->starts_at?->utc()->toIso8601String(),
             'ends_at' => $plan->ends_at?->utc()->toIso8601String(),
+            'archived_at' => $plan->archived_at?->utc()->toIso8601String(),
         ];
         if (! $withItems) {
             return $resource;

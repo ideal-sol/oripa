@@ -26,6 +26,7 @@ final class QaDrawPlan extends Model
         return [
             'starts_at' => 'immutable_datetime',
             'ends_at' => 'immutable_datetime',
+            'archived_at' => 'immutable_datetime',
         ];
     }
 }

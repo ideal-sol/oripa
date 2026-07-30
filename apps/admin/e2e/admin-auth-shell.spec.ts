@@ -280,6 +280,104 @@ test("Catalog list, search, detail, and mobile view use the Admin read contract"
   await expect(page.getByRole("button", { name: "検索" })).toBeFocused();
 });
 
+test("Owner manages QA Plan settings without a Draw execution surface", async ({
+  page,
+}) => {
+  const planId = "01910191-0191-7191-8191-019101910241";
+  const userId = "01910191-0191-7191-8191-019101910242";
+  const gachaId = "01910191-0191-7191-8191-019101910243";
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/auth/session")) return json(route, adminSession("owner"));
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (path.endsWith("/qa/plans") && request.method() === "GET") {
+      return json(route, {
+        items: [{
+          archived_at: null,
+          code: "QA-BROWSER",
+          ends_at: "2026-08-01T02:00:00Z",
+          gacha_id: gachaId,
+          id: planId,
+          revision: 1,
+          starts_at: "2026-08-01T00:00:00Z",
+          status: "active",
+          title: "Browser QA Plan",
+          user_id: userId,
+        }],
+        next_cursor: null,
+      });
+    }
+    if (path.endsWith(`/qa/plans/${planId}`)) {
+      return json(route, {
+        archived_at: null,
+        assignments: [{
+          assigned_at: "2026-08-01T00:00:00Z",
+          id: "01910191-0191-7191-8191-019101910244",
+          revision: 1,
+          status: "assigned",
+          unassigned_at: null,
+          user_id: userId,
+        }],
+        code: "QA-BROWSER",
+        ends_at: "2026-08-01T02:00:00Z",
+        execution_count: 0,
+        gacha_id: gachaId,
+        id: planId,
+        items: [{
+          consumed_count: 0,
+          fixed_image_asset_id: null,
+          fixed_video_asset_id: null,
+          id: "01910191-0191-7191-8191-019101910245",
+          prize_id: "01910191-0191-7191-8191-019101910246",
+          quantity: 1000,
+          sort_order: 1,
+        }],
+        reason: "Browser verification",
+        revision: 1,
+        starts_at: "2026-08-01T00:00:00Z",
+        status: "active",
+        title: "Browser QA Plan",
+        user_id: userId,
+      });
+    }
+    if (path.endsWith(`/qa/plans/${planId}/preflight`)) {
+      return json(route, {
+        assigned_test_user_count: 1,
+        gacha_version_id: "01910191-0191-7191-8191-019101910247",
+        plan_id: planId,
+        probability_version_id: "01910191-0191-7191-8191-019101910248",
+        remaining_draw_count: 1000,
+        revision: 1,
+        valid: true,
+        validation_codes: [],
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/qa");
+  await expect(page.getByRole("heading", { name: "QA Plan管理" })).toBeVisible();
+  await expect(page.getByText("Browser QA Plan")).toBeVisible();
+  await page.getByRole("button", { name: "Browser QA Planの詳細" }).click();
+  await expect(page.getByText("Browser verification")).toBeVisible();
+  await page.getByRole("button", { name: "検証" }).click();
+  await expect(page.getByText("実行設定は有効です")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Draw実行|再実行|結果確定/u }),
+  ).toHaveCount(0);
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.getByRole("button", { name: "一覧へ" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "編集" })).toBeFocused();
+});
+
 test("Catalog master mutation sends CSRF and idempotency headers then reloads canonical data", async ({
   page,
 }) => {
@@ -1294,7 +1392,7 @@ async function installAdminApi(
   handler: (route: Route) => Promise<unknown>,
 ): Promise<void> {
   await page.route(
-    /\/admin\/api\/v2\/(?:auth|catalog|identity)\/[^?]+(?:\?.*)?$/u,
+    /\/admin\/api\/v2\/(?:auth|catalog|identity|qa)\/[^?]+(?:\?.*)?$/u,
     handler,
   );
 }

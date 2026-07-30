@@ -51,11 +51,19 @@ final class V2QaDrawResolver
         }
 
         $plan = QaDrawPlan::query()
-            ->where('user_id', $user->id)
-            ->where('gacha_id', $gachaId)
-            ->where('status', 'active')
+            ->join(
+                'qa_draw_plan_assignments as assignment',
+                'assignment.qa_draw_plan_id',
+                '=',
+                'qa_draw_plans.id'
+            )
+            ->where('assignment.user_id', $user->id)
+            ->where('assignment.status', 'assigned')
+            ->where('qa_draw_plans.gacha_id', $gachaId)
+            ->where('qa_draw_plans.status', 'active')
+            ->whereNull('qa_draw_plans.archived_at')
             ->lockForUpdate()
-            ->first();
+            ->first(['qa_draw_plans.*']);
         if (! $plan instanceof QaDrawPlan) {
             throw $this->configuration('Active QA Mode requires an active QA Draw Plan.');
         }
@@ -198,9 +206,17 @@ final class V2QaDrawResolver
         DB::transaction(function () use ($user, $gachaPublicId, $requestId): void {
             $plan = QaDrawPlan::query()
                 ->join('catalog_gachas as gacha', 'gacha.id', '=', 'qa_draw_plans.gacha_id')
-                ->where('qa_draw_plans.user_id', $user->id)
+                ->join(
+                    'qa_draw_plan_assignments as assignment',
+                    'assignment.qa_draw_plan_id',
+                    '=',
+                    'qa_draw_plans.id'
+                )
+                ->where('assignment.user_id', $user->id)
+                ->where('assignment.status', 'assigned')
                 ->where('gacha.public_id', $gachaPublicId)
                 ->where('qa_draw_plans.status', 'active')
+                ->whereNull('qa_draw_plans.archived_at')
                 ->whereNotNull('qa_draw_plans.ends_at')
                 ->where('qa_draw_plans.ends_at', '<=', CarbonImmutable::now())
                 ->lockForUpdate()
@@ -314,7 +330,10 @@ final class V2QaDrawResolver
     private function complete(QaDrawPlan $plan, string $requestId, string $reason): void
     {
         if ($plan->status !== 'completed') {
-            $plan->forceFill(['status' => 'completed'])->save();
+            $plan->forceFill([
+                'status' => 'completed',
+                'revision' => (int) $plan->revision + 1,
+            ])->save();
             $this->audit->record('qa.plan.completed', [
                 'request_id' => $requestId,
                 'actor_type' => 'system',

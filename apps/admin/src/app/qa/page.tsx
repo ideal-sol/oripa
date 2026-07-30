@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { QaManagementWorkspace } from "@/components/qa/qa-management-workspace";
 
-export const metadata: Metadata = { title: "QA Draw" };
+export const metadata: Metadata = { title: "QA Plan管理" };
 
 export default function QaPage() {
-  return <ModuleRoutePage routeId="qa" />;
+  return <QaManagementWorkspace />;
 }

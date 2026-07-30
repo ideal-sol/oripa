@@ -409,7 +409,10 @@ final class QaDrawVerticalSliceTest extends TestCase
         ]);
         DB::table('qa_draw_plans')
             ->where('public_id', $plan['id'])
-            ->update(['ends_at' => now()->addHour()]);
+            ->update([
+                'ends_at' => now()->addHour(),
+                'revision' => DB::raw('revision + 1'),
+            ]);
         CarbonImmutable::setTestNow(now()->addHours(2));
 
         try {
