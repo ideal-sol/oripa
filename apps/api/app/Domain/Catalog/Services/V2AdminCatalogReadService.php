@@ -342,6 +342,74 @@ final class V2AdminCatalogReadService
     }
 
     /** @param array<string, mixed> $filters */
+    public function publishedProbabilityCandidates(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $gachaVersion = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId
+        );
+        if ((int) $gachaVersion->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $query = DB::table('catalog_probability_versions as version')
+            ->where('version.gacha_version_id', $gachaVersion->id)
+            ->where('version.status', 'published')
+            ->whereNull('version.archived_at')
+            ->select('version.*');
+
+        return $this->paginate(
+            'published_probability_candidates:'.$gachaVersionPublicId,
+            $query,
+            $filters,
+            'version.version_number',
+            'version.public_id',
+            'version_number',
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array =>
+                $this->mutations->mapPublishedProbabilityCandidate($row)
+        );
+    }
+
+    public function gachaProbabilitySelection(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $gachaVersion = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId
+        );
+        if ((int) $gachaVersion->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+        $selected = $gachaVersion->published_probability_version_id === null
+            ? null
+            : DB::table('catalog_probability_versions')
+                ->where('id', $gachaVersion->published_probability_version_id)
+                ->firstOrFail();
+
+        return [
+            'data' => [
+                'gacha_version_id' => $gachaVersion->public_id,
+                'gacha_version_revision' => (int) $gachaVersion->revision,
+                'selected_probability' => $selected === null
+                    ? null
+                    : $this->mutations->mapPublishedProbabilityCandidate($selected),
+            ],
+        ];
+    }
+
+    /** @param array<string, mixed> $filters */
     public function prizes(
         V2AdminAuthorizationContext $context,
         array $filters

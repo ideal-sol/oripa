@@ -22,6 +22,7 @@ import {
   type GachaMasterDraft,
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
+import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { StatusBadge } from "@/components/catalog/status-badge";
@@ -427,7 +428,11 @@ export function CatalogGachaWorkspace({
             />
           ) : null}
           {state.kind === "version" ? (
-            <VersionDetail gachaId={state.gacha.id} version={state.version} />
+            <VersionDetail
+              gachaId={state.gacha.id}
+              onCanonical={(version) => setState({ ...state, version })}
+              version={state.version}
+            />
           ) : null}
           {formMode === "create-master" || formMode === "edit-master" ? (
             <CatalogGachaMasterForm
@@ -714,54 +719,63 @@ function GachaDetail({
 
 function VersionDetail({
   gachaId,
+  onCanonical,
   version,
 }: {
   gachaId: string;
+  onCanonical: (version: AdminCatalogGachaVersion) => void;
   version: AdminCatalogGachaVersion;
 }) {
   return (
-    <section className="catalog-detail catalog-gacha-detail">
-      <dl>
-        <Detail label="Public ID" value={version.id} />
-        <Detail label="Version" value={String(version.version_number)} />
-        <Detail label="Status" value={version.is_archived ? "archived" : version.status} />
-        <Detail label="Title" value={version.title} />
-        <Detail label="Description" value={version.description ?? "未設定"} />
-        <Detail label="Notice" value={version.notices ?? "未設定"} />
-        <Detail label="販売Point" value={version.price_points.toLocaleString()} />
-        <Detail label="販売口数" value={version.total_count.toLocaleString()} />
-        <Detail label="公開開始" value={version.publish_start_at} />
-        <Detail label="公開終了" value={version.publish_end_at ?? "無期限"} />
-        <Detail
-          label="Presentation Asset"
-          value={version.presentation_asset?.alt_text ?? "未設定"}
-        />
-        <Detail
-          label="Probability"
-          value={
-            version.published_probability_version
-              ? `v${version.published_probability_version.version_number}（参照専用）`
-              : "未設定"
-          }
-        />
-        <Detail
-          label="Prize"
-          value={version.prizes
-            .map(
-              (item) =>
-                `${item.prize.rank.code} ${item.prize.name} × ${item.initial_inventory}`,
-            )
-            .join(" / ")}
-        />
-        <Detail label="Revision" value={String(version.revision)} />
-      </dl>
-      <Link
-        className="secondary-button catalog-probability-link"
-        href={`/catalog/gachas/${gachaId}/versions/${version.id}/probability-versions`}
-      >
-        Probability Editor
-      </Link>
-    </section>
+    <div className="catalog-gacha-version-layout">
+      <section className="catalog-detail catalog-gacha-detail">
+        <dl>
+          <Detail label="Public ID" value={version.id} />
+          <Detail label="Version" value={String(version.version_number)} />
+          <Detail label="Status" value={version.is_archived ? "archived" : version.status} />
+          <Detail label="Title" value={version.title} />
+          <Detail label="Description" value={version.description ?? "未設定"} />
+          <Detail label="Notice" value={version.notices ?? "未設定"} />
+          <Detail label="販売Point" value={version.price_points.toLocaleString()} />
+          <Detail label="販売口数" value={version.total_count.toLocaleString()} />
+          <Detail label="公開開始" value={version.publish_start_at} />
+          <Detail label="公開終了" value={version.publish_end_at ?? "無期限"} />
+          <Detail
+            label="Presentation Asset"
+            value={version.presentation_asset?.alt_text ?? "未設定"}
+          />
+          <Detail
+            label="Probability"
+            value={
+              version.published_probability_version
+                ? `v${version.published_probability_version.version_number}（選択済み）`
+                : "未設定"
+            }
+          />
+          <Detail
+            label="Prize"
+            value={version.prizes
+              .map(
+                (item) =>
+                  `${item.prize.rank.code} ${item.prize.name} × ${item.initial_inventory}`,
+              )
+              .join(" / ")}
+          />
+          <Detail label="Revision" value={String(version.revision)} />
+        </dl>
+        <Link
+          className="secondary-button catalog-probability-link"
+          href={`/catalog/gachas/${gachaId}/versions/${version.id}/probability-versions`}
+        >
+          Probability Editor
+        </Link>
+      </section>
+      <GachaPublishPreflightPanel
+        gachaId={gachaId}
+        onCanonical={onCanonical}
+        version={version}
+      />
+    </div>
   );
 }
 

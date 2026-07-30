@@ -175,6 +175,18 @@ Route::prefix('v2')
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}', [V2AdminCatalogController::class, 'probabilityVersion'])
             ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
             ->name('v2.admin.catalog.probability-versions.show');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/published-probability-candidates', [V2AdminCatalogController::class, 'publishedProbabilityCandidates'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.probability-candidates');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/probability-selection', [V2AdminCatalogController::class, 'gachaProbabilitySelection'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.probability-selection.show');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/probability-selection', [V2AdminCatalogController::class, 'selectGachaProbability'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.probability-selection.update');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish-preflight', [V2AdminCatalogController::class, 'preflightGachaPublish'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.publish-preflight');
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/clone', [V2AdminCatalogController::class, 'cloneProbabilityDraft'])
             ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
             ->name('v2.admin.catalog.probability-versions.clone');

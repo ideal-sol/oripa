@@ -322,6 +322,75 @@ final class V2AdminCatalogController
         );
     }
 
+    public function publishedProbabilityCandidates(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->publishedProbabilityCandidates(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $request->query()
+                )
+        );
+    }
+
+    public function gachaProbabilitySelection(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaProbabilitySelection(
+                    $context,
+                    $gachaId,
+                    $versionId
+                )
+        );
+    }
+
+    public function selectGachaProbability(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->selectPublishedProbability(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function preflightGachaPublish(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightGachaPublish(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createProbabilityDraft(
         Request $request,
         string $gachaId,

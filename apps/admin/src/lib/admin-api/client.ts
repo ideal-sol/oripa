@@ -29,6 +29,11 @@ import {
   type AdminCatalogTagUpdate,
   type AdminCatalogMutationResult,
   type AdminCatalogVisibility,
+  type AdminGachaProbabilitySelection,
+  type AdminGachaProbabilitySelectionRequest,
+  type AdminGachaPublishPreflight,
+  type AdminGachaPublishPreflightRequest,
+  type AdminGachaPublishedProbabilityCandidate,
   type AdminLoginRequest,
   type AdminLineMessagingMutationResult,
   type AdminLineMessagingPreview,
@@ -513,6 +518,84 @@ export class AdminApiClient {
     );
   }
 
+  listGachaPublishedProbabilityCandidates(
+    gachaId: string,
+    gachaVersionId: string,
+    query: Pick<AdminCatalogQuery, "cursor" | "direction" | "limit"> = {},
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminGachaPublishedProbabilityCandidate>> {
+    const path = this.gachaVersionPublishPath(gachaId, gachaVersionId);
+    if (path === null) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") parameters.set(name, String(value));
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request(
+      "GET",
+      `${path}/published-probability-candidates${suffix}`,
+      { signal },
+    );
+  }
+
+  getGachaProbabilitySelection(
+    gachaId: string,
+    gachaVersionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminGachaProbabilitySelection>> {
+    const path = this.gachaVersionPublishPath(gachaId, gachaVersionId);
+    if (path === null) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `${path}/probability-selection`, { signal });
+  }
+
+  selectGachaPublishedProbability(
+    gachaId: string,
+    gachaVersionId: string,
+    body: AdminGachaProbabilitySelectionRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
+    const path = this.gachaVersionPublishPath(gachaId, gachaVersionId);
+    if (path === null || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("PUT", `${path}/probability-selection`, {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  preflightGachaVersionPublish(
+    gachaId: string,
+    gachaVersionId: string,
+    body: AdminGachaPublishPreflightRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaPublishPreflight>> {
+    const path = this.gachaVersionPublishPath(gachaId, gachaVersionId);
+    if (path === null || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", `${path}/publish-preflight`, {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
   listCatalogProbabilityVersions(
     gachaId: string,
     gachaVersionId: string,
@@ -923,6 +1006,19 @@ export class AdminApiClient {
     return (probabilityVersionId === undefined
       ? root
       : `${root}/${encodeURIComponent(probabilityVersionId)}`) as `/catalog/${string}`;
+  }
+
+  private gachaVersionPublishPath(
+    gachaId: string,
+    gachaVersionId: string,
+  ): `/catalog/${string}` | null {
+    if (!isOpaqueId(gachaId) || !isOpaqueId(gachaVersionId)) {
+      return null;
+    }
+    return (
+      `/catalog/gachas/${encodeURIComponent(gachaId)}` +
+      `/versions/${encodeURIComponent(gachaVersionId)}`
+    ) as `/catalog/${string}`;
   }
 
   private probabilityVersionMutation<TBody>(
