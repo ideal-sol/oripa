@@ -5,10 +5,15 @@ namespace Tests\V2;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
+use App\Domain\Draw\Exceptions\V2DrawException;
+use App\Domain\Draw\Services\V2DrawService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2AdminRole;
+use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
+use App\Domain\Point\Services\V2PointService;
+use App\Models\V2\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -353,6 +358,145 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         }
     }
 
+    public function test_concurrent_sales_pause_and_draw_have_one_atomic_order(): void
+    {
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for Gacha sales pause concurrency verification.');
+        }
+        $this->configureTestBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $context = $this->createAdminContext();
+        $user = User::query()->create([
+            'email_display' => 'gacha-sales-pause-draw@example.test',
+            'email_normalized' => 'gacha-sales-pause-draw@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)
+                ->hash('valid gacha sales pause draw test password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            10_000,
+            now()->addYear(),
+            'gacha-sales-pause-draw-fixture'
+        );
+        $gachaRevision = (int) DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)
+            ->value('revision');
+        $walletBefore = (int) DB::table('wallets')
+            ->where('user_id', $user->id)
+            ->value('free_balance');
+        $resultsBefore = DB::table('draw_results')->count();
+        $wonBefore = (int) DB::table('prize_inventories')->sum('won_count');
+
+        $token = (string) Str::uuid7();
+        $startPath = "/tmp/mig060l-pause-draw-{$token}.start";
+        $pauseResultPath = "/tmp/mig060l-pause-draw-{$token}-pause.json";
+        $drawResultPath = "/tmp/mig060l-pause-draw-{$token}-draw.json";
+        DB::disconnect();
+
+        try {
+            $pausePid = pcntl_fork();
+            if ($pausePid === -1) {
+                self::fail('Unable to start the Gacha sales pause process.');
+            }
+            if ($pausePid === 0) {
+                $this->runSalesPause(
+                    $context,
+                    $gachaRevision,
+                    'gacha-sales-pause-draw-pause',
+                    $startPath,
+                    $pauseResultPath
+                );
+            }
+            $drawPid = pcntl_fork();
+            if ($drawPid === -1) {
+                self::fail('Unable to start the Gacha Draw process.');
+            }
+            if ($drawPid === 0) {
+                $this->runDraw(
+                    $user->id,
+                    'gacha-sales-pause-draw-request',
+                    $startPath,
+                    $drawResultPath
+                );
+            }
+
+            file_put_contents($startPath, 'start');
+            foreach ([$pausePid, $drawPid] as $pid) {
+                pcntl_waitpid($pid, $status);
+                self::assertTrue(pcntl_wifexited($status));
+                self::assertSame(0, pcntl_wexitstatus($status));
+            }
+            $pauseResult = json_decode(
+                file_get_contents($pauseResultPath),
+                true,
+                flags: JSON_THROW_ON_ERROR
+            );
+            $drawResult = json_decode(
+                file_get_contents($drawResultPath),
+                true,
+                flags: JSON_THROW_ON_ERROR
+            );
+            self::assertSame('success', $pauseResult['result']);
+            self::assertContains(
+                $drawResult['result'],
+                ['success', 'sales_paused']
+            );
+
+            DB::reconnect();
+            self::assertTrue((bool) DB::table('catalog_gachas')
+                ->where('public_id', self::GACHA_ID)
+                ->value('sales_paused'));
+            $drawSucceeded = $drawResult['result'] === 'success';
+            self::assertSame(
+                $resultsBefore + ($drawSucceeded ? 1 : 0),
+                DB::table('draw_results')->count()
+            );
+            $createdResult = $drawSucceeded
+                ? DB::table('draw_results')->orderByDesc('id')->first()
+                : null;
+            $pointBack = $createdResult === null
+                ? 0
+                : (int) ($createdResult->point_back_amount ?? 0);
+            self::assertSame(
+                $walletBefore - ($drawSucceeded ? 100 : 0) + $pointBack,
+                (int) DB::table('wallets')
+                    ->where('user_id', $user->id)
+                    ->value('free_balance')
+            );
+            self::assertSame(
+                $wonBefore + (
+                    $createdResult !== null
+                    && $createdResult->result_type === 'prize'
+                        ? 1
+                        : 0
+                ),
+                (int) DB::table('prize_inventories')->sum('won_count')
+            );
+            self::assertSame(
+                1,
+                DB::table('outbox_messages')
+                    ->where('aggregate_public_id', self::GACHA_ID)
+                    ->where('event_type', 'catalog.master.sales_paused')
+                    ->count()
+            );
+        } finally {
+            DB::reconnect();
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+            @unlink($startPath);
+            @unlink($pauseResultPath);
+            @unlink($drawResultPath);
+        }
+    }
+
     private function runSelection(
         V2AdminAuthorizationContext $context,
         string $gachaVersionId,
@@ -420,6 +564,76 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             $result = ['result' => 'success', 'code' => null];
         } catch (V2CatalogException $exception) {
             $result = ['result' => 'failure', 'code' => $exception->errorCode];
+        } catch (Throwable $exception) {
+            $result = ['result' => 'unexpected', 'code' => $exception::class];
+        }
+        file_put_contents($resultPath, json_encode($result, JSON_THROW_ON_ERROR));
+        DB::disconnect();
+        exit(0);
+    }
+
+    private function runSalesPause(
+        V2AdminAuthorizationContext $context,
+        int $gachaRevision,
+        string $idempotencyKey,
+        string $startPath,
+        string $resultPath
+    ): never {
+        DB::purge();
+        DB::reconnect();
+        while (! file_exists($startPath)) {
+            usleep(1000);
+        }
+
+        try {
+            app(V2CatalogMasterMutationService::class)->pauseGachaSales(
+                $context,
+                self::GACHA_ID,
+                $idempotencyKey,
+                [
+                    'expected_gacha_revision' => $gachaRevision,
+                    'reason_code' => 'operations_review',
+                ]
+            );
+            $result = ['result' => 'success', 'code' => null];
+        } catch (V2CatalogException $exception) {
+            $result = ['result' => 'failure', 'code' => $exception->errorCode];
+        } catch (Throwable $exception) {
+            $result = ['result' => 'unexpected', 'code' => $exception::class];
+        }
+        file_put_contents($resultPath, json_encode($result, JSON_THROW_ON_ERROR));
+        DB::disconnect();
+        exit(0);
+    }
+
+    private function runDraw(
+        int $userId,
+        string $idempotencyKey,
+        string $startPath,
+        string $resultPath
+    ): never {
+        DB::purge();
+        DB::reconnect();
+        while (! file_exists($startPath)) {
+            usleep(1000);
+        }
+
+        try {
+            app(V2DrawService::class)->create(
+                User::query()->findOrFail($userId),
+                self::GACHA_ID,
+                1,
+                $idempotencyKey,
+                (string) Str::uuid7()
+            );
+            $result = ['result' => 'success', 'code' => null];
+        } catch (V2DrawException $exception) {
+            $result = [
+                'result' => $exception->errorCode === 'GACHA_SALES_PAUSED'
+                    ? 'sales_paused'
+                    : 'failure',
+                'code' => $exception->errorCode,
+            ];
         } catch (Throwable $exception) {
             $result = ['result' => 'unexpected', 'code' => $exception::class];
         }

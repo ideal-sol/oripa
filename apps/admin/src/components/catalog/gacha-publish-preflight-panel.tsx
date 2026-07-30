@@ -5,6 +5,8 @@ import {
   CalendarClock,
   CheckCircle2,
   LoaderCircle,
+  PauseCircle,
+  PlayCircle,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
@@ -24,6 +26,9 @@ import type {
   AdminGachaPublishSchedulePreflight,
   AdminGachaPublishState,
   AdminGachaPublishedProbabilityCandidate,
+  AdminGachaSalesPauseReason,
+  AdminGachaSalesPreflight,
+  AdminGachaSalesState,
 } from "@/lib/admin-api/generated";
 
 type PendingAction =
@@ -33,7 +38,19 @@ type PendingAction =
   | "schedule-preflight"
   | "schedule"
   | "schedule-cancel"
+  | "sales-pause-preflight"
+  | "sales-pause"
+  | "sales-resume-preflight"
+  | "sales-resume"
   | null;
+
+const ADMIN_DISPLAY_TIME_ZONE = "Asia/Tokyo";
+
+function formatAdminDateTime(value: string): string {
+  return new Date(value).toLocaleString("ja-JP", {
+    timeZone: ADMIN_DISPLAY_TIME_ZONE,
+  });
+}
 
 export function GachaPublishPreflightPanel({
   gachaId,
@@ -63,6 +80,13 @@ export function GachaPublishPreflightPanel({
   const [publishState, setPublishState] = useState<AdminGachaPublishState | null>(
     null,
   );
+  const [salesState, setSalesState] = useState<AdminGachaSalesState | null>(
+    null,
+  );
+  const [salesPreflight, setSalesPreflight] =
+    useState<AdminGachaSalesPreflight | null>(null);
+  const [pauseReason, setPauseReason] =
+    useState<AdminGachaSalesPauseReason>("operations_review");
   const [schedule, setSchedule] = useState<AdminGachaPublishSchedule | null>(
     null,
   );
@@ -73,6 +97,7 @@ export function GachaPublishPreflightPanel({
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [salesConfirmOpen, setSalesConfirmOpen] = useState(false);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const pendingAction = useRef<PendingAction>(null);
@@ -101,17 +126,20 @@ export function GachaPublishPreflightPanel({
         controller.signal,
       ),
       client.getGachaPublishState(gachaId, controller.signal),
+      client.getGachaSalesState(gachaId, controller.signal),
       client.getGachaPublishSchedule(gachaId, version.id, controller.signal),
     ])
       .then(([
         candidateResponse,
         selectionResponse,
         publishStateResponse,
+        salesStateResponse,
         scheduleResponse,
       ]) => {
         setCandidates(candidateResponse.items);
         setSelectedId(selectionResponse.data.selected_probability?.id ?? "");
         setPublishState(publishStateResponse.data);
+        setSalesState(salesStateResponse.data);
         setSchedule(scheduleResponse.data);
         setError(null);
       })
@@ -137,10 +165,17 @@ export function GachaPublishPreflightPanel({
       publishConfirmOpen ||
       scheduleConfirmOpen ||
       cancelConfirmOpen
+      || salesConfirmOpen
     ) {
       confirmHeading.current?.focus();
     }
-  }, [cancelConfirmOpen, confirmOpen, publishConfirmOpen, scheduleConfirmOpen]);
+  }, [
+    cancelConfirmOpen,
+    confirmOpen,
+    publishConfirmOpen,
+    salesConfirmOpen,
+    scheduleConfirmOpen,
+  ]);
 
   function mutationKey(fingerprint: string): string {
     if (pendingMutation.current?.fingerprint === fingerprint) {
@@ -270,6 +305,7 @@ export function GachaPublishPreflightPanel({
         draw_state: result.data.draw_state,
       });
       onCanonical(canonical.data);
+      setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
       if (next.requiresFreshMfa) {
@@ -427,6 +463,111 @@ export function GachaPublishPreflightPanel({
     }
   }
 
+  async function runSalesPreflight(operation: "pause" | "resume") {
+    if (!canPublish || !salesState) return;
+    const body = operation === "pause"
+      ? {
+          expected_gacha_revision: salesState.gacha_revision,
+          reason_code: pauseReason,
+        }
+      : { expected_gacha_revision: salesState.gacha_revision };
+    const fingerprint = JSON.stringify({
+      action: `gacha-sales-${operation}-preflight`,
+      body,
+      gachaId,
+    });
+    setBusy(true);
+    try {
+      const result = operation === "pause"
+        ? await client.preflightGachaSalesPause(
+            gachaId,
+            body as {
+              expected_gacha_revision: number;
+              reason_code: AdminGachaSalesPauseReason;
+            },
+            mutationKey(fingerprint),
+          )
+        : await client.preflightGachaSalesResume(
+            gachaId,
+            body,
+            mutationKey(fingerprint),
+          );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setSalesPreflight(result.data);
+      setError(null);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = `sales-${operation}-preflight`;
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function mutateSales(operation: "pause" | "resume") {
+    if (
+      !canPublish ||
+      !salesState ||
+      !salesPreflight?.allowed ||
+      salesPreflight.operation !== operation
+    ) {
+      return;
+    }
+    const body = operation === "pause"
+      ? {
+          expected_gacha_revision: salesState.gacha_revision,
+          reason_code: pauseReason,
+        }
+      : { expected_gacha_revision: salesState.gacha_revision };
+    const fingerprint = JSON.stringify({
+      action: `gacha-sales-${operation}`,
+      body,
+      gachaId,
+    });
+    setBusy(true);
+    try {
+      const result = operation === "pause"
+        ? await client.pauseGachaSales(
+            gachaId,
+            body as {
+              expected_gacha_revision: number;
+              reason_code: AdminGachaSalesPauseReason;
+            },
+            mutationKey(fingerprint),
+          )
+        : await client.resumeGachaSales(
+            gachaId,
+            body,
+            mutationKey(fingerprint),
+          );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setSalesState(result.data);
+      setSalesPreflight(null);
+      setSalesConfirmOpen(false);
+      setError(null);
+      setReload((value) => value + 1);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = `sales-${operation}`;
+        setSalesConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="gacha-publish-preflight" aria-labelledby="gacha-preflight-title">
       <header>
@@ -435,7 +576,7 @@ export function GachaPublishPreflightPanel({
           <h2 id="gacha-preflight-title">Probability Selection／Preflight</h2>
         </div>
         <span className="catalog-readonly-note">
-          Unpublish／販売停止は未実装
+          Unpublishは未実装
         </span>
       </header>
       {loading ? (
@@ -587,6 +728,126 @@ export function GachaPublishPreflightPanel({
           </div>
         </dl>
       ) : null}
+      {salesState ? (
+        <div className="gacha-preflight-result" aria-live="polite">
+          {salesState.status === "paused" ? (
+            <PauseCircle size={22} aria-hidden="true" />
+          ) : (
+            <PlayCircle size={22} aria-hidden="true" />
+          )}
+          <div>
+            <h3>
+              Sales: {salesState.status === "paused" ? "一時停止中" : "販売中"}
+            </h3>
+            <p>
+              公開Version v
+              {salesState.current_published_version?.version_number ?? "未設定"} /{" "}
+              {salesState.draw_state?.sold_count ?? 0} of{" "}
+              {salesState.draw_state?.total_count ?? 0}
+            </p>
+            {salesState.status === "paused" ? (
+              <p>
+                理由: {salesState.reason_code ?? "未設定"} /{" "}
+                {salesState.paused_at
+                  ? formatAdminDateTime(salesState.paused_at)
+                  : "時刻未設定"}
+              </p>
+            ) : null}
+            {canPublish && salesState.current_published_version ? (
+              <div className="gacha-publish-selection-actions">
+                {salesState.status === "selling" ? (
+                  <>
+                    <label>
+                      Pause理由
+                      <select
+                        disabled={busy}
+                        onChange={(event) => {
+                          setPauseReason(
+                            event.target.value as AdminGachaSalesPauseReason,
+                          );
+                          setSalesPreflight(null);
+                        }}
+                        value={pauseReason}
+                      >
+                        <option value="operations_review">運用確認</option>
+                        <option value="inventory_review">在庫確認</option>
+                        <option value="incident_response">障害対応</option>
+                      </select>
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={busy}
+                      onClick={() => runSalesPreflight("pause")}
+                      type="button"
+                    >
+                      <PauseCircle size={16} aria-hidden="true" />
+                      Pause Preflight
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="primary-button"
+                    disabled={busy}
+                    onClick={() => runSalesPreflight("resume")}
+                    type="button"
+                  >
+                    <PlayCircle size={16} aria-hidden="true" />
+                    Resume Preflight
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {salesPreflight ? (
+        <div
+          className={`gacha-preflight-result ${
+            salesPreflight.allowed ? "is-ready" : "is-blocked"
+          }`}
+          role="status"
+        >
+          {salesPreflight.allowed ? (
+            <CheckCircle2 size={22} aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={22} aria-hidden="true" />
+          )}
+          <div>
+            <h3>
+              {salesPreflight.allowed
+                ? `${salesPreflight.operation === "pause" ? "Pause" : "Resume"}可能`
+                : "Sales状態を変更できません"}
+            </h3>
+            {salesPreflight.blocking_reasons.length > 0 ? (
+              <ul>
+                {salesPreflight.blocking_reasons.map((reason) => (
+                  <li key={reason.code}>
+                    <strong>{reason.code}</strong>
+                    <span>{reason.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Server側で公開Version、Probability、在庫、期間を確認しました。</p>
+            )}
+            {salesPreflight.allowed && canPublish ? (
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() => setSalesConfirmOpen(true)}
+                type="button"
+              >
+                {salesPreflight.operation === "pause" ? (
+                  <PauseCircle size={16} aria-hidden="true" />
+                ) : (
+                  <PlayCircle size={16} aria-hidden="true" />
+                )}
+                最終確認
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {canPublish && mutable && !hasActiveSchedule ? (
         <div className="gacha-publish-selection-grid">
           <label>
@@ -641,7 +902,7 @@ export function GachaPublishPreflightPanel({
                 : "予約前の未達項目があります"}
             </h3>
             <p>
-              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              {formatAdminDateTime(schedulePreflight.scheduled_for)}
               {" "}（保存: {schedulePreflight.server_timezone}）
             </p>
             {schedulePreflight.blocking_reasons.length > 0 ? (
@@ -676,7 +937,7 @@ export function GachaPublishPreflightPanel({
           </div>
           <div>
             <dt>予約日時</dt>
-            <dd>{new Date(schedule.scheduled_for).toLocaleString("ja-JP")}</dd>
+            <dd>{formatAdminDateTime(schedule.scheduled_for)}</dd>
           </div>
           <div>
             <dt>Worker試行</dt>
@@ -813,7 +1074,7 @@ export function GachaPublishPreflightPanel({
             </h2>
             <p>
               v{version.version_number}を
-              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              {formatAdminDateTime(schedulePreflight.scheduled_for)}
               にActivationします。実行直前にもServer Preflightを再実行します。
             </p>
             <div className="catalog-dialog-actions">
@@ -875,6 +1136,53 @@ export function GachaPublishPreflightPanel({
           </section>
         </div>
       ) : null}
+      {salesConfirmOpen && salesPreflight ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="gacha-sales-confirm-title"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            {salesPreflight.operation === "pause" ? (
+              <PauseCircle size={24} aria-hidden="true" />
+            ) : (
+              <PlayCircle size={24} aria-hidden="true" />
+            )}
+            <h2
+              id="gacha-sales-confirm-title"
+              ref={confirmHeading}
+              tabIndex={-1}
+            >
+              {salesPreflight.operation === "pause"
+                ? "新規販売・抽選を一時停止しますか"
+                : "新規販売・抽選を再開しますか"}
+            </h2>
+            <p>
+              公開VersionとProbability Snapshotは変更しません。操作直前に
+              Server側の状態を再確認します。
+            </p>
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setSalesConfirmOpen(false)}
+                type="button"
+              >
+                取り消し
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() => mutateSales(salesPreflight.operation)}
+                type="button"
+              >
+                {salesPreflight.operation === "pause" ? "Pause" : "Resume"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <FreshMfaDialog
         onClose={() => {
           pendingAction.current = null;
@@ -894,6 +1202,14 @@ export function GachaPublishPreflightPanel({
             await createSchedule();
           } else if (pendingAction.current === "schedule-cancel") {
             await cancelSchedule();
+          } else if (pendingAction.current === "sales-pause-preflight") {
+            await runSalesPreflight("pause");
+          } else if (pendingAction.current === "sales-pause") {
+            await mutateSales("pause");
+          } else if (pendingAction.current === "sales-resume-preflight") {
+            await runSalesPreflight("resume");
+          } else if (pendingAction.current === "sales-resume") {
+            await mutateSales("resume");
           }
         }}
         open={freshMfaOpen}

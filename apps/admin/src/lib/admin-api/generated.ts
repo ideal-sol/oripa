@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: f874a5735fd446fd700cb28a85442f5f927ab9c775021879f06ab79bc8a044dd
+// Contract SHA-256: 6fb71fabb19c8ccb9378ec32db09ee08dbfd3de6cf68ac6d7405164f60d0376e
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -528,6 +528,46 @@ export interface AdminGachaPublishState {
   } | null;
   draw_state: AdminGachaDrawStateSummary | null;
   publish_schedule?: AdminGachaPublishSchedule | null;
+}
+
+export type AdminGachaSalesPauseReason =
+  | "operations_review"
+  | "inventory_review"
+  | "incident_response";
+
+export interface AdminGachaSalesPauseRequest {
+  expected_gacha_revision: number;
+  reason_code: AdminGachaSalesPauseReason;
+}
+
+export interface AdminGachaSalesResumeRequest {
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaSalesState {
+  gacha_id: string;
+  status: "selling" | "paused";
+  gacha_revision: number;
+  paused_at: string | null;
+  resumed_at: string | null;
+  reason_code: AdminGachaSalesPauseReason | null;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+  publish_schedule: AdminGachaPublishSchedule | null;
+  request_id: string;
+}
+
+export interface AdminGachaSalesPreflight {
+  operation: "pause" | "resume";
+  allowed: boolean;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  sales_state: AdminGachaSalesState;
+  request_id: string;
 }
 
 export interface AdminGachaImmediatePublish {

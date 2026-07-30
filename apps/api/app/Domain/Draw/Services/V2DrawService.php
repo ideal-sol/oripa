@@ -122,6 +122,13 @@ final class V2DrawService
                         'The requested Gacha has no active Draw state.'
                     );
                 }
+                if ((bool) $gacha->sales_paused) {
+                    throw new V2DrawException(
+                        'GACHA_SALES_PAUSED',
+                        409,
+                        'The requested Gacha is temporarily unavailable.'
+                    );
+                }
                 $context = $this->publishedContext($gacha, $state);
                 if ($state->status !== 'selling') {
                     throw new V2DrawException(

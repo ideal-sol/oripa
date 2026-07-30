@@ -402,6 +402,81 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaSalesState(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaSalesState($context, $gachaId)
+        );
+    }
+
+    public function preflightGachaSalesPause(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightGachaSalesPause(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function pauseGachaSales(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->pauseGachaSales(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function preflightGachaSalesResume(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightGachaSalesResume(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function resumeGachaSales(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->resumeGachaSales(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function publishGachaVersionImmediately(
         Request $request,
         string $gachaId,
