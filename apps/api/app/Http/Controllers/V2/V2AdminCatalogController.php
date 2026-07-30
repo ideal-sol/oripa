@@ -477,6 +477,49 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaUnpublishState(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaUnpublishState($context, $gachaId)
+        );
+    }
+
+    public function preflightGachaUnpublish(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightGachaUnpublish(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function unpublishGacha(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->unpublishGacha(
+                    $context,
+                    $gachaId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function publishGachaVersionImmediately(
         Request $request,
         string $gachaId,

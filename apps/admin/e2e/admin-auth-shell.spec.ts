@@ -513,6 +513,7 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
   };
   let selected = false;
   let published = false;
+  let unpublished = false;
   let salesPaused = false;
   let salesRevision = 2;
 
@@ -603,7 +604,7 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/publish-state`)) {
       return json(route, {
         data: {
-          current_published_version: published
+          current_published_version: published && !unpublished
             ? {
                 id: versionId,
                 published_at: "2026-07-30T00:00:00Z",
@@ -611,12 +612,12 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
                 version_number: 1,
               }
             : null,
-          draw_state: published
+          draw_state: published && !unpublished
             ? { sold_count: 0, status: "selling", total_count: 1000 }
             : null,
           gacha_id: gachaId,
-          gacha_revision: published ? 2 : 1,
-          selected_probability: published
+          gacha_revision: unpublished ? 4 : published ? 2 : 1,
+          selected_probability: published && !unpublished
             ? {
                 id: probabilityId,
                 snapshot_sha256: "a".repeat(64),
@@ -628,7 +629,7 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/sales-state`)) {
       return json(route, {
         data: {
-          current_published_version: published
+          current_published_version: published && !unpublished
             ? {
                 id: versionId,
                 published_at: "2026-07-30T00:00:00Z",
@@ -636,17 +637,17 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
                 version_number: 1,
               }
             : null,
-          draw_state: published
+          draw_state: published && !unpublished
             ? { sold_count: 0, status: "selling", total_count: 1000 }
             : null,
           gacha_id: gachaId,
-          gacha_revision: published ? salesRevision : 1,
+          gacha_revision: unpublished ? 4 : published ? salesRevision : 1,
           paused_at: salesPaused ? "2026-07-30T00:01:00Z" : null,
           publish_schedule: null,
           reason_code: salesPaused ? "operations_review" : null,
           request_id: "01910191-0191-7191-8191-019101910219",
           resumed_at: null,
-          selected_probability: published
+          selected_probability: published && !unpublished
             ? {
                 id: probabilityId,
                 snapshot_sha256: "a".repeat(64),
@@ -654,6 +655,102 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
             : null,
           status: salesPaused ? "paused" : "selling",
         },
+      });
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/unpublish-state`)) {
+      return json(route, {
+        data: {
+          current_published_version: published && !unpublished
+            ? {
+                id: versionId,
+                published_at: "2026-07-30T00:00:00Z",
+                status: "published",
+                version_number: 1,
+              }
+            : null,
+          deactivated_at: unpublished ? "2026-07-30T00:02:00Z" : null,
+          draw_state: published && !unpublished
+            ? { sold_count: 0, status: "selling", total_count: 1000 }
+            : null,
+          gacha_id: gachaId,
+          gacha_revision: unpublished ? 4 : published ? salesRevision : 1,
+          publish_schedule: null,
+          request_id: "01910191-0191-7191-8191-019101910220",
+          sales_status: salesPaused ? "paused" : "selling",
+          selected_probability: published && !unpublished
+            ? {
+                id: probabilityId,
+                snapshot_sha256: "a".repeat(64),
+              }
+            : null,
+          status: published && !unpublished ? "published" : "unpublished",
+        },
+      });
+    }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/unpublish/preflight`,
+      )
+    ) {
+      expect(request.method()).toBe("POST");
+      expect(request.postDataJSON()).toEqual({
+        expected_gacha_revision: 3,
+      });
+      return json(route, {
+        data: {
+          allowed: true,
+          blocking_reasons: [],
+          request_id: "01910191-0191-7191-8191-019101910221",
+          state: {
+            current_published_version: {
+              id: versionId,
+              published_at: "2026-07-30T00:00:00Z",
+              status: "published",
+              version_number: 1,
+            },
+            deactivated_at: null,
+            draw_state: {
+              sold_count: 0,
+              status: "selling",
+              total_count: 1000,
+            },
+            gacha_id: gachaId,
+            gacha_revision: 3,
+            publish_schedule: null,
+            request_id: "01910191-0191-7191-8191-019101910221",
+            sales_status: "paused",
+            selected_probability: {
+              id: probabilityId,
+              snapshot_sha256: "a".repeat(64),
+            },
+            status: "published",
+          },
+          validation_codes: ["GACHA_UNPUBLISH_READY"],
+        },
+        idempotent_replay: false,
+      });
+    }
+    if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/unpublish`)) {
+      expect(request.method()).toBe("POST");
+      expect(request.postDataJSON()).toEqual({
+        expected_gacha_revision: 3,
+      });
+      unpublished = true;
+      salesRevision = 4;
+      return json(route, {
+        data: {
+          current_published_version: null,
+          deactivated_at: "2026-07-30T00:02:00Z",
+          draw_state: null,
+          gacha_id: gachaId,
+          gacha_revision: 4,
+          publish_schedule: null,
+          request_id: "01910191-0191-7191-8191-019101910222",
+          sales_status: "paused",
+          selected_probability: null,
+          status: "unpublished",
+        },
+        idempotent_replay: false,
       });
     }
     if (
@@ -797,23 +894,43 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
   await expect(
     page.getByRole("button", { name: "Schedule Preflight" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Publish Preflight" }).click();
+  await page.getByRole("button", {
+    name: "Publish Preflight",
+    exact: true,
+  }).click();
   await expect(page.getByText("Server Preflight完了")).toBeVisible();
   await page.getByRole("button", { name: "Publish Now" }).click();
   await page.getByRole("alertdialog").getByRole("button", {
     name: "Publish Now",
   }).click();
   await expect(page.getByText(/現在公開中/u)).toBeVisible();
-  await expect(page.getByText("Unpublishは未実装")).toBeVisible();
-  await expect(page.getByText("Sales: 販売中")).toBeVisible();
+  await expect(page.getByText("Public: 公開中")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sales: 販売中" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Pause Preflight" }).click();
   await expect(page.getByText("Pause可能")).toBeVisible();
   await page.getByRole("button", { name: "最終確認" }).click();
   await page.getByRole("alertdialog").getByRole("button", {
     name: "Pause",
   }).click();
-  await expect(page.getByText("Sales: 一時停止中")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Unpublish" })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Sales: 一時停止中" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Unpublish", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Unpublish Preflight" }).click();
+  await expect(page.getByText("Public／Draw解除可能")).toBeVisible();
+  await page.getByRole("button", { name: "最終確認" }).click();
+  await expect(
+    page.getByText(/公開Version、Probability Snapshot、Inventory、既存Draw履歴は保持/u),
+  ).toBeVisible();
+  await page.getByRole("alertdialog").getByRole("button", {
+    name: "Unpublish",
+  }).click();
+  await expect(page.getByText("Public: 解除済み")).toBeVisible();
+  await expect(page.getByText(/2026\/7\/30 9:02:00/u)).toBeVisible();
 
   await page.setViewportSize({ height: 844, width: 390 });
   expect(

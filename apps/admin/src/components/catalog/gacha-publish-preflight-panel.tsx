@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  EyeOff,
   LoaderCircle,
   PauseCircle,
   PlayCircle,
@@ -29,6 +30,8 @@ import type {
   AdminGachaSalesPauseReason,
   AdminGachaSalesPreflight,
   AdminGachaSalesState,
+  AdminGachaUnpublishPreflight,
+  AdminGachaUnpublishState,
 } from "@/lib/admin-api/generated";
 
 type PendingAction =
@@ -42,6 +45,8 @@ type PendingAction =
   | "sales-pause"
   | "sales-resume-preflight"
   | "sales-resume"
+  | "unpublish-preflight"
+  | "unpublish"
   | null;
 
 const ADMIN_DISPLAY_TIME_ZONE = "Asia/Tokyo";
@@ -85,6 +90,10 @@ export function GachaPublishPreflightPanel({
   );
   const [salesPreflight, setSalesPreflight] =
     useState<AdminGachaSalesPreflight | null>(null);
+  const [unpublishState, setUnpublishState] =
+    useState<AdminGachaUnpublishState | null>(null);
+  const [unpublishPreflight, setUnpublishPreflight] =
+    useState<AdminGachaUnpublishPreflight | null>(null);
   const [pauseReason, setPauseReason] =
     useState<AdminGachaSalesPauseReason>("operations_review");
   const [schedule, setSchedule] = useState<AdminGachaPublishSchedule | null>(
@@ -98,6 +107,7 @@ export function GachaPublishPreflightPanel({
   const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [salesConfirmOpen, setSalesConfirmOpen] = useState(false);
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const pendingAction = useRef<PendingAction>(null);
@@ -127,6 +137,7 @@ export function GachaPublishPreflightPanel({
       ),
       client.getGachaPublishState(gachaId, controller.signal),
       client.getGachaSalesState(gachaId, controller.signal),
+      client.getGachaUnpublishState(gachaId, controller.signal),
       client.getGachaPublishSchedule(gachaId, version.id, controller.signal),
     ])
       .then(([
@@ -134,12 +145,14 @@ export function GachaPublishPreflightPanel({
         selectionResponse,
         publishStateResponse,
         salesStateResponse,
+        unpublishStateResponse,
         scheduleResponse,
       ]) => {
         setCandidates(candidateResponse.items);
         setSelectedId(selectionResponse.data.selected_probability?.id ?? "");
         setPublishState(publishStateResponse.data);
         setSalesState(salesStateResponse.data);
+        setUnpublishState(unpublishStateResponse.data);
         setSchedule(scheduleResponse.data);
         setError(null);
       })
@@ -166,6 +179,7 @@ export function GachaPublishPreflightPanel({
       scheduleConfirmOpen ||
       cancelConfirmOpen
       || salesConfirmOpen
+      || unpublishConfirmOpen
     ) {
       confirmHeading.current?.focus();
     }
@@ -175,6 +189,7 @@ export function GachaPublishPreflightPanel({
     publishConfirmOpen,
     salesConfirmOpen,
     scheduleConfirmOpen,
+    unpublishConfirmOpen,
   ]);
 
   function mutationKey(fingerprint: string): string {
@@ -568,6 +583,80 @@ export function GachaPublishPreflightPanel({
     }
   }
 
+  async function runUnpublishPreflight() {
+    if (!canPublish || !unpublishState) return;
+    const body = {
+      expected_gacha_revision: unpublishState.gacha_revision,
+    };
+    const fingerprint = JSON.stringify({
+      action: "gacha-unpublish-preflight",
+      body,
+      gachaId,
+    });
+    setBusy(true);
+    try {
+      const result = await client.preflightGachaUnpublish(
+        gachaId,
+        body,
+        mutationKey(fingerprint),
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setUnpublishPreflight(result.data);
+      setError(null);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "unpublish-preflight";
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unpublishGacha() {
+    if (!canPublish || !unpublishState || !unpublishPreflight?.allowed) return;
+    const body = {
+      expected_gacha_revision: unpublishState.gacha_revision,
+    };
+    const fingerprint = JSON.stringify({
+      action: "gacha-unpublish",
+      body,
+      gachaId,
+    });
+    setBusy(true);
+    try {
+      const result = await client.unpublishGacha(
+        gachaId,
+        body,
+        mutationKey(fingerprint),
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setUnpublishState(result.data);
+      setUnpublishPreflight(null);
+      setUnpublishConfirmOpen(false);
+      setError(null);
+      setReload((value) => value + 1);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "unpublish";
+        setUnpublishConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="gacha-publish-preflight" aria-labelledby="gacha-preflight-title">
       <header>
@@ -576,7 +665,7 @@ export function GachaPublishPreflightPanel({
           <h2 id="gacha-preflight-title">Probability Selection／Preflight</h2>
         </div>
         <span className="catalog-readonly-note">
-          Unpublishは未実装
+          Public／Draw運用
         </span>
       </header>
       {loading ? (
@@ -842,6 +931,82 @@ export function GachaPublishPreflightPanel({
                 ) : (
                   <PlayCircle size={16} aria-hidden="true" />
                 )}
+                最終確認
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {unpublishState ? (
+        <div className="gacha-preflight-result" aria-live="polite">
+          <EyeOff size={22} aria-hidden="true" />
+          <div>
+            <h3>
+              Public: {unpublishState.status === "published" ? "公開中" : "解除済み"}
+            </h3>
+            <p>
+              Sales: {unpublishState.sales_status === "paused" ? "一時停止中" : "販売中"}
+              {" / "}Schedule: {unpublishState.publish_schedule?.status ?? "なし"}
+            </p>
+            {unpublishState.deactivated_at ? (
+              <p>
+                解除日時: {formatAdminDateTime(unpublishState.deactivated_at)}
+              </p>
+            ) : null}
+            {canPublish && unpublishState.status === "published" ? (
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={runUnpublishPreflight}
+                type="button"
+              >
+                <EyeOff size={16} aria-hidden="true" />
+                Unpublish Preflight
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {unpublishPreflight ? (
+        <div
+          className={`gacha-preflight-result ${
+            unpublishPreflight.allowed ? "is-ready" : "is-blocked"
+          }`}
+          role="status"
+        >
+          {unpublishPreflight.allowed ? (
+            <CheckCircle2 size={22} aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={22} aria-hidden="true" />
+          )}
+          <div>
+            <h3>
+              {unpublishPreflight.allowed
+                ? "Public／Draw解除可能"
+                : "解除前の未達項目があります"}
+            </h3>
+            {unpublishPreflight.blocking_reasons.length > 0 ? (
+              <ul>
+                {unpublishPreflight.blocking_reasons.map((reason) => (
+                  <li key={reason.code}>
+                    <strong>{reason.code}</strong>
+                    <span>{reason.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>
+                Sales Pause、公開Version、Probability、Draw参照をServer側で確認しました。
+              </p>
+            )}
+            {unpublishPreflight.allowed && canPublish ? (
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() => setUnpublishConfirmOpen(true)}
+                type="button"
+              >
+                <EyeOff size={16} aria-hidden="true" />
                 最終確認
               </button>
             ) : null}
@@ -1183,6 +1348,47 @@ export function GachaPublishPreflightPanel({
           </section>
         </div>
       ) : null}
+      {unpublishConfirmOpen && unpublishPreflight ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="gacha-unpublish-confirm-title"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            <EyeOff size={24} aria-hidden="true" />
+            <h2
+              id="gacha-unpublish-confirm-title"
+              ref={confirmHeading}
+              tabIndex={-1}
+            >
+              Public Catalogと新規Drawから解除しますか
+            </h2>
+            <p>
+              公開Version、Probability Snapshot、Inventory、既存Draw履歴は保持します。
+              解除後の新規DrawはPoint減算前に拒否されます。
+            </p>
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setUnpublishConfirmOpen(false)}
+                type="button"
+              >
+                取り消し
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={unpublishGacha}
+                type="button"
+              >
+                Unpublish
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <FreshMfaDialog
         onClose={() => {
           pendingAction.current = null;
@@ -1210,6 +1416,10 @@ export function GachaPublishPreflightPanel({
             await runSalesPreflight("resume");
           } else if (pendingAction.current === "sales-resume") {
             await mutateSales("resume");
+          } else if (pendingAction.current === "unpublish-preflight") {
+            await runUnpublishPreflight();
+          } else if (pendingAction.current === "unpublish") {
+            await unpublishGacha();
           }
         }}
         open={freshMfaOpen}

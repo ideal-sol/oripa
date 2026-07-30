@@ -45,6 +45,9 @@ import {
   type AdminGachaSalesPreflight,
   type AdminGachaSalesResumeRequest,
   type AdminGachaSalesState,
+  type AdminGachaUnpublishPreflight,
+  type AdminGachaUnpublishRequest,
+  type AdminGachaUnpublishState,
   type AdminLoginRequest,
   type AdminLineMessagingMutationResult,
   type AdminLineMessagingPreview,
@@ -711,6 +714,46 @@ export class AdminApiClient {
     );
   }
 
+  getGachaUnpublishState(
+    gachaId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminGachaUnpublishState>> {
+    if (!isOpaqueId(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/unpublish-state`,
+      { signal },
+    );
+  }
+
+  preflightGachaUnpublish(
+    gachaId: string,
+    body: AdminGachaUnpublishRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaUnpublishPreflight>> {
+    return this.gachaSalesMutation<
+      AdminGachaUnpublishRequest,
+      AdminGachaUnpublishPreflight
+    >(gachaId, "unpublish/preflight", body, idempotencyKey, signal);
+  }
+
+  unpublishGacha(
+    gachaId: string,
+    body: AdminGachaUnpublishRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaUnpublishState>> {
+    return this.gachaSalesMutation<
+      AdminGachaUnpublishRequest,
+      AdminGachaUnpublishState
+    >(gachaId, "unpublish", body, idempotencyKey, signal);
+  }
+
   publishGachaVersionImmediately(
     gachaId: string,
     gachaVersionId: string,
@@ -1208,7 +1251,9 @@ export class AdminApiClient {
       | "sales-pause/preflight"
       | "sales-pause"
       | "sales-resume/preflight"
-      | "sales-resume",
+      | "sales-resume"
+      | "unpublish/preflight"
+      | "unpublish",
     body: TBody,
     idempotencyKey: string,
     signal?: AbortSignal,

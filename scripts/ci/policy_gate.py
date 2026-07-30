@@ -350,6 +350,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
     "apps/api/database/migrations-v2/2026_08_13_000026_create_v2_gacha_publish_schedules.php",
     "apps/api/database/migrations-v2/2026_08_14_000027_add_v2_gacha_sales_pause.php",
+    "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -1882,6 +1883,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
         "2026_08_13_000026_create_v2_gacha_publish_schedules.php",
         "2026_08_14_000027_add_v2_gacha_sales_pause.php",
+        "2026_08_15_000028_add_v2_gacha_public_deactivation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2841,6 +2843,29 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             "V2 Gacha sales pause migration contains prohibited tenant_id"
         )
 
+    public_deactivation_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_15_000028_add_v2_gacha_public_deactivation.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "public_deactivated_at",
+        "public_deactivated_by_admin_public_id",
+        "public_deactivation_request_id",
+        "Gacha Public deactivation history cannot be deleted",
+        "Gacha Public deactivation requires one paused Revision transition",
+        "Gacha Public deactivation conflicts with an active Publish Schedule",
+        "Gacha Public deactivation requires matching active references",
+    ):
+        if required not in public_deactivation_migration:
+            raise PolicyFailure(
+                f"V2 Gacha Public deactivation migration missing {required}"
+            )
+    if "tenant_id" in public_deactivation_migration:
+        raise PolicyFailure(
+            "V2 Gacha Public deactivation migration contains prohibited tenant_id"
+        )
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -3019,6 +3044,9 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "pauseAdminGachaSales",
         "preflightAdminGachaSalesResume",
         "resumeAdminGachaSales",
+        "getAdminGachaUnpublishState",
+        "preflightAdminGachaUnpublish",
+        "unpublishAdminGacha",
         "listAdminCatalogProbabilityVersions",
         "getAdminCatalogProbabilityVersion",
         "createAdminCatalogProbabilityDraft",
@@ -3083,6 +3111,9 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/sales-pause": {"post"},
         "/catalog/gachas/{gacha_id}/sales-resume/preflight": {"post"},
         "/catalog/gachas/{gacha_id}/sales-resume": {"post"},
+        "/catalog/gachas/{gacha_id}/unpublish-state": {"get"},
+        "/catalog/gachas/{gacha_id}/unpublish/preflight": {"post"},
+        "/catalog/gachas/{gacha_id}/unpublish": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
             "get",
             "post",
