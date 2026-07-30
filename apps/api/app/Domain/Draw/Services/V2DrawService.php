@@ -101,6 +101,7 @@ final class V2DrawService
 
                 $gacha = DB::table('catalog_gachas')
                     ->where('public_id', $gachaPublicId)
+                    ->lockForUpdate()
                     ->first();
                 if ($gacha === null) {
                     throw new V2DrawException(
@@ -110,6 +111,7 @@ final class V2DrawService
                     );
                 }
                 $state = GachaDrawState::query()
+                    ->where('id', $gacha->active_draw_state_id)
                     ->where('gacha_id', $gacha->id)
                     ->lockForUpdate()
                     ->first();

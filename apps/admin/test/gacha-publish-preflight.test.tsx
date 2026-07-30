@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const permissionState = vi.hoisted(() => ({ canPublish: true }));
@@ -88,7 +94,7 @@ describe("Gacha Publish Preflight", () => {
     expect(onCanonical).toHaveBeenCalledWith(canonical);
   });
 
-  it("renders canonical server blockers and never exposes Publish or Schedule actions", async () => {
+  it("renders canonical server blockers and keeps publish unavailable", async () => {
     mockReads(candidate);
     vi.spyOn(
       AdminApiClient.prototype,
@@ -134,9 +140,96 @@ describe("Gacha Publish Preflight", () => {
     expect(
       await screen.findByText("GACHA_PRESENTATION_ASSET_REQUIRED"),
     ).toBeVisible();
-    expect(screen.getByText("公開操作は未実装")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+    expect(screen.getByText("Schedule／Unpublishは未実装")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Publish Now" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Schedule" })).not.toBeInTheDocument();
+  });
+
+  it("publishes after server preflight and refreshes canonical state", async () => {
+    mockReads(candidate);
+    vi.spyOn(
+      AdminApiClient.prototype,
+      "preflightGachaVersionPublish",
+    ).mockResolvedValue({
+      data: {
+        blocking_reasons: [],
+        gacha_version_id: VERSION_ID,
+        gacha_version_revision: 2,
+        publishable: true,
+        request_id: GACHA_ID,
+        selected_probability: {
+          id: PROBABILITY_ID,
+          snapshot_sha256: "a".repeat(64),
+        },
+        validation_codes: ["GACHA_PUBLISH_PREFLIGHT_READY"],
+      },
+      idempotent_replay: false,
+    });
+    const publish = vi
+      .spyOn(AdminApiClient.prototype, "publishGachaVersionImmediately")
+      .mockResolvedValue({
+        data: {
+          current_published_version: { id: VERSION_ID, version_number: 2 },
+          draw_state: { sold_count: 0, status: "selling", total_count: 1_000 },
+          gacha_revision: 4,
+          gacha_version_id: VERSION_ID,
+          gacha_version_revision: 3,
+          previous_published_version: {
+            id: GACHA_ID,
+            version_number: 1,
+          },
+          published_at: "2026-08-12T00:00:00Z",
+          request_id: GACHA_ID,
+          selected_probability: {
+            id: PROBABILITY_ID,
+            snapshot_sha256: "a".repeat(64),
+          },
+          status: "published",
+        },
+        idempotent_replay: false,
+      });
+    const canonical = version({
+      published_at: "2026-08-12T00:00:00Z",
+      status: "published",
+    });
+    vi.spyOn(AdminApiClient.prototype, "getCatalogGachaVersion")
+      .mockResolvedValue({ data: canonical });
+    const onCanonical = vi.fn();
+
+    render(
+      <GachaPublishPreflightPanel
+        gachaId={GACHA_ID}
+        onCanonical={onCanonical}
+        version={version({
+          published_probability_version: {
+            id: PROBABILITY_ID,
+            status: "published",
+            version_number: 3,
+          },
+        })}
+      />,
+    );
+    await screen.findByText("aaaaaaaaaaaa");
+    fireEvent.click(screen.getByRole("button", { name: "Publish Preflight" }));
+    await screen.findByText("Server Preflight完了");
+    fireEvent.click(screen.getByRole("button", { name: "Publish Now" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "このVersionへ即時切り替えますか",
+      }),
+    ).toBeVisible();
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Publish Now",
+      }),
+    );
+
+    await waitFor(() => expect(publish).toHaveBeenCalledOnce());
+    expect(publish.mock.calls[0][2]).toEqual({
+      expected_gacha_revision: 3,
+      expected_revision: 2,
+    });
+    expect(onCanonical).toHaveBeenCalledWith(canonical);
   });
 
   it("keeps Operator access read-only", async () => {
@@ -177,6 +270,27 @@ function mockReads(
       gacha_version_id: VERSION_ID,
       gacha_version_revision: 2,
       selected_probability: selected,
+    },
+  });
+  vi.spyOn(AdminApiClient.prototype, "getGachaPublishState").mockResolvedValue({
+    data: {
+      current_published_version: {
+        id: GACHA_ID,
+        published_at: "2026-08-11T00:00:00Z",
+        status: "published",
+        version_number: 1,
+      },
+      draw_state: {
+        sold_count: 0,
+        status: "selling",
+        total_count: 1_000,
+      },
+      gacha_id: GACHA_ID,
+      gacha_revision: 3,
+      selected_probability: {
+        id: PROBABILITY_ID,
+        snapshot_sha256: "a".repeat(64),
+      },
     },
   });
 }

@@ -345,12 +345,15 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_09_000022_add_v2_probability_draft_management.php",
     "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
     "apps/api/database/migrations-v2/2026_08_11_000024_guard_v2_gacha_probability_selection.php",
+    "apps/api/database/migrations-v2/2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
     "apps/api/tests/V2/AdminGachaDraftManagementTest.php",
+    "apps/api/tests/V2/AdminGachaPublishPreflightTest.php",
     "apps/api/tests/V2/AdminProbabilityDraftManagementTest.php",
     "apps/api/tests/V2/ZAdminProbabilityConcurrencyTest.php",
+    "apps/api/tests/V2/ZAdminGachaProbabilitySelectionConcurrencyTest.php",
     "apps/api/tests/V2/Fixtures/catalog-alpha.json",
     "apps/api/tests/V2/V1CatalogProbabilityCharacterizationTest.php",
     "docs/operations/catalog-probability/README.md",
@@ -1872,6 +1875,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_09_000022_add_v2_probability_draft_management.php",
         "2026_08_10_000023_protect_v2_published_probability_relations.php",
         "2026_08_11_000024_guard_v2_gacha_probability_selection.php",
+        "2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2916,6 +2920,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "getAdminGachaProbabilitySelection",
         "selectAdminGachaPublishedProbability",
         "preflightAdminGachaVersionPublish",
+        "getAdminGachaPublishState",
+        "publishAdminGachaVersionImmediately",
         "listAdminCatalogProbabilityVersions",
         "getAdminCatalogProbabilityVersion",
         "createAdminCatalogProbabilityDraft",
@@ -2959,6 +2965,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             "put",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-preflight": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/publish-state": {"get"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish": {
             "post",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
@@ -3130,6 +3140,26 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ).read_text(encoding="utf-8")
     if "test_concurrent_publish_has_one_immutable_winner" not in concurrency_tests:
         raise PolicyFailure("V2 Probability Publish concurrency test is missing")
+    immediate_publish_tests = (
+        repository / "apps/api/tests/V2/AdminGachaPublishPreflightTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_immediate_publish_atomically_switches_public_and_draw_state",
+        "test_immediate_publish_rolls_back_all_activation_on_outbox_failure",
+        "test_activation_database_guards_reject_partial_or_destructive_sql",
+        "test_immediate_publish_requires_admin_permission_fresh_mfa_and_csrf",
+    ):
+        if required not in immediate_publish_tests:
+            raise PolicyFailure(f"V2 Gacha Immediate Publish test missing {required}")
+    gacha_concurrency_tests = (
+        repository
+        / "apps/api/tests/V2/ZAdminGachaProbabilitySelectionConcurrencyTest.php"
+    ).read_text(encoding="utf-8")
+    if (
+        "test_concurrent_immediate_publish_has_one_atomic_winner"
+        not in gacha_concurrency_tests
+    ):
+        raise PolicyFailure("V2 Gacha Immediate Publish concurrency test is missing")
 
     workflow = (
         repository / ".github/workflows/platform-ci.yml"

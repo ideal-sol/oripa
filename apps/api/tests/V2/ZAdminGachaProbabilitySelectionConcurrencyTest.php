@@ -175,6 +175,184 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         }
     }
 
+    public function test_concurrent_immediate_publish_has_one_atomic_winner(): void
+    {
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for Gacha publish concurrency verification.');
+        }
+        $this->configureTestBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $context = $this->createAdminContext();
+        $service = app(V2CatalogMasterMutationService::class);
+        $draft = $service->cloneGachaDraft(
+            $context,
+            self::GACHA_ID,
+            self::PUBLISHED_GACHA_VERSION_ID,
+            'gacha-publish-concurrency-clone',
+            []
+        )['data'];
+        $probabilityDraft = $service->createProbabilityDraft(
+            $context,
+            self::GACHA_ID,
+            $draft['id'],
+            'gacha-publish-concurrency-probability-create',
+            []
+        )['data'];
+        $probabilityDraft = $service->replaceProbabilityEntries(
+            $context,
+            self::GACHA_ID,
+            $draft['id'],
+            $probabilityDraft['id'],
+            'gacha-publish-concurrency-probability-entries',
+            [
+                'expected_revision' => $probabilityDraft['revision'],
+                'stages' => [[
+                    'code' => 'stage-1',
+                    'name' => 'Stage 1',
+                    'min_draw_number' => 1,
+                    'max_draw_number' => null,
+                    'entries' => [[
+                        'result_type' => 'prize',
+                        'prize_id' => self::PRIZE_S_ID,
+                        'point_amount' => null,
+                        'probability_ppm' => 600000,
+                    ]],
+                    'minimum_guarantee' => [
+                        'result_type' => 'prize',
+                        'prize_id' => self::PRIZE_A_ID,
+                        'point_amount' => null,
+                        'probability_ppm' => 400000,
+                    ],
+                ]],
+            ]
+        )['data'];
+        $published = $service->publishProbabilityDraft(
+            $context,
+            self::GACHA_ID,
+            $draft['id'],
+            $probabilityDraft['id'],
+            'gacha-publish-concurrency-probability-publish',
+            ['expected_revision' => $probabilityDraft['revision']]
+        )['data'];
+        $selected = $service->selectPublishedProbability(
+            $context,
+            self::GACHA_ID,
+            $draft['id'],
+            'gacha-publish-concurrency-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $published['id'],
+            ]
+        )['data'];
+        $gachaRevision = (int) DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)
+            ->value('revision');
+
+        $token = (string) Str::uuid7();
+        $startPath = "/tmp/mig060j-publish-{$token}.start";
+        $resultPaths = [
+            "/tmp/mig060j-publish-{$token}-a.json",
+            "/tmp/mig060j-publish-{$token}-b.json",
+        ];
+        DB::disconnect();
+
+        try {
+            $children = [];
+            foreach ($resultPaths as $index => $resultPath) {
+                $pid = pcntl_fork();
+                if ($pid === -1) {
+                    self::fail('Unable to start the Gacha publish process.');
+                }
+                if ($pid === 0) {
+                    $this->runImmediatePublish(
+                        $context,
+                        $draft['id'],
+                        (int) $selected['revision'],
+                        $gachaRevision,
+                        "gacha-publish-concurrency-{$index}",
+                        $startPath,
+                        $resultPath
+                    );
+                }
+                $children[] = $pid;
+            }
+            file_put_contents($startPath, 'start');
+            foreach ($children as $pid) {
+                pcntl_waitpid($pid, $status);
+                self::assertTrue(pcntl_wifexited($status));
+                self::assertSame(0, pcntl_wexitstatus($status));
+            }
+
+            $results = array_map(
+                static fn (string $path): array => json_decode(
+                    file_get_contents($path),
+                    true,
+                    flags: JSON_THROW_ON_ERROR
+                ),
+                $resultPaths
+            );
+            self::assertCount(1, array_filter(
+                $results,
+                static fn (array $result): bool => $result['result'] === 'success'
+            ));
+            $failures = array_values(array_filter(
+                $results,
+                static fn (array $result): bool => $result['result'] === 'failure'
+            ));
+            self::assertCount(1, $failures);
+            self::assertSame('CATALOG_REVISION_CONFLICT', $failures[0]['code']);
+
+            DB::reconnect();
+            $gacha = DB::table('catalog_gachas')
+                ->where('public_id', self::GACHA_ID)
+                ->first(['published_version_id', 'active_draw_state_id']);
+            $version = DB::table('catalog_gacha_versions')
+                ->where('public_id', $draft['id'])
+                ->first(['id', 'status']);
+            self::assertSame('published', $version->status);
+            self::assertSame((int) $version->id, (int) $gacha->published_version_id);
+            self::assertSame(
+                (int) $version->id,
+                (int) DB::table('gacha_draw_states')
+                    ->where('id', $gacha->active_draw_state_id)
+                    ->value('gacha_version_id')
+            );
+            self::assertSame(
+                2,
+                DB::table('gacha_draw_states')
+                    ->where('gacha_id', DB::table('catalog_gachas')
+                        ->where('public_id', self::GACHA_ID)
+                        ->value('id'))
+                    ->count()
+            );
+            self::assertSame(
+                1,
+                DB::table('outbox_messages')
+                    ->where('aggregate_public_id', $draft['id'])
+                    ->where('topic', 'catalog.change')
+                    ->where(
+                        'event_type',
+                        'catalog.master.immediately_published'
+                    )
+                    ->count()
+            );
+        } finally {
+            DB::reconnect();
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+            @unlink($startPath);
+            foreach ($resultPaths as $resultPath) {
+                @unlink($resultPath);
+            }
+        }
+    }
+
     private function runSelection(
         V2AdminAuthorizationContext $context,
         string $gachaVersionId,
@@ -201,6 +379,44 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                     'probability_version_id' => $probabilityVersionId,
                 ]
             );
+            $result = ['result' => 'success', 'code' => null];
+        } catch (V2CatalogException $exception) {
+            $result = ['result' => 'failure', 'code' => $exception->errorCode];
+        } catch (Throwable $exception) {
+            $result = ['result' => 'unexpected', 'code' => $exception::class];
+        }
+        file_put_contents($resultPath, json_encode($result, JSON_THROW_ON_ERROR));
+        DB::disconnect();
+        exit(0);
+    }
+
+    private function runImmediatePublish(
+        V2AdminAuthorizationContext $context,
+        string $gachaVersionId,
+        int $revision,
+        int $gachaRevision,
+        string $idempotencyKey,
+        string $startPath,
+        string $resultPath
+    ): never {
+        DB::purge();
+        DB::reconnect();
+        while (! file_exists($startPath)) {
+            usleep(1000);
+        }
+
+        try {
+            app(V2CatalogMasterMutationService::class)
+                ->publishGachaVersionImmediately(
+                    $context,
+                    self::GACHA_ID,
+                    $gachaVersionId,
+                    $idempotencyKey,
+                    [
+                        'expected_revision' => $revision,
+                        'expected_gacha_revision' => $gachaRevision,
+                    ]
+                );
             $result = ['result' => 'success', 'code' => null];
         } catch (V2CatalogException $exception) {
             $result = ['result' => 'failure', 'code' => $exception->errorCode];

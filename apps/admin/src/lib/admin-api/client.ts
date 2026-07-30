@@ -33,6 +33,9 @@ import {
   type AdminGachaProbabilitySelectionRequest,
   type AdminGachaPublishPreflight,
   type AdminGachaPublishPreflightRequest,
+  type AdminGachaPublishState,
+  type AdminGachaImmediatePublish,
+  type AdminGachaImmediatePublishRequest,
   type AdminGachaPublishedProbabilityCandidate,
   type AdminLoginRequest,
   type AdminLineMessagingMutationResult,
@@ -590,6 +593,42 @@ export class AdminApiClient {
       );
     }
     return this.request("POST", `${path}/publish-preflight`, {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  getGachaPublishState(
+    gachaId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminGachaPublishState>> {
+    if (!isOpaqueId(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/publish-state`,
+      { signal },
+    );
+  }
+
+  publishGachaVersionImmediately(
+    gachaId: string,
+    gachaVersionId: string,
+    body: AdminGachaImmediatePublishRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaImmediatePublish>> {
+    const path = this.gachaVersionPublishPath(gachaId, gachaVersionId);
+    if (path === null || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", `${path}/publish`, {
       body,
       idempotencyKey,
       signal,

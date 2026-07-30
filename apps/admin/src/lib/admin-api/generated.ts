@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: b868fd6da545af53be18069b1d309a8ad7deb0f27c8e5f655697635af11eb0ed
+// Contract SHA-256: fe66473e5123ae068afed1e4910085db4f31ac98c426df2778b4ae7aaaed90a5
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -486,6 +486,51 @@ export interface AdminGachaPublishPreflight {
 
 export interface AdminGachaPublishPreflightRequest {
   expected_revision: number;
+}
+
+export interface AdminGachaImmediatePublishRequest {
+  expected_revision: number;
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaPublishedVersionState {
+  id: string;
+  version_number: number;
+  status?: "published";
+  published_at?: string | null;
+}
+
+export interface AdminGachaDrawStateSummary {
+  status: "selling" | "paused" | "sold_out";
+  sold_count: number;
+  total_count: number;
+}
+
+export interface AdminGachaPublishState {
+  gacha_id: string;
+  gacha_revision: number;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+}
+
+export interface AdminGachaImmediatePublish {
+  gacha_version_id: string;
+  status: "published";
+  published_at: string;
+  gacha_version_revision: number;
+  gacha_revision: number;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  };
+  previous_published_version: AdminGachaPublishedVersionState | null;
+  current_published_version: AdminGachaPublishedVersionState;
+  draw_state: AdminGachaDrawStateSummary;
+  request_id: string;
 }
 
 export interface AdminCatalogProbabilityPrizeReference {

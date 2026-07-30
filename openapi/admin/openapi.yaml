@@ -863,6 +863,42 @@ paths:
       responses:
         '200': {description: 副作用を伴わないCanonical Publish Preflight結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaPublishPreflightResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/publish-state:
+    get:
+      operationId: getAdminGachaPublishState
+      summary: Gachaの現在公開VersionとDraw参照を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+      responses:
+        '200': {description: 現在のPublic／Draw公開状態。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaPublishStateDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish:
+    post:
+      operationId: publishAdminGachaVersionImmediately
+      summary: Preflight済みDraft Gacha Versionを即時公開する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/GachaVersionId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaImmediatePublishRequest'}
+      responses:
+        '200': {description: Public CatalogとDrawを切替済みのCanonical公開結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaImmediatePublishResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions:
     get:
       operationId: listAdminCatalogProbabilityVersions
@@ -3187,6 +3223,13 @@ components:
       required: [expected_revision]
       properties:
         expected_revision: {type: integer, minimum: 1}
+    AdminGachaImmediatePublishRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, expected_gacha_revision]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        expected_gacha_revision: {type: integer, minimum: 1}
     AdminGachaPublishBlockingReason:
       type: object
       additionalProperties: false
@@ -3226,6 +3269,73 @@ components:
       required: [data, idempotent_replay]
       properties:
         data: {$ref: '#/components/schemas/AdminGachaPublishPreflight'}
+        idempotent_replay: {type: boolean}
+    AdminGachaPublishedVersionState:
+      type: object
+      additionalProperties: false
+      required: [id, version_number]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        version_number: {type: integer, minimum: 1}
+        status: {type: string, enum: [published]}
+        published_at: {type: [string, 'null'], format: date-time}
+    AdminGachaDrawStateSummary:
+      type: object
+      additionalProperties: false
+      required: [status, sold_count, total_count]
+      properties:
+        status: {type: string, enum: [selling, paused, sold_out]}
+        sold_count: {type: integer, minimum: 0}
+        total_count: {type: integer, minimum: 1}
+    AdminGachaPublishState:
+      type: object
+      additionalProperties: false
+      required: [gacha_id, gacha_revision, current_published_version, selected_probability, draw_state]
+      properties:
+        gacha_id: {$ref: '#/components/schemas/OpaqueId'}
+        gacha_revision: {type: integer, minimum: 1}
+        current_published_version:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishedVersionState'}
+            - {type: 'null'}
+        selected_probability:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishSelectedProbability'}
+            - {type: 'null'}
+        draw_state:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaDrawStateSummary'}
+            - {type: 'null'}
+    AdminGachaPublishStateDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaPublishState'}
+    AdminGachaImmediatePublish:
+      type: object
+      additionalProperties: false
+      required: [gacha_version_id, status, published_at, gacha_version_revision, gacha_revision, selected_probability, previous_published_version, current_published_version, draw_state, request_id]
+      properties:
+        gacha_version_id: {$ref: '#/components/schemas/OpaqueId'}
+        status: {type: string, enum: [published]}
+        published_at: {type: string, format: date-time}
+        gacha_version_revision: {type: integer, minimum: 1}
+        gacha_revision: {type: integer, minimum: 1}
+        selected_probability: {$ref: '#/components/schemas/AdminGachaPublishSelectedProbability'}
+        previous_published_version:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishedVersionState'}
+            - {type: 'null'}
+        current_published_version: {$ref: '#/components/schemas/AdminGachaPublishedVersionState'}
+        draw_state: {$ref: '#/components/schemas/AdminGachaDrawStateSummary'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminGachaImmediatePublishResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaImmediatePublish'}
         idempotent_replay: {type: boolean}
     AdminCatalogProbabilityPrizeReference:
       type: object

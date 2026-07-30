@@ -58,7 +58,12 @@ final class V2CatalogFixtureImporter
         ]);
 
         try {
-            $imported = DB::transaction(fn (): int => $this->importRecords($manifest), 3);
+            $imported = DB::transaction(function () use ($manifest): int {
+                $count = $this->importRecords($manifest);
+                $this->initializeDrawState($manifest);
+
+                return $count;
+            }, 3);
             if ($imported !== (int) $manifest['expected_record_count']) {
                 throw new V2CatalogException(
                     'CATALOG_IMPORT_COUNT_MISMATCH',
@@ -72,7 +77,6 @@ final class V2CatalogFixtureImporter
                 'completed_at' => now(),
                 'updated_at' => now(),
             ]);
-            $this->initializeDrawState($manifest);
         } catch (Throwable $exception) {
             DB::table('catalog_import_runs')->where('public_id', $runId)->update([
                 'status' => 'failed',
@@ -342,16 +346,6 @@ final class V2CatalogFixtureImporter
                     'revision' => $gachaVersionRevision + 1,
                     'updated_at' => $now,
                 ]);
-            $gachaId = (int) DB::table('catalog_gacha_versions')
-                ->where('id', $gachaVersionId)->value('gacha_id');
-            $gachaRevision = (int) DB::table('catalog_gachas')
-                ->where('id', $gachaId)->value('revision');
-            DB::table('catalog_gachas')->where('id', $gachaId)->update([
-                'state' => 'active',
-                'published_version_id' => $gachaVersionId,
-                'revision' => $gachaRevision + 1,
-                'updated_at' => $now,
-            ]);
         }
 
         return $count;
@@ -372,19 +366,32 @@ final class V2CatalogFixtureImporter
         foreach ($manifest['gachas'] as $gacha) {
             $gachaRow = DB::table('catalog_gachas')
                 ->where('code', $gacha['code'])
-                ->first(['id', 'published_version_id', 'sold_count']);
-            if ($gachaRow === null || $gachaRow->published_version_id === null) {
+                ->first([
+                    'id',
+                    'published_version_id',
+                    'active_draw_state_id',
+                    'sold_count',
+                    'revision',
+                ]);
+            if ($gachaRow === null) {
                 continue;
             }
-            $version = DB::table('catalog_gacha_versions')
-                ->where('id', $gachaRow->published_version_id)
+            $versionQuery = DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $gachaRow->id)
+                ->where('status', 'published');
+            if ($gachaRow->published_version_id !== null) {
+                $versionQuery->where('id', $gachaRow->published_version_id);
+            } else {
+                $versionQuery->orderByDesc('version_number');
+            }
+            $version = $versionQuery
                 ->first(['id', 'published_probability_version_id', 'total_count']);
             if ($version === null || $version->published_probability_version_id === null) {
                 continue;
             }
 
             $stateId = DB::table('gacha_draw_states')
-                ->where('gacha_id', $gachaRow->id)
+                ->where('gacha_version_id', $version->id)
                 ->value('id');
             if ($stateId === null) {
                 $stateId = DB::table('gacha_draw_states')->insertGetId([
@@ -402,6 +409,18 @@ final class V2CatalogFixtureImporter
                         ? $now
                         : null,
                     'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+            if (
+                (int) ($gachaRow->published_version_id ?? 0) !== (int) $version->id
+                || (int) ($gachaRow->active_draw_state_id ?? 0) !== (int) $stateId
+            ) {
+                DB::table('catalog_gachas')->where('id', $gachaRow->id)->update([
+                    'state' => 'active',
+                    'published_version_id' => $version->id,
+                    'active_draw_state_id' => $stateId,
+                    'revision' => (int) $gachaRow->revision + 1,
                     'updated_at' => $now,
                 ]);
             }
