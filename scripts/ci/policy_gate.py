@@ -331,7 +331,9 @@ V2_PAYMENT_REQUIRED_FILES = {
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
+    "apps/api/app/Domain/Catalog/Services/V2ScheduledGachaPublishWorker.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMutationRateLimiter.php",
+    "apps/api/app/Console/Commands/V2/RunV2GachaScheduledPublishWorker.php",
     "apps/api/app/Domain/Catalog/Exceptions/V2CatalogException.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php",
@@ -346,6 +348,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_10_000023_protect_v2_published_probability_relations.php",
     "apps/api/database/migrations-v2/2026_08_11_000024_guard_v2_gacha_probability_selection.php",
     "apps/api/database/migrations-v2/2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
+    "apps/api/database/migrations-v2/2026_08_13_000026_create_v2_gacha_publish_schedules.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -1876,6 +1879,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_10_000023_protect_v2_published_probability_relations.php",
         "2026_08_11_000024_guard_v2_gacha_probability_selection.php",
         "2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
+        "2026_08_13_000026_create_v2_gacha_publish_schedules.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2776,6 +2780,38 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             "V2 Probability Draft migration contains prohibited tenant_id"
         )
 
+    schedule_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_13_000026_create_v2_gacha_publish_schedules.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_gacha_publish_schedules",
+        "scheduled",
+        "processing",
+        "completed",
+        "cancelled",
+        "failed",
+        "scheduled_for",
+        "next_attempt_at",
+        "lease_expires_at",
+        "active_gacha_unique",
+        "active_version_unique",
+        "Gacha Publish Schedule history cannot be deleted",
+        "Invalid Gacha Publish Schedule transition",
+        "Gacha Publish Schedule requires its Draft and Published Probability",
+        "Scheduled Gacha Master is immutable",
+        "Scheduled Gacha Version is immutable",
+    ):
+        if required not in schedule_migration:
+            raise PolicyFailure(
+                f"V2 Gacha scheduled publish migration missing {required}"
+            )
+    if "tenant_id" in schedule_migration:
+        raise PolicyFailure(
+            "V2 Gacha scheduled publish migration contains prohibited tenant_id"
+        )
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -2810,6 +2846,29 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         ):
             raise PolicyFailure(
                 f"V2 Catalog mutation service physically deletes {table}"
+            )
+
+    schedule_worker = (
+        repository
+        / "apps/api/app/Domain/Catalog/Services/V2ScheduledGachaPublishWorker.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "SELECT CURRENT_TIMESTAMP AS occurred_at",
+        "SKIP LOCKED",
+        "worker_max_attempts",
+        "activateClaimedGachaPublishSchedule",
+        "catalog.gacha.schedule.worker_claimed",
+        "catalog.gacha.schedule.publish_retry",
+        "catalog.gacha.schedule.publish_failed",
+    ):
+        if required not in schedule_worker:
+            raise PolicyFailure(
+                f"V2 Gacha scheduled publish worker missing {required}"
+            )
+    for prohibited in ("forceDelete(", "tenant_id"):
+        if prohibited in schedule_worker:
+            raise PolicyFailure(
+                f"V2 Gacha scheduled publish worker contains prohibited {prohibited}"
             )
 
     service = (
@@ -2922,6 +2981,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "preflightAdminGachaVersionPublish",
         "getAdminGachaPublishState",
         "publishAdminGachaVersionImmediately",
+        "getAdminGachaPublishSchedule",
+        "preflightAdminGachaVersionPublishSchedule",
+        "scheduleAdminGachaVersionPublish",
+        "cancelAdminGachaVersionPublishSchedule",
         "listAdminCatalogProbabilityVersions",
         "getAdminCatalogProbabilityVersion",
         "createAdminCatalogProbabilityDraft",
@@ -2969,6 +3032,16 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         },
         "/catalog/gachas/{gacha_id}/publish-state": {"get"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule": {
+            "get",
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/preflight": {
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/{schedule_id}/cancel": {
             "post",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {

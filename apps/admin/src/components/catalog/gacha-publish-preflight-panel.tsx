@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   LoaderCircle,
   RefreshCw,
@@ -19,11 +20,20 @@ import {
 import type {
   AdminCatalogGachaVersion,
   AdminGachaPublishPreflight,
+  AdminGachaPublishSchedule,
+  AdminGachaPublishSchedulePreflight,
   AdminGachaPublishState,
   AdminGachaPublishedProbabilityCandidate,
 } from "@/lib/admin-api/generated";
 
-type PendingAction = "selection" | "preflight" | "publish" | null;
+type PendingAction =
+  | "selection"
+  | "preflight"
+  | "publish"
+  | "schedule-preflight"
+  | "schedule"
+  | "schedule-cancel"
+  | null;
 
 export function GachaPublishPreflightPanel({
   gachaId,
@@ -53,8 +63,16 @@ export function GachaPublishPreflightPanel({
   const [publishState, setPublishState] = useState<AdminGachaPublishState | null>(
     null,
   );
+  const [schedule, setSchedule] = useState<AdminGachaPublishSchedule | null>(
+    null,
+  );
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [schedulePreflight, setSchedulePreflight] =
+    useState<AdminGachaPublishSchedulePreflight | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const pendingAction = useRef<PendingAction>(null);
@@ -63,7 +81,10 @@ export function GachaPublishPreflightPanel({
   );
   const confirmHeading = useRef<HTMLHeadingElement>(null);
   const currentId = version.published_probability_version?.id ?? "";
-  const dirty = selectedId !== currentId;
+  const selectionDirty = selectedId !== currentId;
+  const dirty = selectionDirty || scheduledFor !== "";
+  const hasActiveSchedule =
+    schedule?.status === "scheduled" || schedule?.status === "processing";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,11 +101,18 @@ export function GachaPublishPreflightPanel({
         controller.signal,
       ),
       client.getGachaPublishState(gachaId, controller.signal),
+      client.getGachaPublishSchedule(gachaId, version.id, controller.signal),
     ])
-      .then(([candidateResponse, selectionResponse, publishStateResponse]) => {
+      .then(([
+        candidateResponse,
+        selectionResponse,
+        publishStateResponse,
+        scheduleResponse,
+      ]) => {
         setCandidates(candidateResponse.items);
         setSelectedId(selectionResponse.data.selected_probability?.id ?? "");
         setPublishState(publishStateResponse.data);
+        setSchedule(scheduleResponse.data);
         setError(null);
       })
       .catch((cause: unknown) => {
@@ -104,8 +132,15 @@ export function GachaPublishPreflightPanel({
   }, [dirty]);
 
   useEffect(() => {
-    if (confirmOpen) confirmHeading.current?.focus();
-  }, [confirmOpen, publishConfirmOpen]);
+    if (
+      confirmOpen ||
+      publishConfirmOpen ||
+      scheduleConfirmOpen ||
+      cancelConfirmOpen
+    ) {
+      confirmHeading.current?.focus();
+    }
+  }, [cancelConfirmOpen, confirmOpen, publishConfirmOpen, scheduleConfirmOpen]);
 
   function mutationKey(fingerprint: string): string {
     if (pendingMutation.current?.fingerprint === fingerprint) {
@@ -250,6 +285,148 @@ export function GachaPublishPreflightPanel({
     }
   }
 
+  function scheduleRequestBody() {
+    if (!publishState || scheduledFor === "") return null;
+    const parsed = new Date(scheduledFor);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return {
+      scheduled_for: parsed.toISOString(),
+      expected_revision: version.revision,
+      expected_gacha_revision: publishState.gacha_revision,
+    };
+  }
+
+  async function runSchedulePreflight() {
+    if (!mutable || !canPublish) return;
+    const body = scheduleRequestBody();
+    if (body === null) return;
+    const fingerprint = JSON.stringify({
+      action: "gacha-publish-schedule-preflight",
+      body,
+      gachaId,
+      versionId: version.id,
+    });
+    setBusy(true);
+    try {
+      const result = await client.preflightGachaVersionPublishSchedule(
+        gachaId,
+        version.id,
+        body,
+        mutationKey(fingerprint),
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setError(null);
+      setSchedulePreflight(result.data);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "schedule-preflight";
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createSchedule() {
+    if (!schedulePreflight?.publishable || !mutable || !canPublish) return;
+    const body = scheduleRequestBody();
+    if (body === null) return;
+    const fingerprint = JSON.stringify({
+      action: "gacha-publish-schedule",
+      body,
+      gachaId,
+      versionId: version.id,
+    });
+    setBusy(true);
+    try {
+      const result = await client.scheduleGachaVersionPublish(
+        gachaId,
+        version.id,
+        body,
+        mutationKey(fingerprint),
+      );
+      const canonical = await client.getCatalogGachaVersion(
+        gachaId,
+        version.id,
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setSchedule(result.data);
+      setScheduledFor("");
+      setSchedulePreflight(null);
+      setScheduleConfirmOpen(false);
+      setError(null);
+      onCanonical(canonical.data);
+      setReload((value) => value + 1);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "schedule";
+        setScheduleConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelSchedule() {
+    if (!schedule || schedule.status !== "scheduled" || !canPublish) return;
+    const body = {
+      expected_schedule_revision: schedule.revision,
+      expected_gacha_revision: schedule.gacha_revision,
+      expected_version_revision: schedule.gacha_version_revision,
+    };
+    const fingerprint = JSON.stringify({
+      action: "gacha-publish-schedule-cancel",
+      body,
+      gachaId,
+      scheduleId: schedule.id,
+      versionId: version.id,
+    });
+    setBusy(true);
+    try {
+      const result = await client.cancelGachaVersionPublishSchedule(
+        gachaId,
+        version.id,
+        schedule.id,
+        body,
+        mutationKey(fingerprint),
+      );
+      const canonical = await client.getCatalogGachaVersion(
+        gachaId,
+        version.id,
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setSchedule(result.data);
+      setCancelConfirmOpen(false);
+      setError(null);
+      onCanonical(canonical.data);
+      setReload((value) => value + 1);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "schedule-cancel";
+        setCancelConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="gacha-publish-preflight" aria-labelledby="gacha-preflight-title">
       <header>
@@ -258,7 +435,7 @@ export function GachaPublishPreflightPanel({
           <h2 id="gacha-preflight-title">Probability Selection／Preflight</h2>
         </div>
         <span className="catalog-readonly-note">
-          Schedule／Unpublishは未実装
+          Unpublish／販売停止は未実装
         </span>
       </header>
       {loading ? (
@@ -306,7 +483,7 @@ export function GachaPublishPreflightPanel({
             {canPublish && mutable ? (
               <button
                 className="secondary-button"
-                disabled={busy || !dirty || selectedId === ""}
+                disabled={busy || !selectionDirty || selectedId === ""}
                 onClick={() => setConfirmOpen(true)}
                 type="button"
               >
@@ -317,7 +494,7 @@ export function GachaPublishPreflightPanel({
             {canPublish && mutable ? (
               <button
                 className="primary-button"
-                disabled={busy || dirty || currentId === ""}
+                disabled={busy || selectionDirty || currentId === ""}
                 onClick={runPreflight}
                 type="button"
               >
@@ -408,6 +585,122 @@ export function GachaPublishPreflightPanel({
               {publishState.draw_state?.total_count ?? 0}
             </dd>
           </div>
+        </dl>
+      ) : null}
+      {canPublish && mutable && !hasActiveSchedule ? (
+        <div className="gacha-publish-selection-grid">
+          <label>
+            Schedule Publish
+            <input
+              disabled={busy}
+              onChange={(event) => {
+                setScheduledFor(event.target.value);
+                setSchedulePreflight(null);
+              }}
+              type="datetime-local"
+              value={scheduledFor}
+            />
+            <small>
+              入力は端末の表示Timezone、保存とWorker判定はUTCのDB Server時刻です。
+            </small>
+          </label>
+          <div className="gacha-publish-selection-actions">
+            <button
+              className="secondary-button"
+              disabled={
+                busy ||
+                selectedId !== currentId ||
+                scheduledFor === "" ||
+                currentId === ""
+              }
+              onClick={runSchedulePreflight}
+              type="button"
+            >
+              <CalendarClock size={16} aria-hidden="true" />
+              Schedule Preflight
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {schedulePreflight ? (
+        <div
+          className={`gacha-preflight-result ${
+            schedulePreflight.publishable ? "is-ready" : "is-blocked"
+          }`}
+          role="status"
+        >
+          {schedulePreflight.publishable ? (
+            <CheckCircle2 size={22} aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={22} aria-hidden="true" />
+          )}
+          <div>
+            <h3>
+              {schedulePreflight.publishable
+                ? "Schedule Preflight完了"
+                : "予約前の未達項目があります"}
+            </h3>
+            <p>
+              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              {" "}（保存: {schedulePreflight.server_timezone}）
+            </p>
+            {schedulePreflight.blocking_reasons.length > 0 ? (
+              <ul>
+                {schedulePreflight.blocking_reasons.map((reason) => (
+                  <li key={reason.code}>
+                    <strong>{reason.code}</strong>
+                    <span>{reason.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {schedulePreflight.publishable ? (
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() => setScheduleConfirmOpen(true)}
+                type="button"
+              >
+                <CalendarClock size={16} aria-hidden="true" />
+                Publishを予約
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {schedule ? (
+        <dl className="gacha-publish-current" aria-label="Publish予約状態">
+          <div>
+            <dt>予約状態</dt>
+            <dd>{schedule.status}</dd>
+          </div>
+          <div>
+            <dt>予約日時</dt>
+            <dd>{new Date(schedule.scheduled_for).toLocaleString("ja-JP")}</dd>
+          </div>
+          <div>
+            <dt>Worker試行</dt>
+            <dd>{schedule.attempts} / 3</dd>
+          </div>
+          <div>
+            <dt>結果</dt>
+            <dd>{schedule.failure_code ?? schedule.completed_at ?? "処理待ち"}</dd>
+          </div>
+          {canPublish && schedule.status === "scheduled" ? (
+            <div>
+              <dt>操作</dt>
+              <dd>
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => setCancelConfirmOpen(true)}
+                  type="button"
+                >
+                  予約を取消
+                </button>
+              </dd>
+            </div>
+          ) : null}
         </dl>
       ) : null}
       {!canPublish ? (
@@ -502,6 +795,86 @@ export function GachaPublishPreflightPanel({
           </section>
         </div>
       ) : null}
+      {scheduleConfirmOpen && schedulePreflight ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="gacha-schedule-confirm-title"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            <CalendarClock size={24} aria-hidden="true" />
+            <h2
+              id="gacha-schedule-confirm-title"
+              ref={confirmHeading}
+              tabIndex={-1}
+            >
+              このVersionのPublishを予約しますか
+            </h2>
+            <p>
+              v{version.version_number}を
+              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              にActivationします。実行直前にもServer Preflightを再実行します。
+            </p>
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setScheduleConfirmOpen(false)}
+                type="button"
+              >
+                取り消し
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={createSchedule}
+                type="button"
+              >
+                Publishを予約
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {cancelConfirmOpen && schedule ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="gacha-schedule-cancel-title"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            <AlertTriangle size={24} aria-hidden="true" />
+            <h2
+              id="gacha-schedule-cancel-title"
+              ref={confirmHeading}
+              tabIndex={-1}
+            >
+              Publish予約を取消しますか
+            </h2>
+            <p>取消後、このDraft Versionは再編集できます。</p>
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setCancelConfirmOpen(false)}
+                type="button"
+              >
+                戻る
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={cancelSchedule}
+                type="button"
+              >
+                予約を取消
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <FreshMfaDialog
         onClose={() => {
           pendingAction.current = null;
@@ -515,6 +888,12 @@ export function GachaPublishPreflightPanel({
             await runPreflight();
           } else if (pendingAction.current === "publish") {
             await publishImmediately();
+          } else if (pendingAction.current === "schedule-preflight") {
+            await runSchedulePreflight();
+          } else if (pendingAction.current === "schedule") {
+            await createSchedule();
+          } else if (pendingAction.current === "schedule-cancel") {
+            await cancelSchedule();
           }
         }}
         open={freshMfaOpen}

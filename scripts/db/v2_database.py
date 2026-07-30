@@ -49,6 +49,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.audit_daily_digests",
     "public.audit_logs",
     "public.catalog_categories",
+    "public.catalog_gacha_publish_schedules",
     "public.catalog_gacha_tags",
     "public.catalog_gacha_version_prizes",
     "public.catalog_gacha_versions",
@@ -490,7 +491,8 @@ def schema_inventory(base: list[str], repository: Path) -> list[str]:
         base,
         repository,
         "postgres",
-        'psql --tuples-only --no-align --username "$POSTGRES_USER" '
+        'PGPASSWORD="$POSTGRES_PASSWORD" psql --tuples-only --no-align '
+        '--host postgres --port 5432 --username "$POSTGRES_USER" '
         '--dbname "$POSTGRES_DB" --command '
         "\"SELECT schemaname || '.' || tablename FROM pg_tables "
         "WHERE schemaname NOT IN ('pg_catalog', 'information_schema') "
@@ -504,10 +506,109 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
         base,
         repository,
         "postgres",
-        'psql --tuples-only --no-align --username "$POSTGRES_USER" '
+        'PGPASSWORD="$POSTGRES_PASSWORD" psql --tuples-only --no-align '
+        '--host postgres --port 5432 --username "$POSTGRES_USER" '
         '--dbname "$POSTGRES_DB" --command '
         '"SELECT migration || \':\' || batch FROM migrations ORDER BY id;"',
     )
+
+
+def task_marker(task_id: str) -> str:
+    marker = re.sub(r"[^a-z0-9]+", "", task_id.lower())
+    if not re.fullmatch(r"mig[0-9]{3}[a-z]?", marker):
+        raise GuardFailure("Task ID marker is invalid")
+    return marker
+
+
+def require_database_markers(args: argparse.Namespace) -> None:
+    if bool(args.task_id) is not bool(args.purpose):
+        raise GuardFailure(
+            "Task ID and Database purpose markers must be provided together"
+        )
+
+
+def assert_database_target(
+    base: list[str],
+    repository: Path,
+    values: dict[str, str],
+    task_id: str,
+    purpose: str,
+    expected_migrations: str,
+) -> dict[str, Any]:
+    if purpose not in {"v2-persistent", "v2-task-ephemeral"}:
+        raise GuardFailure("Database purpose marker is invalid")
+    marker = task_marker(task_id)
+    project = values["COMPOSE_PROJECT_NAME"]
+    database = values["V2_DB_DATABASE"]
+    if purpose == "v2-task-ephemeral" and (
+        marker not in re.sub(r"[^a-z0-9]+", "", project.lower())
+        or marker not in re.sub(r"[^a-z0-9]+", "", database.lower())
+    ):
+        raise GuardFailure("Task ID does not match the isolated Database target")
+    identity = compose_exec(
+        base,
+        repository,
+        "postgres",
+        'PGPASSWORD="$POSTGRES_PASSWORD" psql --tuples-only --no-align '
+        '--host postgres --port 5432 --username "$POSTGRES_USER" '
+        '--dbname "$POSTGRES_DB" --command '
+        "\"SELECT current_database() || '|' || current_schema() || '|' || "
+        "inet_server_port()::text;\"",
+    ).decode("utf-8").strip()
+    parts = identity.split("|")
+    if parts != [database, "public", values["V2_DB_PORT"]]:
+        raise GuardFailure("Actual Database target does not match the declared target")
+    if values["V2_APP_ENV"] not in ALLOWED_ENVIRONMENTS:
+        raise GuardFailure("Application Environment marker is invalid")
+    migration_table_exists = compose_exec(
+        base,
+        repository,
+        "postgres",
+        'PGPASSWORD="$POSTGRES_PASSWORD" psql --tuples-only --no-align '
+        '--host postgres --port 5432 --username "$POSTGRES_USER" '
+        '--dbname "$POSTGRES_DB" --command '
+        "\"SELECT to_regclass('public.migrations') IS NOT NULL;\"",
+    ).decode("utf-8").strip()
+    rows = ""
+    if migration_table_exists == "t":
+        rows = compose_exec(
+            base,
+            repository,
+            "postgres",
+            'PGPASSWORD="$POSTGRES_PASSWORD" psql --tuples-only --no-align '
+            '--host postgres --port 5432 --username "$POSTGRES_USER" '
+            '--dbname "$POSTGRES_DB" --command '
+            '"SELECT COALESCE(string_agg(migration, \',\' ORDER BY migration), '
+            "'') FROM migrations;\"",
+        ).decode("utf-8").strip()
+    elif migration_table_exists != "f":
+        raise GuardFailure("Migration Table target probe is invalid")
+    actual = [] if rows == "" else rows.split(",")
+    repository_migrations = sorted(
+        path.stem for path in (repository / MIGRATION_PATH).glob("*.php")
+    )
+    if expected_migrations == "empty":
+        valid = actual == []
+    elif expected_migrations == "repository":
+        valid = actual == repository_migrations
+    elif expected_migrations == "empty-or-repository":
+        valid = actual in ([], repository_migrations)
+    else:
+        raise GuardFailure("Expected Migration set marker is invalid")
+    if not valid:
+        raise GuardFailure("Actual Migration set does not match the expected V2 set")
+
+    return {
+        "purpose": purpose,
+        "task_id": task_id,
+        "database_host": values["V2_DB_HOST"],
+        "database_port": values["V2_DB_PORT"],
+        "database_name": database,
+        "schema": "public",
+        "application_environment": values["V2_APP_ENV"],
+        "migration_set": expected_migrations,
+        "status": "PASS",
+    }
 
 
 def validate_schema_inventory(inventory: list[str]) -> None:
@@ -759,6 +860,7 @@ def cleanup_project(base: list[str], project: str, repository: Path) -> None:
 
 
 def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
+    require_database_markers(args)
     repository = Path(args.repository).resolve()
     compose_file = (repository / args.compose_file).resolve()
     env_file = Path(args.env_file).resolve()
@@ -767,9 +869,26 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
     )
     base = compose_command(repository, compose_file, env_file, args.project)
     run(base + ["up", "--detach", "--wait", "postgres", "redis"], cwd=repository)
+    if args.task_id and args.purpose:
+        assert_database_target(
+            base,
+            repository,
+            values,
+            args.task_id,
+            args.purpose,
+            "empty-or-repository",
+        )
     run(base + ["build", "api"], cwd=repository, capture=False)
     migrate_fresh(base, repository, one_shot=True)
+    if args.task_id and args.purpose:
+        assert_database_target(
+            base, repository, values, args.task_id, args.purpose, "repository"
+        )
     migrate_fresh(base, repository, one_shot=True)
+    if args.task_id and args.purpose:
+        assert_database_target(
+            base, repository, values, args.task_id, args.purpose, "repository"
+        )
     rollback_and_reapply_latest(base, repository, one_shot=True)
     migration_status(base, repository, one_shot=True)
     run_identity_tests(base, repository, one_shot=True)
@@ -798,6 +917,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
+    require_database_markers(args)
     repository = Path(args.repository).resolve()
     compose_file = (repository / args.compose_file).resolve()
     evidence_dir = Path(args.evidence_dir).resolve()
@@ -809,8 +929,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         temporary_path = Path(temporary)
         source_env = temporary_path / "source.env"
         restore_env = temporary_path / "restore.env"
-        create_env_file(source_env, source_project, "testing", "ci_source")
-        create_env_file(restore_env, restore_project, "testing", "ci_restore")
+        suffix = task_marker(args.task_id) if args.task_id else "ci"
+        create_env_file(source_env, source_project, "testing", suffix + "_source")
+        create_env_file(restore_env, restore_project, "testing", suffix + "_restore")
         validate(
             repository,
             compose_file,
@@ -840,7 +961,25 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 cwd=repository,
                 capture=False,
             )
+            if args.task_id and args.purpose:
+                assert_database_target(
+                    source_base,
+                    repository,
+                    parse_env_file(source_env),
+                    args.task_id,
+                    args.purpose,
+                    "empty",
+                )
             migrate_fresh(source_base, repository, one_shot=False)
+            if args.task_id and args.purpose:
+                assert_database_target(
+                    source_base,
+                    repository,
+                    parse_env_file(source_env),
+                    args.task_id,
+                    args.purpose,
+                    "repository",
+                )
             migrate_fresh(source_base, repository, one_shot=False)
             rollback_and_reapply_latest(
                 source_base, repository, one_shot=False
@@ -895,6 +1034,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 cwd=repository,
                 capture=False,
             )
+            if args.task_id and args.purpose:
+                assert_database_target(
+                    restore_base,
+                    repository,
+                    parse_env_file(restore_env),
+                    args.task_id,
+                    args.purpose,
+                    "empty",
+                )
             restore_database(restore_base, repository, backup)
             restore_inventory = schema_inventory(restore_base, repository)
             restore_schema_raw = schema_dump(restore_base, repository)
@@ -957,21 +1105,37 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("init-env", "validate", "persistent"):
+    for name in ("init-env", "validate", "assert-target", "persistent"):
         command = subparsers.add_parser(name)
         command.add_argument("--repository", required=True)
         command.add_argument("--compose-file", default="docker-compose.v2.yml")
         command.add_argument("--env-file", required=True)
         command.add_argument("--project", required=True)
         command.add_argument("--migration-path", required=True)
+        command.add_argument("--task-id")
+        command.add_argument(
+            "--purpose",
+            choices=["v2-persistent", "v2-task-ephemeral"],
+        )
         if name == "persistent":
             command.add_argument("--evidence-dir", required=True)
+        if name == "assert-target":
+            command.add_argument(
+                "--expected-migrations",
+                required=True,
+                choices=["empty", "repository", "empty-or-repository"],
+            )
     smoke = subparsers.add_parser("smoke")
     smoke.add_argument("--repository", required=True)
     smoke.add_argument("--compose-file", default="docker-compose.v2.yml")
     smoke.add_argument("--project-prefix", required=True)
     smoke.add_argument("--migration-path", required=True)
     smoke.add_argument("--evidence-dir", required=True)
+    smoke.add_argument("--task-id")
+    smoke.add_argument(
+        "--purpose",
+        choices=["v2-persistent", "v2-task-ephemeral"],
+    )
     return parser
 
 
@@ -980,9 +1144,13 @@ def main() -> int:
     try:
         repository = Path(args.repository).resolve()
         if args.command == "init-env":
+            require_database_markers(args)
             validate_migration_path(repository, args.migration_path)
             create_env_file(
-                Path(args.env_file), args.project, "local", "dev"
+                Path(args.env_file),
+                args.project,
+                "local",
+                task_marker(args.task_id) if args.task_id else "dev",
             )
             result = {
                 "status": "created",
@@ -999,6 +1167,28 @@ def main() -> int:
                 args.migration_path,
             )
             result = {"status": "PASS", "project": args.project}
+        elif args.command == "assert-target":
+            require_database_markers(args)
+            values = validate(
+                repository,
+                (repository / args.compose_file).resolve(),
+                Path(args.env_file).resolve(),
+                args.project,
+                args.migration_path,
+            )
+            result = assert_database_target(
+                compose_command(
+                    repository,
+                    (repository / args.compose_file).resolve(),
+                    Path(args.env_file).resolve(),
+                    args.project,
+                ),
+                repository,
+                values,
+                args.task_id,
+                args.purpose,
+                args.expected_migrations,
+            )
         elif args.command == "persistent":
             result = run_persistent(args)
         else:

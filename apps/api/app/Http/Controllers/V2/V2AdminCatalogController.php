@@ -420,6 +420,78 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaPublishSchedule(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaPublishSchedule(
+                    $context,
+                    $gachaId,
+                    $versionId
+                )
+        );
+    }
+
+    public function preflightGachaPublishSchedule(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->preflightGachaPublishSchedule(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function scheduleGachaVersionPublish(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->scheduleGachaVersionPublish(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function cancelGachaVersionPublishSchedule(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $scheduleId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->cancelGachaVersionPublishSchedule(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $scheduleId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createProbabilityDraft(
         Request $request,
         string $gachaId,

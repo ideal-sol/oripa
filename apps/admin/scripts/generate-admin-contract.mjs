@@ -126,6 +126,22 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish",
   ],
+  getAdminGachaPublishSchedule: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule",
+  ],
+  preflightAdminGachaVersionPublishSchedule: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/preflight",
+  ],
+  scheduleAdminGachaVersionPublish: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule",
+  ],
+  cancelAdminGachaVersionPublishSchedule: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/{schedule_id}/cancel",
+  ],
   listAdminCatalogProbabilityVersions: [
     "get",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions",
@@ -243,6 +259,13 @@ const requiredSchemas = [
   "AdminGachaPublishStateDetail",
   "AdminGachaImmediatePublish",
   "AdminGachaImmediatePublishResult",
+  "AdminGachaPublishScheduleRequest",
+  "AdminGachaPublishScheduleCancelRequest",
+  "AdminGachaPublishSchedulePreflight",
+  "AdminGachaPublishSchedulePreflightResult",
+  "AdminGachaPublishSchedule",
+  "AdminGachaPublishScheduleDetail",
+  "AdminGachaPublishScheduleResult",
   "AdminCatalogProbabilityVersion",
   "AdminCatalogProbabilityEntriesReplace",
   "AdminCatalogProbabilityVersionMutationResult",
@@ -743,6 +766,18 @@ export interface AdminGachaImmediatePublishRequest {
   expected_gacha_revision: number;
 }
 
+export interface AdminGachaPublishScheduleRequest {
+  scheduled_for: string;
+  expected_revision: number;
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaPublishScheduleCancelRequest {
+  expected_schedule_revision: number;
+  expected_gacha_revision: number;
+  expected_version_revision: number;
+}
+
 export interface AdminGachaPublishedVersionState {
   id: string;
   version_number: number;
@@ -765,6 +800,7 @@ export interface AdminGachaPublishState {
     snapshot_sha256: string;
   } | null;
   draw_state: AdminGachaDrawStateSummary | null;
+  publish_schedule?: AdminGachaPublishSchedule | null;
 }
 
 export interface AdminGachaImmediatePublish {
@@ -780,6 +816,37 @@ export interface AdminGachaImmediatePublish {
   previous_published_version: AdminGachaPublishedVersionState | null;
   current_published_version: AdminGachaPublishedVersionState;
   draw_state: AdminGachaDrawStateSummary;
+  request_id: string;
+}
+
+export interface AdminGachaPublishSchedulePreflight
+  extends AdminGachaPublishPreflight {
+  scheduled_for: string;
+  server_timezone: "UTC";
+  display_timezone: "Asia/Tokyo";
+}
+
+export interface AdminGachaPublishSchedule {
+  id: string;
+  status: "scheduled" | "processing" | "completed" | "cancelled" | "failed";
+  scheduled_for: string;
+  next_attempt_at: string;
+  server_timezone: "UTC";
+  display_timezone: "Asia/Tokyo";
+  gacha_version_id: string;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  };
+  attempts: number;
+  failure_code: string | null;
+  revision: number;
+  gacha_revision: number;
+  gacha_version_revision: number;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  failed_at: string | null;
   request_id: string;
 }
 

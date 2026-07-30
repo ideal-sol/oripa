@@ -361,15 +361,16 @@ final class ZContentContactPerformanceTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $hash = hash('sha256', random_bytes(32));
+        $sessionNow = now()->startOfSecond();
         DB::table('admin_sessions')->insert([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => $sessionNow,
             'requires_mfa_enrollment' => false,
-            'created_at' => now(),
-            'last_activity_at' => now(),
-            'idle_expires_at' => now()->addMinutes(15),
-            'absolute_expires_at' => now()->addHours(8),
+            'created_at' => $sessionNow,
+            'last_activity_at' => $sessionNow,
+            'idle_expires_at' => $sessionNow->copy()->addMinutes(15),
+            'absolute_expires_at' => $sessionNow->copy()->addHours(8),
             'revoked_at' => null,
         ]);
 

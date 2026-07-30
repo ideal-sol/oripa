@@ -6770,3 +6770,173 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 次Task候補は
   `MIG-060K Admin Gacha Publish Schedule／Unpublish Operations`であり、
   MIG-060Kは本Task内で開始しない。
+
+## MIG-060J Closeout／MIG-060K Scheduled Publish Foundation
+
+### MIG-060J Closeout
+
+- Issue `#143`はClosed、PR `#144`はSquash Mergedである。
+- Final Headは`d63a5aa8e59cdcf54c912408a7a7d329c04fac5d`、Squash Commitは
+  `18a170ddf58174956f21eef693cbcaac0a5473e9`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとWorktreeはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060K Task／Characterization
+
+- Task IDは`MIG-060K`、Riskは`R3`、Issueは`#145`、Branchは
+  `feat/MIG-060K-gacha-scheduled-publish`、Base SHAは
+  `18a170ddf58174956f21eef693cbcaac0a5473e9`である。
+- 予約時刻はUTCで保存し、期限判定はPostgreSQLの`CURRENT_TIMESTAMP`を
+  正本とする。Admin表示Timezoneは既存`Asia/Tokyo`設定を使用する。
+- 同一Gachaと同一Versionの有効予約は各1件に制限する。予約中Draftは
+  Version／Relation／Probability Selectionの破壊的変更を拒否し、
+  取消後はDraftとして再編集可能にする。
+- 現在公開Versionがある場合も、期限到来時にMIG-060JのActivation Domainを
+  再利用してPublic／Draw Pointerを原子的に切り替える。旧Version、
+  Probability Snapshot、Draw State、Draw Historyは不変履歴として保持する。
+- Unpublish、販売停止／再開、Production Cron／systemd、外部Scheduler、
+  Public Contract、Draw Algorithmは変更していない。
+
+### Contract／Permission／Schedule
+
+- Admin OpenAPIへSchedule取得、Schedule Preflight、予約作成、予約取消を追加した。
+  現在公開状態Responseへ予約状態を追加し、Admin Operation数は126、
+  Public 47、Webhook 1である。
+- Public／Webhook SchemaとStorefront ClientのAdmin非公開境界は変更していない。
+- 既存`catalog.publish`を使用し、Owner／Adminを許可、Operatorを拒否した。
+  Admin Realm、MFA Enrollment、Fresh MFA 5分、CSRF、Exact Origin、JSON、
+  Idempotency-Key、Gacha／Version／Schedule Revision OCC、
+  Critical Mutation Rate Limitを強制する。
+- Idempotency Record、Gacha Master、Draft Version、Published Probabilityを
+  固定順でLockし、Server Preflight、予約、Revision、Audit、
+  `catalog.change` Outboxを単一Transactionで確定する。
+- 同一Key／同一RequestはCanonical Replay、同一Key／異内容、Stale Revision、
+  重複予約、過去時刻、Published／Archived、Probability未選択はFail Closedとする。
+- 状態は`scheduled`、`processing`、`completed`、`cancelled`、`failed`に固定した。
+  予約は物理Deleteせず、取消済み／完了済み予約を再処理しない。
+
+### Worker／Concurrency／Atomicity
+
+- CLI `v2:catalog:work-scheduled-publishes`とTask専用Worker境界を追加した。
+  DB Server時刻、Batch上限5、`FOR UPDATE SKIP LOCKED`、120秒LeaseでClaimする。
+- WorkerはMIG-060JのImmediate Activation Logicを共通利用し、Publish直前に
+  Server PreflightとSnapshot SHAを全再検証する。Activation Logicは複製していない。
+- Transient Failureは最大3回、60秒基準の指数Backoffで再予約し、
+  Permanent FailureまたはRetry上限到達時は`failed`へ確定する。
+- Schedule Claim、Version／Probability Lock、Public／Draw Activation、
+  Schedule完了、Audit、Outboxは同一Transactionである。Rollback時に
+  Pointer、Status、Revision、Audit、Outboxの部分更新を残さない。
+- 同時Worker、再起動、At-least-once実行、Immediate Publish競合はRow Lock、
+  Revision OCC、Schedule状態でExactly-once相当へ収束させる。
+- Read APIは予約作成時の期待Revisionではなく、取消／完了後を含む現在の
+  Gacha／Version RevisionをCanonical Responseとして返す。
+
+### Migration／DB Target Safety
+
+- Forward-safe Migration
+  `2026_08_13_000026_create_v2_gacha_publish_schedules.php`を追加し、
+  既存Migrationは編集していない。
+- Partial Unique Index、Restrict FK、Canonicalな明示Cast付きCHECK、
+  Transition／History Triggerで有効予約重複、Cross-Gacha／Version、
+  Draft以外、未選択Probability、過去時刻、状態飛越し、Revision bypass、
+  FK付替え、物理Deleteを拒否する。
+- DB Target Safety Guardへ用途、Host、Port、DB名、Schema、Environment、
+  Task ID Marker、Migration集合の機械照合を追加した。接続確認用DDLは行わない。
+- Task専用DBは`oripa_v2_mig060k`、用途は`v2-task-ephemeral`であり、
+  Full GuardとFresh Self-review終了まで保持する。
+- Persistent／Ephemeral双方で`migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、Dump／Restoreを確認した。
+
+### Admin UI
+
+- 既存Gacha Publish画面へ予約日時、UTC／表示Timezone、Schedule Preflight、
+  現在予約、対象Version／Probability、現行Version切替、Fresh MFA、
+  Confirmation、取消、Worker状態、Completed／Failed、Canonical再取得を追加した。
+- Dirty State、二重送信防止、Conflict／429、Mobile、Keyboard、Focusは
+  既存Admin Mutation基盤を再利用した。
+- OperatorはRead-onlyでBackend 403を最終境界とする。
+  Unpublish／販売停止Buttonは追加していない。
+- TailAdmin無料版を視覚基準としたが、Dependency、CSP、認証／Permission境界、
+  Admin全体Layoutは変更していない。
+
+### Test／Evidence
+
+- Final対象BackendはSchedule、Worker、Concurrency、Atomicity、DB Guard、
+  Immediate Publish／Public／Draw回帰を含む`13 Test／223 Assertion`がPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component `52 Test`、Browser E2E `13 Test`がPASSした。
+- Final Persistent／Ephemeral Guardで全V2 Suite、Schedule／Worker、
+  Immediate Publish、Catalog／Probability／Draw／QA、Point、Payment、Shipping、
+  Reporting、Content／Contact、Load／Performance回帰がPASSした。
+  GuardがSuite件数を出力しないため件数は推測していない。
+- Migration数は26、Migration Set SHA-256は
+  `0a7f4dd2ee33ae7f028c039286da4b5479fe8821b3cb13cb6589a0d639287fd3`。
+- Final Backup SHA-256は
+  `c82c6eb361ec39e832e2c83f3411d6ef5a277dd2fe74e441d431f1a12d5cdeaa`、
+  Source／Restore Schema SHA-256は
+  `24cc06f4fccca233ba16471cb320309784a56f9169eddf4a9936c596d3bd3f6a`、
+  Migration Row SHA-256は
+  `8e3e563704ef5303ff74aa29bfe86a7789a12238dccdae1ef6dee77c23a9d8b5`
+  で一致した。
+- Content／Contact性能はNotice 10,000件First Page p95 `68.992 ms`、
+  Contact 100,000件First Page p95 `3.096 ms`、同時Contact p95
+  `578.938 ms`、Peak Memory `46,661,632 byte`、未解決Deadlock 0である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testは
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 89、Quality Unit 5、Security Unit 4、DB Guard Unit 29、
+  OpenAPI Unit 4、Release Unit 10とLocal GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／Build、
+  Lint既存8 Error／1 Warning FingerprintがPASSした。
+- V1 Backendは既存Payment 2 Failure／332 WarningのFingerprintと一致し、
+  Backend Test Baseline GateがPASSした。
+- Root Audit 0、Legacy Audit既存11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- Final Evidenceは`/var/lib/oripa-v2-evidence/MIG-060K/persistent/`、
+  `/var/lib/oripa-v2-evidence/MIG-060K/ephemeral/`、
+  `/var/lib/oripa-v2-evidence/MIG-060K/v1-backend-tests.xml`に保存した。
+
+### 時間を要した作業／効率改善
+
+- Admin Browser E2Eは約1.1分、Persistent Guardは約3分、
+  Ephemeral Guardは約6分、V1 Backend Baselineは約2.7分、
+  Final API Image Buildは約45秒を要した。
+- DB Target Safety Guard初回は、接続Probe前のMarker照合とPortなしの隔離V1
+  Container判定が不整合となりDDL前にFail Closedした。Checkerを用途／Task ID／
+  Migration集合の機械照合へ修正し、状態変更なしで再実行した。
+- 初回MigrationではTriggerの分岐が対象Tableに存在しないColumnを参照した。
+  Table別Trigger Branchへ修正し、Canonical CHECK、明示Cast、
+  Apply／Rollback／Reapply、Dump／Restoreを再確認した。
+- Admin予約時刻はUTC offsetを保持せず送信して過去判定となる問題を対象Smokeで検出し、
+  ISO offset付きPayloadへ修正した。
+- Ephemeral Guard初回は既存Content性能Fixtureの複数`now()`が秒境界を跨いだ。
+  同一意味の時刻を1回だけ固定し、Security／性能閾値を変更せず再実行した。
+- Local PolicyはScheduleを旧対象外として拒否したため、MIG-060KのRequired Path／
+  Operation／Migration集合へ更新し、Unpublish禁止を維持した。
+- Fresh Self-reviewで、取消／完了後のRead APIが予約作成時Revisionを返す問題を
+  検出した。現在Revisionを返すよう修正し、対象Backend、Persistent、
+  Ephemeral GuardをFinal候補で再実行した。
+- 開始時と重い検証前にRoot 6.0GB以上、`/tmp` 3.1GB以上をRead-only確認した。
+  安全閾値内のためDocker Cache、稼働Container、Named VolumeをCleanupしていない。
+- Existing Classic BuilderとFirst-party Package Serial順を維持し、
+  Host Toolchain、Gate、Baseline、Assertion、Timeout、Memory設定を変更していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 RuntimeはBackend `8140`、Frontend `3130`、Nginx Upstreamも同値で、
+  Public 200、Admin 307、API Health 200、Production Migration Pending 0である。
+  V1本番DB／Redis／Storage、`v1/early-release`、Archive Branch、Annotated Tagは
+  非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は
+  `MIG-060L Admin Gacha Unpublish／Sales Pause Operations`であり、
+  MIG-060Lは本Task内で開始しない。
