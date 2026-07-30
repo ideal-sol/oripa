@@ -349,6 +349,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_11_000024_guard_v2_gacha_probability_selection.php",
     "apps/api/database/migrations-v2/2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
     "apps/api/database/migrations-v2/2026_08_13_000026_create_v2_gacha_publish_schedules.php",
+    "apps/api/database/migrations-v2/2026_08_14_000027_add_v2_gacha_sales_pause.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
@@ -1880,6 +1881,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_11_000024_guard_v2_gacha_probability_selection.php",
         "2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php",
         "2026_08_13_000026_create_v2_gacha_publish_schedules.php",
+        "2026_08_14_000027_add_v2_gacha_sales_pause.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2812,6 +2814,33 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             "V2 Gacha scheduled publish migration contains prohibited tenant_id"
         )
 
+    sales_pause_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_08_14_000027_add_v2_gacha_sales_pause.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "sales_paused",
+        "sales_paused_at",
+        "sales_paused_by_admin_public_id",
+        "sales_pause_reason_code",
+        "sales_resumed_at",
+        "sales_last_mutation_request_id",
+        "Gacha Sales operation history cannot be deleted",
+        "Gacha Sales state requires one Revision transition",
+        "Gacha Sales state requires matching active Draw references",
+        "Gacha Sales Resume preflight failed",
+        "Paused Gacha cannot accept a new Draw Request",
+    ):
+        if required not in sales_pause_migration:
+            raise PolicyFailure(
+                f"V2 Gacha sales pause migration missing {required}"
+            )
+    if "tenant_id" in sales_pause_migration:
+        raise PolicyFailure(
+            "V2 Gacha sales pause migration contains prohibited tenant_id"
+        )
+
     mutation_service = (
         repository
         / "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php"
@@ -2985,6 +3014,11 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "preflightAdminGachaVersionPublishSchedule",
         "scheduleAdminGachaVersionPublish",
         "cancelAdminGachaVersionPublishSchedule",
+        "getAdminGachaSalesState",
+        "preflightAdminGachaSalesPause",
+        "pauseAdminGachaSales",
+        "preflightAdminGachaSalesResume",
+        "resumeAdminGachaSales",
         "listAdminCatalogProbabilityVersions",
         "getAdminCatalogProbabilityVersion",
         "createAdminCatalogProbabilityDraft",
@@ -3044,6 +3078,11 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/{schedule_id}/cancel": {
             "post",
         },
+        "/catalog/gachas/{gacha_id}/sales-state": {"get"},
+        "/catalog/gachas/{gacha_id}/sales-pause/preflight": {"post"},
+        "/catalog/gachas/{gacha_id}/sales-pause": {"post"},
+        "/catalog/gachas/{gacha_id}/sales-resume/preflight": {"post"},
+        "/catalog/gachas/{gacha_id}/sales-resume": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
             "get",
             "post",

@@ -152,6 +152,16 @@ Route::prefix('v2')
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.archive');
         Route::get('/catalog/gachas/{gachaId}/publish-state', [V2AdminCatalogController::class, 'gachaPublishState'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.publish-state');
+        Route::get('/catalog/gachas/{gachaId}/sales-state', [V2AdminCatalogController::class, 'gachaSalesState'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.sales-state');
+        Route::post('/catalog/gachas/{gachaId}/sales-pause/preflight', [V2AdminCatalogController::class, 'preflightGachaSalesPause'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.sales-pause.preflight');
+        Route::post('/catalog/gachas/{gachaId}/sales-pause', [V2AdminCatalogController::class, 'pauseGachaSales'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.sales-pause');
+        Route::post('/catalog/gachas/{gachaId}/sales-resume/preflight', [V2AdminCatalogController::class, 'preflightGachaSalesResume'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.sales-resume.preflight');
+        Route::post('/catalog/gachas/{gachaId}/sales-resume', [V2AdminCatalogController::class, 'resumeGachaSales'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.sales-resume');
         Route::get('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'gachaVersions'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gacha-versions.index');
         Route::post('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'createGachaDraft'])

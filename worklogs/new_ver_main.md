@@ -6940,3 +6940,184 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 次Task候補は
   `MIG-060L Admin Gacha Unpublish／Sales Pause Operations`であり、
   MIG-060Lは本Task内で開始しない。
+
+## MIG-060K Closeout／MIG-060L Gacha Sales Pause／Resume Operations
+
+### MIG-060K Closeout
+
+- Issue `#145`はClosed、PR `#146`はSquash Mergedである。
+- Final Headは`752936897b60377d37fe6d7db218866d9d03bee9`、Squash Commitは
+  `78bc149b64ddb1e0fa6324c15cd84611ccf6b036`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task Branch、Worktree、Task ResourceはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060L Task／Characterization
+
+- Task IDは`MIG-060L`、Riskは`R3`、Issueは`#147`、Branchは
+  `feat/MIG-060L-gacha-sales-pause`、Base SHAは
+  `78bc149b64ddb1e0fa6324c15cd84611ccf6b036`である。
+- 手動PauseはGacha Master単位の運用状態とし、Immediate／Scheduled Publishで
+  公開Versionが切り替わっても自動解除しない。
+- PauseはUnpublishではない。公開Pointer、Published Version、Probability Snapshot、
+  Draw State、旧Draw履歴を削除または変更しない。
+- 新規DrawはGacha／Active Draw State Lock後、Point減算、Inventory更新、
+  Draw Result確定より前にPause正本を検査する。成功済みDrawのIdempotent Replayは
+  Pause判定より先にCanonical Resultを返す。
+- Public OpenAPIは変更せず、既存`remaining_count`をPause中は0としてList／Detailを
+  販売不可へ一致させる。Published Version情報と公開状態は保持する。
+- Unpublish、Public Deactivation、Draw Algorithm、CSPRNG、Probability計算、
+  100／1000回のTransaction／Idempotency構造は変更していない。
+
+### Contract／Permission／Pause・Resume
+
+- Admin OpenAPIへSales状態取得、Pause／Resume Preflight、Pause、Resumeを追加した。
+  Admin Operation数は131、Public 47、Webhook 1である。
+- Public／Webhook SchemaとStorefront ClientのAdmin非公開境界は変更していない。
+- 既存`catalog.publish`を使用し、Owner／Adminを許可、Operatorを拒否した。
+  Admin Realm、MFA Enrollment、Fresh MFA 5分、CSRF、Exact Origin、JSON、
+  Idempotency-Key、Gacha Revision OCC、Critical Mutation Rate Limitを強制する。
+- Pause Reason Codeは`operations_review`、`inventory_review`、
+  `incident_response`の型付きAllowlistに限定した。
+- PauseではIdempotency Record、Gacha Master、Active Published Version、
+  Active Draw Stateを固定順でLockし、状態、DB Server時刻、Revision、Audit、
+  `catalog.change` Outboxを単一Transactionで確定する。
+- Resumeでは同じLock順でGacha、公開Version、Draw State、Published Probability、
+  Snapshot SHA、価格、販売口数、Inventory、表示／販売期間、売切れ、
+  Public／Draw Pointer、Processing ScheduleをServer側で再検証する。
+- 同一Key／同一RequestはCanonical Replay、同一Key／異内容、Stale Revision、
+  無効Pointer、売切れ、期間外、Archived GachaはFail Closedとする。
+- Mutation ResponseはCommit後の最新Gacha Revision、Sales状態、Published Version、
+  Schedule状態をCanonical再取得して返す。
+
+### Migration／DB Guard
+
+- Forward-safe Migration
+  `2026_08_14_000027_add_v2_gacha_sales_pause.php`を追加し、
+  既存Migrationは編集していない。
+- `sales_paused`、Pause／Resume時刻、Actor Public ID、Reason Code、
+  Last Request IDを型付きColumnとして追加した。物理Delete Endpointはない。
+- Canonicalな明示Cast付きCHECK、Restrict FK、Transition／History Triggerで
+  Revision bypass、Cross-Gacha Pointer、公開VersionなしのResume、
+  Draw State不一致、Archived Resume、Paused History削除、Direct SQLによる
+  Pause無視Activation、公開Version切替時のPause解除を拒否する。
+- Immediate／Scheduled ActivationはPause Fieldを保持する。Pause／Resumeで
+  Gacha Revisionを進める際はActive Scheduleの期待Revisionも同一Transactionで
+  再基準化し、Schedule OCCを壊さない。
+- Task専用DBは`oripa_v2_mig060l`、用途は`v2-task-ephemeral`である。
+  DB Target Safety Guardで用途、Host、Port、DB名、Schema、Environment、
+  Task ID Marker、Migration集合をDDL前に機械照合した。
+- Persistent／Ephemeral双方で`migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、Dump／Restoreを確認した。
+
+### Draw／Public／Concurrency
+
+- Pause後の新しいIdempotency-KeyによるDrawは型付きDomain Errorで拒否し、
+  Wallet、Point Operation／Lot／Ledger、Inventory、Sold／Won、Draw Request／
+  Result、User Prizeを変更しない。
+- Pause前に完了済みのDraw ReplayはPause中も同一Canonical Resultを返し、
+  Point、Inventory、Historyを二重更新しない。
+- Process Concurrency TestでPauseとDrawを別Processから競合させた。
+  結果は「Draw全成功後にPause」または「Pause成功後にDraw全拒否」のどちらかへ
+  収束し、部分消費、欠番、Inventory不一致は発生しない。
+- Pause中のImmediate Publish、Scheduled Worker Activation、予約取消、
+  Worker Claimとの競合でもPause状態を保持し、Public／Draw Pointerは同じVersionへ
+  原子的に切り替わる。
+- Resume後は同じPublished Versionで販売可能状態へ戻り、Public List／Detailと
+  Draw Resolverが一致する。
+
+### Admin UI
+
+- 既存Gacha Publish管理画面へSales状態、Pause Reason、Pause／Resume Preflight、
+  Fresh MFA、Confirmation、Resume Blocker、公開Version／Probability、
+  Schedule状態、Conflict／429、Canonical再取得を追加した。
+- OperatorはRead-onlyでBackend 403を最終境界とする。Unpublish／公開解除Buttonは
+  追加していない。
+- Dirty State、二重送信防止、Loading／Error、Mobile、Keyboard、Focusは
+  既存Admin Mutation基盤を再利用した。
+- TailAdmin無料版を視覚基準としたが、Dependency、CSP、認証／Permission境界、
+  Admin全体Layoutは変更していない。
+
+### Test／Evidence
+
+- Final対象BackendはSales Pause／Resume、Draw、Public、Immediate／Scheduled
+  Publish、Process Concurrencyを含む`18 Test／303 Assertion`と
+  Concurrency `3 Test／33 Assertion`がPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component `54 Test`、Browser E2E `13 Test`がPASSした。
+- Final Persistent／Ephemeral Guardで全V2 Suite、Pause／Resume、Schedule／Worker、
+  Immediate Publish、Catalog／Probability／Draw／QA、Point、Payment、Shipping、
+  Reporting、Content／Contact、Load／Performance回帰がPASSした。
+  GuardがSuite件数を出力しないため件数は推測していない。
+- 単独Draw性能は100回 p95 `195.193 ms`、1000回 p95 `696.244 ms`、
+  Query最大はそれぞれ56／58、Responseは667／18,546 byteで基準内である。
+- Migration数は27、Migration Set SHA-256は
+  `775ae702a20979a8ca65fb88b82ae62f5566d17940aa66345315be53117c2096`。
+- Final Backup SHA-256は
+  `303e80b85d56ad66459ca7a22d2bef82773107462208b5b6150260149427438c`、
+  Source／Restore Schema SHA-256は
+  `3fa6937cc2fb3be56480a1542610d6602d34721e076d8fb1c6a227696a684d4a`、
+  Migration Row SHA-256は
+  `de9e36937c4acb945b802f4cec1003312da047fdf430c750966a08489229fdfa`
+  で一致した。
+- Content／Contact性能はNotice First Page p95 `61.243 ms`、
+  Contact First Page p95 `6.548 ms`、同時Contact p95 `674.536 ms`、
+  Peak Memory `46,661,632 byte`、未解決Deadlock 0である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testは
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 89、Quality Unit 5、Security Unit 4、DB Guard Unit 29、
+  OpenAPI Unit 4、Release Unit 10とLocal GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／Build、
+  Lint既存8 Error／1 Warning FingerprintがPASSした。
+- V1 Backendは隔離DBで`334 Test／1,820 Assertion`を実行し、
+  既存Payment 2 Failure Fingerprintと一致してBaseline GateがPASSした。
+- Root Audit 0、Legacy Audit既存11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- Final Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-060L/persistent-final/`、
+  `/var/lib/oripa-v2-evidence/MIG-060L/ephemeral-final/`、
+  `/var/lib/oripa-v2-evidence/MIG-060L/v1-backend-tests.xml`に保存した。
+
+### 時間を要した作業／効率改善
+
+- Admin Browser E2Eは約1.1分、Unit／Componentは約35秒、
+  Persistent Guardは約3分、Ephemeral Guardは約6分、
+  V1 Backend Baselineは約2.7分、Classic Builder Image Buildは約45秒を要した。
+- 対象PHPUnit初回はRepository既定設定の`oripa_test`を参照してTest開始前に停止した。
+  Task DB Marker付き外部Configへ切り替え、共有DBやV1本番へ接続せず再実行した。
+- Migration修正後の対象Smoke初回はTask DBに旧Triggerが残りStale Conflictとなった。
+  DB Targetを再照合し、Task専用DBへ`migrate:fresh`して再実行した。
+- Process Concurrency初回はPoint Backが起き得るFixtureに対してWallet純減100を
+  固定期待していた。実Draw ResultのPoint Backを含むReconciliationへ修正し、
+  Draw規則やAssertion強度を緩和せず再実行した。
+- Ephemeral Guard初回はPrefixがV2 Allowlist外でResource作成前にFail Closedした。
+  `mig060l-v2-final`へ修正し、状態変更なしで再実行した。
+- Composer AuditはRuntime ImageにComposerがないため実行前に停止した。
+  Hostの既存Composer 2.9.8でLock Auditを行い、Image／Host Toolchainを更新しなかった。
+- Admin Unit／Browser E2Eは引数転送により対象だけでなく全Suiteを実行した。
+  同一Admin SourceのPASS Evidenceを維持し、重複実行していない。
+- 開始時Root 6.1GB、`/tmp` 3.1GB、重い検証前Root 5.7GB、
+  Ephemeral中Root 3.5GBをRead-only確認した。処理は成功し安全閾値を割らなかったため、
+  稼働Container、Named Volume、V1 Resource、Docker CacheをCleanupしていない。
+- First-party Packageは依存順にSerial実行した。Existing Classic Builderを使用し、
+  Host Compose／Buildx、Gate、Baseline、Assertion、Timeout、Memoryを変更していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 RuntimeはBackend `8140`、Frontend `3130`、Nginx Upstreamも同値で、
+  Public 200、Admin 307、API Health 200、Production Migration Pending 0である。
+  V1本番DB／Redis／Storage、`v1/early-release`、Archive Branch、Annotated Tagは
+  非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は
+  `MIG-060M Admin Gacha Unpublish／Public Deactivation`であり、
+  MIG-060Mは本Task内で開始しない。

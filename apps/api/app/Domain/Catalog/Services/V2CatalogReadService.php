@@ -180,6 +180,7 @@ final class V2CatalogReadService
             'g.id as gacha_internal_id',
             'g.public_id',
             'g.slug',
+            'g.sales_paused',
             DB::raw('COALESCE(ds.sold_count, g.sold_count) as sold_count'),
             'gv.id as version_internal_id',
             'gv.title',
@@ -245,7 +246,9 @@ final class V2CatalogReadService
             'title' => $row->title,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
-            'remaining_count' => max(0, (int) $row->total_count - (int) $row->sold_count),
+            'remaining_count' => (bool) $row->sales_paused
+                ? 0
+                : max(0, (int) $row->total_count - (int) $row->sold_count),
             'publish_start_at' => CarbonImmutable::parse($row->publish_start_at)->utc()
                 ->toIso8601ZuluString(),
             'publish_end_at' => $row->publish_end_at === null

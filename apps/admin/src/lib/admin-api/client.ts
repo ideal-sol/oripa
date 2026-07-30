@@ -41,6 +41,10 @@ import {
   type AdminGachaPublishSchedulePreflight,
   type AdminGachaPublishScheduleRequest,
   type AdminGachaPublishedProbabilityCandidate,
+  type AdminGachaSalesPauseRequest,
+  type AdminGachaSalesPreflight,
+  type AdminGachaSalesResumeRequest,
+  type AdminGachaSalesState,
   type AdminLoginRequest,
   type AdminLineMessagingMutationResult,
   type AdminLineMessagingPreview,
@@ -619,6 +623,94 @@ export class AdminApiClient {
     );
   }
 
+  getGachaSalesState(
+    gachaId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminGachaSalesState>> {
+    if (!isOpaqueId(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/sales-state`,
+      { signal },
+    );
+  }
+
+  preflightGachaSalesPause(
+    gachaId: string,
+    body: AdminGachaSalesPauseRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaSalesPreflight>> {
+    return this.gachaSalesMutation<
+      AdminGachaSalesPauseRequest,
+      AdminGachaSalesPreflight
+    >(
+      gachaId,
+      "sales-pause/preflight",
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  pauseGachaSales(
+    gachaId: string,
+    body: AdminGachaSalesPauseRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaSalesState>> {
+    return this.gachaSalesMutation<
+      AdminGachaSalesPauseRequest,
+      AdminGachaSalesState
+    >(
+      gachaId,
+      "sales-pause",
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  preflightGachaSalesResume(
+    gachaId: string,
+    body: AdminGachaSalesResumeRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaSalesPreflight>> {
+    return this.gachaSalesMutation<
+      AdminGachaSalesResumeRequest,
+      AdminGachaSalesPreflight
+    >(
+      gachaId,
+      "sales-resume/preflight",
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  resumeGachaSales(
+    gachaId: string,
+    body: AdminGachaSalesResumeRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminGachaSalesState>> {
+    return this.gachaSalesMutation<
+      AdminGachaSalesResumeRequest,
+      AdminGachaSalesState
+    >(
+      gachaId,
+      "sales-resume",
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
   publishGachaVersionImmediately(
     gachaId: string,
     gachaVersionId: string,
@@ -1106,6 +1198,29 @@ export class AdminApiClient {
     return this.request(
       method,
       `/catalog/gachas/${encodeURIComponent(gachaId)}/versions${versionPath}${actionPath}`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  private gachaSalesMutation<TBody, TResult>(
+    gachaId: string,
+    action:
+      | "sales-pause/preflight"
+      | "sales-pause"
+      | "sales-resume/preflight"
+      | "sales-resume",
+    body: TBody,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<TResult>> {
+    if (!isOpaqueId(gachaId) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/${action}`,
       { body, idempotencyKey, signal },
     );
   }

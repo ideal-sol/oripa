@@ -122,6 +122,26 @@ const operations = {
     "get",
     "/catalog/gachas/{gacha_id}/publish-state",
   ],
+  getAdminGachaSalesState: [
+    "get",
+    "/catalog/gachas/{gacha_id}/sales-state",
+  ],
+  preflightAdminGachaSalesPause: [
+    "post",
+    "/catalog/gachas/{gacha_id}/sales-pause/preflight",
+  ],
+  pauseAdminGachaSales: [
+    "post",
+    "/catalog/gachas/{gacha_id}/sales-pause",
+  ],
+  preflightAdminGachaSalesResume: [
+    "post",
+    "/catalog/gachas/{gacha_id}/sales-resume/preflight",
+  ],
+  resumeAdminGachaSales: [
+    "post",
+    "/catalog/gachas/{gacha_id}/sales-resume",
+  ],
   publishAdminGachaVersionImmediately: [
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish",
@@ -801,6 +821,46 @@ export interface AdminGachaPublishState {
   } | null;
   draw_state: AdminGachaDrawStateSummary | null;
   publish_schedule?: AdminGachaPublishSchedule | null;
+}
+
+export type AdminGachaSalesPauseReason =
+  | "operations_review"
+  | "inventory_review"
+  | "incident_response";
+
+export interface AdminGachaSalesPauseRequest {
+  expected_gacha_revision: number;
+  reason_code: AdminGachaSalesPauseReason;
+}
+
+export interface AdminGachaSalesResumeRequest {
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaSalesState {
+  gacha_id: string;
+  status: "selling" | "paused";
+  gacha_revision: number;
+  paused_at: string | null;
+  resumed_at: string | null;
+  reason_code: AdminGachaSalesPauseReason | null;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+  publish_schedule: AdminGachaPublishSchedule | null;
+  request_id: string;
+}
+
+export interface AdminGachaSalesPreflight {
+  operation: "pause" | "resume";
+  allowed: boolean;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  sales_state: AdminGachaSalesState;
+  request_id: string;
 }
 
 export interface AdminGachaImmediatePublish {

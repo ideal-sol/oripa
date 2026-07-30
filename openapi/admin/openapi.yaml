@@ -877,6 +877,104 @@ paths:
       responses:
         '200': {description: 現在のPublic／Draw公開状態。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaPublishStateDetail'}}}}
         default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/sales-state:
+    get:
+      operationId: getAdminGachaSalesState
+      summary: 公開中Gachaの現在Sales状態を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+      responses:
+        '200': {description: 現在のSales状態。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaSalesStateDetail'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/sales-pause/preflight:
+    post:
+      operationId: preflightAdminGachaSalesPause
+      summary: 公開中GachaのSales Pause Preflightを実行する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaSalesPauseRequest'}
+      responses:
+        '200': {description: Canonical Pause Preflight結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaSalesPreflightResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/sales-pause:
+    post:
+      operationId: pauseAdminGachaSales
+      summary: 公開中Gachaの新規販売・新規抽選を一時停止する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaSalesPauseRequest'}
+      responses:
+        '200': {description: Pause後のCanonical Sales状態。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaSalesMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/sales-resume/preflight:
+    post:
+      operationId: preflightAdminGachaSalesResume
+      summary: Pause中GachaのSales Resume Preflightを実行する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaSalesResumeRequest'}
+      responses:
+        '200': {description: Canonical Resume Preflight結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaSalesPreflightResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/sales-resume:
+    post:
+      operationId: resumeAdminGachaSales
+      summary: Pause中Gachaの新規販売・新規抽選を再開する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaSalesResumeRequest'}
+      responses:
+        '200': {description: Resume後のCanonical Sales状態。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaSalesMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish:
     post:
       operationId: publishAdminGachaVersionImmediately
@@ -3413,6 +3511,88 @@ components:
       required: [data]
       properties:
         data: {$ref: '#/components/schemas/AdminGachaPublishState'}
+    AdminGachaSalesPauseReason:
+      type: string
+      enum: [operations_review, inventory_review, incident_response]
+    AdminGachaSalesPauseRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_gacha_revision, reason_code]
+      properties:
+        expected_gacha_revision: {type: integer, minimum: 1}
+        reason_code: {$ref: '#/components/schemas/AdminGachaSalesPauseReason'}
+    AdminGachaSalesResumeRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_gacha_revision]
+      properties:
+        expected_gacha_revision: {type: integer, minimum: 1}
+    AdminGachaSalesState:
+      type: object
+      additionalProperties: false
+      required: [gacha_id, status, gacha_revision, paused_at, resumed_at, reason_code, current_published_version, selected_probability, draw_state, publish_schedule, request_id]
+      properties:
+        gacha_id: {$ref: '#/components/schemas/OpaqueId'}
+        status: {type: string, enum: [selling, paused]}
+        gacha_revision: {type: integer, minimum: 1}
+        paused_at: {type: [string, 'null'], format: date-time}
+        resumed_at: {type: [string, 'null'], format: date-time}
+        reason_code:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaSalesPauseReason'}
+            - {type: 'null'}
+        current_published_version:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishedVersionState'}
+            - {type: 'null'}
+        selected_probability:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishSelectedProbability'}
+            - {type: 'null'}
+        draw_state:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaDrawStateSummary'}
+            - {type: 'null'}
+        publish_schedule:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminGachaPublishSchedule'}
+            - {type: 'null'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminGachaSalesStateDetail:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaSalesState'}
+    AdminGachaSalesPreflight:
+      type: object
+      additionalProperties: false
+      required: [operation, allowed, validation_codes, blocking_reasons, sales_state, request_id]
+      properties:
+        operation: {type: string, enum: [pause, resume]}
+        allowed: {type: boolean}
+        validation_codes:
+          type: array
+          items: {type: string, pattern: '^[A-Z0-9_]+$'}
+        blocking_reasons:
+          type: array
+          items: {$ref: '#/components/schemas/AdminGachaPublishBlockingReason'}
+        sales_state: {$ref: '#/components/schemas/AdminGachaSalesState'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminGachaSalesPreflightResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaSalesPreflight'}
+        idempotent_replay: {type: boolean}
+    AdminGachaSalesMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaSalesState'}
+        idempotent_replay: {type: boolean}
     AdminGachaImmediatePublish:
       type: object
       additionalProperties: false
