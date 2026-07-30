@@ -11,4 +11,10 @@ return [
         'rate_limit' => [30, 600],
         'maximum_attempts' => 3,
     ],
+    'scheduled_publish' => [
+        'worker_claim_size' => 5,
+        'worker_lease_seconds' => 120,
+        'worker_max_attempts' => 3,
+        'retry_base_seconds' => 60,
+    ],
 ];

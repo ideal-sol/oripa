@@ -2153,6 +2153,206 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule": {
+      "get": {
+        "operationId": "getAdminGachaPublishSchedule",
+        "summary": "Gacha Versionの最新Publish予約とWorker結果を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "最新Publish予約。未作成時はnull。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishScheduleDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "scheduleAdminGachaVersionPublish",
+        "summary": "Preflight済みDraft Gacha Versionの将来Publishを予約する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaPublishScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Canonical Publish予約。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishScheduleResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/preflight": {
+      "post": {
+        "operationId": "preflightAdminGachaVersionPublishSchedule",
+        "summary": "Gacha VersionのSchedule Publish Preflightを実行する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaPublishScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "副作用を伴わないCanonical Schedule Preflight結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishSchedulePreflightResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-schedule/{schedule_id}/cancel": {
+      "post": {
+        "operationId": "cancelAdminGachaVersionPublishSchedule",
+        "summary": "未処理のGacha Version Publish予約を取消する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaPublishScheduleCancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical取消結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaPublishScheduleResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions": {
       "get": {
         "operationId": "listAdminCatalogProbabilityVersions",
@@ -7627,6 +7827,52 @@
           }
         }
       },
+      "AdminGachaPublishScheduleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scheduled_for",
+          "expected_revision",
+          "expected_gacha_revision"
+        ],
+        "properties": {
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_gacha_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaPublishScheduleCancelRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_schedule_revision",
+          "expected_gacha_revision",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "expected_schedule_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_gacha_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
       "AdminGachaPublishBlockingReason": {
         "type": "object",
         "additionalProperties": false,
@@ -7833,6 +8079,16 @@
                 "type": "null"
               }
             ]
+          },
+          "publish_schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminGachaPublishSchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -7919,6 +8175,247 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminGachaImmediatePublish"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminGachaPublishSchedulePreflight": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_version_id",
+          "publishable",
+          "selected_probability",
+          "validation_codes",
+          "blocking_reasons",
+          "gacha_version_revision",
+          "scheduled_for",
+          "server_timezone",
+          "display_timezone",
+          "request_id"
+        ],
+        "properties": {
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "publishable": {
+            "type": "boolean"
+          },
+          "selected_probability": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminGachaPublishSelectedProbability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation_codes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z0-9_]+$"
+            }
+          },
+          "blocking_reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaPublishBlockingReason"
+            }
+          },
+          "gacha_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "server_timezone": {
+            "type": "string",
+            "enum": [
+              "UTC"
+            ]
+          },
+          "display_timezone": {
+            "type": "string",
+            "enum": [
+              "Asia/Tokyo"
+            ]
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminGachaPublishSchedulePreflightResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGachaPublishSchedulePreflight"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminGachaPublishSchedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "scheduled_for",
+          "next_attempt_at",
+          "server_timezone",
+          "display_timezone",
+          "gacha_version_id",
+          "selected_probability",
+          "attempts",
+          "failure_code",
+          "revision",
+          "gacha_revision",
+          "gacha_version_revision",
+          "started_at",
+          "completed_at",
+          "cancelled_at",
+          "failed_at",
+          "request_id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "processing",
+              "completed",
+              "cancelled",
+              "failed"
+            ]
+          },
+          "scheduled_for": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "next_attempt_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "server_timezone": {
+            "type": "string",
+            "enum": [
+              "UTC"
+            ]
+          },
+          "display_timezone": {
+            "type": "string",
+            "enum": [
+              "Asia/Tokyo"
+            ]
+          },
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "selected_probability": {
+            "$ref": "#/components/schemas/AdminGachaPublishSelectedProbability"
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "failure_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "gacha_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "gacha_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cancelled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "failed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminGachaPublishScheduleDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminGachaPublishSchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminGachaPublishScheduleResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGachaPublishSchedule"
           },
           "idempotent_replay": {
             "type": "boolean"

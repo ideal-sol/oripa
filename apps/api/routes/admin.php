@@ -192,6 +192,18 @@ Route::prefix('v2')
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish', [V2AdminCatalogController::class, 'publishGachaVersionImmediately'])
             ->whereUuid('gachaId')->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.publish');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/publish-schedule', [V2AdminCatalogController::class, 'gachaPublishSchedule'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.publish-schedule.show');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish-schedule/preflight', [V2AdminCatalogController::class, 'preflightGachaPublishSchedule'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.publish-schedule.preflight');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish-schedule', [V2AdminCatalogController::class, 'scheduleGachaVersionPublish'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.publish-schedule.create');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish-schedule/{scheduleId}/cancel', [V2AdminCatalogController::class, 'cancelGachaVersionPublishSchedule'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('scheduleId')
+            ->name('v2.admin.catalog.gacha-versions.publish-schedule.cancel');
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/clone', [V2AdminCatalogController::class, 'cloneProbabilityDraft'])
             ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
             ->name('v2.admin.catalog.probability-versions.clone');

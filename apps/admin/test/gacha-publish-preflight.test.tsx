@@ -24,6 +24,7 @@ import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-p
 import { AdminApiClient } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
+  AdminGachaPublishSchedule,
   AdminGachaPublishedProbabilityCandidate,
 } from "@/lib/admin-api/generated";
 
@@ -38,6 +39,29 @@ const candidate: AdminGachaPublishedProbabilityCandidate = {
   stage_count: 2,
   validation_status: "valid",
   version_number: 3,
+};
+const scheduled: AdminGachaPublishSchedule = {
+  attempts: 0,
+  cancelled_at: null,
+  completed_at: null,
+  display_timezone: "Asia/Tokyo",
+  failed_at: null,
+  failure_code: null,
+  gacha_revision: 4,
+  gacha_version_id: VERSION_ID,
+  gacha_version_revision: 3,
+  id: "01910191-0191-7191-8191-019101910194",
+  next_attempt_at: "2026-12-01T01:00:00Z",
+  request_id: "01910191-0191-7191-8191-019101910195",
+  revision: 1,
+  scheduled_for: "2026-12-01T01:00:00Z",
+  selected_probability: {
+    id: PROBABILITY_ID,
+    snapshot_sha256: "a".repeat(64),
+  },
+  server_timezone: "UTC",
+  started_at: null,
+  status: "scheduled",
 };
 
 describe("Gacha Publish Preflight", () => {
@@ -140,9 +164,8 @@ describe("Gacha Publish Preflight", () => {
     expect(
       await screen.findByText("GACHA_PRESENTATION_ASSET_REQUIRED"),
     ).toBeVisible();
-    expect(screen.getByText("Schedule／Unpublishは未実装")).toBeVisible();
+    expect(screen.getByText("Unpublish／販売停止は未実装")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Publish Now" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Schedule" })).not.toBeInTheDocument();
   });
 
   it("publishes after server preflight and refreshes canonical state", async () => {
@@ -232,6 +255,100 @@ describe("Gacha Publish Preflight", () => {
     expect(onCanonical).toHaveBeenCalledWith(canonical);
   });
 
+  it("schedules and cancels Publish through server preflight", async () => {
+    mockReads(candidate);
+    vi.spyOn(
+      AdminApiClient.prototype,
+      "getGachaPublishSchedule",
+    )
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValue({ data: scheduled });
+    const preflight = vi
+      .spyOn(
+        AdminApiClient.prototype,
+        "preflightGachaVersionPublishSchedule",
+      )
+      .mockResolvedValue({
+        data: {
+          blocking_reasons: [],
+          display_timezone: "Asia/Tokyo",
+          gacha_version_id: VERSION_ID,
+          gacha_version_revision: 2,
+          publishable: true,
+          request_id: GACHA_ID,
+          scheduled_for: scheduled.scheduled_for,
+          selected_probability: scheduled.selected_probability,
+          server_timezone: "UTC",
+          validation_codes: ["GACHA_SCHEDULE_PREFLIGHT_READY"],
+        },
+        idempotent_replay: false,
+      });
+    const create = vi
+      .spyOn(AdminApiClient.prototype, "scheduleGachaVersionPublish")
+      .mockResolvedValue({ data: scheduled, idempotent_replay: false });
+    const cancelled = {
+      ...scheduled,
+      cancelled_at: "2026-08-13T00:01:00Z",
+      gacha_revision: 5,
+      gacha_version_revision: 4,
+      revision: 2,
+      status: "cancelled" as const,
+    };
+    const cancel = vi
+      .spyOn(AdminApiClient.prototype, "cancelGachaVersionPublishSchedule")
+      .mockResolvedValue({ data: cancelled, idempotent_replay: false });
+    vi.spyOn(AdminApiClient.prototype, "getCatalogGachaVersion")
+      .mockResolvedValue({ data: version({ revision: 3 }) });
+
+    render(
+      <GachaPublishPreflightPanel
+        gachaId={GACHA_ID}
+        onCanonical={vi.fn()}
+        version={version({
+          published_probability_version: {
+            id: PROBABILITY_ID,
+            status: "published",
+            version_number: 3,
+          },
+        })}
+      />,
+    );
+    await screen.findByText("aaaaaaaaaaaa");
+    fireEvent.change(screen.getByLabelText(/Schedule Publish/u), {
+      target: { value: "2026-12-01T10:00" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Schedule Preflight" }),
+    );
+    await screen.findByText("Schedule Preflight完了");
+    expect(preflight).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Publishを予約" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "このVersionのPublishを予約しますか",
+      }),
+    ).toBeVisible();
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Publishを予約",
+      }),
+    );
+    await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(await screen.findByText("scheduled")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "予約を取消" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "予約を取消",
+      }),
+    );
+    await waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+    expect(cancel.mock.calls[0][3]).toEqual({
+      expected_gacha_revision: 4,
+      expected_schedule_revision: 1,
+      expected_version_revision: 3,
+    });
+  });
+
   it("keeps Operator access read-only", async () => {
     permissionState.canPublish = false;
     mockReads(candidate);
@@ -251,6 +368,9 @@ describe("Gacha Publish Preflight", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Publish Preflight" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Schedule Preflight" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -293,6 +413,10 @@ function mockReads(
       },
     },
   });
+  vi.spyOn(
+    AdminApiClient.prototype,
+    "getGachaPublishSchedule",
+  ).mockResolvedValue({ data: null });
 }
 
 function version(

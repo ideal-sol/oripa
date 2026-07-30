@@ -430,6 +430,22 @@ final class V2AdminCatalogReadService
             : DB::table('gacha_draw_states')
                 ->where('id', $gacha->active_draw_state_id)
                 ->firstOrFail();
+        $schedule = DB::table('catalog_gacha_publish_schedules as schedule')
+            ->join(
+                'catalog_gacha_versions as version',
+                'version.id',
+                '=',
+                'schedule.gacha_version_id'
+            )
+            ->join(
+                'catalog_probability_versions as probability',
+                'probability.id',
+                '=',
+                'schedule.probability_version_id'
+            )
+            ->where('schedule.gacha_id', $gacha->id)
+            ->orderByDesc('schedule.id')
+            ->first($this->publishScheduleColumns());
 
         return [
             'data' => [
@@ -456,7 +472,110 @@ final class V2AdminCatalogReadService
                         'sold_count' => (int) $state->sold_count,
                         'total_count' => (int) $state->total_count,
                     ],
+                'publish_schedule' => $schedule === null
+                    ? null
+                    : $this->mapPublishSchedule(
+                        $schedule,
+                        (int) $gacha->revision
+                    ),
             ],
+        ];
+    }
+
+    public function gachaPublishSchedule(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $version = $this->find(
+            'catalog_gacha_versions',
+            $gachaVersionPublicId
+        );
+        if ((int) $version->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+        $schedule = DB::table('catalog_gacha_publish_schedules as schedule')
+            ->join(
+                'catalog_gacha_versions as version',
+                'version.id',
+                '=',
+                'schedule.gacha_version_id'
+            )
+            ->join(
+                'catalog_probability_versions as probability',
+                'probability.id',
+                '=',
+                'schedule.probability_version_id'
+            )
+            ->where('schedule.gacha_version_id', $version->id)
+            ->orderByDesc('schedule.id')
+            ->first($this->publishScheduleColumns());
+
+        return [
+            'data' => $schedule === null
+                ? null
+                : $this->mapPublishSchedule(
+                    $schedule,
+                    (int) $gacha->revision
+                ),
+        ];
+    }
+
+    /** @return list<string> */
+    private function publishScheduleColumns(): array
+    {
+        return [
+            'schedule.public_id',
+            'schedule.status',
+            'schedule.scheduled_for',
+            'schedule.next_attempt_at',
+            'schedule.attempts',
+            'schedule.failure_code',
+            'schedule.revision',
+            'schedule.expected_gacha_revision',
+            'schedule.expected_version_revision',
+            'schedule.started_at',
+            'schedule.completed_at',
+            'schedule.cancelled_at',
+            'schedule.failed_at',
+            'schedule.request_id',
+            'version.public_id as gacha_version_public_id',
+            'version.revision as current_gacha_version_revision',
+            'probability.public_id as probability_public_id',
+            'probability.snapshot_sha256',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapPublishSchedule(
+        object $schedule,
+        int $currentGachaRevision
+    ): array {
+        return [
+            'id' => $schedule->public_id,
+            'status' => $schedule->status,
+            'scheduled_for' => $schedule->scheduled_for,
+            'next_attempt_at' => $schedule->next_attempt_at,
+            'server_timezone' => 'UTC',
+            'display_timezone' => (string) config('v2_catalog.timezone'),
+            'gacha_version_id' => $schedule->gacha_version_public_id,
+            'selected_probability' => [
+                'id' => $schedule->probability_public_id,
+                'snapshot_sha256' => $schedule->snapshot_sha256,
+            ],
+            'attempts' => (int) $schedule->attempts,
+            'failure_code' => $schedule->failure_code,
+            'revision' => (int) $schedule->revision,
+            'gacha_revision' => $currentGachaRevision,
+            'gacha_version_revision' =>
+                (int) $schedule->current_gacha_version_revision,
+            'started_at' => $schedule->started_at,
+            'completed_at' => $schedule->completed_at,
+            'cancelled_at' => $schedule->cancelled_at,
+            'failed_at' => $schedule->failed_at,
+            'request_id' => $schedule->request_id,
         ];
     }
 

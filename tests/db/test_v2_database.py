@@ -1,4 +1,5 @@
 import base64
+import argparse
 import importlib.util
 import os
 from pathlib import Path
@@ -183,6 +184,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
     def test_catalog_schema_inventory_is_explicit(self):
         for table in (
             "public.catalog_categories",
+            "public.catalog_gacha_publish_schedules",
             "public.catalog_tags",
             "public.catalog_ranks",
             "public.catalog_presentation_assets",
@@ -196,6 +198,48 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "public.catalog_import_runs",
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
+    def test_task_database_marker_and_actual_target_are_required(self):
+        values = dict(self.values)
+        values["COMPOSE_PROJECT_NAME"] = "mig060k-v2-scheduled-publish"
+        values["V2_DB_DATABASE"] = "oripa_v2_mig060k_task"
+        values["V2_DB_USERNAME"] = "oripa_v2_mig060k_task_user"
+        with mock.patch.object(
+            v2_database,
+            "compose_exec",
+            side_effect=[b"oripa_v2_mig060k_task|public|5432\n", b"f\n"],
+        ):
+            evidence = v2_database.assert_database_target(
+                ["docker", "compose"],
+                self.repository,
+                values,
+                "MIG-060K",
+                "v2-task-ephemeral",
+                "empty",
+            )
+        self.assertEqual("PASS", evidence["status"])
+        self.assertEqual("public", evidence["schema"])
+
+    def test_task_database_name_mismatch_fails_closed(self):
+        values = dict(self.values)
+        values["COMPOSE_PROJECT_NAME"] = "mig060k-v2-scheduled-publish"
+        values["V2_DB_DATABASE"] = "oripa_v2_other_task"
+        values["V2_DB_USERNAME"] = "oripa_v2_other_task_user"
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Task ID"):
+            v2_database.assert_database_target(
+                ["docker", "compose"],
+                self.repository,
+                values,
+                "MIG-060K",
+                "v2-task-ephemeral",
+                "empty",
+            )
+
+    def test_task_and_purpose_markers_must_be_paired(self):
+        with self.assertRaisesRegex(v2_database.GuardFailure, "together"):
+            v2_database.require_database_markers(
+                argparse.Namespace(task_id="MIG-060K", purpose=None)
+            )
 
     def test_prize_shipping_schema_inventory_is_explicit(self):
         for table in (

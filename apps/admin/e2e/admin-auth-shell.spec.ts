@@ -590,6 +590,14 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
         idempotent_replay: false,
       });
     }
+    if (
+      url.pathname.endsWith(
+        `/catalog/gachas/${gachaId}/versions/${versionId}/publish-schedule`,
+      )
+    ) {
+      expect(request.method()).toBe("GET");
+      return json(route, { data: null });
+    }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/publish-state`)) {
       return json(route, {
         data: {
@@ -678,6 +686,13 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     name: "選択を確定",
   }).click();
   await expect(page.getByText(/v3.*01910191/u)).toBeVisible();
+  await expect(page.getByLabel(/Schedule Publish/u)).toBeVisible();
+  await expect(
+    page.getByText(/保存とWorker判定はUTCのDB Server時刻/u),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Schedule Preflight" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Publish Preflight" }).click();
   await expect(page.getByText("Server Preflight完了")).toBeVisible();
   await page.getByRole("button", { name: "Publish Now" }).click();
@@ -685,8 +700,8 @@ test("Gacha master and Draft Version remain navigable and permission-aware", asy
     name: "Publish Now",
   }).click();
   await expect(page.getByText(/現在公開中/u)).toBeVisible();
-  await expect(page.getByText("Schedule／Unpublishは未実装")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Schedule", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Unpublish／販売停止は未実装")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unpublish" })).toHaveCount(0);
 
   await page.setViewportSize({ height: 844, width: 390 });
   expect(
