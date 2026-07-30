@@ -497,6 +497,21 @@ final class V2AdminCatalogReadService
         ];
     }
 
+    public function gachaUnpublishState(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+
+        return [
+            'data' => $this->mutations->mapGachaUnpublishState(
+                $gacha,
+                $context->requestId
+            ),
+        ];
+    }
+
     public function gachaPublishSchedule(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,

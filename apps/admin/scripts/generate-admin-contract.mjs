@@ -142,6 +142,18 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/sales-resume",
   ],
+  getAdminGachaUnpublishState: [
+    "get",
+    "/catalog/gachas/{gacha_id}/unpublish-state",
+  ],
+  preflightAdminGachaUnpublish: [
+    "post",
+    "/catalog/gachas/{gacha_id}/unpublish/preflight",
+  ],
+  unpublishAdminGacha: [
+    "post",
+    "/catalog/gachas/{gacha_id}/unpublish",
+  ],
   publishAdminGachaVersionImmediately: [
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish",
@@ -860,6 +872,34 @@ export interface AdminGachaSalesPreflight {
   validation_codes: string[];
   blocking_reasons: AdminGachaPublishBlockingReason[];
   sales_state: AdminGachaSalesState;
+  request_id: string;
+}
+
+export interface AdminGachaUnpublishRequest {
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaUnpublishState {
+  gacha_id: string;
+  status: "published" | "unpublished";
+  gacha_revision: number;
+  sales_status: "selling" | "paused";
+  deactivated_at: string | null;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+  publish_schedule: AdminGachaPublishSchedule | null;
+  request_id: string;
+}
+
+export interface AdminGachaUnpublishPreflight {
+  allowed: boolean;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  state: AdminGachaUnpublishState;
   request_id: string;
 }
 

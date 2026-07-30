@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 6fb71fabb19c8ccb9378ec32db09ee08dbfd3de6cf68ac6d7405164f60d0376e
+// Contract SHA-256: 62151111e0c7127dc62ebb671d55bea8e05a45ca07621586355362c289eeaf84
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -567,6 +567,34 @@ export interface AdminGachaSalesPreflight {
   validation_codes: string[];
   blocking_reasons: AdminGachaPublishBlockingReason[];
   sales_state: AdminGachaSalesState;
+  request_id: string;
+}
+
+export interface AdminGachaUnpublishRequest {
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaUnpublishState {
+  gacha_id: string;
+  status: "published" | "unpublished";
+  gacha_revision: number;
+  sales_status: "selling" | "paused";
+  deactivated_at: string | null;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+  publish_schedule: AdminGachaPublishSchedule | null;
+  request_id: string;
+}
+
+export interface AdminGachaUnpublishPreflight {
+  allowed: boolean;
+  validation_codes: string[];
+  blocking_reasons: AdminGachaPublishBlockingReason[];
+  state: AdminGachaUnpublishState;
   request_id: string;
 }
 

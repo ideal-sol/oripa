@@ -27,6 +27,7 @@ import type {
   AdminGachaPublishSchedule,
   AdminGachaPublishedProbabilityCandidate,
   AdminGachaSalesState,
+  AdminGachaUnpublishState,
 } from "@/lib/admin-api/generated";
 
 const GACHA_ID = "01910191-0191-7191-8191-019101910191";
@@ -165,7 +166,7 @@ describe("Gacha Publish Preflight", () => {
     expect(
       await screen.findByText("GACHA_PRESENTATION_ASSET_REQUIRED"),
     ).toBeVisible();
-    expect(screen.getByText("Unpublishは未実装")).toBeVisible();
+    expect(screen.getByText("Public: 公開中")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Publish Now" })).not.toBeInTheDocument();
   });
 
@@ -376,6 +377,9 @@ describe("Gacha Publish Preflight", () => {
     expect(
       screen.queryByRole("button", { name: "Pause Preflight" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Unpublish Preflight" }),
+    ).not.toBeInTheDocument();
   });
 
   it("pauses sales after server preflight and confirmation", async () => {
@@ -459,15 +463,88 @@ describe("Gacha Publish Preflight", () => {
       />,
     );
     await screen.findByText("Sales: 一時停止中");
-    expect(screen.getByText(/2026\/8\/14 9:00:00/u)).toBeVisible();
+    expect(screen.getByText(/2026\/8\/14 0?9:00:00/u)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Resume Preflight" }));
     expect(await screen.findByText("Fresh MFA")).toBeVisible();
+  });
+
+  it("unpublishes a paused Gacha after preflight and impact confirmation", async () => {
+    const pausedSales = salesState({
+      paused_at: "2026-08-14T00:00:00Z",
+      reason_code: "operations_review",
+      status: "paused",
+    });
+    const publishedState = unpublishState({
+      sales_status: "paused",
+    });
+    mockReads(candidate, pausedSales, publishedState);
+    const preflight = vi
+      .spyOn(AdminApiClient.prototype, "preflightGachaUnpublish")
+      .mockResolvedValue({
+        data: {
+          allowed: true,
+          blocking_reasons: [],
+          request_id: GACHA_ID,
+          state: publishedState,
+          validation_codes: ["GACHA_UNPUBLISH_READY"],
+        },
+        idempotent_replay: false,
+      });
+    const unpublishedState = unpublishState({
+      current_published_version: null,
+      deactivated_at: "2026-08-15T00:00:00Z",
+      draw_state: null,
+      gacha_revision: 4,
+      selected_probability: null,
+      sales_status: "paused",
+      status: "unpublished",
+    });
+    const unpublish = vi
+      .spyOn(AdminApiClient.prototype, "unpublishGacha")
+      .mockResolvedValue({
+        data: unpublishedState,
+        idempotent_replay: false,
+      });
+
+    render(
+      <GachaPublishPreflightPanel
+        gachaId={GACHA_ID}
+        onCanonical={vi.fn()}
+        version={version()}
+      />,
+    );
+    await screen.findByText("Public: 公開中");
+    expect(screen.getAllByText(/Sales: 一時停止中/u)).toHaveLength(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unpublish Preflight" }),
+    );
+    await screen.findByText("Public／Draw解除可能");
+    expect(preflight.mock.calls[0][1]).toEqual({
+      expected_gacha_revision: 3,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "最終確認" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Public Catalogと新規Drawから解除しますか",
+    });
+    expect(
+      within(dialog).getByText(/Inventory、既存Draw履歴は保持/u),
+    ).toBeVisible();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Unpublish" }),
+    );
+    await waitFor(() => expect(unpublish).toHaveBeenCalledOnce());
+    expect(unpublish.mock.calls[0][1]).toEqual({
+      expected_gacha_revision: 3,
+    });
+    expect(await screen.findByText("Public: 解除済み")).toBeVisible();
+    expect(screen.getByText(/2026\/8\/15 0?9:00:00/u)).toBeVisible();
   });
 });
 
 function mockReads(
   selected: AdminGachaPublishedProbabilityCandidate | null,
   currentSalesState: AdminGachaSalesState = salesState(),
+  currentUnpublishState: AdminGachaUnpublishState = unpublishState(),
 ): void {
   vi.spyOn(
     AdminApiClient.prototype,
@@ -511,6 +588,39 @@ function mockReads(
   vi.spyOn(AdminApiClient.prototype, "getGachaSalesState").mockResolvedValue({
     data: currentSalesState,
   });
+  vi.spyOn(AdminApiClient.prototype, "getGachaUnpublishState").mockResolvedValue({
+    data: currentUnpublishState,
+  });
+}
+
+function unpublishState(
+  overrides: Partial<AdminGachaUnpublishState> = {},
+): AdminGachaUnpublishState {
+  return {
+    current_published_version: {
+      id: GACHA_ID,
+      published_at: "2026-08-11T00:00:00Z",
+      status: "published",
+      version_number: 1,
+    },
+    deactivated_at: null,
+    draw_state: {
+      sold_count: 0,
+      status: "selling",
+      total_count: 1_000,
+    },
+    gacha_id: GACHA_ID,
+    gacha_revision: 3,
+    publish_schedule: null,
+    request_id: GACHA_ID,
+    sales_status: "selling",
+    selected_probability: {
+      id: PROBABILITY_ID,
+      snapshot_sha256: "a".repeat(64),
+    },
+    status: "published",
+    ...overrides,
+  };
 }
 
 function salesState(

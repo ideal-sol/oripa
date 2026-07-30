@@ -7127,3 +7127,118 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 次Task候補は
   `MIG-060M Admin Gacha Unpublish／Public Deactivation`であり、
   MIG-060Mは本Task内で開始しない。
+
+## MIG-060L Closeout／MIG-060M Gacha Unpublish／Public Deactivation
+
+### MIG-060L Closeout
+
+- Issue `#147`はClosed、PR `#148`はSquash Mergedである。
+- Final Headは`61d7268df003e420380538ef641be357001e2499`、Squash Commitは
+  `a3bf2789b1cc7cbad22d7b6185d18863a6ea40db`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含むGitHub 8 Checkは
+  成功した。Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Branch／Worktree／Task ResourceはCleanup済みで、Local
+  `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### Characterization／Unpublish Domain
+
+- UnpublishはArchive／Deleteではなく、Sales Pause済みの公開Gachaについて
+  Public PointerとActive Draw Pointerを原子的に解除する運用遷移である。
+- Published Version、Published Probability Snapshot、Draw State、Inventory、
+  Point、既存Draw Request／Result／Historyは変更または削除しない。
+- Scheduled／Processing PublishはPreflight Blockerとし、予約を暗黙に取消・
+  削除しない。再Publishは既存Immediate／Scheduled Publish Flowを使用する。
+- 成功済みDraw Replayは解除後もCanonical Resultを返す。新規DrawはPoint減算、
+  Inventory更新、Draw履歴作成前にActive Pointerなしとして拒否する。
+- Public OpenAPI Schemaは変更せず、List／Detailは公開PointerなしのGachaを
+  現在公開中として返さない。
+
+### Contract／Transaction／DB Guard
+
+- Admin OpenAPIへUnpublish状態取得、Preflight、Mutationを追加した。
+  `catalog.publish`、Admin Realm、MFA Enrollment、Fresh MFA 5分、CSRF、
+  Exact Origin、JSON、Idempotency-Key、Revision OCC、Critical Rate Limitを強制する。
+- Owner／Adminは実行可能、OperatorはRead-only／Mutation 403である。
+- Idempotency Record、Gacha、Published Version、Active Draw State、
+  Probability、Active Scheduleを固定順でLockし、Pointer、DB時刻、Revision、
+  Audit、`catalog.change` Outboxを単一Transactionで確定する。
+- Forward-safe Migration
+  `2026_08_15_000028_add_v2_gacha_public_deactivation.php`を追加した。
+  既存Migrationは編集していない。
+- Canonical CHECK、Restrict FK、Transition／History TriggerでPartial Deactivation、
+  Revision bypass、未Pause、Active Schedule、不整合Pointer、Metadata改変、
+  履歴Delete、直接ResumeをFail Closedにした。
+- Task DBは`oripa_v2_mig060m`、用途は`v2-task-ephemeral`である。
+  Target Guard、Migration Rollback／Reapply、DumpでCanonical Schemaを確認した。
+
+### Admin UI／対象Test
+
+- 既存Publish／Sales画面へPublic／Sales／Schedule状態、Unpublish Preflight、
+  Blocker、Fresh MFA、影響確認Dialog、Conflict／429、Canonical解除状態、
+  `Asia/Tokyo`解除日時を追加した。
+- Operator操作非表示、Backend 403、二重送信防止、Mobile、Keyboard、Focusは
+  既存Admin基盤を再利用した。
+- Backend対象全回帰は`26 Test／443 Assertion`、追加Unpublish HTTP／Atomicityは
+  `4 Test／96 Assertion`、Process Concurrencyは`1 Test／11 Assertion`でPASSした。
+- Admin OpenAPI、生成、Typecheck、Lint、Build、Unit／Component `55 Test`、
+  Browser E2E `13 Test`がPASSした。
+- Persistent／Ephemeral双方で`migrate:fresh`各2回、最新Migration
+  Rollback／Reapply、全V2 Suite、Backup／Restore、API／Admin HealthがPASSした。
+- Migration数は28、Migration Set SHA-256は
+  `aebf7c4b850dd5bfcecd971e9472632488d679e86dee86cadafb81b047c8b7bf`、
+  Backup SHA-256は
+  `1c6a07e1b27528e33ffe367dfa0155602f08cd0d06eff677ab84472dcc315061`、
+  Source／Restore Schema SHA-256は
+  `795a55b80fba5cc5757a5ea7620374e9a11cdea24ea19fe1a9a3a32a31933f14`
+  で一致した。
+- 100回Draw p95は`208.224 ms`、Query最大56、1000回Draw p95は
+  `694.111 ms`、Query最大58であり、Timeout／Memory設定変更なしで基準内である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testを依存順Serialで
+  実行した。Policy Unit 89、Quality Unit 5、Security Unit 4、DB Guard Unit 29、
+  OpenAPI Unit 4、Release Unit 10と各GateはPASSした。
+- Root Audit 0、Legacy Audit 11、Composer既存Baseline 10、新規Critical／High 0、
+  Secret／PII Candidate 0である。V1 Migration 40件Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- Local Schema SHA-256は
+  `b42a794b78f9bfddaaaba999219d442fb77a8046022c82d11942592ae93ba88d`
+  である。
+
+### 時間を要した作業／効率改善
+
+- API Image Buildは約50秒、Backend対象回帰は約42秒、Admin Unitは約34秒、
+  Browser Smokeは約42秒／回を要した。
+- Root空き3.6GBが重い検証前の安全閾値を下回ったため、未使用Docker Build Cache
+  だけを削除して約4.3GBを回収した。稼働Container、Named Volume、V1 Resource、
+  Imageは削除していない。
+- Task DB起動直後のTarget ProbeはHealth到達前に接続拒否となったため、Resourceを
+  作り直さずHealth確認後に再試行した。
+- Unpublish Fixture初回は既存Dummy Snapshot Hashにより安全に拒否された。
+  Server Validationを緩和せず、Test内で正式Publish済みSnapshotを作成した。
+- Browser Smokeでは追加した`Unpublish Preflight`と既存部分一致Locatorが競合した。
+  Accessible Name完全一致へ補正し、実装／Security境界を変更せず完了した。
+- Persistent Guardは約3分、Ephemeral Guardは約6分を要した。中断・重複実行せず
+  同一Evidenceを保持した。
+- Local PolicyはUnpublish OperationとMigration 28番を旧Allowlistで拒否した。
+  Public Mutation禁止を維持し、Task Operation／Migration集合だけを正本へ追加して
+  Policy Unit 89件と実Gateを再実行した。
+- GitHub初回`policy-gate`はPR本文のBase値ラベルがGovernance正本の
+  `Base SHA`と一致せず失敗した。空Commitを作らず本文を修正した。
+- GitHub初回`quality-gate`はAsia/Tokyo変換自体は正しかったが、Node ICU差による
+  時のゼロ埋めだけでAdmin Testが失敗した。表示timezoneを緩和せず、
+  `09`／`9`の両方を許容するTest期待値へ補正し、Admin 55 Testを再実行した。
+- First-party Packageは依存順Serial、Existing Classic Builderを使用し、
+  Host Toolchain、Gate、Assertion、Security、Timeout、Memoryを変更していない。
+
+### Final予定／Gate
+
+- V1 Backend隔離回帰はV1 Path／Checksum不変のため、直前MIG-060Lの
+  `334 Test／1,820 Assertion` Evidenceを再利用し、GitHub Integrationで再実行する。
+- Fresh Self-reviewとGitHub CheckはFinal候補Headで確定する。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060M/`に保存する。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、Public／Admin状態、
+  `v1/early-release`、Archive Branch、Annotated Tagは非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は`MIG-060N Admin QA Draw Management`であり、本Taskでは開始しない。

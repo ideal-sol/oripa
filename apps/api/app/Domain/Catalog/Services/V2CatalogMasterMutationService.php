@@ -1466,6 +1466,122 @@ final class V2CatalogMasterMutationService
         );
     }
 
+    /** @param array<string, mixed> $input */
+    public function preflightGachaUnpublish(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        return $this->executeGachaUnpublish(
+            $context,
+            $gachaPublicId,
+            $idempotencyKey,
+            $input,
+            true
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function unpublishGacha(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        return $this->executeGachaUnpublish(
+            $context,
+            $gachaPublicId,
+            $idempotencyKey,
+            $input,
+            false
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @return array{data: array<string, mixed>, idempotent_replay: bool, status: int}
+     */
+    private function executeGachaUnpublish(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $idempotencyKey,
+        array $input,
+        bool $preflight
+    ): array {
+        $action = $preflight ? 'gacha_unpublish_preflight' : 'gacha_unpublish';
+        $admin = $this->authorizeCatalogPublish($context, $action, 'gacha');
+        $this->rateLimitCatalogPublish($context, $admin, $action, 'gacha');
+        $this->assertFields(
+            $input,
+            ['expected_gacha_revision'],
+            ['expected_gacha_revision']
+        );
+        $expectedRevision = $this->revision($input['expected_gacha_revision']);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha',
+            $action,
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'expected_gacha_revision' => $expectedRevision,
+            ],
+            200,
+            function () use (
+                $context,
+                $admin,
+                $gachaPublicId,
+                $expectedRevision,
+                $preflight
+            ): array {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                if ((int) $gacha->revision !== $expectedRevision) {
+                    throw new V2CatalogException(
+                        'CATALOG_REVISION_CONFLICT',
+                        409,
+                        'The Catalog record has changed.'
+                    );
+                }
+                $contextRows = $this->lockGachaSalesContext($gacha);
+                $result = $this->gachaUnpublishPreflightResult(
+                    $context->requestId,
+                    $gacha,
+                    $contextRows
+                );
+                if ($preflight) {
+                    return $result;
+                }
+                if (! $result['allowed']) {
+                    throw new V2CatalogException(
+                        'CATALOG_GACHA_UNPUBLISH_INVALID',
+                        422,
+                        'The Gacha cannot be unpublished.'
+                    );
+                }
+
+                DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                    'published_version_id' => null,
+                    'active_draw_state_id' => null,
+                    'public_deactivated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    'public_deactivated_by_admin_public_id' => $admin->public_id,
+                    'public_deactivation_request_id' => $context->requestId,
+                    'revision' => (int) $gacha->revision + 1,
+                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                ]);
+
+                return $this->mapGachaUnpublishState(
+                    $this->find('catalog_gachas', $gachaPublicId, false),
+                    $context->requestId
+                );
+            },
+            ! $preflight,
+            static fn (array $result): array => $result
+        );
+    }
+
     /**
      * @param array<string, mixed> $input
      * @return array{data: array<string, mixed>, idempotent_replay: bool, status: int}
@@ -2102,6 +2218,11 @@ final class V2CatalogMasterMutationService
                             ? 'sales_resume_preflight_completed'
                             : 'sales_resume_preflight_failed',
                     'gacha_sales_resume' => 'sales_resumed',
+                    'gacha_unpublish_preflight' =>
+                        ($data['allowed'] ?? false)
+                            ? 'unpublish_preflight_completed'
+                            : 'unpublish_preflight_failed',
+                    'gacha_unpublish' => 'unpublished',
                     'publish' => 'published',
                     default => throw new \LogicException(
                         'Unsupported Catalog mutation action.'
@@ -2115,7 +2236,9 @@ final class V2CatalogMasterMutationService
                             ? $data['gacha_id']
                             : (is_string($data['sales_state']['gacha_id'] ?? null)
                                 ? $data['sales_state']['gacha_id']
-                                : null)));
+                                : (is_string($data['state']['gacha_id'] ?? null)
+                                    ? $data['state']['gacha_id']
+                                    : null))));
                 $preflightBlocked = in_array(
                     $action,
                     [
@@ -2123,10 +2246,12 @@ final class V2CatalogMasterMutationService
                         'gacha_schedule_preflight',
                         'gacha_sales_pause_preflight',
                         'gacha_sales_resume_preflight',
+                        'gacha_unpublish_preflight',
                     ],
                     true
                 ) && ! (
                     str_starts_with($action, 'gacha_sales_')
+                        || $action === 'gacha_unpublish_preflight'
                         ? ($data['allowed'] ?? false)
                         : ($data['publishable'] ?? false)
                 );
@@ -2139,9 +2264,11 @@ final class V2CatalogMasterMutationService
                     $preflightBlocked ? 'failure' : 'success',
                     $preflightBlocked
                         ? (
-                            str_starts_with($action, 'gacha_sales_')
+                            $action === 'gacha_unpublish_preflight'
+                                ? 'unpublish_preflight_blocked'
+                                : (str_starts_with($action, 'gacha_sales_')
                                 ? 'sales_preflight_blocked'
-                                : 'publish_preflight_blocked'
+                                : 'publish_preflight_blocked')
                         )
                         : $action.'_completed',
                     $targetPublicId,
@@ -4279,6 +4406,137 @@ final class V2CatalogMasterMutationService
         ];
     }
 
+    /**
+     * @param array{
+     *   version: ?object,
+     *   draw_state: ?object,
+     *   probability: ?object,
+     *   active_schedule: ?object
+     * } $contextRows
+     * @return array<string, mixed>
+     */
+    private function gachaUnpublishPreflightResult(
+        string $requestId,
+        object $gacha,
+        array $contextRows
+    ): array {
+        $codes = [];
+        $blockingReasons = [];
+        $block = static function (
+            string $code,
+            string $message
+        ) use (&$codes, &$blockingReasons): void {
+            if (! in_array($code, $codes, true)) {
+                $codes[] = $code;
+                $blockingReasons[] = ['code' => $code, 'message' => $message];
+            }
+        };
+        $version = $contextRows['version'];
+        $drawState = $contextRows['draw_state'];
+        $probability = $contextRows['probability'];
+        $schedule = $contextRows['active_schedule'];
+
+        if ($gacha->state !== 'active' || $gacha->archived_at !== null) {
+            $block(
+                'GACHA_MASTER_NOT_ACTIVE',
+                'The Gacha Master must be active and not archived.'
+            );
+        }
+        if (! (bool) $gacha->sales_paused) {
+            $block(
+                'GACHA_SALES_PAUSE_REQUIRED',
+                'Gacha Sales must be paused before Public deactivation.'
+            );
+        }
+        if (
+            $version === null
+            || $gacha->published_version_id === null
+            || $version->status !== 'published'
+            || $version->archived_at !== null
+            || $version->published_at === null
+            || (int) $version->gacha_id !== (int) $gacha->id
+        ) {
+            $block(
+                'GACHA_PUBLISHED_VERSION_UNAVAILABLE',
+                'A current Published Gacha Version is required.'
+            );
+        }
+        if (
+            $drawState === null
+            || $gacha->active_draw_state_id === null
+            || (int) $drawState->gacha_id !== (int) $gacha->id
+            || $version === null
+            || (int) $drawState->gacha_version_id !== (int) $version->id
+            || $drawState->status !== 'selling'
+        ) {
+            $block(
+                'GACHA_DRAW_STATE_MISMATCH',
+                'The active Draw state does not match the Published Gacha Version.'
+            );
+        }
+        if (
+            $probability === null
+            || $version === null
+            || (int) $probability->gacha_version_id !== (int) $version->id
+            || (int) $drawState?->probability_version_id !== (int) $probability->id
+            || $probability->status !== 'published'
+            || $probability->archived_at !== null
+            || ! $this->publishedProbabilitySnapshotIsValid($probability)
+        ) {
+            $block(
+                'GACHA_PROBABILITY_SNAPSHOT_INVALID',
+                'The active Probability Snapshot is invalid.'
+            );
+        }
+        if ($schedule?->status === 'processing') {
+            $block(
+                'GACHA_PUBLISH_ACTIVATION_IN_PROGRESS',
+                'A Scheduled Publish activation is in progress.'
+            );
+        } elseif ($schedule?->status === 'scheduled') {
+            $block(
+                'GACHA_FUTURE_PUBLISH_SCHEDULE_EXISTS',
+                'Cancel the future Publish Schedule before Public deactivation.'
+            );
+        }
+
+        $allowed = $blockingReasons === [];
+
+        return [
+            'allowed' => $allowed,
+            'validation_codes' => $allowed
+                ? ['GACHA_UNPUBLISH_READY']
+                : $codes,
+            'blocking_reasons' => $blockingReasons,
+            'state' => $this->mapGachaUnpublishState($gacha, $requestId),
+            'request_id' => $requestId,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function mapGachaUnpublishState(
+        object $gacha,
+        string $requestId
+    ): array {
+        $salesState = $this->mapGachaSalesState($gacha, $requestId);
+
+        return [
+            'gacha_id' => $salesState['gacha_id'],
+            'status' => $gacha->published_version_id === null
+                ? 'unpublished'
+                : 'published',
+            'gacha_revision' => $salesState['gacha_revision'],
+            'sales_status' => $salesState['status'],
+            'deactivated_at' => $gacha->public_deactivated_at,
+            'current_published_version' =>
+                $salesState['current_published_version'],
+            'selected_probability' => $salesState['selected_probability'],
+            'draw_state' => $salesState['draw_state'],
+            'publish_schedule' => $salesState['publish_schedule'],
+            'request_id' => $requestId,
+        ];
+    }
+
     /** @return array<string, mixed> */
     public function mapGachaSalesState(object $gacha, string $requestId): array
     {
@@ -5385,6 +5643,16 @@ final class V2CatalogMasterMutationService
                 'A Gacha Sales state invariant rejected the mutation.'
             );
         }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Gacha Public deactivation')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_GACHA_UNPUBLISH_CONFLICT',
+                409,
+                'A Gacha Public deactivation invariant rejected the mutation.'
+            );
+        }
 
         throw $exception;
     }
@@ -5398,6 +5666,9 @@ final class V2CatalogMasterMutationService
             'CATALOG_GACHA_SALES_PAUSE_INVALID',
             'CATALOG_GACHA_SALES_RESUME_INVALID' =>
                 'catalog.master.sales_state_rejected',
+            'CATALOG_GACHA_UNPUBLISH_INVALID',
+            'CATALOG_GACHA_UNPUBLISH_CONFLICT' =>
+                'catalog.master.unpublish_rejected',
             'IDEMPOTENCY_KEY_REUSED', 'IDEMPOTENCY_REQUEST_IN_PROGRESS' =>
                 'catalog.master.conflict',
             default => 'catalog.master.rejected',

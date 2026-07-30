@@ -1789,6 +1789,484 @@ final class AdminGachaPublishPreflightTest extends TestCase
         ]);
     }
 
+    public function test_paused_gacha_unpublishes_atomically_and_preserves_draw_replay(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
+        $gacha = $this->publishValidGachaVersion($token, 'atomic');
+        $publishedVersion = DB::table('catalog_gacha_versions')
+            ->where('id', $gacha->published_version_id)->firstOrFail();
+        $probability = DB::table('catalog_probability_versions')
+            ->where('id', $publishedVersion->published_probability_version_id)
+            ->firstOrFail();
+        $drawStateId = (int) $gacha->active_draw_state_id;
+        $user = User::query()->create([
+            'email_display' => 'unpublish-draw@example.test',
+            'email_normalized' => 'unpublish-draw@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)
+                ->hash('valid unpublish draw password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            2_000,
+            now()->addYear(),
+            'gacha-unpublish-draw-points'
+        );
+        $drawKey = 'gacha-unpublish-completed-draw';
+        $completed = app(V2DrawService::class)->create(
+            $user,
+            self::GACHA_ID,
+            1,
+            $drawKey,
+            (string) Str::uuid7()
+        );
+        $walletBefore = DB::table('wallets')->where('user_id', $user->id)
+            ->firstOrFail();
+        $pointOperationsBefore = DB::table('point_operations')
+            ->where('user_id', $user->id)->count();
+        $pointLotsBefore = DB::table('point_lots')
+            ->where('user_id', $user->id)->count();
+        $pointLedgersBefore = DB::table('point_ledger_entries')
+            ->where('user_id', $user->id)->count();
+        $inventoryBefore = DB::table('prize_inventories')
+            ->where('gacha_draw_state_id', $drawStateId)
+            ->orderBy('id')->get()->map(fn (object $row): array => (array) $row)
+            ->all();
+        $drawResultsBefore = DB::table('draw_results')
+            ->where('draw_request_id', DB::table('draw_requests')
+                ->where('public_id', $completed['id'])->value('id'))
+            ->count();
+
+        Auth::forgetGuards();
+        $paused = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/sales-pause',
+            [
+                'expected_gacha_revision' => (int) $gacha->revision,
+                'reason_code' => 'operations_review',
+            ],
+            'gacha-unpublish-pause'
+        )->assertOk()->json('data');
+
+        Auth::forgetGuards();
+        $this->asAdmin($token)->getJson($root.'/unpublish-state')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.sales_status', 'paused')
+            ->assertJsonPath(
+                'data.current_published_version.id',
+                $publishedVersion->public_id
+            );
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish/preflight',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-preflight'
+        )->assertOk()
+            ->assertJsonPath('data.allowed', true)
+            ->assertJsonPath('data.validation_codes.0', 'GACHA_UNPUBLISH_READY')
+            ->assertJsonCount(0, 'data.blocking_reasons');
+
+        Auth::forgetGuards();
+        $unpublished = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-mutation'
+        )->assertOk()
+            ->assertJsonPath('data.status', 'unpublished')
+            ->assertJsonPath('data.sales_status', 'paused')
+            ->assertJsonPath('data.current_published_version', null)
+            ->assertJsonPath('data.selected_probability', null)
+            ->assertJsonPath('data.draw_state', null)
+            ->assertJsonPath(
+                'data.gacha_revision',
+                $paused['gacha_revision'] + 1
+            )
+            ->assertJsonPath('idempotent_replay', false)
+            ->json('data');
+        self::assertNotNull($unpublished['deactivated_at']);
+
+        $after = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        self::assertNull($after->published_version_id);
+        self::assertNull($after->active_draw_state_id);
+        self::assertTrue((bool) $after->sales_paused);
+        self::assertEquals(
+            $publishedVersion,
+            DB::table('catalog_gacha_versions')
+                ->where('id', $publishedVersion->id)->firstOrFail()
+        );
+        self::assertEquals(
+            $probability,
+            DB::table('catalog_probability_versions')
+                ->where('id', $probability->id)->firstOrFail()
+        );
+        self::assertDatabaseHas('gacha_draw_states', ['id' => $drawStateId]);
+        self::assertSame(
+            $inventoryBefore,
+            DB::table('prize_inventories')
+                ->where('gacha_draw_state_id', $drawStateId)
+                ->orderBy('id')->get()->map(
+                    fn (object $row): array => (array) $row
+                )->all()
+        );
+        self::assertEquals(
+            $walletBefore,
+            DB::table('wallets')->where('user_id', $user->id)->firstOrFail()
+        );
+        self::assertSame(
+            $pointOperationsBefore,
+            DB::table('point_operations')->where('user_id', $user->id)->count()
+        );
+        self::assertSame(
+            $pointLotsBefore,
+            DB::table('point_lots')->where('user_id', $user->id)->count()
+        );
+        self::assertSame(
+            $pointLedgersBefore,
+            DB::table('point_ledger_entries')->where('user_id', $user->id)->count()
+        );
+        self::assertSame(
+            $drawResultsBefore,
+            DB::table('draw_results')
+                ->where('draw_request_id', DB::table('draw_requests')
+                    ->where('public_id', $completed['id'])->value('id'))
+                ->count()
+        );
+
+        $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
+            ->assertNotFound();
+        try {
+            app(V2DrawService::class)->create(
+                $user,
+                self::GACHA_ID,
+                1,
+                'gacha-unpublish-new-draw',
+                (string) Str::uuid7()
+            );
+            self::fail('An unpublished Gacha accepted a new Draw.');
+        } catch (V2DrawException $exception) {
+            self::assertSame('GACHA_NOT_DRAWABLE', $exception->errorCode);
+        }
+        self::assertSame(
+            $completed['id'],
+            app(V2DrawService::class)->create(
+                $user,
+                self::GACHA_ID,
+                1,
+                $drawKey,
+                (string) Str::uuid7()
+            )['id']
+        );
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-mutation'
+        )->assertOk()
+            ->assertJsonPath('data.gacha_revision', $unpublished['gacha_revision'])
+            ->assertJsonPath('idempotent_replay', true);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/sales-resume',
+            ['expected_gacha_revision' => $unpublished['gacha_revision']],
+            'gacha-unpublish-resume-rejected'
+        )->assertUnprocessable()
+            ->assertJsonPath('code', 'CATALOG_GACHA_SALES_RESUME_INVALID');
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'catalog.master.unpublished',
+            'target_public_id' => self::GACHA_ID,
+        ]);
+        self::assertDatabaseHas('outbox_messages', [
+            'aggregate_public_id' => self::GACHA_ID,
+            'event_type' => 'catalog.master.unpublished',
+        ]);
+    }
+
+    public function test_unpublish_requires_pause_permission_fresh_mfa_occ_and_no_schedule(): void
+    {
+        $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->publishValidGachaVersion($owner, 'security');
+        $operator = $this->createAdminSession(V2AdminRole::Operator);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $operator,
+            'POST',
+            $root.'/unpublish/preflight',
+            ['expected_gacha_revision' => (int) $gacha->revision],
+            'gacha-unpublish-operator'
+        )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/unpublish/preflight',
+            ['expected_gacha_revision' => (int) $gacha->revision],
+            'gacha-unpublish-not-paused'
+        )->assertOk()
+            ->assertJsonPath('data.allowed', false)
+            ->assertJsonPath(
+                'data.validation_codes.0',
+                'GACHA_SALES_PAUSE_REQUIRED'
+            );
+
+        DB::table('admin_sessions')->update([
+            'mfa_verified_at' => now()->subMinutes(5),
+        ]);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => (int) $gacha->revision],
+            'gacha-unpublish-stale-mfa'
+        )->assertForbidden()
+            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        DB::table('admin_sessions')->update(['mfa_verified_at' => now()]);
+
+        Auth::forgetGuards();
+        $paused = $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/sales-pause',
+            [
+                'expected_gacha_revision' => (int) $gacha->revision,
+                'reason_code' => 'inventory_review',
+            ],
+            'gacha-unpublish-permission-pause'
+        )->assertOk()->json('data');
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => (int) $gacha->revision],
+            'gacha-unpublish-stale-revision'
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-key-conflict'
+        )->assertOk();
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $owner,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision'] + 1],
+            'gacha-unpublish-key-conflict'
+        )->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
+    }
+
+    public function test_unpublish_database_guards_reject_partial_deactivation_and_resume(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
+        $gacha = $this->publishValidGachaVersion($token, 'db-guard');
+
+        DB::beginTransaction();
+        try {
+            DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                'published_version_id' => null,
+                'revision' => (int) $gacha->revision + 1,
+            ]);
+            DB::statement(
+                'SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE'
+            );
+            DB::rollBack();
+            self::fail('A partial Public deactivation must be rejected.');
+        } catch (QueryException $exception) {
+            DB::rollBack();
+            self::assertSame('P0001', $exception->errorInfo[0]);
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                'published_version_id' => null,
+                'active_draw_state_id' => null,
+                'revision' => (int) $gacha->revision + 1,
+            ]);
+            DB::rollBack();
+            self::fail('Unpaused direct deactivation must be rejected.');
+        } catch (QueryException $exception) {
+            DB::rollBack();
+            self::assertSame('P0001', $exception->errorInfo[0]);
+        }
+
+        Auth::forgetGuards();
+        $paused = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/sales-pause',
+            [
+                'expected_gacha_revision' => (int) $gacha->revision,
+                'reason_code' => 'incident_response',
+            ],
+            'gacha-unpublish-db-pause'
+        )->assertOk()->json('data');
+        Auth::forgetGuards();
+        $unpublished = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-db-mutation'
+        )->assertOk()->json('data');
+
+        DB::beginTransaction();
+        try {
+            DB::table('catalog_gachas')
+                ->where('public_id', self::GACHA_ID)
+                ->update([
+                    'sales_paused' => false,
+                    'sales_resumed_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    'revision' => $unpublished['gacha_revision'] + 1,
+                ]);
+            DB::rollBack();
+            self::fail('An unpublished Gacha must not resume by direct SQL.');
+        } catch (QueryException $exception) {
+            DB::rollBack();
+            self::assertSame('P0001', $exception->errorInfo[0]);
+        }
+    }
+
+    public function test_unpublish_blocks_active_schedule_without_cancelling_it(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
+        $this->publishValidGachaVersion($token, 'schedule-current');
+        [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
+        $versionRoot = $this->versionRoot($draft['id']);
+        Auth::forgetGuards();
+        $selected = $this->mutatingRequest(
+            $token,
+            'PUT',
+            $versionRoot.'/probability-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $probability['id'],
+            ],
+            'gacha-unpublish-schedule-selection'
+        )->assertOk()->json('data');
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        Auth::forgetGuards();
+        $schedule = $this->mutatingRequest(
+            $token,
+            'POST',
+            $versionRoot.'/publish-schedule',
+            [
+                'scheduled_for' => CarbonImmutable::parse(
+                    DB::selectOne('SELECT CURRENT_TIMESTAMP AS value')->value
+                )->addHour()->toIso8601String(),
+                'expected_revision' => $selected['revision'],
+                'expected_gacha_revision' => (int) $gacha->revision,
+            ],
+            'gacha-unpublish-schedule-create'
+        )->assertCreated()->json('data');
+        Auth::forgetGuards();
+        $paused = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/sales-pause',
+            [
+                'expected_gacha_revision' => $schedule['gacha_revision'],
+                'reason_code' => 'operations_review',
+            ],
+            'gacha-unpublish-schedule-pause'
+        )->assertOk()->json('data');
+        $pointersBefore = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)
+            ->first(['published_version_id', 'active_draw_state_id']);
+
+        Auth::forgetGuards();
+        $preflight = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish/preflight',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-schedule-preflight'
+        )->assertOk()
+            ->assertJsonPath('data.allowed', false)
+            ->json('data');
+        self::assertContains(
+            'GACHA_FUTURE_PUBLISH_SCHEDULE_EXISTS',
+            $preflight['validation_codes']
+        );
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/unpublish',
+            ['expected_gacha_revision' => $paused['gacha_revision']],
+            'gacha-unpublish-schedule-rejected'
+        )->assertUnprocessable()
+            ->assertJsonPath('code', 'CATALOG_GACHA_UNPUBLISH_INVALID');
+        self::assertDatabaseHas('catalog_gacha_publish_schedules', [
+            'public_id' => $schedule['id'],
+            'status' => 'scheduled',
+        ]);
+        self::assertEquals(
+            $pointersBefore,
+            DB::table('catalog_gachas')
+                ->where('public_id', self::GACHA_ID)
+                ->first(['published_version_id', 'active_draw_state_id'])
+        );
+    }
+
+    private function publishValidGachaVersion(
+        string $token,
+        string $keySuffix
+    ): object {
+        [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
+        $root = $this->versionRoot($draft['id']);
+        Auth::forgetGuards();
+        $selected = $this->mutatingRequest(
+            $token,
+            'PUT',
+            $root.'/probability-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $probability['id'],
+            ],
+            'gacha-unpublish-selection-'.$keySuffix
+        )->assertOk()->json('data');
+        $gachaRevision = (int) DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->value('revision');
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/publish',
+            [
+                'expected_revision' => $selected['revision'],
+                'expected_gacha_revision' => $gachaRevision,
+            ],
+            'gacha-unpublish-publish-'.$keySuffix
+        )->assertOk();
+
+        return DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+    }
+
     private function forceScheduleDue(string $schedulePublicId): void
     {
         DB::statement(
