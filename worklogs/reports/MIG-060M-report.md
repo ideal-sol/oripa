@@ -108,6 +108,7 @@
 | Backend対象回帰 | 約42秒 | Publish／Schedule／Pause回帰を同時確認 | 26 Test PASS |
 | Admin Unit | 約34秒 | 全Component Suiteを一度だけ実行 | 55 Test PASS |
 | Admin Browser Smoke | 約42秒／回 | 追加Buttonで旧部分一致Locatorが衝突 | 厳密Roleへ統一しPASS |
+| GitHub初回Check | 約5分 | PR `Base SHA`ラベルとNode ICUの時刻ゼロ埋め差 | 本文／Test期待値を補正 |
 | Frozen Install | 約7秒 | Worktree symlinkではPackage binaryを解決不能 | Lockfile固定InstallでPASS |
 | Persistent Guard | 約3分 | Fresh 2回、全V2、Rollback／Reapply | PASS |
 | Ephemeral Guard | 約6分 | 全V2、Load、Backup／Restore、Cleanup | PASS |
@@ -124,6 +125,11 @@
 - Local PolicyはUnpublish OperationとMigration 28番を旧Allowlistで拒否した。
   Public Mutation禁止を維持したままTask固有Operation／Migration集合だけを追加し、
   Policy Unit 89件と実Gateを再実行してPASSした。
+- GitHub初回`policy-gate`はPR本文のBase値ラベルがGovernance正本の
+  `Base SHA`と一致せず失敗した。空Commitを作らず本文を修正した。
+- GitHub初回`quality-gate`はAsia/Tokyo変換自体は正しかったが、Node ICU差による
+  時のゼロ埋めだけでAdmin Testが失敗した。表示timezoneを緩和せず、
+  `09`／`9`の両方を許容するTest期待値へ補正し、Admin 55 Testを再実行した。
 - First-party Packageは依存順Serial、Host Toolchainは非変更、Gate／Assertion／
   Security／Timeout／Memoryは緩和していない。
 

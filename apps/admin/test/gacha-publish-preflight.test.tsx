@@ -463,7 +463,7 @@ describe("Gacha Publish Preflight", () => {
       />,
     );
     await screen.findByText("Sales: 一時停止中");
-    expect(screen.getByText(/2026\/8\/14 9:00:00/u)).toBeVisible();
+    expect(screen.getByText(/2026\/8\/14 0?9:00:00/u)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Resume Preflight" }));
     expect(await screen.findByText("Fresh MFA")).toBeVisible();
   });
@@ -537,7 +537,7 @@ describe("Gacha Publish Preflight", () => {
       expected_gacha_revision: 3,
     });
     expect(await screen.findByText("Public: 解除済み")).toBeVisible();
-    expect(screen.getByText(/2026\/8\/15 9:00:00/u)).toBeVisible();
+    expect(screen.getByText(/2026\/8\/15 0?9:00:00/u)).toBeVisible();
   });
 });
 

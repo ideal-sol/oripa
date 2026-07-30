@@ -7224,6 +7224,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Local PolicyはUnpublish OperationとMigration 28番を旧Allowlistで拒否した。
   Public Mutation禁止を維持し、Task Operation／Migration集合だけを正本へ追加して
   Policy Unit 89件と実Gateを再実行した。
+- GitHub初回`policy-gate`はPR本文のBase値ラベルがGovernance正本の
+  `Base SHA`と一致せず失敗した。空Commitを作らず本文を修正した。
+- GitHub初回`quality-gate`はAsia/Tokyo変換自体は正しかったが、Node ICU差による
+  時のゼロ埋めだけでAdmin Testが失敗した。表示timezoneを緩和せず、
+  `09`／`9`の両方を許容するTest期待値へ補正し、Admin 55 Testを再実行した。
 - First-party Packageは依存順Serial、Existing Classic Builderを使用し、
   Host Toolchain、Gate、Assertion、Security、Timeout、Memoryを変更していない。
 
