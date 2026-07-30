@@ -459,6 +459,7 @@ describe("Gacha Publish Preflight", () => {
       />,
     );
     await screen.findByText("Sales: 一時停止中");
+    expect(screen.getByText(/2026\/8\/14 9:00:00/u)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Resume Preflight" }));
     expect(await screen.findByText("Fresh MFA")).toBeVisible();
   });

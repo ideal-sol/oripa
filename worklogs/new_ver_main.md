@@ -7102,6 +7102,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Hostの既存Composer 2.9.8でLock Auditを行い、Image／Host Toolchainを更新しなかった。
 - Admin Unit／Browser E2Eは引数転送により対象だけでなく全Suiteを実行した。
   同一Admin SourceのPASS Evidenceを維持し、重複実行していない。
+- GitHub初回Policy CheckはPR本文の必須Governance見出し不足で失敗した。
+  Git差分／Task Policyから本文を必須見出し付きで再生成し、空Commitなしで修正した。
+- Fresh Self-reviewでPause日時と既存Schedule日時がBrowser timezone依存であることを
+  検出した。Admin表示を`Asia/Tokyo`へ固定し、Contract生成差分0、Typecheck、
+  Lint、Build、Unit／Component 54件、Browser E2E 13件を再実行してPASSした。
+  Backend／Migration／Contractの変更はない。
 - 開始時Root 6.1GB、`/tmp` 3.1GB、重い検証前Root 5.7GB、
   Ephemeral中Root 3.5GBをRead-only確認した。処理は成功し安全閾値を割らなかったため、
   稼働Container、Named Volume、V1 Resource、Docker CacheをCleanupしていない。

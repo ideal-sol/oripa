@@ -127,11 +127,18 @@
 | DB／Trigger再試行 | 約7分 | 旧Trigger残存をTask DB Freshで解消 | 対象Test PASS |
 | Process Concurrency補正 | 約4分 | Point Backを含む実結果でWalletをReconcile | 3 Test PASS |
 | Ephemeral Prefix補正 | 約1分 | Allowlist外をResource作成前にFail Closed | 安全なPrefixでPASS |
+| Admin Timezone補正 | 約2分 | Fresh reviewでBrowser依存表示を検出 | Admin全検証PASS |
 
 - 対象PHPUnit初回は既定`oripa_test`参照をTest開始前に検出し、
   Task Marker付き外部Configへ切り替えた。
 - ComposerはRuntime Imageに存在しないため、既存Host Composer 2.9.8で
   Lock Auditを行った。Host Toolchainは更新していない。
+- GitHub初回Policy CheckはPR本文の必須見出し不足で失敗した。
+  Git差分／Task Policyから本文を再生成し、空Commitなしで修正した。
+- Fresh Self-reviewでPause／Schedule日時のBrowser timezone依存を検出した。
+  `Asia/Tokyo`へ固定し、Contract生成差分0、Typecheck、Lint、Build、
+  Unit／Component 54件、Browser E2E 13件を再実行した。
+  Backend／Migration／Contractは同一である。
 - 開始時Root 6.1GB、`/tmp` 3.1GB、重い検証前Root 5.7GB、
   Ephemeral中Root 3.5GBをRead-only確認した。
 - 容量不足による失敗はなく、Docker Cache、Named Volume、稼働Resource、

@@ -44,6 +44,14 @@ type PendingAction =
   | "sales-resume"
   | null;
 
+const ADMIN_DISPLAY_TIME_ZONE = "Asia/Tokyo";
+
+function formatAdminDateTime(value: string): string {
+  return new Date(value).toLocaleString("ja-JP", {
+    timeZone: ADMIN_DISPLAY_TIME_ZONE,
+  });
+}
+
 export function GachaPublishPreflightPanel({
   gachaId,
   onCanonical,
@@ -741,7 +749,7 @@ export function GachaPublishPreflightPanel({
               <p>
                 理由: {salesState.reason_code ?? "未設定"} /{" "}
                 {salesState.paused_at
-                  ? new Date(salesState.paused_at).toLocaleString("ja-JP")
+                  ? formatAdminDateTime(salesState.paused_at)
                   : "時刻未設定"}
               </p>
             ) : null}
@@ -894,7 +902,7 @@ export function GachaPublishPreflightPanel({
                 : "予約前の未達項目があります"}
             </h3>
             <p>
-              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              {formatAdminDateTime(schedulePreflight.scheduled_for)}
               {" "}（保存: {schedulePreflight.server_timezone}）
             </p>
             {schedulePreflight.blocking_reasons.length > 0 ? (
@@ -929,7 +937,7 @@ export function GachaPublishPreflightPanel({
           </div>
           <div>
             <dt>予約日時</dt>
-            <dd>{new Date(schedule.scheduled_for).toLocaleString("ja-JP")}</dd>
+            <dd>{formatAdminDateTime(schedule.scheduled_for)}</dd>
           </div>
           <div>
             <dt>Worker試行</dt>
@@ -1066,7 +1074,7 @@ export function GachaPublishPreflightPanel({
             </h2>
             <p>
               v{version.version_number}を
-              {new Date(schedulePreflight.scheduled_for).toLocaleString("ja-JP")}
+              {formatAdminDateTime(schedulePreflight.scheduled_for)}
               にActivationします。実行直前にもServer Preflightを再実行します。
             </p>
             <div className="catalog-dialog-actions">
