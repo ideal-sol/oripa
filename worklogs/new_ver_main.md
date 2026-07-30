@@ -6619,3 +6619,154 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 次Task候補は
   `MIG-060J Admin Gacha Version Immediate Publish／Public Activation`であり、
   MIG-060Jは本Task内で開始しない。
+
+## MIG-060I Closeout／MIG-060J Gacha Immediate Publish
+
+### MIG-060I Closeout
+
+- Issue `#141`はClosed、PR `#142`はSquash Mergedである。
+- Final Headは`2ef2b47e284a5f69023c8ed53638a4b6464bc274`、Squash Commitは
+  `725617a2c9f96cc372a414e5b1142bad343d865b`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Checkは成功した。
+  Fresh Self-reviewはFinal Headと一致し、SEV-0／SEV-1は0件である。
+- Remote／Local Task BranchとWorktreeはCleanup済みである。
+  Local `main = origin/main`、Working Tree cleanを確認した。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tagは非変更である。
+
+### MIG-060J Task／Characterization
+
+- Task IDは`MIG-060J`、Riskは`R3`、Issueは`#143`、Branchは
+  `feat/MIG-060J-gacha-immediate-publish`、Base SHAは
+  `725617a2c9f96cc372a414e5b1142bad343d865b`である。
+- Gacha Masterの`published_version_id`をPublic Catalog Pointer、
+  新規`active_draw_state_id`をDraw Pointerとし、同じGacha Versionと
+  Published Probability Snapshotを単一Transactionで選択する。
+- 旧Published Version、旧Draw State、旧Probability Snapshot、旧Draw Historyは
+  状態変更・削除せず不変履歴として保持する。旧Versionへ独自の
+  `superseded`状態は追加していない。
+- 即時PublishはDraft Versionだけを対象とし、選択済みPublished Probability、
+  Snapshot SHA、Category／Tag／Prize／Asset、価格、販売口数、表示期間を
+  Server Preflightで毎回再検証する。
+- Schedule／Unpublish、自動公開Worker、Public OpenAPI変更、Draw Algorithm変更は
+  MIG-060K以降へ延期した。
+
+### Contract／Permission／Immediate Publish
+
+- Admin OpenAPIへ現在公開状態取得とImmediate Publishを追加した。
+  Admin Operation数は122、Public 47、Webhook 1である。
+- Public／Webhook SchemaとStorefront Clientは変更していない。
+- 既存`catalog.publish`を使用し、Owner／Adminを許可、Operatorを拒否した。
+  Admin Realm、MFA Enrollment、Fresh MFA 5分、CSRF、Exact Origin、JSON、
+  Idempotency-Key、Critical Mutation Rate Limitを強制する。
+- RequestはGacha Version RevisionとGacha Master Revisionを必須とする。
+  同一Key／同一RequestはCanonical Replay、同一Key／異内容、Stale Revision、
+  Concurrent後着は409等でFail Closedとする。
+- Idempotency Record、Gacha Master、現行Published Version、対象Draft Version、
+  選択Probabilityを固定順でLockする。Publish、Published At、Draw State、
+  Prize Inventory、Public／Draw Pointer、Revision、Audit、`catalog.change`
+  Outboxを単一Transactionで確定する。
+- Transaction Commit前は旧Versionだけ、Commit後はPublic CatalogとDraw Resolverが
+  同じ新Version／Probability Snapshotを参照する。失敗時は全更新をRollbackする。
+
+### Migration／DB Guard
+
+- Forward-safe Migration
+  `2026_08_12_000025_add_v2_gacha_immediate_publish_activation.php`を追加し、
+  既存Migrationは編集していない。
+- GachaごとにVersion別Draw Stateを履歴保持できるようにし、
+  `catalog_gachas.active_draw_state_id`を追加した。
+- Deferred Constraint TriggerとHistory Guardで、Public／Draw Pointerの部分更新、
+  Cross-Gacha、Draft／Archived／Published Atなし、Probability不一致、
+  Revision bypass、Draw State／Inventory FK付替え、旧Draw State物理Deleteを拒否する。
+- `V2CatalogFixtureImporter`はCatalog、初期Draw State、Public／Draw Pointerを
+  同一Transactionで初期化する。既存Business RevisionはActivation時に1回だけ進める。
+- Persistent／Ephemeral双方で`migrate:fresh`各2回、Migration Apply、
+  最新Migration Rollback／Reapply、Dump／Restoreを確認した。
+
+### Public Catalog／Draw／Admin UI
+
+- Public List／Detailは`published_version_id`と`active_draw_state_id`の組を参照する。
+  Draw ResolverはGacha Rowを先にLockし、同じ`active_draw_state_id`をLockする。
+- 新規Drawは新Versionを使用し、切替前Drawと履歴は旧Version Relationを維持する。
+  1000回Drawのアルゴリズム、CSPRNG、Point、Inventory、Idempotencyは変更していない。
+- Admin UIへPublish Now、最新Server Preflight、選択Probability、
+  Snapshot Hash、価格／販売口数／表示期間、現行Versionからの切替表示、
+  Fresh MFA、最終確認、二重送信防止、Conflict／429、Canonical再取得、
+  Published At、現在公開Versionを追加した。
+- OperatorはRead-onlyでBackend 403を最終境界とする。
+  Schedule／Unpublish Buttonは追加していない。
+
+### Test／Evidence
+
+- Final対象BackendはImmediate Publish、Atomicity、DB Guard、Concurrency、
+  Public Catalog、Draw Resolverを含む`33 Test／363 Assertion`がPASSした。
+- Draw 100回p95は`165.047 ms`、1000回p95は`679.606 ms`、
+  1000回Query数は最大58で既存基準内である。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Unit／Component `51 Test`、Browser E2E `13 Test`がPASSした。
+- OCC補正後のPersistent／Ephemeral Guardで全V2 Suite、Immediate Publish、
+  Catalog／Probability／Draw／QA、Point、Payment、Shipping、Reporting、
+  Content／Contact、Load／Performance回帰がPASSした。GuardがSuite件数を
+  出力しないため件数は推測していない。
+- Migration数は25、Migration Set SHA-256は
+  `79af6bbdce2f63a305101557655263e0407d680fd9435c459cad7c14eee9213b`。
+- Final Backup SHA-256は
+  `ccd38cc1eeff7b5629528bbf925462f66274a4d6fb96ca3dab571e1465d25f36`、
+  Source／Restore Schema SHA-256は
+  `f1501b0d8b9869784cc135239d7948af9a57c41096a8db2c466c292f5b868612`、
+  Migration Row SHA-256は
+  `828aaa9afcf54d6dd6e464f6e4f4585ac0c74d9fa69bdf0a3cabcc9253d5d461`
+  で一致した。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22 Testは
+  依存順にSerial実行し、生成差分、Typecheck、Lint、Buildを含めPASSした。
+- Policy Unit 89、Quality Unit 5、Security Unit 4、DB Guard Unit 26、
+  OpenAPI Unit 4、Release Unit 10とLocal GateがPASSした。
+- Root／Legacy Frozen Install、Legacy Typecheck／BuildがPASSした。
+  V1 Backendは既存Payment 2 FailureのFingerprintと完全一致し、
+  Backend Test Baseline GateがPASSした。
+- Root Audit 0、Legacy Audit既存11、Composer既存Baseline 10、
+  新規Critical／High 0、Secret／PII Candidate 0である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- Final Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-060J/persistent-final2/`と
+  `/var/lib/oripa-v2-evidence/MIG-060J/ephemeral-final2/`に保存した。
+
+### 時間を要した作業／効率改善
+
+- Admin Browser E2Eは約1.1分、Persistent Guardは約3分、
+  Ephemeral Guardは約5分、Classic Builder API Buildは約45秒を要した。
+- 初回Persistent Guardで、Fixture ImportがActivation時にGacha Revisionを
+  2回進め、既存Published Reference TestをStale判定へ変える問題を検出した。
+  ImportとDraw State初期化を同一Transactionへ統合し、Revision更新を1回へ修正した。
+- Fresh Self-reviewで異なるDraftのConcurrent PublishにGacha Master OCCが
+  不足する可能性を検出した。Gacha RevisionをContractへ追加し、Backend対象、
+  Admin、Persistent、Ephemeral GuardをFinal候補で再実行した。
+- V1 Backend baseline用の先行Migrationコマンドは接続名指定がTask APIの
+  既定V2 DBを参照し、最初の重複DDLでTransaction内拒否された。状態変更はなく、
+  実回帰は隔離`oripa_test`で既存2 Failure Fingerprintを確認した。
+- 対象Test初回はLegacy検証後に隔離`oripa_test`を削除していたため接続失敗した。
+  Task専用DBを再作成し、Code変更なしで対象Suiteを再実行した。
+- OpenAPIはWorktree依存不足時にRoot固定Toolを使用し、Host Toolchainを更新していない。
+  Composer Frozen InstallはPHP 8.4 Classic Builder内で成功した。
+- 開始時と重い検証前にRoot 7.5GB以上、`/tmp` 3.1GB以上をRead-only確認した。
+  安全閾値内のため稼働Container、Named Volume、V1 Resource、Docker Cacheを
+  Cleanupしていない。
+- First-party Packageは依存順にSerial実行し、Gate、Baseline、Assertion、
+  Timeout、Memory設定を緩和していない。
+
+### Closeout予定
+
+- Local R3検証は成功した。Final Head、GitHub 8 Check、Fresh Self-review、
+  Squash Commit、Issue Close、Branch／Worktree／Task Resource Cleanupは
+  PR Closeoutで確定する。
+- V1 RuntimeはBackend `8140`、Frontend `3130`、Nginx Upstreamも同値で、
+  Public 200、Admin 307、API Health 200、Production Migration Pending 0である。
+  V1本番DB／Redis／Storage、`v1/early-release`、Archive Branch、Annotated Tagは
+  非変更である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- 次Task候補は
+  `MIG-060K Admin Gacha Publish Schedule／Unpublish Operations`であり、
+  MIG-060Kは本Task内で開始しない。

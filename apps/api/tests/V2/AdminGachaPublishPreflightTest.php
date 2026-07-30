@@ -3,9 +3,14 @@
 namespace Tests\V2;
 
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
+use App\Domain\Catalog\Services\V2CatalogReadService;
+use App\Domain\Draw\Services\V2DrawService;
 use App\Domain\Identity\Enums\V2AdminRole;
+use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
+use App\Domain\Point\Services\V2PointService;
+use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
@@ -162,9 +167,9 @@ final class AdminGachaPublishPreflightTest extends TestCase
         $this->mutatingRequest(
             $token,
             'POST',
-            $root.'/publish',
+            $root.'/schedule',
             ['expected_revision' => $selected['revision']],
-            'gacha-publish-endpoint-must-not-exist'
+            'gacha-schedule-endpoint-must-not-exist'
         )->assertNotFound();
     }
 
@@ -443,6 +448,417 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $idempotencyCountBefore,
             DB::table('idempotency_records')->count()
         );
+    }
+
+    public function test_immediate_publish_atomically_switches_public_and_draw_state(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Admin);
+        [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
+        DB::table('catalog_gacha_versions')
+            ->where('public_id', $draft['id'])
+            ->update([
+                'title' => 'Immediate Publish Version',
+                'revision' => (int) $draft['revision'] + 1,
+                'updated_at' => now(),
+            ]);
+        $draft['revision'] = (int) $draft['revision'] + 1;
+        $root = $this->versionRoot($draft['id']);
+        self::assertSame(
+            'Fixture Catalog Gacha',
+            app(V2CatalogReadService::class)
+                ->getBySlug('fixture-catalog')['title']
+        );
+        Auth::forgetGuards();
+        $selected = $this->mutatingRequest(
+            $token,
+            'PUT',
+            $root.'/probability-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $probability['id'],
+            ],
+            'gacha-immediate-publish-selection'
+        )->assertOk()->json('data');
+        $gachaBefore = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $oldState = DB::table('gacha_draw_states')
+            ->where('id', $gachaBefore->active_draw_state_id)->firstOrFail();
+        $user = User::query()->create([
+            'email_display' => 'gacha-publish-draw@example.test',
+            'email_normalized' => 'gacha-publish-draw@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)
+                ->hash('valid gacha publish draw password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            1_000,
+            now()->addYear(),
+            'gacha-immediate-publish-draw-points'
+        );
+        $oldDraw = app(V2DrawService::class)->create(
+            $user,
+            self::GACHA_ID,
+            1,
+            'gacha-immediate-old-version-draw',
+            (string) Str::uuid7()
+        );
+        $oldDrawRequest = DB::table('draw_requests')
+            ->where('public_id', $oldDraw['id'])->firstOrFail();
+        self::assertSame(
+            (int) $gachaBefore->published_version_id,
+            (int) $oldDrawRequest->gacha_version_id
+        );
+
+        Auth::forgetGuards();
+        $published = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/publish',
+            [
+                'expected_revision' => $selected['revision'],
+                'expected_gacha_revision' => $gachaBefore->revision,
+            ],
+            'gacha-immediate-publish-success'
+        )->assertOk()
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.gacha_version_id', $draft['id'])
+            ->assertJsonPath('data.selected_probability.id', $probability['id'])
+            ->assertJsonPath(
+                'data.previous_published_version.id',
+                self::PUBLISHED_GACHA_VERSION_ID
+            )
+            ->assertJsonPath('data.draw_state.sold_count', 0)
+            ->assertJsonPath('idempotent_replay', false)
+            ->json('data');
+
+        $gachaAfter = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $newVersion = DB::table('catalog_gacha_versions')
+            ->where('public_id', $draft['id'])->firstOrFail();
+        $newState = DB::table('gacha_draw_states')
+            ->where('id', $gachaAfter->active_draw_state_id)->firstOrFail();
+        self::assertSame('published', $newVersion->status);
+        self::assertNotNull($newVersion->published_at);
+        self::assertSame((int) $newVersion->id, (int) $gachaAfter->published_version_id);
+        self::assertSame((int) $newVersion->id, (int) $newState->gacha_version_id);
+        self::assertSame(
+            (int) $newVersion->published_probability_version_id,
+            (int) $newState->probability_version_id
+        );
+        self::assertNotSame((int) $oldState->id, (int) $newState->id);
+        self::assertSame(
+            'Immediate Publish Version',
+            app(V2CatalogReadService::class)
+                ->getBySlug('fixture-catalog')['title']
+        );
+        self::assertDatabaseHas('gacha_draw_states', [
+            'id' => $oldState->id,
+            'gacha_version_id' => $oldState->gacha_version_id,
+            'probability_version_id' => $oldState->probability_version_id,
+        ]);
+        self::assertSame(
+            DB::table('catalog_gacha_version_prizes')
+                ->where('gacha_version_id', $newVersion->id)->count(),
+            DB::table('prize_inventories')
+                ->where('gacha_draw_state_id', $newState->id)->count()
+        );
+        $newDraw = app(V2DrawService::class)->create(
+            $user,
+            self::GACHA_ID,
+            1,
+            'gacha-immediate-new-version-draw',
+            (string) Str::uuid7()
+        );
+        $newDrawRequest = DB::table('draw_requests')
+            ->where('public_id', $newDraw['id'])->firstOrFail();
+        self::assertSame((int) $newVersion->id, (int) $newDrawRequest->gacha_version_id);
+        self::assertSame(
+            (int) $newVersion->published_probability_version_id,
+            (int) $newDrawRequest->probability_version_id
+        );
+        self::assertSame(
+            (int) $oldState->gacha_version_id,
+            (int) DB::table('draw_requests')
+                ->where('public_id', $oldDraw['id'])
+                ->value('gacha_version_id')
+        );
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'catalog.master.immediately_published',
+            'target_public_id' => $draft['id'],
+        ]);
+        self::assertDatabaseHas('outbox_messages', [
+            'aggregate_public_id' => $draft['id'],
+            'event_type' => 'catalog.master.immediately_published',
+        ]);
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/publish',
+            [
+                'expected_revision' => $selected['revision'],
+                'expected_gacha_revision' => $gachaBefore->revision,
+            ],
+            'gacha-immediate-publish-success'
+        )->assertOk()
+            ->assertJsonPath('data.published_at', $published['published_at'])
+            ->assertJsonPath('idempotent_replay', true);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/publish',
+            [
+                'expected_revision' => (int) $selected['revision'] + 1,
+                'expected_gacha_revision' => $gachaBefore->revision,
+            ],
+            'gacha-immediate-publish-success'
+        )->assertConflict()
+            ->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/publish',
+            [
+                'expected_revision' => $selected['revision'],
+                'expected_gacha_revision' => $gachaBefore->revision,
+            ],
+            'gacha-immediate-publish-stale-revision'
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        Auth::forgetGuards();
+        $this->asAdmin($token)
+            ->getJson(
+                '/admin/api/v2/catalog/gachas/'.self::GACHA_ID.'/publish-state'
+            )->assertOk()
+            ->assertJsonPath('data.current_published_version.id', $draft['id'])
+            ->assertJsonPath('data.selected_probability.id', $probability['id'])
+            ->assertJsonPath('data.draw_state.sold_count', 1);
+    }
+
+    public function test_immediate_publish_rolls_back_all_activation_on_outbox_failure(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
+        $root = $this->versionRoot($draft['id']);
+        Auth::forgetGuards();
+        $selected = $this->mutatingRequest(
+            $token,
+            'PUT',
+            $root.'/probability-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $probability['id'],
+            ],
+            'gacha-immediate-rollback-selection'
+        )->assertOk()->json('data');
+        $gachaBefore = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $stateCountBefore = DB::table('gacha_draw_states')->count();
+        $inventoryCountBefore = DB::table('prize_inventories')->count();
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION v2_test_reject_gacha_immediate_publish_outbox()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF NEW.event_type = 'catalog.master.immediately_published' THEN
+                    RAISE EXCEPTION 'synthetic immediate publish outbox failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+        SQL);
+        DB::statement(
+            'CREATE TRIGGER v2_test_reject_gacha_immediate_publish_outbox '.
+            'BEFORE INSERT ON outbox_messages FOR EACH ROW '.
+            'EXECUTE FUNCTION v2_test_reject_gacha_immediate_publish_outbox()'
+        );
+
+        try {
+            $this->withoutExceptionHandling();
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                $root.'/publish',
+                [
+                    'expected_revision' => $selected['revision'],
+                    'expected_gacha_revision' => $gachaBefore->revision,
+                ],
+                'gacha-immediate-publish-outbox-failure'
+            );
+            self::fail('Immediate Publish must roll back on Outbox failure.');
+        } catch (QueryException $exception) {
+            self::assertStringContainsString(
+                'synthetic immediate publish outbox failure',
+                $exception->getMessage()
+            );
+        } finally {
+            $this->withExceptionHandling();
+            DB::statement(
+                'DROP TRIGGER IF EXISTS '.
+                'v2_test_reject_gacha_immediate_publish_outbox '.
+                'ON outbox_messages'
+            );
+            DB::statement(
+                'DROP FUNCTION IF EXISTS '.
+                'v2_test_reject_gacha_immediate_publish_outbox()'
+            );
+        }
+
+        $gachaAfter = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        self::assertSame(
+            (int) $gachaBefore->published_version_id,
+            (int) $gachaAfter->published_version_id
+        );
+        self::assertSame(
+            (int) $gachaBefore->active_draw_state_id,
+            (int) $gachaAfter->active_draw_state_id
+        );
+        self::assertDatabaseHas('catalog_gacha_versions', [
+            'public_id' => $draft['id'],
+            'status' => 'draft',
+            'published_at' => null,
+            'revision' => $selected['revision'],
+        ]);
+        self::assertSame($stateCountBefore, DB::table('gacha_draw_states')->count());
+        self::assertSame(
+            $inventoryCountBefore,
+            DB::table('prize_inventories')->count()
+        );
+    }
+
+    public function test_activation_database_guards_reject_partial_or_destructive_sql(): void
+    {
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $state = DB::table('gacha_draw_states')
+            ->where('id', $gacha->active_draw_state_id)->firstOrFail();
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $draft = $this->cloneGachaDraft($token);
+        $draftId = DB::table('catalog_gacha_versions')
+            ->where('public_id', $draft['id'])->value('id');
+
+        DB::beginTransaction();
+        try {
+            DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                'published_version_id' => $draftId,
+                'revision' => (int) $gacha->revision + 1,
+            ]);
+            DB::statement(
+                'SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE'
+            );
+            DB::rollBack();
+            self::fail('A partial Public pointer update must be rejected.');
+        } catch (QueryException $exception) {
+            DB::rollBack();
+            self::assertSame('P0001', $exception->errorInfo[0]);
+        }
+
+        foreach ([
+            fn () => DB::table('gacha_draw_states')->insert([
+                'gacha_id' => $gacha->id,
+                'gacha_version_id' => $draftId,
+                'probability_version_id' => $state->probability_version_id,
+                'status' => 'selling',
+                'total_count' => 1,
+                'sold_count' => 0,
+                'lock_version' => 0,
+                'started_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]),
+            fn () => DB::table('gacha_draw_states')
+                ->where('id', $state->id)->delete(),
+        ] as $mutation) {
+            DB::beginTransaction();
+            try {
+                $mutation();
+                DB::rollBack();
+                self::fail('The activation history guard must reject this SQL.');
+            } catch (QueryException $exception) {
+                DB::rollBack();
+                self::assertSame('P0001', $exception->errorInfo[0]);
+            }
+        }
+    }
+
+    public function test_immediate_publish_requires_admin_permission_fresh_mfa_and_csrf(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        [$draft, $probability] = $this->createDraftWithPublishedProbability($owner);
+        $root = $this->versionRoot($draft['id']);
+        Auth::forgetGuards();
+        $selected = $this->mutatingRequest(
+            $owner,
+            'PUT',
+            $root.'/probability-selection',
+            [
+                'expected_revision' => $draft['revision'],
+                'probability_version_id' => $probability['id'],
+            ],
+            'gacha-immediate-security-selection'
+        )->assertOk()->json('data');
+        $payload = [
+            'expected_revision' => $selected['revision'],
+            'expected_gacha_revision' => DB::table('catalog_gachas')
+                ->where('public_id', self::GACHA_ID)
+                ->value('revision'),
+        ];
+
+        $operator = $this->createAdminSession(V2AdminRole::Operator);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $operator,
+            'POST',
+            $root.'/publish',
+            $payload,
+            'gacha-immediate-operator'
+        )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+
+        $stale = $this->createAdminSession(V2AdminRole::Admin);
+        DB::table('admin_sessions')
+            ->where(
+                'session_id_hash',
+                app(V2SessionPolicy::class)->hashSessionId($stale)
+            )
+            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $stale,
+            'POST',
+            $root.'/publish',
+            $payload,
+            'gacha-immediate-stale'
+        )->assertForbidden()
+            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+
+        Auth::forgetGuards();
+        $this->asAdmin(str_repeat('x', 64))
+            ->postJson($root.'/publish', $payload)
+            ->assertUnauthorized();
+        Auth::forgetGuards();
+        $this->flushHeaders()
+            ->asAdmin($owner)
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://admin.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'Idempotency-Key' => 'gacha-immediate-no-csrf',
+            ])
+            ->postJson($root.'/publish', $payload)
+            ->assertForbidden()
+            ->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
+        self::assertDatabaseHas('catalog_gacha_versions', [
+            'public_id' => $draft['id'],
+            'status' => 'draft',
+        ]);
     }
 
     /** @return array{array<string, mixed>, array<string, mixed>} */

@@ -19,10 +19,11 @@ import {
 import type {
   AdminCatalogGachaVersion,
   AdminGachaPublishPreflight,
+  AdminGachaPublishState,
   AdminGachaPublishedProbabilityCandidate,
 } from "@/lib/admin-api/generated";
 
-type PendingAction = "selection" | "preflight" | null;
+type PendingAction = "selection" | "preflight" | "publish" | null;
 
 export function GachaPublishPreflightPanel({
   gachaId,
@@ -49,7 +50,11 @@ export function GachaPublishPreflightPanel({
   const [preflight, setPreflight] = useState<AdminGachaPublishPreflight | null>(
     null,
   );
+  const [publishState, setPublishState] = useState<AdminGachaPublishState | null>(
+    null,
+  );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const pendingAction = useRef<PendingAction>(null);
@@ -74,10 +79,12 @@ export function GachaPublishPreflightPanel({
         version.id,
         controller.signal,
       ),
+      client.getGachaPublishState(gachaId, controller.signal),
     ])
-      .then(([candidateResponse, selectionResponse]) => {
+      .then(([candidateResponse, selectionResponse, publishStateResponse]) => {
         setCandidates(candidateResponse.items);
         setSelectedId(selectionResponse.data.selected_probability?.id ?? "");
+        setPublishState(publishStateResponse.data);
         setError(null);
       })
       .catch((cause: unknown) => {
@@ -98,7 +105,7 @@ export function GachaPublishPreflightPanel({
 
   useEffect(() => {
     if (confirmOpen) confirmHeading.current?.focus();
-  }, [confirmOpen]);
+  }, [confirmOpen, publishConfirmOpen]);
 
   function mutationKey(fingerprint: string): string {
     if (pendingMutation.current?.fingerprint === fingerprint) {
@@ -185,6 +192,64 @@ export function GachaPublishPreflightPanel({
     }
   }
 
+  async function publishImmediately() {
+    if (
+      !mutable ||
+      !canPublish ||
+      !preflight?.publishable ||
+      !publishState
+    ) {
+      return;
+    }
+    const body = {
+      expected_revision: version.revision,
+      expected_gacha_revision: publishState.gacha_revision,
+    };
+    const fingerprint = JSON.stringify({
+      action: "gacha-immediate-publish",
+      body,
+      gachaId,
+      versionId: version.id,
+    });
+    setBusy(true);
+    try {
+      const result = await client.publishGachaVersionImmediately(
+        gachaId,
+        version.id,
+        body,
+        mutationKey(fingerprint),
+      );
+      const canonical = await client.getCatalogGachaVersion(
+        gachaId,
+        version.id,
+      );
+      pendingMutation.current = null;
+      pendingAction.current = null;
+      setPublishConfirmOpen(false);
+      setError(null);
+      setPublishState({
+        gacha_id: gachaId,
+        gacha_revision: result.data.gacha_revision,
+        current_published_version: result.data.current_published_version,
+        selected_probability: result.data.selected_probability,
+        draw_state: result.data.draw_state,
+      });
+      onCanonical(canonical.data);
+    } catch (cause) {
+      const next = normalizeError(cause);
+      if (next.requiresFreshMfa) {
+        pendingAction.current = "publish";
+        setPublishConfirmOpen(false);
+        setFreshMfaOpen(true);
+      } else {
+        if (!next.retryable) pendingMutation.current = null;
+        setError(next);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="gacha-publish-preflight" aria-labelledby="gacha-preflight-title">
       <header>
@@ -192,7 +257,9 @@ export function GachaPublishPreflightPanel({
           <span className="eyebrow">Publish readiness</span>
           <h2 id="gacha-preflight-title">Probability Selection／Preflight</h2>
         </div>
-        <span className="catalog-readonly-note">公開操作は未実装</span>
+        <span className="catalog-readonly-note">
+          Schedule／Unpublishは未実装
+        </span>
       </header>
       {loading ? (
         <div className="catalog-inline-status" role="status">
@@ -311,8 +378,37 @@ export function GachaPublishPreflightPanel({
               <p>公開可否の判定だけを完了しました。Gachaは公開されていません。</p>
             )}
             <small>Request ID: {preflight.request_id}</small>
+            {preflight.publishable && canPublish && mutable ? (
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() => setPublishConfirmOpen(true)}
+                type="button"
+              >
+                <ShieldCheck size={16} aria-hidden="true" />
+                Publish Now
+              </button>
+            ) : null}
           </div>
         </div>
+      ) : null}
+      {publishState?.current_published_version ? (
+        <dl className="gacha-publish-current">
+          <div>
+            <dt>現在公開中</dt>
+            <dd>
+              v{publishState.current_published_version.version_number} /{" "}
+              {publishState.current_published_version.id}
+            </dd>
+          </div>
+          <div>
+            <dt>販売状況</dt>
+            <dd>
+              {publishState.draw_state?.sold_count ?? 0} /{" "}
+              {publishState.draw_state?.total_count ?? 0}
+            </dd>
+          </div>
+        </dl>
       ) : null}
       {!canPublish ? (
         <p className="catalog-readonly-note">
@@ -359,6 +455,53 @@ export function GachaPublishPreflightPanel({
           </section>
         </div>
       ) : null}
+      {publishConfirmOpen ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="gacha-publish-confirm-title"
+            aria-modal="true"
+            className="dialog-panel"
+            role="alertdialog"
+          >
+            <ShieldCheck size={24} aria-hidden="true" />
+            <h2
+              id="gacha-publish-confirm-title"
+              ref={confirmHeading}
+              tabIndex={-1}
+            >
+              このVersionへ即時切り替えますか
+            </h2>
+            <p>
+              v{version.version_number}、{version.price_points} Point、全
+              {version.total_count}口を公開し、Public CatalogとDraw参照を同時に切り替えます。
+            </p>
+            {publishState?.current_published_version ? (
+              <p>
+                現在のv{publishState.current_published_version.version_number}は
+                履歴として保持されます。
+              </p>
+            ) : null}
+            <div className="catalog-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setPublishConfirmOpen(false)}
+                type="button"
+              >
+                取り消し
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={publishImmediately}
+                type="button"
+              >
+                Publish Now
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <FreshMfaDialog
         onClose={() => {
           pendingAction.current = null;
@@ -370,6 +513,8 @@ export function GachaPublishPreflightPanel({
             await selectProbability();
           } else if (pendingAction.current === "preflight") {
             await runPreflight();
+          } else if (pendingAction.current === "publish") {
+            await publishImmediately();
           }
         }}
         open={freshMfaOpen}

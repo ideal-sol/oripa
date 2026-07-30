@@ -148,7 +148,12 @@ final class V2CatalogReadService
                 'gv.published_probability_version_id'
             )
             ->join('catalog_categories as c', 'c.id', '=', 'g.category_id')
-            ->leftJoin('gacha_draw_states as ds', 'ds.gacha_id', '=', 'g.id')
+            ->leftJoin(
+                'gacha_draw_states as ds',
+                'ds.id',
+                '=',
+                'g.active_draw_state_id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as a',
                 'a.id',

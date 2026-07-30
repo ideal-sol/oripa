@@ -150,6 +150,8 @@ Route::prefix('v2')
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.update');
         Route::post('/catalog/gachas/{gachaId}/archive', [V2AdminCatalogController::class, 'archiveGacha'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.archive');
+        Route::get('/catalog/gachas/{gachaId}/publish-state', [V2AdminCatalogController::class, 'gachaPublishState'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.publish-state');
         Route::get('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'gachaVersions'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gacha-versions.index');
         Route::post('/catalog/gachas/{gachaId}/versions', [V2AdminCatalogController::class, 'createGachaDraft'])
@@ -187,6 +189,9 @@ Route::prefix('v2')
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish-preflight', [V2AdminCatalogController::class, 'preflightGachaPublish'])
             ->whereUuid('gachaId')->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.publish-preflight');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/publish', [V2AdminCatalogController::class, 'publishGachaVersionImmediately'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-versions.publish');
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/probability-versions/{probabilityVersionId}/clone', [V2AdminCatalogController::class, 'cloneProbabilityDraft'])
             ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('probabilityVersionId')
             ->name('v2.admin.catalog.probability-versions.clone');

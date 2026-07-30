@@ -991,6 +991,203 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function publishGachaVersionImmediately(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $gachaVersionPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorizeCatalogPublish(
+            $context,
+            'immediate_publish',
+            'gacha_version'
+        );
+        $this->rateLimitCatalogPublish(
+            $context,
+            $admin,
+            'immediate_publish',
+            'gacha_version'
+        );
+        $this->assertFields(
+            $input,
+            ['expected_revision', 'expected_gacha_revision'],
+            ['expected_revision', 'expected_gacha_revision']
+        );
+        $expectedRevision = $this->revision($input['expected_revision']);
+        $expectedGachaRevision = $this->revision(
+            $input['expected_gacha_revision']
+        );
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_version',
+            'gacha_immediate_publish',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'gacha_version_id' => $gachaVersionPublicId,
+                'expected_revision' => $expectedRevision,
+                'expected_gacha_revision' => $expectedGachaRevision,
+            ],
+            200,
+            function () use (
+                $context,
+                $gachaPublicId,
+                $gachaVersionPublicId,
+                $expectedRevision,
+                $expectedGachaRevision
+            ): array {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                if ((int) $gacha->revision !== $expectedGachaRevision) {
+                    throw new V2CatalogException(
+                        'CATALOG_REVISION_CONFLICT',
+                        409,
+                        'The Catalog record has changed.'
+                    );
+                }
+                $previousVersion = $gacha->published_version_id === null
+                    ? null
+                    : DB::table('catalog_gacha_versions')
+                        ->where('id', $gacha->published_version_id)
+                        ->lockForUpdate()
+                        ->first();
+                $version = $this->find(
+                    'catalog_gacha_versions',
+                    $gachaVersionPublicId,
+                    true
+                );
+                if (
+                    (int) $version->gacha_id !== (int) $gacha->id
+                    || (int) $version->revision !== $expectedRevision
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_REVISION_CONFLICT',
+                        409,
+                        'The Catalog record has changed.'
+                    );
+                }
+                $probability = $version->published_probability_version_id === null
+                    ? null
+                    : DB::table('catalog_probability_versions')
+                        ->where('id', $version->published_probability_version_id)
+                        ->lockForUpdate()
+                        ->first();
+                if ($probability === null) {
+                    throw $this->gachaPublishException();
+                }
+
+                $preflight = $this->gachaPublishPreflight(
+                    $context,
+                    $gacha,
+                    $version
+                );
+                $databaseNow = DB::selectOne(
+                    'SELECT CURRENT_TIMESTAMP AS occurred_at'
+                )?->occurred_at;
+                if (
+                    ! ($preflight['publishable'] ?? false)
+                    || ! is_string($databaseNow)
+                    || CarbonImmutable::parse((string) $version->publish_start_at)
+                        ->greaterThan(CarbonImmutable::parse($databaseNow))
+                    || (
+                        $version->publish_end_at !== null
+                        && CarbonImmutable::parse((string) $version->publish_end_at)
+                            ->lessThanOrEqualTo(CarbonImmutable::parse($databaseNow))
+                    )
+                    || ! $this->publishedProbabilitySnapshotIsValid($probability)
+                ) {
+                    throw $this->gachaPublishException();
+                }
+
+                DB::table('catalog_gacha_versions')
+                    ->where('id', $version->id)
+                    ->update([
+                        'status' => 'published',
+                        'published_at' => DB::raw('CURRENT_TIMESTAMP'),
+                        'revision' => (int) $version->revision + 1,
+                        'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    ]);
+                $drawStateId = DB::table('gacha_draw_states')->insertGetId([
+                    'gacha_id' => $gacha->id,
+                    'gacha_version_id' => $version->id,
+                    'probability_version_id' => $probability->id,
+                    'status' => 'selling',
+                    'total_count' => $version->total_count,
+                    'sold_count' => 0,
+                    'lock_version' => 0,
+                    'started_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    'sold_out_at' => null,
+                    'created_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                ]);
+                $inventoryRows = DB::table('catalog_gacha_version_prizes')
+                    ->where('gacha_version_id', $version->id)
+                    ->orderBy('id')
+                    ->get(['id', 'initial_inventory'])
+                    ->map(static fn (object $relation): array => [
+                        'gacha_draw_state_id' => $drawStateId,
+                        'gacha_version_prize_id' => $relation->id,
+                        'initial_quantity' => $relation->initial_inventory,
+                        'won_count' => 0,
+                        'lock_version' => 0,
+                        'created_at' => DB::raw('CURRENT_TIMESTAMP'),
+                        'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    ])->all();
+                if ($inventoryRows === []) {
+                    throw $this->gachaPublishException();
+                }
+                DB::table('prize_inventories')->insert($inventoryRows);
+                DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                    'published_version_id' => $version->id,
+                    'active_draw_state_id' => $drawStateId,
+                    'sold_count' => 0,
+                    'revision' => (int) $gacha->revision + 1,
+                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                ]);
+
+                $published = $this->find(
+                    'catalog_gacha_versions',
+                    $gachaVersionPublicId,
+                    false
+                );
+
+                return [
+                    'gacha_version_id' => $published->public_id,
+                    'status' => $published->status,
+                    'published_at' => $published->published_at,
+                    'gacha_version_revision' => (int) $published->revision,
+                    'gacha_revision' => (int) $gacha->revision + 1,
+                    'selected_probability' => [
+                        'id' => $probability->public_id,
+                        'snapshot_sha256' => $probability->snapshot_sha256,
+                    ],
+                    'previous_published_version' => $previousVersion === null
+                        ? null
+                        : [
+                            'id' => $previousVersion->public_id,
+                            'version_number' =>
+                                (int) $previousVersion->version_number,
+                        ],
+                    'current_published_version' => [
+                        'id' => $published->public_id,
+                        'version_number' => (int) $published->version_number,
+                    ],
+                    'draw_state' => [
+                        'status' => 'selling',
+                        'sold_count' => 0,
+                        'total_count' => (int) $published->total_count,
+                    ],
+                    'request_id' => $context->requestId,
+                ];
+            },
+            true,
+            static fn (array $result): array => $result
+        );
+    }
+
+    /** @param array<string, mixed> $input */
     private function executeProbabilityPublish(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -1502,6 +1699,7 @@ final class V2CatalogMasterMutationService
                             ? 'publish_preflight_completed'
                             : 'publish_preflight_failed',
                     'probability_selection' => 'probability_selected',
+                    'gacha_immediate_publish' => 'immediately_published',
                     'publish' => 'published',
                     default => throw new \LogicException(
                         'Unsupported Catalog mutation action.'
@@ -1537,6 +1735,13 @@ final class V2CatalogMasterMutationService
                         ...isset($data['publishable'])
                             ? ['publishable' => $data['publishable']]
                             : [],
+                        ...isset($data['previous_published_version'])
+                            ? [
+                                'previous_published_version_id' =>
+                                    $data['previous_published_version']['id']
+                                        ?? null,
+                            ]
+                            : [],
                     ]
                 );
                 if ($enqueueOutbox) {
@@ -1553,6 +1758,18 @@ final class V2CatalogMasterMutationService
                             'revision' => $data['revision']
                                 ?? $data['gacha_version_revision']
                                 ?? null,
+                            ...isset($data['current_published_version'])
+                                ? [
+                                    'current_published_version_id' =>
+                                        $data['current_published_version']['id'],
+                                    'previous_published_version_id' =>
+                                        $data['previous_published_version']['id']
+                                            ?? null,
+                                    'probability_snapshot_sha256' =>
+                                        $data['selected_probability']
+                                            ['snapshot_sha256'],
+                                ]
+                                : [],
                         ],
                         'catalog-'.$action.'-'.$claim->record->public_id
                     );
@@ -3290,6 +3507,15 @@ final class V2CatalogMasterMutationService
             'CATALOG_PROBABILITY_PUBLISH_INVALID',
             422,
             'The Probability Draft cannot be published.'
+        );
+    }
+
+    private function gachaPublishException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_INVALID',
+            422,
+            'The Gacha Draft cannot be published immediately.'
         );
     }
 

@@ -118,6 +118,14 @@ const operations = {
     "post",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish-preflight",
   ],
+  getAdminGachaPublishState: [
+    "get",
+    "/catalog/gachas/{gacha_id}/publish-state",
+  ],
+  publishAdminGachaVersionImmediately: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/publish",
+  ],
   listAdminCatalogProbabilityVersions: [
     "get",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/probability-versions",
@@ -230,6 +238,11 @@ const requiredSchemas = [
   "AdminGachaPublishPreflight",
   "AdminGachaPublishPreflightRequest",
   "AdminGachaPublishPreflightResult",
+  "AdminGachaImmediatePublishRequest",
+  "AdminGachaPublishState",
+  "AdminGachaPublishStateDetail",
+  "AdminGachaImmediatePublish",
+  "AdminGachaImmediatePublishResult",
   "AdminCatalogProbabilityVersion",
   "AdminCatalogProbabilityEntriesReplace",
   "AdminCatalogProbabilityVersionMutationResult",
@@ -723,6 +736,51 @@ export interface AdminGachaPublishPreflight {
 
 export interface AdminGachaPublishPreflightRequest {
   expected_revision: number;
+}
+
+export interface AdminGachaImmediatePublishRequest {
+  expected_revision: number;
+  expected_gacha_revision: number;
+}
+
+export interface AdminGachaPublishedVersionState {
+  id: string;
+  version_number: number;
+  status?: "published";
+  published_at?: string | null;
+}
+
+export interface AdminGachaDrawStateSummary {
+  status: "selling" | "paused" | "sold_out";
+  sold_count: number;
+  total_count: number;
+}
+
+export interface AdminGachaPublishState {
+  gacha_id: string;
+  gacha_revision: number;
+  current_published_version: AdminGachaPublishedVersionState | null;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  } | null;
+  draw_state: AdminGachaDrawStateSummary | null;
+}
+
+export interface AdminGachaImmediatePublish {
+  gacha_version_id: string;
+  status: "published";
+  published_at: string;
+  gacha_version_revision: number;
+  gacha_revision: number;
+  selected_probability: {
+    id: string;
+    snapshot_sha256: string;
+  };
+  previous_published_version: AdminGachaPublishedVersionState | null;
+  current_published_version: AdminGachaPublishedVersionState;
+  draw_state: AdminGachaDrawStateSummary;
+  request_id: string;
 }
 
 export interface AdminCatalogProbabilityPrizeReference {

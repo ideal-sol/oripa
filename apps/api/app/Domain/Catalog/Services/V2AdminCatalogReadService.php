@@ -409,6 +409,57 @@ final class V2AdminCatalogReadService
         ];
     }
 
+    public function gachaPublishState(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $version = $gacha->published_version_id === null
+            ? null
+            : DB::table('catalog_gacha_versions')
+                ->where('id', $gacha->published_version_id)
+                ->firstOrFail();
+        $probability = $version?->published_probability_version_id === null
+            ? null
+            : DB::table('catalog_probability_versions')
+                ->where('id', $version->published_probability_version_id)
+                ->firstOrFail();
+        $state = $gacha->active_draw_state_id === null
+            ? null
+            : DB::table('gacha_draw_states')
+                ->where('id', $gacha->active_draw_state_id)
+                ->firstOrFail();
+
+        return [
+            'data' => [
+                'gacha_id' => $gacha->public_id,
+                'gacha_revision' => (int) $gacha->revision,
+                'current_published_version' => $version === null
+                    ? null
+                    : [
+                        'id' => $version->public_id,
+                        'version_number' => (int) $version->version_number,
+                        'status' => $version->status,
+                        'published_at' => $version->published_at,
+                    ],
+                'selected_probability' => $probability === null
+                    ? null
+                    : [
+                        'id' => $probability->public_id,
+                        'snapshot_sha256' => $probability->snapshot_sha256,
+                    ],
+                'draw_state' => $state === null
+                    ? null
+                    : [
+                        'status' => $state->status,
+                        'sold_count' => (int) $state->sold_count,
+                        'total_count' => (int) $state->total_count,
+                    ],
+            ],
+        ];
+    }
+
     /** @param array<string, mixed> $filters */
     public function prizes(
         V2AdminAuthorizationContext $context,

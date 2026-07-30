@@ -391,6 +391,35 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaPublishState(
+        Request $request,
+        string $gachaId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaPublishState($context, $gachaId)
+        );
+    }
+
+    public function publishGachaVersionImmediately(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->publishGachaVersionImmediately(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createProbabilityDraft(
         Request $request,
         string $gachaId,
