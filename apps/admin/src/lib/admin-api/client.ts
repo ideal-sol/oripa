@@ -1279,6 +1279,51 @@ export class AdminApiClient {
     );
   }
 
+  preflightQaExecution(
+    planId: string,
+    body: import("./generated").AdminQaExecutionRequest,
+    signal?: AbortSignal,
+  ): Promise<import("./generated").AdminQaExecutionPreflight> {
+    return this.request("POST", `/qa/plans/${planId}/executions/preflight`, {
+      body,
+      signal,
+    });
+  }
+
+  executeQaDraw(
+    planId: string,
+    body: import("./generated").AdminQaExecutionRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<import("./generated").AdminQaExecutionMutationResult> {
+    return this.qaMutation(
+      "POST",
+      `/qa/plans/${planId}/executions`,
+      body,
+      idempotencyKey,
+      signal,
+    );
+  }
+
+  listQaExecutions(
+    query: AdminQaQuery,
+    signal?: AbortSignal,
+  ): Promise<import("./generated").AdminQaExecutionCollection> {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") parameters.set(name, String(value));
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    return this.request("GET", `/qa-draw-executions${suffix}`, { signal });
+  }
+
+  getQaExecution(
+    executionId: string,
+    signal?: AbortSignal,
+  ): Promise<import("./generated").AdminQaExecutionDetail> {
+    return this.request("GET", `/qa-draw-executions/${executionId}`, { signal });
+  }
+
   private qaList<T>(
     path: "/qa/plans" | "/qa/test-users" | "/qa/test-user-candidates",
     query: AdminQaQuery,
@@ -1533,14 +1578,16 @@ export class AdminApiClient {
       | `/auth/${string}`
       | `/catalog/${string}`
       | `/identity/${string}`
-      | `/qa/${string}`,
+      | `/qa/${string}`
+      | `/qa-draw-executions${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/catalog/") &&
         !path.startsWith("/identity/") &&
-        !path.startsWith("/qa/")) ||
+        !path.startsWith("/qa/") &&
+        !path.startsWith("/qa-draw-executions")) ||
       path.includes("://") ||
       path.includes("..")
     ) {

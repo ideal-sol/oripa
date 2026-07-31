@@ -24,6 +24,7 @@ vi.mock("@/components/auth/admin-auth-provider", () => ({
 import { QaManagementWorkspace } from "@/components/qa/qa-management-workspace";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
+  AdminQaExecutionDetail,
   AdminQaPlanDetail,
   AdminQaPlanSummary,
   AdminQaTestUser,
@@ -33,6 +34,7 @@ const PLAN_ID = "01910191-0191-7191-8191-019101910191";
 const USER_ID = "01910191-0191-7191-8191-019101910192";
 const GACHA_ID = "01910191-0191-7191-8191-019101910193";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910194";
+const EXECUTION_ID = "01910191-0191-7191-8191-019101910190";
 
 const summary: AdminQaPlanSummary = {
   archived_at: null,
@@ -86,7 +88,7 @@ const user: AdminQaTestUser = {
 describe("QA Plan management", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("lists, reviews, and preflights a QA Plan without exposing Draw execution", async () => {
+  it("lists, reviews, and preflights a QA Plan with an explicit real-impact execution boundary", async () => {
     mockPlanReads();
     vi.spyOn(AdminApiClient.prototype, "preflightQaPlan").mockResolvedValue({
       assigned_test_user_count: 1,
@@ -107,9 +109,46 @@ describe("QA Plan management", () => {
 
     expect(await screen.findByText("実行設定は有効です")).toBeVisible();
     expect(screen.getByText("Test User 1人 / 残り 1000回")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Draw実行|再実行|結果確定/u }))
-      .not.toBeInTheDocument();
-    expect(screen.getByText(/QA Drawの実行・再実行・結果確認/u)).toBeVisible();
+    expect(screen.getByText(/Mockではありません/u)).toBeVisible();
+    expect(screen.getByRole("button", { name: "QA Drawを実行" })).toBeDisabled();
+  });
+
+  it("preflights, confirms, and reviews a canonical QA Draw result", async () => {
+    mockPlanReads();
+    vi.spyOn(AdminApiClient.prototype, "preflightQaExecution").mockResolvedValue({
+      assignment_id: detail.assignments[0].id,
+      assignment_revision: 1,
+      available_points: 100000,
+      draw_count: 10,
+      gacha_id: GACHA_ID,
+      gacha_version_id: "01910191-0191-7191-8191-019101910198",
+      plan_id: PLAN_ID,
+      plan_revision: 1,
+      probability_version_id: "01910191-0191-7191-8191-019101910199",
+      remaining_plan_count: 1000,
+      remaining_sales_count: 5000,
+      required_points: 1000,
+      user_id: USER_ID,
+      valid: true,
+      validation_codes: [],
+    });
+    const execution = executionDetail();
+    const execute = vi.spyOn(AdminApiClient.prototype, "executeQaDraw")
+      .mockResolvedValue({ data: execution, idempotent_replay: false });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<QaManagementWorkspace />);
+    await screen.findByText("1000回QA");
+    fireEvent.click(screen.getByRole("button", { name: "1000回QAの詳細" }));
+    await screen.findByRole("heading", { name: "QA Draw実行" });
+    fireEvent.change(screen.getByLabelText("実行回数"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "実行前検証" }));
+    expect(await screen.findByText("実行可能です")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "QA Drawを実行" }));
+
+    await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    expect(await screen.findByText("販売口数差分")).toBeVisible();
+    expect(screen.getByText("Fixture Prize")).toBeVisible();
   });
 
   it("creates a Plan with typed Public IDs and a single bulk item request", async () => {
@@ -197,4 +236,43 @@ function mockPlanReads(items: AdminQaPlanSummary[] = [summary]) {
     next_cursor: null,
   });
   vi.spyOn(AdminApiClient.prototype, "getQaPlan").mockResolvedValue(detail);
+}
+
+function executionDetail(): AdminQaExecutionDetail {
+  return {
+    assignment_id: detail.assignments[0].id,
+    consumed_free_points: 1000,
+    consumed_paid_points: 0,
+    draw_request_id: "01910191-0191-7191-8191-019101910189",
+    executed_at: "2026-08-01T00:30:00Z",
+    executed_count: 10,
+    failure_reason: null,
+    gacha_id: GACHA_ID,
+    gacha_version_id: "01910191-0191-7191-8191-019101910198",
+    id: EXECUTION_ID,
+    inventory_prize_delta_total: 10,
+    metadata: {
+      plan_item_public_ids: [detail.items[0].id],
+      qa_mode_public_id: user.mode_id!,
+      qa_plan_public_id: PLAN_ID,
+    },
+    plan_id: PLAN_ID,
+    point_back_total: 0,
+    point_cost_total: 1000,
+    prize_counts: [{
+      count: 10,
+      prize: { id: PRIZE_ID, name: "Fixture Prize" },
+      rank: { code: "A", id: PRIZE_ID, name: "A" },
+    }],
+    probability_version: {
+      id: "01910191-0191-7191-8191-019101910199",
+      version: 1,
+    },
+    processing_duration_ms: 500,
+    rank_counts: [],
+    requested_count: 10,
+    sales_count_delta: 10,
+    status: "completed",
+    user_id: USER_ID,
+  };
 }

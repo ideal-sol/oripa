@@ -14,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
 
 final class V2QaDrawResolver
 {
@@ -37,7 +38,8 @@ final class V2QaDrawResolver
         int $gachaVersionId,
         int $drawCount,
         string $requestId,
-        ?array $expectedItemIds = null
+        ?array $expectedItemIds = null,
+        ?V2AdminQaDrawCommand $adminCommand = null
     ): array {
         $mode = QaTestUserMode::query()
             ->where('user_id', $user->id)
@@ -62,6 +64,12 @@ final class V2QaDrawResolver
             ->where('qa_draw_plans.gacha_id', $gachaId)
             ->where('qa_draw_plans.status', 'active')
             ->whereNull('qa_draw_plans.archived_at')
+            ->when($adminCommand !== null, function ($query) use ($adminCommand): void {
+                $query->where('qa_draw_plans.public_id', $adminCommand->planPublicId)
+                    ->where('qa_draw_plans.revision', $adminCommand->planRevision)
+                    ->where('assignment.public_id', $adminCommand->assignmentPublicId)
+                    ->where('assignment.revision', $adminCommand->assignmentRevision);
+            })
             ->lockForUpdate()
             ->first(['qa_draw_plans.*']);
         if (! $plan instanceof QaDrawPlan) {

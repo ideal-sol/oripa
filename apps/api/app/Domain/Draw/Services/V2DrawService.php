@@ -10,6 +10,7 @@ use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointService;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\Services\V2QaDrawResolver;
+use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
 use App\Models\V2\DrawRequest;
 use App\Models\V2\DrawResult;
 use App\Models\V2\GachaDrawState;
@@ -43,7 +44,8 @@ final class V2DrawService
         string $gachaPublicId,
         int $drawCount,
         string $idempotencyKey,
-        string $requestId
+        string $requestId,
+        ?V2AdminQaDrawCommand $adminCommand = null
     ): array {
         $this->assertInput($gachaPublicId, $drawCount, $idempotencyKey, $requestId);
         $randomValues = null;
@@ -61,14 +63,23 @@ final class V2DrawService
                 $started,
                 &$randomValues,
                 &$qaRetryItemIds,
-                &$qaAttempted
+                &$qaAttempted,
+                $adminCommand
             ): array {
+                $claimRequest = ['gacha_id' => $gachaPublicId, 'draw_count' => $drawCount];
+                if ($adminCommand !== null) {
+                    $claimRequest['admin_qa_plan_id'] = $adminCommand->planPublicId;
+                    $claimRequest['admin_qa_plan_revision'] = $adminCommand->planRevision;
+                    $claimRequest['admin_qa_assignment_id'] = $adminCommand->assignmentPublicId;
+                    $claimRequest['admin_qa_assignment_revision'] =
+                        $adminCommand->assignmentRevision;
+                }
                 $claim = $this->idempotency->claim(
                     'draw.create',
                     'user',
                     $user->public_id,
                     $idempotencyKey,
-                    ['gacha_id' => $gachaPublicId, 'draw_count' => $drawCount]
+                    $claimRequest
                 );
                 if ($claim->replay) {
                     $request = DrawRequest::query()
@@ -89,6 +100,14 @@ final class V2DrawService
                             'requested_count' => $drawCount,
                         ],
                     ]);
+                    if ($adminCommand !== null) {
+                        $this->adminQaAudit(
+                            'qa.execution.admin_replay',
+                            $adminCommand,
+                            $request->public_id,
+                            $drawCount
+                        );
+                    }
 
                     return $response;
                 }
@@ -152,7 +171,8 @@ final class V2DrawService
                     (int) $context['version']->id,
                     $drawCount,
                     $requestId,
-                    $qaRetryItemIds
+                    $qaRetryItemIds,
+                    $adminCommand
                 );
                 if ($qaSelection['active']) {
                     $qaAttempted = true;
@@ -350,6 +370,14 @@ final class V2DrawService
                             'qa_plan_public_id' => $qaSelection['plan']->public_id,
                         ],
                     ]);
+                    if ($adminCommand !== null) {
+                        $this->adminQaAudit(
+                            'qa.execution.admin_completed',
+                            $adminCommand,
+                            $qaExecution->public_id,
+                            $drawCount
+                        );
+                    }
                 }
                 $this->outbox->enqueue(
                     'draw.events',
@@ -1384,6 +1412,29 @@ final class V2DrawService
             'metadata' => [
                 'requested_count' => $request->requested_count,
                 'point_cost_total' => $request->point_cost_total,
+            ],
+        ]);
+    }
+
+    private function adminQaAudit(
+        string $action,
+        V2AdminQaDrawCommand $command,
+        string $targetPublicId,
+        int $drawCount
+    ): void {
+        $this->audit->record($action, [
+            'request_id' => $command->actor->requestId,
+            'actor_type' => 'admin',
+            'actor_public_id' => $command->actor->adminPublicId,
+            'actor_role' => $command->actor->role->value,
+            'auth_realm' => 'admin',
+            'session_correlation_hash' => $command->actor->sessionCorrelationHash,
+            'target_type' => 'qa_draw_execution',
+            'target_public_id' => $targetPublicId,
+            'metadata' => [
+                'qa_plan_public_id' => $command->planPublicId,
+                'assignment_public_id' => $command->assignmentPublicId,
+                'requested_count' => $drawCount,
             ],
         ]);
     }

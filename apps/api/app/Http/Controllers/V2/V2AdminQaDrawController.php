@@ -7,6 +7,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\Services\V2QaDrawAdminService;
+use App\Domain\QaDraw\Services\V2QaExecutionManagementService;
 use App\Domain\QaDraw\Services\V2QaPlanManagementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ final class V2AdminQaDrawController
     public function __construct(
         private readonly V2QaDrawAdminService $service,
         private readonly V2QaPlanManagementService $management,
+        private readonly V2QaExecutionManagementService $executions,
         private readonly V2AdminFreshMfaAuthorizer $freshMfa
     ) {
     }
@@ -141,9 +143,10 @@ final class V2AdminQaDrawController
 
     public function executions(Request $request): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->executions(
+        return $this->handle($request, fn (): array => $this->executions->executions(
             $this->context($request),
             $request->only([
+                'plan_id',
                 'user_id',
                 'gacha_id',
                 'draw_request_id',
@@ -157,9 +160,28 @@ final class V2AdminQaDrawController
 
     public function showExecution(Request $request, string $executionId): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->execution(
+        return $this->handle($request, fn (): array => $this->executions->execution(
             $this->context($request),
             $executionId
+        ));
+    }
+
+    public function preflightExecution(Request $request, string $planId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->executions->preflight(
+            $this->context($request),
+            $planId,
+            $this->objectInput($request)
+        ));
+    }
+
+    public function execute(Request $request, string $planId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->executions->execute(
+            $this->context($request),
+            $planId,
+            $this->idempotencyKey($request),
+            $this->objectInput($request)
         ));
     }
 
