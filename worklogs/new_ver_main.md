@@ -354,3 +354,82 @@
   Policy／Quality EvidenceとFresh Self-reviewをMerge判断の正本とする。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - DEP-001のArtifact作成／Production Deploymentは本Task内で開始しない。
+
+## INF-001 V1 Frontend Production Dockerfile Foundation
+
+### Task／Scope
+
+- Task IDは`INF-001`、Riskは`R4`、Issueは`#159`、PRは`#160`。
+- Base／PR Baseは`v1/early-release`、Base SHAは
+  `c4adae79f91a83a2ecb20683844357ba3c21f7c0`。
+- Task Policy
+  `/etc/ideal-sol/github-app/task-policies/INF-001.json`のSHA-256
+  `abafb86e424a9c4f82b88169721c62731c48a23f0a7f0d59eb839d7894cc5641`
+  とAllowed Pathsを確認した。
+- 変更対象は`infra/docker/frontend/Dockerfile`、本Worklog、
+  `worklogs/reports/INF-001-report.md`だけ。Frontend Application Source、
+  `package.json`、`pnpm-lock.yaml`、Backend、V2、DB、Migration、Nginxは
+  変更していない。
+
+### Dockerfile
+
+- Node `22-alpine`とRepository正本のpnpm `10.12.1`を使用するmulti-stage
+  production buildへ更新した。
+- Build dependencyとproduction dependencyをそれぞれ
+  `pnpm install --frozen-lockfile --ignore-workspace`で解決し、builderで
+  `pnpm build`を実行する。
+- Runtime Imageへproduction `node_modules`、`.next`、`public`、
+  `package.json`、`next.config.ts`だけを配置し、Application Source、
+  Lockfile、TypeScript／ESLint等のdevelopment dependencyを含めない。
+- Runtimeは非rootの`node` Userで、Nextのproduction CLIを直接起動する。
+  RuntimeでCorepack download、Dependency Install、Source編集は行わない。
+- SecretをBuild Argument、ENV、Image Layerへ追加していない。既存
+  `NEXT_PUBLIC_*`値はBuild時の公開設定境界だけを維持する。
+
+### Build／Smoke／Security
+
+- Classic Builderで非本番検証Image
+  `oripa-inf-001-validation:c4adae79f91a-r2`をBuildした。Image IDは
+  `sha256:fbc8f394c13ec12d76b601031c45dcbe5cc278df3c12b36aa4a6791ab33fbf75`、
+  Sizeは`669,702,219 byte`。
+- Image内のnextは`16.2.11`、sharpは`0.35.3`、libvipsは`8.18.3`。
+  js-yaml `4.3.0`はbuilderで確認し、build-only development dependencyのため
+  Runtime Imageには含めていない。
+- Task専用Containerを`127.0.0.1:3301`だけへBindし、Health、Top Page、
+  Static PNG、Next Image Optimizer／sharp WebPをすべてHTTP `200`で確認した。
+- Typecheckは成功。pnpm Auditは393 dependency、Critical／High／Moderate／
+  Lowすべて0件。
+- Lintは既存`8 Error／1 Warning`。SEC-006 Evidenceと正規化Finding 9件の
+  SHA-256
+  `3a40d9957054d2f309d76d566e26101e4745c3709a63f740b6bc5ca456b2441d`
+  が完全一致し、新規Findingは0件。
+- Frontend Sourceの変更Pathは0件。Manifest SHA-256
+  `ed75219ce4e06e5241fd54c2cd07d8267f12ef4495b9ac5bd2d60ec8396d5c49`、
+  Lockfile SHA-256
+  `c7097ac90e5ea19e03bf2af7f7945e2ecc56d66182af0bd7710621f882f0d8e1`
+  はSEC-006確定値から不変。
+- 詳細EvidenceはRepository外
+  `/var/lib/oripa-v2-evidence/INF-001/`へmode `700`／`600`で保存した。
+
+### 時間を要した作業
+
+- 初回Docker buildは約180秒。Layer Cache確立後のDockerfile修正再Buildは
+  約13秒で、成功済みInstall／Build Layerを再利用した。
+- 初回Runtime CMDの`pnpm start`は非root UserのCorepack downloadを要求した。
+  Runtime Install禁止に合わせ、package scriptの実体であるNext production CLIの
+  直接起動へ変更し、Application Source／Manifest／Lockfile変更なしで解消した。
+- pnpm strict dependency layoutによりRootからの直接`require('sharp')`が拒否された。
+  Dependencyを追加せず、Nextが実際に解決するsharp PackageとImage Optimizer実経路で
+  Version／libvips／WebP出力を確認し、全Buildの重複実行を避けた。
+- Root空き約9.1GB、`/tmp`空き約2.9GBで安全範囲だったため、Docker Cache、
+  稼働Container、Named VolumeのCleanupは行わなかった。
+
+### Production／Gate
+
+- 本TaskのImageとContainerはTask専用の非本番検証用であり、DEP-001のImmutable
+  Candidate Artifact作成ではない。
+- Production Container、Image Tag、Service、DB、Redis、Storage、Nginx、TLS、
+  Domain、Firewall、V2を変更していない。Production Deploymentは未実施。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- Final Head／Squash Commit、GitHub Check、Fresh Self-review、Cleanup結果は
+  PR Closeoutと最終完了報告で確定する。
