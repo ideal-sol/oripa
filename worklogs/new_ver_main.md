@@ -353,6 +353,7 @@
   Available Checkは0件だった。これをCheck成功とは置き換えず、Local Security／
   Policy／Quality EvidenceとFresh Self-reviewをMerge判断の正本とする。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
+
 - DEP-001のArtifact作成／Production Deploymentは本Task内で開始しない。
 
 ## INF-001 V1 Frontend Production Dockerfile Foundation
@@ -519,3 +520,52 @@
 - Issue／PR／Branch／Worktree、Candidate／Builder Image、Task Containerは
   Phase B完了まで保持する。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
+
+## DEP-001 Phase B V1 Frontend Production Deployment
+
+### Production切替
+
+- 人間承認済みCandidate Digest
+  `sha256:c30e14454ca32c871fd1853c0ea1b4bcece1a32b49d18fb909297f110d028e1a`
+  を`2026-07-31T09:42:03Z`にV1 Frontendへ反映した。
+- Runtime Commitは
+  `0c5262d42babc1bf3a63bd991ab07afb014a03c2`から
+  `acecccbc96e756e9521c70f5f497109456cb20bb`へ更新した。
+- 稼働Containerは`oripa-draw-1000b-frontend`、Networkは
+  `oripa_default`、Portは`127.0.0.1:3130`、Restart Policyは
+  `unless-stopped`で切替前から不変。
+- 旧Containerは`oripa-draw-1000b-frontend-rollback-dep001`へRenameし、
+  Image
+  `sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c`
+  とともに停止状態で保持した。第二Rollback Runtimeも削除していない。
+
+### Runtime／Health
+
+- RuntimeはNode `22.23.1`、Next `16.2.11`、sharp `0.35.3`、
+  libvips `8.18.3`。js-yaml `4.3.0`はbuilder-onlyでRuntimeへ含めない。
+- Internal／ExternalのHealth、Top、Static AssetはすべてHTTP `200`。
+  Next Image Optimizerは内外ともHTTP `200`／`image/webp`。
+- 切替期間の500／502／504は0件、Nginx Criticalは0件、
+  Runtime Criticalは0件。
+
+### Fail Closed／時間を要した作業
+
+- 初回はpnpm standalone配置に対するsharp Version ProbeのPath誤り、
+  2回目は非CriticalなNginx error log 1行の分類誤りでFail Closedした。
+- 両試行ともGuarded Rollbackにより新Containerだけを除去し、旧Containerを
+  元の名前へ戻してHealth HTTP `200`まで確認した。
+- Candidate Artifact、Application Source、Production設定は変更せず、
+  実Package PathとCritical分類を正しくしたうえで、3回目の同一Digest切替に成功した。
+- 詳細Evidenceは
+  `/var/lib/oripa-v2-evidence/DEP-001/phase-b/`へmode `700`／`600`で保持した。
+
+### 非変更／Gate
+
+- DB Migration、DB／Redis／Storage、Nginx／TLS／Domain／Firewall、
+  V2 Serviceは変更していない。
+- Protected ContainerのID／Image／状態とNginx Config Checksumは切替前後一致。
+- Production Host上のSource編集／Dependency Install、旧Container／旧Image削除は
+  実施していない。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- Final Head、Squash Commit、GitHub Check、Fresh Self-review、Cleanup結果は
+  DEP-001 Closeout Evidenceと最終完了報告で確定する。

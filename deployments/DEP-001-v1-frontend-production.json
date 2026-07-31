@@ -2,19 +2,29 @@
   "schema_version": "1.0",
   "task_id": "DEP-001",
   "risk": "R4",
-  "phase": "phase-a",
-  "status": "awaiting-production-approval",
+  "phase": "phase-b",
+  "status": "succeeded",
   "base_branch": "v1/early-release",
   "source_commit": "acecccbc96e756e9521c70f5f497109456cb20bb",
   "task_branch": "chore/DEP-001-v1-frontend-security-deployment",
   "policy_sha256": "228ac2919e09c94544bc7db1daad0ae05df96de1606964e86f7cc36016e84d93",
-  "recorded_at": "2026-07-31T09:15:31Z",
+  "recorded_at": "2026-07-31T09:42:03Z",
+  "deployed_at": "2026-07-31T09:42:03Z",
   "production": {
     "target_service": "oripa-draw-1000b-frontend",
-    "runtime_commit": "0c5262d42babc1bf3a63bd991ab07afb014a03c2",
-    "image_digest": "sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c",
+    "runtime_commit": "acecccbc96e756e9521c70f5f497109456cb20bb",
+    "image_digest": "sha256:c30e14454ca32c871fd1853c0ea1b4bcece1a32b49d18fb909297f110d028e1a",
+    "previous_runtime_commit": "0c5262d42babc1bf3a63bd991ab07afb014a03c2",
+    "previous_image_digest": "sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c",
     "health_http": 200,
-    "changed": false
+    "changed": true,
+    "dependencies": {
+      "node": "22.23.1",
+      "next": "16.2.11",
+      "sharp": "0.35.3",
+      "js-yaml": "4.3.0-build-only",
+      "libvips": "8.18.3"
+    }
   },
   "candidate": {
     "tag": "oripa-v1-frontend:dep-001-acecccbc96e7",
@@ -45,11 +55,12 @@
     }
   },
   "rollback": {
-    "service": "oripa-draw-1000b-frontend",
-    "planned_container_name": "oripa-draw-1000b-frontend-rollback-dep001",
+    "service": "oripa-draw-1000b-frontend-rollback-dep001",
+    "container_name": "oripa-draw-1000b-frontend-rollback-dep001",
     "runtime_commit": "0c5262d42babc1bf3a63bd991ab07afb014a03c2",
     "image_digest": "sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c",
-    "health_http": 200,
+    "status": "exited-retained",
+    "pre_cutover_health_http": 200,
     "validated": true,
     "secondary_running_artifact": {
       "service": "oripa-notice-002d-frontend",
@@ -60,8 +71,29 @@
   "approval": {
     "human_approval_required": true,
     "checkpoint_ready": true,
-    "production_approved": false,
-    "production_deployment_performed": false
+    "production_approved": true,
+    "production_deployment_performed": true
+  },
+  "deployment": {
+    "attempts": 3,
+    "automatic_rollbacks": 2,
+    "final_outcome": "succeeded",
+    "attempt_1": "rolled-back-verification-probe-path",
+    "attempt_2": "rolled-back-noncritical-nginx-log-classification",
+    "attempt_3": "succeeded",
+    "verification": {
+      "internal_health": 200,
+      "internal_top": 200,
+      "internal_static_asset": 200,
+      "internal_image_optimizer": "200-image-webp",
+      "external_health": 200,
+      "external_top": 200,
+      "external_static_asset": 200,
+      "external_image_optimizer": "200-image-webp",
+      "http_500_502_504": 0,
+      "nginx_critical": 0,
+      "runtime_critical": 0
+    }
   },
   "changes": {
     "db_migration": false,
@@ -69,5 +101,8 @@
     "nginx_tls_domain": false,
     "v2": false
   },
-  "evidence_path": "/var/lib/oripa-v2-evidence/DEP-001/phase-a/"
+  "evidence_paths": [
+    "/var/lib/oripa-v2-evidence/DEP-001/phase-a/",
+    "/var/lib/oripa-v2-evidence/DEP-001/phase-b/"
+  ]
 }
