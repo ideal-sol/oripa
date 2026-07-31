@@ -311,3 +311,46 @@
 ### 次確認
 
 - 新規機能開発ではなく、ブラウザでの100／1000回ガチャ最終確認を次候補とする。
+
+## SEC-006 V1 Frontend Dependency Security Backport
+
+### Task／Scope
+
+- Task IDは`SEC-006`、Riskは`R3`、Issueは`#157`、PRは`#158`。
+- Base／PR Baseは`v1/early-release`、Base SHAは
+  `fcaf0b9bb320aa479738e9be6d7b8465114f6226`。
+- SEC-005で確定した`frontend/package.json`と`frontend/pnpm-lock.yaml`だけを
+  `v1/early-release`へ機械的にBackportした。両FileはSEC-005 Merge済み正本と
+  SHA-256が一致する。
+- `next 16.2.11`、`sharp 0.35.3`、`js-yaml 4.3.0`を解決した。
+  Application Source、Backend、Migration、V2、CI Baseline、Infraは変更していない。
+
+### Compatibility／Security
+
+- Active Production FrontendのSource Commit
+  `0c5262d42babc1bf3a63bd991ab07afb014a03c2`と今回BaseのFrontend
+  Application Sourceは、Manifest／Lockfileを除いて差分0だった。
+- Node `22.22.3`、pnpm `10.12.1`でClean Frozen Install、Typecheck、
+  Production Build、起動Health、Top Page、Next Image Optimizerを確認した。
+- Next Image Optimizerの実利用経路で`sharp 0.35.3`／libvips `8.18.3`を確認した。
+- pnpm AuditはCritical／Highを含め0件。Secret Candidateは0件。
+- SEC-005正本と同一の2 Fileを使用するMain側でFresh Auditを収集し、
+  Security Unit `6 Test`、Security Gate、Policy Gate、Quality Gateが成功した。
+  Composerは期限付き既存Baseline `10件`、Workspace／Legacy pnpmは0件だった。
+- LintはActive Production Sourceと同じ`8 Error／1 Warning`で、絶対Pathを
+  正規化したFindingのRule、Severity、位置、本文が完全一致し、新規Findingは0件。
+- Frontend PackageにはUnit Test Script／Suiteが存在しないため、Unit Testを
+  PASSとは記録しない。Typecheck、Build、Health、Image Optimizerを区別して記録する。
+
+### Production／Gate
+
+- 本TaskではArtifact Build、Production Deployment、Container再作成、DB／Redis／
+  Storage／Nginx／TLS／Domain変更を実施していない。
+- Active Productionは引き続きNext `16.2.9`、sharp `0.34.5`、
+  js-yaml `4.2.0`であり、本番反映には別途DEP-001の新Artifact作成前承認が必要。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/SEC-006/`へ保存した。
+- `v1/early-release`にはRequired Check／Workflowが設定されておらず、PR Headの
+  Available Checkは0件だった。これをCheck成功とは置き換えず、Local Security／
+  Policy／Quality EvidenceとFresh Self-reviewをMerge判断の正本とする。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- DEP-001のArtifact作成／Production Deploymentは本Task内で開始しない。
