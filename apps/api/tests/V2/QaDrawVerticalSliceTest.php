@@ -16,6 +16,7 @@ use App\Domain\Point\Services\V2PointService;
 use App\Domain\PrizeShipping\Services\V2PrizeShippingService;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\Services\V2QaDrawAdminService;
+use App\Domain\QaDraw\Services\V2QaExecutionManagementService;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
@@ -553,6 +554,104 @@ final class QaDrawVerticalSliceTest extends TestCase
         );
         self::assertSame($response['id'], $detail['draw_request_id']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.execution.read']);
+    }
+
+    public function test_owner_executes_qa_draw_with_preflight_canonical_replay_and_review(): void
+    {
+        [$user, $owner] = $this->fixture(randomValues: [1], totalCount: 2_000);
+        $this->enableMode($owner, $user);
+        $plan = $this->qaPlan($owner, $user, [
+            $this->item(self::PRIZE_A_ID, 1_000, 1),
+        ]);
+        $assignment = DB::table('qa_draw_plan_assignments')
+            ->where('qa_draw_plan_id', DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('id'))
+            ->first();
+        $request = [
+            'assignment_id' => $assignment->public_id,
+            'plan_revision' => (int) DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('revision'),
+            'assignment_revision' => (int) $assignment->revision,
+            'draw_count' => 100,
+        ];
+        $context = $this->adminContext($owner);
+        $service = app(V2QaExecutionManagementService::class);
+        $preflight = $service->preflight($context, $plan['id'], $request);
+        self::assertTrue($preflight['valid']);
+        self::assertSame(10_000, $preflight['required_points']);
+
+        $first = $service->execute($context, $plan['id'], 'admin-qa-execute-key', $request);
+        $replay = $service->execute($context, $plan['id'], 'admin-qa-execute-key', $request);
+
+        self::assertFalse($first['idempotent_replay']);
+        self::assertTrue($replay['idempotent_replay']);
+        self::assertSame($first['data']['id'], $replay['data']['id']);
+        self::assertSame(100, $first['data']['executed_count']);
+        self::assertSame(10_000, $first['data']['point_cost_total']);
+        self::assertSame(100, $first['data']['sales_count_delta']);
+        self::assertSame(100, $first['data']['inventory_prize_delta_total']);
+        self::assertSame($plan['id'], $first['data']['plan_id']);
+        self::assertSame($assignment->public_id, $first['data']['assignment_id']);
+        self::assertDatabaseCount('draw_requests', 1);
+        self::assertDatabaseCount('qa_draw_executions', 1);
+        self::assertDatabaseCount('draw_results', 100);
+        self::assertDatabaseCount('user_prizes', 100);
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'qa.execution.admin_completed',
+        ]);
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'qa.execution.admin_replay',
+        ]);
+
+        $list = $service->executions($context, ['plan_id' => $plan['id']]);
+        self::assertCount(1, $list['items']);
+        self::assertSame(
+            $first['data']['draw_request_id'],
+            $service->execution($context, $first['data']['id'])['draw_request_id']
+        );
+    }
+
+    public function test_admin_qa_execution_rejects_stale_assignment_and_point_shortage_without_changes(): void
+    {
+        [$user, $owner] = $this->fixture(freePoints: 50);
+        $this->enableMode($owner, $user);
+        $plan = $this->qaPlan($owner, $user, [
+            $this->item(self::PRIZE_A_ID, 10, 1),
+        ]);
+        $assignment = DB::table('qa_draw_plan_assignments')
+            ->where('qa_draw_plan_id', DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('id'))
+            ->first();
+        $request = [
+            'assignment_id' => $assignment->public_id,
+            'plan_revision' => (int) DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('revision'),
+            'assignment_revision' => (int) $assignment->revision,
+            'draw_count' => 1,
+        ];
+        $context = $this->adminContext($owner);
+        $service = app(V2QaExecutionManagementService::class);
+        $preflight = $service->preflight($context, $plan['id'], $request);
+        self::assertFalse($preflight['valid']);
+        self::assertContains('POINT_BALANCE_INSUFFICIENT', $preflight['validation_codes']);
+        try {
+            $service->execute($context, $plan['id'], 'admin-qa-insufficient-key', $request);
+            self::fail('Insufficient points must reject the Admin QA Draw.');
+        } catch (V2QaDrawException $exception) {
+            self::assertSame('INSUFFICIENT_POINTS', $exception->errorCode);
+        }
+        self::assertDatabaseCount('draw_requests', 0);
+        self::assertDatabaseCount('qa_draw_executions', 0);
+        self::assertSame(0, (int) DB::table('gacha_draw_states')->value('sold_count'));
+
+        $request['assignment_revision']++;
+        try {
+            $service->execute($context, $plan['id'], 'admin-qa-stale-key', $request);
+            self::fail('A stale Assignment revision must fail closed.');
+        } catch (V2QaDrawException $exception) {
+            self::assertSame('QA_CONFIGURATION_INVALID', $exception->errorCode);
+        }
+        self::assertDatabaseCount('draw_requests', 0);
     }
 
     /**

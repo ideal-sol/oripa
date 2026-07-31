@@ -304,6 +304,10 @@ Route::prefix('v2')
             ->whereUuid('planId')->name('v2.admin.qa-management.plans.archive');
         Route::get('/qa/plans/{planId}/preflight', [V2AdminQaDrawController::class, 'preflightManagementPlan'])
             ->whereUuid('planId')->name('v2.admin.qa-management.plans.preflight');
+        Route::post('/qa/plans/{planId}/executions/preflight', [V2AdminQaDrawController::class, 'preflightExecution'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.executions.preflight');
+        Route::post('/qa/plans/{planId}/executions', [V2AdminQaDrawController::class, 'execute'])
+            ->whereUuid('planId')->name('v2.admin.qa-management.executions.store');
         Route::post('/qa/plans/{planId}/assignments', [V2AdminQaDrawController::class, 'assignManagementPlan'])
             ->whereUuid('planId')->name('v2.admin.qa-management.assignments.assign');
         Route::post('/qa/plans/{planId}/assignments/unassign', [V2AdminQaDrawController::class, 'unassignManagementPlan'])

@@ -280,12 +280,61 @@ test("Catalog list, search, detail, and mobile view use the Admin read contract"
   await expect(page.getByRole("button", { name: "検索" })).toBeFocused();
 });
 
-test("Owner manages QA Plan settings without a Draw execution surface", async ({
+test("Owner preflights and executes a real-impact QA Draw then reviews the result", async ({
   page,
 }) => {
   const planId = "01910191-0191-7191-8191-019101910241";
   const userId = "01910191-0191-7191-8191-019101910242";
   const gachaId = "01910191-0191-7191-8191-019101910243";
+  const assignmentId = "01910191-0191-7191-8191-019101910244";
+  const executionId = "01910191-0191-7191-8191-019101910249";
+  const executionDetail = {
+    assignment_id: assignmentId,
+    consumed_free_points: 100,
+    consumed_paid_points: 0,
+    draw_request_id: "01910191-0191-7191-8191-019101910250",
+    executed_at: "2026-08-01T00:30:00Z",
+    executed_count: 1,
+    failure_reason: null,
+    gacha_id: gachaId,
+    gacha_version_id: "01910191-0191-7191-8191-019101910247",
+    id: executionId,
+    inventory_prize_delta_total: 1,
+    metadata: {},
+    plan_id: planId,
+    point_back_total: 0,
+    point_cost_total: 100,
+    prize_counts: [{
+      count: 1,
+      prize: {
+        id: "01910191-0191-7191-8191-019101910246",
+        name: "QA Fixture Prize",
+      },
+      rank: {
+        code: "S",
+        id: "01910191-0191-7191-8191-019101910251",
+        name: "S",
+      },
+    }],
+    probability_version: {
+      id: "01910191-0191-7191-8191-019101910248",
+      version_number: 1,
+    },
+    processing_duration_ms: 120,
+    rank_counts: [{
+      count: 1,
+      rank: {
+        code: "S",
+        id: "01910191-0191-7191-8191-019101910251",
+        name: "S",
+      },
+    }],
+    requested_count: 1,
+    sales_count_delta: 1,
+    status: "completed",
+    user_id: userId,
+  };
+  let executionHeaders: Record<string, string> | null = null;
   await installAdminApi(page, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -315,7 +364,7 @@ test("Owner manages QA Plan settings without a Draw execution surface", async ({
         archived_at: null,
         assignments: [{
           assigned_at: "2026-08-01T00:00:00Z",
-          id: "01910191-0191-7191-8191-019101910244",
+          id: assignmentId,
           revision: 1,
           status: "assigned",
           unassigned_at: null,
@@ -343,6 +392,44 @@ test("Owner manages QA Plan settings without a Draw execution surface", async ({
         user_id: userId,
       });
     }
+    if (path.endsWith(`/qa/plans/${planId}/executions/preflight`)) {
+      return json(route, {
+        assignment_id: assignmentId,
+        assignment_revision: 1,
+        available_points: 1000,
+        draw_count: 1,
+        gacha_id: gachaId,
+        gacha_version_id: "01910191-0191-7191-8191-019101910247",
+        plan_id: planId,
+        plan_revision: 1,
+        probability_version_id: "01910191-0191-7191-8191-019101910248",
+        remaining_plan_count: 1000,
+        remaining_sales_count: 1000,
+        required_points: 100,
+        user_id: userId,
+        valid: true,
+        validation_codes: [],
+      });
+    }
+    if (
+      path.endsWith(`/qa/plans/${planId}/executions`)
+      && request.method() === "POST"
+    ) {
+      executionHeaders = request.headers();
+      return json(route, {
+        data: executionDetail,
+        idempotent_replay: false,
+      });
+    }
+    if (path.endsWith(`/qa-draw-executions/${executionId}`)) {
+      return json(route, executionDetail);
+    }
+    if (path.endsWith("/qa-draw-executions")) {
+      return json(route, {
+        items: [executionDetail],
+        next_cursor: null,
+      });
+    }
     if (path.endsWith(`/qa/plans/${planId}/preflight`)) {
       return json(route, {
         assigned_test_user_count: 1,
@@ -363,11 +450,20 @@ test("Owner manages QA Plan settings without a Draw execution surface", async ({
   await expect(page.getByText("Browser QA Plan")).toBeVisible();
   await page.getByRole("button", { name: "Browser QA Planの詳細" }).click();
   await expect(page.getByText("Browser verification")).toBeVisible();
-  await page.getByRole("button", { name: "検証" }).click();
+  await page.getByRole("button", { name: "検証", exact: true }).click();
   await expect(page.getByText("実行設定は有効です")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /Draw実行|再実行|結果確定/u }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("note")).toContainText("Point、在庫、販売口数、User Prize");
+  await page.getByRole("button", { name: "実行前検証" }).click();
+  await expect(page.getByText("実行可能です")).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "QA Drawを実行" }).click();
+  await expect(page.getByRole("heading", { name: "実行結果" })).toBeVisible();
+  await expect(page.getByText("QA Fixture Prize")).toBeVisible();
+  expect(executionHeaders?.["x-xsrf-token"]).toBe(csrf);
+  expect(executionHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+  expect(
+    (executionHeaders as Record<string, string> | null)?.authorization,
+  ).toBeUndefined();
 
   await page.setViewportSize({ height: 844, width: 390 });
   expect(

@@ -41,6 +41,13 @@ const operations = {
   disableQaManagementPlan: ["post", "/qa/plans/{qa_plan_id}/disable"],
   archiveQaManagementPlan: ["post", "/qa/plans/{qa_plan_id}/archive"],
   preflightQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}/preflight"],
+  preflightQaDrawExecution: [
+    "post",
+    "/qa/plans/{qa_plan_id}/executions/preflight",
+  ],
+  executeQaDraw: ["post", "/qa/plans/{qa_plan_id}/executions"],
+  listQaDrawExecutions: ["get", "/qa-draw-executions"],
+  getQaDrawExecution: ["get", "/qa-draw-executions/{qa_execution_id}"],
   assignQaManagementTestUser: ["post", "/qa/plans/{qa_plan_id}/assignments"],
   unassignQaManagementTestUser: [
     "post",
@@ -268,6 +275,12 @@ const requiredSchemas = [
   "QaManagementPlanCollection",
   "QaManagementPreflight",
   "QaManagementMutationResult",
+  "QaExecutionRequest",
+  "QaExecutionPreflight",
+  "QaExecutionSummary",
+  "QaExecutionDetail",
+  "QaExecutionCollection",
+  "QaExecutionMutationResult",
   "QaTestUserSave",
   "QaTestUserSummary",
   "QaTestUserCollection",
@@ -605,6 +618,78 @@ export interface AdminQaPreflight {
 
 export interface AdminQaMutationResult<T> {
   data: T;
+  idempotent_replay: boolean;
+}
+
+export type AdminQaDrawCount = 1 | 5 | 10 | 100 | 1000;
+
+export interface AdminQaExecutionRequest {
+  assignment_id: string;
+  plan_revision: number;
+  assignment_revision: number;
+  draw_count: AdminQaDrawCount;
+}
+
+export interface AdminQaExecutionPreflight extends AdminQaExecutionRequest {
+  plan_id: string;
+  user_id: string | null;
+  gacha_id: string | null;
+  valid: boolean;
+  validation_codes: string[];
+  required_points: number;
+  available_points: number;
+  remaining_sales_count: number;
+  remaining_plan_count: number;
+  gacha_version_id: string | null;
+  probability_version_id: string | null;
+}
+
+export interface AdminQaExecutionSummary {
+  id: string;
+  plan_id: string;
+  assignment_id: string;
+  user_id: string;
+  gacha_id: string;
+  gacha_version_id: string;
+  draw_request_id: string;
+  executed_count: AdminQaDrawCount;
+  status: "completed";
+  executed_at: string;
+}
+
+export interface AdminQaCountRow {
+  count: number;
+  rank?: { id: string; code: string; name: string };
+  prize?: { id: string; name: string };
+}
+
+export interface AdminQaExecutionDetail extends AdminQaExecutionSummary {
+  requested_count: AdminQaDrawCount;
+  point_cost_total: number;
+  consumed_paid_points: number;
+  consumed_free_points: number;
+  point_back_total: number;
+  sales_count_delta: number;
+  inventory_prize_delta_total: number;
+  rank_counts: AdminQaCountRow[];
+  prize_counts: AdminQaCountRow[];
+  probability_version: { id: string; version: number } | null;
+  processing_duration_ms: number;
+  failure_reason: null;
+  metadata: {
+    qa_mode_public_id: string;
+    qa_plan_public_id: string;
+    plan_item_public_ids: string[];
+  };
+}
+
+export interface AdminQaExecutionCollection {
+  items: AdminQaExecutionSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminQaExecutionMutationResult {
+  data: AdminQaExecutionDetail;
   idempotent_replay: boolean;
 }
 

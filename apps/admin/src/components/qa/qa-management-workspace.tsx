@@ -41,8 +41,12 @@ import type {
   AdminQaTestUser,
 } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
+import {
+  QaExecutionControls,
+  QaExecutionsPanel,
+} from "@/components/qa/qa-execution-panel";
 
-type View = "plans" | "users";
+type View = "plans" | "users" | "executions";
 type Mutation = () => Promise<void>;
 
 const EMPTY_CREATE: AdminQaPlanCreate = {
@@ -125,6 +129,14 @@ export function QaManagementWorkspace() {
             >
               Test User
             </button>
+            <button
+              aria-selected={view === "executions"}
+              onClick={() => setView("executions")}
+              role="tab"
+              type="button"
+            >
+              実行結果
+            </button>
           </div>
           {error ? <QaError error={error} onDismiss={() => setError(null)} /> : null}
           {view === "plans" ? (
@@ -134,17 +146,16 @@ export function QaManagementWorkspace() {
               onError={reportError}
               runMutation={runMutation}
             />
-          ) : (
+          ) : view === "users" ? (
             <QaTestUsersPanel
               busy={busy}
               client={client}
               onError={reportError}
               runMutation={runMutation}
             />
+          ) : (
+            <QaExecutionsPanel client={client} onError={reportError} />
           )}
-          <aside className="qa-boundary-note">
-            QA Drawの実行・再実行・結果確認はこの画面では行えません。
-          </aside>
         </div>
         <FreshMfaDialog
           onClose={() => {
@@ -344,6 +355,15 @@ function QaPlansPanel({
           <h3>Reason</h3>
           <p>{selected.reason}</p>
         </section>
+        {selected.status === "active" && !selected.archived_at ? (
+          <QaExecutionControls
+            busy={busy}
+            client={client}
+            onError={onError}
+            plan={selected}
+            runMutation={runMutation}
+          />
+        ) : null}
         <section className="qa-card">
           <div className="qa-section-heading">
             <div>

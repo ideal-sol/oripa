@@ -7379,3 +7379,87 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - 次Task候補は`MIG-060O Admin QA Draw Execution／Result Review`であり、
   MIG-060Oは本Task内で開始しない。
+
+## MIG-060N Closeout／MIG-060O Admin QA Draw Execution／Result Review
+
+### MIG-060N Closeout
+
+- Issue `#151` Closed、PR `#152` Squash Merged。
+- Final Headは`889daef8175afdcde845019fde42b4f5600e7768`、Squash Commitは
+  `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Check成功。
+- Fresh Self-review一致、SEV-0／SEV-1 0件、Branch／Worktree／Task Resource
+  Cleanup、Local main同期、V1 Runtime／本番Resource非変更を確認した。
+
+### Contract／Permission／Transaction
+
+- 既存QA Plan、Assignment、QA Resolver、QA Execution、`V2DrawService`を再利用し、
+  Admin QA Draw Preflight／実行／Execution一覧・詳細を追加した。
+- 既存正本の`1`、`5`、`10`、`100`、`1000`回だけを許可する。
+- `qa.draw.manage`、Owner-only、Fresh MFA 5分、Admin Realm、CSRF、Exact Origin、
+  JSON、Critical Rate Limitを既存FoundationでFail Closedにする。
+- Plan／Assignment Revisionを型付きCommandでDraw transactionへ渡し、Lock後の
+  Resolverで再検証する。Point、Inventory、販売口数、Draw Result、User Prize、
+  QA Execution、Audit、Outbox、Idempotencyを単一Transactionで確定する。
+- 同じIdempotency-KeyはCanonical Replayを返し、実Dataを二重反映しない。
+  Draw Algorithm、CSPRNG、抽選順、100／1000回Set-based Persistenceは非変更である。
+
+### Admin UI／Result Review
+
+- `/qa`へ実Data影響警告、Assignment／回数選択、Server Preflight、最終確認、
+  二重送信防止、結果一覧／詳細を追加した。
+- Execution、Plan、Test User、Assignment、Gacha／Version、Point、Prize／Rank、
+  販売／在庫差分、UTC実行日時、Canonical Replayを確認できる。
+- 内部ID、Credential、不要なPII、個別ppm、架空結果は表示しない。
+- UTC保存、`Asia/Tokyo`表示、Mobile、Keyboard、Focus、Accessible Nameを維持した。
+
+### Test／Evidence
+
+- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、
+  Browser E2E `14 Test`がPASSした。
+- OpenAPI Lint／Bundle、Admin生成差分0、Typecheck、Lint、Production BuildがPASSした。
+- Persistent／Ephemeralで`migrate:fresh`各2回、Migration 29件、
+  rollback／reapply、全V2 Suite、Backup／Restore、HealthがPASSした。
+- Migration Set SHA-256:
+  `49e6df42f64c7a3b4124fb9800bc13ea59ed523d155bb7e4a833dfb9ee8a4b29`
+- Backup SHA-256:
+  `17d4989cf849d39df7b66745f446a4ef84c66ee254efd5ea096686930bcf356b`
+- Source／Restore Schema SHA-256:
+  `339970b0c5baead71d527b6e86934f12bdf1ff12ef2c311c80ba373c71f6372d`
+- 通常100／1000回p95は`172.990 ms`／`750.815 ms`、Query 56／58。
+- QA 100／1000回p95は`152.092 ms`／`654.059 ms`、Query 65／76。
+- QA同一Gacha 10 User最終`8.016 s`、通常同一Gacha 20 User最終`16.131 s`。
+  未解決Deadlock、負Wallet、Inventory overflow、整合不一致は0件である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22、Release 10、
+  Policy 89、Quality 5、DB Guard 29、Site Template 6 TestがPASSした。
+- Root Audit 0、Legacy Audit 11、Composer Audit 10で既存件数から増加していない。
+- Security Unit 4 TestはPASSしたが、Dependency Advisory Baselineの期限が
+  `2026-07-30`であり、`2026-07-31`のSecurity Gateは
+  `dependency advisory baseline has expired`でFail Closedした。
+  Baseline、Lockfile、Security Gateは本Taskで変更または緩和していない。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060O/`へ保存した。
+
+### 時間を要した作業／効率改善
+
+- API Image Build約1分、Admin Browser E2E約1.1分、Persistent Guard約4分、
+  Ephemeral Guard約9分、Frozen Legacy約1.3分を要した。
+- Root空き2.6GBが安全閾値を下回ったため、Dangling Imageだけを削除して
+  6.327GB回収した。稼働Container、Named Volume、V1 Resourceは非変更である。
+- Browser SmokeはAccessible Name完全一致と表示文言期待だけを補正し、失敗した
+  対象1件だけ再実行した。
+- 通常Draw性能初回はQA負荷Fixture残存でTest開始前に停止したため、Task専用DBを
+  Fresh化してFixtureを分離し、通常Draw負荷だけ再実行した。
+- First-party Packageは依存順Serial、通過済み全回帰は中断・重複実行せず、
+  Host Toolchain、Gate、Assertion、Timeout、Memoryを変更していない。
+
+### V1／Gate／Final予定
+
+- V1／共通Infra Path差分は0、V1 Migration 40件Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tag、Public／Webhook Contractは非変更である。
+- Local実装・機能・DB・性能検証は成功した。Security Baseline期限切れのため、
+  Final Head、GitHub Check、Fresh Self-review、Merge、Issue Close、Cleanupは
+  未確定である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- MIG-060P以降は本Taskで開始しない。

@@ -5181,6 +5181,13 @@
             "$ref": "#/components/parameters/PageCursor"
           },
           {
+            "name": "plan_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
             "name": "user_id",
             "in": "query",
             "schema": {
@@ -5646,6 +5653,107 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QaManagementPreflight"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/executions/preflight": {
+      "post": {
+        "operationId": "preflightQaDrawExecution",
+        "summary": "QA Drawの実影響を伴う実行条件を再検証する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaExecutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "QA Draw実行Preflight。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaExecutionPreflight"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/qa/plans/{qa_plan_id}/executions": {
+      "post": {
+        "operationId": "executeQaDraw",
+        "summary": "Ownerが実影響を伴うQA Drawを実行する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/QaPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaExecutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical QA Draw Execution。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaExecutionMutationResult"
                 }
               }
             }
@@ -11531,6 +11639,21 @@
           },
           "executed_at": {
             "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "plan_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "assignment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ]
           }
         }
       },
@@ -11568,6 +11691,68 @@
                     }
                   }
                 }
+              },
+              "requested_count": {
+                "type": "integer",
+                "enum": [
+                  1,
+                  5,
+                  10,
+                  100,
+                  1000
+                ]
+              },
+              "point_cost_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "consumed_paid_points": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "consumed_free_points": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "point_back_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sales_count_delta": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "inventory_prize_delta_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rank_counts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "prize_counts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "probability_version": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": true
+              },
+              "processing_duration_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failure_reason": {
+                "type": "null"
               }
             }
           }
@@ -11592,6 +11777,168 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "QaExecutionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "assignment_id",
+          "plan_revision",
+          "assignment_revision",
+          "draw_count"
+        ],
+        "properties": {
+          "assignment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assignment_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "draw_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          }
+        }
+      },
+      "QaExecutionPreflight": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan_id",
+          "assignment_id",
+          "user_id",
+          "gacha_id",
+          "draw_count",
+          "plan_revision",
+          "assignment_revision",
+          "valid",
+          "validation_codes",
+          "required_points",
+          "available_points",
+          "remaining_sales_count",
+          "remaining_plan_count",
+          "gacha_version_id",
+          "probability_version_id"
+        ],
+        "properties": {
+          "plan_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "assignment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gacha_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "draw_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assignment_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "validation_codes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "available_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_sales_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_plan_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gacha_version_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "probability_version_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "QaExecutionMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QaExecutionDetail"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },
