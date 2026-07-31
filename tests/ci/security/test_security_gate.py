@@ -1,5 +1,6 @@
 import datetime
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -92,6 +93,21 @@ class SecurityGateTest(unittest.TestCase):
             security_gate.validate_dependency_baseline(
                 [], [], baseline, datetime.date(2026, 8, 8)
             )
+
+    def test_repository_baseline_does_not_allow_pnpm_findings(self):
+        baseline = json.loads(
+            (ROOT / ".ci/baselines/dependency-advisories.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(baseline["pnpm"], [])
+        self.assertFalse(
+            any(
+                finding.get("severity") in {"critical", "high"}
+                for finding in baseline["composer"]
+            )
+        )
 
 
 if __name__ == "__main__":

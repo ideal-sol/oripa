@@ -95,6 +95,7 @@
 | Legacy Lint | 約33秒／回 | 既知9 Fingerprintの全Source解析 | raw結果を再実行せずJSON結果をBaseline判定へ再利用 |
 | Production Build | 約33秒 | Next 16.2.11のCompile／Typecheck／24 Route生成 | PASS |
 | Quality Gate | 約28秒 | Tracked PHP 707件、JSON／YAML／Contract検査 | PASS |
+| GitHub初回Check | 約12分 | Push時EventがPR本文更新前の5 Filesを保持 | PR本文更新後の新Headで再実行 |
 
 - Root空き8.7GB、`/tmp`空き2.9GBで安全閾値内のためDocker Cache Cleanupは
   実施していない。
@@ -102,6 +103,9 @@
   追加せず、実利用経路のNext Image Optimizer Smokeへ切り替えた。
 - Health SmokeはRequest成功後、検証側が`status`を期待して失敗したが、既存Contractは
   `app=ok`だった。取得済みEvidenceを再評価し、Server再起動を重複実行しなかった。
+- GitHub初回`policy-gate`はPush時点のEventがPR本文更新前のChanged Filesを保持して
+  失敗した。同一SHAの再Runは旧失敗CheckもWrapper集約へ残るため、空Commitではなく、
+  実Baselineへpnpm Findingを再導入できないSecurity Unitを追加して新Headへ進めた。
 - 成功ログは要約し、詳細LogはRepository外Evidenceへ保存した。
 
 ## Gate／Closeout

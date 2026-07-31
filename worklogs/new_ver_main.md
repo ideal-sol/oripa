@@ -7425,6 +7425,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   PASSとは記録しない。Health／ImageはIntegration Smokeとして区別する。
 - Security Unit、Dependency Baseline期限境界、Local Security Gate、Policy Gate、
   Quality Gate、`git diff --check`はPASSした。
+- 実Baselineへpnpm FindingまたはCritical／High Composer Findingを再導入できない
+  Repository Baseline Unitを追加した。
 - Security GateはComposer 10、Legacy pnpm 0、Workspace pnpm 0、
   Secret／PII Candidate 0、期限`2026-08-07`である。
 - Repository外Evidenceは`/var/lib/oripa-v2-evidence/SEC-005/`、
@@ -7442,4 +7444,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
   PR Closeout時に確定する。
+- GitHub初回RunはPush時EventがPR本文更新前のChanged Filesを保持し、
+  `policy-gate`がFail Closedした。同一SHAの再Runでは旧失敗CheckがWrapper集約に
+  残ったため、空CommitではなくRepository Baseline Unitを追加した新Headで再実行する。
 - MIG-060OのRebase／Merge／Closeoutは本Task内で実施しない。
