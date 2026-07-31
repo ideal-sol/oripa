@@ -433,3 +433,89 @@
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - Final Head／Squash Commit、GitHub Check、Fresh Self-review、Cleanup結果は
   PR Closeoutと最終完了報告で確定する。
+
+## DEP-001 Phase A V1 Frontend Security Candidate
+
+### Task／Preflight
+
+- Task IDは`DEP-001`、Riskは`R4`、Issueは`#161`、Draft PRは`#162`。
+- Base／PR Baseは`v1/early-release`、Base SHAは
+  `acecccbc96e756e9521c70f5f497109456cb20bb`。
+- Task Policy
+  `/etc/ideal-sol/github-app/task-policies/DEP-001.json`のSHA-256
+  `228ac2919e09c94544bc7db1daad0ae05df96de1606964e86f7cc36016e84d93`
+  とAllowed Pathsを確認した。
+- Local／Remote Base一致、Working Tree clean、Root空き約8.1GB、
+  `/tmp`空き約2.9GBを確認した。安全閾値内のためDocker Cache、
+  稼働Container、Image、Named VolumeをCleanupしていない。
+- INF-001 Dockerfile Blob
+  `4a1825e6077b72a54412b7c5169860d08f1b46cf`を無変更で使用した。
+  Frontend Application Source、`package.json`、`pnpm-lock.yaml`は変更していない。
+
+### Candidate Build
+
+- Classic Builder、pnpm `10.12.1`、`pnpm install --frozen-lockfile`、
+  `pnpm build`でCandidate
+  `oripa-v1-frontend:dep-001-acecccbc96e7`をBuildした。
+- Content Digest／Image IDは
+  `sha256:c30e14454ca32c871fd1853c0ea1b4bcece1a32b49d18fb909297f110d028e1a`、
+  Sizeは`669,702,182 byte`、Build所要は`145.82秒`。
+- Source Commit Labelは
+  `acecccbc96e756e9521c70f5f497109456cb20bb`。Runtimeは非root `node`
+  Userで、起動時Dependency Installは行わない。
+- Image内はNode `22.23.1`、Next `16.2.11`、sharp `0.35.3`、
+  libvips `8.18.3`。pnpm `10.12.1`とjs-yaml `4.3.0`はbuilderで確認した。
+  js-yaml、ESLint、TypeScriptはbuild-only dependencyのためRuntimeには含めない。
+
+### 非本番検証
+
+- Task専用Container `oripa-dep-001-candidate`を
+  `127.0.0.1:3311`だけへBindして起動した。
+- Health、Top Page、Static Asset、Next Image OptimizerはすべてHTTP `200`。
+  Image Optimizerはsharp実経路で`image/webp`を返した。
+- Typecheckは`15.79秒`で成功。pnpm AuditはCritical／High／Moderate／Low
+  すべて0件。
+- Lintは既存`8 Error／1 Warning`。INF-001 Baseline JSONとByte一致し、
+  新規Findingは0件。
+- Runtime Imageに`.env`、Git metadata、Private Key、Credential File、
+  Application Source directory、development dependencyがないことを確認した。
+- Candidate History／ConfigとRepository変更PathのSecret／PII Candidateは0件。
+- Policy GateはTask Policy WrapperのAllowed Path検査、Security GateはAudit／
+  Secret Scan、Quality GateはBuild／Typecheck／Lint Characterization／Smokeを
+  正本としてすべて成功した。
+- 詳細EvidenceはRepository外
+  `/var/lib/oripa-v2-evidence/DEP-001/phase-a/`へ保存した。
+
+### Production／Rollback Read-only
+
+- 現行Production Frontendは`oripa-draw-1000b-frontend`、Runtime Commit
+  `0c5262d42babc1bf3a63bd991ab07afb014a03c2`、Image ID
+  `sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c`。
+- 現行依存はNext `16.2.9`、sharp `0.34.5`、js-yaml `4.2.0`。
+  Health／Top／Static AssetはHTTP `200`。
+- 第一Rollback Artifactは現行Image ID `sha256:17c7a72...`を保持する。
+  第二Rollback Runtime `oripa-notice-002d-frontend`／
+  `sha256:9a3957f777e38ac9ba9c8a86a842d6060a684bd71ee660099cc8fbfbf23365e5`
+  もHealth `200`で稼働している。
+- Production Container、Image Tag、Service、DB、Redis、Storage、Nginx、
+  TLS、Domain、Firewall、V2は変更していない。Nginx Config Checksumと
+  Runtime開始時刻をPreflight Evidenceへ固定した。
+
+### 時間を要した作業
+
+- Candidate BuildはFrozen InstallとNext Production Buildを含み`145.82秒`。
+  成功Logは要約し、Full LogをRepository外Evidenceへ保存した。
+- Version要約用Shellの初回引用符がBusyBoxでSyntax Errorになったが、
+  成功済みTypecheck／Audit／Lint／Buildを再実行せず、Version取得だけを
+  個別Commandへ分割して解消した。
+- Artifact内容確認のGNU `find -printf`がAlpine BusyBoxで未対応だったため、
+  Imageを再Buildせずportableな`ls`／`find -print`へ置換した。
+
+### Approval Boundary
+
+- Phase Aは完了し、Production切替直前で停止する。
+- Human approval required: `YES`
+- Production Deployment performed: `NO`
+- Issue／PR／Branch／Worktree、Candidate／Builder Image、Task Containerは
+  Phase B完了まで保持する。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
