@@ -70,6 +70,10 @@ Lockfileは手編集せず、SEC-005でpnpm `10.12.1`により生成・検証さ
 | Runtime Health | PASS | `/api/health` HTTP 200、`app=ok` |
 | Public Top Smoke | PASS | HTTP 200 |
 | Next Image／sharp Smoke | PASS | HTTP 200、sharp 0.35.3 |
+| Security Unit | PASS | 6 Test |
+| Local Security Gate | PASS | Composer既存10、Workspace／Legacy pnpm 0 |
+| Policy Gate | PASS | Tracked 1,147 File |
+| Quality Gate | PASS | PHP 709、JSON 57、YAML 18等 |
 | Secret Candidate Scan | PASS | 2 File、Candidate 0 |
 | `git diff --check` | PASS | Whitespace Error 0 |
 
@@ -98,7 +102,9 @@ BaselineやSecurity Gateを変更・緩和していない。
 - SEC-005確定Lockfile SHA-256:
   `c7097ac90e5ea19e03bf2af7f7945e2ecc56d66182af0bd7710621f882f0d8e1`
 - Full Evidence: `/var/lib/oripa-v2-evidence/SEC-006/`
-- GitHub Required CheckとFresh Self-reviewはFinal Head固定後に同Evidenceへ確定する。
+- `v1/early-release`にはRequired Check／Workflowが設定されておらず、PR Headの
+  Available Checkは0件。これを成功Checkが存在したとは記録しない。
+- Final HeadのFresh Self-reviewはRepository外EvidenceとPR Commentへ確定する。
 
 ## 時間を要した作業
 

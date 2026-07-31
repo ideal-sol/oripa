@@ -334,6 +334,9 @@
   Production Build、起動Health、Top Page、Next Image Optimizerを確認した。
 - Next Image Optimizerの実利用経路で`sharp 0.35.3`／libvips `8.18.3`を確認した。
 - pnpm AuditはCritical／Highを含め0件。Secret Candidateは0件。
+- SEC-005正本と同一の2 Fileを使用するMain側でFresh Auditを収集し、
+  Security Unit `6 Test`、Security Gate、Policy Gate、Quality Gateが成功した。
+  Composerは期限付き既存Baseline `10件`、Workspace／Legacy pnpmは0件だった。
 - LintはActive Production Sourceと同じ`8 Error／1 Warning`で、絶対Pathを
   正規化したFindingのRule、Severity、位置、本文が完全一致し、新規Findingは0件。
 - Frontend PackageにはUnit Test Script／Suiteが存在しないため、Unit Testを
@@ -346,5 +349,8 @@
 - Active Productionは引き続きNext `16.2.9`、sharp `0.34.5`、
   js-yaml `4.2.0`であり、本番反映には別途DEP-001の新Artifact作成前承認が必要。
 - Repository外Evidenceは`/var/lib/oripa-v2-evidence/SEC-006/`へ保存した。
+- `v1/early-release`にはRequired Check／Workflowが設定されておらず、PR Headの
+  Available Checkは0件だった。これをCheck成功とは置き換えず、Local Security／
+  Policy／Quality EvidenceとFresh Self-reviewをMerge判断の正本とする。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - DEP-001のArtifact作成／Production Deploymentは本Task内で開始しない。
