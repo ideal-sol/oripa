@@ -7579,3 +7579,33 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `policy-gate`がFail Closedした。同一SHAの再Runでは旧失敗CheckがWrapper集約に
   残ったため、空CommitではなくRepository Baseline Unitを追加した新Headで再実行する。
 - MIG-060OのRebase／Merge／Closeoutは本Task内で実施しない。
+
+## MIG-061A admin.luxe-pack.biz V2 Admin／API Preview Cutover
+
+### Task／人間決定
+
+- Issue `#163`、Branch `chore/MIG-061A-v2-admin-preview-cutover`、
+  Risk `R4`、Base `main@de941ddcedda58adcf9cc54efa7c271c4ee7b866`で開始した。
+- `admin.luxe-pack.biz`だけをV1 AdminからV2 Admin／APIへ切り替える。
+  `luxe-pack.biz`はV1のまま維持し、`ad.luxe-pack.biz`、
+  `test.luxe-pack.biz`、Storefront、Production Paymentは使用しない。
+- 追加Security機能、既存Security境界の再設計・無効化、UI機能修正は行わない。
+
+### Preflight／分離境界
+
+- Task Policy SHA-256は
+  `f60ff33f9c109b99231e25e68e6865534ca53998bcce70c362c42d5ffe30b206`。
+- Local `main = origin/main`、Working Tree clean、現行Admin vhost checksum
+  `4276714d4dc80e383518ba64bc78ff95e211454f4290c9a1294b6202c2a18411`
+  を確認した。
+- 切替前V1 AdminはLoopback Port `3130`／`8140`を使用する。
+  `luxe-pack.biz`、V1 Frontend、V1 BackendはHTTP 200である。
+- V2はCompose Project `mig061a-v2-preview`、専用Network、
+  Loopback Port `3611`／`8611`、Database `oripa_v2_mig061a_preview`、
+  DB Marker `mig061a`で分離する。
+
+### Status／Gate
+
+- V2 Build、Migration、Nginx切替、Browser確認、Final Evidenceは実施中である。
+- V1 DB／Redis／Storage、TLS／DNS、他vhostは変更しない。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
