@@ -40,9 +40,13 @@ workflow permission and action-pin checks, credential-bearing remote detection,
 dangerous workflow command checks, `.codex` safety checks, and Composer/pnpm
 audits.
 
-The Legacy dependency baseline is exact and expires on 2026-07-30. It is tracked by
-`SEC-001`; new, removed, changed, worsened, or expired findings fail until the
-baseline and locked dependencies are reviewed together.
+The dependency baseline was re-reviewed on 2026-07-31 by `SEC-005` and expires
+on 2026-08-07. Legacy and V2 pnpm audits contain zero findings. The exact
+remaining Composer findings are limited to the unchanged medium or
+unknown-severity Guzzle, PSR-7, and JMESPath advisories; their fixed versions
+require a separately authorized Composer remediation. New, removed, changed,
+worsened, or expired findings fail until the baseline and locked dependencies
+are reviewed together.
 
 The V2 Root Workspace uses exact patched overrides for transitive `postcss` and
 `sharp`、`js-yaml` versions identified by a Fresh Audit. Its audit must remain at zero
