@@ -7243,6 +7243,137 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - 次Task候補は`MIG-060N Admin QA Draw Management`であり、本Taskでは開始しない。
 
+## MIG-060N Closeout／MIG-060O Admin QA Draw Execution／Result Review
+
+### MIG-060N Closeout
+
+- Issue `#151` Closed、PR `#152` Squash Merged。
+- Final Headは`889daef8175afdcde845019fde42b4f5600e7768`、Squash Commitは
+  `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`である。
+- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Check成功。
+- Fresh Self-review一致、SEV-0／SEV-1 0件、Branch／Worktree／Task Resource
+  Cleanup、Local main同期、V1 Runtime／本番Resource非変更を確認した。
+
+### Contract／Permission／Transaction
+
+- 既存QA Plan、Assignment、QA Resolver、QA Execution、`V2DrawService`を再利用し、
+  Admin QA Draw Preflight／実行／Execution一覧・詳細を追加した。
+- 既存正本の`1`、`5`、`10`、`100`、`1000`回だけを許可する。
+- `qa.draw.manage`、Owner-only、Fresh MFA 5分、Admin Realm、CSRF、Exact Origin、
+  JSON、Critical Rate Limitを既存FoundationでFail Closedにする。
+- Plan／Assignment Revisionを型付きCommandでDraw transactionへ渡し、Lock後の
+  Resolverで再検証する。Point、Inventory、販売口数、Draw Result、User Prize、
+  QA Execution、Audit、Outbox、Idempotencyを単一Transactionで確定する。
+- 同じIdempotency-KeyはCanonical Replayを返し、実Dataを二重反映しない。
+  Draw Algorithm、CSPRNG、抽選順、100／1000回Set-based Persistenceは非変更である。
+
+### Admin UI／Result Review
+
+- `/qa`へ実Data影響警告、Assignment／回数選択、Server Preflight、最終確認、
+  二重送信防止、結果一覧／詳細を追加した。
+- Execution、Plan、Test User、Assignment、Gacha／Version、Point、Prize／Rank、
+  販売／在庫差分、UTC実行日時、Canonical Replayを確認できる。
+- 内部ID、Credential、不要なPII、個別ppm、架空結果は表示しない。
+- UTC保存、`Asia/Tokyo`表示、Mobile、Keyboard、Focus、Accessible Nameを維持した。
+
+### Test／Evidence
+
+- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、
+  Browser E2E `14 Test`がPASSした。
+- OpenAPI Lint／Bundle、Admin生成差分0、Typecheck、Lint、Production BuildがPASSした。
+- Persistent／Ephemeralで`migrate:fresh`各2回、Migration 29件、
+  rollback／reapply、全V2 Suite、Backup／Restore、HealthがPASSした。
+- Migration Set SHA-256:
+  `49e6df42f64c7a3b4124fb9800bc13ea59ed523d155bb7e4a833dfb9ee8a4b29`
+- Backup SHA-256:
+  `17d4989cf849d39df7b66745f446a4ef84c66ee254efd5ea096686930bcf356b`
+- Source／Restore Schema SHA-256:
+  `339970b0c5baead71d527b6e86934f12bdf1ff12ef2c311c80ba373c71f6372d`
+- 通常100／1000回p95は`172.990 ms`／`750.815 ms`、Query 56／58。
+- QA 100／1000回p95は`152.092 ms`／`654.059 ms`、Query 65／76。
+- QA同一Gacha 10 User最終`8.016 s`、通常同一Gacha 20 User最終`16.131 s`。
+  未解決Deadlock、負Wallet、Inventory overflow、整合不一致は0件である。
+- Site Schema 10、Storefront Client 14、Storefront Testkit 22、Release 10、
+  Policy 89、Quality 5、DB Guard 29、Site Template 6 TestがPASSした。
+- Root Audit 0、Legacy Audit 11、Composer Audit 10で既存件数から増加していない。
+- Security Unit 4 TestはPASSしたが、Dependency Advisory Baselineの期限が
+  `2026-07-30`であり、`2026-07-31`のSecurity Gateは
+  `dependency advisory baseline has expired`でFail Closedした。
+  Baseline、Lockfile、Security Gateは本Taskで変更または緩和していない。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060O/`へ保存した。
+
+### 時間を要した作業／効率改善
+
+- API Image Build約1分、Admin Browser E2E約1.1分、Persistent Guard約4分、
+  Ephemeral Guard約9分、Frozen Legacy約1.3分を要した。
+- Root空き2.6GBが安全閾値を下回ったため、Dangling Imageだけを削除して
+  6.327GB回収した。稼働Container、Named Volume、V1 Resourceは非変更である。
+- Browser SmokeはAccessible Name完全一致と表示文言期待だけを補正し、失敗した
+  対象1件だけ再実行した。
+- GitHub初回`policy-gate`は新規QA実行PanelのAdmin Skeleton Allowlist登録漏れを
+  検出した。Wildcardによる緩和はせず当該Fileだけを追加し、Policy Unit 89件と
+  Local Gateを再実行してPASSした。
+- 通常Draw性能初回はQA負荷Fixture残存でTest開始前に停止したため、Task専用DBを
+  Fresh化してFixtureを分離し、通常Draw負荷だけ再実行した。
+- First-party Packageは依存順Serial、通過済み全回帰は中断・重複実行せず、
+  Host Toolchain、Gate、Assertion、Timeout、Memoryを変更していない。
+
+### V1／Gate／Final予定
+
+- V1／共通Infra Path差分は0、V1 Migration 40件Checksumは
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`。
+- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
+  Archive Branch、Annotated Tag、Public／Webhook Contractは非変更である。
+- Local実装・機能・DB・性能検証は成功した。Security Baseline期限切れのため、
+  Final Head、GitHub Check、Fresh Self-review、Merge、Issue Close、Cleanupは
+  未確定である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- MIG-060P以降は本Taskで開始しない。
+
+## MIG-060O Security Blocker解消後Closeout
+
+### SEC-005取込み／Conflict
+
+- SEC-005 Issue `#155`はClosed、PR `#156`はSquash Merged、Final Headは
+  `4488fe98658ca33af7240427052628bc5ba4a9d9`、Squash Commit／最新mainは
+  `df94c24239c95a5e0d68fc95314eec06dfa45796`である。
+- 最新mainとの`git merge-tree`確認ではApplication、Contract、Migration、DBに
+  競合はなく、`worklogs/new_ver_main.md`の追記位置だけが競合した。SEC-005と
+  MIG-060Oの両記録を保持する最小解決を行った。
+- SEC-005のLegacy Lockfile、Dependency Advisory Baseline、Dependency Review
+  Workflow、Security Unitは最新PR Baseから保持し、MIG-060OのApplication／
+  Contract差分は欠落していない。
+- 固定Task Policyのfast-forward／Exact Scopeを維持し、SEC-005 CommitをTask
+  Branchへ重複Commitしない。最新mainをPR Base／GitHub Merge Resultの正本とし、
+  force push、History rewrite、空Commitは行っていない。
+
+### Security／対象再検証
+
+- DB Target Safety GuardはTask DB `oripa_v2_mig060o`、Task ID `MIG-060O`、
+  Purpose `v2-task-ephemeral`、Schema `public`、Migration集合`repository`でPASS。
+- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、対象Browser E2E
+  `1 Test`がPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Policy Gate、Quality Gate、DB Guard Unit `29 Test`、
+  `git diff --check`がPASSした。
+- Security Unit `6 Test`とLocal Security GateがPASSした。Legacy pnpm Audit 0、
+  Root Workspace pnpm Audit 0、Composer既存10、Secret／PII Candidate 0、
+  新規Critical／High 0、Baseline期限`2026-08-07`である。
+- SEC-005はApplication、Migration、DB、Drawを変更していないため、
+  Persistent／Ephemeral Guard、Backup／Restore、通常／QA 100／1000回性能、
+  同一Gacha負荷、V1 Backend全回帰は旧Headの成功Evidenceを保持し再実行していない。
+
+### 時間を要した作業／Final
+
+- Admin Serial検証は約2分、対象Browser E2Eは約40秒、Quality Gateは約30秒。
+- Backend対象Test初回はComposeの旧`api:latest`により0 Testで停止したため、
+  固定済み`api:target` Imageと明示Test Pathへ切り替え、再Buildを避けた。
+- Root空き8.7GB、`/tmp`空き2.9GBで安全閾値内のためCache Cleanupは実施せず、
+  稼働Container、Named Volume、V1 Resourceを保持した。
+- Final Head、GitHub 8 Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree／Task DB CleanupはPR Closeoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-060P以降は開始しない。
+
 ## MIG-060M Closeout／MIG-060N Admin QA Plan／Test User Management
 
 ### MIG-060M Closeout
@@ -7379,203 +7510,3 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - 次Task候補は`MIG-060O Admin QA Draw Execution／Result Review`であり、
   MIG-060Oは本Task内で開始しない。
-
-## MIG-060N Closeout／MIG-060O Admin QA Draw Execution／Result Review
-
-### MIG-060N Closeout
-
-- Issue `#151` Closed、PR `#152` Squash Merged。
-- Final Headは`889daef8175afdcde845019fde42b4f5600e7768`、Squash Commitは
-  `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`である。
-- Required 5 Check、CodeQL 2件、Dependency Reviewを含む8 Check成功。
-- Fresh Self-review一致、SEV-0／SEV-1 0件、Branch／Worktree／Task Resource
-  Cleanup、Local main同期、V1 Runtime／本番Resource非変更を確認した。
-
-### Contract／Permission／Transaction
-
-- 既存QA Plan、Assignment、QA Resolver、QA Execution、`V2DrawService`を再利用し、
-  Admin QA Draw Preflight／実行／Execution一覧・詳細を追加した。
-- 既存正本の`1`、`5`、`10`、`100`、`1000`回だけを許可する。
-- `qa.draw.manage`、Owner-only、Fresh MFA 5分、Admin Realm、CSRF、Exact Origin、
-  JSON、Critical Rate Limitを既存FoundationでFail Closedにする。
-- Plan／Assignment Revisionを型付きCommandでDraw transactionへ渡し、Lock後の
-  Resolverで再検証する。Point、Inventory、販売口数、Draw Result、User Prize、
-  QA Execution、Audit、Outbox、Idempotencyを単一Transactionで確定する。
-- 同じIdempotency-KeyはCanonical Replayを返し、実Dataを二重反映しない。
-  Draw Algorithm、CSPRNG、抽選順、100／1000回Set-based Persistenceは非変更である。
-
-### Admin UI／Result Review
-
-- `/qa`へ実Data影響警告、Assignment／回数選択、Server Preflight、最終確認、
-  二重送信防止、結果一覧／詳細を追加した。
-- Execution、Plan、Test User、Assignment、Gacha／Version、Point、Prize／Rank、
-  販売／在庫差分、UTC実行日時、Canonical Replayを確認できる。
-- 内部ID、Credential、不要なPII、個別ppm、架空結果は表示しない。
-- UTC保存、`Asia/Tokyo`表示、Mobile、Keyboard、Focus、Accessible Nameを維持した。
-
-### Test／Evidence
-
-- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、
-  Browser E2E `14 Test`がPASSした。
-- OpenAPI Lint／Bundle、Admin生成差分0、Typecheck、Lint、Production BuildがPASSした。
-- Persistent／Ephemeralで`migrate:fresh`各2回、Migration 29件、
-  rollback／reapply、全V2 Suite、Backup／Restore、HealthがPASSした。
-- Migration Set SHA-256:
-  `49e6df42f64c7a3b4124fb9800bc13ea59ed523d155bb7e4a833dfb9ee8a4b29`
-- Backup SHA-256:
-  `17d4989cf849d39df7b66745f446a4ef84c66ee254efd5ea096686930bcf356b`
-- Source／Restore Schema SHA-256:
-  `339970b0c5baead71d527b6e86934f12bdf1ff12ef2c311c80ba373c71f6372d`
-- 通常100／1000回p95は`172.990 ms`／`750.815 ms`、Query 56／58。
-- QA 100／1000回p95は`152.092 ms`／`654.059 ms`、Query 65／76。
-- QA同一Gacha 10 User最終`8.016 s`、通常同一Gacha 20 User最終`16.131 s`。
-  未解決Deadlock、負Wallet、Inventory overflow、整合不一致は0件である。
-- Site Schema 10、Storefront Client 14、Storefront Testkit 22、Release 10、
-  Policy 89、Quality 5、DB Guard 29、Site Template 6 TestがPASSした。
-- Root Audit 0、Legacy Audit 11、Composer Audit 10で既存件数から増加していない。
-- Security Unit 4 TestはPASSしたが、Dependency Advisory Baselineの期限が
-  `2026-07-30`であり、`2026-07-31`のSecurity Gateは
-  `dependency advisory baseline has expired`でFail Closedした。
-  Baseline、Lockfile、Security Gateは本Taskで変更または緩和していない。
-- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060O/`へ保存した。
-
-### 時間を要した作業／効率改善
-
-- API Image Build約1分、Admin Browser E2E約1.1分、Persistent Guard約4分、
-  Ephemeral Guard約9分、Frozen Legacy約1.3分を要した。
-- Root空き2.6GBが安全閾値を下回ったため、Dangling Imageだけを削除して
-  6.327GB回収した。稼働Container、Named Volume、V1 Resourceは非変更である。
-- Browser SmokeはAccessible Name完全一致と表示文言期待だけを補正し、失敗した
-  対象1件だけ再実行した。
-- GitHub初回`policy-gate`は新規QA実行PanelのAdmin Skeleton Allowlist登録漏れを
-  検出した。Wildcardによる緩和はせず当該Fileだけを追加し、Policy Unit 89件と
-  Local Gateを再実行してPASSした。
-- 通常Draw性能初回はQA負荷Fixture残存でTest開始前に停止したため、Task専用DBを
-  Fresh化してFixtureを分離し、通常Draw負荷だけ再実行した。
-- First-party Packageは依存順Serial、通過済み全回帰は中断・重複実行せず、
-  Host Toolchain、Gate、Assertion、Timeout、Memoryを変更していない。
-
-### V1／Gate／Final予定
-
-- V1／共通Infra Path差分は0、V1 Migration 40件Checksumは
-  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`。
-- V1 Runtime、本番DB／Redis／Storage、Nginx、`v1/early-release`、
-  Archive Branch、Annotated Tag、Public／Webhook Contractは非変更である。
-- Local実装・機能・DB・性能検証は成功した。Security Baseline期限切れのため、
-  Final Head、GitHub Check、Fresh Self-review、Merge、Issue Close、Cleanupは
-  未確定である。
-- Gate G4／G5は`NOT COMPLETE`を維持する。
-- MIG-060P以降は本Taskで開始しない。
-
-## SEC-005 Legacy Dependency Security Remediation
-
-### Task／Scope
-
-- Issue `#155`、PR `#156`、Branch
-  `security/SEC-005-legacy-dependency-remediation`、Risk `R3`。
-- BaseはGitHubの最新`main`
-  `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`である。
-- Task Policy
-  `/etc/ideal-sol/github-app/task-policies/SEC-005.json`の完全一致Pathだけを変更した。
-- MIG-060O Issue `#153`／PR `#154`／Worktree／Task DBは保持し、Application Code、
-  DB、性能Evidenceを変更していない。
-
-### Dependency Remediation
-
-- Legacy `next`／`eslint-config-next`を`16.2.9`から`16.2.11`へ更新した。
-- Nextの`sharp ^0.34.5`では修正版0.35系を通常解決できないため、Node 22.22.3対応の
-  0.35系最新`sharp 0.35.3`を限定Overrideした。
-- `js-yaml 4.3.0`は親Range内だが、pnpmのtransitive updateが無関係な直接
-  devDependencyまで更新したため、不要なGraph churnを避けて限定Overrideした。
-- pnpm 10.12.1で元Lockfileから再生成し、Next／sharp／libvips／js-yamlと
-  必要なtransitiveだけを更新した。Lockfile手編集とApplication Source修正はない。
-- Next Image Optimizerで既存PNGからWebPへの実変換、sharp 0.35.3、
-  libvips 1.3.2、Node Engine互換を確認した。
-
-### Baseline再審査
-
-- Legacy pnpm Auditは11件から0件、Root Workspace Auditは0件を維持した。
-- Baselineからpnpm 11件、Dependency Review allowlist 6件を削除した。
-- Composerは従来と同じMedium 9件／Unknown 1件で、新規Critical／Highは0件。
-- Composerの修正版はGuzzle `7.15.1`以上、PSR-7 `2.12.3`以上、
-  JMESPath `2.9.1`以上だが、Composer LockはSEC-005 Policy外である。
-- Review日は`2026-07-31`、短期期限は`2026-08-07`。別Security Taskで
-  Composerを更新し、Fresh AuditでBaselineを削除する必要がある。
-
-### Test／Evidence
-
-- Clean Frozen Install、Legacy Audit 0、Typecheck、Production Build、
-  起動Health、Next Image／sharp SmokeはPASSした。
-- Legacy Lint rawは既存8 Error／1 Warningで、完全一致Lint BaselineはPASSした。
-  Sourceは変更していない。
-- Legacy PackageにTest Script／Suiteが存在しないためUnit Testは未実行であり、
-  PASSとは記録しない。Health／ImageはIntegration Smokeとして区別する。
-- Security Unit、Dependency Baseline期限境界、Local Security Gate、Policy Gate、
-  Quality Gate、`git diff --check`はPASSした。
-- 実Baselineへpnpm FindingまたはCritical／High Composer Findingを再導入できない
-  Repository Baseline Unitを追加した。
-- Security GateはComposer 10、Legacy pnpm 0、Workspace pnpm 0、
-  Secret／PII Candidate 0、期限`2026-08-07`である。
-- Repository外Evidenceは`/var/lib/oripa-v2-evidence/SEC-005/`、
-  提出Reportは`worklogs/reports/SEC-005-report.md`である。
-
-### Production／Gate
-
-- V1 Application Source、Backend Migration 40件、V1 Runtime、本番DB／Redis／
-  Storage、Nginx、Domain、TLS、Archive Branch、Annotated Tagは非変更である。
-- V1 Migration 40件の正本Checksum
-  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
-  は不変である。
-- 本TaskではProduction Deploymentを行わない。現在のV1 Runtimeは脆弱版を
-  継続稼働しているため、Merge後にProduction Security Deploymentが必要である。
-- Gate G4／G5は`NOT COMPLETE`を維持する。
-- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
-  PR Closeout時に確定する。
-- GitHub初回RunはPush時EventがPR本文更新前のChanged Filesを保持し、
-  `policy-gate`がFail Closedした。同一SHAの再Runでは旧失敗CheckがWrapper集約に
-  残ったため、空CommitではなくRepository Baseline Unitを追加した新Headで再実行する。
-- MIG-060OのRebase／Merge／Closeoutは本Task内で実施しない。
-
-## MIG-060O Security Blocker解消後Closeout
-
-### SEC-005取込み／Conflict
-
-- SEC-005 Issue `#155`はClosed、PR `#156`はSquash Merged、Final Headは
-  `4488fe98658ca33af7240427052628bc5ba4a9d9`、Squash Commit／最新mainは
-  `df94c24239c95a5e0d68fc95314eec06dfa45796`である。
-- 最新mainとの`git merge-tree`確認ではApplication、Contract、Migration、DBに
-  競合はなく、`worklogs/new_ver_main.md`の追記位置だけが競合した。SEC-005と
-  MIG-060Oの両記録を保持する最小解決を行った。
-- SEC-005のLegacy Lockfile、Dependency Advisory Baseline、Dependency Review
-  Workflow、Security Unitは最新PR Baseから保持し、MIG-060OのApplication／
-  Contract差分は欠落していない。
-- 固定Task Policyのfast-forward／Exact Scopeを維持し、SEC-005 CommitをTask
-  Branchへ重複Commitしない。最新mainをPR Base／GitHub Merge Resultの正本とし、
-  force push、History rewrite、空Commitは行っていない。
-
-### Security／対象再検証
-
-- DB Target Safety GuardはTask DB `oripa_v2_mig060o`、Task ID `MIG-060O`、
-  Purpose `v2-task-ephemeral`、Schema `public`、Migration集合`repository`でPASS。
-- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、対象Browser E2E
-  `1 Test`がPASSした。
-- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
-  Production Build、Policy Gate、Quality Gate、DB Guard Unit `29 Test`、
-  `git diff --check`がPASSした。
-- Security Unit `6 Test`とLocal Security GateがPASSした。Legacy pnpm Audit 0、
-  Root Workspace pnpm Audit 0、Composer既存10、Secret／PII Candidate 0、
-  新規Critical／High 0、Baseline期限`2026-08-07`である。
-- SEC-005はApplication、Migration、DB、Drawを変更していないため、
-  Persistent／Ephemeral Guard、Backup／Restore、通常／QA 100／1000回性能、
-  同一Gacha負荷、V1 Backend全回帰は旧Headの成功Evidenceを保持し再実行していない。
-
-### 時間を要した作業／Final
-
-- Admin Serial検証は約2分、対象Browser E2Eは約40秒、Quality Gateは約30秒。
-- Backend対象Test初回はComposeの旧`api:latest`により0 Testで停止したため、
-  固定済み`api:target` Imageと明示Test Pathへ切り替え、再Buildを避けた。
-- Root空き8.7GB、`/tmp`空き2.9GBで安全閾値内のためCache Cleanupは実施せず、
-  稼働Container、Named Volume、V1 Resourceを保持した。
-- Final Head、GitHub 8 Check、Fresh Self-review、Squash Commit、Issue Close、
-  Branch／Worktree／Task DB CleanupはPR Closeoutで確定する。
-- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-060P以降は開始しない。
