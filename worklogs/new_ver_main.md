@@ -7466,3 +7466,116 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   未確定である。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
 - MIG-060P以降は本Taskで開始しない。
+
+## SEC-005 Legacy Dependency Security Remediation
+
+### Task／Scope
+
+- Issue `#155`、PR `#156`、Branch
+  `security/SEC-005-legacy-dependency-remediation`、Risk `R3`。
+- BaseはGitHubの最新`main`
+  `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`である。
+- Task Policy
+  `/etc/ideal-sol/github-app/task-policies/SEC-005.json`の完全一致Pathだけを変更した。
+- MIG-060O Issue `#153`／PR `#154`／Worktree／Task DBは保持し、Application Code、
+  DB、性能Evidenceを変更していない。
+
+### Dependency Remediation
+
+- Legacy `next`／`eslint-config-next`を`16.2.9`から`16.2.11`へ更新した。
+- Nextの`sharp ^0.34.5`では修正版0.35系を通常解決できないため、Node 22.22.3対応の
+  0.35系最新`sharp 0.35.3`を限定Overrideした。
+- `js-yaml 4.3.0`は親Range内だが、pnpmのtransitive updateが無関係な直接
+  devDependencyまで更新したため、不要なGraph churnを避けて限定Overrideした。
+- pnpm 10.12.1で元Lockfileから再生成し、Next／sharp／libvips／js-yamlと
+  必要なtransitiveだけを更新した。Lockfile手編集とApplication Source修正はない。
+- Next Image Optimizerで既存PNGからWebPへの実変換、sharp 0.35.3、
+  libvips 1.3.2、Node Engine互換を確認した。
+
+### Baseline再審査
+
+- Legacy pnpm Auditは11件から0件、Root Workspace Auditは0件を維持した。
+- Baselineからpnpm 11件、Dependency Review allowlist 6件を削除した。
+- Composerは従来と同じMedium 9件／Unknown 1件で、新規Critical／Highは0件。
+- Composerの修正版はGuzzle `7.15.1`以上、PSR-7 `2.12.3`以上、
+  JMESPath `2.9.1`以上だが、Composer LockはSEC-005 Policy外である。
+- Review日は`2026-07-31`、短期期限は`2026-08-07`。別Security Taskで
+  Composerを更新し、Fresh AuditでBaselineを削除する必要がある。
+
+### Test／Evidence
+
+- Clean Frozen Install、Legacy Audit 0、Typecheck、Production Build、
+  起動Health、Next Image／sharp SmokeはPASSした。
+- Legacy Lint rawは既存8 Error／1 Warningで、完全一致Lint BaselineはPASSした。
+  Sourceは変更していない。
+- Legacy PackageにTest Script／Suiteが存在しないためUnit Testは未実行であり、
+  PASSとは記録しない。Health／ImageはIntegration Smokeとして区別する。
+- Security Unit、Dependency Baseline期限境界、Local Security Gate、Policy Gate、
+  Quality Gate、`git diff --check`はPASSした。
+- 実Baselineへpnpm FindingまたはCritical／High Composer Findingを再導入できない
+  Repository Baseline Unitを追加した。
+- Security GateはComposer 10、Legacy pnpm 0、Workspace pnpm 0、
+  Secret／PII Candidate 0、期限`2026-08-07`である。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/SEC-005/`、
+  提出Reportは`worklogs/reports/SEC-005-report.md`である。
+
+### Production／Gate
+
+- V1 Application Source、Backend Migration 40件、V1 Runtime、本番DB／Redis／
+  Storage、Nginx、Domain、TLS、Archive Branch、Annotated Tagは非変更である。
+- V1 Migration 40件の正本Checksum
+  `a35cb6b04d243673de87aa5d8d70633309213dce80bea9bb6b9416f929fa0d33`
+  は不変である。
+- 本TaskではProduction Deploymentを行わない。現在のV1 Runtimeは脆弱版を
+  継続稼働しているため、Merge後にProduction Security Deploymentが必要である。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
+  PR Closeout時に確定する。
+- GitHub初回RunはPush時EventがPR本文更新前のChanged Filesを保持し、
+  `policy-gate`がFail Closedした。同一SHAの再Runでは旧失敗CheckがWrapper集約に
+  残ったため、空CommitではなくRepository Baseline Unitを追加した新Headで再実行する。
+- MIG-060OのRebase／Merge／Closeoutは本Task内で実施しない。
+
+## MIG-060O Security Blocker解消後Closeout
+
+### SEC-005取込み／Conflict
+
+- SEC-005 Issue `#155`はClosed、PR `#156`はSquash Merged、Final Headは
+  `4488fe98658ca33af7240427052628bc5ba4a9d9`、Squash Commit／最新mainは
+  `df94c24239c95a5e0d68fc95314eec06dfa45796`である。
+- 最新mainとの`git merge-tree`確認ではApplication、Contract、Migration、DBに
+  競合はなく、`worklogs/new_ver_main.md`の追記位置だけが競合した。SEC-005と
+  MIG-060Oの両記録を保持する最小解決を行った。
+- SEC-005のLegacy Lockfile、Dependency Advisory Baseline、Dependency Review
+  Workflow、Security Unitは最新PR Baseから保持し、MIG-060OのApplication／
+  Contract差分は欠落していない。
+- 固定Task Policyのfast-forward／Exact Scopeを維持し、SEC-005 CommitをTask
+  Branchへ重複Commitしない。最新mainをPR Base／GitHub Merge Resultの正本とし、
+  force push、History rewrite、空Commitは行っていない。
+
+### Security／対象再検証
+
+- DB Target Safety GuardはTask DB `oripa_v2_mig060o`、Task ID `MIG-060O`、
+  Purpose `v2-task-ephemeral`、Schema `public`、Migration集合`repository`でPASS。
+- Backend対象`2 Test／27 Assertion`、Admin Unit `59 Test`、対象Browser E2E
+  `1 Test`がPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production Build、Policy Gate、Quality Gate、DB Guard Unit `29 Test`、
+  `git diff --check`がPASSした。
+- Security Unit `6 Test`とLocal Security GateがPASSした。Legacy pnpm Audit 0、
+  Root Workspace pnpm Audit 0、Composer既存10、Secret／PII Candidate 0、
+  新規Critical／High 0、Baseline期限`2026-08-07`である。
+- SEC-005はApplication、Migration、DB、Drawを変更していないため、
+  Persistent／Ephemeral Guard、Backup／Restore、通常／QA 100／1000回性能、
+  同一Gacha負荷、V1 Backend全回帰は旧Headの成功Evidenceを保持し再実行していない。
+
+### 時間を要した作業／Final
+
+- Admin Serial検証は約2分、対象Browser E2Eは約40秒、Quality Gateは約30秒。
+- Backend対象Test初回はComposeの旧`api:latest`により0 Testで停止したため、
+  固定済み`api:target` Imageと明示Test Pathへ切り替え、再Buildを避けた。
+- Root空き8.7GB、`/tmp`空き2.9GBで安全閾値内のためCache Cleanupは実施せず、
+  稼働Container、Named Volume、V1 Resourceを保持した。
+- Final Head、GitHub 8 Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree／Task DB CleanupはPR Closeoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-060P以降は開始しない。

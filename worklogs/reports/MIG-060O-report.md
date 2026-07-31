@@ -5,7 +5,7 @@
 - Task ID: `MIG-060O`
 - Risk: `R3`
 - Issue: `#153`
-- PR: Task Branch push後にDraft作成し、本レポートのCloseoutで確定する。
+- PR: `#154`
 - Branch: `feat/MIG-060O-admin-qa-draw-execution-review`
 - Base: `f4e6187f46ee7cb4d120e1a2015be8577ec5e3da`
 - 対象: Admin QA Draw実行、Server Preflight、Execution一覧／詳細、
@@ -149,3 +149,68 @@
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`
 - 次Task候補: `MIG-060P`以降は本Taskで開始しない。
+
+## SEC-005解消後Closeout再検証
+
+### SEC-005取込み
+
+- SEC-005 Issue `#155`はClosed、PR `#156`はSquash Mergedである。
+- SEC-005 Final Headは`4488fe98658ca33af7240427052628bc5ba4a9d9`、
+  Squash Commit／最新mainは
+  `df94c24239c95a5e0d68fc95314eec06dfa45796`である。
+- SEC-005のRequired 5 Check、CodeQL 2件、Dependency Reviewはすべて成功し、
+  Fresh Self-reviewはSEV-0／SEV-1 0件である。
+- 最新mainとMIG-060Oの競合を`git merge-tree`で確認した結果、Application、
+  Contract、Migration、DBに競合はなく、追記位置が重なった
+  `worklogs/new_ver_main.md`だけを意味確認して両Taskの記録を保持した。
+- SEC-005のLegacy Lockfile、Dependency Advisory Baseline、Dependency Review
+  Workflow、Security UnitはPRの最新main側から保持する。MIG-060OのApplication／
+  Contract差分を欠落させていない。
+- Task Policyの固定Baseとfast-forward／Exact Scopeを維持するため、SEC-005の
+  CommitをTask Branchへ重複Commitせず、最新mainをPR BaseおよびGitHub Merge
+  Resultの正本とした。空Commit、force push、History rewriteは行っていない。
+
+### Security再確認
+
+- Legacy pnpm Audit 0、Root Workspace pnpm Audit 0。
+- Composerは既存Baseline 10件（Medium 9／Unknown 1）で、新規Critical／Highは0件。
+- Baseline期限は`2026-08-07`。期限延長、Advisory追加、Gate緩和は行っていない。
+- Security Unit `6 Test`、Local Security Gate、Secret／PII ScanはPASSした。
+- Security Gate結果はComposer 10、Legacy pnpm 0、Workspace pnpm 0、
+  Secret Candidate 0である。
+
+### Closeout対象再検証
+
+- MIG-060O Backend対象は`2 Test／27 Assertion`でPASSした。
+- Admin OpenAPI Lint／Bundle／Breaking Check、生成差分0、Typecheck、Lint、
+  Production BuildはPASSした。
+- Admin Unit／Componentは`59 Test`、対象Browser E2Eは`1 Test`でPASSした。
+- Policy Gate、Quality Gate、DB Guard Unit `29 Test`、`git diff --check`は
+  PASSした。
+- DB Target Safety GuardはTask ID `MIG-060O`、DB
+  `oripa_v2_mig060o`、Purpose `v2-task-ephemeral`、Schema `public`、
+  Migration集合`repository`でPASSした。
+- SEC-005はApplication、Migration、DB、Drawを変更していないため、
+  Persistent／Ephemeral Guard、Backup／Restore、通常／QA 100／1000回性能、
+  同一Gacha負荷、V1 Backend全回帰は再実行していない。旧Headの成功Evidenceを
+  保持し、GitHub Integrationで最新mainとの統合を再確認する。
+
+### 時間を要した作業
+
+- Admin OpenAPI／生成／Typecheck／Lint／Build／UnitのSerial検証は約2分、
+  対象Browser E2Eは約40秒、Quality Gateは約30秒を要した。
+- Backend対象Testの初回起動はComposeの`api:latest`が旧Buildを参照して0 Testで
+  停止した。DB／Test Failureではないことを確認し、MIG-060O固定済み
+  `api:target` Imageと明示Test Pathへ切り替え、不要なImage再Buildを避けた。
+- Root空き8.7GB、`/tmp`空き2.9GBで安全閾値内だったため、Docker Cache、
+  稼働Container、Named Volume、V1 Resourceは削除していない。
+- 成功済みPersistent／Ephemeral／Backup／Load Evidenceは重複実行せず、
+  Assertion、Timeout、Memory、Security Gateを変更していない。
+
+### Final Closeout
+
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-060O/`へ保持する。
+- Final Head、GitHub 8 Check、Fresh Self-review、Squash Commit、Issue Close、
+  Branch／Worktree／Task DB CleanupはPR Closeoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持する。
+- MIG-060P以降は本Taskで開始しない。
