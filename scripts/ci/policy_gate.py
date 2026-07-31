@@ -571,6 +571,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/permissions/permission-gate.tsx",
     "apps/admin/src/components/permissions/permission-provider.tsx",
     "apps/admin/src/components/permissions/protected-admin-route.tsx",
+    "apps/admin/src/components/qa/qa-execution-panel.tsx",
     "apps/admin/src/components/qa/qa-management-workspace.tsx",
     "apps/admin/src/components/shell/admin-page-header.tsx",
     "apps/admin/src/components/shell/admin-shell.tsx",

@@ -7447,6 +7447,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   6.327GB回収した。稼働Container、Named Volume、V1 Resourceは非変更である。
 - Browser SmokeはAccessible Name完全一致と表示文言期待だけを補正し、失敗した
   対象1件だけ再実行した。
+- GitHub初回`policy-gate`は新規QA実行PanelのAdmin Skeleton Allowlist登録漏れを
+  検出した。Wildcardによる緩和はせず当該Fileだけを追加し、Policy Unit 89件と
+  Local Gateを再実行してPASSした。
 - 通常Draw性能初回はQA負荷Fixture残存でTest開始前に停止したため、Task専用DBを
   Fresh化してFixtureを分離し、通常Draw負荷だけ再実行した。
 - First-party Packageは依存順Serial、通過済み全回帰は中断・重複実行せず、

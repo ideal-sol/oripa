@@ -131,6 +131,9 @@
   V1 Resourceへ触れずDangling Imageだけを削除し`6.327GB`回収した。
 - OpenAPI Gate初回は必須`--repository`引数不足で起動前停止した。正規Commandへ
   修正し、Bundle生成と生成差分検査を一度だけ完了した。
+- GitHub初回`policy-gate`は新規`qa-execution-panel.tsx`のAdmin Skeleton
+  Allowlist登録漏れを検出した。Wildcardで緩和せず当該Fileだけを正本へ追加し、
+  Policy Unit 89件とLocal Gateを再実行してPASSした。
 - Browser対象Smokeは部分一致Locatorと警告文期待の2点だけを補正した。
   Security／Permission／実装境界は変更せず、失敗した1シナリオだけ再実行した。
 - 通常Draw性能の初回採取は直前QA負荷Fixtureと衝突しTest本体前に停止した。
