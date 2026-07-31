@@ -1,38 +1,51 @@
 {
   "task_id": "MIG-061A",
   "risk": "R4",
-  "status": "in_progress",
+  "status": "deployed",
   "base_branch": "main",
   "base_sha": "de941ddcedda58adcf9cc54efa7c271c4ee7b866",
   "target": "admin.luxe-pack.biz",
   "v2": {
     "compose_project": "mig061a-v2-preview",
     "admin_service": "admin",
-    "admin_loopback_port": 3611,
+    "admin_endpoint": "192.168.61.11:3000",
     "api_service": "api",
-    "api_loopback_port": 8611,
+    "api_endpoint": "192.168.61.10:8000",
     "network": "mig061a-v2-preview_v2_private",
-    "database": "oripa_v2_mig061a_preview",
+    "network_subnet": "192.168.61.0/24",
+    "network_internal": true,
+    "database": "oripa_v2_mig061a",
     "database_marker": "mig061a",
-    "migration_path": "apps/api/database/migrations-v2"
+    "database_schema": "public",
+    "database_timezone": "UTC",
+    "migration_path": "apps/api/database/migrations-v2",
+    "migration_count": 29,
+    "operational_override": "/var/lib/oripa-v2-evidence/MIG-061A/docker-compose.preview-override.yml"
   },
   "nginx": {
     "vhost": "/etc/nginx/conf.d/admin.luxe-pack.biz.conf",
     "checksum_before": "4276714d4dc80e383518ba64bc78ff95e211454f4290c9a1294b6202c2a18411",
-    "checksum_after": null
+    "checksum_after": "9832e492f8995db08a45d72f22566d09111d44539524b6509a79b986909f7347"
   },
   "artifacts": {
-    "admin_image_digest": null,
-    "api_image_digest": null
+    "admin_image_digest": "sha256:82984e4e35153b860282bb0710bca050612275ba231ff7388db6d44ef8f586f2",
+    "api_image_digest": "sha256:16d73513f966b3b4c0faad1cb8b237d2a50354b4b5aaf4f38b5a982943f6051b"
   },
   "verification": {
-    "db_target_safety": "pending",
-    "admin_health": "pending",
-    "api_health": "pending",
-    "admin_domain": "pending",
-    "v1_public_domain": "pending",
-    "http_500_502_504": "pending"
+    "db_target_safety": "PASS",
+    "admin_health": "HTTP 200",
+    "api_health": "HTTP 200",
+    "admin_domain": "HTTP 200",
+    "same_origin_admin_api": "HTTP 200",
+    "static_asset": "HTTP 200",
+    "browser_smoke": "PASS",
+    "console_critical_errors": 0,
+    "v1_public_domain": "HTTP 200",
+    "v1_frontend": "HTTP 200",
+    "v1_backend": "HTTP 200",
+    "http_500_502_504": 0
   },
+  "deployed_at": "2026-07-31T11:21:13Z",
   "gate_g4": "NOT COMPLETE",
   "gate_g5": "NOT COMPLETE"
 }
