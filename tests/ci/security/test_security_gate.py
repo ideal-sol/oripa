@@ -1,5 +1,6 @@
 import datetime
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -66,6 +67,47 @@ class SecurityGateTest(unittest.TestCase):
 
     def test_clean_v2_workspace_audit_passes(self):
         self.assertEqual(security_gate.validate_workspace_pnpm_audit([]), 0)
+
+    def test_dependency_baseline_expiration_boundary_is_fail_closed(self):
+        baseline = {
+            "schema_version": "1.0",
+            "management": {
+                "owner": "security-owners",
+                "reason": "fixture",
+                "removal_condition": "fixture",
+                "expires_at": "2026-08-07",
+                "tracking_task": "FIXTURE-001",
+            },
+            "composer": [],
+            "pnpm": [],
+        }
+
+        summary = security_gate.validate_dependency_baseline(
+            [], [], baseline, datetime.date(2026, 8, 7)
+        )
+        self.assertEqual(summary["expires_at"], "2026-08-07")
+
+        with self.assertRaisesRegex(
+            security_gate.SecurityFailure, "dependency advisory baseline has expired"
+        ):
+            security_gate.validate_dependency_baseline(
+                [], [], baseline, datetime.date(2026, 8, 8)
+            )
+
+    def test_repository_baseline_does_not_allow_pnpm_findings(self):
+        baseline = json.loads(
+            (ROOT / ".ci/baselines/dependency-advisories.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(baseline["pnpm"], [])
+        self.assertFalse(
+            any(
+                finding.get("severity") in {"critical", "high"}
+                for finding in baseline["composer"]
+            )
+        )
 
 
 if __name__ == "__main__":
