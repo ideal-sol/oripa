@@ -9,7 +9,7 @@ services:
       APP_DEBUG: "false"
       APP_ENV: ${V2_APP_ENV:?V2_APP_ENV is required}
       APP_KEY: ${V2_APP_KEY:?V2_APP_KEY is required}
-      APP_URL: http://api:8000
+      APP_URL: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       CACHE_STORE: redis
       DB_CONNECTION: pgsql
       DB_DATABASE: ${V2_DB_DATABASE:?V2_DB_DATABASE is required}
@@ -18,14 +18,19 @@ services:
       DB_PORT: ${V2_DB_PORT:?V2_DB_PORT is required}
       DB_USERNAME: ${V2_DB_USERNAME:?V2_DB_USERNAME is required}
       FILESYSTEM_DISK: local
+      FRONTEND_URL: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       LOG_CHANNEL: stderr
       QUEUE_CONNECTION: sync
       REDIS_HOST: ${V2_REDIS_HOST:?V2_REDIS_HOST is required}
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?V2_REDIS_PASSWORD is required}
       REDIS_PORT: ${V2_REDIS_PORT:?V2_REDIS_PORT is required}
       SESSION_DRIVER: array
+      SESSION_SECURE_COOKIE: "true"
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?V2_AUDIT_HMAC_KEY is required}
+      V2_ADMIN_ORIGIN: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?V2_PII_CORRELATION_KEY is required}
+      V2_WEBAUTHN_ORIGIN: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
+      V2_WEBAUTHN_RP_ID: ${V2_WEBAUTHN_RP_ID:-localhost}
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,6 +42,9 @@ services:
       timeout: 5s
       retries: 24
       start_period: 15s
+    ports:
+      - "127.0.0.1:${V2_API_LOOPBACK_PORT:-8611}:8000"
+    restart: unless-stopped
     networks:
       - v2_private
 
@@ -45,6 +53,7 @@ services:
       context: .
       dockerfile: apps/admin/Dockerfile
     environment:
+      ADMIN_ALLOWED_HOSTS: ${V2_ADMIN_ALLOWED_HOSTS:-localhost,127.0.0.1}
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: production
     healthcheck:
@@ -53,6 +62,9 @@ services:
       timeout: 5s
       retries: 24
       start_period: 10s
+    ports:
+      - "127.0.0.1:${V2_ADMIN_LOOPBACK_PORT:-3611}:3000"
+    restart: unless-stopped
     networks:
       - v2_private
 
@@ -69,6 +81,7 @@ services:
       retries: 20
     volumes:
       - v2_postgres:/var/lib/postgresql/data
+    restart: unless-stopped
     networks:
       - v2_private
 
@@ -90,6 +103,7 @@ services:
       retries: 20
     volumes:
       - v2_redis:/data
+    restart: unless-stopped
     networks:
       - v2_private
 

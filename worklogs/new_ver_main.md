@@ -7579,3 +7579,65 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `policy-gate`がFail Closedした。同一SHAの再Runでは旧失敗CheckがWrapper集約に
   残ったため、空CommitではなくRepository Baseline Unitを追加した新Headで再実行する。
 - MIG-060OのRebase／Merge／Closeoutは本Task内で実施しない。
+
+## MIG-061A admin.luxe-pack.biz V2 Admin／API Preview Cutover
+
+### Task／Scope
+
+- Issue `#163`、PR `#164`、Branch
+  `chore/MIG-061A-v2-admin-preview-cutover`、Risk `R4`。
+- Baseは`main@de941ddcedda58adcf9cc54efa7c271c4ee7b866`、Task Policy
+  SHA-256は
+  `f60ff33f9c109b99231e25e68e6865534ca53998bcce70c362c42d5ffe30b206`。
+- `admin.luxe-pack.biz`のAdminとSame-origin Admin APIだけをV2へ切り替えた。
+  `luxe-pack.biz`、V1 Runtime／DB／Redis／Storage、TLS／DNS、他vhost、
+  `ad.luxe-pack.biz`、`test.luxe-pack.biz`、Storefront、Production Paymentは
+  変更または使用していない。
+
+### V2 Preview／DB分離
+
+- Admin／API Image Digestはそれぞれ
+  `sha256:82984e4e35153b860282bb0710bca050612275ba231ff7388db6d44ef8f586f2`、
+  `sha256:16d73513f966b3b4c0faad1cb8b237d2a50354b4b5aaf4f38b5a982943f6051b`。
+- Compose Project `mig061a-v2-preview`、Internal Network
+  `192.168.61.0/24`、Admin `192.168.61.11:3000`、API
+  `192.168.61.10:8000`で稼働する。
+- V2専用DBは`oripa_v2_mig061a`、Marker `mig061a`、Schema `public`、
+  Timezone `UTC`、Migration 29件。DB Target Safety Guardは前後ともPASSした。
+- Production DataはImportせず、Migration DefaultとSynthetic Preview Ownerだけを
+  使用した。Ownerは既存PolicyどおりTOTP＋WebAuthnを登録した。
+
+### Nginx／Browser確認
+
+- 変更したHost設定は`/etc/nginx/conf.d/admin.luxe-pack.biz.conf`だけ。
+  Checksumは
+  `4276714d4dc80e383518ba64bc78ff95e211454f4290c9a1294b6202c2a18411`
+  から
+  `9832e492f8995db08a45d72f22566d09111d44539524b6509a79b986909f7347`
+  へ変わり、変更前後の`nginx -t`はPASSした。
+- Admin Login／API Health／Same-origin Session API／Static AssetはHTTP 200。
+  BrowserでDashboard、Gacha、Prize、QAを確認し、全Route 200、
+  Console Critical Error 0、Page Error 0、HTTP 500／502／504 0だった。
+- `luxe-pack.biz`、V1 Frontend Direct、V1 Backend Directは切替後もHTTP 200。
+  V1 Admin Container／Imageは削除していない。
+- Admin生成差分、Typecheck、Lint、Production Build、Policy Gate、Quality Gate、
+  `git diff --check`はPASSした。Dependency／Application差分がないためSEC-005の
+  確定Audit Evidenceを再利用し、Security GateもPASS、Secret／PII Candidate 0件。
+
+### 課題／時間を要した作業
+
+- 初回招待Ownerは未登録状態からEnrollment画面へ遷移できず、既存APIでの初期登録が
+  必要だった。UI修正はPolicy外のため後続課題として記録した。
+- Image Buildは約100.2秒。Internal NetworkのLoopback PublishとEdge Networkの
+  OCI Route競合を検証し、Host Toolchainを更新せずTask専用固定Subnet Overrideへ
+  整理した。
+- Diagnostic出力にTask Credentialが含まれた時点で、実Data投入前にTask専用
+  Resourceを破棄し、CredentialをローテーションしてDBを再作成した。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061A/`、
+  提出Reportは`worklogs/reports/MIG-061A-report.md`。
+
+### Final／Gate
+
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
+  PR Closeoutで確定する。Preview Container／Network／DBは稼働維持する。
+- Gate G4／G5は`NOT COMPLETE`。MIG-061B以降は開始していない。
