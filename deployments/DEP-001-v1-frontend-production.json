@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "task_id": "DEP-001",
+  "risk": "R4",
+  "phase": "phase-a",
+  "status": "candidate-build-in-progress",
+  "base_branch": "v1/early-release",
+  "source_commit": "acecccbc96e756e9521c70f5f497109456cb20bb",
+  "task_branch": "chore/DEP-001-v1-frontend-security-deployment",
+  "policy_sha256": "228ac2919e09c94544bc7db1daad0ae05df96de1606964e86f7cc36016e84d93",
+  "recorded_at": "2026-07-31T09:06:25Z",
+  "production": {
+    "target_service": "oripa-draw-1000b-frontend",
+    "runtime_commit": "0c5262d42babc1bf3a63bd991ab07afb014a03c2",
+    "image_digest": "sha256:17c7a72a5ce461e0f78d489cc4a0d75d98f74e59e882232a4767467d6e02fa8c",
+    "health_http": 200,
+    "changed": false
+  },
+  "candidate": {
+    "tag": "oripa-v1-frontend:dep-001-acecccbc96e7",
+    "image_digest": null,
+    "size_bytes": null,
+    "dependencies": {
+      "node": "22",
+      "pnpm": "10.12.1",
+      "next": "16.2.11",
+      "sharp": "0.35.3",
+      "js-yaml": "4.3.0"
+    },
+    "validation": {
+      "build": "pending",
+      "frozen_install": "pending",
+      "audit": "pending",
+      "typecheck": "pending",
+      "lint_characterization": "pending",
+      "health": "pending",
+      "top_page": "pending",
+      "static_asset": "pending",
+      "image_optimizer": "pending",
+      "secret_pii": "pending"
+    }
+  },
+  "rollback": {
+    "service": "oripa-notice-002d-frontend",
+    "image_digest": "sha256:9a3957f777e38ac9ba9c8a86a842d6060a684bd71ee660099cc8fbfbf23365e5",
+    "health_http": 200,
+    "validated": true
+  },
+  "approval": {
+    "human_approval_required": true,
+    "production_approved": false,
+    "production_deployment_performed": false
+  },
+  "changes": {
+    "db_migration": false,
+    "db_redis_storage": false,
+    "nginx_tls_domain": false,
+    "v2": false
+  }
+}
