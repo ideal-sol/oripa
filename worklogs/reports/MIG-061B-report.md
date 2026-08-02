@@ -78,12 +78,13 @@
 - DB Target Safety GuardでMarker `mig061a`、Purpose `v2-persistent`、Schema
   `public`、V2 Migration集合を再照合してからMigration `000030`だけを適用した。
   Migrationは29件から30件となり、Policyは初期値`MFA OFF／Invitation OFF`、
-  Browser往復確認後もRevision 3の`OFF／OFF`である。
+  後方互換修正版AdminでのBrowser往復確認後もRevision 5の`OFF／OFF`である。
 - Admin Candidateは
-  `sha256:a4decc57554d19a1d20e92220209fe8ba1964f39c864bca45d6ca345d8a26945`、
+  `sha256:22d15912a09861ed97fd1441dac0f50af480c40d4edd38661d183ca8a4a8d29f`、
   API Candidateは
   `sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3`
-  へ更新した。Source SHAは`72d973b8667a115e122ce5a854d5d7ec79f22a79`である。
+  へ更新した。Admin Source SHAは`74578e799a226d6d54b49a6454e6dd0cccf7e12e`、
+  API Source SHAは`72d973b8667a115e122ce5a854d5d7ec79f22a79`である。
 - PreviewはCompose Project `mig061a-v2-preview`、Network
   `mig061a-v2-preview_v2_private`、Admin `192.168.61.11:3000`、API
   `192.168.61.10:8000`でhealthyを維持する。Loopback Portはそれぞれ

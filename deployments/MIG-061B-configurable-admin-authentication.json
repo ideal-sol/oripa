@@ -13,7 +13,7 @@
     "database_schema": "public",
     "migration_before": 29,
     "migration_after": 30,
-    "policy_revision": 3,
+    "policy_revision": 5,
     "mfa_required": false,
     "invitation_required": false,
     "admin_container": "mig061a-v2-preview-admin-1",
@@ -28,10 +28,11 @@
   "artifacts": {
     "admin_image_digest_before": "sha256:82984e4e35153b860282bb0710bca050612275ba231ff7388db6d44ef8f586f2",
     "api_image_digest_before": "sha256:16d73513f966b3b4c0faad1cb8b237d2a50354b4b5aaf4f38b5a982943f6051b",
-    "admin_image_digest_after": "sha256:a4decc57554d19a1d20e92220209fe8ba1964f39c864bca45d6ca345d8a26945",
+    "admin_image_digest_after": "sha256:22d15912a09861ed97fd1441dac0f50af480c40d4edd38661d183ca8a4a8d29f",
     "api_image_digest_after": "sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3",
-    "source_sha": "72d973b8667a115e122ce5a854d5d7ec79f22a79",
-    "admin_image_tag": "oripa-v2-admin:mig061b-72d973b8667a",
+    "admin_source_sha": "74578e799a226d6d54b49a6454e6dd0cccf7e12e",
+    "api_source_sha": "72d973b8667a115e122ce5a854d5d7ec79f22a79",
+    "admin_image_tag": "oripa-v2-admin:mig061b-74578e799a22",
     "api_image_tag": "oripa-v2-api:mig061b-72d973b8667a"
   },
   "verification": {

@@ -7681,11 +7681,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### Preview Deployment
 
-- 既存MIG-061A PreviewへMigration `000030`を適用し、Migration 30件、Policy Revision 3、
+- 既存MIG-061A PreviewへMigration `000030`を適用し、Migration 30件、Policy Revision 5、
   MFA OFF／Invitation OFFへ確定した。Synthetic OwnerはActive、既存TOTP／WebAuthn
   Credentialを保持し、Password-only Loginが成立する。
 - Admin Imageは
-  `sha256:a4decc57554d19a1d20e92220209fe8ba1964f39c864bca45d6ca345d8a26945`、
+  `sha256:22d15912a09861ed97fd1441dac0f50af480c40d4edd38661d183ca8a4a8d29f`、
   API Imageは
   `sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3`。
 - 実DomainでLogin、Dashboard、Gacha、Prize、QA、Policy ON/OFF往復を確認し、
