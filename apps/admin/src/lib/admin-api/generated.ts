@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: ed7d37e5495d3d6d7f26b74ab28fb1c38626f62c932e8f9d86a67696c2b487b5
+// Contract SHA-256: be05b3d5aab6d23894a7651f5745e52611fffb202068f1af8d973575fd66eb0b
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -88,7 +88,7 @@ export interface AdminMfaVerifyRequest {
 
 export interface AdminSession {
   authenticated: boolean;
-  mfa_required: boolean;
+  mfa_required?: boolean;
   requires_mfa_enrollment?: boolean;
   enrollment_transaction_token?: string | null;
   enrollment_transaction_expires_in?: number | null;

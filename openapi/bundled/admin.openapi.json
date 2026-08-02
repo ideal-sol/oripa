@@ -12908,6 +12908,13 @@
             "minLength": 1,
             "maxLength": 128,
             "writeOnly": true
+          },
+          "invitation_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true,
+            "deprecated": true,
+            "description": "Legacy invitation acceptance input. New clients use the dedicated invitation endpoint."
           }
         }
       },
@@ -13204,8 +13211,7 @@
         "additionalProperties": false,
         "required": [
           "authenticated",
-          "admin",
-          "mfa_required"
+          "admin"
         ],
         "properties": {
           "authenticated": {

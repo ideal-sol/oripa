@@ -5260,6 +5260,12 @@ components:
           minLength: 1
           maxLength: 128
           writeOnly: true
+        invitation_token:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          writeOnly: true
+          deprecated: true
+          description: Legacy invitation acceptance input. New clients use the dedicated invitation endpoint.
     AdminInvitationAcceptanceRequest:
       type: object
       additionalProperties: false
@@ -5400,7 +5406,7 @@ components:
     AdminSession:
       type: object
       additionalProperties: false
-      required: [authenticated, admin, mfa_required]
+      required: [authenticated, admin]
       properties:
         authenticated:
           type: boolean

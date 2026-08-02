@@ -446,7 +446,7 @@ export interface AdminMfaVerifyRequest {
 
 export interface AdminSession {
   authenticated: boolean;
-  mfa_required: boolean;
+  mfa_required?: boolean;
   requires_mfa_enrollment?: boolean;
   enrollment_transaction_token?: string | null;
   enrollment_transaction_expires_in?: number | null;

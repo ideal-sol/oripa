@@ -125,7 +125,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     client
       .getSession(controller.signal)
       .then((session) => {
-        setMfaRequired(session.mfa_required);
+        setMfaRequired(session.mfa_required ?? true);
         if (session.authenticated && session.admin) {
           setAdmin(session.admin);
           setPhase("authenticated");
@@ -182,7 +182,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         client.verifyMfa(transactionToken, request),
       );
       setAdmin(session.admin ?? null);
-      setMfaRequired(session.mfa_required);
+      setMfaRequired(session.mfa_required ?? true);
       setPreauth(null);
       if (session.requires_mfa_enrollment && session.enrollment_transaction_token) {
         setEnrollmentToken(session.enrollment_transaction_token);

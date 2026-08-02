@@ -32,6 +32,9 @@
 - Admin OpenAPIへPassword-onlyを含む型付きLogin結果、Invitation Acceptance、
   Authentication Policy取得／更新、Admin作成を追加し、Public／Webhook Schemaは
   変更していない。
+- 旧Admin Clientとの互換性のため、通常Loginでは使用しない
+  `AdminLoginRequest.invitation_token`をoptional／deprecatedで保持した。また、旧Serverが
+  `AdminSession.mfa_required`を返さない場合はAdmin Clientが`true`へFail Closedする。
 - Admin Realm、Session、CSRF、Exact Origin、JSON Content-Type、Owner Permission、
   Critical Rate Limit、`private, no-store`、RFC 9457境界を維持した。
 - Policy更新はOwner Row、Idempotency Record、Singleton PolicyをLockし、Revision、
@@ -62,7 +65,8 @@
 - Admin OpenAPI Lint／Bundle／Breaking Check: `PASS`
 - Admin Generated Contract差分: `0`
 - Admin Typecheck／Lint／Production Build: `PASS`
-- Admin Unit／Component: `13 files / 63 tests` `PASS`
+- Admin Unit／Component: `13 files / 64 tests` `PASS`（旧Session field欠落時の
+  MFA Fail Closedを含む）
 - Admin Browser E2E: `16 tests` `PASS`
 - `git diff --check`: `PASS`
 - Policy／Quality／Security／Secret・PII／GitHub CheckはFinal Headで確定する。
@@ -127,6 +131,11 @@
 - その後、`Changed files`は43件一致したが、`Allowed paths`も概略ではなくTask Policyの
   実Path列挙を必要とする検査でFail Closedした。発行済みPolicyの60 PathをPR本文へ
   完全転記し、実Diffが全てその内側であることを機械照合してから新HeadをPushした。
+- GitHub Quality GateのBase比較は、旧Login Request field削除とSessionへのrequired field
+  追加をBreaking Changeとして検出した。通常Login UIと新Invitation Endpointは維持し、
+  旧fieldをoptional／deprecatedで保持、Session fieldをoptional responseへ変更した。
+  旧Serverでfield欠落時はMFA requiredへFail ClosedするUnitを追加し、OpenAPI Breaking
+  Check、Generated差分、Typecheck、Admin Unit／Buildを再実行した。
 
 ## Final／Gate
 

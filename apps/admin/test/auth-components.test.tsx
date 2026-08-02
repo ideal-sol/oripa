@@ -24,8 +24,13 @@ vi.mock("@/lib/admin-api/client", async () => {
   };
 });
 
-import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
+import { AdminAuthProvider, useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { LoginForm } from "@/components/auth/login-form";
+
+function MfaPolicyProbe() {
+  const { mfaRequired, phase } = useAdminAuth();
+  return <output data-testid="mfa-policy">{phase}:{mfaRequired ? "required" : "optional"}</output>;
+}
 
 describe("Admin authentication components", () => {
   beforeEach(() => {
@@ -77,6 +82,16 @@ describe("Admin authentication components", () => {
     );
     await waitFor(() => expect(api.getSession).toHaveBeenCalled());
     expect(local).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a legacy session response omits the MFA policy", async () => {
+    api.getSession.mockResolvedValueOnce({ admin: null, authenticated: false });
+    render(
+      <AdminAuthProvider>
+        <MfaPolicyProbe />
+      </AdminAuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("mfa-policy")).toHaveTextContent("anonymous:required"));
   });
 
   it("completes password-only login without showing an invitation field", async () => {
