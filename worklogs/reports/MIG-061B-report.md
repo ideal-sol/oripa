@@ -120,6 +120,10 @@
   旧本文のPreview未実施記載をPolicy GateがFail Closedした。同一SHAでは後続成功Runが
   旧失敗Checkを置換しない集約仕様のため、空CommitやGate緩和は使わず、この実経緯と
   Preview後Local Policy／Quality／Security GateのPASSを正本へ追記した新Headで再実行した。
+- 次のHeadではPR本文の`Changed files`をカテゴリで記載していたため、Policy Gateの
+  実Diffとの完全一致検査がFail Closedした。Task Policyの許可範囲は逸脱していないが、
+  Governance要件に従って全43 PathをPR本文へ明示し、この検出結果を記録した新Headで
+  Checkを再実行した。
 
 ## Final／Gate
 
