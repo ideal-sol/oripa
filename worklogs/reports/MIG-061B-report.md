@@ -124,6 +124,9 @@
   実Diffとの完全一致検査がFail Closedした。Task Policyの許可範囲は逸脱していないが、
   Governance要件に従って全43 PathをPR本文へ明示し、この検出結果を記録した新Headで
   Checkを再実行した。
+- その後、`Changed files`は43件一致したが、`Allowed paths`も概略ではなくTask Policyの
+  実Path列挙を必要とする検査でFail Closedした。発行済みPolicyの60 PathをPR本文へ
+  完全転記し、実Diffが全てその内側であることを機械照合してから新HeadをPushした。
 
 ## Final／Gate
 
