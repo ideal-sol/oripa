@@ -116,6 +116,10 @@
 - Preview運用envにHost／Origin／WebAuthn RPの非Secret設定が永続化されておらず、再作成後
   にHost Guardが404を返した。Secret値を表示せず正本値をroot専用envへ追加し、Admin/API
   だけを再作成して解消した。Nginx変更やHost Toolchain更新は行っていない。
+- Preview結果を記録した最初のPushは、PR本文更新より先にPull Request Checkが開始され、
+  旧本文のPreview未実施記載をPolicy GateがFail Closedした。同一SHAでは後続成功Runが
+  旧失敗Checkを置換しない集約仕様のため、空CommitやGate緩和は使わず、この実経緯と
+  Preview後Local Policy／Quality／Security GateのPASSを正本へ追記した新Headで再実行した。
 
 ## Final／Gate
 
