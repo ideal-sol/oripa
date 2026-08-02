@@ -189,6 +189,27 @@ final class AdminFreshMfaQaTest extends TestCase
         }
     }
 
+    public function test_password_reauthentication_is_available_only_while_mfa_is_disabled(): void
+    {
+        $owner = $this->admin(V2AdminRole::Owner);
+        [$context, $raw] = $this->adminSession($owner, now()->subMinutes(10));
+
+        $result = app(V2AdminReauthenticationService::class)->reauthenticate(
+            $context,
+            'password',
+            password: 'valid password'
+        );
+
+        self::assertNotSame($raw, $result['session']['token']);
+        self::assertNotNull(DB::table('admin_sessions')
+            ->where('session_id_hash', $context->sessionIdHash)
+            ->value('revoked_at'));
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'admin.reauthentication.succeeded',
+            'outcome' => 'success',
+        ]);
+    }
+
     public function test_password_recovery_and_invalid_totp_do_not_revoke_current_session(): void
     {
         $owner = $this->admin(V2AdminRole::Owner);

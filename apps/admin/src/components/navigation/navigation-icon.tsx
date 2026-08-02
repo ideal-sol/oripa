@@ -8,6 +8,7 @@ import {
   MessagesSquare,
   MessageSquareText,
   PackageSearch,
+  Settings2,
   type LucideProps,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -22,6 +23,7 @@ const icons = {
   reports: FileBarChart,
   content: FileText,
   contacts: MessagesSquare,
+  "authentication-settings": Settings2,
   "line-settings": MessageSquareText,
 } satisfies Record<AdminNavigationIcon, ComponentType<LucideProps>>;
 

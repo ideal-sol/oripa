@@ -246,6 +246,62 @@ describe("AdminApiClient", () => {
     expect(updateHeaders.get("Authorization")).toBeNull();
   });
 
+  it("uses the typed authentication policy and invitation surfaces without bearer storage", async () => {
+    const setting = {
+      active_owner_count: 1,
+      id: "01910191-0191-7191-8191-019101910191",
+      invitation_required: false,
+      mfa_enrolled_admin_count: 0,
+      mfa_required: false,
+      revision: 1,
+      updated_at: "2026-08-17T00:00:00Z",
+    };
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: setting, request_id: setting.id }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: { ...setting, mfa_required: true, revision: 2 },
+        idempotent_replay: false,
+        request_id: setting.id,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        admin: null,
+        authenticated: false,
+        expires_in: 300,
+        methods: [],
+        mfa_required: true,
+        requires_mfa_enrollment: true,
+        status: "enrollment_required",
+        transaction_token: "d".repeat(64),
+        webauthn: null,
+      }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.getAuthenticationPolicy();
+    await client.updateAuthenticationPolicy({
+      current_password: "not-persisted",
+      expected_revision: 1,
+      invitation_required: false,
+      mfa_required: true,
+    }, "auth-policy-update-key");
+    await client.acceptInvitation({
+      email: "admin@example.test",
+      invitation_token: "a".repeat(64),
+      password: "not-persisted",
+    });
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/auth/policy",
+      "/admin/api/v2/auth/policy",
+      "/admin/api/v2/auth/invitations/accept",
+    ]);
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
+      .toBe("auth-policy-update-key");
+    for (const [, request] of fetcher.mock.calls) {
+      expect(new Headers(request?.headers).get("Authorization")).toBeNull();
+      expect(request?.credentials).toBe("include");
+    }
+  });
+
   it("converts RFC 9457 responses without exposing server detail", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

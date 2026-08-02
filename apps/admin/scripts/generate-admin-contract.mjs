@@ -13,6 +13,10 @@ const contract = JSON.parse(source);
 
 const operations = {
   beginAdminLogin: ["post", "/auth/login"],
+  acceptAdminInvitation: ["post", "/auth/invitations/accept"],
+  getAdminAuthenticationPolicy: ["get", "/auth/policy"],
+  updateAdminAuthenticationPolicy: ["put", "/auth/policy"],
+  createAdminAccount: ["post", "/auth/admins"],
   verifyAdminMfa: ["post", "/auth/mfa/verify"],
   logoutAdmin: ["post", "/auth/logout"],
   getAdminEffectivePermissions: ["get", "/auth/permissions"],
@@ -250,6 +254,15 @@ const requiredSchemas = [
   "AdminIdentity",
   "AdminEffectivePermissions",
   "AdminLoginRequest",
+  "AdminLoginResult",
+  "AdminInvitationAcceptanceRequest",
+  "AdminAuthenticationPolicy",
+  "AdminAuthenticationPolicyResponse",
+  "AdminAuthenticationPolicyUpdate",
+  "AdminAuthenticationPolicyMutationResult",
+  "AdminAccountCreate",
+  "AdminAccountCreateResponse",
+  "AdminEnrollmentResult",
   "AdminMfaVerifyRequest",
   "AdminPreauth",
   "AdminReauthenticationRequest",
@@ -358,7 +371,7 @@ if (
   JSON.stringify(methods) !==
     JSON.stringify(["totp", "webauthn", "recovery_code"]) ||
   JSON.stringify(reauthenticationMethods) !==
-    JSON.stringify(["totp", "webauthn"])
+    JSON.stringify(["password", "totp", "webauthn"])
 ) {
   throw new Error("Admin OpenAPI authentication enums changed.");
 }
@@ -374,7 +387,7 @@ export const ADMIN_PERMISSION_CODES = ${JSON.stringify(permissions, null, 2)} as
 export type AdminRole = "owner" | "admin" | "operator";
 export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
-export type AdminFreshMfaMethod = "totp" | "webauthn";
+export type AdminFreshAuthenticationMethod = "password" | "totp" | "webauthn";
 
 export interface AdminIdentity {
   id: string;
@@ -392,7 +405,12 @@ export interface AdminEffectivePermissions {
 export interface AdminLoginRequest {
   email: string;
   password: string;
-  invitation_token?: string;
+}
+
+export interface AdminInvitationAcceptanceRequest {
+  email: string;
+  password: string;
+  invitation_token: string;
 }
 
 export interface WebauthnOptions {
@@ -401,13 +419,23 @@ export interface WebauthnOptions {
   expires_in: number;
 }
 
-export interface AdminPreauth {
+export interface AdminLoginResult {
+  status: "authenticated" | "mfa_required" | "enrollment_required";
+  authenticated: boolean;
+  requires_mfa_enrollment: boolean;
+  transaction_token: string | null;
+  expires_in: number | null;
+  methods: AdminMfaMethod[];
+  webauthn: WebauthnOptions | null;
+  mfa_required: boolean;
+  admin: AdminIdentity | null;
+}
+
+export type AdminPreauth = AdminLoginResult & {
   status: "mfa_required";
   transaction_token: string;
   expires_in: number;
-  methods: AdminMfaMethod[];
-  webauthn: WebauthnOptions | null;
-}
+};
 
 export interface AdminMfaVerifyRequest {
   method: AdminMfaMethod;
@@ -418,6 +446,7 @@ export interface AdminMfaVerifyRequest {
 
 export interface AdminSession {
   authenticated: boolean;
+  mfa_required: boolean;
   requires_mfa_enrollment?: boolean;
   enrollment_transaction_token?: string | null;
   enrollment_transaction_expires_in?: number | null;
@@ -436,6 +465,12 @@ export interface TotpConfirmation {
   code: string;
 }
 
+export interface AdminEnrollmentResult {
+  status: "confirmed" | "registered" | "authenticated";
+  authenticated: boolean;
+  admin: AdminIdentity | null;
+}
+
 export interface WebauthnOptionsRequest {
   label?: string;
 }
@@ -450,10 +485,54 @@ export interface RecoveryCodes {
 }
 
 export interface AdminReauthenticationRequest {
-  method: AdminFreshMfaMethod;
+  method: AdminFreshAuthenticationMethod;
+  password?: string;
   code?: string;
   challenge_token?: string;
   credential?: Record<string, unknown>;
+}
+
+export interface AdminAuthenticationPolicy {
+  id: string;
+  mfa_required: boolean;
+  invitation_required: boolean;
+  mfa_enrolled_admin_count: number;
+  active_owner_count: number;
+  revision: number;
+  updated_at: string;
+}
+
+export interface AdminAuthenticationPolicyResponse {
+  data: AdminAuthenticationPolicy;
+  request_id: string;
+}
+
+export interface AdminAuthenticationPolicyUpdate {
+  expected_revision: number;
+  mfa_required: boolean;
+  invitation_required: boolean;
+  current_password: string;
+}
+
+export interface AdminAuthenticationPolicyMutationResult {
+  data: AdminAuthenticationPolicy;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminAccountCreate {
+  email: string;
+  role: "admin" | "operator";
+  temporary_password?: string;
+}
+
+export interface AdminAccountCreateResponse {
+  data: {
+    admin: { id: string; role: "admin" | "operator"; state: "active" | "invited" };
+    invitation_token: string | null;
+    invitation_expires_at: string | null;
+  };
+  request_id: string;
 }
 
 export interface AdminReauthenticationResponse {

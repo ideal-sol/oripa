@@ -49,13 +49,20 @@ import {
   type AdminGachaUnpublishRequest,
   type AdminGachaUnpublishState,
   type AdminLoginRequest,
+  type AdminLoginResult,
+  type AdminInvitationAcceptanceRequest,
+  type AdminAuthenticationPolicyResponse,
+  type AdminAuthenticationPolicyUpdate,
+  type AdminAuthenticationPolicyMutationResult,
+  type AdminAccountCreate,
+  type AdminAccountCreateResponse,
+  type AdminEnrollmentResult,
   type AdminLineMessagingMutationResult,
   type AdminLineMessagingPreview,
   type AdminLineMessagingPreviewRequest,
   type AdminLineMessagingSettingResponse,
   type AdminLineMessagingSettingUpdate,
   type AdminMfaVerifyRequest,
-  type AdminPreauth,
   type AdminQaMutationResult,
   type AdminQaPlanCollection,
   type AdminQaPlanCreate,
@@ -1045,8 +1052,45 @@ export class AdminApiClient {
     );
   }
 
-  login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminPreauth> {
+  login(body: AdminLoginRequest, signal?: AbortSignal): Promise<AdminLoginResult> {
     return this.request("POST", "/auth/login", { body, signal });
+  }
+
+  acceptInvitation(
+    body: AdminInvitationAcceptanceRequest,
+    signal?: AbortSignal,
+  ): Promise<AdminLoginResult> {
+    return this.request("POST", "/auth/invitations/accept", { body, signal });
+  }
+
+  getAuthenticationPolicy(
+    signal?: AbortSignal,
+  ): Promise<AdminAuthenticationPolicyResponse> {
+    return this.request("GET", "/auth/policy", { signal });
+  }
+
+  updateAuthenticationPolicy(
+    body: AdminAuthenticationPolicyUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminAuthenticationPolicyMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "ADMIN_AUTHENTICATION_POLICY_INVALID", null, null, false),
+      );
+    }
+    return this.request("PUT", "/auth/policy", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  createAdminAccount(
+    body: AdminAccountCreate,
+    signal?: AbortSignal,
+  ): Promise<AdminAccountCreateResponse> {
+    return this.request("POST", "/auth/admins", { body, signal });
   }
 
   verifyMfa(
@@ -1076,7 +1120,7 @@ export class AdminApiClient {
     transactionToken: string,
     body: TotpConfirmation,
     signal?: AbortSignal,
-  ): Promise<StatusResponse> {
+  ): Promise<AdminEnrollmentResult> {
     return this.request("POST", "/auth/mfa/totp/confirm", {
       body,
       signal,
@@ -1100,7 +1144,7 @@ export class AdminApiClient {
     transactionToken: string,
     body: WebauthnRegistration,
     signal?: AbortSignal,
-  ): Promise<StatusResponse> {
+  ): Promise<AdminEnrollmentResult> {
     return this.request("POST", "/auth/mfa/webauthn", {
       body,
       signal,

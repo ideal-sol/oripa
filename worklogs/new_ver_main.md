@@ -7641,3 +7641,49 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
   PR Closeoutで確定する。Preview Container／Network／DBは稼働維持する。
 - Gate G4／G5は`NOT COMPLETE`。MIG-061B以降は開始していない。
+
+## MIG-061B Configurable Admin Authentication Policy
+
+### Task／Scope
+
+- Issue `#165`、Branch `feat/MIG-061B-configurable-admin-authentication`、Risk `R4`。
+- Baseは`main@b067e125b3dc96c7c9fa98c8485a1edb51e77450`、Task Policy SHA-256は
+  `1b78e921714d54b5a921b0339e794b5ae93e47b857cf845b9592695f31e379e9`。
+- Admin認証PolicyをInstallation Singletonとして追加し、MFA必須とInvitation必須を
+  Ownerが独立して設定できるようにした。初期値は両方`false`である。
+- 通常LoginはInvitation Tokenを受け取らず、Policy OFFではPassword-only、ONでは
+  既存TOTP／WebAuthn／Enrollmentを使用する。既存MFA Credentialは削除しない。
+- V1、Storefront、Public／Webhook Contract、Point／Payment／Draw、Nginx／TLS／DNS、
+  Production Paymentは変更していない。
+
+### Contract／Migration／Admin
+
+- Admin OpenAPIへ型付きLogin結果、Invitation Acceptance、Authentication Policy
+  取得／更新、Admin作成を追加した。Owner、Fresh Authentication、Current Password、
+  CSRF、Exact Origin、JSON、Critical Rate Limit、Revision OCC、Idempotencyを強制する。
+- Forward-safe Migration `2026_08_17_000030_create_v2_admin_authentication_policy.php`
+  はSingleton、Revision、UUIDv7、UTC Timestamp、Mutation Metadataを保持し、Triggerで
+  Delete、Identity変更、Revision bypass、No-opを拒否する。
+- Adminへ`/settings/authentication`、Password-only Login、独立Invitation画面、MFA
+  OFF時のPassword再認証、Policy連動Admin作成Formを追加した。SecretはClient Storageへ
+  保存しない。
+
+### Local Evidence
+
+- 対象Backendは`25 Test／158 Assertion`、Process Concurrencyは
+  `1 Test／7 Assertion`、全V2 Suiteは`297 Test／2701 Assertion／4既存Skip`でPASS。
+- Admin OpenAPI／生成差分0、Typecheck、Lint、Production Build、Unit `63 Test`、
+  Browser E2E `16 Test`、DB Guard Unit `29 Test`がPASSした。
+- Task専用DB `oripa_v2_mig061b`でDB Target Safety、Migration fresh、最新Migration
+  Rollback／Reapplyを確認した。V1／Preview DBへ対象Testを書き込んでいない。
+- Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-061B/`、提出Reportは
+  `worklogs/reports/MIG-061B-report.md`である。
+
+### Preview／Final予定
+
+- 既存MIG-061A PreviewへCandidate Admin／API ImageとMigration `000030`を反映し、
+  `oripa_v2_mig061a`をMFA OFF／Invitation OFFへ確定する。
+- Synthetic Owner Credentialは`/root/mig061a-preview-login.txt`へroot-only `0600`で
+  保存し、Repository／Report／通常Logへ値を記録しない。
+- Preview反映、Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
+  Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Cは開始しない。

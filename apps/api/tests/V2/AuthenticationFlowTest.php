@@ -176,6 +176,7 @@ final class AuthenticationFlowTest extends TestCase
     public function test_admin_password_is_only_preauth_and_totp_issues_separate_session(): void
     {
         $admin = $this->createAdmin(V2AdminRole::Operator);
+        $this->setAuthenticationPolicy($admin, true, false);
         $secret = TOTP::generate()->getSecret();
         AdminTotpMethod::query()->create([
             'admin_id' => $admin->getKey(),
@@ -258,6 +259,7 @@ final class AuthenticationFlowTest extends TestCase
     public function test_mfa_enrollment_rejects_password_only_and_accepts_recovery_transaction(): void
     {
         $admin = $this->createAdmin(V2AdminRole::Operator);
+        $this->setAuthenticationPolicy($admin, true, false);
         $secret = TOTP::generate()->getSecret();
         AdminTotpMethod::query()->create([
             'admin_id' => $admin->getKey(),
@@ -339,14 +341,9 @@ final class AuthenticationFlowTest extends TestCase
         self::assertDatabaseHas('admins', [
             'email_normalized' => 'owner@example.test',
             'role' => V2AdminRole::Owner->value,
-            'state' => V2AdminState::Invited->value,
+            'state' => V2AdminState::Active->value,
         ]);
-        self::assertDatabaseCount('admin_invitations', 1);
-        $invitation = AdminInvitation::query()->sole();
-        self::assertSame(
-            30.0 * 60,
-            $invitation->created_at->diffInSeconds($invitation->expires_at)
-        );
+        self::assertDatabaseCount('admin_invitations', 0);
         $this->artisan('v2:identity:create-owner-invitation', [
             'email' => 'second-owner@example.test',
         ])->assertFailed();
@@ -356,6 +353,7 @@ final class AuthenticationFlowTest extends TestCase
     public function test_admin_invitation_is_consumed_atomically_and_only_once(): void
     {
         $admin = $this->createAdmin(V2AdminRole::Operator, V2AdminState::Invited);
+        $this->setAuthenticationPolicy($admin, false, true);
         $tokens = app(V2SecureToken::class);
         $token = $tokens->generate();
         $invitation = AdminInvitation::query()->create([
@@ -366,11 +364,11 @@ final class AuthenticationFlowTest extends TestCase
         $service = app(V2AdminAuthenticationService::class);
 
         try {
-            $service->login(
+            $service->acceptInvitation(
                 $admin->email_display,
                 'short',
-                '192.0.2.80',
-                $token
+                $token,
+                '192.0.2.80'
             );
             self::fail('Invalid password must not consume an invitation.');
         } catch (V2AuthenticationException $exception) {
@@ -378,21 +376,21 @@ final class AuthenticationFlowTest extends TestCase
         }
         self::assertNull($invitation->refresh()->used_at);
 
-        $preauth = $service->login(
+        $authenticated = $service->acceptInvitation(
             $admin->email_display,
             'valid invited password',
-            '192.0.2.81',
-            $token
+            $token,
+            '192.0.2.81'
         );
-        self::assertSame([], $preauth['methods']);
+        self::assertSame('authenticated', $authenticated['status']);
         self::assertNotNull($invitation->refresh()->used_at);
 
         try {
-            $service->login(
+            $service->acceptInvitation(
                 $admin->email_display,
                 'valid invited password',
-                '192.0.2.82',
-                $token
+                $token,
+                '192.0.2.82'
             );
             self::fail('An invitation must not be replayed.');
         } catch (V2AuthenticationException $exception) {
@@ -441,6 +439,21 @@ final class AuthenticationFlowTest extends TestCase
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid admin password'),
             'role' => $role,
             'state' => $state,
+        ]);
+    }
+
+    private function setAuthenticationPolicy(
+        Admin $actor,
+        bool $mfaRequired,
+        bool $invitationRequired
+    ): void {
+        DB::table('admin_authentication_policy')->where('id', 1)->update([
+            'mfa_required' => $mfaRequired,
+            'invitation_required' => $invitationRequired,
+            'revision' => DB::raw('revision + 1'),
+            'updated_by_admin_id' => $actor->getKey(),
+            'last_mutation_request_id' => (string) \Illuminate\Support\Str::uuid7(),
+            'updated_at' => now()->startOfSecond(),
         ]);
     }
 }

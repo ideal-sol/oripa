@@ -40,6 +40,7 @@ REQUIRED_ENV_KEYS = {
     "V2_REDIS_PASSWORD",
 }
 EXPECTED_V2_SCHEMA_INVENTORY = [
+    "public.admin_authentication_policy",
     "public.admin_invitations",
     "public.admin_recovery_codes",
     "public.admin_sessions",

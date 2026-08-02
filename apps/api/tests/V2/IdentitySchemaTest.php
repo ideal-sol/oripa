@@ -33,6 +33,7 @@ final class IdentitySchemaTest extends TestCase
         'admin_webauthn_credentials',
         'admin_totp_methods',
         'admin_recovery_codes',
+        'admin_authentication_policy',
     ];
 
     public function test_identity_tables_and_sensitive_storage_boundaries_exist(): void
@@ -57,6 +58,9 @@ final class IdentitySchemaTest extends TestCase
         self::assertFalse(Schema::hasColumn('user_email_verifications', 'token'));
         self::assertTrue(Schema::hasColumn('admin_invitations', 'token_hash'));
         self::assertFalse(Schema::hasColumn('admin_invitations', 'token'));
+        self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'mfa_required'));
+        self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'invitation_required'));
+        self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'revision'));
     }
 
     public function test_pending_user_email_can_repeat_but_verified_email_is_unique(): void

@@ -10,10 +10,12 @@ const auth = {
   },
   clearError: vi.fn(),
   error: null,
+  freshPassword: vi.fn(),
   freshTotp: vi.fn(),
   freshWebauthn: vi.fn(),
   loading: false,
   logout: vi.fn(),
+  mfaRequired: true,
   phase: "authenticated" as const,
 };
 
@@ -52,6 +54,7 @@ import { proxy } from "@/proxy";
 describe("Admin shell and security boundaries", () => {
   beforeEach(() => {
     auth.freshTotp.mockReset().mockResolvedValue(undefined);
+    auth.freshPassword.mockReset().mockResolvedValue(undefined);
     auth.freshWebauthn.mockReset().mockResolvedValue(undefined);
     auth.logout.mockReset().mockResolvedValue(undefined);
   });

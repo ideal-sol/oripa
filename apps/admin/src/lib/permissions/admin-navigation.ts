@@ -8,6 +8,7 @@ export type AdminRouteId =
   | "reports"
   | "content"
   | "contacts"
+  | "authentication-settings"
   | "line-settings";
 
 export type AdminNavigationIcon =
@@ -18,6 +19,7 @@ export type AdminNavigationIcon =
   | "reports"
   | "content"
   | "contacts"
+  | "authentication-settings"
   | "line-settings";
 
 export interface AdminNavigationItem {
@@ -111,13 +113,24 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigati
     freshMfaBoundary: "module-actions",
   },
   {
+    id: "authentication-settings",
+    label: "管理者認証",
+    path: "/settings/authentication",
+    permission: "identity.admin.manage",
+    icon: "authentication-settings",
+    section: "support",
+    sortOrder: 80,
+    implementation: "available",
+    freshMfaBoundary: "module-actions",
+  },
+  {
     id: "line-settings",
     label: "LINE設定",
     path: "/settings/line",
     permission: "identity.line.manage",
     icon: "line-settings",
     section: "support",
-    sortOrder: 80,
+    sortOrder: 90,
     implementation: "available",
     freshMfaBoundary: "module-actions",
   },

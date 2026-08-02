@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\User\AdminUserController;
 use App\Http\Middleware\EnsureAdminUser;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
+use App\Http\Controllers\V2\V2AdminAuthenticationPolicyController;
 use App\Http\Controllers\V2\V2AdminCatalogController;
 use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
@@ -49,6 +50,8 @@ Route::prefix('v2/auth')
     ->group(function (): void {
         Route::post('/login', [V2AdminAuthController::class, 'login'])
             ->name('v2.admin.auth.login');
+        Route::post('/invitations/accept', [V2AdminAuthController::class, 'acceptInvitation'])
+            ->name('v2.admin.auth.invitations.accept');
         Route::post('/mfa/verify', [V2AdminAuthController::class, 'verifyMfa'])
             ->name('v2.admin.auth.mfa.verify');
         Route::post('/logout', [V2AdminAuthController::class, 'logout'])
@@ -78,6 +81,12 @@ Route::prefix('v2/auth')
                 V2AdminAuthController::class,
                 'reauthenticate',
             ])->name('v2.admin.auth.reauthenticate');
+            Route::get('/policy', [V2AdminAuthenticationPolicyController::class, 'show'])
+                ->name('v2.admin.auth.policy.show');
+            Route::put('/policy', [V2AdminAuthenticationPolicyController::class, 'update'])
+                ->name('v2.admin.auth.policy.update');
+            Route::post('/admins', [V2AdminAuthenticationPolicyController::class, 'createAdmin'])
+                ->name('v2.admin.auth.admins.store');
         });
     });
 

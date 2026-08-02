@@ -18,6 +18,8 @@ final class V2AdminReauthenticationService
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2TotpService $totp,
         private readonly V2WebauthnService $webauthn,
+        private readonly V2PasswordPolicy $passwords,
+        private readonly V2AdminAuthenticationPolicyService $authenticationPolicy,
         private readonly V2SessionManager $sessions,
         private readonly V2AuditLogService $audit
     ) {
@@ -60,7 +62,8 @@ final class V2AdminReauthenticationService
         string $method,
         #[SensitiveParameter] ?string $code = null,
         #[SensitiveParameter] ?string $challengeToken = null,
-        array $credential = []
+        array $credential = [],
+        #[SensitiveParameter] ?string $password = null
     ): array {
         try {
             $this->rateLimiter->assertSubject('mfa_verify', $context->sessionIdHash);
@@ -83,7 +86,8 @@ final class V2AdminReauthenticationService
                 $method,
                 $code,
                 $challengeToken,
-                $credential
+                $credential,
+                $password
             ): array {
                 $session = $this->authorizer->validSessionForReauthentication(
                     $context,
@@ -99,6 +103,9 @@ final class V2AdminReauthenticationService
                             $credential,
                             $context->sessionIdHash
                         ),
+                    'password' => ! $this->authenticationPolicy->mfaRequired()
+                        && is_string($password)
+                        && $this->passwords->verify($password, $admin->password_hash),
                     default => false,
                 };
                 if (! $verified) {

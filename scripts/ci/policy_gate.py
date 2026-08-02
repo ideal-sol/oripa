@@ -193,6 +193,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Domain/Identity/Services/V2SessionPolicy.php",
     "apps/api/app/Domain/Identity/Services/V2UserAuthenticationService.php",
     "apps/api/app/Domain/Identity/Services/V2AdminAuthenticationService.php",
+    "apps/api/app/Domain/Identity/Services/V2AdminAuthenticationPolicyService.php",
     "apps/api/app/Domain/Identity/Services/V2TotpService.php",
     "apps/api/app/Domain/Identity/Services/V2WebauthnService.php",
     "apps/api/app/Domain/Identity/Services/V2RecoveryCodeService.php",
@@ -210,10 +211,12 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Console/Commands/V2/CreateInitialOwnerInvitation.php",
     "apps/api/app/Http/Controllers/V2/V2PublicAuthController.php",
     "apps/api/app/Http/Controllers/V2/V2AdminAuthController.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminAuthenticationPolicyController.php",
     "apps/api/app/Http/Controllers/V2/V2AdminPermissionController.php",
     "apps/api/app/Http/Middleware/V2/EnforceV2BrowserSecurity.php",
     "apps/api/app/Http/Middleware/V2/EnforceV2Realm.php",
     "apps/api/app/Models/V2/Admin.php",
+    "apps/api/app/Models/V2/AdminAuthenticationPolicy.php",
     "apps/api/app/Models/V2/AdminRecoveryCode.php",
     "apps/api/app/Models/V2/AdminSession.php",
     "apps/api/app/Models/V2/AdminTotpMethod.php",
@@ -246,6 +249,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
     "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
     "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
+    "apps/api/database/migrations-v2/2026_08_17_000030_create_v2_admin_authentication_policy.php",
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -1893,6 +1897,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_14_000027_add_v2_gacha_sales_pause.php",
         "2026_08_15_000028_add_v2_gacha_public_deactivation.php",
         "2026_08_16_000029_add_v2_qa_plan_management.php",
+        "2026_08_17_000030_create_v2_admin_authentication_policy.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3676,10 +3681,16 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in reauthentication:
             raise PolicyFailure(f"Admin reauthentication missing {required}")
-    for prohibited in ("'password' =>", "'recovery_code' =>"):
-        if prohibited in reauthentication:
+    if "'recovery_code' =>" in reauthentication:
+        raise PolicyFailure("Admin Fresh MFA permits prohibited recovery code method")
+    for required in (
+        "V2AdminAuthenticationPolicyService",
+        "'password' => ! $this->authenticationPolicy->mfaRequired()",
+        "$this->passwords->verify($password, $admin->password_hash)",
+    ):
+        if required not in reauthentication:
             raise PolicyFailure(
-                f"Admin Fresh MFA permits prohibited method {prohibited}"
+                "Admin password reauthentication must be limited to MFA Policy OFF"
             )
 
     identity_config = (
