@@ -7,7 +7,7 @@
 - Base: `main@b067e125b3dc96c7c9fa98c8485a1edb51e77450`
 - Branch: `feat/MIG-061B-configurable-admin-authentication`
 - Issue: `#165`
-- PR: 作成前
+- PR: `#166`（Draft、CloseoutまでOpen）
 - Task Policy SHA-256:
   `1b78e921714d54b5a921b0339e794b5ae93e47b857cf845b9592695f31e379e9`
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061B/`
@@ -71,12 +71,31 @@
 
 - 対象は既存MIG-061A PreviewのV2 Admin／APIとV2 DB
   `oripa_v2_mig061a`だけである。
-- Migration `000030`、Policy `MFA OFF／Invitation OFF`、Synthetic Ownerの一時Password、
-  Admin／API Candidate Imageを反映する予定である。
+- DB Target Safety GuardでMarker `mig061a`、Purpose `v2-persistent`、Schema
+  `public`、V2 Migration集合を再照合してからMigration `000030`だけを適用した。
+  Migrationは29件から30件となり、Policyは初期値`MFA OFF／Invitation OFF`、
+  Browser往復確認後もRevision 3の`OFF／OFF`である。
+- Admin Candidateは
+  `sha256:a4decc57554d19a1d20e92220209fe8ba1964f39c864bca45d6ca345d8a26945`、
+  API Candidateは
+  `sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3`
+  へ更新した。Source SHAは`72d973b8667a115e122ce5a854d5d7ec79f22a79`である。
+- PreviewはCompose Project `mig061a-v2-preview`、Network
+  `mig061a-v2-preview_v2_private`、Admin `192.168.61.11:3000`、API
+  `192.168.61.10:8000`でhealthyを維持する。Loopback Portはそれぞれ
+  `127.0.0.1:3611`、`127.0.0.1:8611`である。
+- Synthetic OwnerはActiveへ確定し、一時Passwordを再発行した。TOTP／WebAuthn
+  Credentialは各1件を保持し、削除・変更していない。Credential rotationはSecretを
+  含まないAppend-only Auditへ記録した。
 - Credential値はRepository、Report、通常Logへ記録しない。保存先は
   `/root/mig061a-preview-login.txt`、Owner `root:root`、Mode `0600`だけを正本へ記録する。
-- Nginx、固定Network／IP、V1 Runtime、`luxe-pack.biz`は変更しない。
-- Deployment結果、Image Digest、Migration Count、Browser Smokeは反映後に確定する。
+- 実DomainでPassword-only Login、通常Login FormにInvitation Tokenがないこと、
+  MFA／InvitationのON／ONからOFF／OFFへの保存、Dashboard、Gacha、Prize、QAを確認した。
+  Console Critical Error、Page Error、HTTP 500／502／504はいずれも0である。
+- `admin.luxe-pack.biz` Login／Health／Session API、`luxe-pack.biz`はすべてHTTP 200。
+  Nginx checksumは
+  `9832e492f8995db08a45d72f22566d09111d44539524b6509a79b986909f7347`
+  で不変であり、Nginx／TLS／DNS、V1 Runtimeは変更していない。
 
 ## 時間を要した作業
 
@@ -88,11 +107,20 @@
   MFA ON／OFFをFixtureへ明示し、失敗3件だけを先行再試験後、全16件を1回実行した。
 - Root空き容量とDocker使用量を重い検証前にRead-only確認した。空き`4.7GB`で安全範囲の
   ため追加Cleanupは行わず、稼働Container、Image、Named Volumeを維持した。
+- Previewへの初回Migration用one-shot Containerが既存の固定API IPと競合したため、
+  DB Write前に停止した。続く固定OverrideなしのCompose実行でPreview Networkが一時的に
+  動的Subnetへ再作成され、Nginxの固定UpstreamがTimeoutした。DB Volume、Image、V1
+  Resourceは削除せず、Preview Projectだけを停止して正本の固定Subnet Overrideで再起動し、
+  Admin/APIの固定IPと全HTTP 200を復旧した。その後は既存API ContainerからMigrationを
+  適用し、同じ失敗経路を再試行していない。
+- Preview運用envにHost／Origin／WebAuthn RPの非Secret設定が永続化されておらず、再作成後
+  にHost Guardが404を返した。Secret値を表示せず正本値をroot専用envへ追加し、Admin/API
+  だけを再作成して解消した。Nginx変更やHost Toolchain更新は行っていない。
 
 ## Final／Gate
 
-- Final Head、Preview反映、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
-  Closeoutで確定する。
+- Preview反映とLocal Evidenceは確定済みである。Final Head、GitHub Check、Fresh
+  Self-review、Squash Commit、Task専用Resource CleanupはCloseoutで確定する。
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`
 - MIG-061C以降は開始しない。

@@ -7679,11 +7679,21 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Repository外Evidenceは`/var/lib/oripa-v2-evidence/MIG-061B/`、提出Reportは
   `worklogs/reports/MIG-061B-report.md`である。
 
-### Preview／Final予定
+### Preview Deployment
 
-- 既存MIG-061A PreviewへCandidate Admin／API ImageとMigration `000030`を反映し、
-  `oripa_v2_mig061a`をMFA OFF／Invitation OFFへ確定する。
+- 既存MIG-061A PreviewへMigration `000030`を適用し、Migration 30件、Policy Revision 3、
+  MFA OFF／Invitation OFFへ確定した。Synthetic OwnerはActive、既存TOTP／WebAuthn
+  Credentialを保持し、Password-only Loginが成立する。
+- Admin Imageは
+  `sha256:a4decc57554d19a1d20e92220209fe8ba1964f39c864bca45d6ca345d8a26945`、
+  API Imageは
+  `sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3`。
+- 実DomainでLogin、Dashboard、Gacha、Prize、QA、Policy ON/OFF往復を確認し、
+  Console Critical ErrorおよびHTTP 500／502／504は0件だった。
 - Synthetic Owner Credentialは`/root/mig061a-preview-login.txt`へroot-only `0600`で
   保存し、Repository／Report／通常Logへ値を記録しない。
-- Preview反映、Final Head、GitHub Check、Fresh Self-review、Squash Commit、Cleanupは
+- Preview Network再作成時に固定Overrideが外れてNginx Upstreamが一時Timeoutしたが、
+  DB Volume、V1 Resource、Nginx設定を変更せず、固定Subnet構成で復旧した。Nginx checksum、
+  `luxe-pack.biz` HTTP 200、V1 Runtimeは不変である。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Task専用Resource Cleanupは
   Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Cは開始しない。
