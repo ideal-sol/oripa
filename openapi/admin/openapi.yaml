@@ -77,6 +77,88 @@ x-oripa-error-codes:
 servers:
   - url: /admin/api/v2
 paths:
+  /auth/invitations/accept:
+    post:
+      operationId: acceptAdminInvitation
+      summary: 有効なInvitation Tokenで新規Adminの初期登録を完了する
+      x-idempotency: one-time-token
+      x-rate-limit: account-ip-5-per-15-minutes-and-ip-20-per-hour
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminInvitationAcceptanceRequest'
+      responses:
+        '200':
+          description: Password-only Admin Sessionを発行した。
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminLoginResult'}}}
+        '202':
+          description: MFA ChallengeまたはEnrollmentが必要。
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminLoginResult'}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /auth/policy:
+    get:
+      operationId: getAdminAuthenticationPolicy
+      summary: OwnerがInstallationのAdmin認証Policyを取得する
+      x-idempotency: safe
+      x-rate-limit: session
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: 現在のAdmin認証Policy。
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminAuthenticationPolicyResponse'}}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminAuthenticationPolicy
+      summary: OwnerがCurrent Passwordを再確認してAdmin認証Policyを更新する
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminAuthenticationPolicyUpdate'}
+      responses:
+        '200':
+          description: 更新済みのCanonical Policy。
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminAuthenticationPolicyMutationResult'}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /auth/admins:
+    post:
+      operationId: createAdminAccount
+      summary: Ownerが現在のInvitation Policyに従ってAdminを作成する
+      x-idempotency: not-supported
+      x-rate-limit: critical-admin-mutation
+      x-fresh-mfa: 5-minutes
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminAccountCreate'}
+      responses:
+        '201':
+          description: 作成結果。Invitation Tokenは必要な場合に1回だけ返す。
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminAccountCreateResponse'}}}
+        default: {$ref: '#/components/responses/Problem'}
   /identity/line-messaging:
     get:
       operationId: getAdminLineMessagingSetting
@@ -1671,7 +1753,7 @@ paths:
   /auth/login:
     post:
       operationId: beginAdminLogin
-      summary: Passwordを検証して短時間のMFA Transactionを発行する
+      summary: Passwordを検証しPolicyに従ってSessionまたはMFA Transactionを発行する
       x-idempotency: not-supported
       x-rate-limit: account-ip-5-per-15-minutes-and-ip-20-per-hour
       x-cache-policy: no-store
@@ -1686,12 +1768,18 @@ paths:
             schema:
               $ref: '#/components/schemas/AdminLoginRequest'
       responses:
-        '202':
-          description: MFA検証待ち。
+        '200':
+          description: Password-only Admin Sessionを発行した。
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminPreauth'
+                $ref: '#/components/schemas/AdminLoginResult'
+        '202':
+          description: MFA ChallengeまたはEnrollmentが必要。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLoginResult'
         default:
           $ref: '#/components/responses/Problem'
   /auth/mfa/verify:
@@ -1830,11 +1918,11 @@ paths:
               $ref: '#/components/schemas/TotpConfirmation'
       responses:
         '200':
-          description: TOTPを登録した。
+          description: TOTPを登録し、Policyを満たす場合はSessionを確定した。
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StatusResponse'
+                $ref: '#/components/schemas/AdminEnrollmentResult'
         default:
           $ref: '#/components/responses/Problem'
   /auth/mfa/webauthn/options:
@@ -1883,11 +1971,11 @@ paths:
               $ref: '#/components/schemas/WebauthnRegistration'
       responses:
         '201':
-          description: Public Key Credentialを登録した。
+          description: Public Key Credentialを登録し、Policyを満たす場合はSessionを確定した。
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StatusResponse'
+                $ref: '#/components/schemas/AdminEnrollmentResult'
         default:
           $ref: '#/components/responses/Problem'
   /auth/mfa/recovery-codes/regenerate:
@@ -1939,8 +2027,8 @@ paths:
   /auth/reauthenticate:
     post:
       operationId: reauthenticateAdmin
-      summary: TOTPまたはWebAuthnでFresh MFAを検証しAdmin Sessionを回転する
-      description: PasswordまたはRecovery Codeだけでは成功しない。成功してもAbsolute Session期限は延長しない。
+      summary: 現在の認証Policyに従ってFresh Authenticationを検証しSessionを回転する
+      description: MFA必須時はTOTPまたはWebAuthn、MFA任意時は現在のPasswordを使用する。Absolute Session期限は延長しない。
       x-idempotency: not-supported
       x-rate-limit: session-5-per-5-minutes
       x-cache-policy: no-store
@@ -5176,6 +5264,47 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           writeOnly: true
+          deprecated: true
+          description: Legacy invitation acceptance input. New clients use the dedicated invitation endpoint.
+    AdminInvitationAcceptanceRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, invitation_token]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        password: {type: string, minLength: 8, maxLength: 128, writeOnly: true}
+        invitation_token: {type: string, pattern: '^[0-9a-f]{64}$', writeOnly: true}
+    AdminLoginResult:
+      type: object
+      additionalProperties: false
+      required: [status, authenticated, requires_mfa_enrollment, transaction_token, expires_in, methods, webauthn, mfa_required, admin]
+      properties:
+        status:
+          type: string
+          enum: [authenticated, mfa_required, enrollment_required]
+        authenticated: {type: boolean}
+        requires_mfa_enrollment: {type: boolean}
+        transaction_token:
+          oneOf:
+            - {type: string, pattern: '^[0-9a-f]{64}$', writeOnly: true}
+            - {type: 'null'}
+        expires_in:
+          oneOf:
+            - {type: integer, minimum: 1, maximum: 300}
+            - {type: 'null'}
+        methods:
+          type: array
+          uniqueItems: true
+          items: {type: string, enum: [totp, webauthn, recovery_code]}
+        webauthn:
+          oneOf:
+            - $ref: '#/components/schemas/WebauthnOptions'
+            - {type: 'null'}
+        mfa_required: {type: boolean}
+        admin:
+          oneOf:
+            - $ref: '#/components/schemas/AdminIdentity'
+            - {type: 'null'}
     AdminPreauth:
       type: object
       additionalProperties: false
@@ -5228,7 +5357,12 @@ components:
       properties:
         method:
           type: string
-          enum: [totp, webauthn]
+          enum: [password, totp, webauthn]
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
         code:
           type: string
           pattern: '^[0-9]{6}$'
@@ -5276,6 +5410,8 @@ components:
       properties:
         authenticated:
           type: boolean
+        mfa_required:
+          type: boolean
         requires_mfa_enrollment:
           type: boolean
         enrollment_transaction_token:
@@ -5294,6 +5430,89 @@ components:
           oneOf:
             - $ref: '#/components/schemas/AdminIdentity'
             - type: 'null'
+    AdminEnrollmentResult:
+      type: object
+      additionalProperties: false
+      required: [status, authenticated, admin]
+      properties:
+        status: {type: string, enum: [confirmed, registered, authenticated]}
+        authenticated: {type: boolean}
+        admin:
+          oneOf:
+            - $ref: '#/components/schemas/AdminIdentity'
+            - {type: 'null'}
+    AdminAuthenticationPolicy:
+      type: object
+      additionalProperties: false
+      required: [id, mfa_required, invitation_required, mfa_enrolled_admin_count, active_owner_count, revision, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        mfa_required: {type: boolean}
+        invitation_required: {type: boolean}
+        mfa_enrolled_admin_count: {type: integer, minimum: 0}
+        active_owner_count: {type: integer, minimum: 0}
+        revision: {type: integer, minimum: 1}
+        updated_at: {$ref: '#/components/schemas/UtcDateTime'}
+    AdminAuthenticationPolicyResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminAuthenticationPolicy'}
+        request_id: {type: string, format: uuid}
+    AdminAuthenticationPolicyUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, mfa_required, invitation_required, current_password]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        mfa_required: {type: boolean}
+        invitation_required: {type: boolean}
+        current_password: {type: string, minLength: 1, maxLength: 128, writeOnly: true}
+    AdminAuthenticationPolicyMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminAuthenticationPolicy'}
+        idempotent_replay: {type: boolean}
+        request_id: {type: string, format: uuid}
+    AdminAccountCreate:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        role: {type: string, enum: [admin, operator]}
+        temporary_password: {type: string, minLength: 8, maxLength: 128, writeOnly: true}
+    AdminAccountCreateResult:
+      type: object
+      additionalProperties: false
+      required: [admin, invitation_token, invitation_expires_at]
+      properties:
+        admin:
+          type: object
+          additionalProperties: false
+          required: [id, role, state]
+          properties:
+            id: {type: string, format: uuid}
+            role: {type: string, enum: [admin, operator]}
+            state: {type: string, enum: [active, invited]}
+        invitation_token:
+          oneOf:
+            - {type: string, pattern: '^[0-9a-f]{64}$', writeOnly: true}
+            - {type: 'null'}
+        invitation_expires_at:
+          oneOf:
+            - $ref: '#/components/schemas/UtcDateTime'
+            - {type: 'null'}
+    AdminAccountCreateResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminAccountCreateResult'}
+        request_id: {type: string, format: uuid}
     AdminPermissionCode:
       type: string
       enum:

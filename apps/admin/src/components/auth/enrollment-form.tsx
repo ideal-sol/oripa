@@ -33,8 +33,8 @@ export function EnrollmentForm() {
     const submitted = code;
     setCode("");
     try {
-      await confirmTotpEnrollment(submitted);
-      setCompleted("TOTP");
+      const authenticated = await confirmTotpEnrollment(submitted);
+      if (!authenticated) setCompleted("TOTP");
     } catch {
       // Redacted API errors are rendered by AuthError.
     }
@@ -42,8 +42,8 @@ export function EnrollmentForm() {
 
   async function registerWebauthn() {
     try {
-      await enrollWebauthn(label);
-      setCompleted("WebAuthn");
+      const authenticated = await enrollWebauthn(label);
+      if (!authenticated) setCompleted("WebAuthn");
     } catch {
       // Redacted API errors are rendered by AuthError.
     }
@@ -56,11 +56,14 @@ export function EnrollmentForm() {
           <Check size={19} aria-hidden="true" />
           <div>
             <strong>{completed}を登録しました。</strong>
-            <p>認証要件の確認後、管理セッションを作成します。</p>
+            <p>Ownerの認証要件を満たすため、もう1つ認証器を登録してください。</p>
           </div>
         </div>
-        <button className="primary-button" onClick={logout} type="button">
-          ログインへ戻る
+        <button className="primary-button" onClick={() => setCompleted(null)} type="button">
+          登録を続ける
+        </button>
+        <button className="secondary-button" onClick={logout} type="button">
+          ログアウト
         </button>
       </div>
     );

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\V2;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminAuthenticationService;
+use App\Domain\Identity\Services\V2AdminAuthenticationPolicyService;
 use App\Domain\Identity\Services\V2AdminReauthenticationService;
 use App\Domain\Identity\Services\V2CsrfService;
 use App\Domain\Identity\Services\V2SessionManager;
@@ -23,6 +24,7 @@ final class V2AdminAuthController
 
     public function __construct(
         private readonly V2AdminAuthenticationService $authentication,
+        private readonly V2AdminAuthenticationPolicyService $authenticationPolicy,
         private readonly V2AdminReauthenticationService $reauthentication,
         private readonly V2SessionManager $sessions,
         private readonly V2CsrfService $csrf
@@ -33,30 +35,32 @@ final class V2AdminAuthController
     {
         $data = $this->validate($request, [
             'email' => ['required', 'string', 'email:rfc', 'max:320'],
-            'password' => ['required', 'string'],
-            'invitation_token' => ['sometimes', 'string', 'size:64'],
+            'password' => ['required', 'string', 'max:128'],
         ]);
         $result = $this->authentication->login(
             $data['email'],
             $data['password'],
-            $request->ip() ?? 'unknown',
-            $data['invitation_token'] ?? null
+            $request->ip() ?? 'unknown'
         );
-        $response = response()->json([
-            'status' => 'mfa_required',
-            'transaction_token' => $result['transaction_token'],
-            'expires_in' => $result['expires_in'],
-            'methods' => $result['methods'],
-            'webauthn' => $result['webauthn'],
-        ], 202);
-        $this->attachTransactionCookie(
-            $response,
-            $result['transaction_token'],
-            $result['expires_in']
-        );
-        $this->csrf->rotate($response, V2Realm::Admin);
 
-        return $response;
+        return $this->authenticationResponse($result);
+    }
+
+    public function acceptInvitation(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'email' => ['required', 'string', 'email:rfc', 'max:320'],
+            'password' => ['required', 'string', 'max:128'],
+            'invitation_token' => ['required', 'string', 'size:64', 'regex:/\A[0-9a-f]{64}\z/D'],
+        ]);
+        $result = $this->authentication->acceptInvitation(
+            $data['email'],
+            $data['password'],
+            $data['invitation_token'],
+            $request->ip() ?? 'unknown'
+        );
+
+        return $this->authenticationResponse($result);
     }
 
     public function verifyMfa(Request $request): JsonResponse
@@ -87,6 +91,7 @@ final class V2AdminAuthController
                 'role' => $result['admin']->role->value,
                 'state' => $result['admin']->state->value,
             ],
+            'mfa_required' => true,
         ]);
         $this->sessions->attachSession(
             $response,
@@ -121,13 +126,34 @@ final class V2AdminAuthController
             'enrollment_token' => ['required', 'string', 'size:64'],
             'code' => ['required', 'string', 'size:6'],
         ]);
+        $transaction = $this->transactionToken($request);
         $this->authentication->confirmTotp(
-            $this->transactionToken($request),
+            $transaction,
             $data['enrollment_token'],
             $data['code']
         );
+        $completed = $this->authentication->completeEnrollment($request, $transaction);
+        $response = response()->json([
+            'status' => $completed === null ? 'confirmed' : 'authenticated',
+            'authenticated' => $completed !== null,
+            'admin' => $completed === null ? null : [
+                'id' => $completed['admin']->public_id,
+                'role' => $completed['admin']->role->value,
+                'state' => $completed['admin']->state->value,
+            ],
+        ]);
+        if ($completed !== null) {
+            $this->sessions->attachSession(
+                $response,
+                V2Realm::Admin,
+                $completed['session']['token'],
+                $completed['session']['absolute_expires_at']
+            );
+            $this->expireTransactionCookie($response);
+            $this->csrf->rotate($response, V2Realm::Admin);
+        }
 
-        return response()->json(['status' => 'confirmed']);
+        return $response;
     }
 
     public function webauthnOptions(Request $request): JsonResponse
@@ -148,13 +174,34 @@ final class V2AdminAuthController
             'challenge_token' => ['required', 'string', 'size:64'],
             'credential' => ['required', 'array'],
         ]);
+        $transaction = $this->transactionToken($request);
         $this->authentication->completeWebauthn(
-            $this->transactionToken($request),
+            $transaction,
             $data['challenge_token'],
             $data['credential']
         );
+        $completed = $this->authentication->completeEnrollment($request, $transaction);
+        $response = response()->json([
+            'status' => $completed === null ? 'registered' : 'authenticated',
+            'authenticated' => $completed !== null,
+            'admin' => $completed === null ? null : [
+                'id' => $completed['admin']->public_id,
+                'role' => $completed['admin']->role->value,
+                'state' => $completed['admin']->state->value,
+            ],
+        ], 201);
+        if ($completed !== null) {
+            $this->sessions->attachSession(
+                $response,
+                V2Realm::Admin,
+                $completed['session']['token'],
+                $completed['session']['absolute_expires_at']
+            );
+            $this->expireTransactionCookie($response);
+            $this->csrf->rotate($response, V2Realm::Admin);
+        }
 
-        return response()->json(['status' => 'registered'], 201);
+        return $response;
     }
 
     public function regenerateRecoveryCodes(): JsonResponse
@@ -188,7 +235,8 @@ final class V2AdminAuthController
     public function reauthenticate(Request $request): JsonResponse
     {
         $data = $this->validate($request, [
-            'method' => ['required', 'in:totp,webauthn'],
+            'method' => ['required', 'in:password,totp,webauthn'],
+            'password' => ['sometimes', 'string', 'max:128'],
             'code' => ['sometimes', 'string', 'size:6'],
             'challenge_token' => ['sometimes', 'string', 'size:64'],
             'credential' => ['sometimes', 'array'],
@@ -200,7 +248,8 @@ final class V2AdminAuthController
             $data['method'],
             $data['code'] ?? null,
             $data['challenge_token'] ?? null,
-            $data['credential'] ?? []
+            $data['credential'] ?? [],
+            $data['password'] ?? null
         );
         $response = response()->json([
             'authenticated' => true,
@@ -243,6 +292,7 @@ final class V2AdminAuthController
                 'state' => $admin->state->value,
                 'mfa_verified' => true,
             ],
+            'mfa_required' => $this->authenticationPolicy->mfaRequired(),
         ]);
         $this->csrf->rotate($response, V2Realm::Admin);
 
@@ -267,6 +317,46 @@ final class V2AdminAuthController
         }
 
         return $header;
+    }
+
+    /** @param array<string, mixed> $result */
+    private function authenticationResponse(array $result): JsonResponse
+    {
+        $response = response()->json([
+            'status' => $result['status'],
+            'authenticated' => $result['status'] === 'authenticated',
+            'requires_mfa_enrollment' => $result['requires_mfa_enrollment'],
+            'transaction_token' => $result['transaction_token'],
+            'expires_in' => $result['expires_in'],
+            'methods' => $result['methods'],
+            'webauthn' => $result['webauthn'],
+            'mfa_required' => $this->authenticationPolicy->mfaRequired(),
+            'admin' => $result['admin'] instanceof Admin ? [
+                'id' => $result['admin']->public_id,
+                'role' => $result['admin']->role->value,
+                'state' => $result['admin']->state->value,
+            ] : null,
+        ], $result['status'] === 'authenticated' ? 200 : 202);
+        if (is_array($result['session'])) {
+            $this->sessions->attachSession(
+                $response,
+                V2Realm::Admin,
+                $result['session']['token'],
+                $result['session']['absolute_expires_at']
+            );
+        }
+        if (is_string($result['transaction_token']) && is_int($result['expires_in'])) {
+            $this->attachTransactionCookie(
+                $response,
+                $result['transaction_token'],
+                $result['expires_in']
+            );
+        } else {
+            $this->expireTransactionCookie($response);
+        }
+        $this->csrf->rotate($response, V2Realm::Admin);
+
+        return $response;
     }
 
     private function requestId(Request $request): string

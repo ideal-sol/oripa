@@ -159,6 +159,10 @@ class V2DatabaseGuardTest(unittest.TestCase):
         )
 
     def test_payment_schema_inventory_is_explicit(self):
+        self.assertIn(
+            "public.admin_authentication_policy",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
         self.assertIn("public.wallets", v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
         self.assertIn(
             "public.point_ledger_entries",

@@ -9,6 +9,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Models\V2\Admin;
 use App\Models\V2\AdminInvitation;
 use App\Models\V2\AdminRecoveryCode;
+use App\Models\V2\AdminSession;
 use App\Models\V2\AdminTotpMethod;
 use App\Models\V2\AdminWebauthnMethod;
 use Illuminate\Http\Request;
@@ -27,19 +28,18 @@ final class V2AdminAuthenticationService
         private readonly V2TotpService $totp,
         private readonly V2WebauthnService $webauthn,
         private readonly V2RecoveryCodeService $recoveryCodes,
-        private readonly V2MfaPolicy $mfaPolicy,
+        private readonly V2AdminAuthenticationPolicyService $authenticationPolicy,
         private readonly V2SecurityEventSink $events
     ) {
     }
 
     /**
-     * @return array{transaction_token: string, expires_in: int, methods: list<string>, webauthn: array<string, mixed>|null}
+     * @return array<string, mixed>
      */
     public function login(
         string $email,
         #[SensitiveParameter] string $password,
-        string $ip,
-        #[SensitiveParameter] ?string $invitationToken = null
+        string $ip
     ): array {
         $normalized = $this->emails->normalize($email);
         $this->rateLimiter->assertGlobal('admin_login_ip', $ip);
@@ -50,12 +50,11 @@ final class V2AdminAuthenticationService
             $this->events->record('login_failure', ['realm' => 'admin']);
             throw $this->invalidCredentials();
         }
-        if ($admin->state === V2AdminState::Invited) {
-            $admin = $this->consumeInvitation($admin, $invitationToken, $password);
-        } elseif ($admin->state !== V2AdminState::Active) {
+        if ($admin->state !== V2AdminState::Active) {
             $this->rateLimiter->hitAccount('admin_login_failure', $normalized, $ip);
             throw $this->invalidCredentials();
-        } elseif (! $this->passwordPolicy->verify($password, $admin->password_hash)) {
+        }
+        if (! $this->passwordPolicy->verify($password, $admin->password_hash)) {
             $this->rateLimiter->hitAccount('admin_login_failure', $normalized, $ip);
             $this->events->record('login_failure', ['realm' => 'admin']);
             throw $this->invalidCredentials();
@@ -64,27 +63,70 @@ final class V2AdminAuthenticationService
             $admin->forceFill(['password_hash' => $this->passwordPolicy->hash($password)])->save();
         }
 
-        $methods = $this->availableMethods($admin);
-        $transaction = $this->transactions->issue(
-            'admin_preauth',
-            ['admin_id' => (int) $admin->getKey(), 'methods' => $methods],
-            (int) config('v2_identity.transactions.admin_preauth_ttl_seconds')
-        );
-        $assertion = in_array('webauthn', $methods, true)
-            ? $this->webauthn->beginAssertion($admin)
-            : null;
         $this->events->record('login_success', [
             'realm' => 'admin',
             'subject_id' => $admin->public_id,
             'stage' => 'password',
         ]);
 
-        return [
-            'transaction_token' => $transaction['token'],
-            'expires_in' => $transaction['expires_in'],
-            'methods' => $methods,
-            'webauthn' => $assertion,
-        ];
+        return $this->completePasswordAuthentication($admin);
+    }
+
+    /** @return array<string, mixed> */
+    public function acceptInvitation(
+        string $email,
+        #[SensitiveParameter] string $password,
+        #[SensitiveParameter] string $invitationToken,
+        string $ip
+    ): array {
+        $normalized = $this->emails->normalize($email);
+        $this->rateLimiter->assertGlobal('admin_login_ip', $ip);
+        $this->rateLimiter->assertAccount('admin_login_failure', $normalized, $ip);
+        try {
+            $passwordHash = $this->passwordPolicy->hash($password);
+        } catch (\InvalidArgumentException) {
+            throw $this->invalidCredentials();
+        }
+
+        return DB::transaction(function () use (
+            $normalized,
+            $passwordHash,
+            $invitationToken
+        ): array {
+            $admin = Admin::query()
+                ->where('email_normalized', $normalized)
+                ->where('state', V2AdminState::Invited->value)
+                ->lockForUpdate()
+                ->first();
+            if (! $admin instanceof Admin) {
+                throw $this->invalidCredentials();
+            }
+            $invitation = AdminInvitation::query()
+                ->where('admin_id', $admin->getKey())
+                ->where('token_hash', $this->tokens->hash($invitationToken))
+                ->whereNull('used_at')
+                ->whereNull('revoked_at')
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->first();
+            if (! $invitation instanceof AdminInvitation) {
+                throw $this->invalidCredentials();
+            }
+            $now = now()->startOfSecond();
+            $admin->forceFill([
+                'password_hash' => $passwordHash,
+                'state' => V2AdminState::Active,
+                'email_verified_at' => $admin->email_verified_at ?? $now,
+            ])->save();
+            $invitation->forceFill(['used_at' => $now])->save();
+            $this->events->record('admin_invitation', [
+                'realm' => 'admin',
+                'subject_id' => $admin->public_id,
+                'result' => 'accepted',
+            ]);
+
+            return $this->completePasswordAuthentication($admin);
+        }, 3);
     }
 
     /**
@@ -103,6 +145,9 @@ final class V2AdminAuthenticationService
         #[SensitiveParameter] ?string $challengeToken = null,
         array $credential = []
     ): array {
+        if (! $this->authenticationPolicy->mfaRequired()) {
+            throw $this->invalidMfa();
+        }
         $this->rateLimiter->assertSubject('mfa_verify', $transactionToken);
         $payload = $this->readPreauth($transactionToken);
         $admin = Admin::query()->find((int) ($payload['admin_id'] ?? 0));
@@ -236,6 +281,58 @@ final class V2AdminAuthenticationService
     }
 
     /**
+     * @return array{admin: Admin, session: array{token: string, absolute_expires_at: \DateTimeInterface}}|null
+     */
+    public function completeEnrollment(
+        Request $request,
+        #[SensitiveParameter] string $transactionToken
+    ): ?array {
+        if (! $this->authenticationPolicy->mfaRequired()) {
+            return null;
+        }
+        try {
+            $payload = $this->transactions->read(
+                $transactionToken,
+                'admin_recovery_enrollment'
+            );
+        } catch (\Throwable) {
+            throw $this->invalidEnrollmentTransaction();
+        }
+        $adminId = (int) ($payload['admin_id'] ?? 0);
+        $sessionHash = $this->sessions->sessionIdHash($request, V2Realm::Admin);
+        if ($adminId < 1 || $sessionHash === null) {
+            throw $this->invalidEnrollmentTransaction();
+        }
+
+        return DB::transaction(function () use (
+            $adminId,
+            $sessionHash,
+            $transactionToken
+        ): ?array {
+            $admin = Admin::query()->whereKey($adminId)->lockForUpdate()->first();
+            if (! $admin instanceof Admin || ! $this->mfaPolicySatisfied($admin)) {
+                return null;
+            }
+            $session = AdminSession::query()
+                ->whereKey($sessionHash)
+                ->where('admin_id', $adminId)
+                ->where('requires_mfa_enrollment', true)
+                ->whereNull('revoked_at')
+                ->where('idle_expires_at', '>', now())
+                ->where('absolute_expires_at', '>', now())
+                ->lockForUpdate()
+                ->first();
+            if (! $session instanceof AdminSession) {
+                throw $this->invalidEnrollmentTransaction();
+            }
+            $rotated = $this->sessions->rotateLockedAdminSession($session);
+            $this->transactions->forget($transactionToken);
+
+            return ['admin' => $admin, 'session' => $rotated];
+        }, 3);
+    }
+
+    /**
      * @return list<string>
      */
     public function regenerateRecoveryCodes(Admin $admin): array
@@ -257,46 +354,6 @@ final class V2AdminAuthenticationService
     {
         $this->sessions->revoke($request, V2Realm::Admin);
         $this->events->record('logout', ['realm' => 'admin']);
-    }
-
-    private function consumeInvitation(
-        Admin $admin,
-        #[SensitiveParameter] ?string $invitationToken,
-        #[SensitiveParameter] string $password
-    ): Admin {
-        if (! is_string($invitationToken)) {
-            throw $this->invalidCredentials();
-        }
-
-        try {
-            $passwordHash = $this->passwordPolicy->hash($password);
-        } catch (\InvalidArgumentException) {
-            throw $this->invalidCredentials();
-        }
-
-        return DB::transaction(function () use ($admin, $invitationToken, $passwordHash): Admin {
-            $lockedAdmin = Admin::query()->lockForUpdate()->find($admin->getKey());
-            if ($lockedAdmin === null || $lockedAdmin->state !== V2AdminState::Invited) {
-                throw $this->invalidCredentials();
-            }
-
-            $invitation = AdminInvitation::query()
-                ->where('admin_id', $lockedAdmin->getKey())
-                ->where('token_hash', $this->tokens->hash($invitationToken))
-                ->whereNull('used_at')
-                ->whereNull('revoked_at')
-                ->where('expires_at', '>', now())
-                ->lockForUpdate()
-                ->first();
-            if ($invitation === null) {
-                throw $this->invalidCredentials();
-            }
-
-            $lockedAdmin->forceFill(['password_hash' => $passwordHash])->save();
-            $invitation->forceFill(['used_at' => now()])->save();
-
-            return $lockedAdmin;
-        });
     }
 
     /**
@@ -382,18 +439,72 @@ final class V2AdminAuthenticationService
 
     private function mfaPolicySatisfied(Admin $admin): bool
     {
-        return $this->mfaPolicy->allowsAccess(
-            $admin->role,
-            AdminWebauthnMethod::query()
-                ->where('admin_id', $admin->getKey())
-                ->whereNull('revoked_at')
-                ->count(),
-            AdminTotpMethod::query()
-                ->where('admin_id', $admin->getKey())
-                ->whereNotNull('confirmed_at')
-                ->whereNull('revoked_at')
-                ->count()
+        return $this->authenticationPolicy->mfaSatisfied($admin);
+    }
+
+    /** @return array<string, mixed> */
+    private function completePasswordAuthentication(Admin $admin): array
+    {
+        if (! $this->authenticationPolicy->mfaRequired()) {
+            return [
+                'status' => 'authenticated',
+                'admin' => $admin,
+                'session' => $this->sessions->issue(
+                    V2Realm::Admin,
+                    (int) $admin->getKey(),
+                    true,
+                    false
+                ),
+                'requires_mfa_enrollment' => false,
+                'transaction_token' => null,
+                'expires_in' => null,
+                'methods' => [],
+                'webauthn' => null,
+            ];
+        }
+        if (! $this->mfaPolicySatisfied($admin)) {
+            $transaction = $this->transactions->issue(
+                'admin_recovery_enrollment',
+                ['admin_id' => (int) $admin->getKey()],
+                (int) config('v2_identity.transactions.admin_preauth_ttl_seconds')
+            );
+
+            return [
+                'status' => 'enrollment_required',
+                'admin' => $admin,
+                'session' => $this->sessions->issue(
+                    V2Realm::Admin,
+                    (int) $admin->getKey(),
+                    false,
+                    true
+                ),
+                'requires_mfa_enrollment' => true,
+                'transaction_token' => $transaction['token'],
+                'expires_in' => $transaction['expires_in'],
+                'methods' => [],
+                'webauthn' => null,
+            ];
+        }
+
+        $methods = $this->availableMethods($admin);
+        $transaction = $this->transactions->issue(
+            'admin_preauth',
+            ['admin_id' => (int) $admin->getKey(), 'methods' => $methods],
+            (int) config('v2_identity.transactions.admin_preauth_ttl_seconds')
         );
+
+        return [
+            'status' => 'mfa_required',
+            'admin' => null,
+            'session' => null,
+            'requires_mfa_enrollment' => false,
+            'transaction_token' => $transaction['token'],
+            'expires_in' => $transaction['expires_in'],
+            'methods' => $methods,
+            'webauthn' => in_array('webauthn', $methods, true)
+                ? $this->webauthn->beginAssertion($admin)
+                : null,
+        ];
     }
 
     private function invalidCredentials(): V2AuthenticationException

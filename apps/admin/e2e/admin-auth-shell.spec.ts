@@ -13,6 +13,44 @@ test.beforeEach(async ({ page }) => {
   }, csrf);
 });
 
+test("password-only login completes without invitation or MFA when policy is off", async ({
+  page,
+}) => {
+  let authenticated = false;
+  await installAdminApi(page, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) {
+      return json(route, authenticated ? adminSession("owner", false) : {
+        admin: null,
+        authenticated: false,
+        mfa_required: false,
+      });
+    }
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (path.endsWith("/auth/login")) {
+      authenticated = true;
+      return json(route, {
+        admin: adminIdentity(),
+        mfa_required: false,
+        status: "authenticated",
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/login");
+  await expect(page.getByLabel("招待トークン")).toHaveCount(0);
+  await page.getByLabel("メールアドレス").fill("owner@example.test");
+  await page.getByLabel("パスワード").fill("temporary password");
+  await page.getByRole("button", { name: "続行" }).click();
+
+  await expect(page).toHaveURL(/\/$/u);
+  await expect(page).not.toHaveURL(/\/auth\/(?:mfa|enroll)$/u);
+  await expect(page.getByText("Owner", { exact: true })).toBeVisible();
+});
+
 test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", async ({
   page,
 }) => {
@@ -137,7 +175,7 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
   await page.setViewportSize({ height: 844, width: 390 });
   await installAdminApi(page, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/auth/session")) return json(route, adminSession());
+    if (path.endsWith("/auth/session")) return json(route, adminSession("owner", false));
     if (path.endsWith("/auth/permissions")) {
       return json(route, permissionResponse("owner"));
     }
@@ -160,6 +198,58 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
     fullPage: true,
     path: "/tmp/oripa-mig-060b-admin-mobile.png",
   });
+});
+
+test("Owner updates the canonical authentication policy with password confirmation", async ({
+  page,
+}) => {
+  let revision = 1;
+  let invitationRequired = false;
+  let updatePayload: Record<string, unknown> | null = null;
+  let updateHeaders: Record<string, string> | null = null;
+  await installAdminApi(page, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/auth/session")) return json(route, adminSession("owner", false));
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, permissionResponse("owner"));
+    }
+    if (path.endsWith("/auth/policy") && request.method() === "GET") {
+      return json(route, authenticationPolicy(revision, invitationRequired));
+    }
+    if (path.endsWith("/auth/policy") && request.method() === "PUT") {
+      updatePayload = request.postDataJSON() as Record<string, unknown>;
+      updateHeaders = request.headers();
+      revision += 1;
+      invitationRequired = true;
+      return json(route, {
+        data: authenticationPolicy(revision, invitationRequired).data,
+        idempotent_replay: false,
+        request_id: "01910191-0191-7191-8191-019101910193",
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/settings/authentication");
+  await expect(page.getByRole("heading", { name: "管理者認証" })).toBeVisible();
+  await expect(page.getByText("Revision").locator("..")).toContainText("1");
+  await page.getByRole("checkbox", { name: "招待トークンを必須にする" }).check();
+  await page.getByLabel("現在のパスワード").fill("current owner password");
+  await page.getByRole("button", { name: "保存" }).click();
+  await page.getByRole("button", { name: "変更を確定" }).click();
+
+  await expect(page.getByText("認証設定を保存しました。")).toBeVisible();
+  expect(updatePayload).toEqual({
+    current_password: "current owner password",
+    expected_revision: 1,
+    invitation_required: true,
+    mfa_required: false,
+  });
+  expect(updateHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+  await expect(page.getByText("Revision").locator("..")).toContainText("2");
+  await expect(page.getByText("招待トークンを発行します。")).toBeVisible();
+  await expect(page.getByLabel("現在のパスワード")).toHaveValue("");
 });
 
 for (const role of ["owner", "admin", "operator"] as const) {
@@ -1502,11 +1592,30 @@ function adminIdentity(role: "owner" | "admin" | "operator" = "owner") {
   };
 }
 
-function adminSession(role: "owner" | "admin" | "operator" = "owner") {
+function adminSession(
+  role: "owner" | "admin" | "operator" = "owner",
+  mfaRequired = true,
+) {
   return {
     admin: adminIdentity(role),
     authenticated: true,
+    mfa_required: mfaRequired,
     requires_mfa_enrollment: false,
+  };
+}
+
+function authenticationPolicy(revision: number, invitationRequired: boolean) {
+  return {
+    data: {
+      active_owner_count: 1,
+      id: "01910191-0191-7191-8191-019101910192",
+      invitation_required: invitationRequired,
+      mfa_enrolled_admin_count: 1,
+      mfa_required: false,
+      revision,
+      updated_at: "2026-08-17T00:00:00Z",
+    },
+    request_id: "01910191-0191-7191-8191-019101910193",
   };
 }
 
@@ -1522,6 +1631,7 @@ function permissionResponse(role: "owner" | "admin" | "operator") {
       ...common,
       ...(role === "owner" ? ["qa.draw.manage"] : []),
       ...(role === "owner" ? ["identity.line.manage"] : []),
+      ...(role === "owner" ? ["identity.admin.manage"] : []),
       ...(role !== "operator" ? ["catalog.manage"] : []),
       ...(role !== "operator" ? ["catalog.publish"] : []),
       ...(role !== "operator" ? ["reporting.financial.read"] : []),

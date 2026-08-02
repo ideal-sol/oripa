@@ -814,6 +814,28 @@ python3 scripts/db/v2_database.py smoke \\
             ):
                 policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
+    def test_v2_qa_draw_password_reauthentication_requires_mfa_policy_off(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            service = (
+                root
+                / "apps/api/app/Domain/Identity/Services/"
+                "V2AdminReauthenticationService.php"
+            )
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "! $this->authenticationPolicy->mfaRequired()",
+                    "true",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "MFA Policy OFF",
+            ):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
     def test_v2_qa_draw_user_prize_boolean_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

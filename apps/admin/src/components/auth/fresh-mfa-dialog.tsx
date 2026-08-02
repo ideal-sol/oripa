@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, ShieldCheck, X } from "lucide-react";
+import { KeyRound, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import {
   type FormEvent,
   useEffect,
@@ -20,9 +20,10 @@ export function FreshMfaDialog({
   onSuccess?: () => Promise<void> | void;
   open: boolean;
 }) {
-  const { freshTotp, freshWebauthn, loading } = useAdminAuth();
+  const { freshPassword, freshTotp, freshWebauthn, loading, mfaRequired } = useAdminAuth();
   const [method, setMethod] = useState<"totp" | "webauthn">("totp");
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -33,6 +34,8 @@ export function FreshMfaDialog({
     window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => previousFocus.current?.focus();
   }, [open]);
+
+  const effectiveMethod = mfaRequired ? method : "password";
 
   if (!open) return null;
 
@@ -50,6 +53,13 @@ export function FreshMfaDialog({
     const submitted = code;
     setCode("");
     await complete(() => freshTotp(submitted));
+  }
+
+  async function submitPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const submitted = password;
+    setPassword("");
+    await complete(() => freshPassword(submitted));
   }
 
   return (
@@ -85,7 +95,7 @@ export function FreshMfaDialog({
         <header className="dialog-header">
           <div>
             <span className="eyebrow">Security check</span>
-            <h2 id="fresh-mfa-title">多要素認証を再確認</h2>
+            <h2 id="fresh-mfa-title">本人確認</h2>
           </div>
           <button
             aria-label="再認証を閉じる"
@@ -97,24 +107,47 @@ export function FreshMfaDialog({
             <X size={19} />
           </button>
         </header>
-        <div className="segmented-control" aria-label="再認証方法">
-          <button
-            aria-pressed={method === "totp"}
-            onClick={() => setMethod("totp")}
-            type="button"
-          >
-            TOTP
-          </button>
-          <button
-            aria-pressed={method === "webauthn"}
-            onClick={() => setMethod("webauthn")}
-            type="button"
-          >
-            WebAuthn
-          </button>
-        </div>
+        {mfaRequired ? (
+          <div className="segmented-control" aria-label="再認証方法">
+            <button
+              aria-pressed={effectiveMethod === "totp"}
+              onClick={() => setMethod("totp")}
+              type="button"
+            >
+              TOTP
+            </button>
+            <button
+              aria-pressed={effectiveMethod === "webauthn"}
+              onClick={() => setMethod("webauthn")}
+              type="button"
+            >
+              WebAuthn
+            </button>
+          </div>
+        ) : null}
         <AuthError />
-        {method === "totp" ? (
+        {effectiveMethod === "password" ? (
+          <form className="auth-form-section" onSubmit={submitPassword}>
+            <label>
+              <span>現在のパスワード</span>
+              <span className="input-shell">
+                <LockKeyhole size={18} aria-hidden="true" />
+                <input
+                  autoComplete="current-password"
+                  maxLength={128}
+                  onChange={(event) => setPassword(event.target.value)}
+                  ref={inputRef}
+                  required
+                  type="password"
+                  value={password}
+                />
+              </span>
+            </label>
+            <button className="primary-button" disabled={loading} type="submit">
+              再認証
+            </button>
+          </form>
+        ) : effectiveMethod === "totp" ? (
           <form className="auth-form-section" onSubmit={submitTotp}>
             <label>
               <span>認証アプリの6桁コード</span>

@@ -17,8 +17,9 @@ import {
 } from "@/lib/admin-api/client";
 import type {
   AdminIdentity,
+  AdminInvitationAcceptanceRequest,
   AdminLoginRequest,
-  AdminPreauth,
+  AdminLoginResult,
   TotpEnrollment,
 } from "@/lib/admin-api/generated";
 import {
@@ -44,13 +45,16 @@ interface AdminAuthContextValue {
   admin: AdminIdentity | null;
   error: AuthErrorState | null;
   loading: boolean;
+  mfaRequired: boolean;
   phase: AuthPhase;
-  preauth: AdminPreauth | null;
+  preauth: AdminLoginResult | null;
   totpEnrollment: TotpEnrollment | null;
+  acceptInvitation: (request: AdminInvitationAcceptanceRequest) => Promise<void>;
   clearError: () => void;
-  confirmTotpEnrollment: (code: string) => Promise<void>;
-  enrollWebauthn: (label: string) => Promise<void>;
+  confirmTotpEnrollment: (code: string) => Promise<boolean>;
+  enrollWebauthn: (label: string) => Promise<boolean>;
   expireSession: () => void;
+  freshPassword: (password: string) => Promise<void>;
   freshTotp: (code: string) => Promise<void>;
   freshWebauthn: () => Promise<void>;
   login: (request: AdminLoginRequest) => Promise<void>;
@@ -69,7 +73,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const [phase, setPhase] = useState<AuthPhase>("loading");
   const [admin, setAdmin] = useState<AdminIdentity | null>(null);
-  const [preauth, setPreauth] = useState<AdminPreauth | null>(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [preauth, setPreauth] = useState<AdminLoginResult | null>(null);
   const [enrollmentToken, setEnrollmentToken] = useState<string | null>(null);
   const [totpEnrollment, setTotpEnrollment] = useState<TotpEnrollment | null>(null);
   const [error, setError] = useState<AuthErrorState | null>(null);
@@ -120,6 +125,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     client
       .getSession(controller.signal)
       .then((session) => {
+        setMfaRequired(session.mfa_required ?? true);
         if (session.authenticated && session.admin) {
           setAdmin(session.admin);
           setPhase("authenticated");
@@ -136,13 +142,47 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [captureError, client]);
 
+  const applyAuthenticationResult = useCallback(
+    (result: AdminLoginResult) => {
+      setMfaRequired(result.mfa_required);
+      if (result.status === "authenticated" && result.admin) {
+        setAdmin(result.admin);
+        setPreauth(null);
+        setEnrollmentToken(null);
+        setPhase("authenticated");
+        router.replace("/");
+        return;
+      }
+      if (result.status === "enrollment_required" && result.transaction_token) {
+        setAdmin(null);
+        setPreauth(null);
+        setEnrollmentToken(result.transaction_token);
+        setPhase("enrollment");
+        router.replace("/auth/enroll");
+        return;
+      }
+      if (result.status === "mfa_required" && result.transaction_token) {
+        setAdmin(null);
+        setEnrollmentToken(null);
+        setPreauth(result);
+        setPhase("mfa");
+        router.replace("/auth/mfa");
+        return;
+      }
+      throw new Error("Unexpected authentication response.");
+    },
+    [router],
+  );
+
   const completeMfa = useCallback(
     async (request: Parameters<AdminApiClient["verifyMfa"]>[1]) => {
-      if (!preauth) throw new Error("Missing authentication transaction.");
+      const transactionToken = preauth?.transaction_token;
+      if (!transactionToken) throw new Error("Missing authentication transaction.");
       const session = await withRequest(() =>
-        client.verifyMfa(preauth.transaction_token, request),
+        client.verifyMfa(transactionToken, request),
       );
       setAdmin(session.admin ?? null);
+      setMfaRequired(session.mfa_required ?? true);
       setPreauth(null);
       if (session.requires_mfa_enrollment && session.enrollment_transaction_token) {
         setEnrollmentToken(session.enrollment_transaction_token);
@@ -162,15 +202,18 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       admin,
       error,
       loading,
+      mfaRequired,
       phase,
       preauth,
       totpEnrollment,
       clearError: () => setError(null),
       login: async (request) => {
         const result = await withRequest(() => client.login(request));
-        setPreauth(result);
-        setPhase("mfa");
-        router.replace("/auth/mfa");
+        applyAuthenticationResult(result);
+      },
+      acceptInvitation: async (request) => {
+        const result = await withRequest(() => client.acceptInvitation(request));
+        applyAuthenticationResult(result);
       },
       verifyTotp: (code) => completeMfa({ method: "totp", code }),
       verifyRecoveryCode: (code) =>
@@ -197,13 +240,21 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (!enrollmentToken || !totpEnrollment) {
           throw new Error("Missing TOTP enrollment transaction.");
         }
-        await withRequest(() =>
+        const result = await withRequest(() =>
           client.confirmTotp(enrollmentToken, {
             code,
             enrollment_token: totpEnrollment.enrollment_token,
           }),
         );
         setTotpEnrollment(null);
+        if (result.authenticated && result.admin) {
+          setAdmin(result.admin);
+          setEnrollmentToken(null);
+          setPhase("authenticated");
+          router.replace("/");
+          return true;
+        }
+        return false;
       },
       enrollWebauthn: async (label) => {
         if (!enrollmentToken) throw new Error("Missing enrollment transaction.");
@@ -213,17 +264,31 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         const credential = await withRequest(() =>
           createWebauthnCredential(options.options),
         );
-        await withRequest(() =>
+        const result = await withRequest(() =>
           client.registerWebauthn(enrollmentToken, {
             challenge_token: options.challenge_token,
             credential,
           }),
         );
+        if (result.authenticated && result.admin) {
+          setAdmin(result.admin);
+          setEnrollmentToken(null);
+          setPhase("authenticated");
+          router.replace("/");
+          return true;
+        }
+        return false;
       },
       expireSession,
       freshTotp: async (code) => {
         const result = await withRequest(() =>
           client.reauthenticate({ method: "totp", code }),
+        );
+        setAdmin(result.admin);
+      },
+      freshPassword: async (password) => {
+        const result = await withRequest(() =>
+          client.reauthenticate({ method: "password", password }),
         );
         setAdmin(result.admin);
       },
@@ -262,10 +327,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       admin,
+      applyAuthenticationResult,
       client,
       completeMfa,
       error,
       loading,
+      mfaRequired,
       phase,
       preauth,
       router,

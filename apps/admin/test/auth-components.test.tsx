@@ -24,15 +24,24 @@ vi.mock("@/lib/admin-api/client", async () => {
   };
 });
 
-import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
+import { AdminAuthProvider, useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { LoginForm } from "@/components/auth/login-form";
+
+function MfaPolicyProbe() {
+  const { mfaRequired, phase } = useAdminAuth();
+  return <output data-testid="mfa-policy">{phase}:{mfaRequired ? "required" : "optional"}</output>;
+}
 
 describe("Admin authentication components", () => {
   beforeEach(() => {
-    api.getSession.mockResolvedValue({ admin: null, authenticated: false });
+    api.getSession.mockResolvedValue({ admin: null, authenticated: false, mfa_required: false });
     api.login.mockResolvedValue({
+      admin: null,
+      authenticated: false,
       expires_in: 300,
+      mfa_required: true,
       methods: ["totp"],
+      requires_mfa_enrollment: false,
       status: "mfa_required",
       transaction_token: "a".repeat(64),
       webauthn: null,
@@ -73,5 +82,49 @@ describe("Admin authentication components", () => {
     );
     await waitFor(() => expect(api.getSession).toHaveBeenCalled());
     expect(local).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a legacy session response omits the MFA policy", async () => {
+    api.getSession.mockResolvedValueOnce({ admin: null, authenticated: false });
+    render(
+      <AdminAuthProvider>
+        <MfaPolicyProbe />
+      </AdminAuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("mfa-policy")).toHaveTextContent("anonymous:required"));
+  });
+
+  it("completes password-only login without showing an invitation field", async () => {
+    api.login.mockResolvedValueOnce({
+      admin: {
+        id: "01910191-0191-7191-8191-019101910191",
+        role: "owner",
+        state: "active",
+      },
+      authenticated: true,
+      expires_in: null,
+      mfa_required: false,
+      methods: [],
+      requires_mfa_enrollment: false,
+      status: "authenticated",
+      transaction_token: null,
+      webauthn: null,
+    });
+    render(
+      <AdminAuthProvider>
+        <LoginForm />
+      </AdminAuthProvider>,
+    );
+    await waitFor(() => expect(api.getSession).toHaveBeenCalled());
+    expect(screen.queryByLabelText("招待トークン")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("メールアドレス"), {
+      target: { value: "owner@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("パスワード"), {
+      target: { value: "password-only credential" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "続行" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    expect(replace).not.toHaveBeenCalledWith("/auth/mfa");
   });
 });

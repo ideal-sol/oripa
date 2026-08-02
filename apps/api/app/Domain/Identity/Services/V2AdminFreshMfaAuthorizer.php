@@ -77,7 +77,7 @@ final class V2AdminFreshMfaAuthorizer
             throw new V2AuthenticationException(
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
-                'Fresh multi-factor authentication is required.'
+                'Fresh authentication is required.'
             );
         }
         if ($criticalMutation) {
@@ -123,7 +123,7 @@ final class V2AdminFreshMfaAuthorizer
             throw new V2AuthenticationException(
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
-                'Fresh multi-factor authentication is required.'
+                'Fresh authentication is required.'
             );
         }
         try {
@@ -186,7 +186,7 @@ final class V2AdminFreshMfaAuthorizer
             throw new V2AuthenticationException(
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
-                'Fresh multi-factor authentication is required.'
+                'Fresh authentication is required.'
             );
         }
 
