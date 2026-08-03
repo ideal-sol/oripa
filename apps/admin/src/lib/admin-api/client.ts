@@ -80,6 +80,9 @@ import {
   type AdminReauthenticationRequest,
   type AdminReauthenticationResponse,
   type AdminSession,
+  type AdminUserCollection,
+  type AdminUserDetailResponse,
+  type AdminUserGachaHistoryCollection,
   type ProblemDetails,
   type RecoveryCodes,
   type StatusResponse,
@@ -164,6 +167,46 @@ export class AdminApiClient {
 
   getPermissions(signal?: AbortSignal): Promise<AdminEffectivePermissions> {
     return this.request("GET", "/auth/permissions", { signal });
+  }
+
+  listAdminUsers(
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserCollection> {
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (cursor) parameters.set("cursor", cursor);
+    return this.request("GET", `/users?${parameters.toString()}`, { signal });
+  }
+
+  getAdminUser(
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserDetailResponse> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `/users/${encodeURIComponent(userId)}`, { signal });
+  }
+
+  listAdminUserGachaHistory(
+    userId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserGachaHistoryCollection> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (cursor) parameters.set("cursor", cursor);
+    return this.request(
+      "GET",
+      `/users/${encodeURIComponent(userId)}/gacha-history?${parameters.toString()}`,
+      { signal },
+    );
   }
 
   getDashboardMonthlySales(
@@ -1680,7 +1723,8 @@ export class AdminApiClient {
       | `/identity/${string}`
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
-      | `/reports/dashboard/${string}`,
+      | `/reports/dashboard/${string}`
+      | `/users${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
     if (
@@ -1689,7 +1733,10 @@ export class AdminApiClient {
         !path.startsWith("/identity/") &&
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
-        !path.startsWith("/reports/dashboard/")) ||
+        !path.startsWith("/reports/dashboard/") &&
+        path !== "/users" &&
+        !path.startsWith("/users?") &&
+        !path.startsWith("/users/")) ||
       path.includes("://") ||
       path.includes("..")
     ) {

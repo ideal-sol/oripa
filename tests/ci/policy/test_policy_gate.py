@@ -20,6 +20,31 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061g_path_registration_is_exact(self):
+        expected_identity = {
+            "apps/api/app/Domain/Identity/Exceptions/V2AdminUserReadException.php",
+            "apps/api/app/Domain/Identity/Services/V2AdminUserReadService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminUserController.php",
+            "apps/api/database/migrations-v2/2026_08_18_000031_add_display_name_to_v2_users.php",
+            "apps/api/tests/Unit/V2AdminUserReadServiceTest.php",
+            "apps/api/tests/V2/AdminUserReadModelApiTest.php",
+            "apps/api/tests/V2/ZAdminUserReadModelPerformanceTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-user-read-model.spec.ts",
+            "apps/admin/src/app/users/[userPublicId]/gacha-history/page.tsx",
+            "apps/admin/src/app/users/[userPublicId]/page.tsx",
+            "apps/admin/src/components/users/admin-user-read-workspace.tsx",
+            "apps/admin/src/components/users/use-admin-user-read-model.ts",
+            "apps/admin/test/admin-user-read-model.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061G_V2_IDENTITY_FILES, expected_identity)
+        self.assertTrue(expected_identity.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061G_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_identity | expected_admin))
+
     def test_mig_061f_path_registration_is_exact(self):
         expected_reporting = {
             "apps/api/tests/Unit/V2ReportingServiceDashboardAggregationTest.php",

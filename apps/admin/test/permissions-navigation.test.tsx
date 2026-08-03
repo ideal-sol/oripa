@@ -61,7 +61,7 @@ describe("Admin permission navigation", () => {
     expect(screen.getByRole("button", { name: "配送" })).toBeVisible();
     expect(screen.getByRole("button", { name: "お知らせ" })).toBeVisible();
     expect(screen.getByRole("button", { name: "お問い合わせ" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "ユーザー" })).toBeNull();
+    expect(screen.getByRole("button", { name: "ユーザー" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "景品管理" })).toBeNull();
     expect(screen.queryByRole("link", { name: "QA管理" })).toBeNull();
 
@@ -70,6 +70,12 @@ describe("Admin permission navigation", () => {
       "href",
       "/catalog/gachas",
     );
+    fireEvent.click(screen.getByRole("button", { name: "ユーザー" }));
+    expect(screen.getByRole("link", { name: "一覧" })).toHaveAttribute(
+      "href",
+      "/users",
+    );
+    expect(screen.queryByRole("link", { name: "履歴" })).toBeNull();
   });
 
   it("marks the longest nested path active and keeps registry values unique", () => {
@@ -131,6 +137,10 @@ describe("Admin permission navigation", () => {
   it("never exposes modules while the permission request is unavailable", () => {
     expect(navigationForPermissions(new Set())).toEqual([
       expect.objectContaining({ id: "dashboard" }),
+      expect.objectContaining({
+        children: [expect.objectContaining({ id: "users-list" })],
+        id: "users",
+      }),
     ]);
   });
 });

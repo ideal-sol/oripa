@@ -81,7 +81,7 @@ export type AdminNavigationNode = AdminNavigationItem | AdminNavigationGroup;
 
 const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
-  route("users-list", "一覧", "/users", null, "users", "scaffold", "module-actions", true),
+  route("users-list", "一覧", "/users", null, "users", "available", "none"),
   route("users-history", "履歴", "/users/history", null, "users", "scaffold", "module-actions", true),
   route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
   route("gachas-create", "登録", "/catalog/gachas/new", "catalog.manage", "gacha", "scaffold"),

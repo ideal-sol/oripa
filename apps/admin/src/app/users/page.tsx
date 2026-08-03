@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { AdminShell } from "@/components/shell/admin-shell";
+import { AdminUserReadWorkspace } from "@/components/users/admin-user-read-workspace";
 
 export const metadata: Metadata = { title: "ユーザー 一覧" };
 
 export default function UsersPage() {
-  return <ModuleRoutePage routeId="users-list" />;
+  return (
+    <AdminShell>
+      <AdminUserReadWorkspace mode="list" />
+    </AdminShell>
+  );
 }

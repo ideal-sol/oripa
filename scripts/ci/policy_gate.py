@@ -179,6 +179,15 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
     "scripts/release/platform_artifact.py",
     "tests/release/test_platform_artifact.py",
 }
+MIG_061G_V2_IDENTITY_FILES = {
+    "apps/api/app/Domain/Identity/Exceptions/V2AdminUserReadException.php",
+    "apps/api/app/Domain/Identity/Services/V2AdminUserReadService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminUserController.php",
+    "apps/api/database/migrations-v2/2026_08_18_000031_add_display_name_to_v2_users.php",
+    "apps/api/tests/Unit/V2AdminUserReadServiceTest.php",
+    "apps/api/tests/V2/AdminUserReadModelApiTest.php",
+    "apps/api/tests/V2/ZAdminUserReadModelPerformanceTest.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -282,6 +291,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/tests/V2/RealmSeparationTest.php",
     "docs/operations/identity-recovery/README.md",
     "docs/operations/external-identity/README.md",
+    *MIG_061G_V2_IDENTITY_FILES,
 }
 V2_AUDIT_OUTBOX_REQUIRED_FILES = {
     "apps/api/app/Domain/Audit/V2/Services/V2AuditChainVerifier.php",
@@ -537,6 +547,14 @@ MIG_061E_ADMIN_SKELETON_FILES = {
 MIG_061F_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/shell/use-dashboard-sales-data.ts",
 }
+MIG_061G_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-user-read-model.spec.ts",
+    "apps/admin/src/app/users/[userPublicId]/gacha-history/page.tsx",
+    "apps/admin/src/app/users/[userPublicId]/page.tsx",
+    "apps/admin/src/components/users/admin-user-read-workspace.tsx",
+    "apps/admin/src/components/users/use-admin-user-read-model.ts",
+    "apps/admin/test/admin-user-read-model.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -639,6 +657,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061D_ADMIN_SKELETON_FILES,
     *MIG_061E_ADMIN_SKELETON_FILES,
     *MIG_061F_ADMIN_SKELETON_FILES,
+    *MIG_061G_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -1934,6 +1953,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_15_000028_add_v2_gacha_public_deactivation.php",
         "2026_08_16_000029_add_v2_qa_plan_management.php",
         "2026_08_17_000030_create_v2_admin_authentication_policy.php",
+        "2026_08_18_000031_add_display_name_to_v2_users.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

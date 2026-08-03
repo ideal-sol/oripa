@@ -42,6 +42,7 @@ use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
+use App\Http\Controllers\V2\V2AdminUserController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 
@@ -93,6 +94,12 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function (): void {
+        Route::get('/users', [V2AdminUserController::class, 'index'])
+            ->name('v2.admin.users.index');
+        Route::get('/users/{userId}', [V2AdminUserController::class, 'show'])
+            ->whereUuid('userId')->name('v2.admin.users.show');
+        Route::get('/users/{userId}/gacha-history', [V2AdminUserController::class, 'gachaHistory'])
+            ->whereUuid('userId')->name('v2.admin.users.gacha-history.index');
         Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])
             ->name('v2.admin.identity.line-messaging.show');
         Route::put('/identity/line-messaging', [V2AdminLineMessagingController::class, 'update'])

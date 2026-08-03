@@ -6360,6 +6360,120 @@
         }
       }
     },
+    "/users": {
+      "get": {
+        "operationId": "listAdminUsers",
+        "summary": "User一覧とCanonicalなPoint残高を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stable SortされたUser一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "get": {
+        "operationId": "getAdminUser",
+        "summary": "UserのRead-only詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/gacha-history": {
+      "get": {
+        "operationId": "listAdminUserGachaHistory",
+        "summary": "Userが取得した景品履歴を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stable SortされたUser景品取得履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserGachaHistoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/reports/sales/monthly": {
       "get": {
         "operationId": "getAdminMonthlySalesReport",
@@ -13897,6 +14011,268 @@
           }
         }
       },
+      "AdminUserState": {
+        "type": "string",
+        "enum": [
+          "pending_verification",
+          "active",
+          "restricted",
+          "suspended",
+          "closed",
+          "anonymized"
+        ]
+      },
+      "AdminUserPointBalance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "total_balance",
+          "paid_balance",
+          "free_balance"
+        ],
+        "properties": {
+          "total_balance": {
+            "type": "integer"
+          },
+          "paid_balance": {
+            "type": "integer"
+          },
+          "free_balance": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminUserSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name",
+          "status",
+          "point_balance",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "status": {
+            "$ref": "#/components/schemas/AdminUserState"
+          },
+          "point_balance": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminUserPointBalance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminUserDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminUserSummary"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "email",
+              "email_verified_at",
+              "updated_at"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "email_verified_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUserDetail"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminUserGachaHistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "draw_result_id",
+          "gacha_id",
+          "gacha_version_id",
+          "gacha_title",
+          "prize_id",
+          "prize_name",
+          "rank_id",
+          "rank_name",
+          "status",
+          "exchange_point_snapshot",
+          "exchanged_point_amount",
+          "acquired_at",
+          "storage_expires_at",
+          "terminal_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "draw_result_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "prize_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "rank_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+          },
+          "exchange_point_snapshot": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exchanged_point_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "acquired_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "storage_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "terminal_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserGachaHistoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserGachaHistoryItem"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "AmountCount": {
         "type": "object",
         "additionalProperties": false,
@@ -15278,6 +15654,11 @@
       "status": 422,
       "retryable": false,
       "description": "Reporting期間が不正。"
+    },
+    "ADMIN_USER_NOT_FOUND": {
+      "status": 404,
+      "retryable": false,
+      "description": "指定されたUserが存在しない、または参照できない。"
     },
     "EXPORT_ASYNC_REQUIRED": {
       "status": 422,
