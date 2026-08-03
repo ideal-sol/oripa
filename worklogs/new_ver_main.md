@@ -7737,8 +7737,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ### Task／Scope
 
 - Issue `#172`、Branch `feat/MIG-061D-admin-sidebar-hierarchy`、Risk `R3`。
-- Baseは`main@fcc782daee4e6303858e412d9fe4372dc9919c7c`、Task Policy SHA-256は
-  `b9cb11f732882a34674c633051be8dbebe67a25c5a795078445249019ccc0dd5`。
+- Baseは`main@fcc782daee4e6303858e412d9fe4372dc9919c7c`。Task Policyは中央Gate登録用2 Pathだけを
+  追加してAtomic再発行し、SHA-256は
+  `ada7789d9af064659c1b7d11c12565cf714f79264e13de057fe18e70883dca89`。
 - SidebarをDashboardと8 Parent Groupへ階層化し、指定順序、Accordion、Current Routeの
   自動展開、最長Path Active、Desktop／Mobile共通Registryを実装した。
 - 既存8 Routeは維持し、未実装13 RouteへTitle、Breadcrumb、後続Task案内だけのScaffoldを
@@ -7757,7 +7758,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061D/`、提出Reportは
   `worklogs/reports/MIG-061D-report.md`。Final検証、Preview反映、Fresh Self-review、
   GitHub Check、Squash Merge、CleanupはCloseoutで確定する。
-- Policy Unit `90 tests`とQuality GateはPASS。Task Policyで明示許可された新規Scaffold／Test
-  15 Pathが中央Admin Skeleton正本へ未登録のためPolicy GateがFail Closedしており、中央Gate
-  更新Pathの許可が得られるまでPreview反映とMergeを停止する。
+- Policy Unit `91 tests`、Policy／Quality GateがPASS。新規Scaffold／Test 15 Pathと中央Admin
+  Skeleton登録集合は機械的に完全一致し、WildcardやGate緩和はない。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Eは開始しない。

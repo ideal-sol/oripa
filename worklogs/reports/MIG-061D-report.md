@@ -9,7 +9,9 @@
 - Issue: `#172`
 - PR: `#174`（Draft／Policy Registry更新待ち）
 - Task Policy SHA-256:
-  `b9cb11f732882a34674c633051be8dbebe67a25c5a795078445249019ccc0dd5`
+  `ada7789d9af064659c1b7d11c12565cf714f79264e13de057fe18e70883dca89`
+  （Atomic再発行前:
+  `b9cb11f732882a34674c633051be8dbebe67a25c5a795078445249019ccc0dd5`）
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061D/`
 - Final Head／Squash Commit: Closeout時に確定する。
 
@@ -83,11 +85,12 @@ Backend API、Permission文字列は追加していない。
 - 全Admin Unit: `14 files／72 tests` `PASS`
 - Browser E2E: 最終全2件 `PASS`（Desktop全Route／Mobile Drawer、`1m14s`）。
 - Production Build／生成差分: `PASS`。
-- Policy Unit: `90 tests` `PASS`。
+- Policy Unit: `91 tests` `PASS`。
 - Quality Unit／Gate: `PASS`。
-- Policy Gate: 新規Scaffold Route／専用Testの15 Pathが中央`ADMIN_SKELETON_FILES`へ
-  未登録のため`FAIL`。Task Policyでは各Pathが明示許可されているが、中央Gate更新Pathは
-  Task Policy外であるためFail Closedで停止した。
+- Policy Gate: `PASS`。Task Policyを指定2 Pathだけ追加してAtomic再発行し、新規Scaffold
+  Route／専用Testの15 Pathだけを中央`ADMIN_SKELETON_FILES`へ登録した。
+- 新規Admin FileとTask専用登録集合は`added=15／registered=15／exact=True`。Wildcard、
+  将来Path、Gate条件変更はない。
 - Security Gate、Secret Scan、最終`git diff --check`: Policy Registry整合後に実行する。
 - Backend全回帰、DB Guard、Migration、Draw性能、Backup／Restore、V1全回帰は、Task指示と
   変更Pathに基づき実行しない。
@@ -99,7 +102,7 @@ Backend API、Permission文字列は追加していない。
 - Rollback Tag: `oripa-v2-admin:mig061c-a6cab0d029ca`
 - Network `mig061a-v2-preview_v2_private`、固定IP `192.168.61.11`、Loopback
   `127.0.0.1:3611`、Restart Policy、Environment Key集合を記録した。
-- Candidate Build／Preview反映はPolicy Gate成功後に実施する。API、PostgreSQL、Redis、DB、
+- Candidate Build／Preview反映は全Local Gate成功後に実施する。API、PostgreSQL、Redis、DB、
   Migration、Nginx、TLS／DNS、V1、Storefront、Paymentは変更しない。
 
 ## 残っているUI課題
@@ -118,9 +121,9 @@ Backend API、Permission文字列は追加していない。
 
 ## Final／Gate
 
-- Blocker解除には、同じMIG-061DのTask Policyを最小拡張し、中央Admin Skeletonへ本Taskの
-  新規15 Pathを登録する`scripts/ci/policy_gate.py`と対応Policy Unit Testの変更許可が必要である。
-  WildcardやGate緩和は不要で、既存Assertionを維持した正確なPath追加だけを行う。
+- Policy再発行と中央Admin Skeleton登録のBlockerは解消済み。Application変更は
+  `d9fa73f77caf185f7506ceb9fc925942f5073f09`から不変のため、成功済みのTypecheck、Lint、
+  Build、全Unit、Browser E2E Evidenceを再利用した。
 - Fresh Self-review、GitHub Checks、Preview反映、Final Head、Squash Commit、Cleanupは
   Closeoutで確定する。
 - Gate G4: `NOT COMPLETE`
