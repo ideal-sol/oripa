@@ -7852,3 +7852,16 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
   `worklogs/reports/MIG-061G-report.md`。実装、検証、Preview反映、Closeout結果は後続追記する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061H以降は開始しない。
+
+### MIG-061G Implementation／Verification／Preview
+
+- User Read-only API、nullable `display_name` Migration、Admin一覧／詳細／ガチャ履歴を実装した。
+  全Active Admin Roleを同一Session境界で許可し、Mutationや専用Permissionは追加していない。
+- Task DBで12 tests／186 assertions、100 Userで6 Query／323.51ms、Admin Unit 25件、Browser 2件、
+  OpenAPI／生成差分／Typecheck／Lint／Build／Policy／Quality／Security Gateを確認した。
+- Preview DBへ000031だけを適用し、API Image `sha256:562e666f...`、Admin Image
+  `sha256:9d3c0e70...`へ更新した。Password Login、`/users` Empty State、Health、Console Error 0、
+  HTTP 500／502／504 0を確認した。
+- PostgreSQL／Redis Container、Nginx、V1、`luxe-pack.biz`、Paymentは変更していない。
+  詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
+  `worklogs/reports/MIG-061G-report.md`。
