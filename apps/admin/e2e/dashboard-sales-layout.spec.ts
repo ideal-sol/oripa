@@ -66,8 +66,9 @@ test("mobile Dashboard remains keyboard operable without page overflow", async (
   await page.goto("/");
 
   const dailyTab = page.getByRole("tab", { name: "日別売上" });
-  await dailyTab.focus();
-  await page.keyboard.press("Enter");
+  await page.getByRole("tab", { name: "月別売上" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(dailyTab).toBeFocused();
   await expect(dailyTab).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("対象日")).toBeVisible();
   await expect(page.getByRole("heading", { name: "決済一覧" })).toBeVisible();

@@ -50,7 +50,7 @@ export function DashboardSalesLayout({
           role="tablist"
           aria-label="売上管理表示切替"
         >
-          {salesViews.map((item) => (
+          {salesViews.map((item, index) => (
             <button
               aria-controls={`dashboard-sales-panel-${item.id}`}
               aria-selected={view === item.id}
@@ -58,6 +58,19 @@ export function DashboardSalesLayout({
               id={`dashboard-sales-tab-${item.id}`}
               key={item.id}
               onClick={() => setView(item.id)}
+              onKeyDown={(event) => {
+                const nextIndex = nextSalesViewIndex(event.key, index);
+                if (nextIndex === null) {
+                  return;
+                }
+
+                event.preventDefault();
+                setView(salesViews[nextIndex].id);
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>("[role='tab']")
+                  .item(nextIndex)
+                  .focus();
+              }}
               role="tab"
               tabIndex={view === item.id ? 0 : -1}
               type="button"
@@ -103,6 +116,22 @@ export function DashboardSalesLayout({
       )}
     </div>
   );
+}
+
+function nextSalesViewIndex(key: string, currentIndex: number): number | null {
+  if (key === "Home") {
+    return 0;
+  }
+  if (key === "End") {
+    return salesViews.length - 1;
+  }
+  if (key === "ArrowRight" || key === "ArrowDown") {
+    return (currentIndex + 1) % salesViews.length;
+  }
+  if (key === "ArrowLeft" || key === "ArrowUp") {
+    return (currentIndex - 1 + salesViews.length) % salesViews.length;
+  }
+  return null;
 }
 
 function PeriodControl({

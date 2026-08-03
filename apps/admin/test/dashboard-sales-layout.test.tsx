@@ -78,6 +78,22 @@ describe("Dashboard sales layout", () => {
     expect(screen.getAllByText("集計API未接続").length).toBeGreaterThan(0);
   });
 
+  it("moves and activates tabs with the standard keyboard controls", () => {
+    render(<DashboardSalesLayout />);
+
+    const monthlySales = screen.getByRole("tab", { name: "月別売上" });
+    monthlySales.focus();
+    fireEvent.keyDown(monthlySales, { key: "ArrowRight" });
+
+    const dailySales = screen.getByRole("tab", { name: "日別売上" });
+    expect(dailySales).toHaveFocus();
+    expect(dailySales).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(dailySales, { key: "End" });
+    expect(screen.getByRole("tab", { name: "返金/CB履歴" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "返金・チャージバック履歴" })).toBeVisible();
+  });
+
   it("makes deferred operations explicitly unavailable", () => {
     render(<DashboardSalesLayout />);
 
