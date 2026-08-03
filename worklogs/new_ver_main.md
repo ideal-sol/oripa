@@ -7716,7 +7716,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ### Verification／Preview
 
 - Admin Typecheck、Lint、Production Build、Unit `64件`、Browser E2E `16件`、
-  Candidate Desktop／Mobile Smoke、`git diff --check`がPASSした。
+  Candidate Desktop／Mobile Smoke、Policy／Quality／Security Gate、Secret Scan、
+  `git diff --check`がPASSした。
 - Preview Compose Project `mig061a-v2-preview`のAdminだけを更新し、Imageは
   `sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71`。
   旧Image

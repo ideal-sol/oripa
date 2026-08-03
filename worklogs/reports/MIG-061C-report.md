@@ -73,8 +73,11 @@
 - Shell対象Unit: `4 files / 14 tests` `PASS`
 - Admin Browser E2E: `16 tests` `PASS`
 - Candidate Container Login／Static Asset: Desktop／Mobile `PASS`
-- Policy Gate／Quality Gate／Security Gate／Secret・PII Scan／GitHub Required Checks:
-  Final Headで確定する。
+- Policy Gate／Quality Gate／Security Gate／Secret・PII Scan: `PASS`。Composer既存
+  Baseline `10件`、pnpm Finding `0件`、Secret Candidate `0件`、Baseline期限
+  `2026-08-07`を確認した。Dependency差分がないためMIG-061BのAudit JSONを再利用し、
+  Security Gateは本Task Headの全tracked fileを再走査した。
+- GitHub Required Checks: Final Headで確定する。
 - `git diff --check`: `PASS`
 - Backend全回帰、DB Guard、Migration、Draw性能、Backup／Restore、V1全回帰は、
   Backend／DB／V1差分がないためTask指示どおり実行していない。
