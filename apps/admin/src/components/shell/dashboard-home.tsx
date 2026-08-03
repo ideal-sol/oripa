@@ -15,7 +15,7 @@ import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { DashboardModuleCard } from "@/components/shell/dashboard-module-card";
 import {
-  navigationForPermissions,
+  navigationLinksForPermissions,
 } from "@/lib/permissions/admin-navigation";
 
 export function DashboardHome() {
@@ -23,9 +23,12 @@ export function DashboardHome() {
   const { error, permissions, retry, role, status } = usePermissions();
   const [freshOpen, setFreshOpen] = useState(false);
   const [freshConfirmed, setFreshConfirmed] = useState(false);
-  const modules = navigationForPermissions(
+  const modules = navigationLinksForPermissions(
     status === "ready" ? permissions : new Set(),
-  ).filter((item) => item.id !== "dashboard");
+    status === "ready" && role === "owner",
+  ).filter(
+    (item) => item.id !== "dashboard" && item.implementation === "available",
+  );
 
   return (
     <section className="workspace">

@@ -20,6 +20,29 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061d_admin_skeleton_registration_is_exact(self):
+        expected = {
+            "apps/admin/e2e/admin-navigation-hierarchy.spec.ts",
+            "apps/admin/src/app/announcements/new/page.tsx",
+            "apps/admin/src/app/announcements/page.tsx",
+            "apps/admin/src/app/banners/new/page.tsx",
+            "apps/admin/src/app/banners/page.tsx",
+            "apps/admin/src/app/catalog/gachas/history/page.tsx",
+            "apps/admin/src/app/catalog/gachas/new/page.tsx",
+            "apps/admin/src/app/catalog/gachas/simulation/page.tsx",
+            "apps/admin/src/app/purchase-plans/new/page.tsx",
+            "apps/admin/src/app/purchase-plans/page.tsx",
+            "apps/admin/src/app/settings/pages/page.tsx",
+            "apps/admin/src/app/settings/referral/page.tsx",
+            "apps/admin/src/app/users/history/page.tsx",
+            "apps/admin/src/app/users/page.tsx",
+            "apps/admin/test/admin-navigation-hierarchy.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061D_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def make_release_foundation(self, root):
         required = set(policy_gate.RELEASE_ARTIFACT_REQUIRED_FILES)
         required.add("package.json")
