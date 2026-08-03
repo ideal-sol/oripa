@@ -18,6 +18,7 @@ const auth = {
   mfaRequired: true,
   phase: "authenticated" as const,
 };
+const permission = { role: "owner" as "owner" | "admin" | "operator" };
 
 vi.mock("@/components/auth/admin-auth-provider", () => ({
   useAdminAuth: () => auth,
@@ -37,7 +38,7 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     ]),
     requestId: "01910191-0191-7191-8191-019101910191",
     retry: vi.fn(),
-    role: "owner",
+    role: permission.role,
     status: "ready",
   }),
 }));
@@ -49,14 +50,24 @@ vi.mock("next/navigation", () => ({
 
 import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { OwnerPreviewRoutePage } from "@/components/shell/owner-preview-route-page";
 import { proxy } from "@/proxy";
 
 describe("Admin shell and security boundaries", () => {
   beforeEach(() => {
+    permission.role = "owner";
     auth.freshTotp.mockReset().mockResolvedValue(undefined);
     auth.freshPassword.mockReset().mockResolvedValue(undefined);
     auth.freshWebauthn.mockReset().mockResolvedValue(undefined);
     auth.logout.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("keeps owner-only scaffold direct routes fail closed", () => {
+    permission.role = "admin";
+    render(<OwnerPreviewRoutePage routeId="users-list" />);
+
+    expect(screen.getByRole("heading", { name: "アクセスできません" })).toBeVisible();
+    expect(screen.queryByText("詳細画面は後続Taskで実装します。")).toBeNull();
   });
 
   it("shows the backend-provided role and supports logout", async () => {

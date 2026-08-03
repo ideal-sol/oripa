@@ -10,6 +10,13 @@ export function CatalogBreadcrumb({
   detail?: string;
   section: CatalogSection;
 }) {
+  const parentLabel = section.resource === "presentation-assets"
+    ? "各種設定"
+    : (["gachas", "categories", "tags"] as const).includes(
+        section.resource as "gachas" | "categories" | "tags",
+      )
+      ? "ガチャ"
+      : "カタログ";
   return (
     <nav aria-label="パンくず" className="breadcrumb">
       <ol>
@@ -18,7 +25,7 @@ export function CatalogBreadcrumb({
         </li>
         <li>
           <ChevronRight size={14} aria-hidden="true" />
-          <Link href="/catalog">カタログ</Link>
+          <span>{parentLabel}</span>
         </li>
         <li aria-current={detail ? undefined : "page"}>
           <ChevronRight size={14} aria-hidden="true" />

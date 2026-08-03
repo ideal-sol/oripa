@@ -1,202 +1,280 @@
-import type { AdminPermissionCode } from "@/lib/admin-api/generated";
+import type {
+  AdminPermissionCode,
+  AdminRole,
+} from "@/lib/admin-api/generated";
 
 export type AdminRouteId =
   | "dashboard"
-  | "catalog"
+  | "users-list"
+  | "users-history"
   | "gachas"
+  | "gachas-create"
+  | "gachas-simulation"
+  | "categories"
+  | "tags"
+  | "gachas-history"
+  | "shipping"
+  | "purchase-plans"
+  | "purchase-plans-create"
+  | "announcements"
+  | "announcements-create"
+  | "banners"
+  | "banners-create"
+  | "contacts"
+  | "page-settings"
+  | "presentation-assets"
+  | "referral-settings"
+  | "line-settings"
+  | "catalog"
   | "prizes"
   | "qa"
-  | "shipping"
   | "reports"
   | "content"
+  | "authentication-settings";
+
+export type AdminNavigationGroupId =
+  | "users"
+  | "gacha"
+  | "shipping"
+  | "purchase"
+  | "announcements"
+  | "banners"
   | "contacts"
-  | "authentication-settings"
-  | "line-settings";
+  | "settings";
 
 export type AdminNavigationIcon =
   | "dashboard"
+  | "users"
   | "catalog"
   | "gacha"
   | "prize"
   | "qa"
   | "shipping"
+  | "purchase"
   | "reports"
   | "content"
+  | "announcements"
+  | "banners"
   | "contacts"
+  | "settings"
   | "authentication-settings"
   | "line-settings";
 
 export interface AdminNavigationItem {
+  kind: "link";
   id: AdminRouteId;
   label: string;
   path: `/${string}` | "/";
   permission: AdminPermissionCode | null;
   icon: AdminNavigationIcon;
-  section: "overview" | "operations" | "support";
-  sortOrder: number;
-  implementation: "available" | "planned";
+  implementation: "available" | "scaffold";
+  ownerOnly?: true;
   freshMfaBoundary: "none" | "module-actions";
 }
 
-export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigation([
-  {
-    id: "dashboard",
-    label: "ダッシュボード",
-    path: "/",
-    permission: null,
-    icon: "dashboard",
-    section: "overview",
-    sortOrder: 10,
-    implementation: "available",
-    freshMfaBoundary: "none",
-  },
-  {
-    id: "catalog",
-    label: "カタログ概要",
-    path: "/catalog",
-    permission: "catalog.read",
-    icon: "catalog",
-    section: "operations",
-    sortOrder: 20,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "gachas",
-    label: "ガチャ管理",
-    path: "/catalog/gachas",
-    permission: "catalog.read",
-    icon: "gacha",
-    section: "operations",
-    sortOrder: 21,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "prizes",
-    label: "景品管理",
-    path: "/catalog/prizes",
-    permission: "catalog.read",
-    icon: "prize",
-    section: "operations",
-    sortOrder: 22,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "qa",
-    label: "QA管理",
-    path: "/qa",
-    permission: "qa.draw.manage",
-    icon: "qa",
-    section: "operations",
-    sortOrder: 30,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "shipping",
-    label: "景品・配送",
-    path: "/shipping",
-    permission: "shipping.request.manage",
-    icon: "shipping",
-    section: "operations",
-    sortOrder: 40,
-    implementation: "planned",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "reports",
-    label: "レポート",
-    path: "/reports",
-    permission: "reporting.financial.read",
-    icon: "reports",
-    section: "operations",
-    sortOrder: 50,
-    implementation: "planned",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "content",
-    label: "コンテンツ",
-    path: "/content",
-    permission: "content.read",
-    icon: "content",
-    section: "support",
-    sortOrder: 60,
-    implementation: "planned",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "contacts",
-    label: "お問い合わせ",
-    path: "/contacts",
-    permission: "contact.read",
-    icon: "contacts",
-    section: "support",
-    sortOrder: 70,
-    implementation: "planned",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "authentication-settings",
-    label: "管理者認証",
-    path: "/settings/authentication",
-    permission: "identity.admin.manage",
-    icon: "authentication-settings",
-    section: "support",
-    sortOrder: 80,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
-  {
-    id: "line-settings",
-    label: "LINE設定",
-    path: "/settings/line",
-    permission: "identity.line.manage",
-    icon: "line-settings",
-    section: "support",
-    sortOrder: 90,
-    implementation: "available",
-    freshMfaBoundary: "module-actions",
-  },
+export interface AdminNavigationGroup {
+  kind: "group";
+  id: AdminNavigationGroupId;
+  label: string;
+  icon: AdminNavigationIcon;
+  children: readonly AdminNavigationItem[];
+}
+
+export type AdminNavigationNode = AdminNavigationItem | AdminNavigationGroup;
+
+const ADMIN_ROUTE_ITEMS = validateRoutes([
+  route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
+  route("users-list", "一覧", "/users", null, "users", "scaffold", "module-actions", true),
+  route("users-history", "履歴", "/users/history", null, "users", "scaffold", "module-actions", true),
+  route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
+  route("gachas-create", "登録", "/catalog/gachas/new", "catalog.manage", "gacha", "scaffold"),
+  route("gachas-simulation", "シミュレーション", "/catalog/gachas/simulation", null, "gacha", "scaffold", "module-actions", true),
+  route("categories", "カテゴリ", "/catalog/categories", "catalog.read", "catalog"),
+  route("tags", "タグ", "/catalog/tags", "catalog.read", "catalog"),
+  route("gachas-history", "履歴", "/catalog/gachas/history", "reporting.financial.read", "reports", "scaffold"),
+  route("shipping", "一覧", "/shipping", "shipping.request.manage", "shipping"),
+  route("purchase-plans", "一覧", "/purchase-plans", null, "purchase", "scaffold", "module-actions", true),
+  route("purchase-plans-create", "登録", "/purchase-plans/new", null, "purchase", "scaffold", "module-actions", true),
+  route("announcements", "一覧", "/announcements", "content.read", "announcements", "scaffold"),
+  route("announcements-create", "登録", "/announcements/new", "content.manage", "announcements", "scaffold"),
+  route("banners", "一覧", "/banners", "content.read", "banners", "scaffold"),
+  route("banners-create", "登録", "/banners/new", "content.manage", "banners", "scaffold"),
+  route("contacts", "一覧", "/contacts", "contact.read", "contacts"),
+  route("page-settings", "ページ設定", "/settings/pages", "content.read", "content", "scaffold"),
+  route("presentation-assets", "演出設定", "/catalog/presentation-assets", "catalog.read", "catalog"),
+  route("referral-settings", "紹介ポイント設定", "/settings/referral", null, "settings", "scaffold", "module-actions", true),
+  route("line-settings", "LINE設定", "/settings/line", "identity.line.manage", "line-settings"),
+
+  // Existing direct routes remain registered even when they are not in the sidebar.
+  route("catalog", "カタログ概要", "/catalog", "catalog.read", "catalog"),
+  route("prizes", "景品管理", "/catalog/prizes", "catalog.read", "prize"),
+  route("qa", "QA管理", "/qa", "qa.draw.manage", "qa"),
+  route("reports", "レポート", "/reports", "reporting.financial.read", "reports", "scaffold"),
+  route("content", "コンテンツ", "/content", "content.read", "content", "scaffold"),
+  route("authentication-settings", "管理者認証", "/settings/authentication", "identity.admin.manage", "authentication-settings"),
+]);
+
+const ROUTES_BY_ID = new Map(ADMIN_ROUTE_ITEMS.map((item) => [item.id, item]));
+
+export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigation([
+  navigationItem("dashboard"),
+  group("users", "ユーザー", "users", ["users-list", "users-history"]),
+  group("gacha", "ガチャ", "gacha", [
+    "gachas",
+    "gachas-create",
+    "gachas-simulation",
+    "categories",
+    "tags",
+    "gachas-history",
+  ]),
+  group("shipping", "配送", "shipping", ["shipping"]),
+  group("purchase", "ポイント購入", "purchase", [
+    "purchase-plans",
+    "purchase-plans-create",
+  ]),
+  group("announcements", "お知らせ", "announcements", [
+    "announcements",
+    "announcements-create",
+  ]),
+  group("banners", "バナー", "banners", ["banners", "banners-create"]),
+  group("contacts", "お問い合わせ", "contacts", ["contacts"]),
+  group("settings", "各種設定", "settings", [
+    "page-settings",
+    "presentation-assets",
+    "referral-settings",
+    "line-settings",
+  ]),
 ]);
 
 export function navigationItem(id: AdminRouteId): AdminNavigationItem {
-  const item = ADMIN_NAVIGATION.find((candidate) => candidate.id === id);
-  if (!item) {
-    throw new Error("Unknown admin route.");
-  }
+  const item = ROUTES_BY_ID.get(id);
+  if (!item) throw new Error("Unknown admin route.");
   return item;
 }
 
 export function navigationForPermissions(
   permissions: ReadonlySet<AdminPermissionCode>,
+  role: AdminRole | null = null,
+): AdminNavigationNode[] {
+  const visible: AdminNavigationNode[] = [];
+  for (const node of ADMIN_NAVIGATION) {
+    if (node.kind === "link") {
+      if (isVisible(node, permissions, role)) visible.push(node);
+      continue;
+    }
+    const children = node.children.filter((item) => isVisible(item, permissions, role));
+    if (children.length) visible.push({ ...node, children });
+  }
+  return visible;
+}
+
+export function navigationLinksForPermissions(
+  permissions: ReadonlySet<AdminPermissionCode>,
+  role: AdminRole | null = null,
 ): AdminNavigationItem[] {
-  return ADMIN_NAVIGATION.filter(
-    (item) =>
-      item.implementation === "available" &&
-      (item.permission === null || permissions.has(item.permission)),
+  return navigationForPermissions(permissions, role).flatMap((node) =>
+    node.kind === "group" ? [...node.children] : [node],
   );
 }
 
-function validateNavigation(
-  items: AdminNavigationItem[],
-): readonly AdminNavigationItem[] {
+export function activeNavigationItem(
+  pathname: string,
+  nodes: readonly AdminNavigationNode[],
+): AdminNavigationItem | null {
+  return nodes
+    .flatMap((node) => (node.kind === "group" ? [...node.children] : [node]))
+    .filter((item) =>
+      item.path === "/"
+        ? pathname === "/"
+        : pathname === item.path || pathname.startsWith(`${item.path}/`),
+    )
+    .sort((left, right) => right.path.length - left.path.length)[0] ?? null;
+}
+
+export function navigationGroupForRoute(
+  routeId: AdminRouteId,
+): AdminNavigationGroup | null {
+  return ADMIN_NAVIGATION.find(
+    (node): node is AdminNavigationGroup =>
+      node.kind === "group" && node.children.some((item) => item.id === routeId),
+  ) ?? null;
+}
+
+function isVisible(
+  item: AdminNavigationItem,
+  permissions: ReadonlySet<AdminPermissionCode>,
+  role: AdminRole | null,
+): boolean {
+  if (item.ownerOnly) return role === "owner";
+  return item.permission === null || permissions.has(item.permission);
+}
+
+function route(
+  id: AdminRouteId,
+  label: string,
+  path: AdminNavigationItem["path"],
+  permission: AdminPermissionCode | null,
+  icon: AdminNavigationIcon,
+  implementation: AdminNavigationItem["implementation"] = "available",
+  freshMfaBoundary: AdminNavigationItem["freshMfaBoundary"] = "module-actions",
+  ownerOnly = false,
+): AdminNavigationItem {
+  return {
+    kind: "link",
+    id,
+    label,
+    path,
+    permission,
+    icon,
+    implementation,
+    freshMfaBoundary,
+    ...(ownerOnly ? { ownerOnly: true as const } : {}),
+  };
+}
+
+function group(
+  id: AdminNavigationGroupId,
+  label: string,
+  icon: AdminNavigationIcon,
+  routeIds: readonly AdminRouteId[],
+): AdminNavigationGroup {
+  return {
+    kind: "group",
+    id,
+    label,
+    icon,
+    children: routeIds.map(navigationItem),
+  };
+}
+
+function validateRoutes(items: AdminNavigationItem[]): readonly AdminNavigationItem[] {
   const ids = new Set<AdminRouteId>();
   const paths = new Set<string>();
-  const sortOrders = new Set<number>();
   for (const item of items) {
-    if (
-      ids.has(item.id) ||
-      paths.has(item.path) ||
-      sortOrders.has(item.sortOrder)
-    ) {
-      throw new Error("Admin navigation registry contains duplicate values.");
+    if (ids.has(item.id) || paths.has(item.path)) {
+      throw new Error("Admin route registry contains duplicate values.");
     }
     ids.add(item.id);
     paths.add(item.path);
-    sortOrders.add(item.sortOrder);
   }
-  return Object.freeze([...items].sort((left, right) => left.sortOrder - right.sortOrder));
+  return Object.freeze(items);
+}
+
+function validateNavigation(nodes: AdminNavigationNode[]): readonly AdminNavigationNode[] {
+  const groupIds = new Set<AdminNavigationGroupId>();
+  const routeIds = new Set<AdminRouteId>();
+  for (const node of nodes) {
+    if (node.kind === "group") {
+      if (groupIds.has(node.id)) throw new Error("Duplicate admin navigation group.");
+      groupIds.add(node.id);
+      for (const item of node.children) {
+        if (routeIds.has(item.id)) throw new Error("Duplicate admin navigation route.");
+        routeIds.add(item.id);
+      }
+    } else {
+      if (routeIds.has(node.id)) throw new Error("Duplicate admin navigation route.");
+      routeIds.add(node.id);
+    }
+  }
+  return Object.freeze(nodes);
 }

@@ -7731,3 +7731,30 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `worklogs/reports/MIG-061C-report.md`。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Task専用Resource Cleanupは
   Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Dは開始しない。
+
+## MIG-061D Admin Sidebar Hierarchy／Route Scaffold
+
+### Task／Scope
+
+- Issue `#172`、Branch `feat/MIG-061D-admin-sidebar-hierarchy`、Risk `R3`。
+- Baseは`main@fcc782daee4e6303858e412d9fe4372dc9919c7c`、Task Policy SHA-256は
+  `b9cb11f732882a34674c633051be8dbebe67a25c5a795078445249019ccc0dd5`。
+- SidebarをDashboardと8 Parent Groupへ階層化し、指定順序、Accordion、Current Routeの
+  自動展開、最長Path Active、Desktop／Mobile共通Registryを実装した。
+- 既存8 Routeは維持し、未実装13 RouteへTitle、Breadcrumb、後続Task案内だけのScaffoldを
+  追加した。架空Data、Backend API、Permission、Dashboard KPIは追加していない。
+- Ownerは全ScaffoldをPreviewでき、既存Permissionがある項目はEffective Permissionを維持する。
+  Permissionがない新規ScaffoldはOwner-only BoundaryでFail Closedとした。
+
+### Verification／Preview
+
+- Frozen Install、Admin Typecheck、Lint、対象Unit `15 tests`、全Admin Unit `72 tests`がPASS。
+- Browser E2Eは最終全2件がPASS。Mobileで既存OverlayがDrawer Linkを遮断する問題を
+  検出し、Sidebar z-indexを最小修正後にDesktop／Mobileを同一Headで確認した。
+- Preview Admin切替前Imageは
+  `sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71`。
+  API／DB／Migration／Nginx／V1は変更していない。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061D/`、提出Reportは
+  `worklogs/reports/MIG-061D-report.md`。Final検証、Preview反映、Fresh Self-review、
+  GitHub Check、Squash Merge、CleanupはCloseoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Eは開始しない。

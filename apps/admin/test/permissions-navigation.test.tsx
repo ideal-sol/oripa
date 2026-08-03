@@ -33,6 +33,7 @@ import { AdminNavigation } from "@/components/navigation/admin-navigation";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import {
   ADMIN_NAVIGATION,
+  navigationLinksForPermissions,
   navigationForPermissions,
 } from "@/lib/permissions/admin-navigation";
 import { ADMIN_PERMISSION_CODES } from "@/lib/admin-api/generated";
@@ -46,7 +47,7 @@ describe("Admin permission navigation", () => {
     pathname.value = "/";
   });
 
-  it("shows only modules granted by effective permission codes", () => {
+  it("shows only groups granted by effective permission codes", () => {
     permissionState.permissions = new Set([
       "catalog.read",
       "shipping.request.manage",
@@ -56,38 +57,46 @@ describe("Admin permission navigation", () => {
     render(<AdminNavigation />);
 
     expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "カタログ概要" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "ガチャ管理" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "景品管理" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: "景品・配送" })).toBeNull();
+    expect(screen.getByRole("button", { name: "ガチャ" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "配送" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "お知らせ" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "お問い合わせ" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "ユーザー" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "景品管理" })).toBeNull();
     expect(screen.queryByRole("link", { name: "QA管理" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "レポート" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "LINE設定" })).toBeNull();
 
-    permissionState.permissions.add("identity.line.manage");
-    render(<AdminNavigation />);
-    expect(screen.getByRole("link", { name: "LINE設定" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "ガチャ" }));
+    expect(screen.getByRole("link", { name: "一覧" })).toHaveAttribute(
+      "href",
+      "/catalog/gachas",
+    );
   });
 
-  it("marks nested module paths active and keeps registry values unique", () => {
-    pathname.value = "/catalog/gachas";
-    permissionState.permissions = new Set(["catalog.read"]);
+  it("marks the longest nested path active and keeps registry values unique", () => {
+    pathname.value = "/catalog/gachas/new";
+    permissionState.permissions = new Set(["catalog.read", "catalog.manage"]);
     render(<AdminNavigation />);
 
-    expect(screen.getByRole("link", { name: "ガチャ管理" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "ガチャ" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "登録" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "カタログ概要" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "一覧" })).not.toHaveAttribute(
       "aria-current",
     );
-    expect(new Set(ADMIN_NAVIGATION.map((item) => item.id)).size).toBe(
+    expect(new Set(ADMIN_NAVIGATION.map((node) => node.id)).size).toBe(
       ADMIN_NAVIGATION.length,
     );
-    expect(new Set(ADMIN_NAVIGATION.map((item) => item.path)).size).toBe(
-      ADMIN_NAVIGATION.length,
+    const items = navigationLinksForPermissions(
+      new Set(ADMIN_PERMISSION_CODES),
+      "owner",
     );
-    for (const item of ADMIN_NAVIGATION) {
+    expect(new Set(items.map((item) => item.path)).size).toBe(items.length);
+    for (const item of items) {
       if (item.permission) {
         expect(ADMIN_PERMISSION_CODES).toContain(item.permission);
       }

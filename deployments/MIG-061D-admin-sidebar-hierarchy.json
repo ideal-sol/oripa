@@ -1,0 +1,39 @@
+{
+  "task_id": "MIG-061D",
+  "risk": "R3",
+  "status": "implementation_validated_preview_pending",
+  "base_branch": "main",
+  "base_sha": "fcc782daee4e6303858e412d9fe4372dc9919c7c",
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "network": "mig061a-v2-preview_v2_private",
+    "admin_internal_address": "192.168.61.11:3000",
+    "admin_loopback_address": "127.0.0.1:3611"
+  },
+  "artifacts": {
+    "admin_image_digest_before": "sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71",
+    "admin_image_digest_after": null,
+    "admin_source_sha": null,
+    "admin_image_tag": null,
+    "rollback_image_tag": "oripa-v2-admin:mig061c-a6cab0d029ca"
+  },
+  "verification": {
+    "admin_health": "PENDING",
+    "password_only_login": "PENDING",
+    "sidebar_hierarchy": "PENDING",
+    "scaffold_routes": "PENDING",
+    "mobile_drawer": "PENDING",
+    "horizontal_overflow": "PENDING",
+    "console_critical_errors": null,
+    "http_500_502_504": null,
+    "api_container_change": "NONE",
+    "database_change": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "nginx_checksum_before": "6b3ec7ba155c764e6ce47e960a5303fc68e370cba6f2dfbf1c5fd5726edb4be2",
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

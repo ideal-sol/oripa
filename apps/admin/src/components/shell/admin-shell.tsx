@@ -139,7 +139,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <X size={19} />
             </button>
           </div>
-          <AdminNavigation onNavigate={() => setMobileOpen(false)} />
+          <AdminNavigation
+            compact={compact}
+            onNavigate={() => setMobileOpen(false)}
+            onRequestExpand={() => setCompact(false)}
+          />
         </aside>
         <div className="admin-shell-body">
           <header className="admin-header">
