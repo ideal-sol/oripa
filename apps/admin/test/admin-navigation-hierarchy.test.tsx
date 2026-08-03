@@ -127,11 +127,14 @@ describe("Admin sidebar hierarchy", () => {
     expect(active?.id).toBe("gachas-create");
   });
 
-  it("keeps owner-only scaffolds hidden from other roles", () => {
+  it("shows the User list while keeping owner-only scaffolds hidden", () => {
     permissionState.role = "admin";
     render(<AdminNavigation />);
 
-    expect(screen.queryByRole("button", { name: "ユーザー" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "ユーザー" }));
+    const userGroup = document.getElementById("admin-nav-users")!;
+    expect(within(userGroup).getByRole("link", { name: "一覧" })).toBeVisible();
+    expect(within(userGroup).queryByRole("link", { name: "履歴" })).toBeNull();
     expect(screen.queryByRole("button", { name: "ポイント購入" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "ガチャ" }));
     expect(screen.queryByRole("link", { name: "シミュレーション" })).toBeNull();

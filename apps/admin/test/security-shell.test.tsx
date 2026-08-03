@@ -64,7 +64,7 @@ describe("Admin shell and security boundaries", () => {
 
   it("keeps owner-only scaffold direct routes fail closed", () => {
     permission.role = "admin";
-    render(<ModuleRoutePage routeId="users-list" />);
+    render(<ModuleRoutePage routeId="users-history" />);
 
     expect(screen.getByRole("heading", { name: "アクセスできません" })).toBeVisible();
     expect(screen.queryByText("詳細画面は後続Taskで実装します。")).toBeNull();

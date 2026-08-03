@@ -7865,3 +7865,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PostgreSQL／Redis Container、Nginx、V1、`luxe-pack.biz`、Paymentは変更していない。
   詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
   `worklogs/reports/MIG-061G-report.md`。
+- GitHub全Suiteで検出した旧Owner-only Admin Test 2件とV1-only Schema上の新V2 Unit実行境界を補正した。
+  Task Policyは関連Test 2 Pathだけを追加してAtomic再発行し、最終SHA-256は
+  `210e46d87242ab8bf31ab8a323de9b98981a06ef0a891246cffbdbe638aedf9e`である。

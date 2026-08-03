@@ -9,7 +9,8 @@
 - Issue／PR: `#180`／`#181`
 - Task Policy SHA-256:
   - Initial: `ad1a7a279def2d189ecc818fc42202ba06f02f00cdfc63b782ed457c7b72fa10`
-  - Final corrected: `e94dbac9d014fff7293f73e024617a5a2640dfa894bdf0dc2e722922af634c2b`
+  - Phase 0 corrected: `e94dbac9d014fff7293f73e024617a5a2640dfa894bdf0dc2e722922af634c2b`
+  - Final corrected: `210e46d87242ab8bf31ab8a323de9b98981a06ef0a891246cffbdbe638aedf9e`
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061G/`
 - Application／Image Source Head: `c269b5b4202e358d9cf2bc11101d27175e3efdb8`
 - Final Head／Squash Commit: CloseoutのGitHub merge結果を正本とする。
@@ -24,6 +25,9 @@
   - `apps/admin/test/permissions-navigation.test.tsx`
 - Wildcard、Directory単位、中央Permission Matrix、`/users/history`、V1、Storefront、Payment、
   Nginx／TLS／DNSは追加していない。
+- GitHub全Admin Unitで旧Owner-only期待を持つ既存Test 2件が検出されたため、
+  `apps/admin/test/admin-navigation-hierarchy.test.tsx`と`apps/admin/test/security-shell.test.tsx`だけを
+  追加でAtomic許可した。他Fieldと既存Allowed Pathsは不変である。
 
 ## Characterization
 
@@ -68,7 +72,8 @@
 - Backend Domain／HTTP／Schemaは12 tests／186 assertions PASS。Owner／Admin／Operator 200、未認証401、
   無効Admin拒否、404、残高境界、表示名NULL、Cursor、Public ID、不要PII非露出を確認した。
 - 性能Fixture 100 Userで一覧は6 Query、323.51ms。行数依存N+1はない。
-- Admin Unit／Componentは3 files／25 tests、対象Browser E2EはDesktop／Mobile 2件PASS。
+- Admin対象Unit／Componentは3 files／25 tests、全Admin Unitは16 files／86 tests、対象Browser E2Eは
+  Desktop／Mobile 2件PASS。
   一覧列順、未設定表示、詳細非重複、別履歴Route、Cursor追読、Operator表示、Keyboard Scrollを確認した。
 - OpenAPI Lint／Bundle／Breaking、Admin生成差分0、Typecheck、Lint、Production Build、PHP構文、
   Policy Unit 94件、Policy／Quality／Security Gate、`git diff --check`がPASSした。
@@ -100,6 +105,13 @@
   実装後は新規Backend／Admin 13 Pathを中央Policy Gateへ完全一致登録し、Migration完全一致集合にも000031を追加した。
 - Task API ContainerのPHP構文PathとReact Effect Lint、PlaywrightのAccessible Name部分一致を個別に修正した。
   Assertion、Timeout、Security Gateは緩和していない。
+- GitHub IntegrationのV1-only Schemaでは新V2 Unit 2件が新規Failureになったため、既存Reporting Unitと
+  同じSchema存在Guardを追加した。Task V2 DBでは2 tests／23 assertionsを再確認した。
+- GitHub Qualityでは旧Sidebar Test 2件が`users-list`をOwner-onlyと期待していたため、最新の
+  全管理者Read方針へ更新し、未実装`users-history`のOwner-only境界は維持した。全Admin Unitを再実行した。
+- GitHub補正後に`c269b5b4202e358d9cf2bc11101d27175e3efdb8`との差分をApplication、Contract、
+  Migration Pathへ限定して機械確認し、差分0を確認した。補正はTest／Worklog／Policyだけのため、
+  同じApplication Headで成功済みのPreview Image、Migration、Browser Evidenceを再利用し、再Deploymentは行っていない。
 - Preview Migrationの最初のOne-off Compose実行は固定IP衝突でContainer起動前に失敗した。
   稼働API EnvironmentをRepository外0600 Fileへ値を表示せず抽出し、固定IPなしの一時Containerで安全に再実行した。
 
