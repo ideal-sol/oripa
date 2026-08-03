@@ -11,7 +11,7 @@
 - Task Policy SHA-256:
   `da9b9751808b10a12683e9c2c63ac3542a19e53e9bfdea8e39ad95d6ee636522`
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061E/`
-- Application／Image Source Head: `b219b992bcb7be559ed61312f2291c3f9a2fab51`
+- Application／Image Source Head: `58b567e439ed7c787be0b406435f2054ee3dae72`
 - Final Head／Squash Commit: Closeout時に確定する。
 
 ## V1 Characterization結果
@@ -60,6 +60,8 @@
   Table／Calendar専用横Scroll、Page横溢れ0を確認した。
 - Tablist／Tab／Tabpanel、`aria-selected`、Form Label、Heading階層、Table Header、
   Loading `aria-live`、Empty `role=status`、Error `role=alert`、Keyboard／Focusを実装した。
+- Fresh Self-reviewで検出したTablistのKeyboard到達性不足を修正し、Arrow Up／Down／Left／Right、
+  Home／Endで選択とFocusが同期するWAI-ARIA Tab操作を追加した。
 - Headless Browser Hostに日本語FontがないためScreenshotではCJK Glyphが描画されないが、
   DOM Text、Accessible Name、Browser Assertion、Layout寸法はPASSしている。
 
@@ -68,10 +70,11 @@
 - Frozen Install: `PASS`（pnpm `10.12.1`、Lockfile差分0）
 - Admin Typecheck／Lint: `PASS`
 - Admin Unit／Component: `15 files／78 tests` `PASS`
-- Dashboard対象Unit: `6 tests` `PASS`
+- Dashboard対象Unit: `7 tests` `PASS`（Keyboard Arrow／End操作を含む）
 - Dashboard Browser E2E: Desktop／Mobile `PASS`。最初のDesktop実行は`総売上`の曖昧な
   Test Locatorだけが失敗し、完全一致へ修正後に失敗Caseを再実行した。Mobileは初回PASS。
 - Production Build: `PASS`（Browser E2EのStandalone BuildおよびImage Build）
+- Keyboard修正後の対象Browser E2E: Desktop／Mobile `2 tests` `PASS`
 - Admin生成差分: `0`
 - Policy Unit: `92 tests` `PASS`
 - Policy／Quality Gate: `PASS`
@@ -90,10 +93,15 @@
   Restart Policy、Environment Key集合を維持した。
 - Admin Imageは
   `sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf`から
-  `sha256:b63d623d28c1e34b4cd6137d878e39af9433bbc339547d8f1b1e147251166c2e`へ更新した。
+  `sha256:a80018dd0aec36f283fbdc47cfe3a830a156bf3c8bd791f88021a25fafc1ad4e`へ更新した。
 - Rollback Image `oripa-v2-admin:mig061d-9b1e3c0e046b`は保持し、Rollbackは不要だった。
 - 実DomainでPassword-only Login、Dashboard、5 Tab順、Desktop／Mobile、Sidebar、
-  API Healthを確認した。Console Critical Error 0、Page Error 0、HTTP 500／502／504 0である。
+  Keyboard Tab移動、API Session接続を確認した。Console Critical Error 0、Page Error 0、
+  HTTP 500／502／504 0である。
+- ComposeのLoopback `127.0.0.1:3611` Port Binding宣言はHostConfigへ維持されるが、`internal: true`
+  の既存NetworkではDockerがHost側NATを公開せず、Loopback Probeは接続不可だった。Nginxは
+  既存固定IP `192.168.61.11:3000`を使用し、Domain HealthとBrowser SmokeはPASSしている。
+  Network／Compose／Nginx変更は本Taskの境界外のため行っていない。
 - API、PostgreSQL、RedisのContainer IDは前後一致する。DB／Migration、Nginx／TLS／DNS、
   V1、Storefront、Paymentは変更していない。Nginx設定集合checksumは前後とも
   `d87556c77d433637b958826d41b9af9e69316fdb218089e9a626fca9d61aa1e1`である。
@@ -114,6 +122,9 @@
   Security Unitは再実行せず、そのEvidenceを維持してGate本体だけ正しい引数で再実行した。
 - Candidate Image BuildはClassic Builderで52秒。開始時Root空き4.3GB、Build Cache 0Bで、
   Rollback Image、稼働Container、Named Volumeを保護しCleanupは行っていない。
+- Fresh Self-reviewでTablistの矢印Key操作不足を検出したため、許可済み3 Pathだけを修正した。
+  Typecheck、Lint、Unit 7件、Browser E2E 2件、Production Buildを対象再実行し、Admin Imageだけを
+  再Build／再配置した。成功済みBackend／DB／V1 Evidenceは重複実行していない。
 
 ## Final／Gate
 

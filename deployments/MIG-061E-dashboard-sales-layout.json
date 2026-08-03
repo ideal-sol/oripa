@@ -16,9 +16,9 @@
   },
   "artifacts": {
     "admin_image_digest_before": "sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf",
-    "admin_image_digest_after": "sha256:b63d623d28c1e34b4cd6137d878e39af9433bbc339547d8f1b1e147251166c2e",
-    "admin_source_sha": "b219b992bcb7be559ed61312f2291c3f9a2fab51",
-    "admin_image_tag": "oripa-v2-admin:mig061e-b219b992bcb7",
+    "admin_image_digest_after": "sha256:a80018dd0aec36f283fbdc47cfe3a830a156bf3c8bd791f88021a25fafc1ad4e",
+    "admin_source_sha": "58b567e439ed7c787be0b406435f2054ee3dae72",
+    "admin_image_tag": "oripa-v2-admin:mig061e-58b567e439ed",
     "rollback_image_tag": "oripa-v2-admin:mig061d-9b1e3c0e046b"
   },
   "verification": {
@@ -28,10 +28,12 @@
     "v1_view_order": "PASS_5",
     "desktop": "PASS",
     "mobile": "PASS",
+    "keyboard_navigation": "PASS",
     "horizontal_overflow": "PASS",
     "console_critical_errors": 0,
     "page_errors": 0,
     "http_500_502_504": 0,
+    "loopback_binding": "DECLARED_NOT_REACHABLE_ON_INTERNAL_NETWORK",
     "api_container_change": "NONE",
     "database_change": "NONE",
     "nginx_change": "NONE",
