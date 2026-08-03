@@ -7765,3 +7765,39 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Password-only Login、21 Route、8 Parent、Desktop／Mobile、Console Error 0、HTTP 500／502／504
   0を確認し、API／DB／Migration／Nginx／V1は変更していない。Rollback Imageは保持する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Eは開始しない。
+
+## MIG-061E Dashboard V1 Sales Management Layout
+
+### Task／Scope
+
+- Issue `#176`、PR `#177`、Branch `feat/MIG-061E-dashboard-sales-layout`、Risk `R3`。
+- Baseは`main@21648f1d4a00355be6ede17a2de7735a99f949ff`、Task Policy SHA-256は
+  `da9b9751808b10a12683e9c2c63ac3542a19e53e9bfdea8e39ad95d6ee636522`。
+- V1売上管理のRead-only Characterizationに基づき、V2 Admin `/`へ月別売上、日別売上、
+  月別ポイント消費、日別ポイント消費、返金/CB履歴の5表示を同じ順序で実装した。
+- Backend API、OpenAPI、Generated Client、DB、Migration、実集計、CSV生成、V1は変更していない。
+
+### Dashboard／Verification
+
+- 対象年月／対象日／期間、売上4 Summary、有償／無償Point Summary、Calendar／Table領域を
+  TailAdmin基準の既存Shellへ適合した。集計Contract未実装のため架空数値を表示せず、
+  「集計API未接続」と明示し、CSV／検索は後続Task表示のDisabled操作とした。
+- Frozen Install、Admin Typecheck、Lint、全Unit `78 tests`、Dashboard Browser Desktop／Mobile、
+  Production Build、Admin生成差分0、Policy Unit `92 tests`、Policy／Quality／Security Gate、
+  Secret Candidate 0、`git diff --check`がPASSした。
+- 新規Admin Component／Unit／E2Eの3 Pathだけを中央Admin Skeletonへ完全一致登録した。
+  Wildcard、Directory、将来Path、Gate緩和はない。
+
+### Preview
+
+- Preview Admin Imageを
+  `sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf`から
+  `sha256:b63d623d28c1e34b4cd6137d878e39af9433bbc339547d8f1b1e147251166c2e`へ更新した。
+- Password-only Login、Dashboard、5表示順、Desktop／Mobile、API Health、横溢れ0、
+  Console／Page Error 0、HTTP 500／502／504 0を確認した。Rollbackは不要で旧Imageを保持する。
+- API／PostgreSQL／Redis Container、DB／Migration、Nginx checksum、V1、`ad.luxe-pack.biz`、
+  `luxe-pack.biz`、Storefront、Paymentは変更していない。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061E/`、提出Reportは
+  `worklogs/reports/MIG-061E-report.md`。Final Head、GitHub Checks、Fresh Self-review、
+  Squash Commit、CleanupはCloseoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061F以降は開始しない。

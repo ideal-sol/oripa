@@ -1,0 +1,44 @@
+{
+  "task_id": "MIG-061E",
+  "risk": "R3",
+  "status": "preview_deployed_checks_pending",
+  "base_branch": "main",
+  "base_sha": "21648f1d4a00355be6ede17a2de7735a99f949ff",
+  "issue": 176,
+  "pull_request": 177,
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "network": "mig061a-v2-preview_v2_private",
+    "admin_internal_address": "192.168.61.11:3000",
+    "admin_loopback_address": "127.0.0.1:3611"
+  },
+  "artifacts": {
+    "admin_image_digest_before": "sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf",
+    "admin_image_digest_after": "sha256:b63d623d28c1e34b4cd6137d878e39af9433bbc339547d8f1b1e147251166c2e",
+    "admin_source_sha": "b219b992bcb7be559ed61312f2291c3f9a2fab51",
+    "admin_image_tag": "oripa-v2-admin:mig061e-b219b992bcb7",
+    "rollback_image_tag": "oripa-v2-admin:mig061d-9b1e3c0e046b"
+  },
+  "verification": {
+    "admin_health": "PASS",
+    "password_only_login": "PASS",
+    "dashboard_sales_layout": "PASS",
+    "v1_view_order": "PASS_5",
+    "desktop": "PASS",
+    "mobile": "PASS",
+    "horizontal_overflow": "PASS",
+    "console_critical_errors": 0,
+    "page_errors": 0,
+    "http_500_502_504": 0,
+    "api_container_change": "NONE",
+    "database_change": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "nginx_config_set_checksum_before": "d87556c77d433637b958826d41b9af9e69316fdb218089e9a626fca9d61aa1e1",
+  "nginx_config_set_checksum_after": "d87556c77d433637b958826d41b9af9e69316fdb218089e9a626fca9d61aa1e1",
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
