@@ -7830,3 +7830,41 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `worklogs/reports/MIG-061F-report.md`。Final Head、GitHub Checks、Fresh Self-review、Squash Commit、
   Task Resource CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061G以降は開始しない。
+
+## MIG-061G Admin User List／Detail／Gacha History
+
+### Task／Policy／Characterization
+
+- Issue `#180`、Branch `feat/MIG-061G-admin-user-management-read-model`、Risk `R3`、
+  Verification Profile `DATA-R3-TARGETED`。
+- Baseは`main@35ba11a1762a574ad1cf7528e825d92a2ed69a2c`。Task PolicyはV2 User Model、
+  次連番Migration `000031`、Identity Schema Test、Admin Navigationと既存Permission Testの
+  5 Pathだけを追加してAtomic再発行した。最終SHA-256は
+  `e94dbac9d014fff7293f73e024617a5a2640dfa894bdf0dc2e722922af634c2b`。
+- V1 `users.name`は既定長255の必須表示名である。V2では既存Userを維持するnullable
+  `display_name`とし、未設定時にEmail等から推測しない。
+- V2 Password／External Identity作成には表示名入力がないため、User作成処理を変更しない。
+- WalletのPaid／Free Current Balanceを正本とし、合計はBackendで整数加算する。
+- V1「ユーザー保有景品」はStatus Filterなしの取得履歴であるため、V2別Routeの
+  「ユーザーガチャ履歴」も過去を含む取得景品履歴として実装する。
+- 全Active Admin Sessionへ同じRead Modelを提供し、専用PermissionやRole分岐は追加しない。
+  `/users/history`とUser／Point／Prize Mutationは変更しない。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
+  `worklogs/reports/MIG-061G-report.md`。実装、検証、Preview反映、Closeout結果は後続追記する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061H以降は開始しない。
+
+### MIG-061G Implementation／Verification／Preview
+
+- User Read-only API、nullable `display_name` Migration、Admin一覧／詳細／ガチャ履歴を実装した。
+  全Active Admin Roleを同一Session境界で許可し、Mutationや専用Permissionは追加していない。
+- Task DBで12 tests／186 assertions、100 Userで6 Query／323.51ms、Admin Unit 25件、Browser 2件、
+  OpenAPI／生成差分／Typecheck／Lint／Build／Policy／Quality／Security Gateを確認した。
+- Preview DBへ000031だけを適用し、API Image `sha256:562e666f...`、Admin Image
+  `sha256:9d3c0e70...`へ更新した。Password Login、`/users` Empty State、Health、Console Error 0、
+  HTTP 500／502／504 0を確認した。
+- PostgreSQL／Redis Container、Nginx、V1、`luxe-pack.biz`、Paymentは変更していない。
+  詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
+  `worklogs/reports/MIG-061G-report.md`。
+- GitHub全Suiteで検出した旧Owner-only Admin Test 2件とV1-only Schema上の新V2 Unit実行境界を補正した。
+  Task Policyは関連Test 2 Pathだけを追加してAtomic再発行し、最終SHA-256は
+  `210e46d87242ab8bf31ab8a323de9b98981a06ef0a891246cffbdbe638aedf9e`である。

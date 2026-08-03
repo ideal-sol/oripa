@@ -24,6 +24,222 @@
     sans-serif;
 }
 
+.admin-user-workspace {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-user-table-region {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.admin-user-table {
+  border-collapse: collapse;
+  min-width: 980px;
+  width: 100%;
+}
+
+.admin-user-table th,
+.admin-user-table td {
+  border-bottom: 1px solid #eaecf0;
+  padding: 13px 16px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.admin-user-table th {
+  background: #f9fafb;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-user-table td {
+  color: #344054;
+  font-size: 14px;
+}
+
+.admin-user-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-user-table code,
+.admin-user-definition-grid code {
+  color: #175cd3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.admin-user-status {
+  background: #f2f4f7;
+  border-radius: 999px;
+  color: #344054;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+}
+
+.admin-user-status.is-active,
+.admin-user-status.is-stored,
+.admin-user-status.is-delivered {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.admin-user-status.is-suspended,
+.admin-user-status.is-hold,
+.admin-user-status.is-restricted {
+  background: #fff6ed;
+  color: #b54708;
+}
+
+.admin-user-status.is-closed,
+.admin-user-status.is-canceled,
+.admin-user-status.is-expired {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.admin-user-state {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  color: #475467;
+  display: flex;
+  justify-content: space-between;
+  min-height: 112px;
+  padding: 24px;
+}
+
+.admin-user-state.is-error {
+  background: #fffbfa;
+  border-color: #fecdca;
+  color: #b42318;
+}
+
+.admin-user-state p,
+.admin-user-section-heading p,
+.admin-user-history-link p {
+  margin: 0;
+}
+
+.admin-user-detail-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-user-summary {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.admin-user-section-heading,
+.admin-user-history-link {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.admin-user-section-heading h2,
+.admin-user-history-link h2 {
+  color: #101828;
+  font-size: 17px;
+  margin: 0 0 5px;
+}
+
+.admin-user-section-heading p,
+.admin-user-history-link p {
+  color: #667085;
+  font-size: 13px;
+}
+
+.admin-user-definition-grid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 20px 0 0;
+}
+
+.admin-user-definition-grid > div {
+  border-top: 1px solid #eaecf0;
+  min-width: 0;
+  padding: 14px 0;
+}
+
+.admin-user-definition-grid > div:nth-child(odd) {
+  padding-right: 20px;
+}
+
+.admin-user-definition-grid dt {
+  color: #667085;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.admin-user-definition-grid dd {
+  color: #101828;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-balance-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.admin-user-balance-grid > div {
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.admin-user-balance-grid span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.admin-user-balance-grid strong {
+  color: #101828;
+  font-size: 20px;
+}
+
+.admin-user-load-more {
+  justify-self: center;
+}
+
+@media (max-width: 720px) {
+  .admin-user-definition-grid,
+  .admin-user-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-user-definition-grid > div:nth-child(odd) {
+    padding-right: 0;
+  }
+
+  .admin-user-history-link,
+  .admin-user-section-heading,
+  .admin-user-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

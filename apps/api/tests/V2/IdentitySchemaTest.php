@@ -44,6 +44,7 @@ final class IdentitySchemaTest extends TestCase
         }
 
         self::assertTrue(Schema::hasColumn('users', 'password_hash'));
+        self::assertTrue(Schema::hasColumn('users', 'display_name'));
         self::assertFalse(Schema::hasColumn('users', 'password'));
         self::assertFalse(Schema::hasColumn('admins', 'remember_token'));
         self::assertFalse(Schema::hasColumn('admin_sessions', 'payload'));
@@ -182,11 +183,32 @@ final class IdentitySchemaTest extends TestCase
         }
 
         self::assertContains('password_hash', (new User())->getHidden());
+        self::assertContains('display_name', (new User())->getFillable());
         self::assertContains('password_hash', (new Admin())->getHidden());
         self::assertContains('session_id_hash', (new UserSession())->getHidden());
         self::assertContains('session_id_hash', (new AdminSession())->getHidden());
         self::assertContains('secret_ciphertext', (new AdminTotpMethod())->getHidden());
         self::assertContains('code_hash', (new AdminRecoveryCode())->getHidden());
+    }
+
+    public function test_user_display_name_is_nullable_and_preserves_existing_users(): void
+    {
+        DB::beginTransaction();
+        try {
+            $withoutName = $this->insertUser('display-name-empty@example.test');
+            $withName = $this->insertUser('display-name-set@example.test');
+            DB::table('users')->where('id', $withName)->update([
+                'display_name' => 'テストユーザー',
+            ]);
+
+            self::assertNull(DB::table('users')->where('id', $withoutName)->value('display_name'));
+            self::assertSame(
+                'テストユーザー',
+                DB::table('users')->where('id', $withName)->value('display_name')
+            );
+        } finally {
+            DB::rollBack();
+        }
     }
 
     private function insertUser(

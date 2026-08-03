@@ -12,6 +12,7 @@ final class User extends Authenticatable
 
     protected $fillable = [
         'public_id',
+        'display_name',
         'email_display',
         'email_normalized',
         'email_verified_at',

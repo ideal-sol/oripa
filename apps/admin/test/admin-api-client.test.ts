@@ -84,6 +84,46 @@ describe("AdminApiClient", () => {
     }
   });
 
+  it("reads User list, detail, and gacha history only through public IDs", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: { id: userId } }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null, user_id: userId }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listAdminUsers("djE6MTA=");
+    await client.getAdminUser(userId);
+    await client.listAdminUserGachaHistory(userId);
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/users?limit=50&cursor=djE6MTA%3D",
+      `/admin/api/v2/users/${userId}`,
+      `/admin/api/v2/users/${userId}/gacha-history?limit=50`,
+    ]);
+    for (const [, request] of fetcher.mock.calls) {
+      expect(request?.credentials).toBe("include");
+      expect(request?.cache).toBe("no-store");
+      expect(new Headers(request?.headers).get("Authorization")).toBeNull();
+      expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBeNull();
+    }
+  });
+
+  it("rejects internal or malformed User identifiers before transport", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await expect(client.getAdminUser("42")).rejects.toMatchObject({
+      code: "ADMIN_USER_NOT_FOUND",
+      status: 404,
+    });
+    await expect(client.listAdminUserGachaHistory("../internal")).rejects.toMatchObject({
+      code: "ADMIN_USER_NOT_FOUND",
+      status: 404,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("reads only the same-origin Admin Catalog surface with encoded filters", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ items: [], next_cursor: null }),

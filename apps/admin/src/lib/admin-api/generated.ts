@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 250d59366278c7f6e786db2d260c41ed4ebfef34b53698f330096fba7d85e732
+// Contract SHA-256: abed4e601ba559b9445abdcab965da806b2f41896c99ce25fe6a1c1093b733cc
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -93,6 +93,70 @@ export interface AdminSession {
   enrollment_transaction_token?: string | null;
   enrollment_transaction_expires_in?: number | null;
   admin?: AdminIdentity | null;
+}
+
+export type AdminUserState =
+  | "pending_verification"
+  | "active"
+  | "restricted"
+  | "suspended"
+  | "closed"
+  | "anonymized";
+
+export interface AdminUserPointBalance {
+  total_balance: number;
+  paid_balance: number;
+  free_balance: number;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  display_name: string | null;
+  status: AdminUserState;
+  point_balance: AdminUserPointBalance | null;
+  created_at: string;
+}
+
+export interface AdminUserCollection {
+  items: AdminUserSummary[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  email: string;
+  email_verified_at: string | null;
+  updated_at: string;
+}
+
+export interface AdminUserDetailResponse {
+  data: AdminUserDetail;
+  request_id: string;
+}
+
+export interface AdminUserGachaHistoryItem {
+  id: string;
+  draw_result_id: string;
+  gacha_id: string;
+  gacha_version_id: string;
+  gacha_title: string;
+  prize_id: string;
+  prize_name: string;
+  rank_id: string;
+  rank_name: string;
+  status: string;
+  exchange_point_snapshot: number;
+  exchanged_point_amount: number | null;
+  acquired_at: string;
+  storage_expires_at: string;
+  terminal_at: string | null;
+}
+
+export interface AdminUserGachaHistoryCollection {
+  user_id: string;
+  items: AdminUserGachaHistoryItem[];
+  next_cursor: string | null;
+  request_id: string;
 }
 
 export interface AdminDashboardSalesSummary {
