@@ -3,6 +3,8 @@ import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 export type AdminRouteId =
   | "dashboard"
   | "catalog"
+  | "gachas"
+  | "prizes"
   | "qa"
   | "shipping"
   | "reports"
@@ -14,6 +16,8 @@ export type AdminRouteId =
 export type AdminNavigationIcon =
   | "dashboard"
   | "catalog"
+  | "gacha"
+  | "prize"
   | "qa"
   | "shipping"
   | "reports"
@@ -48,7 +52,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigati
   },
   {
     id: "catalog",
-    label: "カタログ",
+    label: "カタログ概要",
     path: "/catalog",
     permission: "catalog.read",
     icon: "catalog",
@@ -58,8 +62,30 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = validateNavigati
     freshMfaBoundary: "module-actions",
   },
   {
+    id: "gachas",
+    label: "ガチャ管理",
+    path: "/catalog/gachas",
+    permission: "catalog.read",
+    icon: "gacha",
+    section: "operations",
+    sortOrder: 21,
+    implementation: "available",
+    freshMfaBoundary: "module-actions",
+  },
+  {
+    id: "prizes",
+    label: "景品管理",
+    path: "/catalog/prizes",
+    permission: "catalog.read",
+    icon: "prize",
+    section: "operations",
+    sortOrder: 22,
+    implementation: "available",
+    freshMfaBoundary: "module-actions",
+  },
+  {
     id: "qa",
-    label: "QA Draw",
+    label: "QA管理",
     path: "/qa",
     permission: "qa.draw.manage",
     icon: "qa",
@@ -148,7 +174,9 @@ export function navigationForPermissions(
   permissions: ReadonlySet<AdminPermissionCode>,
 ): AdminNavigationItem[] {
   return ADMIN_NAVIGATION.filter(
-    (item) => item.permission === null || permissions.has(item.permission),
+    (item) =>
+      item.implementation === "available" &&
+      (item.permission === null || permissions.has(item.permission)),
   );
 }
 

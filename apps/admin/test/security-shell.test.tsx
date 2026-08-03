@@ -68,7 +68,8 @@ describe("Admin shell and security boundaries", () => {
 
     expect(screen.getByText("Owner")).toBeInTheDocument();
     expect(screen.getByText("管理機能は後続Taskで実装します。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+    fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "ログアウト" }));
     await waitFor(() => expect(auth.logout).toHaveBeenCalledOnce());
   });
 

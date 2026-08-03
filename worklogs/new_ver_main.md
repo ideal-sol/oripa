@@ -7697,3 +7697,37 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `luxe-pack.biz` HTTP 200、V1 Runtimeは不変である。
 - Final Head、GitHub Check、Fresh Self-review、Squash Commit、Task専用Resource Cleanupは
   Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Cは開始しない。
+
+## MIG-061C TailAdmin Admin Shell Foundation
+
+### Task／Scope
+
+- Issue `#167`、PR `#168`、Branch
+  `feat/MIG-061C-tailadmin-admin-shell-foundation`、Risk `R3`。
+- Baseは`main@d1e24394b8449ad801398a6cb22033195ab0c833`、Task Policy
+  SHA-256は
+  `d0610940de114be3ac816228c7a70abab40e35c0f007c36d39f2cd8c56b3d21a`。
+- TailAdmin Next.js FREE版を視覚・構造上の参考に、既存AdminのLogin、Desktop／Mobile
+  Shell、Sidebar、Header、User Menu、Breadcrumb、Dashboard、共通UI基礎を再構成した。
+  TailAdmin Source／Pro素材、Package／Lockfileは使用または変更していない。
+- Navigationは実装済みRouteだけをEffective Permissionに従って表示し、GachaとPrizeを
+  独立導線にした。架空Menu／KPI／Graph、新規集計APIは追加していない。
+
+### Verification／Preview
+
+- Admin Typecheck、Lint、Production Build、Unit `64件`、Browser E2E `16件`、
+  Candidate Desktop／Mobile Smoke、Policy／Quality／Security Gate、Secret Scan、
+  `git diff --check`がPASSした。
+- Preview Compose Project `mig061a-v2-preview`のAdminだけを更新し、Imageは
+  `sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71`。
+  旧Image
+  `sha256:22d15912a09861ed97fd1441dac0f50af480c40d4edd38661d183ca8a4a8d29f`は
+  Rollback用に保持する。
+- 実DomainのPassword-only Login、Dashboard、Gacha、Prize、QA、管理者認証、Mobile
+  Drawer、API Healthを確認し、Console Critical Error、HTTP 500／502／504は0件だった。
+- API／PostgreSQL／Redis Container、V2 DB／Migration、Nginx checksum、V1 Runtime、
+  `luxe-pack.biz`は不変である。詳細Evidenceは
+  `/var/lib/oripa-v2-evidence/MIG-061C/`、提出Reportは
+  `worklogs/reports/MIG-061C-report.md`。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Task専用Resource Cleanupは
+  Closeoutで確定する。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Dは開始しない。

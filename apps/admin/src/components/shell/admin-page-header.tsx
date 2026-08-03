@@ -20,7 +20,7 @@ export function AdminPageHeader({
 
   return (
     <header className="workspace-header">
-      <div>
+      <div className="workspace-title">
         <span className="eyebrow">{eyebrow}</span>
         <h1 ref={heading} tabIndex={-1}>
           {title}

@@ -115,7 +115,7 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
   await expect(page).toHaveURL(/\/$/u);
   expect(mfaHeaders?.["x-oripa-auth-transaction"]).toBe(transaction);
   await expect(page.getByText("Owner", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "QA管理" }).first()).toBeVisible();
   await page.screenshot({
     fullPage: true,
     path: "/tmp/oripa-mig-060b-admin-desktop.png",
@@ -127,7 +127,8 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
   await page.getByRole("button", { name: "再認証", exact: true }).click();
   await expect(page.getByText("Fresh", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+  await page.getByRole("menuitem", { name: "ログアウト" }).click();
   await expect(page).toHaveURL(/\/login$/u);
 });
 
@@ -183,7 +184,7 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
   });
 
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "QA管理" }).first()).toBeVisible();
   await page.getByRole("button", { name: "ナビゲーションを開く" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("navigation", { name: "管理ナビゲーション" })).toBeVisible();
@@ -266,12 +267,13 @@ for (const role of ["owner", "admin", "operator"] as const) {
     });
 
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "カタログ" }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: "景品・配送" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "ガチャ管理" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "景品管理" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "景品・配送" })).toHaveCount(0);
     if (role === "owner") {
-      await expect(page.getByRole("link", { name: "QA Draw" }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "QA管理" }).first()).toBeVisible();
     } else {
-      await expect(page.getByRole("link", { name: "QA Draw" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "QA管理" })).toHaveCount(0);
     }
     if (role === "operator") {
       await expect(page.getByRole("link", { name: "レポート" })).toHaveCount(0);
@@ -280,7 +282,7 @@ for (const role of ["owner", "admin", "operator"] as const) {
         page.getByRole("heading", { name: "アクセスできません" }),
       ).toBeVisible();
     } else {
-      await expect(page.getByRole("link", { name: "レポート" }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "レポート" })).toHaveCount(0);
     }
   });
 }

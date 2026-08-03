@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import type { AdminNavigationItem } from "@/lib/permissions/admin-navigation";
@@ -11,6 +12,7 @@ export function Breadcrumb({ item }: { item: AdminNavigationItem }) {
         </li>
         {item.path !== "/" ? (
           <li aria-current="page">
+            <ChevronRight size={14} aria-hidden="true" />
             <span>{item.label}</span>
           </li>
         ) : null}

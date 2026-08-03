@@ -27,8 +27,12 @@ export function AuthFrame({
       </section>
       <aside className="auth-context" aria-hidden="true">
         <div className="auth-context-copy">
-          <span className="eyebrow">Platform administration</span>
-          <strong>認証された操作だけを、明確な境界で。</strong>
+          <span className="auth-context-mark">
+            <ShieldCheck size={30} strokeWidth={1.7} />
+          </span>
+          <span className="eyebrow">Platform Console</span>
+          <strong>Oripa Admin</strong>
+          <small>Administration</small>
         </div>
       </aside>
     </main>
