@@ -62,10 +62,21 @@
 
 ## Preview／Closeout
 
-- Preview API／Admin Image、Synthetic User Smoke、Final Head、GitHub Check、Fresh Self-review、Squash Commit、
-  Cleanup結果はPreview反映とCloseout後に追記する。
-- DB Schema／Migration、PostgreSQL／Redis設定、Nginx／TLS／DNS、V1、`luxe-pack.biz`、
-  `ad.luxe-pack.biz`、Storefront、Payment Providerは変更しない。
+- DB Target Safety Guardで`oripa_v2_mig061a`、Marker `mig061a`、Purpose `v2-persistent`、
+  Repository Migration 31件を切替前後に確認した。Migration、`migrate:fresh`、Schema変更は実行していない。
+- Application／Image Source Head `9cc1fb0b5f50dbb504b1a75897682b1afe218cb4`から、API Imageを
+  `sha256:562e666f...`から`sha256:d3d2b2b8...`、Admin Imageを`sha256:9d3c0e70...`から
+  `sha256:d5c38bb3...`へ更新した。旧ImageはRollback用に保持する。
+- Container名、Network、固定IP `192.168.61.10/11`、Loopback Port `8611/3611`、Restart Policy、
+  Environment Key集合を維持した。PostgreSQL／Redis Container IDとNginx 3 vhost checksumは前後一致する。
+- 専用Synthetic UserへOwner UIから無償Pを0→7加算し、Wallet／Adjustment／Operation／Ledger／Audit／
+  Idempotency各1件を照合した。同一Key Replayは200 Canonical Replayで残高7を維持した。
+- Synthetic OperatorはButton非表示かつ直接API 403。意図した403のBrowser Network Error 1件を除き、
+  Console Critical Error 0、Page Error 0、HTTP 500／502／504 0である。CredentialはRepository／Reportへ
+  保存せず、Repository外0600 Evidenceだけに保持する。
+- API／Admin Container内Health 200、`admin.luxe-pack.biz/login` 200、User Detail 200、
+  `luxe-pack.biz` 200、`ad.luxe-pack.biz/login` 302を確認した。V1、Nginx／TLS／DNS、Paymentは非変更。
+- Final Head、GitHub Check、Fresh Self-review、Squash Commit、Task Resource CleanupはCloseout後に追記する。
 
 ## Time／Gate
 

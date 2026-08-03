@@ -7882,3 +7882,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061H/`、提出Reportは
   `worklogs/reports/MIG-061H-report.md`。Preview反映、GitHub Check、Fresh Self-review、Closeoutは後続追記する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061I以降は開始しない。
+
+### MIG-061H Preview
+
+- Preview API Imageを`sha256:d3d2b2b8...`、Admin Imageを`sha256:d5c38bb3...`へ更新した。
+  Synthetic Userの無償P 0→7、Canonical Replay、Operator UI非表示／API 403、Ledger／Audit整合を確認した。
+- Container名、Network、固定IP、Port、Environment、PostgreSQL／Redis、Migration 31件、Nginx checksum、
+  V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は維持した。Console Critical ErrorとHTTP 500／502／504は0。
