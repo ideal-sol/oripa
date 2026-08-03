@@ -55,7 +55,9 @@
   Operation／Ledger／Audit／Idempotency各1件を確認した。
 - Admin対象Unit、Typecheck、Lint、Production Build、対象Browser E2E 2件がPASSした。
 - OpenAPI Lint／Bundle／Base Breaking Check、OpenAPI Unit、Admin Generated Client差分0がPASSした。
-- Policy／Quality／Security、Secret／PII、GitHub Required ChecksはCloseoutで追記する。
+- Policy Unit 95件、Policy／Quality／Security Gate、`git diff --check`がPASSした。SecurityはWorkspace／
+  Legacy pnpm Finding 0、Composer既存Baseline 10件、期限`2026-08-07`、Secret／PII Candidate 0。
+  Baseline追加・期限延長・Gate緩和はない。GitHub Required ChecksはCloseoutで確定する。
 - Persistent／Ephemeral Full Guard、Backup／Restore、Draw負荷、V1全回帰、Storefront、全Admin E2Eは
   Profileに従い実行していない。Browser Scriptの引数が一度全24件へ転送され、旧Sidebar名を期待する既存
   Baseline 4件を確認後に停止し、Playwright直接指定でTask対象2件を実行した。
