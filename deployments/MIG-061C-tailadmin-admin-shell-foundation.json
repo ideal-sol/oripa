@@ -1,0 +1,43 @@
+{
+  "task_id": "MIG-061C",
+  "risk": "R3",
+  "status": "preview_deployed_validated",
+  "base_branch": "main",
+  "base_sha": "d1e24394b8449ad801398a6cb22033195ab0c833",
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "network": "mig061a-v2-preview_v2_private",
+    "admin_internal_address": "192.168.61.11:3000",
+    "admin_loopback_address": "127.0.0.1:3611"
+  },
+  "artifacts": {
+    "admin_image_digest_before": "sha256:22d15912a09861ed97fd1441dac0f50af480c40d4edd38661d183ca8a4a8d29f",
+    "admin_image_digest_after": "sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71",
+    "admin_source_sha": "a6cab0d029cae7c0ff10cb742c1582418d1281d3",
+    "admin_image_tag": "oripa-v2-admin:mig061c-a6cab0d029ca",
+    "rollback_image_tag": "oripa-v2-admin:mig061b-74578e799a22"
+  },
+  "verification": {
+    "admin_health": "PASS",
+    "password_only_login": "PASS",
+    "dashboard": "PASS",
+    "gacha_screen": "PASS",
+    "prize_screen": "PASS",
+    "qa_screen": "PASS",
+    "authentication_settings": "PASS",
+    "desktop_sidebar": "PASS",
+    "mobile_drawer": "PASS",
+    "horizontal_overflow": "NONE",
+    "console_critical_errors": 0,
+    "http_500_502_504": 0,
+    "api_container_change": "NONE",
+    "database_change": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "nginx_checksum": "9832e492f8995db08a45d72f22566d09111d44539524b6509a79b986909f7347",
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
