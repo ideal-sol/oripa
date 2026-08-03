@@ -96,6 +96,10 @@
   実Diff完全一致の`Changed files`／`Allowed paths`が不足しPolicy CheckだけがFailした。
   ApplicationやGateを変更せずPR本文を修正した。同一Head再実行では旧Failure Check Runが残るため、
   この再試行経緯を本Reportへ記録する実変更を新HeadとしてPushし、空Commitを使用しなかった。
+- Integration GateはV1 Migrationだけを適用して既存Backend Baselineを照合するため、新規V2集計Unitが
+  V2 Schema不在を新規Failureとして検出された。V2 `admins` Tableの存在確認を追加し、Task専用Clean
+  V2 DBでは全Assertionを維持しながらV1 Baseline Suiteでは明示的にSkipする構成へ修正した。
+  既存`AdminPaymentApiTest` 2件は期限付きBaselineと一致し、Baselineの追加・変更は行っていない。
 
 ## Final／Gate
 

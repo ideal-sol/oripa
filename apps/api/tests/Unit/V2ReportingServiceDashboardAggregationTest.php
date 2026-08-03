@@ -12,6 +12,7 @@ use App\Domain\Reporting\Services\V2ReportingService;
 use App\Models\V2\Admin;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -20,6 +21,9 @@ final class V2ReportingServiceDashboardAggregationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (! Schema::hasTable('admins')) {
+            $this->markTestSkipped('The dashboard reporting unit requires the V2 schema.');
+        }
         DB::beginTransaction();
         CarbonImmutable::setTestNow('2026-08-03T00:00:00Z');
         config([
@@ -33,7 +37,9 @@ final class V2ReportingServiceDashboardAggregationTest extends TestCase
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
-        DB::rollBack();
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
         parent::tearDown();
     }
 
