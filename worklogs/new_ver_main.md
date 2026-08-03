@@ -7868,3 +7868,24 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub全Suiteで検出した旧Owner-only Admin Test 2件とV1-only Schema上の新V2 Unit実行境界を補正した。
   Task Policyは関連Test 2 Pathだけを追加してAtomic再発行し、最終SHA-256は
   `210e46d87242ab8bf31ab8a323de9b98981a06ef0a891246cffbdbe638aedf9e`である。
+
+## MIG-061H Admin User Point Adjustment
+
+- Issue `#182`、Branch `feat/MIG-061H-admin-user-point-adjustment`、Risk `R4`、Verification Profile
+  `FINANCIAL-MUTATION-R4-TARGETED`。Baseは`main@3f6ee49d8fa7690e8cd4693e04439f65efed14e9`。
+- `point.adjustment.manage`をOwner／Adminへ追加し、Admin User DetailからPaid／Free Pointを型別に
+  加算／減算するAPIとModalを実装した。OperatorはUI非表示かつAPI 403。
+- Wallet／Lot／Operation／Ledger／Adjustment／Audit／Idempotencyを同一Transactionで確定し、
+  別Point種別へのFallback、負残高、同一Key異内容を拒否する。Free Grant期限は既存設定180日を使用する。
+- Task DBでDomain／HTTP／Permission、Process Concurrencyを確認し、Admin Unit／Typecheck／Lint／Build、
+  対象Browser 2件、OpenAPI Breaking／生成差分0がPASSした。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061H/`、提出Reportは
+  `worklogs/reports/MIG-061H-report.md`。Preview反映、GitHub Check、Fresh Self-review、Closeoutは後続追記する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061I以降は開始しない。
+
+### MIG-061H Preview
+
+- Preview API Imageを`sha256:d3d2b2b8...`、Admin Imageを`sha256:d5c38bb3...`へ更新した。
+  Synthetic Userの無償P 0→7、Canonical Replay、Operator UI非表示／API 403、Ledger／Audit整合を確認した。
+- Container名、Network、固定IP、Port、Environment、PostgreSQL／Redis、Migration 31件、Nginx checksum、
+  V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は維持した。Console Critical ErrorとHTTP 500／502／504は0。

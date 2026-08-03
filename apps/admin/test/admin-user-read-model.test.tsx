@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminUserReadData } from "@/components/users/use-admin-user-read-model";
+import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 
 const state = {
   data: null as AdminUserReadData | null,
@@ -11,11 +12,20 @@ const state = {
   loadingMore: false,
   retry: vi.fn(),
 };
+const permissions = new Set<AdminPermissionCode>();
 
 vi.mock("@/components/users/use-admin-user-read-model", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/components/users/use-admin-user-read-model")>();
   return { ...original, useAdminUserReadModel: () => state };
 });
+vi.mock("@/components/permissions/permission-provider", () => ({
+  usePermissions: () => ({
+    hasPermission: (permission: AdminPermissionCode) => permissions.has(permission),
+    permissions,
+    role: "operator",
+    status: "ready",
+  }),
+}));
 
 import { AdminUserReadWorkspace } from "@/components/users/admin-user-read-workspace";
 
@@ -27,6 +37,7 @@ describe("Admin User Read workspace", () => {
     state.loadingMore = false;
     state.loadMore.mockClear();
     state.retry.mockClear();
+    permissions.clear();
   });
 
   it("renders the fixed list column order, backend balances, and unset display name", () => {
@@ -68,6 +79,19 @@ describe("Admin User Read workspace", () => {
       `/users/${uuid("1")}/gacha-history`,
     );
     expect(screen.queryByRole("button", { name: /調整|Save|保存/u })).toBeNull();
+  });
+
+  it("shows point adjustment only when the canonical permission is effective", () => {
+    state.data = { kind: "detail", value: {
+      ...userSummary(),
+      email: "user@example.test",
+      email_verified_at: "2026-08-03T00:00:00Z",
+      updated_at: "2026-08-03T01:00:00Z",
+    } };
+    permissions.add("point.adjustment.manage");
+    render(<AdminUserReadWorkspace mode="detail" userPublicId={uuid("1")} />);
+
+    expect(screen.getByRole("button", { name: "ポイント調整" })).toBeVisible();
   });
 
   it("renders acquired-prize history on its own route with V1-derived order", () => {

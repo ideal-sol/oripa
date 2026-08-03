@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: abed4e601ba559b9445abdcab965da806b2f41896c99ce25fe6a1c1093b733cc
+// Contract SHA-256: 86b91d346b89a2a6d4ed81784e514910e6dbfdc7877cd78127cd3416c28a4ac0
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -12,6 +12,7 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.request",
   "point.adjustment.free.approve",
   "point.adjustment.paid.approve",
+  "point.adjustment.manage",
   "catalog.read",
   "catalog.manage",
   "catalog.publish",
@@ -156,6 +157,35 @@ export interface AdminUserGachaHistoryCollection {
   user_id: string;
   items: AdminUserGachaHistoryItem[];
   next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminPointAdjustmentRequest {
+  point_type: "paid" | "free";
+  direction: "grant" | "deduct";
+  amount: number;
+  reason: string;
+  current_password: string;
+}
+
+export interface AdminPointAdjustment {
+  adjustment_public_id: string;
+  user_public_id: string;
+  operation_public_id: string;
+  point_type: "paid" | "free";
+  direction: "grant" | "deduct";
+  amount: number;
+  reason: string;
+  paid_balance_before: number;
+  paid_balance_after: number;
+  free_balance_before: number;
+  free_balance_after: number;
+  executed_at: string;
+}
+
+export interface AdminPointAdjustmentMutationResult {
+  data: AdminPointAdjustment;
+  idempotent_replay: boolean;
   request_id: string;
 }
 

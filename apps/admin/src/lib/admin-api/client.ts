@@ -83,6 +83,8 @@ import {
   type AdminUserCollection,
   type AdminUserDetailResponse,
   type AdminUserGachaHistoryCollection,
+  type AdminPointAdjustmentMutationResult,
+  type AdminPointAdjustmentRequest,
   type ProblemDetails,
   type RecoveryCodes,
   type StatusResponse,
@@ -206,6 +208,24 @@ export class AdminApiClient {
       "GET",
       `/users/${encodeURIComponent(userId)}/gacha-history?${parameters.toString()}`,
       { signal },
+    );
+  }
+
+  adjustAdminUserPoints(
+    userId: string,
+    input: AdminPointAdjustmentRequest,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPointAdjustmentMutationResult> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/users/${encodeURIComponent(userId)}/point-adjustments`,
+      { body: input, idempotencyKey, signal },
     );
   }
 

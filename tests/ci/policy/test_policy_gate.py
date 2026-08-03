@@ -20,6 +20,27 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061h_path_registration_is_exact(self):
+        expected_point = {
+            "apps/api/app/Domain/Point/Exceptions/V2AdminPointAdjustmentException.php",
+            "apps/api/app/Domain/Point/Services/V2AdminPointAdjustmentService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminUserPointAdjustmentController.php",
+            "apps/api/tests/Unit/V2AdminPointAdjustmentServiceTest.php",
+            "apps/api/tests/V2/AdminUserPointAdjustmentApiTest.php",
+            "apps/api/tests/V2/ZAdminUserPointAdjustmentConcurrencyTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-user-point-adjustment.spec.ts",
+            "apps/admin/src/components/users/admin-user-point-adjustment-modal.tsx",
+            "apps/admin/test/admin-user-point-adjustment.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061H_V2_POINT_FILES, expected_point)
+        self.assertTrue(expected_point.issubset(policy_gate.V2_POINT_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061H_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_point | expected_admin))
+
     def test_mig_061g_path_registration_is_exact(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2AdminUserReadException.php",

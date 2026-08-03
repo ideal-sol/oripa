@@ -43,6 +43,7 @@ use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 use App\Http\Controllers\V2\V2AdminUserController;
+use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 
@@ -100,6 +101,8 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.users.show');
         Route::get('/users/{userId}/gacha-history', [V2AdminUserController::class, 'gachaHistory'])
             ->whereUuid('userId')->name('v2.admin.users.gacha-history.index');
+        Route::post('/users/{userId}/point-adjustments', V2AdminUserPointAdjustmentController::class)
+            ->whereUuid('userId')->name('v2.admin.users.point-adjustments.store');
         Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])
             ->name('v2.admin.identity.line-messaging.show');
         Route::put('/identity/line-messaging', [V2AdminLineMessagingController::class, 'update'])
