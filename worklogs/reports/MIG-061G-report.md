@@ -79,6 +79,9 @@
   Policy Unit 94件、Policy／Quality／Security Gate、`git diff --check`がPASSした。
 - SecurityはWorkspace／Legacy pnpm Finding 0、Composer既存Baseline 10、期限`2026-08-07`、
   Secret／PII Candidate 0。Baselineの追加・延長はない。
+- GitHub補正RunでRequired 5 Check、CodeQL 2件、Dependency Reviewの実処理がすべて成功した。
+  最初のPolicy RunはPR本文更新との競合で旧Changed filesを読み失敗したため、本文を33 Path完全一致へ更新後、
+  同一HeadでPolicy／Integration／Quality／Security／CIの成功を確認した。最終Headでは更新済み本文から再検証する。
 - Profile指示どおりPersistent／Ephemeral Full Guard、Backup／Restore、Draw負荷、V1全回帰、
   Storefront Test、全Admin Browser E2Eは重複実行していない。
 
