@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { OwnerPreviewRoutePage } from "@/components/shell/owner-preview-route-page";
+import { ModuleRoutePage } from "@/components/shell/module-route-page";
 
 export const metadata: Metadata = { title: "ガチャ シミュレーション" };
 
 export default function GachaSimulationPage() {
-  return <OwnerPreviewRoutePage routeId="gachas-simulation" />;
+  return <ModuleRoutePage routeId="gachas-simulation" />;
 }

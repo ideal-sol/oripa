@@ -27,7 +27,7 @@ export function AdminNavigation({
   const nodes = useMemo(
     () => navigationForPermissions(
       status === "ready" ? permissions : new Set(),
-      status === "ready" ? role : null,
+      status === "ready" && role === "owner",
     ),
     [permissions, role, status],
   );

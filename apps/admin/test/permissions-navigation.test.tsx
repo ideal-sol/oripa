@@ -93,7 +93,7 @@ describe("Admin permission navigation", () => {
     );
     const items = navigationLinksForPermissions(
       new Set(ADMIN_PERMISSION_CODES),
-      "owner",
+      true,
     );
     expect(new Set(items.map((item) => item.path)).size).toBe(items.length);
     for (const item of items) {

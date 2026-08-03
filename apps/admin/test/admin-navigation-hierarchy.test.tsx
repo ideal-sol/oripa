@@ -122,7 +122,7 @@ describe("Admin sidebar hierarchy", () => {
 
     const active = activeNavigationItem(
       "/catalog/gachas/new",
-      navigationForPermissions(permissionState.permissions, "owner"),
+      navigationForPermissions(permissionState.permissions, true),
     );
     expect(active?.id).toBe("gachas-create");
   });

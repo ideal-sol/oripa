@@ -1,7 +1,4 @@
-import type {
-  AdminPermissionCode,
-  AdminRole,
-} from "@/lib/admin-api/generated";
+import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 
 export type AdminRouteId =
   | "dashboard"
@@ -154,15 +151,17 @@ export function navigationItem(id: AdminRouteId): AdminNavigationItem {
 
 export function navigationForPermissions(
   permissions: ReadonlySet<AdminPermissionCode>,
-  role: AdminRole | null = null,
+  isOwner = false,
 ): AdminNavigationNode[] {
   const visible: AdminNavigationNode[] = [];
   for (const node of ADMIN_NAVIGATION) {
     if (node.kind === "link") {
-      if (isVisible(node, permissions, role)) visible.push(node);
+      if (isVisible(node, permissions, isOwner)) visible.push(node);
       continue;
     }
-    const children = node.children.filter((item) => isVisible(item, permissions, role));
+    const children = node.children.filter((item) =>
+      isVisible(item, permissions, isOwner),
+    );
     if (children.length) visible.push({ ...node, children });
   }
   return visible;
@@ -170,9 +169,9 @@ export function navigationForPermissions(
 
 export function navigationLinksForPermissions(
   permissions: ReadonlySet<AdminPermissionCode>,
-  role: AdminRole | null = null,
+  isOwner = false,
 ): AdminNavigationItem[] {
-  return navigationForPermissions(permissions, role).flatMap((node) =>
+  return navigationForPermissions(permissions, isOwner).flatMap((node) =>
     node.kind === "group" ? [...node.children] : [node],
   );
 }
@@ -203,9 +202,9 @@ export function navigationGroupForRoute(
 function isVisible(
   item: AdminNavigationItem,
   permissions: ReadonlySet<AdminPermissionCode>,
-  role: AdminRole | null,
+  isOwner: boolean,
 ): boolean {
-  if (item.ownerOnly) return role === "owner";
+  if (item.ownerOnly) return isOwner;
   return item.permission === null || permissions.has(item.permission);
 }
 

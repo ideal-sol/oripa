@@ -25,7 +25,7 @@ export function DashboardHome() {
   const [freshConfirmed, setFreshConfirmed] = useState(false);
   const modules = navigationLinksForPermissions(
     status === "ready" ? permissions : new Set(),
-    status === "ready" ? role : null,
+    status === "ready" && role === "owner",
   ).filter(
     (item) => item.id !== "dashboard" && item.implementation === "available",
   );

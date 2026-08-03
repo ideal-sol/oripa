@@ -7757,4 +7757,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061D/`、提出Reportは
   `worklogs/reports/MIG-061D-report.md`。Final検証、Preview反映、Fresh Self-review、
   GitHub Check、Squash Merge、CleanupはCloseoutで確定する。
+- Policy Unit `90 tests`とQuality GateはPASS。Task Policyで明示許可された新規Scaffold／Test
+  15 Pathが中央Admin Skeleton正本へ未登録のためPolicy GateがFail Closedしており、中央Gate
+  更新Pathの許可が得られるまでPreview反映とMergeを停止する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Eは開始しない。

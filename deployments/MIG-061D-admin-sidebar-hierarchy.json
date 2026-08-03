@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-061D",
   "risk": "R3",
-  "status": "implementation_validated_preview_pending",
+  "status": "blocked_policy_registry",
   "base_branch": "main",
   "base_sha": "fcc782daee4e6303858e412d9fe4372dc9919c7c",
   "target": "admin.luxe-pack.biz",

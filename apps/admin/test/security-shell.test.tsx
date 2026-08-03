@@ -50,7 +50,7 @@ vi.mock("next/navigation", () => ({
 
 import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { OwnerPreviewRoutePage } from "@/components/shell/owner-preview-route-page";
+import { ModuleRoutePage } from "@/components/shell/module-route-page";
 import { proxy } from "@/proxy";
 
 describe("Admin shell and security boundaries", () => {
@@ -64,7 +64,7 @@ describe("Admin shell and security boundaries", () => {
 
   it("keeps owner-only scaffold direct routes fail closed", () => {
     permission.role = "admin";
-    render(<OwnerPreviewRoutePage routeId="users-list" />);
+    render(<ModuleRoutePage routeId="users-list" />);
 
     expect(screen.getByRole("heading", { name: "アクセスできません" })).toBeVisible();
     expect(screen.queryByText("詳細画面は後続Taskで実装します。")).toBeNull();
