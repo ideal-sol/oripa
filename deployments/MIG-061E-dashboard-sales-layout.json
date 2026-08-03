@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-061E",
   "risk": "R3",
-  "status": "preview_deployed_checks_pending",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "21648f1d4a00355be6ede17a2de7735a99f949ff",
   "issue": 176,

@@ -117,6 +117,7 @@
 
 ## Final／Gate
 
+- Preview DeploymentとLocal Gateは完了し、GitHub ChecksはFinal Headで再評価する。
 - Fresh Self-review、GitHub Checks、Final Head、Squash Commit、Branch／Worktree Cleanupは
   Closeoutで確定する。
 - Gate G4: `NOT COMPLETE`
