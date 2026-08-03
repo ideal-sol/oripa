@@ -6,7 +6,7 @@
 - Risk／Profile: `R4`／`FINANCIAL-MUTATION-R4-TARGETED`
 - Base: `main@3f6ee49d8fa7690e8cd4693e04439f65efed14e9`
 - Branch: `feat/MIG-061H-admin-user-point-adjustment`
-- Issue／PR: `#182`／Closeoutで確定
+- Issue／PR: `#182`／`#183`
 - Task Policy SHA-256: `4191b144fd33c50b97c515e5c47c42189d23b6e2e31c9efcf50a3aa665656f53`
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061H/`
 - Final Head／Squash Commit: CloseoutのGitHub merge結果を正本とする。
