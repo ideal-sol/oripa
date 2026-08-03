@@ -92,6 +92,10 @@
 - 集計性能は3 Endpoint合算で認可／Read Audit固定Queryも数えたため、Endpoint単位へ分解して
   10／8／8 Queryと確認した。2秒Timeoutや各Endpoint 12 Query上限は緩和していない。
 - Root空きはBuild前4.0GB、Build後3.6GB、Build Cache 0BだったためCleanupは行わず、Classic Builderを維持した。
+- 初回PR本文は必須Headingを満たしたが、Canonical bullet metadataの`Task ID`／`Risk`と
+  実Diff完全一致の`Changed files`／`Allowed paths`が不足しPolicy CheckだけがFailした。
+  ApplicationやGateを変更せずPR本文を修正した。同一Head再実行では旧Failure Check Runが残るため、
+  この再試行経緯を本Reportへ記録する実変更を新HeadとしてPushし、空Commitを使用しなかった。
 
 ## Final／Gate
 
