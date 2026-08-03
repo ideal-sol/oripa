@@ -7,7 +7,7 @@
 - Base: `main@fcc782daee4e6303858e412d9fe4372dc9919c7c`
 - Branch: `feat/MIG-061D-admin-sidebar-hierarchy`
 - Issue: `#172`
-- PR: `#174`（Draft／Policy Registry更新待ち）
+- PR: `#174`（Draft／Final GitHub Check待ち）
 - Task Policy SHA-256:
   `ada7789d9af064659c1b7d11c12565cf714f79264e13de057fe18e70883dca89`
   （Atomic再発行前:
@@ -91,7 +91,9 @@ Backend API、Permission文字列は追加していない。
   Route／専用Testの15 Pathだけを中央`ADMIN_SKELETON_FILES`へ登録した。
 - 新規Admin FileとTask専用登録集合は`added=15／registered=15／exact=True`。Wildcard、
   将来Path、Gate条件変更はない。
-- Security Gate、Secret Scan、最終`git diff --check`: Policy Registry整合後に実行する。
+- Security Unit／Gate: `6 tests`／`PASS`。Root／Legacy pnpm Finding 0、Composer既存
+  Baseline 10件、Secret Candidate 0。
+- `git diff --check`: `PASS`。
 - Backend全回帰、DB Guard、Migration、Draw性能、Backup／Restore、V1全回帰は、Task指示と
   変更Pathに基づき実行しない。
 
@@ -102,8 +104,16 @@ Backend API、Permission文字列は追加していない。
 - Rollback Tag: `oripa-v2-admin:mig061c-a6cab0d029ca`
 - Network `mig061a-v2-preview_v2_private`、固定IP `192.168.61.11`、Loopback
   `127.0.0.1:3611`、Restart Policy、Environment Key集合を記録した。
-- Candidate Build／Preview反映は全Local Gate成功後に実施する。API、PostgreSQL、Redis、DB、
-  Migration、Nginx、TLS／DNS、V1、Storefront、Paymentは変更しない。
+- Candidate Image: `oripa-v2-admin:mig061d-9b1e3c0e046b`、Digest
+  `sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf`、
+  Source SHA `9b1e3c0e046b3d1bbef85ea7492cf2e8ccf6730e`。
+- Candidate単体SmokeはHealth／Login／`/users`がHTTP 200。Preview反映後はPassword-only Login、
+  21 Route、8 Parent Group、Reload自動展開、Mobile Escape／横溢れをPASSした。
+- Console Critical ErrorとHTTP 500／502／504は0。API、PostgreSQL、RedisのContainer ID、DB、
+  Migration、Nginx Checksum、TLS／DNS、V1、Storefront、Paymentは変更していない。
+- 初回切替確認では、既存Internal Docker NetworkがHost Loopback Socketを公開しない挙動を
+  Health失敗と判定したためRollbackした。Rollback後Healthyを確認し、Container Health、固定IP＋
+  正規Host Header、外部Domainを正本として再切替し、すべてPASSした。
 
 ## 残っているUI課題
 
@@ -118,13 +128,16 @@ Backend API、Permission文字列は追加していない。
   確定後に全2件を1回実行してPASSした。
 - Root空きは開始時`4.4GB`、Docker Build Cacheは`0B`だった。Rollback Imageを保護し、
   Image／Volume Cleanupは行っていない。
+- Preview切替ではHost Loopback Probeが既存Internal Network構成と一致せず、Rollbackを1回実行
+  した。Container HealthとNginxが使用する固定IPを正本Probeへ変更し、Application修正や
+  Security境界緩和なしで再切替を完了した。
 
 ## Final／Gate
 
 - Policy再発行と中央Admin Skeleton登録のBlockerは解消済み。Application変更は
   `d9fa73f77caf185f7506ceb9fc925942f5073f09`から不変のため、成功済みのTypecheck、Lint、
   Build、全Unit、Browser E2E Evidenceを再利用した。
-- Fresh Self-review、GitHub Checks、Preview反映、Final Head、Squash Commit、Cleanupは
+- Fresh Self-review、GitHub Checks、Final Head、Squash Commit、Cleanupは
   Closeoutで確定する。
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`

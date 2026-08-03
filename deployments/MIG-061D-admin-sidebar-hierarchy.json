@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-061D",
   "risk": "R3",
-  "status": "implementation_validated_preview_pending",
+  "status": "preview_deployed_checks_pending",
   "base_branch": "main",
   "base_sha": "fcc782daee4e6303858e412d9fe4372dc9919c7c",
   "target": "admin.luxe-pack.biz",
@@ -14,26 +14,27 @@
   },
   "artifacts": {
     "admin_image_digest_before": "sha256:bd49b3460d024534b8b13676cd661ed00ded210edd9e27acbeb7b9ca2f2c9f71",
-    "admin_image_digest_after": null,
-    "admin_source_sha": null,
-    "admin_image_tag": null,
+    "admin_image_digest_after": "sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf",
+    "admin_source_sha": "9b1e3c0e046b3d1bbef85ea7492cf2e8ccf6730e",
+    "admin_image_tag": "oripa-v2-admin:mig061d-9b1e3c0e046b",
     "rollback_image_tag": "oripa-v2-admin:mig061c-a6cab0d029ca"
   },
   "verification": {
-    "admin_health": "PENDING",
-    "password_only_login": "PENDING",
-    "sidebar_hierarchy": "PENDING",
-    "scaffold_routes": "PENDING",
-    "mobile_drawer": "PENDING",
-    "horizontal_overflow": "PENDING",
-    "console_critical_errors": null,
-    "http_500_502_504": null,
+    "admin_health": "PASS",
+    "password_only_login": "PASS",
+    "sidebar_hierarchy": "PASS",
+    "scaffold_routes": "PASS_13",
+    "mobile_drawer": "PASS",
+    "horizontal_overflow": "PASS",
+    "console_critical_errors": 0,
+    "http_500_502_504": 0,
     "api_container_change": "NONE",
     "database_change": "NONE",
     "nginx_change": "NONE",
     "v1_change": "NONE"
   },
   "nginx_checksum_before": "6b3ec7ba155c764e6ce47e960a5303fc68e370cba6f2dfbf1c5fd5726edb4be2",
+  "nginx_checksum_after": "6b3ec7ba155c764e6ce47e960a5303fc68e370cba6f2dfbf1c5fd5726edb4be2",
   "gate_g4": "NOT COMPLETE",
   "gate_g5": "NOT COMPLETE"
 }

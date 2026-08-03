@@ -7760,4 +7760,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   GitHub Check、Squash Merge、CleanupはCloseoutで確定する。
 - Policy Unit `91 tests`、Policy／Quality GateがPASS。新規Scaffold／Test 15 Pathと中央Admin
   Skeleton登録集合は機械的に完全一致し、WildcardやGate緩和はない。
+- Preview AdminをImage
+  `sha256:fe685fc99eba2f13a4c3355afa39eff28c1ed366398eebfdab33261a9fb0c0cf`へ更新した。
+  Password-only Login、21 Route、8 Parent、Desktop／Mobile、Console Error 0、HTTP 500／502／504
+  0を確認し、API／DB／Migration／Nginx／V1は変更していない。Rollback Imageは保持する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Eは開始しない。
