@@ -43,6 +43,22 @@ final readonly class V2ReportingPeriod
         return new self('date', $date, $start, $start->addDay());
     }
 
+    public static function dateRange(string $startDate, string $endDate): self
+    {
+        $start = self::date($startDate);
+        $end = self::date($endDate);
+        if ($end->start->lessThan($start->start)) {
+            throw self::invalid();
+        }
+
+        return new self(
+            'date_range',
+            $startDate.'/'.$endDate,
+            $start->start,
+            $end->end
+        );
+    }
+
     public function utcStart(): CarbonImmutable
     {
         return $this->start->utc();

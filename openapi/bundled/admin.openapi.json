@@ -6395,6 +6395,202 @@
         }
       }
     },
+    "/reports/dashboard/sales/monthly": {
+      "get": {
+        "operationId": "getAdminDashboardMonthlySales",
+        "summary": "Dashboard向けJST月別売上を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportMonth"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard月別売上Summaryと日別集計。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardMonthlySalesReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/reports/dashboard/sales/daily": {
+      "get": {
+        "operationId": "getAdminDashboardDailySales",
+        "summary": "Dashboard向けJST日別売上と成功Paymentを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportDate"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard日別売上Summaryと成功Payment一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardDailySalesReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/reports/dashboard/points/monthly": {
+      "get": {
+        "operationId": "getAdminDashboardMonthlyPointConsumption",
+        "summary": "Dashboard向けJST月別Point消費を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportMonth"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QAを除外した月別Point消費Summaryと日別集計。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardMonthlyPointReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/reports/dashboard/points/daily": {
+      "get": {
+        "operationId": "getAdminDashboardDailyPointConsumption",
+        "summary": "Dashboard向けJST日別Point消費明細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportDate"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QAを除外した日別Point消費明細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardDailyPointReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/reports/dashboard/reversals": {
+      "get": {
+        "operationId": "listAdminDashboardPaymentReversals",
+        "summary": "Dashboard向け返金／Chargeback履歴を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportStartDate"
+          },
+          {
+            "$ref": "#/components/parameters/ReportEndDate"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "作成日時基準の返金／Chargeback履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardReversalReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/reports/sales/daily": {
       "get": {
         "operationId": "listAdminDailySales",
@@ -13816,6 +14012,474 @@
           }
         }
       },
+      "DashboardSalesSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "payment_count",
+          "gross_sales_amount",
+          "refund_count",
+          "refund_amount",
+          "chargeback_count",
+          "chargeback_amount",
+          "net_sales_amount"
+        ],
+        "properties": {
+          "payment_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gross_sales_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "refund_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "refund_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chargeback_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chargeback_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "net_sales_amount": {
+            "type": "integer"
+          }
+        }
+      },
+      "DashboardMonthlySalesDay": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "summary"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardSalesSummary"
+          }
+        }
+      },
+      "DashboardMonthlySalesReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "month",
+          "timezone",
+          "currency",
+          "basis",
+          "summary",
+          "days"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          },
+          "currency": {
+            "type": "string",
+            "const": "JPY"
+          },
+          "basis": {
+            "type": "string",
+            "const": "operational_event_aggregation_not_accounting_recognition"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardSalesSummary"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardMonthlySalesDay"
+            }
+          }
+        }
+      },
+      "DashboardPayment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "payment_id",
+          "user_id",
+          "amount",
+          "currency",
+          "plan_name",
+          "provider",
+          "status",
+          "succeeded_at"
+        ],
+        "properties": {
+          "payment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "currency": {
+            "type": "string",
+            "const": "JPY"
+          },
+          "plan_name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "provider": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "status": {
+            "type": "string",
+            "const": "succeeded"
+          },
+          "succeeded_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DashboardDailySalesReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "timezone",
+          "currency",
+          "basis",
+          "summary",
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          },
+          "currency": {
+            "type": "string",
+            "const": "JPY"
+          },
+          "basis": {
+            "type": "string",
+            "const": "operational_event_aggregation_not_accounting_recognition"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardSalesSummary"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardPayment"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DashboardPointSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paid_consumed",
+          "free_consumed"
+        ],
+        "properties": {
+          "paid_consumed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_consumed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "DashboardMonthlyPointDay": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "summary"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardPointSummary"
+          }
+        }
+      },
+      "DashboardMonthlyPointReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "month",
+          "timezone",
+          "qa_excluded",
+          "summary",
+          "days"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          },
+          "qa_excluded": {
+            "type": "boolean",
+            "const": true
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardPointSummary"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardMonthlyPointDay"
+            }
+          }
+        }
+      },
+      "DashboardPointConsumption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "user_id",
+          "source_type",
+          "paid_consumed",
+          "free_consumed",
+          "occurred_at"
+        ],
+        "properties": {
+          "operation_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "source_type": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "draw_request_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gacha_version_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gacha_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 191
+          },
+          "draw_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "paid_consumed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_consumed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DashboardDailyPointReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "timezone",
+          "qa_excluded",
+          "summary",
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          },
+          "qa_excluded": {
+            "type": "boolean",
+            "const": true
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardPointSummary"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardPointConsumption"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DashboardPaymentReversal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "adjustment_id",
+          "payment_id",
+          "type",
+          "status",
+          "amount",
+          "currency",
+          "occurred_at"
+        ],
+        "properties": {
+          "adjustment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "payment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "refund",
+              "chargeback",
+              "chargeback_reversal"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "points_reserved",
+              "submitted",
+              "processing",
+              "succeeded",
+              "failed",
+              "canceled",
+              "manual_review"
+            ]
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "currency": {
+            "type": "string",
+            "const": "JPY"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DashboardReversalReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_date",
+          "end_date",
+          "timezone",
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardPaymentReversal"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ReportingCollection": {
         "type": "object",
         "additionalProperties": false,
@@ -14442,6 +15106,24 @@
       },
       "ReportDate": {
         "name": "date",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "ReportStartDate": {
+        "name": "start_date",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "ReportEndDate": {
+        "name": "end_date",
         "in": "query",
         "required": true,
         "schema": {

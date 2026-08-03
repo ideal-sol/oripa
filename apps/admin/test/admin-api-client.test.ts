@@ -63,6 +63,27 @@ describe("AdminApiClient", () => {
     expect(headers.get("Authorization")).toBeNull();
   });
 
+  it("reads only the typed same-origin Dashboard reporting surface", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ days: [], month: "2026-08", summary: {} }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.getDashboardMonthlySales("2026-08");
+    await client.getDashboardReversals("2026-08-01", "2026-08-31", "djE6MTA=");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/reports/dashboard/sales/monthly?month=2026-08",
+      "/admin/api/v2/reports/dashboard/reversals?cursor=djE6MTA%3D&end_date=2026-08-31&limit=50&start_date=2026-08-01",
+    ]);
+    for (const [, request] of fetcher.mock.calls) {
+      expect(request?.credentials).toBe("include");
+      expect(request?.cache).toBe("no-store");
+      expect(new Headers(request?.headers).get("Authorization")).toBeNull();
+      expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBeNull();
+    }
+  });
+
   it("reads only the same-origin Admin Catalog surface with encoded filters", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ items: [], next_cursor: null }),

@@ -1,6 +1,11 @@
 import {
   ADMIN_API_BASE_PATH,
   type AdminEffectivePermissions,
+  type AdminDashboardDailyPoints,
+  type AdminDashboardDailySales,
+  type AdminDashboardMonthlyPoints,
+  type AdminDashboardMonthlySales,
+  type AdminDashboardReversalHistory,
   type AdminCatalogCategory,
   type AdminCatalogCategoryCreate,
   type AdminCatalogCategoryUpdate,
@@ -159,6 +164,57 @@ export class AdminApiClient {
 
   getPermissions(signal?: AbortSignal): Promise<AdminEffectivePermissions> {
     return this.request("GET", "/auth/permissions", { signal });
+  }
+
+  getDashboardMonthlySales(
+    month: string,
+    signal?: AbortSignal,
+  ): Promise<AdminDashboardMonthlySales> {
+    return this.dashboardReport("/reports/dashboard/sales/monthly", { month }, signal);
+  }
+
+  getDashboardDailySales(
+    date: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminDashboardDailySales> {
+    return this.dashboardReport(
+      "/reports/dashboard/sales/daily",
+      { cursor, date, limit: 50 },
+      signal,
+    );
+  }
+
+  getDashboardMonthlyPoints(
+    month: string,
+    signal?: AbortSignal,
+  ): Promise<AdminDashboardMonthlyPoints> {
+    return this.dashboardReport("/reports/dashboard/points/monthly", { month }, signal);
+  }
+
+  getDashboardDailyPoints(
+    date: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminDashboardDailyPoints> {
+    return this.dashboardReport(
+      "/reports/dashboard/points/daily",
+      { cursor, date, limit: 50 },
+      signal,
+    );
+  }
+
+  getDashboardReversals(
+    startDate: string,
+    endDate: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminDashboardReversalHistory> {
+    return this.dashboardReport(
+      "/reports/dashboard/reversals",
+      { cursor, end_date: endDate, limit: 50, start_date: startDate },
+      signal,
+    );
   }
 
   getLineMessagingSetting(
@@ -1623,7 +1679,8 @@ export class AdminApiClient {
       | `/catalog/${string}`
       | `/identity/${string}`
       | `/qa/${string}`
-      | `/qa-draw-executions${string}`,
+      | `/qa-draw-executions${string}`
+      | `/reports/dashboard/${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
     if (
@@ -1631,7 +1688,8 @@ export class AdminApiClient {
         !path.startsWith("/catalog/") &&
         !path.startsWith("/identity/") &&
         !path.startsWith("/qa/") &&
-        !path.startsWith("/qa-draw-executions")) ||
+        !path.startsWith("/qa-draw-executions") &&
+        !path.startsWith("/reports/dashboard/")) ||
       path.includes("://") ||
       path.includes("..")
     ) {
@@ -1700,6 +1758,21 @@ export class AdminApiClient {
       window.clearTimeout(timeoutId);
       options.signal?.removeEventListener("abort", abort);
     }
+  }
+
+  private dashboardReport<T>(
+    path: `/reports/dashboard/${string}`,
+    query: Record<string, number | string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query).sort(([left], [right]) =>
+      left.localeCompare(right))) {
+      if (value !== undefined) {
+        parameters.set(name, String(value));
+      }
+    }
+    return this.request("GET", `${path}?${parameters.toString()}`, { signal });
   }
 }
 

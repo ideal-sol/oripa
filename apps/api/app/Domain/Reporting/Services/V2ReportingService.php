@@ -214,6 +214,250 @@ final class V2ReportingService
     }
 
     /** @return array<string, mixed> */
+    public function dashboardMonthlySales(
+        V2AdminAuthorizationContext $context,
+        string $month
+    ): array {
+        $admin = $this->authorization->authorizeReporting($context);
+        $period = V2ReportingPeriod::month($month);
+        $payments = DB::table('payments')
+            ->where('status', 'succeeded')
+            ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
+            ->selectRaw("(succeeded_at AT TIME ZONE 'Asia/Tokyo')::date AS report_date")
+            ->selectRaw('COUNT(*) AS payment_count, SUM(amount) AS gross_sales_amount')
+            ->groupByRaw("(succeeded_at AT TIME ZONE 'Asia/Tokyo')::date")
+            ->get()
+            ->keyBy(fn (object $row): string => (string) $row->report_date);
+        $adjustments = DB::table('payment_adjustments')
+            ->where('status', 'succeeded')
+            ->whereIn('type', ['refund', 'chargeback'])
+            ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
+            ->selectRaw("(succeeded_at AT TIME ZONE 'Asia/Tokyo')::date AS report_date")
+            ->selectRaw("COUNT(*) FILTER (WHERE type = 'refund') AS refund_count")
+            ->selectRaw("COALESCE(SUM(amount) FILTER (WHERE type = 'refund'), 0) AS refund_amount")
+            ->selectRaw("COUNT(*) FILTER (WHERE type = 'chargeback') AS chargeback_count")
+            ->selectRaw("COALESCE(SUM(amount) FILTER (WHERE type = 'chargeback'), 0) AS chargeback_amount")
+            ->groupByRaw("(succeeded_at AT TIME ZONE 'Asia/Tokyo')::date")
+            ->get()
+            ->keyBy(fn (object $row): string => (string) $row->report_date);
+        $dates = $payments->keys()->merge($adjustments->keys())->unique()->sort()->values();
+        $days = $dates->map(function (string $date) use ($payments, $adjustments): array {
+            return [
+                'date' => $date,
+                'summary' => $this->dashboardSalesSummary(
+                    $payments->get($date),
+                    $adjustments->get($date)
+                ),
+            ];
+        })->all();
+        $this->auditView($admin, $context, 'dashboard_sales_monthly', $period->value, 'normal');
+
+        return [
+            'month' => $period->value,
+            'timezone' => 'Asia/Tokyo',
+            'currency' => 'JPY',
+            'basis' => 'operational_event_aggregation_not_accounting_recognition',
+            'summary' => $this->dashboardSalesSummaryForPeriod($period),
+            'days' => $days,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function dashboardDailySales(
+        V2AdminAuthorizationContext $context,
+        string $date,
+        ?string $cursor,
+        int $limit
+    ): array {
+        $admin = $this->authorization->authorizeReporting($context);
+        $period = V2ReportingPeriod::date($date);
+        $query = DB::table('payments')
+            ->join('users', 'users.id', '=', 'payments.user_id')
+            ->where('payments.status', 'succeeded')
+            ->where('payments.succeeded_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('payments.succeeded_at', '<', $period->utcEnd()->toIso8601String())
+            ->orderBy('payments.id')
+            ->select([
+                'payments.id',
+                'payments.public_id',
+                'users.public_id as user_public_id',
+                'payments.amount',
+                'payments.currency',
+                'payments.plan_name_snapshot',
+                'payments.provider_code',
+                'payments.status',
+                'payments.succeeded_at',
+            ]);
+        $items = $this->page($query, $cursor, $limit, fn (object $row): array => [
+            'payment_id' => $row->public_id,
+            'user_id' => $row->user_public_id,
+            'amount' => (int) $row->amount,
+            'currency' => $row->currency,
+            'plan_name' => $row->plan_name_snapshot,
+            'provider' => $row->provider_code,
+            'status' => $row->status,
+            'succeeded_at' => (string) $row->succeeded_at,
+        ]);
+        $this->auditView($admin, $context, 'dashboard_sales_daily', $period->value, 'normal');
+
+        return [
+            'date' => $period->value,
+            'timezone' => 'Asia/Tokyo',
+            'currency' => 'JPY',
+            'basis' => 'operational_event_aggregation_not_accounting_recognition',
+            'summary' => $this->dashboardSalesSummaryForPeriod($period),
+            ...$items,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function dashboardMonthlyPoints(
+        V2AdminAuthorizationContext $context,
+        string $month
+    ): array {
+        $admin = $this->authorization->authorizeReporting($context);
+        $period = V2ReportingPeriod::month($month);
+        $rows = $this->dashboardPointSummaryQuery($period)
+            ->selectRaw("(ledger.occurred_at AT TIME ZONE 'Asia/Tokyo')::date AS report_date")
+            ->groupByRaw("(ledger.occurred_at AT TIME ZONE 'Asia/Tokyo')::date")
+            ->orderBy('report_date')
+            ->get();
+        $days = $rows->map(fn (object $row): array => [
+            'date' => (string) $row->report_date,
+            'summary' => $this->dashboardPointSummary($row),
+        ])->all();
+        $summary = $this->dashboardPointSummaryQuery($period)->first();
+        $this->auditView($admin, $context, 'dashboard_points_monthly', $period->value, 'normal');
+
+        return [
+            'month' => $period->value,
+            'timezone' => 'Asia/Tokyo',
+            'qa_excluded' => true,
+            'summary' => $this->dashboardPointSummary($summary),
+            'days' => $days,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function dashboardDailyPoints(
+        V2AdminAuthorizationContext $context,
+        string $date,
+        ?string $cursor,
+        int $limit
+    ): array {
+        $admin = $this->authorization->authorizeReporting($context);
+        $period = V2ReportingPeriod::date($date);
+        $summary = $this->dashboardPointSummaryQuery($period)->first();
+        $query = DB::table('point_operations as operation')
+            ->join('point_ledger_entries as ledger', 'ledger.point_operation_id', '=', 'operation.id')
+            ->join('users', 'users.id', '=', 'operation.user_id')
+            ->leftJoin('draw_requests as request', function ($join): void {
+                $join->on('request.id', '=', 'operation.source_id')
+                    ->where('operation.source_type', '=', 'draw');
+            })
+            ->leftJoin('catalog_gacha_versions as version', 'version.id', '=', 'request.gacha_version_id')
+            ->where('operation.is_qa', false)
+            ->where('ledger.entry_type', 'spend')
+            ->where('ledger.occurred_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('ledger.occurred_at', '<', $period->utcEnd()->toIso8601String())
+            ->groupBy([
+                'operation.id',
+                'operation.public_id',
+                'operation.source_type',
+                'operation.occurred_at',
+                'users.public_id',
+                'request.public_id',
+                'request.executed_count',
+                'version.public_id',
+                'version.title',
+            ])
+            ->orderBy('operation.id')
+            ->select([
+                'operation.id',
+                'operation.public_id',
+                'operation.source_type',
+                'operation.occurred_at',
+                'users.public_id as user_public_id',
+                'request.public_id as draw_request_public_id',
+                'request.executed_count',
+                'version.public_id as gacha_version_public_id',
+                'version.title as gacha_title',
+            ])
+            ->selectRaw("COALESCE(SUM(ABS(ledger.amount_delta)) FILTER (WHERE ledger.point_type = 'paid'), 0) AS paid_consumed")
+            ->selectRaw("COALESCE(SUM(ABS(ledger.amount_delta)) FILTER (WHERE ledger.point_type = 'free'), 0) AS free_consumed");
+        $items = $this->page($query, $cursor, $limit, fn (object $row): array => [
+            'operation_id' => $row->public_id,
+            'user_id' => $row->user_public_id,
+            'source_type' => $row->source_type,
+            'draw_request_id' => $row->draw_request_public_id,
+            'gacha_version_id' => $row->gacha_version_public_id,
+            'gacha_title' => $row->gacha_title,
+            'draw_count' => $row->executed_count === null ? null : (int) $row->executed_count,
+            'paid_consumed' => (int) $row->paid_consumed,
+            'free_consumed' => (int) $row->free_consumed,
+            'occurred_at' => (string) $row->occurred_at,
+        ]);
+        $this->auditView($admin, $context, 'dashboard_points_daily', $period->value, 'normal');
+
+        return [
+            'date' => $period->value,
+            'timezone' => 'Asia/Tokyo',
+            'qa_excluded' => true,
+            'summary' => $this->dashboardPointSummary($summary),
+            ...$items,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function dashboardReversals(
+        V2AdminAuthorizationContext $context,
+        string $startDate,
+        string $endDate,
+        ?string $cursor,
+        int $limit
+    ): array {
+        $admin = $this->authorization->authorizeReporting($context);
+        $period = V2ReportingPeriod::dateRange($startDate, $endDate);
+        $occurredAt = 'COALESCE(payment_adjustments.succeeded_at, payment_adjustments.requested_at)';
+        $query = DB::table('payment_adjustments')
+            ->join('payments', 'payments.id', '=', 'payment_adjustments.payment_id')
+            ->whereRaw($occurredAt.' >= ?', [$period->utcStart()->toIso8601String()])
+            ->whereRaw($occurredAt.' < ?', [$period->utcEnd()->toIso8601String()])
+            ->orderBy('payment_adjustments.id')
+            ->select([
+                'payment_adjustments.id',
+                'payment_adjustments.public_id',
+                'payments.public_id as payment_public_id',
+                'payment_adjustments.type',
+                'payment_adjustments.status',
+                'payment_adjustments.amount',
+                'payment_adjustments.currency',
+                'payment_adjustments.succeeded_at',
+            ])
+            ->selectRaw($occurredAt.' AS occurred_at');
+        $items = $this->page($query, $cursor, $limit, fn (object $row): array => [
+            'adjustment_id' => $row->public_id,
+            'payment_id' => $row->payment_public_id,
+            'type' => $row->type,
+            'status' => $row->status,
+            'amount' => (int) $row->amount,
+            'currency' => $row->currency,
+            'occurred_at' => (string) $row->occurred_at,
+            'succeeded_at' => $row->succeeded_at === null ? null : (string) $row->succeeded_at,
+        ]);
+        $this->auditView($admin, $context, 'dashboard_reversals', $period->value, 'normal');
+
+        return [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'timezone' => 'Asia/Tokyo',
+            ...$items,
+        ];
+    }
+
+    /** @return array<string, mixed> */
     public function gachaSummary(
         V2AdminAuthorizationContext $context,
         string $month,
@@ -519,6 +763,68 @@ final class V2ReportingService
         }
 
         return 'id';
+    }
+
+    /** @return array<string, int> */
+    private function dashboardSalesSummaryForPeriod(V2ReportingPeriod $period): array
+    {
+        $payment = DB::table('payments')
+            ->where('status', 'succeeded')
+            ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
+            ->selectRaw('COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS gross_sales_amount')
+            ->first();
+        $adjustment = DB::table('payment_adjustments')
+            ->where('status', 'succeeded')
+            ->whereIn('type', ['refund', 'chargeback'])
+            ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
+            ->selectRaw("COUNT(*) FILTER (WHERE type = 'refund') AS refund_count")
+            ->selectRaw("COALESCE(SUM(amount) FILTER (WHERE type = 'refund'), 0) AS refund_amount")
+            ->selectRaw("COUNT(*) FILTER (WHERE type = 'chargeback') AS chargeback_count")
+            ->selectRaw("COALESCE(SUM(amount) FILTER (WHERE type = 'chargeback'), 0) AS chargeback_amount")
+            ->first();
+
+        return $this->dashboardSalesSummary($payment, $adjustment);
+    }
+
+    /** @return array<string, int> */
+    private function dashboardSalesSummary(?object $payment, ?object $adjustment): array
+    {
+        $gross = (int) ($payment->gross_sales_amount ?? 0);
+        $refund = (int) ($adjustment->refund_amount ?? 0);
+        $chargeback = (int) ($adjustment->chargeback_amount ?? 0);
+
+        return [
+            'payment_count' => (int) ($payment->payment_count ?? 0),
+            'gross_sales_amount' => $gross,
+            'refund_count' => (int) ($adjustment->refund_count ?? 0),
+            'refund_amount' => $refund,
+            'chargeback_count' => (int) ($adjustment->chargeback_count ?? 0),
+            'chargeback_amount' => $chargeback,
+            'net_sales_amount' => $gross - $refund - $chargeback,
+        ];
+    }
+
+    private function dashboardPointSummaryQuery(V2ReportingPeriod $period): Builder
+    {
+        return DB::table('point_ledger_entries as ledger')
+            ->join('point_operations as operation', 'operation.id', '=', 'ledger.point_operation_id')
+            ->where('operation.is_qa', false)
+            ->where('ledger.entry_type', 'spend')
+            ->where('ledger.occurred_at', '>=', $period->utcStart()->toIso8601String())
+            ->where('ledger.occurred_at', '<', $period->utcEnd()->toIso8601String())
+            ->selectRaw("COALESCE(SUM(ABS(ledger.amount_delta)) FILTER (WHERE ledger.point_type = 'paid'), 0) AS paid_consumed")
+            ->selectRaw("COALESCE(SUM(ABS(ledger.amount_delta)) FILTER (WHERE ledger.point_type = 'free'), 0) AS free_consumed");
+    }
+
+    /** @return array{paid_consumed: int, free_consumed: int} */
+    private function dashboardPointSummary(?object $row): array
+    {
+        return [
+            'paid_consumed' => (int) ($row->paid_consumed ?? 0),
+            'free_consumed' => (int) ($row->free_consumed ?? 0),
+        ];
     }
 
     private function assertQaFilter(string $qaFilter): void

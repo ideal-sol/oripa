@@ -339,6 +339,16 @@ Route::prefix('v2')
             ->name('v2.admin.shipping-requests.update');
         Route::get('/reports/sales/monthly', [V2AdminReportingController::class, 'monthlySales'])
             ->name('v2.admin.reporting.sales.monthly');
+        Route::get('/reports/dashboard/sales/monthly', [V2AdminReportingController::class, 'dashboardMonthlySales'])
+            ->name('v2.admin.reporting.dashboard.sales.monthly');
+        Route::get('/reports/dashboard/sales/daily', [V2AdminReportingController::class, 'dashboardDailySales'])
+            ->name('v2.admin.reporting.dashboard.sales.daily');
+        Route::get('/reports/dashboard/points/monthly', [V2AdminReportingController::class, 'dashboardMonthlyPoints'])
+            ->name('v2.admin.reporting.dashboard.points.monthly');
+        Route::get('/reports/dashboard/points/daily', [V2AdminReportingController::class, 'dashboardDailyPoints'])
+            ->name('v2.admin.reporting.dashboard.points.daily');
+        Route::get('/reports/dashboard/reversals', [V2AdminReportingController::class, 'dashboardReversals'])
+            ->name('v2.admin.reporting.dashboard.reversals');
         Route::get('/reports/sales/daily', [V2AdminReportingController::class, 'dailySales'])
             ->name('v2.admin.reporting.sales.daily');
         Route::get('/reports/adjustments', [V2AdminReportingController::class, 'adjustments'])

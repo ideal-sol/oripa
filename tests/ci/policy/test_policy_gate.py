@@ -20,6 +20,21 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061f_path_registration_is_exact(self):
+        expected_reporting = {
+            "apps/api/tests/Unit/V2ReportingServiceDashboardAggregationTest.php",
+            "apps/api/tests/V2/DashboardSalesAggregationApiTest.php",
+            "apps/api/tests/V2/ZDashboardSalesAggregationPerformanceTest.php",
+        }
+        expected_admin = {
+            "apps/admin/src/components/shell/use-dashboard-sales-data.ts",
+        }
+
+        self.assertTrue(expected_reporting.issubset(policy_gate.V2_REPORTING_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061F_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_reporting | expected_admin))
+
     def test_mig_061e_admin_skeleton_registration_is_exact(self):
         expected = {
             "apps/admin/e2e/dashboard-sales-layout.spec.ts",

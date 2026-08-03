@@ -31,6 +31,53 @@ final class V2AdminReportingController
         ));
     }
 
+    public function dashboardMonthlySales(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->reporting->dashboardMonthlySales(
+            $this->context($request),
+            (string) $request->query('month')
+        ));
+    }
+
+    public function dashboardDailySales(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->reporting->dashboardDailySales(
+            $this->context($request),
+            (string) $request->query('date'),
+            $this->stringQuery($request, 'cursor'),
+            $this->limit($request)
+        ));
+    }
+
+    public function dashboardMonthlyPoints(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->reporting->dashboardMonthlyPoints(
+            $this->context($request),
+            (string) $request->query('month')
+        ));
+    }
+
+    public function dashboardDailyPoints(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->reporting->dashboardDailyPoints(
+            $this->context($request),
+            (string) $request->query('date'),
+            $this->stringQuery($request, 'cursor'),
+            $this->limit($request)
+        ));
+    }
+
+    public function dashboardReversals(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->reporting->dashboardReversals(
+            $this->context($request),
+            (string) $request->query('start_date'),
+            (string) $request->query('end_date'),
+            $this->stringQuery($request, 'cursor'),
+            $this->limit($request)
+        ));
+    }
+
     public function dailySales(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->reporting->dailySales(
@@ -236,7 +283,9 @@ final class V2AdminReportingController
             $status = $exception->status;
             $message = $exception->getMessage();
             $retryable = $exception->retryable;
-            $retryAfter = $exception->retryAfter;
+            $retryAfter = $exception instanceof V2AuthenticationException
+                ? $exception->retryAfterSeconds
+                : $exception->retryAfter;
         }
         $headers = [
             ...$this->headers($requestId),

@@ -1,0 +1,52 @@
+{
+  "task_id": "MIG-061F",
+  "risk": "R3",
+  "verification_profile": "DATA-R3-TARGETED",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "550051a78bae4d0aadbb7a02119fa211237bc28b",
+  "issue": 178,
+  "pull_request": 179,
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_container": "mig061a-v2-preview-api-1",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "network": "mig061a-v2-preview_v2_private",
+    "api_internal_address": "192.168.61.10:8000",
+    "admin_internal_address": "192.168.61.11:3000",
+    "api_loopback_address": "127.0.0.1:8611",
+    "admin_loopback_address": "127.0.0.1:3611",
+    "database": "oripa_v2_mig061a",
+    "database_marker": "mig061a",
+    "migration_count": 30
+  },
+  "artifacts": {
+    "source_sha": "c6c455a0d1f74d882a0e107e07025b2ce886329b",
+    "api_image_before": "sha256:465994e86c64974586b80d8428fc9a653c704efe3bafb4ff545ce6b93a4773e3",
+    "api_image_after": "sha256:0bbb6c3b054919273dae112dc59c6a38a528fc29b14483cdbeb810fa90f5f6e3",
+    "api_image_tag": "oripa-v2-api:mig061f-c6c455a0d1f7",
+    "admin_image_before": "sha256:a80018dd0aec36f283fbdc47cfe3a830a156bf3c8bd791f88021a25fafc1ad4e",
+    "admin_image_after": "sha256:f348dbb297f4d7f50a93f3f03b46909bc727fac9328972080b2e359dda07f4e5",
+    "admin_image_tag": "oripa-v2-admin:mig061f-c6c455a0d1f7"
+  },
+  "verification": {
+    "api_health": "PASS",
+    "password_only_login": "PASS",
+    "dashboard_tabs": 5,
+    "dashboard_api_status": "PASS_200",
+    "desktop": "PASS",
+    "mobile": "PASS",
+    "console_critical_errors": 0,
+    "page_errors": 0,
+    "http_500_502_504": 0,
+    "database_change": "NONE",
+    "migration_change": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "nginx_config_set_checksum_before": "6b3ec7ba155c764e6ce47e960a5303fc68e370cba6f2dfbf1c5fd5726edb4be2",
+  "nginx_config_set_checksum_after": "6b3ec7ba155c764e6ce47e960a5303fc68e370cba6f2dfbf1c5fd5726edb4be2",
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
