@@ -20,6 +20,17 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061e_admin_skeleton_registration_is_exact(self):
+        expected = {
+            "apps/admin/e2e/dashboard-sales-layout.spec.ts",
+            "apps/admin/src/components/shell/dashboard-sales-layout.tsx",
+            "apps/admin/test/dashboard-sales-layout.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061E_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_061d_admin_skeleton_registration_is_exact(self):
         expected = {
             "apps/admin/e2e/admin-navigation-hierarchy.spec.ts",
