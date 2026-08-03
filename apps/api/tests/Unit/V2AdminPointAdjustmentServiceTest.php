@@ -12,6 +12,7 @@ use App\Models\V2\Admin;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -20,6 +21,12 @@ final class V2AdminPointAdjustmentServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (
+            ! Schema::hasColumn('users', 'email_display')
+            || ! Schema::hasTable('point_adjustments')
+        ) {
+            $this->markTestSkipped('The Admin point adjustment unit requires the V2 schema.');
+        }
         DB::beginTransaction();
     }
 

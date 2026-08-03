@@ -61,6 +61,9 @@
 - Persistent／Ephemeral Full Guard、Backup／Restore、Draw負荷、V1全回帰、Storefront、全Admin E2Eは
   Profileに従い実行していない。Browser Scriptの引数が一度全24件へ転送され、旧Sidebar名を期待する既存
   Baseline 4件を確認後に停止し、Playwright直接指定でTask対象2件を実行した。
+- 最初のGitHub Integration Runでは、新V2 Unit 2件がV1-only Schemaでも実行され新規Failureとなった。
+  MIG-061Gで確立済みのSchema存在GuardをTestだけへ追加し、Task V2 DBでは2 tests／13 assertionsを再確認した。
+  Application／Contract差分がないためPreview Imageと対象Domain／Concurrency Evidenceは再利用した。
 
 ## Preview／Closeout
 
@@ -83,7 +86,8 @@
 ## Time／Gate
 
 - 時間を要した作業はTask専用API ImageのClassic Build、CSRF Fixtureの形式・Cookie状態の決定化、
-  Browser Runnerの全Suite転送切り分けである。Assertion、Timeout、Security Gateは緩和していない。
+  Browser Runnerの全Suite転送、CI V1-only SchemaでのV2 Unit実行境界の切り分けである。
+  Assertion、Timeout、Security Gateは緩和していない。
 - Gate G4: `NOT COMPLETE`
 - Gate G5: `NOT COMPLETE`
 - MIG-061I以降は開始しない。
