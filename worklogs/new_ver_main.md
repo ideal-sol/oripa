@@ -7830,3 +7830,25 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `worklogs/reports/MIG-061F-report.md`。Final Head、GitHub Checks、Fresh Self-review、Squash Commit、
   Task Resource CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061G以降は開始しない。
+
+## MIG-061G Admin User List／Detail／Gacha History
+
+### Task／Policy／Characterization
+
+- Issue `#180`、Branch `feat/MIG-061G-admin-user-management-read-model`、Risk `R3`、
+  Verification Profile `DATA-R3-TARGETED`。
+- Baseは`main@35ba11a1762a574ad1cf7528e825d92a2ed69a2c`。Task PolicyはV2 User Model、
+  次連番Migration `000031`、Identity Schema Test、Admin Navigationと既存Permission Testの
+  5 Pathだけを追加してAtomic再発行した。最終SHA-256は
+  `e94dbac9d014fff7293f73e024617a5a2640dfa894bdf0dc2e722922af634c2b`。
+- V1 `users.name`は既定長255の必須表示名である。V2では既存Userを維持するnullable
+  `display_name`とし、未設定時にEmail等から推測しない。
+- V2 Password／External Identity作成には表示名入力がないため、User作成処理を変更しない。
+- WalletのPaid／Free Current Balanceを正本とし、合計はBackendで整数加算する。
+- V1「ユーザー保有景品」はStatus Filterなしの取得履歴であるため、V2別Routeの
+  「ユーザーガチャ履歴」も過去を含む取得景品履歴として実装する。
+- 全Active Admin Sessionへ同じRead Modelを提供し、専用PermissionやRole分岐は追加しない。
+  `/users/history`とUser／Point／Prize Mutationは変更しない。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061G/`、提出Reportは
+  `worklogs/reports/MIG-061G-report.md`。実装、検証、Preview反映、Closeout結果は後続追記する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061H以降は開始しない。
