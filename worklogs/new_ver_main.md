@@ -7801,3 +7801,32 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   `worklogs/reports/MIG-061E-report.md`。Final Head、GitHub Checks、Fresh Self-review、
   Squash Commit、CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061F以降は開始しない。
+
+## MIG-061F Dashboard Sales Aggregation API／Frontend Connection
+
+### Task／Scope
+
+- Issue `#178`、PR `#179`、Branch `feat/MIG-061F-dashboard-sales-aggregation`、Risk `R3`、
+  Verification Profile `DATA-R3-TARGETED`。
+- Baseは`main@550051a78bae4d0aadbb7a02119fa211237bc28b`、Task Policy SHA-256は
+  `12d1a78a61514f680e7767b89919ec8eac6694af3405dbd35d0cd7d41e1ef022`。
+- 月別／日別売上、月別／日別Paid・Free Point消費、返金／Chargeback履歴のRead-only Admin APIを
+  追加し、MIG-061Eの5タブへGenerated Client経由で接続した。
+- 成功Payment／Adjustment、Ledger spend、QA除外、JST境界、Opaque Cursor、既存
+  `reporting.financial.read`とRead Auditを正本として使用した。Migration、Index、Mutation、CSV、
+  Public／Webhook／Storefront／V1 Contractは変更していない。
+
+### Verification／Preview
+
+- Task DBのBackend Domain／HTTP／Reporting回帰16件と性能1件がPASS。100行で10／8／8 Query、
+  54.57ms、N+1なしを確認した。
+- Admin Unit 80件、Desktop／Mobile Browser E2E、OpenAPI Lint／Bundle／Breaking、生成差分0、
+  Typecheck、Lint、Build、Policy／Quality／Security Gate、Secret Candidate 0がPASSした。
+- Preview API／Admin ImageをApplication Head `c6c455a0d1f74d882a0e107e07025b2ce886329b`からBuildし、
+  API `sha256:0bbb6c3b...`、Admin `sha256:f348dbb2...`へ更新した。
+- Password-only Login、Dashboard 5タブ、全Dashboard API 200、Desktop／Mobile、Console Error 0、
+  HTTP 500／502／504 0を確認した。DB／Migration、Redis、Nginx／TLS／DNS、V1、Paymentは非変更。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061F/`、提出Reportは
+  `worklogs/reports/MIG-061F-report.md`。Final Head、GitHub Checks、Fresh Self-review、Squash Commit、
+  Task Resource CleanupはCloseoutで確定する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061G以降は開始しない。
