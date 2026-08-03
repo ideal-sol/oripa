@@ -21,6 +21,26 @@ const operations = {
   logoutAdmin: ["post", "/auth/logout"],
   getAdminEffectivePermissions: ["get", "/auth/permissions"],
   getAdminSession: ["get", "/auth/session"],
+  getAdminDashboardMonthlySales: [
+    "get",
+    "/reports/dashboard/sales/monthly",
+  ],
+  getAdminDashboardDailySales: [
+    "get",
+    "/reports/dashboard/sales/daily",
+  ],
+  getAdminDashboardMonthlyPointConsumption: [
+    "get",
+    "/reports/dashboard/points/monthly",
+  ],
+  getAdminDashboardDailyPointConsumption: [
+    "get",
+    "/reports/dashboard/points/daily",
+  ],
+  listAdminDashboardPaymentReversals: [
+    "get",
+    "/reports/dashboard/reversals",
+  ],
   beginAdminTotpEnrollment: ["post", "/auth/mfa/totp"],
   confirmAdminTotpEnrollment: ["post", "/auth/mfa/totp/confirm"],
   createAdminWebauthnOptions: ["post", "/auth/mfa/webauthn/options"],
@@ -275,6 +295,11 @@ const requiredSchemas = [
   "WebauthnOptionsRequest",
   "WebauthnRegistration",
   "AdminPermissionCode",
+  "DashboardMonthlySalesReport",
+  "DashboardDailySalesReport",
+  "DashboardMonthlyPointReport",
+  "DashboardDailyPointReport",
+  "DashboardReversalReport",
   "AdminLineMessagingSetting",
   "AdminLineMessagingSettingResponse",
   "AdminLineMessagingSettingUpdate",
@@ -451,6 +476,108 @@ export interface AdminSession {
   enrollment_transaction_token?: string | null;
   enrollment_transaction_expires_in?: number | null;
   admin?: AdminIdentity | null;
+}
+
+export interface AdminDashboardSalesSummary {
+  payment_count: number;
+  gross_sales_amount: number;
+  refund_count: number;
+  refund_amount: number;
+  chargeback_count: number;
+  chargeback_amount: number;
+  net_sales_amount: number;
+}
+
+export interface AdminDashboardMonthlySales {
+  month: string;
+  timezone: "Asia/Tokyo";
+  currency: "JPY";
+  basis: "operational_event_aggregation_not_accounting_recognition";
+  summary: AdminDashboardSalesSummary;
+  days: Array<{ date: string; summary: AdminDashboardSalesSummary }>;
+}
+
+export interface AdminDashboardPayment {
+  payment_id: string;
+  user_id: string;
+  amount: number;
+  currency: "JPY";
+  plan_name: string;
+  provider: string;
+  status: "succeeded";
+  succeeded_at: string;
+}
+
+export interface AdminDashboardDailySales {
+  date: string;
+  timezone: "Asia/Tokyo";
+  currency: "JPY";
+  basis: "operational_event_aggregation_not_accounting_recognition";
+  summary: AdminDashboardSalesSummary;
+  items: AdminDashboardPayment[];
+  next_cursor: string | null;
+}
+
+export interface AdminDashboardPointSummary {
+  paid_consumed: number;
+  free_consumed: number;
+}
+
+export interface AdminDashboardMonthlyPoints {
+  month: string;
+  timezone: "Asia/Tokyo";
+  qa_excluded: true;
+  summary: AdminDashboardPointSummary;
+  days: Array<{ date: string; summary: AdminDashboardPointSummary }>;
+}
+
+export interface AdminDashboardPointConsumption {
+  operation_id: string;
+  user_id: string;
+  source_type: string;
+  draw_request_id: string | null;
+  gacha_version_id: string | null;
+  gacha_title: string | null;
+  draw_count: number | null;
+  paid_consumed: number;
+  free_consumed: number;
+  occurred_at: string;
+}
+
+export interface AdminDashboardDailyPoints {
+  date: string;
+  timezone: "Asia/Tokyo";
+  qa_excluded: true;
+  summary: AdminDashboardPointSummary;
+  items: AdminDashboardPointConsumption[];
+  next_cursor: string | null;
+}
+
+export interface AdminDashboardPaymentReversal {
+  adjustment_id: string;
+  payment_id: string;
+  type: "refund" | "chargeback" | "chargeback_reversal";
+  status:
+    | "requested"
+    | "points_reserved"
+    | "submitted"
+    | "processing"
+    | "succeeded"
+    | "failed"
+    | "canceled"
+    | "manual_review";
+  amount: number;
+  currency: "JPY";
+  occurred_at: string;
+  succeeded_at: string | null;
+}
+
+export interface AdminDashboardReversalHistory {
+  start_date: string;
+  end_date: string;
+  timezone: "Asia/Tokyo";
+  items: AdminDashboardPaymentReversal[];
+  next_cursor: string | null;
 }
 
 export interface TotpEnrollment {

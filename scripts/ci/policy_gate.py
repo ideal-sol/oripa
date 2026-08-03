@@ -468,6 +468,9 @@ V2_REPORTING_REQUIRED_FILES = {
     "apps/api/routes/admin.php",
     "apps/api/routes/console.php",
     "apps/api/tests/V2/ReportingExportVerticalSliceTest.php",
+    "apps/api/tests/Unit/V2ReportingServiceDashboardAggregationTest.php",
+    "apps/api/tests/V2/DashboardSalesAggregationApiTest.php",
+    "apps/api/tests/V2/ZDashboardSalesAggregationPerformanceTest.php",
     "apps/api/tests/V2/ZReportingExportPerformanceTest.php",
     "docs/operations/reporting/README.md",
     "openapi/admin/openapi.yaml",
@@ -530,6 +533,9 @@ MIG_061E_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/dashboard-sales-layout.spec.ts",
     "apps/admin/src/components/shell/dashboard-sales-layout.tsx",
     "apps/admin/test/dashboard-sales-layout.test.tsx",
+}
+MIG_061F_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/shell/use-dashboard-sales-data.ts",
 }
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
@@ -632,6 +638,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/vitest.config.ts",
     *MIG_061D_ADMIN_SKELETON_FILES,
     *MIG_061E_ADMIN_SKELETON_FILES,
+    *MIG_061F_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
