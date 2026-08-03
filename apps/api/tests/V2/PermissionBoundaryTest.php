@@ -45,6 +45,15 @@ final class PermissionBoundaryTest extends TestCase
         self::assertFalse(
             $authorizer->allows(V2AdminRole::Operator, V2Permission::PublishCatalog)
         );
+        self::assertTrue(
+            $authorizer->allows(V2AdminRole::Owner, V2Permission::ManagePointAdjustment)
+        );
+        self::assertTrue(
+            $authorizer->allows(V2AdminRole::Admin, V2Permission::ManagePointAdjustment)
+        );
+        self::assertFalse(
+            $authorizer->allows(V2AdminRole::Operator, V2Permission::ManagePointAdjustment)
+        );
     }
 
     public function test_effective_permissions_are_registered_unique_and_role_scoped(): void

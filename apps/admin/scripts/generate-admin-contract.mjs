@@ -24,6 +24,7 @@ const operations = {
   listAdminUsers: ["get", "/users"],
   getAdminUser: ["get", "/users/{user_id}"],
   listAdminUserGachaHistory: ["get", "/users/{user_id}/gacha-history"],
+  adjustAdminUserPoints: ["post", "/users/{user_id}/point-adjustments"],
   getAdminDashboardMonthlySales: [
     "get",
     "/reports/dashboard/sales/monthly",
@@ -294,6 +295,8 @@ const requiredSchemas = [
   "AdminUserCollection",
   "AdminUserDetailResponse",
   "AdminUserGachaHistoryCollection",
+  "AdminPointAdjustmentRequest",
+  "AdminPointAdjustmentMutationResult",
   "RecoveryCodes",
   "TotpConfirmation",
   "TotpEnrollment",
@@ -545,6 +548,35 @@ export interface AdminUserGachaHistoryCollection {
   user_id: string;
   items: AdminUserGachaHistoryItem[];
   next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminPointAdjustmentRequest {
+  point_type: "paid" | "free";
+  direction: "grant" | "deduct";
+  amount: number;
+  reason: string;
+  current_password: string;
+}
+
+export interface AdminPointAdjustment {
+  adjustment_public_id: string;
+  user_public_id: string;
+  operation_public_id: string;
+  point_type: "paid" | "free";
+  direction: "grant" | "deduct";
+  amount: number;
+  reason: string;
+  paid_balance_before: number;
+  paid_balance_after: number;
+  free_balance_before: number;
+  free_balance_after: number;
+  executed_at: string;
+}
+
+export interface AdminPointAdjustmentMutationResult {
+  data: AdminPointAdjustment;
+  idempotent_replay: boolean;
   request_id: string;
 }
 

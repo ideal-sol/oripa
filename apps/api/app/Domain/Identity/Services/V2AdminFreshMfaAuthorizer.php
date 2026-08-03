@@ -158,7 +158,8 @@ final class V2AdminFreshMfaAuthorizer
         V2AdminAuthorizationContext $context,
         V2Permission $permission,
         bool $freshMfa = false,
-        string $action = 'admin.operation'
+        string $action = 'admin.operation',
+        bool $criticalMutation = false
     ): Admin {
         [$session, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, $permission)) {
@@ -169,6 +170,13 @@ final class V2AdminFreshMfaAuthorizer
             );
         }
         if (! $freshMfa) {
+            if ($criticalMutation) {
+                $this->rateLimiter->assertSubject(
+                    'critical_admin_mutation',
+                    $admin->public_id
+                );
+            }
+
             return $admin;
         }
         if (! $this->isFresh($session)) {
@@ -187,6 +195,12 @@ final class V2AdminFreshMfaAuthorizer
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
                 'Fresh authentication is required.'
+            );
+        }
+        if ($criticalMutation) {
+            $this->rateLimiter->assertSubject(
+                'critical_admin_mutation',
+                $admin->public_id
             );
         }
 

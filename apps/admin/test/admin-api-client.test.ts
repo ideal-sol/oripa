@@ -124,6 +124,34 @@ describe("AdminApiClient", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("sends point adjustments with CSRF and an explicit idempotency key", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      data: { adjustment_public_id: "01910191-0191-7191-8191-019101910192" },
+      idempotent_replay: false,
+      request_id: "01910191-0191-7191-8191-019101910193",
+    }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+    await client.adjustAdminUserPoints(userId, {
+      point_type: "paid",
+      direction: "grant",
+      amount: 100,
+      reason: "Correction",
+      current_password: "not-persisted",
+    }, "adjustment-key");
+
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe(`/admin/api/v2/users/${userId}/point-adjustments`);
+    expect(request?.method).toBe("POST");
+    const headers = new Headers(request?.headers);
+    expect(headers.get("X-XSRF-TOKEN")).toBe(csrf);
+    expect(headers.get("Idempotency-Key")).toBe("adjustment-key");
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      amount: 100,
+      current_password: "not-persisted",
+    });
+  });
+
   it("reads only the same-origin Admin Catalog surface with encoded filters", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ items: [], next_cursor: null }),

@@ -1,0 +1,41 @@
+{
+  "task_id": "MIG-061H",
+  "risk": "R4",
+  "verification_profile": "FINANCIAL-MUTATION-R4-TARGETED",
+  "status": "verified_pending_preview",
+  "base_branch": "main",
+  "base_sha": "3f6ee49d8fa7690e8cd4693e04439f65efed14e9",
+  "issue": 182,
+  "pull_request": null,
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_container": "mig061a-v2-preview-api-1",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "database": "oripa_v2_mig061a",
+    "database_marker": "mig061a",
+    "schema_change": "NONE"
+  },
+  "artifacts": {
+    "source_sha": null,
+    "api_image_before": null,
+    "api_image_after": null,
+    "admin_image_before": null,
+    "admin_image_after": null
+  },
+  "verification": {
+    "task_database": "PASS",
+    "backend_targeted": "PASS",
+    "process_concurrency": "PASS",
+    "admin_unit": "PASS",
+    "admin_browser": "PASS",
+    "openapi_breaking": "PASS",
+    "generated_client": "PASS",
+    "preview_smoke": "PENDING",
+    "migration": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

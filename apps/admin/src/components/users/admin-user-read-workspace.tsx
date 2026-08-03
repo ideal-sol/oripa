@@ -1,10 +1,12 @@
 "use client";
 
-import { ArrowLeft, Eye, RotateCcw } from "lucide-react";
+import { ArrowLeft, Coins, Eye, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
+import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
+import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
 import {
   type AdminUserReadMode,
   useAdminUserReadModel,
@@ -30,6 +32,7 @@ export function AdminUserReadWorkspace({
   userPublicId?: string;
 }) {
   const state = useAdminUserReadModel({ mode, userPublicId });
+  const [notice, setNotice] = useState<string | null>(null);
   const title = mode === "list"
     ? "ユーザー一覧"
     : mode === "detail"
@@ -54,6 +57,7 @@ export function AdminUserReadWorkspace({
           </Link>
         ) : undefined}
       />
+      {notice ? <p className="admin-user-adjustment-success" role="status">{notice}</p> : null}
       {state.loading ? (
         <State message="ユーザー情報を読み込んでいます。" />
       ) : null}
@@ -64,7 +68,13 @@ export function AdminUserReadWorkspace({
         <UserList items={state.data.value.items} />
       ) : null}
       {!state.loading && !state.error && state.data?.kind === "detail" ? (
-        <UserDetail user={state.data.value} />
+        <UserDetail
+          onRefresh={() => {
+            setNotice("ポイント調整を反映し、最新残高を再取得しました。");
+            state.retry();
+          }}
+          user={state.data.value}
+        />
       ) : null}
       {!state.loading && !state.error && state.data?.kind === "history" ? (
         <GachaHistory items={state.data.value.items} />
@@ -126,7 +136,13 @@ function UserList({ items }: { items: AdminUserSummary[] }) {
   );
 }
 
-function UserDetail({ user }: { user: AdminUserDetail }) {
+function UserDetail({ onRefresh, user }: { onRefresh: () => void; user: AdminUserDetail }) {
+  const { hasPermission } = usePermissions();
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const canAdjustPoints = hasPermission("point.adjustment.manage");
+  const paidBalance = user.point_balance?.paid_balance ?? 0;
+  const freeBalance = user.point_balance?.free_balance ?? 0;
+
   return (
     <div className="admin-user-detail-stack">
       <section className="admin-user-summary" aria-labelledby="user-basic-heading">
@@ -154,6 +170,12 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
             <h2 id="user-balance-heading">ポイント残高</h2>
             <p>Canonical Walletの現在残高です。</p>
           </div>
+          {canAdjustPoints ? (
+            <button className="primary-button" onClick={() => setAdjustmentOpen(true)} type="button">
+              <Coins aria-hidden="true" size={17} />
+              ポイント調整
+            </button>
+          ) : null}
         </div>
         {user.point_balance ? (
           <div className="admin-user-balance-grid">
@@ -163,6 +185,19 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
           </div>
         ) : <State message="Walletはまだ作成されていません。" />}
       </section>
+      {canAdjustPoints ? (
+        <AdminUserPointAdjustmentModal
+          displayName={user.display_name}
+          freeBalance={freeBalance}
+          onClose={() => setAdjustmentOpen(false)}
+          onSuccess={() => {
+            onRefresh();
+          }}
+          open={adjustmentOpen}
+          paidBalance={paidBalance}
+          userPublicId={user.id}
+        />
+      ) : null}
       <section
         className="admin-user-summary admin-user-history-link"
         aria-labelledby="user-history-heading"

@@ -311,6 +311,14 @@ V2_AUDIT_OUTBOX_REQUIRED_FILES = {
     "apps/api/tests/V2/AuditOutboxFoundationTest.php",
     "docs/operations/audit-outbox/README.md",
 }
+MIG_061H_V2_POINT_FILES = {
+    "apps/api/app/Domain/Point/Exceptions/V2AdminPointAdjustmentException.php",
+    "apps/api/app/Domain/Point/Services/V2AdminPointAdjustmentService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminUserPointAdjustmentController.php",
+    "apps/api/tests/Unit/V2AdminPointAdjustmentServiceTest.php",
+    "apps/api/tests/V2/AdminUserPointAdjustmentApiTest.php",
+    "apps/api/tests/V2/ZAdminUserPointAdjustmentConcurrencyTest.php",
+}
 V2_POINT_REQUIRED_FILES = {
     "apps/api/app/Domain/Point/Exceptions/V2PointException.php",
     "apps/api/app/Domain/Point/Services/V2PointIdempotencyService.php",
@@ -333,6 +341,7 @@ V2_POINT_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_24_000006_create_v2_point_model_foundation.php",
     "apps/api/tests/V2/PointModelFoundationTest.php",
     "docs/operations/point-model/README.md",
+    *MIG_061H_V2_POINT_FILES,
 }
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
@@ -555,6 +564,11 @@ MIG_061G_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/users/use-admin-user-read-model.ts",
     "apps/admin/test/admin-user-read-model.test.tsx",
 }
+MIG_061H_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-user-point-adjustment.spec.ts",
+    "apps/admin/src/components/users/admin-user-point-adjustment-modal.tsx",
+    "apps/admin/test/admin-user-point-adjustment.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -658,6 +672,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061E_ADMIN_SKELETON_FILES,
     *MIG_061F_ADMIN_SKELETON_FILES,
     *MIG_061G_ADMIN_SKELETON_FILES,
+    *MIG_061H_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",

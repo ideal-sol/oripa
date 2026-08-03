@@ -6474,6 +6474,64 @@
         }
       }
     },
+    "/users/{user_id}/point-adjustments": {
+      "post": {
+        "operationId": "adjustAdminUserPoints",
+        "summary": "OwnerまたはAdminがUserの有償／無償Pointを調整する",
+        "description": "Current Password、5分以内のFresh Authentication、Idempotency-Keyを必須とする。",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPointAdjustmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CanonicalなPoint Adjustment結果。",
+            "headers": {
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPointAdjustmentMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/reports/sales/monthly": {
       "get": {
         "operationId": "getAdminMonthlySalesReport",
@@ -13825,6 +13883,7 @@
           "point.adjustment.request",
           "point.adjustment.free.approve",
           "point.adjustment.paid.approve",
+          "point.adjustment.manage",
           "catalog.read",
           "catalog.manage",
           "catalog.publish",
@@ -14152,6 +14211,141 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminUserDetail"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminPointAdjustmentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "point_type",
+          "direction",
+          "amount",
+          "reason",
+          "current_password"
+        ],
+        "properties": {
+          "point_type": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "free"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "deduct"
+            ]
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        }
+      },
+      "AdminPointAdjustment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "point_operation_id",
+          "point_type",
+          "direction",
+          "amount",
+          "reason",
+          "paid_balance_before",
+          "paid_balance_after",
+          "free_balance_before",
+          "free_balance_after",
+          "executed_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "point_operation_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "point_type": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "free"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "deduct"
+            ]
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "paid_balance_before": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "paid_balance_after": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_balance_before": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_balance_after": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "executed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPointAdjustmentMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPointAdjustment"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           },
           "request_id": {
             "type": "string",
@@ -15659,6 +15853,16 @@
       "status": 404,
       "retryable": false,
       "description": "指定されたUserが存在しない、または参照できない。"
+    },
+    "POINT_ADJUSTMENT_INVALID": {
+      "status": 422,
+      "retryable": false,
+      "description": "Point Adjustment入力が不正。"
+    },
+    "POINT_ADJUSTMENT_INSUFFICIENT_BALANCE": {
+      "status": 409,
+      "retryable": false,
+      "description": "指定Point種別の利用可能残高が不足している。"
     },
     "EXPORT_ASYNC_REQUIRED": {
       "status": 422,

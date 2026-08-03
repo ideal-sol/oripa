@@ -572,6 +572,147 @@ final class V2PointService
     }
 
     /**
+     * Apply an exact point-type adjustment inside the caller's transaction.
+     *
+     * @return array{
+     *   operation: PointOperation,
+     *   paid_before: int,
+     *   paid_after: int,
+     *   free_before: int,
+     *   free_after: int,
+     *   expire_at: ?CarbonImmutable,
+     *   occurred_at: CarbonImmutable
+     * }
+     */
+    public function applyAdminAdjustmentWithinTransaction(
+        int $userId,
+        int $adminId,
+        string $pointType,
+        string $direction,
+        int $amount,
+        string $businessKey,
+        CarbonInterface $occurredAt
+    ): array {
+        if (
+            DB::transactionLevel() < 1
+            || $userId < 1
+            || $adminId < 1
+            || ! in_array($pointType, ['paid', 'free'], true)
+            || ! in_array($direction, ['grant', 'deduct'], true)
+            || $amount < 1
+            || ! preg_match('/\Apoint\.admin_adjustment:[0-9a-f]{64}\z/', $businessKey)
+        ) {
+            throw new V2PointException('Admin point adjustment input is invalid.');
+        }
+
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $wallet = $this->lockWallet($userId);
+        $paidBefore = (int) $wallet->paid_balance;
+        $freeBefore = (int) $wallet->free_balance;
+        $expireAt = $pointType === 'free' && $direction === 'grant'
+            ? $occurred->addDays((int) config('oripa.free_point_expiration_days', 180))
+            : null;
+        if ($expireAt !== null && $expireAt->lessThanOrEqualTo($occurred)) {
+            throw new V2PointException('Free point adjustment expiry is invalid.');
+        }
+
+        $operation = $this->operation(
+            $userId,
+            $direction === 'grant' ? $pointType.'_grant' : 'adjustment_deduct',
+            'admin_adjustment',
+            $businessKey,
+            $occurred,
+            'admin',
+            $adminId
+        );
+
+        if ($direction === 'grant') {
+            $selectedBalance = $pointType === 'paid' ? $paidBefore : $freeBefore;
+            if ($selectedBalance > PHP_INT_MAX - $amount) {
+                throw new V2PointException('Admin point adjustment exceeds the supported balance.');
+            }
+            $lot = new PointLot();
+            $lot->forceFill([
+                'user_id' => $userId,
+                'grant_operation_id' => $operation->id,
+                'point_type' => $pointType,
+                'granted_amount' => $amount,
+                'remaining_amount' => $amount,
+                'reserved_amount' => 0,
+                'granted_at' => $occurred,
+                'expire_at' => $expireAt,
+            ])->save();
+            $paidAfter = $paidBefore + ($pointType === 'paid' ? $amount : 0);
+            $freeAfter = $freeBefore + ($pointType === 'free' ? $amount : 0);
+            $walletAfter = $pointType === 'paid' ? $paidAfter : $freeAfter;
+            $this->ledger(
+                $operation,
+                $wallet,
+                $lot,
+                1,
+                $pointType,
+                'grant',
+                $amount,
+                $walletAfter,
+                $amount,
+                $occurred
+            );
+        } else {
+            $selectedBalance = $pointType === 'paid' ? $paidBefore : $freeBefore;
+            $selectedReserved = $pointType === 'paid'
+                ? (int) $wallet->paid_reserved_balance
+                : (int) $wallet->free_reserved_balance;
+            if ($selectedBalance - $selectedReserved < $amount) {
+                throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
+            }
+            $lots = $pointType === 'paid'
+                ? $this->lockPaidLots($userId)
+                : $this->lockFreeLots($userId, $occurred);
+            $availableLots = $lots->sum(
+                fn (PointLot $lot): int =>
+                    (int) $lot->remaining_amount - (int) $lot->reserved_amount
+            );
+            if ($availableLots < $amount) {
+                throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
+            }
+            $remaining = $amount;
+            $runningBalance = $selectedBalance;
+            $sequence = 1;
+            $this->deductAdjustmentLots(
+                $lots,
+                $remaining,
+                $operation,
+                $wallet,
+                $pointType,
+                $runningBalance,
+                $sequence,
+                $occurred
+            );
+            if ($remaining !== 0) {
+                throw new V2PointException('Locked point lots do not match wallet availability.');
+            }
+            $paidAfter = $pointType === 'paid' ? $runningBalance : $paidBefore;
+            $freeAfter = $pointType === 'free' ? $runningBalance : $freeBefore;
+        }
+
+        $wallet->forceFill([
+            'paid_balance' => $paidAfter,
+            'free_balance' => $freeAfter,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+
+        return [
+            'operation' => $operation,
+            'paid_before' => $paidBefore,
+            'paid_after' => $paidAfter,
+            'free_before' => $freeBefore,
+            'free_after' => $freeAfter,
+            'expire_at' => $expireAt,
+            'occurred_at' => $occurred,
+        ];
+    }
+
+    /**
      * @param list<array{
      *   draw_result_id: int,
      *   draw_result_public_id: string,
@@ -961,6 +1102,50 @@ final class V2PointService
                 $sequence++,
                 $pointType,
                 'spend',
+                -$used,
+                $runningBalance,
+                $lotRemaining,
+                $occurred
+            );
+            $remaining -= $used;
+        }
+    }
+
+    /**
+     * @param Collection<int, PointLot> $lots
+     */
+    private function deductAdjustmentLots(
+        Collection $lots,
+        int &$remaining,
+        PointOperation $operation,
+        Wallet $wallet,
+        string $pointType,
+        int &$runningBalance,
+        int &$sequence,
+        CarbonImmutable $occurred
+    ): void {
+        foreach ($lots as $lot) {
+            if ($remaining === 0) {
+                break;
+            }
+            $available = (int) $lot->remaining_amount - (int) $lot->reserved_amount;
+            $used = min($remaining, $available);
+            if ($used <= 0) {
+                continue;
+            }
+            $lotRemaining = (int) $lot->remaining_amount - $used;
+            $runningBalance -= $used;
+            if ($runningBalance < 0 || $lotRemaining < 0) {
+                throw new V2PointException('Point adjustment would create a negative balance.');
+            }
+            $lot->forceFill(['remaining_amount' => $lotRemaining])->save();
+            $this->ledger(
+                $operation,
+                $wallet,
+                $lot,
+                $sequence++,
+                $pointType,
+                'reverse',
                 -$used,
                 $runningBalance,
                 $lotRemaining,
