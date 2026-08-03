@@ -2,6 +2,7 @@ import {
   Boxes,
   CircleGauge,
   ClipboardCheck,
+  Dices,
   FileBarChart,
   FileText,
   Gift,
@@ -18,6 +19,8 @@ import type { AdminNavigationIcon } from "@/lib/permissions/admin-navigation";
 const icons = {
   dashboard: CircleGauge,
   catalog: Boxes,
+  gacha: Dices,
+  prize: Gift,
   qa: ClipboardCheck,
   shipping: PackageSearch,
   reports: FileBarChart,

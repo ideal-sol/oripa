@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AlertCircle, LoaderCircle, X } from "lucide-react";
 
 import { useAdminAuth } from "./admin-auth-provider";
 
@@ -16,7 +16,7 @@ export function AuthError() {
         {error.requestId ? <p>Request ID: {error.requestId}</p> : null}
       </div>
       <button className="icon-button" type="button" onClick={clearError} aria-label="エラーを閉じる">
-        ×
+        <X size={17} aria-hidden="true" />
       </button>
     </div>
   );

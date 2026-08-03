@@ -19,7 +19,7 @@ import {
 } from "@/lib/permissions/admin-navigation";
 
 export function DashboardHome() {
-  const { admin } = useAdminAuth();
+  const { admin, mfaRequired } = useAdminAuth();
   const { error, permissions, retry, role, status } = usePermissions();
   const [freshOpen, setFreshOpen] = useState(false);
   const [freshConfirmed, setFreshConfirmed] = useState(false);
@@ -32,32 +32,32 @@ export function DashboardHome() {
       <AdminPageHeader
         eyebrow="Administration"
         title="ダッシュボード"
-        description="現在の管理セッションと利用可能なモジュールを確認できます。"
+        description="現在の管理セッションと利用可能なモジュール"
         action={<span className="status-pill">
           <span aria-hidden="true" />
-          Session active
+          セッション有効
         </span>}
       />
       <div className="summary-grid">
         <article className="summary-item">
           <UserRound size={22} aria-hidden="true" />
           <div>
-            <span>Current Admin</span>
+            <span>管理者ID</span>
             <strong className="admin-public-id">{admin?.id ?? "unknown"}</strong>
           </div>
         </article>
         <article className="summary-item">
           <ShieldCheck size={22} aria-hidden="true" />
           <div>
-            <span>Admin Role</span>
+            <span>現在のRole</span>
             <strong>{role ?? admin?.role ?? "unknown"}</strong>
           </div>
         </article>
         <article className="summary-item">
           <KeyRound size={22} aria-hidden="true" />
           <div>
-            <span>MFA</span>
-            <strong>{freshConfirmed ? "Fresh" : "登録要件完了"}</strong>
+            <span>MFA Policy</span>
+            <strong>{freshConfirmed ? "Fresh" : mfaRequired ? "必須" : "任意"}</strong>
           </div>
           <button
             className="secondary-button compact-button"
@@ -88,11 +88,18 @@ export function DashboardHome() {
               <h2 id="modules-heading">利用可能なモジュール</h2>
               <span>{modules.length}件</span>
             </div>
-            <div className="module-grid">
-              {modules.map((item) => (
-                <DashboardModuleCard item={item} key={item.id} />
-              ))}
-            </div>
+            {modules.length ? (
+              <div className="module-grid">
+                {modules.map((item) => (
+                  <DashboardModuleCard item={item} key={item.id} />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-workspace dashboard-empty" role="status">
+                <h3>利用可能なモジュールはありません</h3>
+                <p>有効Permissionが付与されるまで業務メニューは表示されません。</p>
+              </div>
+            )}
           </section>
         </>
       ) : status === "loading" || status === "idle" ? (

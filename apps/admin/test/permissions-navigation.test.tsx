@@ -56,9 +56,11 @@ describe("Admin permission navigation", () => {
     render(<AdminNavigation />);
 
     expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "カタログ" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "景品・配送" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: "QA Draw" })).toBeNull();
+    expect(screen.getByRole("link", { name: "カタログ概要" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "ガチャ管理" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "景品管理" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "景品・配送" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "QA管理" })).toBeNull();
     expect(screen.queryByRole("link", { name: "レポート" })).toBeNull();
     expect(screen.queryByRole("link", { name: "LINE設定" })).toBeNull();
 
@@ -68,13 +70,16 @@ describe("Admin permission navigation", () => {
   });
 
   it("marks nested module paths active and keeps registry values unique", () => {
-    pathname.value = "/shipping/requests";
-    permissionState.permissions = new Set(["shipping.request.manage"]);
+    pathname.value = "/catalog/gachas";
+    permissionState.permissions = new Set(["catalog.read"]);
     render(<AdminNavigation />);
 
-    expect(screen.getByRole("link", { name: "景品・配送" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "ガチャ管理" })).toHaveAttribute(
       "aria-current",
       "page",
+    );
+    expect(screen.getByRole("link", { name: "カタログ概要" })).not.toHaveAttribute(
+      "aria-current",
     );
     expect(new Set(ADMIN_NAVIGATION.map((item) => item.id)).size).toBe(
       ADMIN_NAVIGATION.length,
