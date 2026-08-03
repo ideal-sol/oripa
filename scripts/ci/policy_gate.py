@@ -526,6 +526,11 @@ MIG_061D_ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/users/page.tsx",
     "apps/admin/test/admin-navigation-hierarchy.test.tsx",
 }
+MIG_061E_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/dashboard-sales-layout.spec.ts",
+    "apps/admin/src/components/shell/dashboard-sales-layout.tsx",
+    "apps/admin/test/dashboard-sales-layout.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -626,6 +631,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/webauthn.test.ts",
     "apps/admin/vitest.config.ts",
     *MIG_061D_ADMIN_SKELETON_FILES,
+    *MIG_061E_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
