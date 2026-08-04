@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: #188
-- PR: pending
+- PR: #189
 - Base: `ebb111830b767fba0d64ae562f84b853d7fafa38`
 - Verification: `TARGETED-DRAW`
 
