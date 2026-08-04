@@ -7994,3 +7994,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1 Noticeの一覧、登録／編集、公開状態、サムネイル、トップ表示をCharacterizationし、V2既存Content Notice／Version／Asset／Publish基盤へ移植する。
 - Migrationは不要。Admin Realm、Public ID、Server-side HTML Sanitizer、公開期間、IdempotencyをV2境界として使用する。
 - Preview更新対象はAPI／Adminのみ。DB／Nginx／V1／Storefrontは非変更とし、Gate G4／G5は`NOT COMPLETE`を維持する。
+
+### MIG-061N Implementation／Preview
+
+- V1順のPublic ID／サムネイル／タイトル／状態／日時に、V2のカテゴリ、公開終了、Server Previewを加えた一覧と、登録／編集Formを実装した。
+- Task DBでBackend 15 tests／107 assertions、Admin Unit 3件、Desktop／Mobile E2E 2件、OpenAPI Breaking／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+- Preview API Imageを`sha256:c9cf11b9...`、Admin Imageを`sha256:f9c94d86...`へ更新した。Owner Login、一覧、Sanitized Preview、Synthetic Draft 1件、HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
+- Migration／DB Schema、PostgreSQL／Redis設定、Nginx checksum、V1、Storefrontは非変更。Required Checks、Self-review、Squash Commit、CleanupはCloseoutで確定する。
