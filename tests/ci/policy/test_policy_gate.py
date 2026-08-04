@@ -500,6 +500,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
             "apps/api/database/migrations-v2/2026_08_16_000029_add_v2_qa_plan_management.php",
             "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
+            "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

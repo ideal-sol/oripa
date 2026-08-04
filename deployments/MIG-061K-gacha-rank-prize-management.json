@@ -37,7 +37,7 @@
     "admin_typecheck": "PASS",
     "admin_lint": "PASS",
     "admin_build": "PASS",
-    "policy_unit": "PASS",
+    "policy_unit": "PASS_98_TESTS",
     "policy_gate": "PASS",
     "quality_gate": "PASS",
     "preview_db_guard": "PASS_33_MIGRATIONS",

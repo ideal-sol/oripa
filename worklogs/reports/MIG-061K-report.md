@@ -32,7 +32,7 @@
 - Backend 3 tests／26 assertions PASS。Rank／Prize CRUD、Asset media、Public ID、Permission、Idempotent Replay、Version Revision、Published直接変更拒否、DB Guard、在庫を確認した。
 - Admin対象Unit 3件PASS。初回対象指定が全Unit Suiteへ転送されたRunも18 files／97 tests PASSし、同一Headの重複全Suiteは避けた。
 - Admin Typecheck、全Lint、Production Build、対象Browser E2E 1件PASS。Desktop／Mobile、列順、Modal、Escape／Focus、横溢れなしを確認した。
-- OpenAPI Lint／Bundle／Breaking、Generated Client差分0、Policy Unit／Gate、Quality Gate、PHP構文、`git diff --check`がPASSした。FAST-TRACK指定どおりFull V2 Suite、Full Guard、Backup／Restore、Draw負荷、V1全回帰、全Admin E2E、全Local Security Gateは実行していない。
+- OpenAPI Lint／Bundle／Breaking、Generated Client差分0、Policy Unit 98件／Gate、Quality Gate、PHP構文、`git diff --check`がPASSした。GitHub初回Policy Unitで検出したV2 Identity Migration fixtureへの000033不足を完全一致で補正し、全98件を再実行した。FAST-TRACK指定どおりFull V2 Suite、Full Guard、Backup／Restore、Draw負荷、V1全回帰、全Admin E2E、全Local Security Gateは実行していない。
 
 ## Preview反映
 
