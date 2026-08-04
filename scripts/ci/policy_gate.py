@@ -3195,6 +3195,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "listAdminGachaVersionPrizes",
         "createAdminGachaVersionPrize",
         "updateAdminGachaVersionPrize",
+        "listAdminGachaUsageHistory",
+        "getAdminGachaUsageHistory",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
@@ -3218,6 +3220,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/core": {"post"},
         "/catalog/gachas/{gacha_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/archive": {"post"},
+        "/catalog/gachas/{gacha_id}/history": {"get"},
+        "/catalog/gachas/{gacha_id}/history/{draw_request_id}": {"get"},
         "/catalog/gachas/{gacha_id}/versions": {"get", "post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
