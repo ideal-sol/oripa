@@ -7946,3 +7946,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回ユーザーは成功済み通常Draw、LINEユーザーは未失効IdentityとFriendship、日次回数はAsia/Tokyo日境界の`executed_count`を正本とする。
 - Task DB `oripa_v2_mig061j`で対象11 tests／99 assertionsとProcess Concurrency 1 test／9 assertionsがPASSした。
 - Migration、Admin／Storefront、Preview、V1は非変更。Gate G4／G5は`NOT COMPLETE`のまま。
+
+# 2026-08-04 MIG-061K ガチャランク／景品管理
+
+- Issue #190、Branch `feat/MIG-061K-gacha-rank-prize-management`、Risk R3、Verification `FAST-TRACK-FEATURE`。
+- V1のRank／Prize項目と既存V2 Catalog Master、Draft Version、Asset、Inventory境界をCharacterizationした。
+- Rank説明、Prize原価、Draft VersionごとのRank relationを補うForward-safe Migration 000033と、Draft専用API／Admin Modalを実装する。
+- Task Policy SHA-256は`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`。詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061K/`へ保存する。
+- Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061L以降は開始しない。
