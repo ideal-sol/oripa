@@ -235,6 +235,8 @@ final class V2CatalogFixtureImporter
                 'notices' => $version['notices'] ?? null,
                 'price_points' => $version['price_points'],
                 'total_count' => $version['total_count'],
+                'daily_draw_limit' => $version['daily_draw_limit'] ?? 0,
+                'audience_code' => $version['audience_code'] ?? 'all_users',
                 'presentation_asset_id' => $this->id(
                     'catalog_presentation_assets',
                     'storage_identifier',
@@ -484,6 +486,13 @@ final class V2CatalogFixtureImporter
                 || $version['price_points'] <= 0
                 || ! is_int($version['total_count'])
                 || $version['total_count'] <= 0
+                || ! is_int($version['daily_draw_limit'] ?? 0)
+                || ($version['daily_draw_limit'] ?? 0) < 0
+                || ! in_array(
+                    $version['audience_code'] ?? 'all_users',
+                    ['all_users', 'first_time_users', 'line_users'],
+                    true
+                )
             ) {
                 throw new V2CatalogException(
                     'INVALID_CATALOG_FIXTURE',

@@ -78,7 +78,10 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response(): void
     {
-        [$user] = $this->fixture([5_000, 50_000, 150_000, 999_999]);
+        [$user] = $this->fixture(
+            [5_000, 50_000, 150_000, 999_999],
+            dailyDrawLimit: 1_116
+        );
         $expected = 0;
         foreach ([1, 5, 10, 100, 1000] as $count) {
             $response = $this->draw($user, $count, "allowed-count-{$count}-key");
@@ -109,6 +112,136 @@ final class DrawVerticalSliceTest extends TestCase
             DB::table('draw_results')->where('user_id', $user->id)
                 ->where('result_type', 'prize')->count(),
             DB::table('user_prizes')->where('user_id', $user->id)->count()
+        );
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1, 'allowed-count-over-limit-key'),
+            'DAILY_DRAW_LIMIT_EXCEEDED'
+        );
+    }
+
+    public function test_first_time_audience_uses_completed_normal_draws(): void
+    {
+        [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
+        self::assertSame(
+            1,
+            $this->draw($user, 1, 'audience-first-time-user-key')['executed_count']
+        );
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1, 'audience-used-user-key'),
+            'GACHA_AUDIENCE_NOT_ELIGIBLE'
+        );
+    }
+
+    public function test_failed_draw_does_not_consume_first_time_audience(): void
+    {
+        [$user] = $this->fixture(
+            [5_000],
+            freePoints: 0,
+            audienceCode: 'first_time_users'
+        );
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1, 'audience-failed-draw-key'),
+            'INSUFFICIENT_POINTS'
+        );
+        self::assertDatabaseCount('draw_requests', 0);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            100,
+            now()->addYear(),
+            'first-time-after-failure-points'
+        );
+        self::assertSame(
+            1,
+            $this->draw($user, 1, 'audience-after-failed-draw-key')['executed_count']
+        );
+    }
+
+    public function test_line_audience_requires_linked_identity_and_confirmed_friendship(): void
+    {
+        [$lineUser] = $this->fixture([5_000], audienceCode: 'line_users');
+        $this->expectDrawFailure(
+            fn () => $this->draw($lineUser, 1, 'audience-line-unlinked-key'),
+            'GACHA_AUDIENCE_NOT_ELIGIBLE'
+        );
+        $subjectHash = hash('sha256', 'line-user-'.$lineUser->public_id);
+        DB::table('external_identity_accounts')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $lineUser->id,
+            'provider' => 'line',
+            'issuer' => 'https://access.line.me',
+            'subject_hash' => $subjectHash,
+            'linked_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->expectDrawFailure(
+            fn () => $this->draw($lineUser, 1, 'audience-line-not-friend-key'),
+            'GACHA_AUDIENCE_NOT_ELIGIBLE'
+        );
+        DB::table('line_friendships')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'subject_hash' => $subjectHash,
+            'user_id' => $lineUser->id,
+            'status' => 'friend',
+            'followed_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        self::assertSame(
+            1,
+            $this->draw($lineUser, 1, 'audience-line-confirmed-key')['executed_count']
+        );
+    }
+
+    public function test_daily_limit_uses_jst_day_and_rejection_is_atomic(): void
+    {
+        CarbonImmutable::setTestNow('2026-07-29T14:59:59Z');
+        [$user] = $this->fixture([5_000], dailyDrawLimit: 1);
+        $this->draw($user, 1, 'daily-before-jst-midnight-key');
+        $completedAt = CarbonImmutable::parse(
+            DB::table('draw_requests')->where('user_id', $user->id)->value('completed_at')
+        );
+        self::assertSame(
+            '2026-07-29T14:59:59+00:00',
+            $completedAt->utc()->toIso8601String()
+        );
+        $dayStart = CarbonImmutable::parse('2026-07-29T00:00:00', 'Asia/Tokyo')->utc();
+        $dayEnd = $dayStart->addDay();
+        self::assertSame(1, (int) DB::table('draw_requests as request')
+            ->join('gacha_draw_states as state', 'state.id', '=', 'request.gacha_draw_state_id')
+            ->where('request.user_id', $user->id)
+            ->where('request.status', 'completed')
+            ->where('request.is_qa_draw', false)
+            ->whereRaw(
+                'request.completed_at >= ?::timestamptz',
+                [$dayStart->toIso8601String()]
+            )
+            ->whereRaw(
+                'request.completed_at < ?::timestamptz',
+                [$dayEnd->toIso8601String()]
+            )
+            ->sum('request.executed_count'));
+
+        $wallet = DB::table('wallets')->where('user_id', $user->id)->first();
+        $soldCount = (int) DB::table('gacha_draw_states')->value('sold_count');
+        $inventoryWon = (int) DB::table('prize_inventories')->sum('won_count');
+        $historyCount = DB::table('draw_results')->count();
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1, 'daily-same-jst-day-key'),
+            'DAILY_DRAW_LIMIT_EXCEEDED'
+        );
+        self::assertSame($wallet->paid_balance, DB::table('wallets')->where('user_id', $user->id)
+            ->value('paid_balance'));
+        self::assertSame($wallet->free_balance, DB::table('wallets')->where('user_id', $user->id)
+            ->value('free_balance'));
+        self::assertSame($soldCount, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($inventoryWon, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame($historyCount, DB::table('draw_results')->count());
+
+        CarbonImmutable::setTestNow('2026-07-29T15:00:00Z');
+        self::assertSame(
+            1,
+            $this->draw($user, 1, 'daily-after-jst-midnight-key')['executed_count']
         );
     }
 
@@ -150,7 +283,7 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_idempotent_replay_returns_canonical_result_and_conflict_is_rejected(): void
     {
-        [$user] = $this->fixture([5_000]);
+        [$user] = $this->fixture([5_000], dailyDrawLimit: 10);
         $first = $this->draw($user, 10, 'replay-draw-key-0001');
         $second = $this->draw($user, 10, 'replay-draw-key-0001');
 
@@ -168,6 +301,10 @@ final class DrawVerticalSliceTest extends TestCase
         }
         self::assertDatabaseHas('audit_logs', ['action_code' => 'draw.idempotent_replay']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'draw.failed']);
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1, 'replay-does-not-double-count-key'),
+            'DAILY_DRAW_LIMIT_EXCEEDED'
+        );
     }
 
     public function test_point_draw_count_inventory_and_publication_fail_before_history(): void
@@ -267,7 +404,7 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_http_contract_requires_user_realm_csrf_origin_json_and_idempotency(): void
     {
-        [$user, $gachaId] = $this->fixture([5_000]);
+        [$user, $gachaId] = $this->fixture([5_000], audienceCode: 'first_time_users');
         config([
             'v2_identity.origins.user' => 'https://storefront.example.test',
         ]);
@@ -294,6 +431,20 @@ final class DrawVerticalSliceTest extends TestCase
         );
         $drawRequestId = $response->json('id');
 
+        $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+                'Idempotency-Key' => 'http-audience-rejection-key',
+            ])
+            ->postJson("/api/v2/gachas/{$gachaId}/draws", ['draw_count' => 1])
+            ->assertForbidden()
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('code', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
+
         $this->getJson("/api/v2/draw-requests/{$drawRequestId}")
             ->assertOk()
             ->assertJsonPath('id', $drawRequestId);
@@ -304,6 +455,34 @@ final class DrawVerticalSliceTest extends TestCase
             ['draw_count' => 1],
             ['Idempotency-Key' => 'unauthenticated-key-0001']
         )->assertUnauthorized();
+    }
+
+    public function test_http_contract_returns_typed_daily_limit_problem(): void
+    {
+        [$user, $gachaId] = $this->fixture([5_000], dailyDrawLimit: 5);
+        config(['v2_identity.origins.user' => 'https://storefront.example.test']);
+        Auth::guard('v2_user')->setUser($user);
+        $csrf = str_repeat('b', 64);
+        $headers = [
+            'Origin' => 'https://storefront.example.test',
+            'Sec-Fetch-Site' => 'same-origin',
+            'X-XSRF-TOKEN' => $csrf,
+        ];
+        $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders($headers + ['Idempotency-Key' => 'http-daily-initial-key'])
+            ->postJson("/api/v2/gachas/{$gachaId}/draws", ['draw_count' => 5])
+            ->assertOk();
+
+        $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders($headers + ['Idempotency-Key' => 'http-daily-rejected-key'])
+            ->postJson("/api/v2/gachas/{$gachaId}/draws", ['draw_count' => 1])
+            ->assertConflict()
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('code', 'DAILY_DRAW_LIMIT_EXCEEDED');
     }
 
     public function test_single_bulk_performance_meets_merge_thresholds(): void
@@ -367,7 +546,9 @@ final class DrawVerticalSliceTest extends TestCase
     private function fixture(
         array $randomValues,
         int $freePoints = 1_000_000,
-        int $totalCount = 5_000
+        int $totalCount = 5_000,
+        string $audienceCode = 'all_users',
+        int $dailyDrawLimit = 0
     ): array
     {
         $fixture = json_decode(
@@ -377,6 +558,8 @@ final class DrawVerticalSliceTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = $totalCount;
+        $fixture['versions'][0]['audience_code'] = $audienceCode;
+        $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = $totalCount;
         }

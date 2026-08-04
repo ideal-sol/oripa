@@ -3,6 +3,7 @@
 namespace Tests\V2;
 
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
+use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Draw\Services\V2DrawService;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
@@ -14,6 +15,102 @@ use Tests\TestCase;
 
 final class ZDrawConcurrencyLoadTest extends TestCase
 {
+    public function test_concurrent_requests_cannot_exceed_daily_draw_limit(): void
+    {
+        if (getenv('V2_DRAW_LIMIT_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('MIG-061Jの明示的Concurrency検証で実行する。');
+        }
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for daily Draw limit concurrency verification.');
+        }
+        config([
+            'cache.default' => 'array',
+            'v2_audit.active_hmac_key_version' => 'v1',
+            'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('j', 32)),
+            'v2_audit.business_timezone' => 'Asia/Tokyo',
+        ]);
+
+        $gachaId = $this->importGachas(1, 10)[0];
+        $user = User::query()->create([
+            'email_display' => 'daily-limit-'.Str::uuid().'@example.test',
+            'email_normalized' => 'daily-limit-'.Str::uuid().'@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            10_000,
+            now()->addYear(),
+            'daily-limit-concurrency-points'
+        );
+
+        $directory = sys_get_temp_dir().'/mig061j-concurrency-'.getmypid();
+        mkdir($directory, 0700, true);
+        $startAt = microtime(true) + 0.5;
+        $children = [];
+        foreach ([0, 1] as $index) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                self::fail('Concurrency worker could not be created.');
+            }
+            if ($pid === 0) {
+                while (microtime(true) < $startAt) {
+                    usleep(1_000);
+                }
+                DB::disconnect();
+                DB::reconnect();
+                try {
+                    app(V2DrawService::class)->create(
+                        User::query()->findOrFail($user->id),
+                        $gachaId,
+                        10,
+                        "daily-limit-concurrent-{$index}",
+                        (string) Str::uuid7()
+                    );
+                    $result = ['status' => 'completed'];
+                } catch (V2DrawException $exception) {
+                    $result = ['status' => 'rejected', 'code' => $exception->errorCode];
+                }
+                file_put_contents(
+                    "{$directory}/{$index}.json",
+                    json_encode($result, JSON_THROW_ON_ERROR),
+                    LOCK_EX
+                );
+                exit(0);
+            }
+            $children[] = $pid;
+        }
+        DB::disconnect();
+        DB::reconnect();
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            self::assertTrue(pcntl_wifexited($status));
+            self::assertSame(0, pcntl_wexitstatus($status));
+        }
+
+        $results = [];
+        foreach ([0, 1] as $index) {
+            $path = "{$directory}/{$index}.json";
+            $results[] = json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+            unlink($path);
+        }
+        rmdir($directory);
+
+        self::assertCount(1, array_filter(
+            $results,
+            static fn (array $result): bool => $result['status'] === 'completed'
+        ));
+        self::assertCount(1, array_filter(
+            $results,
+            static fn (array $result): bool => ($result['code'] ?? null)
+                === 'DAILY_DRAW_LIMIT_EXCEEDED'
+        ));
+        self::assertSame(10, DB::table('draw_results')->count());
+        self::assertSame(10, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame(1, DB::table('draw_requests')->where('status', 'completed')->count());
+    }
+
     public function test_same_and_separate_gacha_load_meets_merge_thresholds(): void
     {
         if (getenv('V2_DRAW_LOAD_TEST') !== '1') {
@@ -257,7 +354,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
     /**
      * @return list<string>
      */
-    private function importGachas(int $count): array
+    private function importGachas(int $count, int $dailyDrawLimit = 0): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -266,6 +363,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = 100_000;
+        $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = 100_000;
         }

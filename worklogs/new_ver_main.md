@@ -7940,3 +7940,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Composer Critical／High 0、Root／Legacy pnpm Audit 0を確認した。Baseline期限は
   `2026-08-07`のまま維持し、Preview再Deploymentや機能追加は行わない。
 - Final Head、Required Checks、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。
+# 2026-08-04 MIG-061J ガチャ対象ユーザー／日次回数制限
+
+- Issue #188。`audience_code`と`daily_draw_limit`を通常V2 Drawの既存Transaction／Lock境界へ接続した。
+- 初回ユーザーは成功済み通常Draw、LINEユーザーは未失効IdentityとFriendship、日次回数はAsia/Tokyo日境界の`executed_count`を正本とする。
+- Task DB `oripa_v2_mig061j`で対象11 tests／99 assertionsとProcess Concurrency 1 test／9 assertionsがPASSした。
+- Migration、Admin／Storefront、Preview、V1は非変更。Gate G4／G5は`NOT COMPLETE`のまま。

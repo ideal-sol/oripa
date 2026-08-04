@@ -177,6 +177,14 @@ final class V2DrawService
                 if ($qaSelection['active']) {
                     $qaAttempted = true;
                     $qaRetryItemIds ??= $qaSelection['item_ids'];
+                } else {
+                    $this->assertNormalDrawEligibility(
+                        $user,
+                        $gacha,
+                        $context['version'],
+                        $drawCount,
+                        $occurredAt
+                    );
                 }
                 $inventories = null;
                 if ($qaSelection['active']) {
@@ -533,6 +541,103 @@ final class V2DrawService
         }
 
         return $price * $drawCount;
+    }
+
+    private function assertNormalDrawEligibility(
+        User $user,
+        object $gacha,
+        object $version,
+        int $drawCount,
+        CarbonImmutable $occurredAt
+    ): void {
+        $lockedUser = DB::table('users')
+            ->where('id', $user->id)
+            ->lockForUpdate()
+            ->first();
+        if ($lockedUser === null) {
+            throw new V2DrawException(
+                'GACHA_AUDIENCE_NOT_ELIGIBLE',
+                403,
+                'The user is not eligible for this Gacha.'
+            );
+        }
+
+        $audienceCode = (string) $version->audience_code;
+        $eligible = match ($audienceCode) {
+            'all_users' => true,
+            'first_time_users' => ! DB::table('draw_requests')
+                ->where('user_id', $user->id)
+                ->where('status', 'completed')
+                ->where('is_qa_draw', false)
+                ->exists(),
+            'line_users' => $this->isConfirmedLineFriend($user->id),
+            default => false,
+        };
+        if (! $eligible) {
+            throw new V2DrawException(
+                'GACHA_AUDIENCE_NOT_ELIGIBLE',
+                403,
+                'The user is not eligible for this Gacha.'
+            );
+        }
+
+        $dailyLimit = (int) $version->daily_draw_limit;
+        if ($dailyLimit === 0) {
+            return;
+        }
+        if ($dailyLimit < 0) {
+            throw new V2DrawException(
+                'GACHA_NOT_DRAWABLE',
+                409,
+                'The requested Gacha has an invalid daily Draw limit.'
+            );
+        }
+
+        $dayStart = $occurredAt->setTimezone('Asia/Tokyo')->startOfDay()->utc();
+        $dayEnd = $dayStart->addDay();
+        $used = (int) DB::table('draw_requests as request')
+            ->join(
+                'gacha_draw_states as state',
+                'state.id',
+                '=',
+                'request.gacha_draw_state_id'
+            )
+            ->where('request.user_id', $user->id)
+            ->where('state.gacha_id', $gacha->id)
+            ->where('request.status', 'completed')
+            ->where('request.is_qa_draw', false)
+            ->whereRaw(
+                'request.completed_at >= ?::timestamptz',
+                [$dayStart->toIso8601String()]
+            )
+            ->whereRaw(
+                'request.completed_at < ?::timestamptz',
+                [$dayEnd->toIso8601String()]
+            )
+            ->sum('request.executed_count');
+        if ($used > $dailyLimit - $drawCount) {
+            throw new V2DrawException(
+                'DAILY_DRAW_LIMIT_EXCEEDED',
+                409,
+                'The daily Draw limit would be exceeded.'
+            );
+        }
+    }
+
+    private function isConfirmedLineFriend(int $userId): bool
+    {
+        return DB::table('external_identity_accounts as identity')
+            ->join('line_friendships as friendship', function ($join): void {
+                $join->on('friendship.user_id', '=', 'identity.user_id')
+                    ->on('friendship.subject_hash', '=', 'identity.subject_hash');
+            })
+            ->where('identity.user_id', $userId)
+            ->where('identity.provider', 'line')
+            ->where('identity.issuer', 'https://access.line.me')
+            ->whereNull('identity.revoked_at')
+            ->where('friendship.status', 'friend')
+            ->whereNull('friendship.unfollowed_at')
+            ->exists();
     }
 
     /** @return Collection<int, PrizeInventory> */
