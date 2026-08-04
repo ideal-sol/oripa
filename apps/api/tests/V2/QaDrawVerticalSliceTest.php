@@ -105,6 +105,31 @@ final class QaDrawVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_qa_draw_does_not_consume_first_time_or_daily_normal_draw_eligibility(): void
+    {
+        [$user, $owner] = $this->fixture(
+            audienceCode: 'first_time_users',
+            dailyDrawLimit: 1
+        );
+        $this->enableMode($owner, $user);
+        $this->qaPlan($owner, $user, [
+            $this->item(self::PRIZE_A_ID, 1, 1),
+        ]);
+
+        $this->draw($user, 1, 'qa-audience-exclusion-key');
+        self::assertDatabaseHas('draw_requests', ['is_qa_draw' => true, 'status' => 'completed']);
+        app(V2QaDrawAdminService::class)->disableMode(
+            $this->adminContext($owner),
+            $user->public_id
+        );
+        self::assertSame(
+            1,
+            $this->draw($user, 1, 'normal-after-qa-exclusion-key')['executed_count']
+        );
+        self::assertSame(1, DB::table('draw_requests')
+            ->where('status', 'completed')->where('is_qa_draw', false)->sum('executed_count'));
+    }
+
     public function test_owner_only_mode_enforces_reason_window_and_logical_disable(): void
     {
         [$user, $owner] = $this->fixture();
@@ -662,7 +687,9 @@ final class QaDrawVerticalSliceTest extends TestCase
         array $randomValues = [5_000],
         int $freePoints = 1_000_000,
         int $totalCount = 5_000,
-        ?object $randomCounter = null
+        ?object $randomCounter = null,
+        string $audienceCode = 'all_users',
+        int $dailyDrawLimit = 0
     ): array {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -671,6 +698,8 @@ final class QaDrawVerticalSliceTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = $totalCount;
+        $fixture['versions'][0]['audience_code'] = $audienceCode;
+        $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = $totalCount;
         }
