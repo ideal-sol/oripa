@@ -194,6 +194,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "public.catalog_presentation_assets",
             "public.catalog_prizes",
             "public.catalog_gachas",
+            "public.catalog_gacha_version_ranks",
             "public.catalog_gacha_versions",
             "public.catalog_probability_versions",
             "public.catalog_probability_stages",

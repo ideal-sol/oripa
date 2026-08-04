@@ -7,7 +7,7 @@
 - Base: `92716d166bd829a236f25e7c9e36e76c46aebdc2`
 - Application Commit: `9099e4dd66e9524c26f3dc09c35083a1dc55fa2b`
 - Final Head／Squash Commit: Closeoutで確定
-- Task Policy SHA-256: 初回`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`、Strict Schema Test追加後`91b35654d8c299484fa1cd87402d9efc60604cd80db5c533d9beab1ff4039482`
+- Task Policy SHA-256: 初回`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`、Strict Schema Test追加後`91b35654d8c299484fa1cd87402d9efc60604cd80db5c533d9beab1ff4039482`、DB inventory正本追加後`5f40cce5a452fe826345bd336842b33c3a058341053bc8ed78d8b467c94ed8bc`
 
 ## V1移植
 
@@ -25,7 +25,7 @@
 
 - 現在個数はActivated inventoryがある場合`initial_quantity - won_count`、未Activation DraftではVersion relationの`initial_inventory`を正本とし、Frontend計算を行わない。
 - 総在庫を確定済み`won_count`未満へ減らす変更は409で拒否する。Inventory、Prize、Version relationを同一Transactionと既存Lock順で更新する。
-- Migration 000033でRank説明、Prize原価、Draft VersionとRankの明示RelationをForward-safeに追加した。既存Prize relationをBackfillし、Published参照とDraft境界をTriggerで保護する。Task DBで33件Fresh、000033 rollback／reapplyを確認した。
+- Migration 000033でRank説明、Prize原価、Draft VersionとRankの明示RelationをForward-safeに追加した。既存Prize relationをBackfillし、Published参照とDraft境界をTriggerで保護する。Task DBで33件Fresh、000033 rollback／reapplyを確認した。DB Guard Unit 29件と実Task DBのSchema inventory 91 TableもPASSした。
 
 ## 対象Test
 
