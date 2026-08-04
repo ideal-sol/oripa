@@ -5,6 +5,8 @@
   "status": "preview_deployed_checks_pending",
   "base_branch": "main",
   "base_sha": "92716d166bd829a236f25e7c9e36e76c46aebdc2",
+  "task_policy_sha256_initial": "2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3",
+  "task_policy_sha256_current": "91b35654d8c299484fa1cd87402d9efc60604cd80db5c533d9beab1ff4039482",
   "issue": 190,
   "pull_request": 191,
   "target": "admin.luxe-pack.biz",
@@ -27,6 +29,7 @@
   "verification": {
     "task_database_guard": "PASS",
     "backend_targeted": "PASS_3_TESTS_26_ASSERTIONS",
+    "catalog_schema_strict": "PASS_1_TEST_35_ASSERTIONS",
     "migration_fresh": "PASS_33_MIGRATIONS",
     "migration_rollback_reapply": "PASS",
     "admin_unit_targeted": "PASS_3_TESTS",

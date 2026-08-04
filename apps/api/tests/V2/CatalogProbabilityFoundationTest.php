@@ -51,7 +51,7 @@ final class CatalogProbabilityFoundationTest extends TestCase
             self::assertTrue(Schema::hasTable($table), "Missing V2 Catalog table: {$table}");
             self::assertFalse(Schema::hasColumn($table, 'tenant_id'));
         }
-        self::assertFalse(Schema::hasColumn('catalog_prizes', 'cost_price'));
+        self::assertTrue(Schema::hasColumn('catalog_prizes', 'cost_price'));
         self::assertFalse(Schema::hasColumn('catalog_probability_entries', 'no_prize'));
         self::assertTrue(Schema::hasColumn('catalog_gachas', 'public_id'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'storage_identifier'));

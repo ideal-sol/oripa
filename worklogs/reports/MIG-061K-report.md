@@ -7,7 +7,7 @@
 - Base: `92716d166bd829a236f25e7c9e36e76c46aebdc2`
 - Application Commit: `9099e4dd66e9524c26f3dc09c35083a1dc55fa2b`
 - Final Head／Squash Commit: Closeoutで確定
-- Task Policy SHA-256: `2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`
+- Task Policy SHA-256: 初回`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`、Strict Schema Test追加後`91b35654d8c299484fa1cd87402d9efc60604cd80db5c533d9beab1ff4039482`
 
 ## V1移植
 
@@ -29,10 +29,10 @@
 
 ## 対象Test
 
-- Backend 3 tests／26 assertions PASS。Rank／Prize CRUD、Asset media、Public ID、Permission、Idempotent Replay、Version Revision、Published直接変更拒否、DB Guard、在庫を確認した。
+- Backend 3 tests／26 assertions PASS。Rank／Prize CRUD、Asset media、Public ID、Permission、Idempotent Replay、Version Revision、Published直接変更拒否、DB Guard、在庫を確認した。既存Catalog Strict Schema Testは`cost_price`の正式追加へ期待値を更新し、1 test／35 assertions PASSした。
 - Admin対象Unit 3件PASS。初回対象指定が全Unit Suiteへ転送されたRunも18 files／97 tests PASSし、同一Headの重複全Suiteは避けた。
 - Admin Typecheck、全Lint、Production Build、対象Browser E2E 1件PASS。Desktop／Mobile、列順、Modal、Escape／Focus、横溢れなしを確認した。
-- OpenAPI Lint／Bundle／Breaking、Generated Client差分0、Policy Unit 98件／Gate、Quality Gate、PHP構文、`git diff --check`がPASSした。GitHub初回Policy Unitで検出したV2 Identity Migration fixtureへの000033不足を完全一致で補正し、全98件を再実行した。FAST-TRACK指定どおりFull V2 Suite、Full Guard、Backup／Restore、Draw負荷、V1全回帰、全Admin E2E、全Local Security Gateは実行していない。
+- OpenAPI Lint／Bundle／Breaking、Generated Client差分0、Policy Unit 98件／Gate、Quality Gate、PHP構文、`git diff --check`がPASSした。GitHub初回Policy Unitで検出したV2 Identity Migration fixtureへの000033不足を完全一致で補正し、全98件を再実行した。Integration Gateで検出したCatalog Strict Schema Testの旧`cost_price`不存在期待値は、既存Test Path 1件だけをTask PolicyへAtomic追加して補正した。FAST-TRACK指定どおりLocalのFull V2 Suite、Full Guard、Backup／Restore、Draw負荷、V1全回帰、全Admin E2E、全Local Security Gateは実行していない。
 
 ## Preview反映
 
