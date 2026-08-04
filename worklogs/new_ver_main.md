@@ -7973,5 +7973,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - 完了済み通常Draw Requestの一覧／詳細Read-only APIとAdmin画面を実装した。QA、Failed、処理中、Rollback済みRequestは除外し、状態はUser PrizeのCanonical状態を件数集計する。
 - Task DBでBackend 4 tests／40 assertions、Admin Unit 2件、Browser E2E 2件、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。一覧／詳細は各4 QueryでN+1なし。
-- Preview API Imageを`sha256:28b38299...`、Admin Imageを`sha256:edbce17a...`へ更新した。Preview Dataが空のためSynthetic Drawは投入せず、画面正本は対象Browser E2Eとした。
+- Preview API Imageを`sha256:28b38299...`、Admin Imageを`sha256:e3375b47...`へ更新した。Preview Dataが空のためSynthetic Drawは投入せず、画面正本は対象Browser E2Eとした。
+- GitHub Quality Gateが検出したEffect直下の同期State更新を、Retry handlerとRoute-key再初期化へ補正した。Unit全19 files／99 tests、Typecheck／Lint／Build、対象Browser 2件を再確認した。
 - PostgreSQL／Redis、Migration 33件、Nginx checksum、V1は非変更。Console／Page ErrorとHTTP 500／502／504は0。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Mは開始しない。

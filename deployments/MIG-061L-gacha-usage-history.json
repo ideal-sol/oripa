@@ -20,11 +20,12 @@
     "migration_after": 33
   },
   "artifacts": {
-    "source_sha": "10d75df94636755e0e5752fa2b33b7026f3cc43f",
+    "api_source_sha": "10d75df94636755e0e5752fa2b33b7026f3cc43f",
+    "admin_source_sha": "d7648bfcbfa5d244a173c25d1a6f0437514b6d90",
     "api_image_before": "sha256:3e62b5e6d47b455d7a6f542ac9c74814b3805119f979f45f2c3ae1706310764b",
     "api_image_after": "sha256:28b3829950e1d04293b9f0d01b55550d2922a110d487253bb778114f96f0ed78",
     "admin_image_before": "sha256:4659b7e3ebbc28468affa231661c1a732fb6bc6f843b5240640e6cdac7e1224a",
-    "admin_image_after": "sha256:edbce17ae91514c6776807e374375024b168e6b147f46424017a31b1618c9113"
+    "admin_image_after": "sha256:e3375b471fa0ba37e9219bbb58c8e768524f47e8fb07f771963b6c9f454c71fd"
   },
   "verification": {
     "task_database_guard": "PASS",
@@ -37,6 +38,7 @@
     "admin_typecheck": "PASS",
     "admin_lint": "PASS",
     "admin_build": "PASS",
+    "admin_lint_ci_correction": "PASS_REACT_EFFECT_STATE_RESET",
     "policy_unit": "PASS",
     "policy_gate": "PASS",
     "quality_gate": "PASS",

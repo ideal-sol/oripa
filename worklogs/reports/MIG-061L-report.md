@@ -5,7 +5,8 @@
 - Issue: #192
 - PR: #193
 - Base: `911dbdd0d2c52c751c1da5874a37e5572d5e5054`
-- Validated Application Head: `10d75df94636755e0e5752fa2b33b7026f3cc43f`
+- API Application Head: `10d75df94636755e0e5752fa2b33b7026f3cc43f`
+- Admin Application Head: `d7648bfcbfa5d244a173c25d1a6f0437514b6d90`
 - Final Head／Squash Commit: Merge結果で確定
 - Task Policy SHA-256: `3be0ade2109c60cf6bfb81296ced7a3cdc19e086b3317f1e367cac1b98c96752`
 
@@ -30,13 +31,13 @@
 
 - Task専用Clean DBでBackend 4 tests／40 assertions PASS。1 Request 1行、QA／未完了除外、複数景品／状態件数、Cursor、全Admin Role、401／404、内部情報非露出を確認した。
 - 一覧／詳細は各4 Query（認可2＋Domain 2）で件数に依存せず、N+1なしを確認した。
-- Admin Unit 1 file／2 tests、Desktop／Mobile Browser E2E 2 tests PASS。列順、詳細遷移、全景品、戻る導線、Keyboard scroll、横溢れなしを確認した。
+- Admin Unit 1 file／2 tests、Desktop／Mobile Browser E2E 2 tests PASS。CI lint補正後のUnit指定は既存Runnerにより全19 files／99 testsへ転送され全件PASSし、BrowserはPlaywright CLIへ対象Fileを直接指定して2 tests PASSを再確認した。列順、詳細遷移、全景品、戻る導線、Keyboard scroll、横溢れなしを確認した。
 - OpenAPI Lint／Bundle／Breaking、Generated Client差分0、Admin Typecheck／全Lint／Production Build、Policy Unit／Gate、Quality Gate、`git diff --check`がPASSした。指定どおりFull V2 Suite、Full Guard、Backup／Restore、Draw負荷、V1全回帰、全Admin E2E、全Local Security Gateは実行していない。
 
 ## Preview反映
 
 - DB Target Safety Guardは`oripa_v2_mig061a`、Marker `mig061a`、Purpose `v2-persistent`、Migration 33件一致でPASSした。Migration／DB Writeは実施していない。
-- API Imageを`sha256:3e62b5e6...`から`sha256:28b38299...`、Admin Imageを`sha256:4659b7e3...`から`sha256:edbce17a...`へ更新した。OCI RevisionはValidated Application Headと一致する。
+- API Imageを`sha256:3e62b5e6...`から`sha256:28b38299...`、Admin Imageを`sha256:4659b7e3...`から`sha256:e3375b47...`へ更新した。OCI RevisionはそれぞれのAPI／Admin Application Headと一致する。
 - Container名、Network、固定IP `192.168.61.10/11`、Loopback Port `8611/3611`、Restart Policy、Environment Key集合を維持した。旧ImageはRollback用に保持した。
 - Preview DBにGachaがないためSynthetic Drawは投入せず、履歴一覧／詳細の表示はTask DB Browser E2EをEvidence正本とした。Owner Login、Container Health、`admin.luxe-pack.biz/login`、`luxe-pack.biz`を確認し、Console／Page ErrorとHTTP 500／502／504は0だった。
 - PostgreSQL／Redis Container ID、Migration数、Nginx checksum、V1は不変。
@@ -49,7 +50,7 @@
 ## 所要時間
 
 - 開始時刻: 2026-08-04 UTC。
-- API／Admin Image BuildとPreview構成同一性確認が主な所要時間。対象Browser E2Eは49.8秒だった。
+- API／Admin Image BuildとPreview構成同一性確認が主な所要時間。対象Browser E2Eは初回49.8秒、lint補正後46.4秒だった。
 - Weekly limitは実行環境から取得可能な値がないため、開始前／終了後とも未記録。
 
 ## Closeout
