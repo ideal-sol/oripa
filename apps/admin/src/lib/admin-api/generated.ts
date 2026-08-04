@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 80723477009b3b7f4bc5faa50cf0868f70f6cf596f6e2f95c1b6c8e8d7280c9f
+// Contract SHA-256: 93a405575b3323f8d146e23e955ffa3de844dfc2061a4f5be796472307d92adb
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -883,6 +883,81 @@ export interface AdminCatalogGacha {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type AdminGachaUsageHistoryStatus =
+  | "selection_pending"
+  | "shipping"
+  | "point_exchange"
+  | "expired"
+  | "hold"
+  | "canceled";
+
+export interface AdminGachaUsageHistoryStatusCount {
+  status: AdminGachaUsageHistoryStatus;
+  count: number;
+}
+
+export interface AdminGachaUsageHistoryUser {
+  id: string;
+  display_name: string | null;
+}
+
+export interface AdminGachaUsageHistoryItem {
+  id: string;
+  user: AdminGachaUsageHistoryUser;
+  executed_count: 1 | 5 | 10 | 100 | 1000;
+  status_summary: AdminGachaUsageHistoryStatusCount[];
+  used_at: string;
+}
+
+export interface AdminGachaUsageHistoryCollection {
+  gacha_id: string;
+  items: AdminGachaUsageHistoryItem[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export type AdminGachaUsagePrizeStatus =
+  | "stored"
+  | "exchange_processing"
+  | "converted"
+  | "shipping_requested"
+  | "packing"
+  | "shipped"
+  | "delivered"
+  | "hold"
+  | "return_requested"
+  | "returned"
+  | "expired"
+  | "canceled";
+
+export interface AdminGachaUsageHistoryPrize {
+  draw_result_id: string;
+  sequence: number;
+  prize_id: string;
+  rank: { id: string; name: string };
+  prize_name: string;
+  thumbnail: AdminCatalogAssetReference | null;
+  exchange_points: number;
+  status: AdminGachaUsagePrizeStatus;
+  status_updated_at: string;
+}
+
+export interface AdminGachaUsageHistoryDetail {
+  id: string;
+  gacha: { id: string; version_id: string; title: string };
+  user: AdminGachaUsageHistoryUser;
+  executed_count: 1 | 5 | 10 | 100 | 1000;
+  consumed_points: number;
+  used_at: string;
+  status_summary: AdminGachaUsageHistoryStatusCount[];
+  prizes: AdminGachaUsageHistoryPrize[];
+}
+
+export interface AdminGachaUsageHistoryDetailResponse {
+  data: AdminGachaUsageHistoryDetail;
+  request_id: string;
 }
 
 export interface AdminCatalogGachaCreate {

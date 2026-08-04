@@ -20,6 +20,22 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061l_usage_history_path_registration_is_exact(self):
+        expected_catalog = {
+            "apps/api/tests/V2/AdminGachaUsageHistoryTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-gacha-usage-history.spec.ts",
+            "apps/admin/src/components/catalog/catalog-gacha-usage-history.tsx",
+            "apps/admin/test/catalog-gacha-usage-history.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061L_V2_CATALOG_FILES, expected_catalog)
+        self.assertTrue(expected_catalog.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061L_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
+
     def test_mig_061k_rank_prize_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",

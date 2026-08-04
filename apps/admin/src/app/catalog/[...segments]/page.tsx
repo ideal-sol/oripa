@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CatalogGachaWorkspace } from "@/components/catalog/catalog-gacha-workspace";
+import { CatalogGachaUsageHistory } from "@/components/catalog/catalog-gacha-usage-history";
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -27,12 +28,22 @@ export default async function CatalogResourcePage({
         />
       );
     }
+    if (segments.length === 3 && segments[2] === "history") {
+      return <CatalogGachaUsageHistory gachaId={segments[1]} />;
+    }
+    if (segments.length === 4 && segments[2] === "history") {
+      return (
+        <CatalogGachaUsageHistory
+          drawRequestId={segments[3]}
+          gachaId={segments[1]}
+        />
+      );
+    }
     if (
       segments.length === 3 &&
-      ["history", "profit-simulation", "product-design-planner"].includes(segments[2])
+      ["profit-simulation", "product-design-planner"].includes(segments[2])
     ) {
       const labels: Record<string, string> = {
-        history: "ガチャ利用履歴",
         "profit-simulation": "利益シミュレーション",
         "product-design-planner": "商品設計プランナー",
       };

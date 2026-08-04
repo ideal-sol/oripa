@@ -135,6 +135,14 @@ const operations = {
   createAdminCatalogGacha: ["post", "/catalog/gachas"],
   createAdminCatalogGachaCore: ["post", "/catalog/gachas/core"],
   getAdminCatalogGacha: ["get", "/catalog/gachas/{gacha_id}"],
+  listAdminGachaUsageHistory: [
+    "get",
+    "/catalog/gachas/{gacha_id}/history",
+  ],
+  getAdminGachaUsageHistory: [
+    "get",
+    "/catalog/gachas/{gacha_id}/history/{draw_request_id}",
+  ],
   updateAdminCatalogGacha: ["put", "/catalog/gachas/{gacha_id}"],
   archiveAdminCatalogGacha: ["post", "/catalog/gachas/{gacha_id}/archive"],
   listAdminCatalogGachaVersions: ["get", "/catalog/gachas/{gacha_id}/versions"],
@@ -387,6 +395,8 @@ const requiredSchemas = [
   "AdminCatalogGachaUpdate",
   "AdminCatalogGachaMutationResult",
   "AdminCatalogGachaCollection",
+  "AdminGachaUsageHistoryCollection",
+  "AdminGachaUsageHistoryDetailResponse",
   "AdminCatalogGachaVersion",
   "AdminCatalogGachaVersionCreate",
   "AdminCatalogGachaVersionUpdate",
@@ -1306,6 +1316,81 @@ export interface AdminCatalogGacha {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type AdminGachaUsageHistoryStatus =
+  | "selection_pending"
+  | "shipping"
+  | "point_exchange"
+  | "expired"
+  | "hold"
+  | "canceled";
+
+export interface AdminGachaUsageHistoryStatusCount {
+  status: AdminGachaUsageHistoryStatus;
+  count: number;
+}
+
+export interface AdminGachaUsageHistoryUser {
+  id: string;
+  display_name: string | null;
+}
+
+export interface AdminGachaUsageHistoryItem {
+  id: string;
+  user: AdminGachaUsageHistoryUser;
+  executed_count: 1 | 5 | 10 | 100 | 1000;
+  status_summary: AdminGachaUsageHistoryStatusCount[];
+  used_at: string;
+}
+
+export interface AdminGachaUsageHistoryCollection {
+  gacha_id: string;
+  items: AdminGachaUsageHistoryItem[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export type AdminGachaUsagePrizeStatus =
+  | "stored"
+  | "exchange_processing"
+  | "converted"
+  | "shipping_requested"
+  | "packing"
+  | "shipped"
+  | "delivered"
+  | "hold"
+  | "return_requested"
+  | "returned"
+  | "expired"
+  | "canceled";
+
+export interface AdminGachaUsageHistoryPrize {
+  draw_result_id: string;
+  sequence: number;
+  prize_id: string;
+  rank: { id: string; name: string };
+  prize_name: string;
+  thumbnail: AdminCatalogAssetReference | null;
+  exchange_points: number;
+  status: AdminGachaUsagePrizeStatus;
+  status_updated_at: string;
+}
+
+export interface AdminGachaUsageHistoryDetail {
+  id: string;
+  gacha: { id: string; version_id: string; title: string };
+  user: AdminGachaUsageHistoryUser;
+  executed_count: 1 | 5 | 10 | 100 | 1000;
+  consumed_points: number;
+  used_at: string;
+  status_summary: AdminGachaUsageHistoryStatusCount[];
+  prizes: AdminGachaUsageHistoryPrize[];
+}
+
+export interface AdminGachaUsageHistoryDetailResponse {
+  data: AdminGachaUsageHistoryDetail;
+  request_id: string;
 }
 
 export interface AdminCatalogGachaCreate {

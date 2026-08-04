@@ -358,6 +358,9 @@ MIG_061K_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
     "apps/api/tests/V2/AdminGachaRankPrizeManagementTest.php",
 }
+MIG_061L_V2_CATALOG_FILES = {
+    "apps/api/tests/V2/AdminGachaUsageHistoryTest.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -402,6 +405,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "packages/storefront-testkit/src/generated/public-contract.ts",
     *MIG_061I_V2_CATALOG_FILES,
     *MIG_061K_V2_CATALOG_FILES,
+    *MIG_061L_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -582,6 +586,11 @@ MIG_061K_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
     "apps/admin/test/catalog-gacha-rank-prize.test.tsx",
 }
+MIG_061L_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-usage-history.spec.ts",
+    "apps/admin/src/components/catalog/catalog-gacha-usage-history.tsx",
+    "apps/admin/test/catalog-gacha-usage-history.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -687,6 +696,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061G_ADMIN_SKELETON_FILES,
     *MIG_061H_ADMIN_SKELETON_FILES,
     *MIG_061K_ADMIN_SKELETON_FILES,
+    *MIG_061L_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
