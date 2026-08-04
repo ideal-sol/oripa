@@ -157,6 +157,31 @@ final class V2AdminCatalogController
         return $this->detail($request, 'gacha', $gachaId);
     }
 
+    public function gachaUsageHistory(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaUsageHistory($context, $gachaId, $request->query())
+        );
+    }
+
+    public function gachaUsageHistoryDetail(
+        Request $request,
+        string $gachaId,
+        string $drawRequestId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaUsageHistoryDetail(
+                    $context,
+                    $gachaId,
+                    $drawRequestId
+                )
+        );
+    }
+
     public function createGacha(Request $request): JsonResponse
     {
         return $this->mutation(

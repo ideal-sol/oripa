@@ -6,6 +6,7 @@ use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,21 @@ final class V2AdminCatalogReadService
     private const DEFAULT_LIMIT = 20;
 
     private const MAX_LIMIT = 100;
+
+    private const PRIZE_STATUS_GROUPS = [
+        'stored' => 'selection_pending',
+        'exchange_processing' => 'point_exchange',
+        'converted' => 'point_exchange',
+        'shipping_requested' => 'shipping',
+        'packing' => 'shipping',
+        'shipped' => 'shipping',
+        'delivered' => 'shipping',
+        'return_requested' => 'shipping',
+        'returned' => 'shipping',
+        'expired' => 'expired',
+        'hold' => 'hold',
+        'canceled' => 'canceled',
+    ];
 
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorizer,
@@ -189,6 +205,155 @@ final class V2AdminCatalogReadService
         }
 
         return ['data' => $this->mapGacha($row)];
+    }
+
+    /** @param array<string, mixed> $filters */
+    public function gachaUsageHistory(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $query = DB::table('draw_requests as request')
+            ->join(
+                'catalog_gacha_versions as version',
+                'version.id',
+                '=',
+                'request.gacha_version_id'
+            )
+            ->join('users as user', 'user.id', '=', 'request.user_id')
+            ->where('version.gacha_id', $gacha->id)
+            ->where('request.status', 'completed')
+            ->where('request.is_qa_draw', false)
+            ->select([
+                'request.public_id',
+                'request.completed_at',
+                'request.executed_count',
+                'user.public_id as user_public_id',
+                'user.display_name as user_display_name',
+                DB::raw(<<<'SQL'
+                    COALESCE((
+                        SELECT jsonb_object_agg(status_count.status, status_count.total)
+                        FROM (
+                            SELECT ownership.status, COUNT(*)::integer AS total
+                            FROM draw_results AS result
+                            JOIN user_prizes AS ownership
+                              ON ownership.draw_result_id = result.id
+                            WHERE result.draw_request_id = request.id
+                            GROUP BY ownership.status
+                        ) AS status_count
+                    ), '{}'::jsonb) AS prize_status_counts
+                    SQL),
+            ]);
+        $page = $this->paginate(
+            'gacha_usage_history:'.$gachaPublicId,
+            $query,
+            $filters,
+            'request.completed_at',
+            'request.public_id',
+            'completed_at',
+            'desc',
+            $this->limit($filters),
+            fn (object $row): array => [
+                'id' => (string) $row->public_id,
+                'user' => [
+                    'id' => (string) $row->user_public_id,
+                    'display_name' => $row->user_display_name === null
+                        ? null
+                        : (string) $row->user_display_name,
+                ],
+                'executed_count' => (int) $row->executed_count,
+                'status_summary' => $this->statusSummary($row->prize_status_counts),
+                'used_at' => $this->timestamp($row->completed_at),
+            ]
+        );
+
+        return [
+            'gacha_id' => $gachaPublicId,
+            ...$page,
+            'request_id' => $context->requestId,
+        ];
+    }
+
+    public function gachaUsageHistoryDetail(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $drawRequestPublicId
+    ): array {
+        $this->authorize($context);
+        $this->assertUuid($gachaPublicId);
+        $this->assertUuid($drawRequestPublicId);
+        $request = DB::table('draw_requests as request')
+            ->join(
+                'catalog_gacha_versions as version',
+                'version.id',
+                '=',
+                'request.gacha_version_id'
+            )
+            ->join('catalog_gachas as gacha', 'gacha.id', '=', 'version.gacha_id')
+            ->join('users as user', 'user.id', '=', 'request.user_id')
+            ->where('gacha.public_id', $gachaPublicId)
+            ->where('request.public_id', $drawRequestPublicId)
+            ->where('request.status', 'completed')
+            ->where('request.is_qa_draw', false)
+            ->select([
+                'request.id as internal_request_id',
+                'request.public_id',
+                'request.executed_count',
+                'request.point_cost_total',
+                'request.completed_at',
+                'gacha.public_id as gacha_public_id',
+                'version.public_id as version_public_id',
+                'version.title as gacha_title',
+                'user.public_id as user_public_id',
+                'user.display_name as user_display_name',
+            ])
+            ->first();
+        if ($request === null) {
+            throw $this->notFound();
+        }
+        $prizes = DB::table('draw_results as result')
+            ->join('user_prizes as ownership', 'ownership.draw_result_id', '=', 'result.id')
+            ->where('result.draw_request_id', $request->internal_request_id)
+            ->where('result.result_type', 'prize')
+            ->where('result.is_qa_draw', false)
+            ->orderBy('result.request_sequence')
+            ->select([
+                'result.public_id as draw_result_public_id',
+                'result.request_sequence',
+                'result.display_snapshot',
+                'ownership.status',
+                'ownership.exchange_point_snapshot',
+                'ownership.updated_at as status_updated_at',
+            ])
+            ->get()
+            ->map(fn (object $row): array => $this->mapUsageHistoryPrize($row))
+            ->values()
+            ->all();
+
+        return [
+            'data' => [
+                'id' => (string) $request->public_id,
+                'gacha' => [
+                    'id' => (string) $request->gacha_public_id,
+                    'version_id' => (string) $request->version_public_id,
+                    'title' => (string) $request->gacha_title,
+                ],
+                'user' => [
+                    'id' => (string) $request->user_public_id,
+                    'display_name' => $request->user_display_name === null
+                        ? null
+                        : (string) $request->user_display_name,
+                ],
+                'executed_count' => (int) $request->executed_count,
+                'consumed_points' => (int) $request->point_cost_total,
+                'used_at' => $this->timestamp($request->completed_at),
+                'status_summary' => $this->statusSummaryFromPrizes($prizes),
+                'prizes' => $prizes,
+            ],
+            'request_id' => $context->requestId,
+        ];
     }
 
     /** @param array<string, mixed> $filters */
@@ -1589,6 +1754,100 @@ final class V2AdminCatalogReadService
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
         ];
+    }
+
+    /** @return list<array{status: string, count: int}> */
+    private function statusSummary(mixed $value): array
+    {
+        $counts = is_string($value)
+            ? json_decode($value, true, 16, JSON_THROW_ON_ERROR)
+            : $value;
+        if (! is_array($counts)) {
+            return [];
+        }
+        $grouped = [];
+        foreach ($counts as $status => $count) {
+            if (! is_string($status) || ! is_numeric($count)) {
+                continue;
+            }
+            $group = self::PRIZE_STATUS_GROUPS[$status] ?? $status;
+            $grouped[$group] = ($grouped[$group] ?? 0) + (int) $count;
+        }
+        $order = ['selection_pending', 'shipping', 'point_exchange', 'expired', 'hold', 'canceled'];
+        $positions = array_flip($order);
+        uksort($grouped, fn (string $left, string $right): int =>
+            ($positions[$left] ?? PHP_INT_MAX)
+            <=> ($positions[$right] ?? PHP_INT_MAX));
+
+        return collect($grouped)->map(
+            fn (int $count, string $status): array => compact('status', 'count')
+        )->values()->all();
+    }
+
+    /** @param list<array<string, mixed>> $prizes */
+    private function statusSummaryFromPrizes(array $prizes): array
+    {
+        $counts = [];
+        foreach ($prizes as $prize) {
+            $status = (string) $prize['status'];
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+        }
+
+        return $this->statusSummary($counts);
+    }
+
+    /** @return array<string, mixed> */
+    private function mapUsageHistoryPrize(object $row): array
+    {
+        $snapshot = is_string($row->display_snapshot)
+            ? json_decode($row->display_snapshot, true, 32, JSON_THROW_ON_ERROR)
+            : $row->display_snapshot;
+        $snapshot = is_array($snapshot) ? $snapshot : [];
+        $prize = is_array($snapshot['prize'] ?? null) ? $snapshot['prize'] : [];
+        $rank = is_array($snapshot['rank'] ?? null) ? $snapshot['rank'] : [];
+        $asset = is_array($prize['presentation_asset'] ?? null)
+            ? $prize['presentation_asset']
+            : null;
+
+        return [
+            'draw_result_id' => (string) $row->draw_result_public_id,
+            'sequence' => (int) $row->request_sequence,
+            'prize_id' => (string) ($prize['id'] ?? ''),
+            'rank' => [
+                'id' => (string) ($rank['id'] ?? ''),
+                'name' => (string) ($rank['name'] ?? ''),
+            ],
+            'prize_name' => (string) ($prize['name'] ?? ''),
+            'thumbnail' => $this->snapshotAsset($asset),
+            'exchange_points' => (int) $row->exchange_point_snapshot,
+            'status' => (string) $row->status,
+            'status_updated_at' => $this->timestamp($row->status_updated_at),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function snapshotAsset(?array $asset): ?array
+    {
+        if ($asset === null || ! is_string($asset['id'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'id' => $asset['id'],
+            'media_type' => (string) ($asset['media_type'] ?? ''),
+            'mime_type' => (string) ($asset['mime_type'] ?? ''),
+            'alt_text' => is_string($asset['alt_text'] ?? null) ? $asset['alt_text'] : null,
+            'public_path' => ($asset['is_public'] ?? false) === true
+                && is_string($asset['public_path'] ?? null)
+                    ? $asset['public_path']
+                    : null,
+            'is_public' => ($asset['is_public'] ?? false) === true,
+        ];
+    }
+
+    private function timestamp(mixed $value): string
+    {
+        return CarbonImmutable::parse($value)->utc()->toIso8601String();
     }
 
     private function invalidQuery(): V2CatalogException

@@ -42,6 +42,8 @@ import {
   type AdminGachaPublishState,
   type AdminGachaImmediatePublish,
   type AdminGachaImmediatePublishRequest,
+  type AdminGachaUsageHistoryCollection,
+  type AdminGachaUsageHistoryDetailResponse,
   type AdminGachaVersionPrizeCollection,
   type AdminGachaVersionPrizeCreate,
   type AdminGachaVersionPrizeUpdate,
@@ -558,6 +560,42 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminCatalogGacha>> {
     return this.catalogDetail("gachas", id, signal);
+  }
+
+  listGachaUsageHistory(
+    gachaId: string,
+    cursor?: string | null,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaUsageHistoryCollection> {
+    if (!isOpaqueId(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/history?${query.toString()}`,
+      { signal },
+    );
+  }
+
+  getGachaUsageHistory(
+    gachaId: string,
+    drawRequestId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaUsageHistoryDetailResponse> {
+    if (!isOpaqueId(gachaId) || !isOpaqueId(drawRequestId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/history/${encodeURIComponent(drawRequestId)}`,
+      { signal },
+    );
   }
 
   createCatalogGacha(

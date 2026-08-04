@@ -1741,6 +1741,85 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/history": {
+      "get": {
+        "operationId": "listAdminGachaUsageHistory",
+        "summary": "Gachaの完了済み通常利用履歴を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stable SortされたGacha利用履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaUsageHistoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/history/{draw_request_id}": {
+      "get": {
+        "operationId": "getAdminGachaUsageHistory",
+        "summary": "完了済み通常Gacha利用の当選景品詳細を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/DrawRequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gacha利用詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaUsageHistoryDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/archive": {
       "post": {
         "operationId": "archiveAdminCatalogGacha",
@@ -9819,6 +9898,301 @@
           }
         }
       },
+      "AdminGachaUsageHistoryUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 191
+          }
+        }
+      },
+      "AdminGachaUsageHistoryStatusCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "count"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "selection_pending",
+              "shipping",
+              "point_exchange",
+              "expired",
+              "hold",
+              "canceled"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaUsageHistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user",
+          "executed_count",
+          "status_summary",
+          "used_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminGachaUsageHistoryUser"
+          },
+          "executed_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "status_summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaUsageHistoryStatusCount"
+            }
+          },
+          "used_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminGachaUsageHistoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_id",
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaUsageHistoryItem"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminGachaUsageHistoryGacha": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version_id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          }
+        }
+      },
+      "AdminGachaUsageHistoryRank": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "AdminGachaUsageHistoryPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "draw_result_id",
+          "sequence",
+          "prize_id",
+          "rank",
+          "prize_name",
+          "thumbnail",
+          "exchange_points",
+          "status",
+          "status_updated_at"
+        ],
+        "properties": {
+          "draw_result_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/AdminGachaUsageHistoryRank"
+          },
+          "prize_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "thumbnail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "stored",
+              "exchange_processing",
+              "converted",
+              "shipping_requested",
+              "packing",
+              "shipped",
+              "delivered",
+              "hold",
+              "return_requested",
+              "returned",
+              "expired",
+              "canceled"
+            ]
+          },
+          "status_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminGachaUsageHistoryDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "gacha",
+          "user",
+          "executed_count",
+          "consumed_points",
+          "used_at",
+          "status_summary",
+          "prizes"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha": {
+            "$ref": "#/components/schemas/AdminGachaUsageHistoryGacha"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminGachaUsageHistoryUser"
+          },
+          "executed_count": {
+            "type": "integer",
+            "enum": [
+              1,
+              5,
+              10,
+              100,
+              1000
+            ]
+          },
+          "consumed_points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "used_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status_summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaUsageHistoryStatusCount"
+            }
+          },
+          "prizes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaUsageHistoryPrize"
+            }
+          }
+        }
+      },
+      "AdminGachaUsageHistoryDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGachaUsageHistoryDetail"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
       "AdminCatalogGachaVersionPrizeInput": {
         "type": "object",
         "additionalProperties": false,
@@ -16511,6 +16885,14 @@
       },
       "GachaVersionId": {
         "name": "gacha_version_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "DrawRequestId": {
+        "name": "draw_request_id",
         "in": "path",
         "required": true,
         "schema": {

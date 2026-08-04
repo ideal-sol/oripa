@@ -167,6 +167,11 @@ Route::prefix('v2')
             ->name('v2.admin.catalog.gachas.core.create');
         Route::get('/catalog/gachas/{gachaId}', [V2AdminCatalogController::class, 'gacha'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.show');
+        Route::get('/catalog/gachas/{gachaId}/history', [V2AdminCatalogController::class, 'gachaUsageHistory'])
+            ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.history.index');
+        Route::get('/catalog/gachas/{gachaId}/history/{drawRequestId}', [V2AdminCatalogController::class, 'gachaUsageHistoryDetail'])
+            ->whereUuid('gachaId')->whereUuid('drawRequestId')
+            ->name('v2.admin.catalog.gachas.history.show');
         Route::put('/catalog/gachas/{gachaId}', [V2AdminCatalogController::class, 'updateGacha'])
             ->whereUuid('gachaId')->name('v2.admin.catalog.gachas.update');
         Route::post('/catalog/gachas/{gachaId}/archive', [V2AdminCatalogController::class, 'archiveGacha'])

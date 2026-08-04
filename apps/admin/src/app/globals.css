@@ -3788,6 +3788,47 @@ label {
   border-bottom: 0;
 }
 
+.catalog-history-detail-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.catalog-history-detail-stack > .catalog-panel {
+  padding: 20px;
+}
+
+.catalog-history-definition-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin: 18px 0;
+}
+
+.catalog-history-definition-grid div {
+  min-width: 0;
+}
+
+.catalog-history-definition-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.catalog-history-definition-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-history-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.catalog-history-prize-table {
+  min-width: 980px;
+}
+
 .sidebar-compact {
   grid-template-columns: 88px minmax(0, 1fr);
 }
