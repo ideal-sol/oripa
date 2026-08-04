@@ -7963,3 +7963,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Owner Loginと画面SmokeはPASS、Console／Page ErrorとHTTP 500／502／504は0。Preview DataはEmptyのためSynthetic Gachaを投入していない。PostgreSQL／Redis、Nginx、V1は非変更。
 - GitHub Checks、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。Gate G4／G5は`NOT COMPLETE`、MIG-061Lは開始しない。
 - Validated implementation head `46543fca5d0139f3e3161e80914620da2e7c598e`でRequired 5、CodeQL 2件、Dependency Reviewの全8 CheckがPASSした。最終Documentation Headを再検証後にSquash Mergeする。
+# MIG-061L ガチャ利用履歴一覧／詳細
+
+- Issue #192、Branch `feat/MIG-061L-gacha-usage-history`で開始。
+- 完了済み通常Draw RequestのRead-only一覧／詳細を実装対象とする。
+- QA Draw、Mutation、Migration、V1変更は対象外。
