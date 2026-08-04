@@ -7889,3 +7889,19 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Synthetic Userの無償P 0→7、Canonical Replay、Operator UI非表示／API 403、Ledger／Audit整合を確認した。
 - Container名、Network、固定IP、Port、Environment、PostgreSQL／Redis、Migration 31件、Nginx checksum、
   V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は維持した。Console Critical ErrorとHTTP 500／502／504は0。
+
+## SEC-007 最小Dependency更新
+
+- Issue `#186`、Branch `security/SEC-007-minimal-dependency-refresh`、Risk `R3`、
+  Verification `FAST-TRACK-DEPENDENCY`。Baseは
+  `main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`。
+- Guzzle 7.15.2、PSR-7 2.13.0、brace-expansion 5.0.9、fast-uri 3.1.5、
+  postcss 8.5.23へ最小更新し、Root／Legacy pnpm Audit 0、Composerは既存Unknown 1件、
+  Critical／High 0を確認した。
+- Baselineから解消済みGuzzle／PSR-7 9件だけを削除し、期限`2026-08-07`は延長していない。
+  Frozen Install、API Smoke、Admin／Legacy Typecheck・Build、Security／Policy／Quality GateがPASSした。
+- Application、Migration、DB、Preview、Productionは非変更。MIG-061I Issue `#184`、PR `#185`、
+  Worktree、Task DB、Previewを保持し、Closeoutは開始しない。
+- Evidenceは`/var/lib/oripa-v2-evidence/SEC-007/`、提出Reportは
+  `worklogs/reports/SEC-007-report.md`。GitHub Checks、Fresh Self-review、Squash Commit、Cleanupは
+  Closeout時に確定する。

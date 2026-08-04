@@ -1052,10 +1052,11 @@ def validate_workspace_configuration(repository: Path) -> None:
         )
     if package.get("pnpm") != {
         "overrides": {
-            "brace-expansion": "5.0.8",
+            "brace-expansion": "5.0.9",
+            "fast-uri": "3.1.5",
             "js-yaml": "4.3.0",
             "minimatch": "10.2.5",
-            "postcss": "8.5.18",
+            "postcss": "8.5.23",
             "sharp": "0.35.0",
         }
     }:
