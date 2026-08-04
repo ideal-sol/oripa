@@ -83,6 +83,9 @@
   SEC-007と旧MIG-061I Headで成功済みの全V2 Suite、Migration Fresh／Rollback、Backend 24件、
   Admin Unit／Browser E2E、Production Build、Preview Build／Deployment、Backup／Restore、Draw負荷、
   V1全回帰は重複実行しない。
+- 最新main取込み後の初回Synchronize EventはPR本文更新前の旧Base SHAを保持したため、Policy Gateだけが
+  Fail Closedした。Repository Scope／Policy Findingではなく、PR本文を最新Base／Headへ更新した実Report
+  Commitで再実行する。空Commit、Check緩和、History rewriteは行わない。
 - Preview API／Admin／DBは再Build、再Deployment、Migrationを行わず、既存稼働状態を維持する。
 - Final Head、GitHub全Check、Fresh Self-review、Squash Commit、Cleanup結果はCloseout結果を正本とする。
 
