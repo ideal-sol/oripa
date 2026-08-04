@@ -7901,3 +7901,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview反映、GitHub Check、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。
 - 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061I/`、提出Reportは
   `worklogs/reports/MIG-061I-report.md`。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
+
+### MIG-061I Preview
+
+- Application Head `bfc47d8276c50b1c5fcb8167317f08a2412d809c`からPreview APIを
+  `sha256:42d971aa...`、Adminを`sha256:fb9d2497...`へ更新し、Migration 000032だけを適用した。
+- Gacha Empty State、登録Form、Category／Tag、3 Scaffold、MobileをOwner Loginで確認した。
+  Console／Page Critical ErrorとHTTP 500／502／504は0であり、Synthetic Gachaは投入していない。
+- PostgreSQL／Redis、Nginx、V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は非変更。

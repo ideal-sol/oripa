@@ -2,11 +2,11 @@
   "task_id": "MIG-061I",
   "risk": "R3",
   "verification_profile": "FAST-TRACK-FEATURE",
-  "status": "local_verified",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8",
   "issue": 184,
-  "pull_request": null,
+  "pull_request": 185,
   "target": "admin.luxe-pack.biz",
   "preview": {
     "compose_project": "mig061a-v2-preview",
@@ -15,14 +15,14 @@
     "database": "oripa_v2_mig061a",
     "database_marker": "mig061a",
     "migration_before": 31,
-    "migration_after": null
+    "migration_after": 32
   },
   "artifacts": {
-    "source_sha": null,
-    "api_image_before": null,
-    "api_image_after": null,
-    "admin_image_before": null,
-    "admin_image_after": null
+    "source_sha": "bfc47d8276c50b1c5fcb8167317f08a2412d809c",
+    "api_image_before": "sha256:d3d2b2b80bb75781acf1390679447ce04a03e15bd30c915fe1c832bd6fe84c10",
+    "api_image_after": "sha256:42d971aab07a8d034b36cc2fd8ac4e95fb35a9f94a0005305b27d957143b9e4e",
+    "admin_image_before": "sha256:d5c38bb39f27ad1adc322d5d7ce5a9d24316ec6794aaf9cf0d59b243a0365847",
+    "admin_image_after": "sha256:fb9d249735508f1bfa8989ba3e82394f6129c73816788654468c5b305ac93cf3"
   },
   "verification": {
     "task_database": "PASS",
@@ -38,7 +38,16 @@
     "admin_build": "PASS",
     "policy_unit": "PASS_96_TESTS",
     "policy_gate": "PASS",
-    "preview_smoke": "PENDING",
+    "preview_db_guard": "PASS_32_MIGRATIONS",
+    "preview_smoke": "PASS",
+    "preview_owner_login": "PASS",
+    "preview_gacha_list": "PASS_EMPTY_STATE",
+    "preview_gacha_registration": "PASS",
+    "preview_category_tag": "PASS",
+    "preview_scaffolds": "PASS",
+    "console_critical_errors": 0,
+    "http_500_502_504": 0,
+    "postgres_redis_change": "NONE",
     "nginx_change": "NONE",
     "v1_change": "NONE"
   },

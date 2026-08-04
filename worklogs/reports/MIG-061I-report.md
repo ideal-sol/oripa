@@ -2,7 +2,7 @@
 
 ## Task
 
-- Issue／PR: `#184`／Preview反映前のDraft PR作成時に確定
+- Issue／PR: `#184`／`#185`
 - Base: `main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`
 - Branch: `feat/MIG-061I-gacha-core-management`
 - Risk／Verification: `R3`／`FAST-TRACK-FEATURE`
@@ -40,8 +40,17 @@
 
 ## Preview／Remaining
 
-- Preview API／Admin Image更新とMigration 000032適用は、確定Application HeadのBuild後に実施する。
+- Application Head `bfc47d8276c50b1c5fcb8167317f08a2412d809c`から、Preview API Imageを
+  `sha256:d3d2b2b8...`から`sha256:42d971aa...`、Admin Imageを`sha256:d5c38bb3...`から
+  `sha256:fb9d2497...`へ更新した。旧ImageはRollback用に保持する。
+- DB Target Safety Guardで`oripa_v2_mig061a`、Marker `mig061a`、Purpose `v2-persistent`を確認し、
+  既存Dataを保持したままMigration 000032だけを30.23msで適用した。Migration集合は31件から32件となった。
+- Container名、Network、固定IP、Loopback Port、Restart Policy、Environment Key集合は切替前後一致した。
+  PostgreSQL／Redis Container IDとNginx 4設定Checksum、V1は変更していない。
+- Owner Login、Gacha Empty State、登録Form、Category／Tag、履歴／Simulation／Planner Scaffold、Mobileを確認した。
+  Console Critical Error、Page Error、HTTP 500／502／504は0。Synthetic Gachaは投入していない。
 - Rank／Prize／実History、Simulation Algorithm、商品設計、会員区分と日次上限のDraw Enforcementは対象外。
+- GitHub Required Checks、Fresh Self-review、Squash Commit、Task Resource CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
 
 ## Time
