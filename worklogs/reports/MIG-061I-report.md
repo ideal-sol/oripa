@@ -53,7 +53,7 @@
 - GitHub Required Checks、Fresh Self-review、Squash Commit、Task Resource CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
 
-## Security Blocker
+## Security Blocker（SEC-007で解消）
 
 - GitHub CodeQL 2件、Dependency Review、最新Policy Gate、Quality GateはPASSした。Security Gateは
   2026-08-04時点のAdvisory DBとSEC-005 Baselineの不一致でFailし、集約`ci-gate`もFailした。
@@ -65,6 +65,26 @@
   起因しない。Baseline追加／期限延長やDependency更新はTask Policy外のため実施していない。
 - Required Checks成功条件が未成立のためPR `#185`とIssue `#184`はOpen、Branch／Worktree／Task DBは保持する。
   Previewは正常稼働を維持し、別Security Task完了後に同じMIG-061Iを再開する必要がある。
+
+## SEC-007解消後Closeout
+
+- SEC-007 Issue `#186`はClosed、PR `#187`はSquash Merged、Squash Commitは
+  `96fc1fb7d4108011dac65c5b3cdb5739dd639eb1`である。
+- 既存MIG-061I Branchへ最新`origin/main`をMergeした。SEC-007のManifest、Lockfile、Baseline、
+  Security／Policy Testを保持し、MIG-061IのApplication、Contract、Migration差分も欠落していない。
+- Conflictは`worklogs/new_ver_main.md`の追記位置1件だけで、MIG-061IとSEC-007の記録を両方保持した。
+  Application、Migration、Contract、LockfileのConflict解決はない。
+- Canonical pushの累積Scope検査に必要なSEC-007由来8 Pathだけを追加し、Task PolicyをAtomic再発行した。
+  初回SHAは`238c81545492ea470589e9bd3c8c364d93b07249953a6b1522d1d180e27e1ccc`、
+  Closeout Policy SHAは`fa97882588ab6c3252181408ee3ef62c41abca9f5f955f3f1e343518316063e5`である。
+- Composer Auditは既存JMESPath Unknown 1件だけでCritical／High 0、Root／Legacy pnpm Auditは0件。
+  Baseline期限`2026-08-07`を維持し、Advisory追加、期限延長、Gate緩和は行っていない。
+- Local Security／Policy／Quality Gateと`git diff --check`をFinal差分で再実行し、すべてPASSした。
+  SEC-007と旧MIG-061I Headで成功済みの全V2 Suite、Migration Fresh／Rollback、Backend 24件、
+  Admin Unit／Browser E2E、Production Build、Preview Build／Deployment、Backup／Restore、Draw負荷、
+  V1全回帰は重複実行しない。
+- Preview API／Admin／DBは再Build、再Deployment、Migrationを行わず、既存稼働状態を維持する。
+- Final Head、GitHub全Check、Fresh Self-review、Squash Commit、Cleanup結果はCloseout結果を正本とする。
 
 ## Time
 

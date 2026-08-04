@@ -7932,3 +7932,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Evidenceは`/var/lib/oripa-v2-evidence/SEC-007/`、提出Reportは
   `worklogs/reports/SEC-007-report.md`。GitHub Checks、Fresh Self-review、Squash Commit、Cleanupは
   Closeout時に確定する。
+
+### MIG-061I Security Blocker解消後Closeout
+
+- SEC-007 Squash Commit `96fc1fb7d4108011dac65c5b3cdb5739dd639eb1`を既存MIG-061I BranchへMergeし、
+  Dependency修正とMIG-061I Application／Migration差分を両方保持した。
+- Composer Critical／High 0、Root／Legacy pnpm Audit 0を確認した。Baseline期限は
+  `2026-08-07`のまま維持し、Preview再Deploymentや機能追加は行わない。
+- Final Head、Required Checks、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。
