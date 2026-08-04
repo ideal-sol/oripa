@@ -20,6 +20,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061m_profit_simulation_path_registration_is_exact(self):
+        expected_admin = {
+            "apps/admin/e2e/admin-gacha-profit-simulation.spec.ts",
+            "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx",
+            "apps/admin/src/lib/catalog/gacha-profit-simulation.ts",
+            "apps/admin/test/catalog-gacha-profit-simulation.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061M_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_admin))
+        policy_gate.validate_admin_skeleton(ROOT, policy_gate.ADMIN_SKELETON_FILES)
+        source = (
+            ROOT / "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(source.count("cost_price"), 1)
+        self.assertIn("入力内容と結果は保存されません", source)
+
     def test_mig_061l_usage_history_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/tests/V2/AdminGachaUsageHistoryTest.php",

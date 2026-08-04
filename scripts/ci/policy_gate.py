@@ -591,6 +591,12 @@ MIG_061L_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-gacha-usage-history.tsx",
     "apps/admin/test/catalog-gacha-usage-history.test.tsx",
 }
+MIG_061M_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-profit-simulation.spec.ts",
+    "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx",
+    "apps/admin/src/lib/catalog/gacha-profit-simulation.ts",
+    "apps/admin/test/catalog-gacha-profit-simulation.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -697,6 +703,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061H_ADMIN_SKELETON_FILES,
     *MIG_061K_ADMIN_SKELETON_FILES,
     *MIG_061L_ADMIN_SKELETON_FILES,
+    *MIG_061M_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -1382,6 +1389,9 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     rank_prize_path = (
         "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx"
     )
+    profit_simulation_path = (
+        "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx"
+    )
     catalog_cost_sources = {
         relative: (repository / relative).read_text(
             encoding="utf-8", errors="replace"
@@ -1393,13 +1403,21 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     if any(
         "cost_price" in source
         for relative, source in catalog_cost_sources.items()
-        if relative != rank_prize_path
+        if relative not in {rank_prize_path, profit_simulation_path}
     ):
         raise PolicyFailure("apps/admin: Catalog read UI exposes prohibited cost_price")
     rank_prize_source = catalog_cost_sources.get(rank_prize_path, "")
     if rank_prize_source.count("cost_price") != 4 or "原価" not in rank_prize_source:
         raise PolicyFailure(
             "apps/admin: Draft Gacha Prize cost must remain exactly scoped"
+        )
+    profit_simulation_source = catalog_cost_sources.get(profit_simulation_path, "")
+    if (
+        profit_simulation_source.count("cost_price") != 1
+        or "入力内容と結果は保存されません" not in profit_simulation_source
+    ):
+        raise PolicyFailure(
+            "apps/admin: Profit simulation cost must remain read-only and exactly scoped"
         )
 
     workflow = (
