@@ -42,6 +42,12 @@ import {
   type AdminGachaPublishState,
   type AdminGachaImmediatePublish,
   type AdminGachaImmediatePublishRequest,
+  type AdminGachaVersionPrizeCollection,
+  type AdminGachaVersionPrizeCreate,
+  type AdminGachaVersionPrizeUpdate,
+  type AdminGachaVersionRankCollection,
+  type AdminGachaVersionRankCreate,
+  type AdminGachaVersionRankUpdate,
   type AdminGachaPublishSchedule,
   type AdminGachaPublishScheduleCancelRequest,
   type AdminGachaPublishSchedulePreflight,
@@ -614,6 +620,83 @@ export class AdminApiClient {
       "GET",
       `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}`,
       { signal },
+    );
+  }
+
+  listGachaVersionRanks(
+    gachaId: string,
+    versionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaVersionRankCollection> {
+    return this.gachaVersionResourceRequest(
+      "GET",
+      gachaId,
+      versionId,
+      "ranks",
+      null,
+      null,
+      null,
+      signal,
+    );
+  }
+
+  createGachaVersionRank(
+    gachaId: string,
+    versionId: string,
+    body: AdminGachaVersionRankCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
+    return this.gachaVersionResourceRequest(
+      "POST", gachaId, versionId, "ranks", null, body, idempotencyKey, signal,
+    );
+  }
+
+  updateGachaVersionRank(
+    gachaId: string,
+    versionId: string,
+    rankId: string,
+    body: AdminGachaVersionRankUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
+    return this.gachaVersionResourceRequest(
+      "PUT", gachaId, versionId, "ranks", rankId, body, idempotencyKey, signal,
+    );
+  }
+
+  listGachaVersionPrizes(
+    gachaId: string,
+    versionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaVersionPrizeCollection> {
+    return this.gachaVersionResourceRequest(
+      "GET", gachaId, versionId, "prizes", null, null, null, signal,
+    );
+  }
+
+  createGachaVersionPrize(
+    gachaId: string,
+    versionId: string,
+    body: AdminGachaVersionPrizeCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.gachaVersionResourceRequest(
+      "POST", gachaId, versionId, "prizes", null, body, idempotencyKey, signal,
+    );
+  }
+
+  updateGachaVersionPrize(
+    gachaId: string,
+    versionId: string,
+    prizeId: string,
+    body: AdminGachaVersionPrizeUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.gachaVersionResourceRequest(
+      "PUT", gachaId, versionId, "prizes", prizeId, body, idempotencyKey, signal,
     );
   }
 
@@ -1579,6 +1662,34 @@ export class AdminApiClient {
       idempotencyKey,
       signal,
     });
+  }
+
+  private gachaVersionResourceRequest<TResult>(
+    method: "GET" | "POST" | "PUT",
+    gachaId: string,
+    versionId: string,
+    resource: "ranks" | "prizes",
+    resourceId: string | null,
+    body: unknown,
+    idempotencyKey: string | null,
+    signal?: AbortSignal,
+  ): Promise<TResult> {
+    if (
+      !isOpaqueId(gachaId) ||
+      !isOpaqueId(versionId) ||
+      (resourceId !== null && !isOpaqueId(resourceId)) ||
+      (method !== "GET" && (idempotencyKey === null || !isIdempotencyKey(idempotencyKey)))
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    const suffix = resourceId === null ? "" : `/${encodeURIComponent(resourceId)}`;
+    return this.request(
+      method,
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/${resource}${suffix}`,
+      { body, idempotencyKey: idempotencyKey ?? undefined, signal },
+    );
   }
 
   private catalogArchive<TResult>(

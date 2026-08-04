@@ -257,6 +257,128 @@ final class V2AdminCatalogReadService
         return ['data' => $this->mapGachaVersion($version)];
     }
 
+    public function gachaVersionRanks(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId
+    ): array {
+        $this->authorize($context);
+        [, $version] = $this->gachaVersionParent($gachaPublicId, $versionPublicId);
+        $rows = DB::table('catalog_gacha_version_ranks as relation')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->where('relation.gacha_version_id', $version->id)
+            ->orderBy('relation.sort_order')
+            ->orderBy('rank.public_id')
+            ->get([
+                'rank.*',
+                'relation.sort_order as version_sort_order',
+            ]);
+        $assetsByRank = DB::table('catalog_rank_assets as relation')
+            ->join(
+                'catalog_presentation_assets as asset',
+                'asset.id',
+                '=',
+                'relation.presentation_asset_id'
+            )
+            ->whereIn('relation.rank_id', $rows->pluck('id'))
+            ->whereIn('relation.usage_type', ['image', 'video'])
+            ->get([
+                'relation.rank_id',
+                'relation.usage_type',
+                'asset.public_id',
+                'asset.media_type',
+                'asset.mime_type',
+                'asset.alt_text',
+                'asset.public_path',
+                'asset.is_public',
+            ])->groupBy('rank_id');
+
+        return [
+            'items' => $rows->map(
+                fn (object $row): array => $this->mapRank(
+                    $row,
+                    $assetsByRank->get($row->id, collect())
+                )
+            )->all(),
+            'version_revision' => (int) $version->revision,
+        ];
+    }
+
+    public function gachaVersionPrizes(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId
+    ): array {
+        $this->authorize($context);
+        [, $version] = $this->gachaVersionParent($gachaPublicId, $versionPublicId);
+        $rows = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->leftJoin(
+                'catalog_presentation_assets as asset',
+                'asset.id',
+                '=',
+                'prize.presentation_asset_id'
+            )
+            ->leftJoin(
+                'prize_inventories as inventory',
+                'inventory.gacha_version_prize_id',
+                '=',
+                'relation.id'
+            )
+            ->where('relation.gacha_version_id', $version->id)
+            ->orderBy('relation.sort_order')
+            ->orderBy('prize.public_id')
+            ->get([
+                'prize.public_id',
+                'prize.code',
+                'prize.display_name',
+                'prize.description',
+                'prize.display_price',
+                'prize.exchange_points',
+                'prize.cost_price',
+                'prize.is_visible',
+                'prize.revision',
+                'prize.archived_at',
+                'prize.created_at',
+                'prize.updated_at',
+                'rank.public_id as rank_public_id',
+                'rank.code as rank_code',
+                'rank.display_name as rank_name',
+                'rank.sort_order as rank_sort_order',
+                'asset.public_id as asset_public_id',
+                'asset.public_path as asset_public_path',
+                'asset.media_type as asset_media_type',
+                'asset.mime_type as asset_mime_type',
+                'asset.alt_text as asset_alt_text',
+                'asset.is_public as asset_is_public',
+                'relation.initial_inventory',
+                'relation.sort_order as version_sort_order',
+                'inventory.initial_quantity',
+                'inventory.won_count',
+            ]);
+
+        return [
+            'items' => $rows->map(function (object $row): array {
+                $total = $row->initial_quantity === null
+                    ? (int) $row->initial_inventory
+                    : (int) $row->initial_quantity;
+                $available = $row->initial_quantity === null
+                    ? $total
+                    : $total - (int) $row->won_count;
+
+                return [
+                    ...$this->mapPrize($row),
+                    'cost_price' => (int) $row->cost_price,
+                    'total_inventory' => $total,
+                    'available_inventory' => $available,
+                    'version_sort_order' => (int) $row->version_sort_order,
+                ];
+            })->all(),
+            'version_revision' => (int) $version->revision,
+        ];
+    }
+
     /** @param array<string, mixed> $filters */
     public function probabilityVersions(
         V2AdminAuthorizationContext $context,
@@ -828,6 +950,20 @@ final class V2AdminCatalogReadService
         );
     }
 
+    /** @return array{0: object, 1: object} */
+    private function gachaVersionParent(
+        string $gachaPublicId,
+        string $versionPublicId
+    ): array {
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $version = $this->find('catalog_gacha_versions', $versionPublicId);
+        if ((int) $version->gacha_id !== (int) $gacha->id) {
+            throw $this->notFound();
+        }
+
+        return [$gacha, $version];
+    }
+
     /**
      * @param array<string, mixed> $filters
      * @param list<string> $allowedSorts
@@ -1158,13 +1294,18 @@ final class V2AdminCatalogReadService
     }
 
     /** @return array<string, mixed> */
-    private function mapRank(object $row): array
+    private function mapRank(object $row, iterable $rankAssets = []): array
     {
+        $assets = collect($rankAssets)->keyBy('usage_type');
+
         return [
             'id' => $row->public_id,
             'code' => $row->code,
             'name' => $row->display_name,
-            'sort_order' => (int) $row->sort_order,
+            'description' => $row->description,
+            'sort_order' => (int) ($row->version_sort_order ?? $row->sort_order),
+            'image_asset' => $this->mapAssetReference($assets->get('image')),
+            'video_asset' => $this->mapAssetReference($assets->get('video')),
             'is_visible' => (bool) $row->is_visible,
             'is_archived' => $row->archived_at !== null,
             'revision' => (int) $row->revision,
@@ -1410,6 +1551,23 @@ final class V2AdminCatalogReadService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function mapAssetReference(?object $asset): ?array
+    {
+        if ($asset === null) {
+            return null;
+        }
+
+        return [
+            'id' => $asset->public_id,
+            'media_type' => $asset->media_type,
+            'mime_type' => $asset->mime_type,
+            'alt_text' => $asset->alt_text,
+            'public_path' => $asset->is_public ? $asset->public_path : null,
+            'is_public' => (bool) $asset->is_public,
         ];
     }
 

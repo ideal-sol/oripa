@@ -354,6 +354,10 @@ V2_PAYMENT_REQUIRED_FILES = {
 MIG_061I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
 }
+MIG_061K_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
+    "apps/api/tests/V2/AdminGachaRankPrizeManagementTest.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -397,6 +401,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
     *MIG_061I_V2_CATALOG_FILES,
+    *MIG_061K_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -573,6 +578,10 @@ MIG_061H_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/users/admin-user-point-adjustment-modal.tsx",
     "apps/admin/test/admin-user-point-adjustment.test.tsx",
 }
+MIG_061K_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
+    "apps/admin/test/catalog-gacha-rank-prize.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -677,6 +686,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061F_ADMIN_SKELETON_FILES,
     *MIG_061G_ADMIN_SKELETON_FILES,
     *MIG_061H_ADMIN_SKELETON_FILES,
+    *MIG_061K_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -1354,16 +1364,33 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     ):
         if required not in catalog_source:
             raise PolicyFailure(f"apps/admin: Catalog read UI missing {required}")
-    for prohibited in (
-        "cost_price",
-        "autoplay",
-        "http://",
-        "https://",
-    ):
+    for prohibited in ("autoplay", "http://", "https://"):
         if prohibited in catalog_source:
             raise PolicyFailure(
                 f"apps/admin: Catalog read UI exposes prohibited {prohibited}"
             )
+    rank_prize_path = (
+        "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx"
+    )
+    catalog_cost_sources = {
+        relative: (repository / relative).read_text(
+            encoding="utf-8", errors="replace"
+        )
+        for relative in sorted(actual)
+        if relative.startswith("apps/admin/src/components/catalog/")
+        or relative.startswith("apps/admin/src/lib/catalog/")
+    }
+    if any(
+        "cost_price" in source
+        for relative, source in catalog_cost_sources.items()
+        if relative != rank_prize_path
+    ):
+        raise PolicyFailure("apps/admin: Catalog read UI exposes prohibited cost_price")
+    rank_prize_source = catalog_cost_sources.get(rank_prize_path, "")
+    if rank_prize_source.count("cost_price") != 4 or "原価" not in rank_prize_source:
+        raise PolicyFailure(
+            "apps/admin: Draft Gacha Prize cost must remain exactly scoped"
+        )
 
     workflow = (
         repository / ".github/workflows/platform-ci.yml"
@@ -1975,6 +2002,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_17_000030_create_v2_admin_authentication_policy.php",
         "2026_08_18_000031_add_display_name_to_v2_users.php",
         "2026_08_19_000032_add_v2_gacha_core_management_fields.php",
+        "2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3065,7 +3093,6 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             raise PolicyFailure(f"V2 Admin Catalog read service missing {required}")
     for prohibited in (
         "storage_identifier' =>",
-        "cost_price' =>",
         "->insert(",
         "->update(",
         "->delete(",
@@ -3074,6 +3101,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
             raise PolicyFailure(
                 f"V2 Admin Catalog read service contains prohibited {prohibited}"
             )
+    if admin_service.count("'cost_price' => (int) $row->cost_price") != 1:
+        raise PolicyFailure(
+            "V2 Admin Catalog cost price must remain Draft Gacha scoped"
+        )
 
     admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")
     admin_operation_ids = {
@@ -3148,6 +3179,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "preflightAdminCatalogProbabilityPublish",
         "publishAdminCatalogProbabilityDraft",
         "archiveAdminCatalogProbabilityDraft",
+        "listAdminGachaVersionRanks",
+        "createAdminGachaVersionRank",
+        "updateAdminGachaVersionRank",
+        "listAdminGachaVersionPrizes",
+        "createAdminGachaVersionPrize",
+        "updateAdminGachaVersionPrize",
     }
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
@@ -3175,6 +3212,20 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks": {
+            "get",
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}": {
+            "put",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {
+            "get",
+            "post",
+        },
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {
+            "put",
+        },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/published-probability-candidates": {
             "get",
         },
@@ -3262,16 +3313,21 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         },
         sort_keys=True,
     ).lower()
-    for prohibited in (
-        "storage_identifier",
-        "cost_price",
-        '"patch"',
-        '"delete"',
-    ):
+    for prohibited in ("storage_identifier", '"patch"', '"delete"'):
         if prohibited in admin_catalog_contract:
             raise PolicyFailure(
                 f"V2 Admin Catalog contract contains prohibited {prohibited}"
             )
+    admin_catalog_schemas = admin_bundle.get("components", {}).get("schemas", {})
+    if "cost_price" in admin_catalog_schemas.get("AdminCatalogPrize", {}).get(
+        "properties", {}
+    ):
+        raise PolicyFailure("V2 Admin Catalog Prize exposes prohibited cost_price")
+    draft_prize_schema = admin_catalog_schemas.get("AdminGachaVersionPrize", {})
+    if "cost_price" not in draft_prize_schema.get("required", []) or "cost_price" not in (
+        draft_prize_schema.get("properties", {})
+    ):
+        raise PolicyFailure("V2 Draft Gacha Prize contract missing cost_price")
 
     bundle = load_json(repository, "openapi/bundled/public.openapi.json")
     operation_ids = sorted(

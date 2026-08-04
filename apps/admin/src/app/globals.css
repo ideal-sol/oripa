@@ -1563,6 +1563,89 @@ label {
   margin: 5px 0 16px;
 }
 
+.catalog-rank-prize-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.catalog-rank-prize-heading,
+.catalog-prize-heading,
+.catalog-dialog-title,
+.catalog-rank-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.catalog-rank-prize-heading h2,
+.catalog-prize-heading h3,
+.catalog-dialog-title h2 {
+  margin: 0;
+}
+
+.catalog-inline-loading {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+
+.catalog-rank-prize-dialog {
+  background: var(--surface);
+  display: grid;
+  gap: 20px;
+  max-width: 760px;
+  padding: 22px;
+  width: min(calc(100vw - 32px), 760px);
+}
+
+.catalog-rank-list {
+  display: grid;
+  gap: 10px;
+}
+
+.catalog-rank-row {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+
+.catalog-rank-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.catalog-rank-row code,
+.catalog-rank-row p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.catalog-inline-form {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.catalog-table code {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .catalog-rank-prize-heading,
+  .catalog-prize-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .catalog-rank-prize-section {
+    padding: 16px;
+  }
+}
+
 .catalog-version-empty {
   color: var(--muted);
   margin: 0;

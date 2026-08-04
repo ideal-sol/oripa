@@ -26,6 +26,7 @@ import {
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
 import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
+import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -452,6 +453,7 @@ export function CatalogGachaWorkspace({
           ) : null}
           {state.kind === "gacha" ? (
             <GachaDetail
+              canManage={canManage}
               canGoBack={versionCursorIndex > 0}
               gacha={state.gacha}
               nextCursor={state.versionsNextCursor}
@@ -668,6 +670,7 @@ function GachaList({
 }
 
 function GachaDetail({
+  canManage,
   canGoBack,
   gacha,
   nextCursor,
@@ -676,6 +679,7 @@ function GachaDetail({
   onNext,
   versions,
 }: {
+  canManage: boolean;
   canGoBack: boolean;
   gacha: AdminCatalogGacha;
   nextCursor: string | null;
@@ -684,6 +688,10 @@ function GachaDetail({
   onNext: () => void;
   versions: AdminCatalogGachaVersion[];
 }) {
+  const editableDraft = versions
+    .filter(isEditableGachaVersion)
+    .sort((left, right) => right.version_number - left.version_number)[0] ?? null;
+
   return (
     <>
       <section className="catalog-detail catalog-gacha-detail">
@@ -711,6 +719,11 @@ function GachaDetail({
           <Detail label="注意事項" value={gacha.current_version?.notices ?? "未設定"} />
         </dl>
       </section>
+      <CatalogGachaRankPrizeManager
+        canManage={canManage}
+        gachaId={gacha.id}
+        version={editableDraft}
+      />
       <section className="catalog-version-section">
         <header>
           <div>

@@ -196,6 +196,24 @@ Route::prefix('v2')
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'gachaVersion'])
             ->whereUuid('gachaId')->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.show');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/ranks', [V2AdminCatalogController::class, 'gachaVersionRanks'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-version-ranks.index');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/ranks', [V2AdminCatalogController::class, 'createGachaVersionRank'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-version-ranks.store');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}', [V2AdminCatalogController::class, 'updateGachaVersionRank'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('rankId')
+            ->name('v2.admin.catalog.gacha-version-ranks.update');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'gachaVersionPrizes'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-version-prizes.index');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'createGachaVersionPrize'])
+            ->whereUuid('gachaId')->whereUuid('versionId')
+            ->name('v2.admin.catalog.gacha-version-prizes.store');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/prizes/{prizeId}', [V2AdminCatalogController::class, 'updateGachaVersionPrize'])
+            ->whereUuid('gachaId')->whereUuid('versionId')->whereUuid('prizeId')
+            ->name('v2.admin.catalog.gacha-version-prizes.update');
         Route::put('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'updateGachaDraft'])
             ->whereUuid('gachaId')->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.update');

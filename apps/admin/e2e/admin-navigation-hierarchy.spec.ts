@@ -4,6 +4,9 @@ const gachaId = "01910191-0191-7191-8191-019101910210";
 const categoryId = "01910191-0191-7191-8191-019101910211";
 const tagId = "01910191-0191-7191-8191-019101910212";
 const assetId = "01910191-0191-7191-8191-019101910213";
+const versionId = "01910191-0191-7191-8191-019101910214";
+const rankId = "01910191-0191-7191-8191-019101910215";
+const prizeId = "01910191-0191-7191-8191-019101910216";
 
 const ownerPermissions = [
   "identity.admin.read",
@@ -179,6 +182,36 @@ test("Gacha core list, registration, detail links, and scaffolds remain usable",
   ).toBe(true);
 });
 
+test("Gacha rank and prize management remains usable on desktop and mobile", async ({ page }) => {
+  await installGachaCoreApi(page);
+  await installGachaRankPrizeApi(page);
+  await page.goto(`/catalog/gachas/${gachaId}`);
+
+  await expect(page.getByRole("heading", { name: "ランク／景品管理" })).toBeVisible();
+  const rankPrizeSection = page.locator("section.catalog-rank-prize-section");
+  await expect(rankPrizeSection.getByRole("columnheader")).toHaveText([
+    "ID", "ランク", "景品名", "サムネイル", "総在庫数", "現在個数",
+    "交換ポイント", "状態", "登録日", "編集",
+  ]);
+  await expect(rankPrizeSection.getByRole("cell", { exact: true, name: "7" })).toBeVisible();
+
+  const rankButton = page.getByRole("button", { name: "ランク設定" });
+  await rankButton.click();
+  const rankDialog = page.getByRole("dialog", { name: "ランク設定" });
+  await expect(rankDialog.getByText("Sランク", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(rankDialog).toHaveCount(0);
+  await expect(rankButton).toBeFocused();
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.getByRole("button", { name: "新規景品登録" }).click();
+  const prizeDialog = page.getByRole("dialog", { name: "新規景品登録" });
+  await expect(prizeDialog.getByLabel("景品名")).toBeFocused();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});
+
 async function installPreviewApi(page: Page): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -281,6 +314,22 @@ async function installGachaCoreApi(page: Page): Promise<void> {
   });
 }
 
+async function installGachaRankPrizeApi(page: Page): Promise<void> {
+  await page.route(/\/admin\/api\/v2\/catalog\/.*$/u, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/catalog/gachas/${gachaId}/versions`)) {
+      return json(route, { items: [gachaVersion()], next_cursor: null });
+    }
+    if (path.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}/ranks`)) {
+      return json(route, { items: [rank()], version_revision: 1 });
+    }
+    if (path.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}/prizes`)) {
+      return json(route, { items: [prize()], version_revision: 1 });
+    }
+    return route.fallback();
+  });
+}
+
 function category() {
   return {
     code: "cards",
@@ -334,7 +383,7 @@ function gacha() {
       audience_code: "all_users",
       daily_draw_limit: 0,
       description: "Draft description",
-      id: "01910191-0191-7191-8191-019101910214",
+      id: versionId,
       notices: "Draft notices",
       presentation_asset: asset(),
       price_points: 100,
@@ -356,6 +405,72 @@ function gacha() {
     tags: [tag()],
     updated_at: "2026-08-01T00:00:00Z",
     version_count: 1,
+  };
+}
+
+function gachaVersion() {
+  return {
+    archived_at: null,
+    audience_code: "all_users",
+    cloned_from_version: null,
+    created_at: "2026-08-01T00:00:00Z",
+    daily_draw_limit: 0,
+    description: "Draft description",
+    id: versionId,
+    is_archived: false,
+    notices: "Draft notices",
+    presentation_asset: asset(),
+    price_points: 100,
+    prizes: [],
+    publish_end_at: "2026-09-01T00:00:00Z",
+    publish_start_at: "2026-08-01T00:00:00Z",
+    published_at: null,
+    published_probability_version: null,
+    revision: 1,
+    status: "draft",
+    title: "Core Draft",
+    total_count: 1000,
+    updated_at: "2026-08-01T00:00:00Z",
+    version_number: 1,
+  };
+}
+
+function rank() {
+  return {
+    archived_at: null,
+    code: "s",
+    created_at: "2026-08-01T00:00:00Z",
+    description: "上位ランク",
+    id: rankId,
+    image_asset: asset(),
+    is_archived: false,
+    is_visible: true,
+    name: "Sランク",
+    revision: 1,
+    sort_order: 0,
+    updated_at: "2026-08-01T00:00:00Z",
+    video_asset: null,
+  };
+}
+
+function prize() {
+  return {
+    available_inventory: 7,
+    code: "prize-s",
+    cost_price: 3000,
+    created_at: "2026-08-01T00:00:00Z",
+    description: null,
+    display_price: 0,
+    exchange_points: 8000,
+    id: prizeId,
+    is_visible: true,
+    name: "限定カード",
+    presentation_asset: asset(),
+    rank: { code: "s", id: rankId, name: "Sランク", sort_order: 0 },
+    revision: 1,
+    total_inventory: 10,
+    updated_at: "2026-08-01T00:00:00Z",
+    version_sort_order: 0,
   };
 }
 

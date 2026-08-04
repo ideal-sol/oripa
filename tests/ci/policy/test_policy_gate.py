@@ -20,6 +20,35 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061k_rank_prize_path_registration_is_exact(self):
+        expected_catalog = {
+            "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
+            "apps/api/tests/V2/AdminGachaRankPrizeManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
+            "apps/admin/test/catalog-gacha-rank-prize.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061K_V2_CATALOG_FILES, expected_catalog)
+        self.assertTrue(expected_catalog.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061K_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
+
+    def test_mig_061k_cost_price_is_limited_to_draft_gacha_prizes(self):
+        policy_gate.validate_admin_skeleton(ROOT, policy_gate.ADMIN_SKELETON_FILES)
+        policy_gate.validate_v2_catalog_boundary(
+            ROOT, policy_gate.V2_CATALOG_REQUIRED_FILES
+        )
+
+        generic_prize = json.loads(
+            (ROOT / "openapi/bundled/admin.openapi.json").read_text(
+                encoding="utf-8"
+            )
+        )["components"]["schemas"]["AdminCatalogPrize"]
+        self.assertNotIn("cost_price", generic_prize["properties"])
+
     def test_mig_061i_catalog_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
@@ -471,6 +500,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
             "apps/api/database/migrations-v2/2026_08_16_000029_add_v2_qa_plan_management.php",
             "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
+            "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
