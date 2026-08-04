@@ -6,7 +6,8 @@
 - PR: #191
 - Base: `92716d166bd829a236f25e7c9e36e76c46aebdc2`
 - Application Commit: `9099e4dd66e9524c26f3dc09c35083a1dc55fa2b`
-- Final Head／Squash Commit: Closeoutで確定
+- Validated Implementation Head: `46543fca5d0139f3e3161e80914620da2e7c598e`
+- Final Head／Squash Commit: Merge結果で確定
 - Task Policy SHA-256: 初回`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`、Strict Schema Test追加後`91b35654d8c299484fa1cd87402d9efc60604cd80db5c533d9beab1ff4039482`、DB inventory正本追加後`5f40cce5a452fe826345bd336842b33c3a058341053bc8ed78d8b467c94ed8bc`
 
 ## V1移植
@@ -55,5 +56,7 @@
 
 ## Closeout
 
-- Fresh Self-review、GitHub Required Checks、Final Head、Squash Commit、CleanupはCloseout結果を追記する。
+- Validated Implementation HeadでRequired 5、CodeQL 2件、Dependency Reviewの全8 CheckがPASSした。Policy／Schema inventory補正後のIntegration GateはMigration、全V2対象Suite、Backup／Restoreを含めPASSした。
+- Fresh Self-reviewはScope、Contract、Permission、Transaction、Idempotency、Published immutability、Secret／PIIを確認しPASS。SEV-0／SEV-1は0件、Merge recommendationは`MERGE`。
+- Final Documentation Headを同じ8 Checkへ再検証し、Machine-readable Self-review作成後にSquash Merge／Issue Close／Task DBとBranch／Worktree Cleanupを行う。Preview API／Admin／DBは稼働維持する。
 - Gate G4／G5は`NOT COMPLETE`。MIG-061Lは開始しない。
