@@ -7916,3 +7916,19 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Composer High 1件とWorkspace／Legacy pnpm HighによりSecurity Gateと集約`ci-gate`がFail Closedした。
 - Baseline追加／期限延長やDependency更新はMIG-061I Policy外のため行わない。PR `#185`、Issue `#184`、
   Branch／Worktree／Task DBを保持し、別Security Task完了後に同じMIG-061Iを再開する。
+
+## SEC-007 最小Dependency更新
+
+- Issue `#186`、PR `#187`、Branch `security/SEC-007-minimal-dependency-refresh`、Risk `R3`、
+  Verification `FAST-TRACK-DEPENDENCY`。Baseは
+  `main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`。
+- Guzzle 7.15.2、PSR-7 2.13.0、brace-expansion 5.0.9、fast-uri 3.1.5、
+  postcss 8.5.23へ最小更新し、Root／Legacy pnpm Audit 0、Composerは既存Unknown 1件、
+  Critical／High 0を確認した。
+- Baselineから解消済みGuzzle／PSR-7 9件だけを削除し、期限`2026-08-07`は延長していない。
+  Frozen Install、API Smoke、Admin／Legacy Typecheck・Build、Security／Policy／Quality GateがPASSした。
+- Application、Migration、DB、Preview、Productionは非変更。MIG-061I Issue `#184`、PR `#185`、
+  Worktree、Task DB、Previewを保持し、Closeoutは開始しない。
+- Evidenceは`/var/lib/oripa-v2-evidence/SEC-007/`、提出Reportは
+  `worklogs/reports/SEC-007-report.md`。GitHub Checks、Fresh Self-review、Squash Commit、Cleanupは
+  Closeout時に確定する。

@@ -1137,10 +1137,11 @@ This is a non-Production Skeleton and contains no application implementation.
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
                     "pnpm": {
                         "overrides": {
-                            "brace-expansion": "5.0.8",
+                            "brace-expansion": "5.0.9",
+                            "fast-uri": "3.1.5",
                             "js-yaml": "4.3.0",
                             "minimatch": "10.2.5",
-                            "postcss": "8.5.18",
+                            "postcss": "8.5.23",
                             "sharp": "0.35.0",
                         }
                     },
