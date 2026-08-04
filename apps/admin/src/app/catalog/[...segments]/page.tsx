@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { CatalogGachaWorkspace } from "@/components/catalog/catalog-gacha-workspace";
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
+import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { AdminPageHeader } from "@/components/shell/admin-page-header";
+import { AdminShell } from "@/components/shell/admin-shell";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
 
 export const metadata: Metadata = { title: "カタログ参照" };
@@ -23,6 +26,19 @@ export default async function CatalogResourcePage({
           key={segments[1]}
         />
       );
+    }
+    if (
+      segments.length === 3 &&
+      ["history", "profit-simulation", "product-design-planner"].includes(segments[2])
+    ) {
+      const labels: Record<string, string> = {
+        history: "ガチャ利用履歴",
+        "profit-simulation": "利益シミュレーション",
+        "product-design-planner": "商品設計プランナー",
+      };
+      const title = labels[segments[2]];
+      if (!title) notFound();
+      return <GachaScaffold gachaId={segments[1]} title={title} />;
     }
     if (segments.length === 4 && segments[2] === "versions") {
       return (
@@ -54,4 +70,20 @@ export default async function CatalogResourcePage({
   if (!section || section.resource === "gachas") notFound();
 
   return <CatalogWorkspace id={segments[1]} resource={section.resource} />;
+}
+
+function GachaScaffold({ gachaId, title }: { gachaId: string; title: string }) {
+  return (
+    <AdminShell>
+      <ProtectedAdminRoute permission="catalog.read">
+        <div className="workspace">
+          <AdminPageHeader eyebrow="Gacha" title={title} description={`対象Gacha: ${gachaId}`} />
+          <section className="module-state">
+            <h2>{title}</h2>
+            <p>詳細画面は後続Taskで実装します。</p>
+          </section>
+        </div>
+      </ProtectedAdminRoute>
+    </AdminShell>
+  );
 }

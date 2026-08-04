@@ -351,6 +351,9 @@ V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/tests/V2/PaymentModelFoundationTest.php",
     "docs/operations/payment-model/README.md",
 }
+MIG_061I_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -393,6 +396,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "packages/storefront-client/src/generated/public.ts",
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
+    *MIG_061I_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -1969,6 +1973,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_16_000029_add_v2_qa_plan_management.php",
         "2026_08_17_000030_create_v2_admin_authentication_policy.php",
         "2026_08_18_000031_add_display_name_to_v2_users.php",
+        "2026_08_19_000032_add_v2_gacha_core_management_fields.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3106,6 +3111,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "listAdminCatalogGachas",
         "getAdminCatalogGacha",
         "createAdminCatalogGacha",
+        "createAdminCatalogGachaCore",
         "updateAdminCatalogGacha",
         "archiveAdminCatalogGacha",
         "listAdminCatalogGachaVersions",
@@ -3161,6 +3167,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
         "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
         "/catalog/gachas": {"get", "post"},
+        "/catalog/gachas/core": {"post"},
         "/catalog/gachas/{gacha_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/archive": {"post"},
         "/catalog/gachas/{gacha_id}/versions": {"get", "post"},

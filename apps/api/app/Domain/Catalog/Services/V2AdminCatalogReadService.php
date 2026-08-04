@@ -1196,6 +1196,23 @@ final class V2AdminCatalogReadService
             : DB::table('catalog_gacha_versions')
                 ->where('id', $row->published_version_id)
                 ->first();
+        $currentVersion = $publishedVersion ?? DB::table('catalog_gacha_versions')
+            ->where('gacha_id', $row->id)
+            ->whereNull('archived_at')
+            ->orderByDesc('version_number')
+            ->first();
+        $hasActiveSchedule = DB::table('catalog_gacha_publish_schedules')
+            ->where('gacha_id', $row->id)
+            ->whereIn('status', ['scheduled', 'processing'])
+            ->exists();
+        $publicationStatus = match (true) {
+            $row->archived_at !== null,
+            $row->public_deactivated_at !== null && $publishedVersion === null => 'unpublished',
+            $publishedVersion !== null && (bool) ($row->sales_paused ?? false) => 'sales_paused',
+            $publishedVersion !== null => 'published',
+            $hasActiveSchedule => 'scheduled',
+            default => 'draft',
+        };
 
         return [
             'id' => $row->public_id,
@@ -1215,6 +1232,10 @@ final class V2AdminCatalogReadService
                 'status' => $publishedVersion->status,
                 'title' => $publishedVersion->title,
             ],
+            'current_version' => $currentVersion === null
+                ? null
+                : $this->mapGachaCoreVersion($currentVersion),
+            'publication_status' => $publicationStatus,
             'version_count' => DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)->count(),
             'has_draw_history' => DB::table('draw_requests as draw')
@@ -1231,6 +1252,39 @@ final class V2AdminCatalogReadService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGachaCoreVersion(object $row): array
+    {
+        $asset = $row->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $row->presentation_asset_id)
+                ->first();
+
+        return [
+            'id' => $row->public_id,
+            'version_number' => (int) $row->version_number,
+            'status' => $row->status,
+            'title' => $row->title,
+            'description' => $row->description,
+            'notices' => $row->notices,
+            'price_points' => (int) $row->price_points,
+            'total_count' => (int) $row->total_count,
+            'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
+            'audience_code' => $row->audience_code ?? 'all_users',
+            'presentation_asset' => $asset === null ? null : [
+                'id' => $asset->public_id,
+                'media_type' => $asset->media_type,
+                'mime_type' => $asset->mime_type,
+                'alt_text' => $asset->alt_text,
+                'public_path' => $asset->is_public ? $asset->public_path : null,
+                'is_public' => (bool) $asset->is_public,
+            ],
+            'publish_start_at' => $row->publish_start_at,
+            'publish_end_at' => $row->publish_end_at,
         ];
     }
 
@@ -1291,6 +1345,8 @@ final class V2AdminCatalogReadService
             'notices' => $row->notices,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
+            'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
+            'audience_code' => $row->audience_code ?? 'all_users',
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,

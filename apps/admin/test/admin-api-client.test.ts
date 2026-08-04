@@ -227,6 +227,38 @@ describe("AdminApiClient", () => {
     expect(JSON.parse(String(request?.body))).not.toHaveProperty("code", undefined);
   });
 
+  it("creates a Gacha core Draft through the dedicated same-origin mutation", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({ data: { id: "01910191-0191-7191-8191-019101910199" } }, 201),
+    );
+    const client = new AdminApiClient(fetcher, () => csrf);
+    await client.createCatalogGachaCore(
+      {
+        audience_code: "all_users",
+        category_id: "01910191-0191-7191-8191-019101910191",
+        daily_draw_limit: 0,
+        description: null,
+        notices: null,
+        presentation_asset_id: "01910191-0191-7191-8191-019101910194",
+        price_points: 100,
+        publish_end_at: null,
+        publish_start_at: "2026-08-20T00:00:00.000Z",
+        tag_ids: [],
+        title: "Core Draft",
+        total_count: 1000,
+      },
+      "gacha-core-key",
+    );
+
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe("/admin/api/v2/catalog/gachas/core");
+    expect(request?.method).toBe("POST");
+    expect(new Headers(request?.headers).get("Idempotency-Key")).toBe(
+      "gacha-core-key",
+    );
+    expect(JSON.parse(String(request?.body))).not.toHaveProperty("state");
+  });
+
   it("validates mutation IDs and concurrency input before transport", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const client = new AdminApiClient(fetcher, () => csrf);

@@ -38,6 +38,172 @@ export interface GachaVersionDraft {
   totalCount: number;
 }
 
+export interface GachaCoreDraft {
+  audienceCode: "all_users" | "first_time_users" | "line_users";
+  categoryId: string;
+  dailyDrawLimit: number;
+  description: string | null;
+  notices: string | null;
+  presentationAssetId: string;
+  pricePoints: number;
+  publishEndAt: string | null;
+  publishStartAt: string;
+  tagIds: string[];
+  title: string;
+  totalCount: number;
+}
+
+export function CatalogGachaCoreForm({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (draft: GachaCoreDraft) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<GachaCoreDraft>({
+    audienceCode: "all_users",
+    categoryId: "",
+    dailyDrawLimit: 0,
+    description: null,
+    notices: null,
+    presentationAssetId: "",
+    pricePoints: 1,
+    publishEndAt: null,
+    publishStartAt: "",
+    tagIds: [],
+    title: "",
+    totalCount: 1,
+  });
+  const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
+  const [tags, setTags] = useState<AdminCatalogTag[]>([]);
+  const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const dirty =
+    draft.title !== "" ||
+    draft.categoryId !== "" ||
+    draft.presentationAssetId !== "" ||
+    draft.publishStartAt !== "" ||
+    draft.tagIds.length > 0 ||
+    draft.description !== null ||
+    draft.notices !== null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const client = new AdminApiClient();
+    Promise.all([
+      client.listCatalogCategories(
+        { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
+        controller.signal,
+      ),
+      client.listCatalogTags(
+        { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
+        controller.signal,
+      ),
+      client.listCatalogPresentationAssets(
+        { direction: "desc", limit: 100, sort: "created_at", visibility: "visible" },
+        controller.signal,
+      ),
+    ])
+      .then(([categoryResponse, tagResponse, assetResponse]) => {
+        setCategories(categoryResponse.items.filter((item) => !item.is_archived));
+        setTags(tagResponse.items.filter((item) => !item.is_archived));
+        setAssets(
+          assetResponse.items.filter(
+            (item) => !item.is_archived && item.media_type === "image",
+          ),
+        );
+      })
+      .catch(() => setErrors({ form: "登録用の選択肢を取得できませんでした。" }));
+    return () => controller.abort();
+  }, []);
+  useDirtyGuard(dirty);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!draft.title.trim()) nextErrors.title = "ガチャタイトルは必須です。";
+    if (!draft.categoryId) nextErrors.category = "カテゴリを選択してください。";
+    if (!draft.presentationAssetId) nextErrors.asset = "サムネイルを選択してください。";
+    if (!Number.isSafeInteger(draft.pricePoints) || draft.pricePoints < 1) {
+      nextErrors.price = "消費ポイントは1以上の整数です。";
+    }
+    if (!Number.isSafeInteger(draft.totalCount) || draft.totalCount < 1) {
+      nextErrors.total = "総口数は1以上の整数です。";
+    }
+    if (!Number.isSafeInteger(draft.dailyDrawLimit) || draft.dailyDrawLimit < 0) {
+      nextErrors.daily = "1日規定回数は0以上の整数です。";
+    }
+    const startsAt = Date.parse(draft.publishStartAt);
+    const endsAt = draft.publishEndAt ? Date.parse(draft.publishEndAt) : null;
+    if (!Number.isFinite(startsAt)) nextErrors.start = "開始日時は必須です。";
+    if (endsAt !== null && (!Number.isFinite(endsAt) || endsAt <= startsAt)) {
+      nextErrors.end = "終了日時は開始日時より後にしてください。";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        ...draft,
+        description: draft.description?.normalize("NFC").trim() || null,
+        notices: draft.notices?.normalize("NFC").trim() || null,
+        publishEndAt: draft.publishEndAt
+          ? new Date(draft.publishEndAt).toISOString()
+          : null,
+        publishStartAt: new Date(draft.publishStartAt).toISOString(),
+        tagIds: [...draft.tagIds].sort(),
+        title: draft.title.normalize("NFC").trim(),
+      });
+    } catch {
+      setErrors({ form: "登録できませんでした。入力内容を確認してください。" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="catalog-core-form-card" aria-labelledby="gacha-core-heading">
+      <header>
+        <span className="eyebrow">Draft Gacha</span>
+        <h2 id="gacha-core-heading">ガチャ登録</h2>
+        <p>作成時の状態は下書きです。公開操作は登録後の管理画面で行います。</p>
+      </header>
+      <form className="catalog-mutation-form" onSubmit={submit}>
+        <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
+        <FieldError message={errors.title} />
+        <div className="catalog-form-grid">
+          <label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>サムネイル<select required value={draft.presentationAssetId} onChange={(event) => setDraft({ ...draft, presentationAssetId: event.target.value })}><option value="">選択してください</option>{assets.map((item) => <option key={item.id} value={item.id}>{item.alt_text ?? item.public_path ?? item.id}</option>)}</select></label>
+        </div>
+        <FieldError message={errors.category ?? errors.asset} />
+        <fieldset className="catalog-choice-fieldset"><legend>タグ</legend>{tags.length === 0 ? <p>選択可能なタグはありません。</p> : null}{tags.map((tag) => <label className="catalog-checkbox" key={tag.id}><input type="checkbox" checked={draft.tagIds.includes(tag.id)} onChange={(event) => setDraft({ ...draft, tagIds: event.target.checked ? [...draft.tagIds, tag.id] : draft.tagIds.filter((id) => id !== tag.id) })} />{tag.name}</label>)}</fieldset>
+        <div className="catalog-form-grid">
+          <NumberField label="消費ポイント" min={1} onChange={(pricePoints) => setDraft({ ...draft, pricePoints })} value={draft.pricePoints} />
+          <NumberField label="総口数" min={1} onChange={(totalCount) => setDraft({ ...draft, totalCount })} value={draft.totalCount} />
+          <NumberField label="1日規定回数（0は無制限・JST 0時リセット）" min={0} onChange={(dailyDrawLimit) => setDraft({ ...draft, dailyDrawLimit })} value={draft.dailyDrawLimit} />
+          <label>状態<input disabled value="下書き" /></label>
+        </div>
+        <FieldError message={errors.price ?? errors.total ?? errors.daily} />
+        <label>会員ランク<select value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
+        <div className="catalog-form-grid">
+          <DateTimeField label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />
+          <DateTimeField label="終了日時（Asia/Tokyo）" onChange={(publishEndAt) => setDraft({ ...draft, publishEndAt: publishEndAt || null })} required={false} value={draft.publishEndAt ?? ""} />
+        </div>
+        <FieldError message={errors.start ?? errors.end} />
+        <TextArea label="説明" onChange={(description) => setDraft({ ...draft, description })} value={draft.description ?? ""} />
+        <TextArea label="注意事項" onChange={(notices) => setDraft({ ...draft, notices })} value={draft.notices ?? ""} />
+        {errors.form ? <FormError message={errors.form} /> : null}
+        <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}下書きを登録</button></div>
+      </form>
+    </section>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <p className="form-field-error" role="alert">{message}</p> : null;
+}
+
 export function CatalogGachaMasterForm({
   current,
   mode,

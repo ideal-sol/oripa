@@ -1,5 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+const gachaId = "01910191-0191-7191-8191-019101910210";
+const categoryId = "01910191-0191-7191-8191-019101910211";
+const tagId = "01910191-0191-7191-8191-019101910212";
+const assetId = "01910191-0191-7191-8191-019101910213";
+
 const ownerPermissions = [
   "identity.admin.read",
   "identity.admin.manage",
@@ -127,6 +132,53 @@ test("mobile drawer closes on navigation and restores focus on Escape", async ({
   ).toBe(true);
 });
 
+test("Gacha core list, registration, detail links, and scaffolds remain usable", async ({
+  page,
+}) => {
+  await installGachaCoreApi(page);
+  await page.goto("/catalog/gachas");
+  await expect(page.getByRole("columnheader")).toHaveText([
+    "ID",
+    "ガチャ名",
+    "サムネイル画像",
+    "消費ポイント",
+    "公開ステータス",
+    "履歴",
+    "詳細",
+  ]);
+  await expect(page.getByRole("link", { name: "Core Draftの履歴" })).toHaveAttribute(
+    "href",
+    `/catalog/gachas/${gachaId}/history`,
+  );
+  await page.getByRole("link", { name: "Core Draftの詳細" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Core Draft" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "利益シミュレーション" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "商品設計プランナー" })).toBeVisible();
+
+  for (const [path, heading] of [
+    [`/catalog/gachas/${gachaId}/history`, "ガチャ利用履歴"],
+    [`/catalog/gachas/${gachaId}/profit-simulation`, "利益シミュレーション"],
+    [`/catalog/gachas/${gachaId}/product-design-planner`, "商品設計プランナー"],
+  ] as const) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole("heading", { name: heading, exact: true }).first()).toBeVisible();
+    await expect(page.getByText("詳細画面は後続Taskで実装します。")).toBeVisible();
+  }
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto("/catalog/gachas/new");
+  await expect(page.getByRole("heading", { name: "ガチャ登録", exact: true }).first()).toBeVisible();
+  await expect(page.getByLabel("1日規定回数（0は無制限・JST 0時リセット）")).toHaveValue("0");
+  await expect(page.getByLabel("状態")).toHaveValue("下書き");
+  await expect(page.getByRole("button", { name: /公開/u })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});
+
 async function installPreviewApi(page: Page): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -150,6 +202,27 @@ async function installPreviewApi(page: Page): Promise<void> {
         role: "owner",
       });
     }
+    if (path.endsWith("/reports/dashboard/sales/monthly")) {
+      return json(route, {
+        basis: "operational_event_aggregation_not_accounting_recognition",
+        currency: "JPY",
+        days: [],
+        month: "2026-08",
+        summary: {
+          chargeback_amount: 0,
+          chargeback_count: 0,
+          gross_sales_amount: 0,
+          net_sales_amount: 0,
+          payment_count: 0,
+          refund_amount: 0,
+          refund_count: 0,
+        },
+        timezone: "Asia/Tokyo",
+      });
+    }
+    if (path.endsWith("/users")) {
+      return json(route, { items: [], next_cursor: null });
+    }
     if (/\/catalog\/(gachas|categories|tags|presentation-assets)$/u.test(path)) {
       return json(route, { items: [], next_cursor: null });
     }
@@ -171,6 +244,119 @@ async function installPreviewApi(page: Page): Promise<void> {
     }
     return route.fulfill({ status: 404 });
   });
+}
+
+async function installGachaCoreApi(page: Page): Promise<void> {
+  await page.route("**/assets/core-draft.png", (route) =>
+    route.fulfill({
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+      contentType: "image/png",
+      status: 200,
+    }),
+  );
+  await page.route(/\/admin\/api\/v2\/catalog\/.*$/u, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/catalog/categories")) {
+      return json(route, { items: [category()], next_cursor: null });
+    }
+    if (path.endsWith("/catalog/tags")) {
+      return json(route, { items: [tag()], next_cursor: null });
+    }
+    if (path.endsWith("/catalog/presentation-assets")) {
+      return json(route, { items: [asset()], next_cursor: null });
+    }
+    if (path.endsWith(`/catalog/gachas/${gachaId}/versions`)) {
+      return json(route, { items: [], next_cursor: null });
+    }
+    if (path.endsWith(`/catalog/gachas/${gachaId}`)) {
+      return json(route, { data: gacha() });
+    }
+    if (path.endsWith("/catalog/gachas")) {
+      return json(route, { items: [gacha()], next_cursor: null });
+    }
+    return route.fallback();
+  });
+}
+
+function category() {
+  return {
+    code: "cards",
+    created_at: "2026-08-01T00:00:00Z",
+    description: null,
+    id: categoryId,
+    is_archived: false,
+    is_visible: true,
+    name: "カード",
+    revision: 1,
+    slug: "cards",
+    sort_order: 1,
+    updated_at: "2026-08-01T00:00:00Z",
+  };
+}
+
+function tag() {
+  return {
+    ...category(),
+    code: "featured",
+    id: tagId,
+    name: "注目",
+    slug: "featured",
+  };
+}
+
+function asset() {
+  return {
+    alt_text: "Core Draft",
+    byte_size: 128,
+    checksum_sha256: "a".repeat(64),
+    created_at: "2026-08-01T00:00:00Z",
+    id: assetId,
+    is_archived: false,
+    is_public: true,
+    media_type: "image",
+    mime_type: "image/png",
+    public_path: "/assets/core-draft.png",
+    revision: 1,
+    updated_at: "2026-08-01T00:00:00Z",
+  };
+}
+
+function gacha() {
+  return {
+    archived_at: null,
+    category: category(),
+    code: "core-draft",
+    created_at: "2026-08-01T00:00:00Z",
+    current_version: {
+      audience_code: "all_users",
+      daily_draw_limit: 0,
+      description: "Draft description",
+      id: "01910191-0191-7191-8191-019101910214",
+      notices: "Draft notices",
+      presentation_asset: asset(),
+      price_points: 100,
+      publish_end_at: "2026-09-01T00:00:00Z",
+      publish_start_at: "2026-08-01T00:00:00Z",
+      status: "draft",
+      title: "Core Draft",
+      total_count: 1000,
+      version_number: 1,
+    },
+    has_draw_history: false,
+    id: gachaId,
+    is_archived: false,
+    publication_status: "draft",
+    published_version: null,
+    revision: 1,
+    slug: "core-draft",
+    state: "draft",
+    tags: [tag()],
+    updated_at: "2026-08-01T00:00:00Z",
+    version_count: 1,
+  };
 }
 
 async function json(route: Route, body: unknown): Promise<void> {

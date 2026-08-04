@@ -134,6 +134,84 @@ final class AdminGachaDraftManagementTest extends TestCase
             ->assertJsonPath('data.revision', 3);
     }
 
+    public function test_owner_and_admin_create_core_draft_with_daily_limit_and_audience(): void
+    {
+        foreach ([V2AdminRole::Owner, V2AdminRole::Admin] as $role) {
+            $token = $this->createAdminSession($role);
+            $input = $this->gachaCoreInput($role->value.' Core Draft');
+            $key = 'gacha-core-'.$role->value;
+            $created = $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/gachas/core',
+                $input,
+                $key
+            )->assertCreated()
+                ->assertJsonPath('data.state', 'draft')
+                ->assertJsonPath('data.publication_status', 'draft')
+                ->assertJsonPath('data.current_version.status', 'draft')
+                ->assertJsonPath('data.current_version.title', $input['title'])
+                ->assertJsonPath('data.current_version.daily_draw_limit', 12)
+                ->assertJsonPath(
+                    'data.current_version.audience_code',
+                    'first_time_users'
+                )
+                ->assertJsonPath('idempotent_replay', false);
+            $gachaId = $created->json('data.id');
+            $versionId = $created->json('data.current_version.id');
+
+            self::assertTrue(Str::isUuid($gachaId));
+            self::assertTrue(Str::isUuid($versionId));
+            self::assertDatabaseHas('catalog_gachas', [
+                'public_id' => $gachaId,
+                'state' => 'draft',
+                'published_version_id' => null,
+            ]);
+            self::assertDatabaseHas('catalog_gacha_versions', [
+                'public_id' => $versionId,
+                'status' => 'draft',
+                'daily_draw_limit' => 12,
+                'audience_code' => 'first_time_users',
+            ]);
+
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/gachas/core',
+                $input,
+                $key
+            )->assertCreated()
+                ->assertJsonPath('data.id', $gachaId)
+                ->assertJsonPath('idempotent_replay', true)
+                ->assertHeader('Idempotency-Replayed', 'true');
+        }
+    }
+
+    public function test_core_draft_validation_rejects_client_state_and_invalid_limits(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        foreach ([
+            [...$this->gachaCoreInput('Invalid Audience'), 'audience_code' => 'vip'],
+            [...$this->gachaCoreInput('Invalid Limit'), 'daily_draw_limit' => -1],
+            [...$this->gachaCoreInput('Client State'), 'state' => 'published'],
+            [
+                ...$this->gachaCoreInput('Invalid Period'),
+                'publish_start_at' => '2027-01-02T00:00:00Z',
+                'publish_end_at' => '2027-01-01T00:00:00Z',
+            ],
+        ] as $input) {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/gachas/core',
+                $input
+            )->assertUnprocessable()
+                ->assertJsonPath('code', 'CATALOG_MUTATION_INVALID');
+        }
+    }
+
     public function test_draft_create_clone_update_discard_preserves_source_and_relations(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Admin);
@@ -306,6 +384,14 @@ final class AdminGachaDraftManagementTest extends TestCase
             $this->gachaInput('operator-must-not-create')
         )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
 
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/gachas/core',
+            $this->gachaCoreInput('Operator Core Must Not Create')
+        )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+
         foreach ([
             '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID,
             '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID.
@@ -365,6 +451,25 @@ final class AdminGachaDraftManagementTest extends TestCase
             'slug' => $code,
             'category_id' => self::CATEGORY_ID,
             'tag_ids' => [self::TAG_ID],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function gachaCoreInput(string $title): array
+    {
+        return [
+            'title' => $title,
+            'category_id' => self::CATEGORY_ID,
+            'tag_ids' => [self::TAG_ID],
+            'price_points' => 100,
+            'total_count' => 1000,
+            'daily_draw_limit' => 12,
+            'audience_code' => 'first_time_users',
+            'presentation_asset_id' => self::ASSET_ID,
+            'publish_start_at' => '2026-08-01T00:00:00Z',
+            'publish_end_at' => '2027-08-01T00:00:00Z',
+            'description' => 'Core draft description',
+            'notices' => 'Core draft notices',
         ];
     }
 

@@ -1,0 +1,47 @@
+{
+  "task_id": "MIG-061I",
+  "risk": "R3",
+  "verification_profile": "FAST-TRACK-FEATURE",
+  "status": "local_verified",
+  "base_branch": "main",
+  "base_sha": "b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8",
+  "issue": 184,
+  "pull_request": null,
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_container": "mig061a-v2-preview-api-1",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "database": "oripa_v2_mig061a",
+    "database_marker": "mig061a",
+    "migration_before": 31,
+    "migration_after": null
+  },
+  "artifacts": {
+    "source_sha": null,
+    "api_image_before": null,
+    "api_image_after": null,
+    "admin_image_before": null,
+    "admin_image_after": null
+  },
+  "verification": {
+    "task_database": "PASS",
+    "backend_targeted": "PASS_24_TESTS_413_ASSERTIONS",
+    "migration_fresh": "PASS_32_MIGRATIONS",
+    "migration_rollback_reapply": "PASS",
+    "admin_unit": "PASS_33_TESTS",
+    "admin_browser": "PASS_3_TESTS",
+    "openapi_breaking": "PASS",
+    "generated_client": "PASS",
+    "admin_typecheck": "PASS",
+    "admin_lint": "PASS",
+    "admin_build": "PASS",
+    "policy_unit": "PASS_96_TESTS",
+    "policy_gate": "PASS",
+    "preview_smoke": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

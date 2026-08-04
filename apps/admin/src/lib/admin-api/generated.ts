@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 86b91d346b89a2a6d4ed81784e514910e6dbfdc7877cd78127cd3416c28a4ac0
+// Contract SHA-256: 6a2619e15d0f8c7d5f731bbaf23cfcef9187a572e90d70ab8b54c5122d6b43be
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -795,6 +795,22 @@ export interface AdminCatalogGachaVersionSummary {
   title: string;
 }
 
+export interface AdminCatalogGachaCoreVersion {
+  id: string;
+  version_number: number;
+  status: "draft" | "published";
+  title: string;
+  description: string | null;
+  notices: string | null;
+  price_points: number;
+  total_count: number;
+  daily_draw_limit: number;
+  audience_code: "all_users" | "first_time_users" | "line_users";
+  presentation_asset: AdminCatalogAssetReference | null;
+  publish_start_at: string;
+  publish_end_at: string | null;
+}
+
 export interface AdminCatalogGacha {
   id: string;
   code: string;
@@ -804,6 +820,8 @@ export interface AdminCatalogGacha {
   category: AdminCatalogReference;
   tags: AdminCatalogReference[];
   published_version: AdminCatalogGachaVersionSummary | null;
+  current_version?: AdminCatalogGachaCoreVersion | null;
+  publication_status?: "draft" | "published" | "scheduled" | "sales_paused" | "unpublished";
   version_count: number;
   has_draw_history: boolean;
   is_archived: boolean;
@@ -818,6 +836,21 @@ export interface AdminCatalogGachaCreate {
   slug: string;
   category_id: string;
   tag_ids: string[];
+}
+
+export interface AdminCatalogGachaCoreCreate {
+  title: string;
+  category_id: string;
+  tag_ids: string[];
+  price_points: number;
+  total_count: number;
+  daily_draw_limit: number;
+  audience_code: "all_users" | "first_time_users" | "line_users";
+  presentation_asset_id: string;
+  publish_start_at: string;
+  publish_end_at: string | null;
+  description: string | null;
+  notices: string | null;
 }
 
 export interface AdminCatalogGachaUpdate {
@@ -852,6 +885,8 @@ export interface AdminCatalogGachaVersion {
   notices: string | null;
   price_points: number;
   total_count: number;
+  daily_draw_limit?: number;
+  audience_code?: "all_users" | "first_time_users" | "line_users";
   presentation_asset: AdminCatalogAssetReference | null;
   published_probability_version: {
     id: string;

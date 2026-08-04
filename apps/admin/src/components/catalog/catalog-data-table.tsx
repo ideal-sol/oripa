@@ -19,6 +19,8 @@ export interface CatalogTableRow {
     is_public: boolean;
   } | null;
   archived?: boolean;
+  slug?: string;
+  sortOrder?: number;
 }
 
 export function CatalogDataTable({
@@ -28,6 +30,55 @@ export function CatalogDataTable({
   resource: CatalogResource;
   rows: CatalogTableRow[];
 }) {
+  if (resource === "categories" || resource === "tags") {
+    const label = resource === "categories" ? "カテゴリ" : "タグ";
+
+    return (
+      <div className="catalog-table-wrap">
+        <table className="catalog-table">
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">{label}名</th>
+              <th scope="col">Slug</th>
+              <th scope="col">表示順</th>
+              <th scope="col">状態</th>
+              <th scope="col">
+                <span className="sr-only">編集</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td>
+                  <code>{row.id}</code>
+                </td>
+                <td>
+                  <strong>{row.name}</strong>
+                </td>
+                <td>{row.slug}</td>
+                <td>{row.sortOrder?.toLocaleString()}</td>
+                <td>
+                  <StatusBadge archived={row.archived} visible={row.visible} />
+                </td>
+                <td>
+                  <Link
+                    aria-label={`${row.name}を編集`}
+                    className="table-link"
+                    href={`/catalog/${resource}/${row.id}`}
+                  >
+                    編集
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
     <div className="catalog-table-wrap">
       <table className="catalog-table">

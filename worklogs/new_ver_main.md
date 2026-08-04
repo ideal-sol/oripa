@@ -7889,3 +7889,15 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Synthetic Userの無償P 0→7、Canonical Replay、Operator UI非表示／API 403、Ledger／Audit整合を確認した。
 - Container名、Network、固定IP、Port、Environment、PostgreSQL／Redis、Migration 31件、Nginx checksum、
   V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は維持した。Console Critical ErrorとHTTP 500／502／504は0。
+
+## MIG-061I Gacha Core Management
+
+- Issue `#184`、Branch `feat/MIG-061I-gacha-core-management`、Risk `R3`、Verification
+  `FAST-TRACK-FEATURE`。Baseは`main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`。
+- Gacha一覧／登録／詳細、Category／Tag一覧・登録・編集、履歴／利益Simulation／商品設計Planner Scaffoldを実装した。
+  Gacha Masterと初期Draft VersionをAtomic作成し、日次上限と会員区分をVersionへ保存する。
+- Task DBでMigration Fresh／Rollback／Reapply、Backend対象24件、Admin Unit 33件、Browser対象3件、
+  OpenAPI／Generated Client／Typecheck／Lint／Build／Policy GateがPASSした。
+- Preview反映、GitHub Check、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061I/`、提出Reportは
+  `worklogs/reports/MIG-061I-report.md`。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
