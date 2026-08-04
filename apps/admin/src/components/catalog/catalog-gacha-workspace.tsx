@@ -9,6 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
@@ -18,13 +19,16 @@ import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirma
 import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import {
   CatalogGachaMasterForm,
+  CatalogGachaCoreForm,
   CatalogGachaVersionForm,
+  type GachaCoreDraft,
   type GachaMasterDraft,
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
 import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
+import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { StatusBadge } from "@/components/catalog/status-badge";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { usePermissions } from "@/components/permissions/permission-provider";
@@ -65,12 +69,15 @@ type FormMode = "create-master" | "edit-master" | "create-version" | "edit-versi
 type ConfirmMode = "archive-master" | "discard-version";
 
 export function CatalogGachaWorkspace({
+  createMode = false,
   gachaId,
   versionId,
 }: {
+  createMode?: boolean;
   gachaId?: string;
   versionId?: string;
 }) {
+  const router = useRouter();
   const client = useMemo(() => new AdminApiClient(), []);
   const section = catalogSection("gachas");
   if (!section) throw new Error("Gacha section is unavailable.");
@@ -129,7 +136,29 @@ export function CatalogGachaWorkspace({
   const title =
     state.kind === "version"
       ? `${state.gacha.code} / Version ${state.version.version_number}`
-      : currentGacha?.code ?? "Gacha";
+      : currentGacha?.current_version?.title ?? currentGacha?.code ?? "ガチャ管理";
+
+  async function submitCore(draft: GachaCoreDraft) {
+    const result = await client.createCatalogGachaCore(
+      {
+        audience_code: draft.audienceCode,
+        category_id: draft.categoryId,
+        daily_draw_limit: draft.dailyDrawLimit,
+        description: draft.description,
+        notices: draft.notices,
+        presentation_asset_id: draft.presentationAssetId,
+        price_points: draft.pricePoints,
+        publish_end_at: draft.publishEndAt,
+        publish_start_at: draft.publishStartAt,
+        tag_ids: draft.tagIds,
+        title: draft.title,
+        total_count: draft.totalCount,
+      },
+      mutationKey(JSON.stringify({ action: "create-gacha-core", draft })),
+    );
+    pendingMutation.current = null;
+    router.push(`/catalog/gachas/${result.data.id}`);
+  }
 
   async function submitMaster(draft: GachaMasterDraft) {
     const fingerprint = JSON.stringify({
@@ -314,6 +343,20 @@ export function CatalogGachaWorkspace({
     if ([401, 403, 409, 412, 429].includes(error.status)) setFormMode(null);
   }
 
+  if (createMode) {
+    return (
+      <AdminShell>
+        <ProtectedAdminRoute permission="catalog.manage">
+          <div className="workspace">
+            <CatalogBreadcrumb detail="登録" section={section} />
+            <AdminPageHeader eyebrow="Catalog" title="ガチャ登録" description="Gacha Masterと初期Draft Versionを一度に作成します。" />
+            <CatalogGachaCoreForm onCancel={() => router.push("/catalog/gachas")} onSubmit={submitCore} />
+          </div>
+        </ProtectedAdminRoute>
+      </AdminShell>
+    );
+  }
+
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="catalog.read">
@@ -495,10 +538,10 @@ function HeaderActions({
 }) {
   if (state === "list") {
     return (
-      <button className="primary-button" onClick={onCreateMaster} type="button">
+      <Link className="primary-button" href="/catalog/gachas/new">
         <Plus size={16} aria-hidden="true" />
-        新規作成
-      </button>
+        ガチャ登録
+      </Link>
     );
   }
   if (!currentGacha || currentGacha.is_archived) return undefined;
@@ -572,11 +615,12 @@ function GachaList({
         <table className="catalog-table">
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Category／Tag</th>
-              <th>状態</th>
-              <th>Version</th>
-              <th>販売口数</th>
+              <th>ID</th>
+              <th>ガチャ名</th>
+              <th>サムネイル画像</th>
+              <th>消費ポイント</th>
+              <th>公開ステータス</th>
+              <th>履歴</th>
               <th>詳細</th>
             </tr>
           </thead>
@@ -584,24 +628,28 @@ function GachaList({
             {items.map((gacha) => (
               <tr key={gacha.id}>
                 <td>
-                  <strong>{gacha.code}</strong>
-                  <small>{gacha.slug}</small>
+                  <code>{gacha.id}</code>
+                </td>
+                <td><strong>{gacha.current_version?.title ?? "未設定"}</strong></td>
+                <td><PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} /></td>
+                <td>{gacha.current_version?.price_points.toLocaleString() ?? "-"}</td>
+                <td>{publicationStatusLabel(gacha.publication_status)}</td>
+                <td>
+                  <Link
+                    aria-label={`${gacha.current_version?.title ?? gacha.code}の履歴`}
+                    className="table-link"
+                    href={`/catalog/gachas/${gacha.id}/history`}
+                  >
+                    履歴
+                  </Link>
                 </td>
                 <td>
-                  <strong>{gacha.category.name}</strong>
-                  <small>{gacha.tags.map((tag) => tag.name).join(", ") || "Tagなし"}</small>
-                </td>
-                <td>
-                  <StatusBadge
-                    archived={gacha.is_archived}
-                    visible={gacha.state === "active"}
-                  />
-                </td>
-                <td>{gacha.version_count}</td>
-                <td>{gacha.sold_count.toLocaleString()}</td>
-                <td>
-                  <Link className="table-link" href={`/catalog/gachas/${gacha.id}`}>
-                    開く
+                  <Link
+                    aria-label={`${gacha.current_version?.title ?? gacha.code}の詳細`}
+                    className="table-link"
+                    href={`/catalog/gachas/${gacha.id}`}
+                  >
+                    詳細
                   </Link>
                 </td>
               </tr>
@@ -639,16 +687,28 @@ function GachaDetail({
   return (
     <>
       <section className="catalog-detail catalog-gacha-detail">
+        <header className="catalog-detail-title-row">
+          <h2>{gacha.current_version?.title ?? gacha.code}</h2>
+          <nav aria-label="ガチャ設計">
+            <Link className="secondary-button" href={`/catalog/gachas/${gacha.id}/profit-simulation`}>利益シミュレーション</Link>
+            <Link className="secondary-button" href={`/catalog/gachas/${gacha.id}/product-design-planner`}>商品設計プランナー</Link>
+          </nav>
+        </header>
+        <PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} />
         <dl>
           <Detail label="Public ID" value={gacha.id} />
-          <Detail label="Code" value={gacha.code} />
-          <Detail label="Slug" value={gacha.slug} />
-          <Detail label="Category" value={gacha.category.name} />
-          <Detail label="Tag" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
-          <Detail label="State" value={gacha.state} />
-          <Detail label="Revision" value={String(gacha.revision)} />
-          <Detail label="Draw履歴" value={gacha.has_draw_history ? "あり" : "なし"} />
-          <Detail label="Archive日時" value={gacha.archived_at ?? "未Archive"} />
+          <Detail label="ガチャタイトル" value={gacha.current_version?.title ?? "未設定"} />
+          <Detail label="カテゴリ" value={gacha.category.name} />
+          <Detail label="タグ" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
+          <Detail label="消費ポイント" value={gacha.current_version?.price_points.toLocaleString() ?? "未設定"} />
+          <Detail label="総口数" value={gacha.current_version?.total_count.toLocaleString() ?? "未設定"} />
+          <Detail label="1日規定回数" value={dailyLimitLabel(gacha.current_version?.daily_draw_limit)} />
+          <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
+          <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
+          <Detail label="開始日時" value={gacha.current_version?.publish_start_at ?? "未設定"} />
+          <Detail label="終了日時" value={gacha.current_version?.publish_end_at ?? "無期限"} />
+          <Detail label="説明" value={gacha.current_version?.description ?? "未設定"} />
+          <Detail label="注意事項" value={gacha.current_version?.notices ?? "未設定"} />
         </dl>
       </section>
       <section className="catalog-version-section">
@@ -715,6 +775,18 @@ function GachaDetail({
       </section>
     </>
   );
+}
+
+function publicationStatusLabel(status?: AdminCatalogGacha["publication_status"]): string {
+  return ({ draft: "下書き", published: "公開", scheduled: "予約公開", sales_paused: "販売停止", unpublished: "非公開" } as const)[status ?? "draft"];
+}
+
+function audienceLabel(code?: string): string {
+  return ({ all_users: "すべてのユーザー", first_time_users: "初回ユーザー", line_users: "LINEユーザー" } as Record<string, string>)[code ?? "all_users"] ?? "未設定";
+}
+
+function dailyLimitLabel(limit?: number): string {
+  return limit === undefined ? "未設定" : limit === 0 ? "無制限" : `${limit.toLocaleString()}回`;
 }
 
 function VersionDetail({

@@ -274,6 +274,89 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function createGachaCore(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'gacha');
+        $this->rateLimit($context, $admin, 'create', 'gacha');
+        $payload = $this->validateGachaCoreCreate($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha',
+            'create',
+            $idempotencyKey,
+            $payload,
+            201,
+            function () use ($payload): object {
+                $now = now()->startOfSecond();
+                $category = $this->resolveReference(
+                    'catalog_categories',
+                    $payload['category_id'],
+                    'is_visible'
+                );
+                $tags = $this->resolveReferences(
+                    'catalog_tags',
+                    $payload['tag_ids'],
+                    'is_visible'
+                );
+                $asset = $this->resolveReference(
+                    'catalog_presentation_assets',
+                    $payload['presentation_asset_id'],
+                    'is_public'
+                );
+                if ($asset->media_type !== 'image') {
+                    throw $this->validationException();
+                }
+                $publicId = (string) Str::uuid7();
+                $identity = str_replace('-', '', strtolower($publicId));
+                $gachaId = DB::table('catalog_gachas')->insertGetId([
+                    'public_id' => $publicId,
+                    'code' => 'gacha_'.substr($identity, 0, 26),
+                    'slug' => 'gacha-'.substr($identity, 0, 26),
+                    'category_id' => $category->id,
+                    'state' => 'draft',
+                    'sold_count' => 0,
+                    'published_version_id' => null,
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $this->replaceGachaTags((int) $gachaId, $tags);
+                DB::table('catalog_gacha_versions')->insert([
+                    'public_id' => (string) Str::uuid7(),
+                    'gacha_id' => $gachaId,
+                    'version_number' => 1,
+                    'status' => 'draft',
+                    'title' => $payload['title'],
+                    'description' => $payload['description'],
+                    'notices' => $payload['notices'],
+                    'price_points' => $payload['price_points'],
+                    'total_count' => $payload['total_count'],
+                    'daily_draw_limit' => $payload['daily_draw_limit'],
+                    'audience_code' => $payload['audience_code'],
+                    'presentation_asset_id' => $asset->id,
+                    'published_probability_version_id' => null,
+                    'publish_start_at' => $payload['publish_start_at'],
+                    'publish_end_at' => $payload['publish_end_at'],
+                    'published_at' => null,
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'cloned_from_version_id' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                return $this->find('catalog_gachas', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
     public function updateGacha(
         V2AdminAuthorizationContext $context,
         string $publicId,
@@ -462,7 +545,11 @@ final class V2CatalogMasterMutationService
 
                 return $this->insertGachaDraft(
                     $gacha,
-                    $this->validateGachaVersion($payload, false),
+                    [
+                        ...$this->validateGachaVersion($payload, false),
+                        'daily_draw_limit' => (int) ($source->daily_draw_limit ?? 0),
+                        'audience_code' => $source->audience_code ?? 'all_users',
+                    ],
                     (int) $source->id
                 );
             }
@@ -2573,6 +2660,67 @@ final class V2CatalogMasterMutationService
     }
 
     /** @return array<string, mixed> */
+    private function validateGachaCoreCreate(array $input): array
+    {
+        $fields = [
+            'title',
+            'category_id',
+            'tag_ids',
+            'price_points',
+            'total_count',
+            'daily_draw_limit',
+            'audience_code',
+            'presentation_asset_id',
+            'publish_start_at',
+            'publish_end_at',
+            'description',
+            'notices',
+        ];
+        $this->assertFields($input, $fields, $fields);
+        $startsAt = $this->timestamp($input['publish_start_at']);
+        $endsAt = $input['publish_end_at'] === null
+            ? null
+            : $this->timestamp($input['publish_end_at']);
+        if (
+            $endsAt !== null
+            && CarbonImmutable::parse($endsAt)->lessThanOrEqualTo(
+                CarbonImmutable::parse($startsAt)
+            )
+        ) {
+            throw $this->validationException();
+        }
+        if (
+            ! is_string($input['audience_code'])
+            || ! in_array(
+                $input['audience_code'],
+                ['all_users', 'first_time_users', 'line_users'],
+                true
+            )
+        ) {
+            throw $this->validationException();
+        }
+
+        return [
+            'title' => $this->plainText($input['title'], 1, 191),
+            'category_id' => $this->uuid($input['category_id']),
+            'tag_ids' => $this->uuidList($input['tag_ids'], true),
+            'price_points' => $this->positiveInteger($input['price_points']),
+            'total_count' => $this->positiveInteger($input['total_count']),
+            'daily_draw_limit' => $this->nonNegativeInteger(
+                $input['daily_draw_limit']
+            ),
+            'audience_code' => $input['audience_code'],
+            'presentation_asset_id' => $this->uuid(
+                $input['presentation_asset_id']
+            ),
+            'publish_start_at' => $startsAt,
+            'publish_end_at' => $endsAt,
+            'description' => $this->nullablePlainText($input['description'], 10000),
+            'notices' => $this->nullablePlainText($input['notices'], 10000),
+        ];
+    }
+
+    /** @return array<string, mixed> */
     private function validateGachaUpdate(array $input): array
     {
         $this->assertFields(
@@ -3454,6 +3602,8 @@ final class V2CatalogMasterMutationService
             'notices' => $payload['notices'],
             'price_points' => $payload['price_points'],
             'total_count' => $payload['total_count'],
+            'daily_draw_limit' => $payload['daily_draw_limit'] ?? 0,
+            'audience_code' => $payload['audience_code'] ?? 'all_users',
             'presentation_asset_id' => $asset?->id,
             'published_probability_version_id' => null,
             'publish_start_at' => $payload['publish_start_at'],
@@ -5104,6 +5254,23 @@ final class V2CatalogMasterMutationService
             : DB::table('catalog_gacha_versions')
                 ->where('id', $row->published_version_id)
                 ->first();
+        $currentVersion = $publishedVersion ?? DB::table('catalog_gacha_versions')
+            ->where('gacha_id', $row->id)
+            ->whereNull('archived_at')
+            ->orderByDesc('version_number')
+            ->first();
+        $hasActiveSchedule = DB::table('catalog_gacha_publish_schedules')
+            ->where('gacha_id', $row->id)
+            ->whereIn('status', ['scheduled', 'processing'])
+            ->exists();
+        $publicationStatus = match (true) {
+            $row->archived_at !== null,
+            $row->public_deactivated_at !== null && $publishedVersion === null => 'unpublished',
+            $publishedVersion !== null && (bool) ($row->sales_paused ?? false) => 'sales_paused',
+            $publishedVersion !== null => 'published',
+            $hasActiveSchedule => 'scheduled',
+            default => 'draft',
+        };
 
         return [
             'id' => $row->public_id,
@@ -5123,6 +5290,10 @@ final class V2CatalogMasterMutationService
                 'status' => $publishedVersion->status,
                 'title' => $publishedVersion->title,
             ],
+            'current_version' => $currentVersion === null
+                ? null
+                : $this->mapGachaCoreVersion($currentVersion),
+            'publication_status' => $publicationStatus,
             'version_count' => DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)->count(),
             'has_draw_history' => DB::table('draw_requests as draw')
@@ -5139,6 +5310,39 @@ final class V2CatalogMasterMutationService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGachaCoreVersion(object $row): array
+    {
+        $asset = $row->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $row->presentation_asset_id)
+                ->first();
+
+        return [
+            'id' => $row->public_id,
+            'version_number' => (int) $row->version_number,
+            'status' => $row->status,
+            'title' => $row->title,
+            'description' => $row->description,
+            'notices' => $row->notices,
+            'price_points' => (int) $row->price_points,
+            'total_count' => (int) $row->total_count,
+            'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
+            'audience_code' => $row->audience_code ?? 'all_users',
+            'presentation_asset' => $asset === null ? null : [
+                'id' => $asset->public_id,
+                'media_type' => $asset->media_type,
+                'mime_type' => $asset->mime_type,
+                'alt_text' => $asset->alt_text,
+                'public_path' => $asset->is_public ? $asset->public_path : null,
+                'is_public' => (bool) $asset->is_public,
+            ],
+            'publish_start_at' => $row->publish_start_at,
+            'publish_end_at' => $row->publish_end_at,
         ];
     }
 
@@ -5199,6 +5403,8 @@ final class V2CatalogMasterMutationService
             'notices' => $row->notices,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
+            'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
+            'audience_code' => $row->audience_code ?? 'all_users',
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,

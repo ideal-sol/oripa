@@ -713,6 +713,24 @@ paths:
       responses:
         '201': {description: Gacha Master作成結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/core:
+    post:
+      operationId: createAdminCatalogGachaCore
+      summary: Gacha Masterと初期Draft Versionを作成する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminCatalogGachaCoreCreate'}
+      responses:
+        '201': {description: Gacha基本登録結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/gachas/{gacha_id}:
     get:
       operationId: getAdminCatalogGacha
@@ -3887,6 +3905,27 @@ components:
         version_number: {type: integer, minimum: 1}
         status: {type: string, enum: [draft, published]}
         title: {type: string, minLength: 1, maxLength: 191}
+    AdminCatalogGachaCoreVersion:
+      type: object
+      additionalProperties: false
+      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, presentation_asset, publish_start_at, publish_end_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        version_number: {type: integer, minimum: 1}
+        status: {type: string, enum: [draft, published]}
+        title: {type: string, minLength: 1, maxLength: 191}
+        description: {type: [string, 'null'], maxLength: 10000}
+        notices: {type: [string, 'null'], maxLength: 10000}
+        price_points: {type: integer, minimum: 1}
+        total_count: {type: integer, minimum: 1}
+        daily_draw_limit: {type: integer, minimum: 0}
+        audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        presentation_asset:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
+            - {type: 'null'}
+        publish_start_at: {type: string, format: date-time}
+        publish_end_at: {type: [string, 'null'], format: date-time}
     AdminCatalogGacha:
       type: object
       additionalProperties: false
@@ -3905,6 +3944,11 @@ components:
           oneOf:
             - {$ref: '#/components/schemas/AdminCatalogGachaVersionSummary'}
             - {type: 'null'}
+        current_version:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCatalogGachaCoreVersion'}
+            - {type: 'null'}
+        publication_status: {type: string, enum: [draft, published, scheduled, sales_paused, unpublished]}
         version_count: {type: integer, minimum: 0}
         has_draw_history: {type: boolean}
         is_archived: {type: boolean}
@@ -3925,6 +3969,27 @@ components:
           maxItems: 1000
           uniqueItems: true
           items: {$ref: '#/components/schemas/OpaqueId'}
+    AdminCatalogGachaCoreCreate:
+      type: object
+      additionalProperties: false
+      required: [title, category_id, tag_ids, price_points, total_count, daily_draw_limit, audience_code, presentation_asset_id, publish_start_at, publish_end_at, description, notices]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 191}
+        category_id: {$ref: '#/components/schemas/OpaqueId'}
+        tag_ids:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/OpaqueId'}
+        price_points: {type: integer, minimum: 1}
+        total_count: {type: integer, minimum: 1}
+        daily_draw_limit: {type: integer, minimum: 0}
+        audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        presentation_asset_id: {$ref: '#/components/schemas/OpaqueId'}
+        publish_start_at: {type: string, format: date-time}
+        publish_end_at: {type: [string, 'null'], format: date-time}
+        description: {type: [string, 'null'], maxLength: 10000}
+        notices: {type: [string, 'null'], maxLength: 10000}
     AdminCatalogGachaUpdate:
       type: object
       additionalProperties: false
@@ -4015,6 +4080,8 @@ components:
         notices: {type: [string, 'null'], maxLength: 10000}
         price_points: {type: integer, minimum: 1}
         total_count: {type: integer, minimum: 1}
+        daily_draw_limit: {type: integer, minimum: 0}
+        audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         presentation_asset:
           oneOf:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
@@ -4032,7 +4099,7 @@ components:
         published_at: {type: [string, 'null'], format: date-time}
         prizes:
           type: array
-          minItems: 1
+          minItems: 0
           maxItems: 1000
           items: {$ref: '#/components/schemas/AdminCatalogGachaVersionPrize'}
         is_archived: {type: boolean}

@@ -20,6 +20,15 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061i_catalog_path_registration_is_exact(self):
+        expected_catalog = {
+            "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
+        }
+
+        self.assertEqual(policy_gate.MIG_061I_V2_CATALOG_FILES, expected_catalog)
+        self.assertTrue(expected_catalog.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected_catalog))
+
     def test_mig_061h_path_registration_is_exact(self):
         expected_point = {
             "apps/api/app/Domain/Point/Exceptions/V2AdminPointAdjustmentException.php",
@@ -461,6 +470,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_14_000027_add_v2_gacha_sales_pause.php",
             "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
             "apps/api/database/migrations-v2/2026_08_16_000029_add_v2_qa_plan_management.php",
+            "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

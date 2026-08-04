@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CatalogGachaCoreForm,
   CatalogGachaMasterForm,
   CatalogGachaVersionForm,
 } from "@/components/catalog/catalog-gacha-forms";
@@ -57,6 +58,61 @@ describe("Admin Gacha Draft management", () => {
       slug: "new-gacha",
       tagIds: [TAG_ID],
     });
+  });
+
+  it("creates only a Draft core with audience and daily limit fields", async () => {
+    mockMasterSelections();
+    mockVersionSelections();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
+
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
+      target: { value: "新しいガチャ" },
+    });
+    fireEvent.change(screen.getByLabelText("カテゴリ"), {
+      target: { value: CATEGORY_ID },
+    });
+    fireEvent.change(screen.getByLabelText("サムネイル"), {
+      target: { value: ASSET_ID },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Featured" }));
+    fireEvent.change(screen.getByLabelText("消費ポイント"), {
+      target: { value: "200" },
+    });
+    fireEvent.change(screen.getByLabelText("総口数"), {
+      target: { value: "500" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("1日規定回数（0は無制限・JST 0時リセット）"),
+      { target: { value: "10" } },
+    );
+    fireEvent.change(screen.getByLabelText("会員ランク"), {
+      target: { value: "line_users" },
+    });
+    fireEvent.change(screen.getByLabelText("開始日時（Asia/Tokyo）"), {
+      target: { value: "2026-08-20T09:00" },
+    });
+    fireEvent.change(screen.getByLabelText("終了日時（Asia/Tokyo）"), {
+      target: { value: "2026-09-20T09:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下書きを登録" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audienceCode: "line_users",
+        categoryId: CATEGORY_ID,
+        dailyDrawLimit: 10,
+        presentationAssetId: ASSET_ID,
+        pricePoints: 200,
+        tagIds: [TAG_ID],
+        title: "新しいガチャ",
+        totalCount: 500,
+      }),
+    );
+    expect(screen.getByLabelText("状態")).toHaveValue("下書き");
+    expect(screen.queryByRole("button", { name: /公開/u })).not.toBeInTheDocument();
   });
 
   it("submits a typed Draft Version without Probability mutation fields", async () => {

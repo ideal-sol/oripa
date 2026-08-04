@@ -170,6 +170,19 @@ final class V2AdminCatalogController
         );
     }
 
+    public function createGachaCore(Request $request): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGachaCore(
+                    $context,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function updateGacha(Request $request, string $gachaId): JsonResponse
     {
         return $this->mutation(

@@ -96,6 +96,34 @@ describe("Admin Catalog read components", () => {
     expect(container.textContent).not.toContain("probability_ppm");
   });
 
+  it("renders Category and Tag columns in the V1 management order", () => {
+    render(
+      <CatalogDataTable
+        resource="categories"
+        rows={[
+          {
+            asset: null,
+            code: "cards",
+            id: "01910191-0191-7191-8191-019101910196",
+            name: "カード",
+            secondary: "cards",
+            slug: "cards",
+            sortOrder: 10,
+            visible: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+    ).toEqual(["ID", "カテゴリ名", "Slug", "表示順", "状態", "編集"]);
+    expect(screen.getByRole("link", { name: "カードを編集" })).toHaveAttribute(
+      "href",
+      "/catalog/categories/01910191-0191-7191-8191-019101910196",
+    );
+  });
+
   it("renders reusable create form validation and submits normalized master input", async () => {
     const submit = vi.fn().mockResolvedValue(undefined);
     render(

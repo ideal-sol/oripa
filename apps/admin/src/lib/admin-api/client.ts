@@ -13,6 +13,7 @@ import {
   type AdminCatalogDetail,
   type AdminCatalogDirection,
   type AdminCatalogGacha,
+  type AdminCatalogGachaCoreCreate,
   type AdminCatalogGachaCreate,
   type AdminCatalogGachaUpdate,
   type AdminCatalogGachaVersion,
@@ -559,6 +560,18 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<AdminCatalogGacha>> {
     return this.catalogMutation("POST", "gachas", null, body, idempotencyKey, signal);
+  }
+
+  createCatalogGachaCore(
+    body: AdminCatalogGachaCoreCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogGacha>> {
+    return this.request<AdminCatalogMutationResult<AdminCatalogGacha>>(
+      "POST",
+      "/catalog/gachas/core",
+      { body, idempotencyKey, signal },
+    );
   }
 
   updateCatalogGacha(

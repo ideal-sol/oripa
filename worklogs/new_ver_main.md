@@ -7890,6 +7890,33 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Container名、Network、固定IP、Port、Environment、PostgreSQL／Redis、Migration 31件、Nginx checksum、
   V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は維持した。Console Critical ErrorとHTTP 500／502／504は0。
 
+## MIG-061I Gacha Core Management
+
+- Issue `#184`、Branch `feat/MIG-061I-gacha-core-management`、Risk `R3`、Verification
+  `FAST-TRACK-FEATURE`。Baseは`main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`。
+- Gacha一覧／登録／詳細、Category／Tag一覧・登録・編集、履歴／利益Simulation／商品設計Planner Scaffoldを実装した。
+  Gacha Masterと初期Draft VersionをAtomic作成し、日次上限と会員区分をVersionへ保存する。
+- Task DBでMigration Fresh／Rollback／Reapply、Backend対象24件、Admin Unit 33件、Browser対象3件、
+  OpenAPI／Generated Client／Typecheck／Lint／Build／Policy GateがPASSした。
+- Preview反映、GitHub Check、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。
+- 詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061I/`、提出Reportは
+  `worklogs/reports/MIG-061I-report.md`。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
+
+### MIG-061I Preview
+
+- Application Head `bfc47d8276c50b1c5fcb8167317f08a2412d809c`からPreview APIを
+  `sha256:42d971aa...`、Adminを`sha256:fb9d2497...`へ更新し、Migration 000032だけを適用した。
+- Gacha Empty State、登録Form、Category／Tag、3 Scaffold、MobileをOwner Loginで確認した。
+  Console／Page Critical ErrorとHTTP 500／502／504は0であり、Synthetic Gachaは投入していない。
+- PostgreSQL／Redis、Nginx、V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は非変更。
+
+### MIG-061I Closeout Blocker
+
+- GitHub CodeQL 2件、Dependency Review、最新Policy／Quality GateはPASSしたが、外部Advisory DBに追加された
+  Composer High 1件とWorkspace／Legacy pnpm HighによりSecurity Gateと集約`ci-gate`がFail Closedした。
+- Baseline追加／期限延長やDependency更新はMIG-061I Policy外のため行わない。PR `#185`、Issue `#184`、
+  Branch／Worktree／Task DBを保持し、別Security Task完了後に同じMIG-061Iを再開する。
+
 ## SEC-007 最小Dependency更新
 
 - Issue `#186`、PR `#187`、Branch `security/SEC-007-minimal-dependency-refresh`、Risk `R3`、
@@ -7905,3 +7932,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Evidenceは`/var/lib/oripa-v2-evidence/SEC-007/`、提出Reportは
   `worklogs/reports/SEC-007-report.md`。GitHub Checks、Fresh Self-review、Squash Commit、Cleanupは
   Closeout時に確定する。
+
+### MIG-061I Security Blocker解消後Closeout
+
+- SEC-007 Squash Commit `96fc1fb7d4108011dac65c5b3cdb5739dd639eb1`を既存MIG-061I BranchへMergeし、
+  Dependency修正とMIG-061I Application／Migration差分を両方保持した。
+- Composer Critical／High 0、Root／Legacy pnpm Audit 0を確認した。Baseline期限は
+  `2026-08-07`のまま維持し、Preview再Deploymentや機能追加は行わない。
+- Final Head、Required Checks、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。

@@ -563,6 +563,8 @@ function tableRow(item: CatalogItem): CatalogTableRow {
     code: item.code,
     name: item.name,
     secondary,
+    slug: "slug" in item ? item.slug : undefined,
+    sortOrder: "sort_order" in item ? item.sort_order : undefined,
     visible: item.is_visible,
     archived: "is_archived" in item ? item.is_archived : false,
     asset: "presentation_asset" in item ? item.presentation_asset : null,
