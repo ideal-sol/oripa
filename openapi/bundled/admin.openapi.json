@@ -1995,6 +1995,298 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks": {
+      "get": {
+        "operationId": "listAdminGachaVersionRanks",
+        "summary": "対象Gacha Draft VersionのRank設定を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rank設定一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaVersionRankCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminGachaVersionRank",
+        "summary": "対象Gacha Draft VersionへRankを追加する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaVersionRankCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rank追加結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogRankMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}": {
+      "put": {
+        "operationId": "updateAdminGachaVersionRank",
+        "summary": "対象Gacha Draft VersionのRankを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "name": "rank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaVersionRankUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rank更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogRankMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {
+      "get": {
+        "operationId": "listAdminGachaVersionPrizes",
+        "summary": "対象Gacha Draft Versionの景品を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "景品一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaVersionPrizeCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminGachaVersionPrize",
+        "summary": "対象Gacha Draft Versionへ景品を追加する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaVersionPrizeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "景品追加結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogPrizeMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {
+      "put": {
+        "operationId": "updateAdminGachaVersionPrize",
+        "summary": "対象Gacha Draft Versionの景品を更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "name": "prize_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaVersionPrizeUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "景品更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogPrizeMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {
       "post": {
         "operationId": "cloneAdminCatalogGachaDraft",
@@ -7753,12 +8045,39 @@
             "type": "string",
             "maxLength": 128
           },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
           "sort_order": {
             "type": "integer",
             "minimum": 0
           },
           "is_visible": {
             "type": "boolean"
+          },
+          "image_asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "video_asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "is_archived": {
             "type": "boolean"
@@ -8107,6 +8426,225 @@
           },
           "is_visible": {
             "type": "boolean"
+          }
+        }
+      },
+      "AdminGachaVersionRankCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "description",
+          "image_asset_id",
+          "video_asset_id",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "image_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "video_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaVersionRankUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "image_asset_id",
+          "video_asset_id",
+          "expected_revision",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "image_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "video_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaVersionPrizeCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank_id",
+          "presentation_asset_id",
+          "name",
+          "total_inventory",
+          "exchange_points",
+          "cost_price",
+          "is_active",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "presentation_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "total_inventory": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost_price": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaVersionPrizeUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank_id",
+          "presentation_asset_id",
+          "name",
+          "total_inventory",
+          "exchange_points",
+          "cost_price",
+          "is_active",
+          "expected_revision",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "presentation_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "total_inventory": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost_price": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -8514,6 +9052,146 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AdminGachaVersionRankCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "version_revision"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogRank"
+            }
+          },
+          "version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminGachaVersionPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "name",
+          "exchange_points",
+          "cost_price",
+          "is_visible",
+          "rank",
+          "presentation_asset",
+          "total_inventory",
+          "available_inventory",
+          "version_sort_order",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_price": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost_price": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "is_visible": {
+            "type": "boolean"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/AdminCatalogRankReference"
+          },
+          "presentation_asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_inventory": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "available_inventory": {
+            "type": "integer"
+          },
+          "version_sort_order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminGachaVersionPrizeCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "version_revision"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGachaVersionPrize"
+            }
+          },
+          "version_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },

@@ -143,6 +143,30 @@ const operations = {
     "get",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}",
   ],
+  listAdminGachaVersionRanks: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks",
+  ],
+  createAdminGachaVersionRank: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks",
+  ],
+  updateAdminGachaVersionRank: [
+    "put",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}",
+  ],
+  listAdminGachaVersionPrizes: [
+    "get",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes",
+  ],
+  createAdminGachaVersionPrize: [
+    "post",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes",
+  ],
+  updateAdminGachaVersionPrize: [
+    "put",
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}",
+  ],
   updateAdminCatalogGachaDraft: [
     "put",
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}",
@@ -368,6 +392,12 @@ const requiredSchemas = [
   "AdminCatalogGachaVersionUpdate",
   "AdminCatalogGachaVersionMutationResult",
   "AdminCatalogGachaVersionCollection",
+  "AdminGachaVersionRankCreate",
+  "AdminGachaVersionRankUpdate",
+  "AdminGachaVersionRankCollection",
+  "AdminGachaVersionPrizeCreate",
+  "AdminGachaVersionPrizeUpdate",
+  "AdminGachaVersionPrizeCollection",
   "AdminGachaPublishedProbabilityCandidate",
   "AdminGachaPublishedProbabilityCandidateCollection",
   "AdminGachaProbabilitySelection",
@@ -1036,8 +1066,11 @@ export interface AdminCatalogRank {
   id: string;
   code: string;
   name: string;
+  description: string | null;
   sort_order: number;
   is_visible: boolean;
+  image_asset?: AdminCatalogAssetReference | null;
+  video_asset?: AdminCatalogAssetReference | null;
   is_archived?: boolean;
   revision?: number;
   archived_at?: string | null;
@@ -1156,6 +1189,57 @@ export interface AdminCatalogPrizeUpdate {
   display_price: number;
   exchange_points: number;
   is_visible: boolean;
+}
+
+export interface AdminGachaVersionRankCreate {
+  code: string;
+  name: string;
+  description: string | null;
+  image_asset_id: string | null;
+  video_asset_id: string | null;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionRankUpdate {
+  name: string;
+  description: string | null;
+  image_asset_id: string | null;
+  video_asset_id: string | null;
+  expected_revision: number;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionRankCollection {
+  items: AdminCatalogRank[];
+  version_revision: number;
+}
+
+export interface AdminGachaVersionPrize extends AdminCatalogPrize {
+  cost_price: number;
+  total_inventory: number;
+  available_inventory: number;
+  version_sort_order: number;
+  revision: number;
+}
+
+export interface AdminGachaVersionPrizeCreate {
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  total_inventory: number;
+  exchange_points: number;
+  cost_price: number;
+  is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionPrizeUpdate extends AdminGachaVersionPrizeCreate {
+  expected_revision: number;
+}
+
+export interface AdminGachaVersionPrizeCollection {
+  items: AdminGachaVersionPrize[];
+  version_revision: number;
 }
 
 export interface AdminCatalogPresentationAssetCreate {

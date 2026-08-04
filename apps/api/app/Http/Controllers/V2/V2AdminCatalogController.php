@@ -232,6 +232,106 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaVersionRanks(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaVersionRanks($context, $gachaId, $versionId)
+        );
+    }
+
+    public function createGachaVersionRank(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGachaDraftRank(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateGachaVersionRank(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $rankId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateGachaDraftRank(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $rankId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function gachaVersionPrizes(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaVersionPrizes($context, $gachaId, $versionId)
+        );
+    }
+
+    public function createGachaVersionPrize(
+        Request $request,
+        string $gachaId,
+        string $versionId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGachaDraftPrize(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateGachaVersionPrize(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $prizeId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateGachaDraftPrize(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $prizeId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createGachaDraft(Request $request, string $gachaId): JsonResponse
     {
         return $this->mutation(

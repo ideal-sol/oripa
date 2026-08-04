@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 6a2619e15d0f8c7d5f731bbaf23cfcef9187a572e90d70ab8b54c5122d6b43be
+// Contract SHA-256: 80723477009b3b7f4bc5faa50cf0868f70f6cf596f6e2f95c1b6c8e8d7280c9f
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -643,8 +643,11 @@ export interface AdminCatalogRank {
   id: string;
   code: string;
   name: string;
+  description: string | null;
   sort_order: number;
   is_visible: boolean;
+  image_asset?: AdminCatalogAssetReference | null;
+  video_asset?: AdminCatalogAssetReference | null;
   is_archived?: boolean;
   revision?: number;
   archived_at?: string | null;
@@ -763,6 +766,57 @@ export interface AdminCatalogPrizeUpdate {
   display_price: number;
   exchange_points: number;
   is_visible: boolean;
+}
+
+export interface AdminGachaVersionRankCreate {
+  code: string;
+  name: string;
+  description: string | null;
+  image_asset_id: string | null;
+  video_asset_id: string | null;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionRankUpdate {
+  name: string;
+  description: string | null;
+  image_asset_id: string | null;
+  video_asset_id: string | null;
+  expected_revision: number;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionRankCollection {
+  items: AdminCatalogRank[];
+  version_revision: number;
+}
+
+export interface AdminGachaVersionPrize extends AdminCatalogPrize {
+  cost_price: number;
+  total_inventory: number;
+  available_inventory: number;
+  version_sort_order: number;
+  revision: number;
+}
+
+export interface AdminGachaVersionPrizeCreate {
+  rank_id: string;
+  presentation_asset_id: string | null;
+  name: string;
+  total_inventory: number;
+  exchange_points: number;
+  cost_price: number;
+  is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminGachaVersionPrizeUpdate extends AdminGachaVersionPrizeCreate {
+  expected_revision: number;
+}
+
+export interface AdminGachaVersionPrizeCollection {
+  items: AdminGachaVersionPrize[];
+  version_revision: number;
 }
 
 export interface AdminCatalogPresentationAssetCreate {
