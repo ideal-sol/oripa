@@ -35,6 +35,12 @@ import {
   type AdminCatalogTagUpdate,
   type AdminCatalogMutationResult,
   type AdminCatalogVisibility,
+  type AdminContentCollection,
+  type AdminContentDetail,
+  type AdminContentNoticeCreate,
+  type AdminContentPreview,
+  type AdminContentVersion,
+  type AdminContentVersionInput,
   type AdminGachaProbabilitySelection,
   type AdminGachaProbabilitySelectionRequest,
   type AdminGachaPublishPreflight,
@@ -293,6 +299,104 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminLineMessagingSettingResponse> {
     return this.request("GET", "/identity/line-messaging", { signal });
+  }
+
+  listContentNotices(
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentCollection> {
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return this.request("GET", `/content/notices?${query.toString()}`, { signal });
+  }
+
+  getContentNotice(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentDetail> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(404, "CONTENT_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `/content/notices/${encodeURIComponent(id)}`, {
+      signal,
+    });
+  }
+
+  previewContentNotice(
+    body: AdminContentVersionInput,
+    signal?: AbortSignal,
+  ): Promise<AdminContentPreview> {
+    return this.request("POST", "/content/notices/preview", { body, signal });
+  }
+
+  createContentNotice(
+    body: AdminContentNoticeCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentDetail> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CONTENT_IDEMPOTENCY_KEY_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", "/content/notices", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  createContentNoticeVersion(
+    id: string,
+    body: AdminContentVersionInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentVersion> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CONTENT_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/content/notices/${encodeURIComponent(id)}/versions`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  publishContentNotice(
+    id: string,
+    versionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentDetail> {
+    if (!isOpaqueId(id) || !isOpaqueId(versionId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CONTENT_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/content/notices/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/publish`,
+      { signal },
+    );
+  }
+
+  unpublishContentNotice(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentDetail> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(404, "CONTENT_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/content/notices/${encodeURIComponent(id)}/unpublish`,
+      { signal },
+    );
   }
 
   previewLineMessagingSetting(
@@ -1902,6 +2006,7 @@ export class AdminApiClient {
     path:
       | `/auth/${string}`
       | `/catalog/${string}`
+      | `/content/${string}`
       | `/identity/${string}`
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
@@ -1912,6 +2017,7 @@ export class AdminApiClient {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/catalog/") &&
+        !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&

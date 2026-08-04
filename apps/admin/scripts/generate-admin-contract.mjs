@@ -45,6 +45,22 @@ const operations = {
     "get",
     "/reports/dashboard/reversals",
   ],
+  listAdminContentNotices: ["get", "/content/notices"],
+  createAdminContentNotice: ["post", "/content/notices"],
+  previewAdminContentNotice: ["post", "/content/notices/preview"],
+  getAdminContentNotice: ["get", "/content/notices/{content_id}"],
+  createAdminContentNoticeVersion: [
+    "post",
+    "/content/notices/{content_id}/versions",
+  ],
+  publishAdminContentNoticeVersion: [
+    "post",
+    "/content/notices/{content_id}/versions/{version_id}/publish",
+  ],
+  unpublishAdminContentNotice: [
+    "post",
+    "/content/notices/{content_id}/unpublish",
+  ],
   beginAdminTotpEnrollment: ["post", "/auth/mfa/totp"],
   confirmAdminTotpEnrollment: ["post", "/auth/mfa/totp/confirm"],
   createAdminWebauthnOptions: ["post", "/auth/mfa/webauthn/options"],
@@ -342,6 +358,12 @@ const requiredSchemas = [
   "DashboardMonthlyPointReport",
   "DashboardDailyPointReport",
   "DashboardReversalReport",
+  "AdminContentCollection",
+  "AdminContentDetail",
+  "AdminContentPreview",
+  "AdminContentVersion",
+  "CreateNoticeContentRequest",
+  "DocumentVersionInput",
   "AdminLineMessagingSetting",
   "AdminLineMessagingSettingResponse",
   "AdminLineMessagingSettingUpdate",
@@ -1781,6 +1803,74 @@ export interface AdminCatalogProbabilityEntriesReplace {
 
 export interface AdminCatalogArchiveRequest {
   expected_revision: number;
+}
+
+export interface AdminContentVersionInput {
+  title: string;
+  summary?: string | null;
+  body_html: string;
+  sort_order?: number;
+  is_important?: boolean;
+  asset_id?: string | null;
+  publish_start_at: string;
+  publish_end_at?: string | null;
+}
+
+export interface AdminContentNoticeCreate extends AdminContentVersionInput {
+  slug: string;
+}
+
+export interface AdminContentVersion {
+  id: string;
+  version_number: number;
+  status: "draft" | "published";
+  title: string;
+  summary: string | null;
+  body_html: string | null;
+  link_url: string | null;
+  sort_order: number;
+  is_important: boolean;
+  publish_start_at: string;
+  publish_end_at: string | null;
+  checksum_sha256: string;
+  asset_id: string | null;
+  published_at: string | null;
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContentSummary {
+  id: string;
+  identifier: string;
+  status: "draft" | "published" | "archived";
+  is_legal: boolean;
+  published_version_id: string | null;
+  latest_version?: AdminContentVersion | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminContentCollection {
+  items: AdminContentSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminContentDetail {
+  id: string;
+  identifier: string;
+  status: "draft" | "published" | "archived";
+  is_legal: boolean;
+  versions: AdminContentVersion[];
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContentPreview {
+  title: string;
+  summary: string | null;
+  body_html: string;
+  is_important: boolean;
+  asset_id: string | null;
+  publish_start_at: string;
+  publish_end_at: string | null;
 }
 
 export interface AdminCatalogMutationResult<T> {

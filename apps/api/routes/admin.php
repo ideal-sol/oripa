@@ -291,6 +291,7 @@ Route::prefix('v2')
         Route::post('/content/banners/{contentId}/archive', [V2AdminContentContactController::class, 'archiveBanner'])->whereUuid('contentId');
         Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);
         Route::post('/content/notices', [V2AdminContentContactController::class, 'createNotice']);
+        Route::post('/content/notices/preview', [V2AdminContentContactController::class, 'previewNotice']);
         Route::get('/content/notices/{contentId}', [V2AdminContentContactController::class, 'notice'])->whereUuid('contentId');
         Route::post('/content/notices/{contentId}/versions', [V2AdminContentContactController::class, 'createNoticeVersion'])->whereUuid('contentId');
         Route::post('/content/notices/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishNotice'])->whereUuid('contentId')->whereUuid('versionId');

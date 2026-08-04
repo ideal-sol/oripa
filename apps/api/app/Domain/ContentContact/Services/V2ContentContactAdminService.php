@@ -8,6 +8,9 @@ use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Point\Exceptions\V2PointException;
+use App\Domain\Point\Services\V2PointIdempotencyService;
+use App\Domain\Point\ValueObjects\V2IdempotencyClaim;
 use App\Models\V2\Admin;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -34,6 +37,7 @@ final class V2ContentContactAdminService
         private readonly V2AdminFreshMfaAuthorizer $authorizer,
         private readonly V2ContentCursor $cursor,
         private readonly V2ContentHtmlSanitizer $sanitizer,
+        private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox
     ) {
@@ -47,9 +51,14 @@ final class V2ContentContactAdminService
         int $limit
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
-        [$table] = $this->type($type);
+        [$table, $ownerColumn] = $this->type($type);
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
+        $latestVersions = DB::table('content_versions')
+            ->select($ownerColumn)
+            ->selectRaw('MAX(version_number) AS latest_version_number')
+            ->whereNotNull($ownerColumn)
+            ->groupBy($ownerColumn);
         $rows = DB::table($table.' as p')
             ->leftJoin(
                 'content_versions as published',
@@ -57,13 +66,53 @@ final class V2ContentContactAdminService
                 '=',
                 'p.published_version_id'
             )
+            ->leftJoinSub($latestVersions, 'latest_numbers', function ($join) use ($ownerColumn): void {
+                $join->on('latest_numbers.'.$ownerColumn, '=', 'p.id');
+            })
+            ->leftJoin('content_versions as latest', function ($join) use ($ownerColumn): void {
+                $join->on('latest.'.$ownerColumn, '=', 'p.id')
+                    ->on('latest.version_number', '=', 'latest_numbers.latest_version_number');
+            })
+            ->select([
+                'p.*',
+                'published.public_id as published_version_public_id',
+                'latest.public_id as latest_version_public_id',
+                'latest.version_number as latest_version_number',
+                'latest.status as latest_version_status',
+                'latest.title as latest_title',
+                'latest.summary as latest_summary',
+                'latest.body_html as latest_body_html',
+                'latest.link_url as latest_link_url',
+                'latest.sort_order as latest_sort_order',
+                'latest.is_important as latest_is_important',
+                'latest.publish_start_at as latest_publish_start_at',
+                'latest.publish_end_at as latest_publish_end_at',
+                'latest.content_checksum as latest_content_checksum',
+                'latest.published_at as latest_published_at',
+            ])
+            ->selectSub(
+                DB::table('content_version_assets as latest_asset_link')
+                    ->join(
+                        'catalog_presentation_assets as latest_asset',
+                        'latest_asset.id',
+                        '=',
+                        'latest_asset_link.presentation_asset_id'
+                    )
+                    ->select('latest_asset.public_id')
+                    ->whereColumn('latest_asset_link.content_version_id', 'latest.id')
+                    ->whereIn('latest_asset_link.usage_type', ['image', 'thumbnail'])
+                    ->orderBy('latest_asset_link.sort_order')
+                    ->orderBy('latest_asset_link.id')
+                    ->limit(1),
+                'latest_asset_public_id'
+            )
             ->when(
                 $after !== null,
                 fn (Builder $query) => $query->where('p.id', '<', $after)
             )
             ->orderByDesc('p.id')
             ->limit($limit + 1)
-            ->get(['p.*', 'published.public_id as published_version_public_id']);
+            ->get();
         $hasMore = $rows->count() > $limit;
         $items = $rows->take($limit)->map(fn (object $row): array => [
             'id' => $row->public_id,
@@ -71,6 +120,7 @@ final class V2ContentContactAdminService
             'status' => $row->status,
             'is_legal' => property_exists($row, 'is_legal') ? (bool) $row->is_legal : false,
             'published_version_id' => $row->published_version_public_id,
+            'latest_version' => $this->latestVersion($row),
             'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
             'updated_at' => CarbonImmutable::parse($row->updated_at)->toIso8601String(),
         ])->all();
@@ -87,7 +137,8 @@ final class V2ContentContactAdminService
     public function createContent(
         V2AdminAuthorizationContext $context,
         string $type,
-        array $input
+        array $input,
+        string $idempotencyKey = ''
     ): array {
         $admin = $this->authorizer->authorizePermission(
             $context,
@@ -110,8 +161,25 @@ final class V2ContentContactAdminService
             $identifier,
             $isLegal,
             $input,
-            $admin
+            $admin,
+            $idempotencyKey
         ): array {
+            $claim = null;
+            if ($type === 'notice' && $idempotencyKey !== '') {
+                $claim = $this->claimNoticeMutation(
+                    $admin,
+                    $idempotencyKey,
+                    ['action' => 'create', 'input' => $input]
+                );
+                if ($claim->replay) {
+                    $data = $claim->record->response_data['data'] ?? null;
+                    if (! is_array($data)) {
+                        throw new \RuntimeException('Notice replay response is unavailable.');
+                    }
+
+                    return [...$data, 'idempotent_replay' => true];
+                }
+            }
             $publicId = (string) Str::uuid7();
             $now = now()->startOfSecond();
             $parent = [
@@ -145,13 +213,26 @@ final class V2ContentContactAdminService
                 ['version_public_id' => $version['id']]
             );
 
-            return [
+            $result = [
                 'id' => $publicId,
                 'identifier' => $identifier,
                 'status' => 'draft',
                 'is_legal' => $isLegal,
                 'versions' => [$version],
             ];
+            if ($claim !== null) {
+                $this->idempotency->complete(
+                    $claim->record,
+                    'content_notice',
+                    $publicId,
+                    ['data' => $result]
+                );
+                DB::table('idempotency_records')->where('id', $claim->record->id)
+                    ->update(['response_status' => 201]);
+                $result['idempotent_replay'] = false;
+            }
+
+            return $result;
         }, 3);
     }
 
@@ -206,7 +287,8 @@ final class V2ContentContactAdminService
         V2AdminAuthorizationContext $context,
         string $type,
         string $publicId,
-        array $input
+        array $input,
+        string $idempotencyKey = ''
     ): array {
         $admin = $this->authorizer->authorizePermission(
             $context,
@@ -221,8 +303,25 @@ final class V2ContentContactAdminService
             $input,
             $admin,
             $table,
-            $ownerColumn
+            $ownerColumn,
+            $idempotencyKey
         ): array {
+            $claim = null;
+            if ($type === 'notice' && $idempotencyKey !== '') {
+                $claim = $this->claimNoticeMutation(
+                    $admin,
+                    $idempotencyKey,
+                    ['action' => 'update', 'content_id' => $publicId, 'input' => $input]
+                );
+                if ($claim->replay) {
+                    $data = $claim->record->response_data['data'] ?? null;
+                    if (! is_array($data)) {
+                        throw new \RuntimeException('Notice replay response is unavailable.');
+                    }
+
+                    return [...$data, 'idempotent_replay' => true];
+                }
+            }
             $parent = DB::table($table)->where('public_id', $publicId)
                 ->lockForUpdate()->first();
             if ($parent === null) {
@@ -249,8 +348,52 @@ final class V2ContentContactAdminService
                 ['version_public_id' => $version['id'], 'version_number' => $number]
             );
 
+            if ($claim !== null) {
+                $this->idempotency->complete(
+                    $claim->record,
+                    'content_version',
+                    $version['id'],
+                    ['data' => $version]
+                );
+                DB::table('idempotency_records')->where('id', $claim->record->id)
+                    ->update(['response_status' => 201]);
+                $version['idempotent_replay'] = false;
+            }
+
             return $version;
         }, 3);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function previewNotice(
+        V2AdminAuthorizationContext $context,
+        array $input
+    ): array {
+        $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $start = $this->date($input['publish_start_at'] ?? null);
+        $end = ($input['publish_end_at'] ?? null) === null
+            ? null
+            : $this->date($input['publish_end_at']);
+        if ($end !== null && $end->lessThanOrEqualTo($start)) {
+            throw $this->invalid('CONTENT_PUBLISH_PERIOD_INVALID');
+        }
+        try {
+            $body = $this->sanitizer->sanitize(
+                $this->string($input['body_html'] ?? null, 1, 100_000)
+            );
+        } catch (\RuntimeException) {
+            throw $this->invalid('CONTENT_BODY_INVALID');
+        }
+
+        return [
+            'title' => $this->string($input['title'] ?? null, 1, 191),
+            'summary' => $this->nullableString($input['summary'] ?? null, 500),
+            'body_html' => $body,
+            'is_important' => ($input['is_important'] ?? false) === true,
+            'asset_id' => $input['asset_id'] ?? null,
+            'publish_start_at' => $start->utc()->toIso8601String(),
+            'publish_end_at' => $end?->utc()->toIso8601String(),
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -632,11 +775,15 @@ final class V2ContentContactAdminService
     ): array {
         $title = $this->string($input['title'] ?? null, 1, 191);
         $summary = $this->nullableString($input['summary'] ?? null, 500);
-        $body = $type === 'banner'
-            ? null
-            : $this->sanitizer->sanitize(
-                $this->string($input['body_html'] ?? null, 1, 100_000)
-            );
+        try {
+            $body = $type === 'banner'
+                ? null
+                : $this->sanitizer->sanitize(
+                    $this->string($input['body_html'] ?? null, 1, 100_000)
+                );
+        } catch (\RuntimeException) {
+            throw $this->invalid('CONTENT_BODY_INVALID');
+        }
         $link = $type === 'banner'
             ? $this->safeLink($input['link_url'] ?? null)
             : null;
@@ -769,6 +916,66 @@ final class V2ContentContactAdminService
         }
 
         return $result;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function latestVersion(object $row): ?array
+    {
+        if ($row->latest_version_public_id === null) {
+            return null;
+        }
+
+        return [
+            'id' => $row->latest_version_public_id,
+            'version_number' => (int) $row->latest_version_number,
+            'status' => $row->latest_version_status,
+            'title' => $row->latest_title,
+            'summary' => $row->latest_summary,
+            'body_html' => $row->latest_body_html,
+            'link_url' => $row->latest_link_url,
+            'sort_order' => (int) $row->latest_sort_order,
+            'is_important' => (bool) $row->latest_is_important,
+            'publish_start_at' => CarbonImmutable::parse($row->latest_publish_start_at)
+                ->toIso8601String(),
+            'publish_end_at' => $row->latest_publish_end_at === null
+                ? null
+                : CarbonImmutable::parse($row->latest_publish_end_at)->toIso8601String(),
+            'checksum_sha256' => $row->latest_content_checksum,
+            'asset_id' => $row->latest_asset_public_id,
+            'published_at' => $row->latest_published_at === null
+                ? null
+                : CarbonImmutable::parse($row->latest_published_at)->toIso8601String(),
+        ];
+    }
+
+    /** @param array<string, mixed> $request */
+    private function claimNoticeMutation(
+        Admin $admin,
+        string $idempotencyKey,
+        array $request
+    ): V2IdempotencyClaim {
+        try {
+            return $this->idempotency->claim(
+                'content_notice_mutation',
+                'admin',
+                $admin->public_id,
+                $idempotencyKey,
+                $request
+            );
+        } catch (V2PointException $exception) {
+            throw match ($exception->getMessage()) {
+                'IDEMPOTENCY_KEY_REUSED' => $this->conflict(
+                    'CONTENT_IDEMPOTENCY_KEY_REUSED'
+                ),
+                'IDEMPOTENCY_REQUEST_IN_PROGRESS' => new V2ContentContactException(
+                    'CONTENT_IDEMPOTENCY_REQUEST_IN_PROGRESS',
+                    409,
+                    'The Content request is still in progress.',
+                    true
+                ),
+                default => $this->invalid('CONTENT_IDEMPOTENCY_KEY_INVALID'),
+            };
+        }
     }
 
     /** @return array{string, string, string} */
