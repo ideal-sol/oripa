@@ -40,6 +40,7 @@
 - Container名、Network、固定IP `192.168.61.10/11`、Loopback Port `8611/3611`、Restart Policy、Environment Key集合を維持した。旧ImageはRollback用に保持した。
 - Preview DBにGachaがないためSynthetic Drawは投入せず、履歴一覧／詳細の表示はTask DB Browser E2EをEvidence正本とした。Owner Login、Container Health、`admin.luxe-pack.biz/login`、`luxe-pack.biz`を確認し、Console／Page ErrorとHTTP 500／502／504は0だった。
 - PostgreSQL／Redis Container ID、Migration数、Nginx checksum、V1は不変。
+- 完全なBuild／DB Guard／Container比較／Smoke Evidenceは`/var/lib/oripa-v2-evidence/MIG-061L/`へ保存した。
 
 ## 未実装範囲
 

@@ -9,6 +9,7 @@
   "issue": 192,
   "pull_request": 193,
   "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061L/",
   "preview": {
     "compose_project": "mig061a-v2-preview",
     "api_container": "mig061a-v2-preview-api-1",
@@ -41,6 +42,7 @@
     "quality_gate": "PASS",
     "preview_db_guard": "PASS_33_MIGRATIONS",
     "preview_smoke": "PASS_NO_GACHA_TASK_E2E_CANONICAL",
+    "preview_history_fixture": "NONE",
     "console_critical_errors": 0,
     "http_500_502_504": 0,
     "postgres_redis_change": "NONE",
