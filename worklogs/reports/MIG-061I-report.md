@@ -53,6 +53,19 @@
 - GitHub Required Checks、Fresh Self-review、Squash Commit、Task Resource CleanupはCloseoutで確定する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Jは開始しない。
 
+## Security Blocker
+
+- GitHub CodeQL 2件、Dependency Review、最新Policy Gate、Quality GateはPASSした。Security Gateは
+  2026-08-04時点のAdvisory DBとSEC-005 Baselineの不一致でFailし、集約`ci-gate`もFailした。
+- Composerは既存10件に加え、Guzzle High `PKSA-gcrk-3vtt-1r14`（`CVE-2026-69246`）とMedium
+  `PKSA-cnw1-2ytm-cgr8`（`CVE-2026-69245`）を検出した。
+- Workspace pnpmはHigh 2件（`brace-expansion`、`fast-uri`）とModerate 1件（`postcss`）、Legacy pnpmは
+  High 1件（`brace-expansion`）とModerate 1件（`postcss`）を検出した。Criticalは0件。
+- これらはMIG-061I開始後に外部Advisory DBへ追加されたDependency Findingであり、Application／Lockfile差分に
+  起因しない。Baseline追加／期限延長やDependency更新はTask Policy外のため実施していない。
+- Required Checks成功条件が未成立のためPR `#185`とIssue `#184`はOpen、Branch／Worktree／Task DBは保持する。
+  Previewは正常稼働を維持し、別Security Task完了後に同じMIG-061Iを再開する必要がある。
+
 ## Time
 
 - 時間を要した作業は既存Publish／Version状態のCharacterization、Task DBのDocker Compose／Engine互換回避、

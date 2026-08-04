@@ -7909,3 +7909,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gacha Empty State、登録Form、Category／Tag、3 Scaffold、MobileをOwner Loginで確認した。
   Console／Page Critical ErrorとHTTP 500／502／504は0であり、Synthetic Gachaは投入していない。
 - PostgreSQL／Redis、Nginx、V1、`luxe-pack.biz`、`ad.luxe-pack.biz`は非変更。
+
+### MIG-061I Closeout Blocker
+
+- GitHub CodeQL 2件、Dependency Review、最新Policy／Quality GateはPASSしたが、外部Advisory DBに追加された
+  Composer High 1件とWorkspace／Legacy pnpm HighによりSecurity Gateと集約`ci-gate`がFail Closedした。
+- Baseline追加／期限延長やDependency更新はMIG-061I Policy外のため行わない。PR `#185`、Issue `#184`、
+  Branch／Worktree／Task DBを保持し、別Security Task完了後に同じMIG-061Iを再開する。
