@@ -1,0 +1,44 @@
+{
+  "task_id": "MIG-061M",
+  "risk": "R3",
+  "verification_profile": "FAST-TRACK-FEATURE",
+  "status": "preview_deployed_ready_for_final_checks",
+  "base_branch": "main",
+  "base_sha": "ce602a45d90ed618830f1089f03b11ab306a4a57",
+  "task_policy_sha256": "c09fe95a0b6d80b8a02ffa3911b4d5ffa647c07e24d49896a9e0308e1622ba32",
+  "issue": 194,
+  "pull_request": 195,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061M/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "api_change": "NONE",
+    "database_change": "NONE",
+    "nginx_change": "NONE"
+  },
+  "artifacts": {
+    "admin_source_sha": "e264bb45c2dfc9b3d8f92bdbdb5d0556040c6b7b",
+    "admin_image_before": "sha256:e3375b471fa0ba37e9219bbb58c8e768524f47e8fb07f771963b6c9f454c71fd",
+    "admin_image_after": "sha256:8245dcfea33c96dd7fff31bc98b30675a171f49767fa87caafeabe0988283d77",
+    "rollback_image_retained": true
+  },
+  "verification": {
+    "golden_and_admin_unit": "PASS_5_TESTS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "admin_typecheck": "PASS",
+    "admin_lint": "PASS",
+    "admin_build": "PASS",
+    "policy_unit": "PASS_100_TESTS",
+    "policy_gate": "PASS",
+    "quality_gate": "PASS",
+    "git_diff_check": "PASS",
+    "preview_owner_login": "PASS",
+    "preview_profit_simulation": "TASK_E2E_EVIDENCE_NO_GACHA",
+    "preview_console_critical_errors": 0,
+    "preview_http_500_502_504": 0,
+    "api_db_nginx_v1_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

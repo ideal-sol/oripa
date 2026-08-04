@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CatalogGachaWorkspace } from "@/components/catalog/catalog-gacha-workspace";
 import { CatalogGachaUsageHistory } from "@/components/catalog/catalog-gacha-usage-history";
+import { CatalogGachaProfitSimulation } from "@/components/catalog/catalog-gacha-profit-simulation";
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -39,17 +40,11 @@ export default async function CatalogResourcePage({
         />
       );
     }
-    if (
-      segments.length === 3 &&
-      ["profit-simulation", "product-design-planner"].includes(segments[2])
-    ) {
-      const labels: Record<string, string> = {
-        "profit-simulation": "利益シミュレーション",
-        "product-design-planner": "商品設計プランナー",
-      };
-      const title = labels[segments[2]];
-      if (!title) notFound();
-      return <GachaScaffold gachaId={segments[1]} title={title} />;
+    if (segments.length === 3 && segments[2] === "profit-simulation") {
+      return <CatalogGachaProfitSimulation gachaId={segments[1]} />;
+    }
+    if (segments.length === 3 && segments[2] === "product-design-planner") {
+      return <GachaScaffold gachaId={segments[1]} title="商品設計プランナー" />;
     }
     if (segments.length === 4 && segments[2] === "versions") {
       return (

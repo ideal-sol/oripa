@@ -7976,3 +7976,15 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview API Imageを`sha256:28b38299...`、Admin Imageを`sha256:e3375b47...`へ更新した。Preview Dataが空のためSynthetic Drawは投入せず、画面正本は対象Browser E2Eとした。
 - GitHub Quality Gateが検出したEffect直下の同期State更新を、Retry handlerとRoute-key再初期化へ補正した。Unit全19 files／99 tests、Typecheck／Lint／Build、対象Browser 2件を再確認した。
 - PostgreSQL／Redis、Migration 33件、Nginx checksum、V1は非変更。Console／Page ErrorとHTTP 500／502／504は0。Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Mは開始しない。
+
+# MIG-061M ガチャ利益シミュレーション
+
+- Issue #194、Branch `feat/MIG-061M-gacha-profit-simulation`、Risk R3、Verification `FAST-TRACK-FEATURE`で開始した。
+- V1の`ProfitSimulationPanel`と`GachaProfitSimulationService`を正本に、V2 Draft Version／Prize／Probabilityの既存Read APIだけで同等計算を実装する。
+- Migration、DB Write、API追加、V1変更、商品設計プランナー変更は行わない。Evidenceは`/var/lib/oripa-v2-evidence/MIG-061M/`へ保存する。
+
+### MIG-061M Implementation／Preview
+
+- V1同等の最大原価／利益／目標差分／公開確率期待値をV2 Draft VersionとPrize APIへ接続し、Golden 3パターンを含むUnit 5件、Desktop／Mobile E2E 2件、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+- Application Head `e264bb45c2dfc9b3d8f92bdbdb5d0556040c6b7b`からPreview Adminを`sha256:8245dcfe...`へ更新した。PreviewにGachaがないためSynthetic Dataは投入せず、利益画面は対象E2EをEvidence正本とした。
+- Owner Login、Health、Console／Page Error 0、HTTP 500／502／504 0を確認した。API／PostgreSQL／Redis、Migration、Nginx、V1は非変更。旧Admin ImageはRollback用に保持した。

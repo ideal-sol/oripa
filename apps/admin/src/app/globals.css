@@ -1652,6 +1652,181 @@ label {
   padding: 20px 0;
 }
 
+.catalog-profit-simulation {
+  max-width: 1180px;
+}
+
+.catalog-profit-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 20px;
+  padding: 22px 24px;
+}
+
+.catalog-profit-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.catalog-profit-heading h2,
+.catalog-profit-heading h3,
+.catalog-profit-heading p {
+  margin: 0;
+}
+
+.catalog-profit-heading p,
+.catalog-profit-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.catalog-profit-heading code {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.catalog-profit-form {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.catalog-profit-form label {
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.catalog-profit-form input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.catalog-profit-submit {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+.catalog-profit-note {
+  margin: 0;
+}
+
+.catalog-profit-result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.catalog-profit-result-grid > div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  min-height: 102px;
+  padding: 18px 16px;
+}
+
+.catalog-profit-result-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalog-profit-result-grid dd {
+  font-size: 21px;
+  font-weight: 750;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-profit-result-grid dd.negative {
+  color: var(--danger);
+}
+
+.catalog-profit-expected {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 16px;
+  padding-top: 20px;
+}
+
+.catalog-profit-stage-list {
+  border: 1px solid var(--line);
+}
+
+.catalog-profit-stage-list > div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(160px, 1fr) 90px 150px 130px;
+  padding: 13px 14px;
+}
+
+.catalog-profit-stage-list > div:last-child {
+  border-bottom: 0;
+}
+
+.catalog-profit-stage-list small,
+.catalog-profit-empty {
+  color: var(--muted);
+}
+
+.catalog-profit-empty {
+  border: 1px dashed var(--line);
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+}
+
+.catalog-profit-warnings {
+  background: var(--warning-soft);
+  border-left: 3px solid var(--warning);
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+}
+
+.catalog-profit-warnings p {
+  margin: 0;
+}
+
+@media (max-width: 850px) {
+  .catalog-profit-form,
+  .catalog-profit-result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .catalog-profit-panel {
+    padding: 18px 16px;
+  }
+
+  .catalog-profit-form,
+  .catalog-profit-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-profit-result-grid > div {
+    min-height: auto;
+  }
+
+  .catalog-profit-submit {
+    justify-self: stretch;
+  }
+
+  .catalog-profit-stage-list > div {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .catalog-probability-back {
   margin-bottom: 16px;
 }
