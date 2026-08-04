@@ -6,7 +6,7 @@
 - Risk: `R3`
 - Verification: `FAST-TRACK-DEPENDENCY`
 - Issue: `#186`
-- PR: Closeout時に確定する。
+- PR: `#187`
 - Branch: `security/SEC-007-minimal-dependency-refresh`
 - Base: `b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`
 - Final Head／Squash Commit: Closeout時に確定する。

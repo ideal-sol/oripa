@@ -7892,7 +7892,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ## SEC-007 最小Dependency更新
 
-- Issue `#186`、Branch `security/SEC-007-minimal-dependency-refresh`、Risk `R3`、
+- Issue `#186`、PR `#187`、Branch `security/SEC-007-minimal-dependency-refresh`、Risk `R3`、
   Verification `FAST-TRACK-DEPENDENCY`。Baseは
   `main@b41f9e9ec460ba1c8413b2bdbc46b11ebde277c8`。
 - Guzzle 7.15.2、PSR-7 2.13.0、brace-expansion 5.0.9、fast-uri 3.1.5、
