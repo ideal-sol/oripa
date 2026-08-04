@@ -33,7 +33,11 @@ export function CatalogGachaUsageHistory({
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="catalog.read">
-        <HistoryWorkspace drawRequestId={drawRequestId} gachaId={gachaId} />
+        <HistoryWorkspace
+          drawRequestId={drawRequestId}
+          gachaId={gachaId}
+          key={`${gachaId}:${drawRequestId ?? "list"}`}
+        />
       </ProtectedAdminRoute>
     </AdminShell>
   );
@@ -56,8 +60,6 @@ function HistoryWorkspace({
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
     const request = drawRequestId
       ? client.getGachaUsageHistory(gachaId, drawRequestId, controller.signal)
           .then((response) => setDetail(response.data))
@@ -74,6 +76,8 @@ function HistoryWorkspace({
   const retry = useCallback(() => {
     setCollection(null);
     setDetail(null);
+    setError(null);
+    setLoading(true);
     setRevision((value) => value + 1);
   }, []);
 
