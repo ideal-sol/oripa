@@ -1,0 +1,53 @@
+{
+  "task_id": "MIG-061K",
+  "risk": "R3",
+  "verification_profile": "FAST-TRACK-FEATURE",
+  "status": "preview_deployed_checks_pending",
+  "base_branch": "main",
+  "base_sha": "92716d166bd829a236f25e7c9e36e76c46aebdc2",
+  "issue": 190,
+  "pull_request": 191,
+  "target": "admin.luxe-pack.biz",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_container": "mig061a-v2-preview-api-1",
+    "admin_container": "mig061a-v2-preview-admin-1",
+    "database": "oripa_v2_mig061a",
+    "database_marker": "mig061a",
+    "migration_before": 32,
+    "migration_after": 33
+  },
+  "artifacts": {
+    "source_sha": "9099e4dd66e9524c26f3dc09c35083a1dc55fa2b",
+    "api_image_before": "sha256:42d971aab07a8d034b36cc2fd8ac4e95fb35a9f94a0005305b27d957143b9e4e",
+    "api_image_after": "sha256:3e62b5e6d47b455d7a6f542ac9c74814b3805119f979f45f2c3ae1706310764b",
+    "admin_image_before": "sha256:fb9d249735508f1bfa8989ba3e82394f6129c73816788654468c5b305ac93cf3",
+    "admin_image_after": "sha256:4659b7e3ebbc28468affa231661c1a732fb6bc6f843b5240640e6cdac7e1224a"
+  },
+  "verification": {
+    "task_database_guard": "PASS",
+    "backend_targeted": "PASS_3_TESTS_26_ASSERTIONS",
+    "migration_fresh": "PASS_33_MIGRATIONS",
+    "migration_rollback_reapply": "PASS",
+    "admin_unit_targeted": "PASS_3_TESTS",
+    "admin_unit_forwarded_suite": "PASS_18_FILES_97_TESTS",
+    "admin_browser_targeted": "PASS_1_TEST",
+    "openapi_breaking": "PASS",
+    "generated_client": "PASS",
+    "admin_typecheck": "PASS",
+    "admin_lint": "PASS",
+    "admin_build": "PASS",
+    "policy_unit": "PASS",
+    "policy_gate": "PASS",
+    "quality_gate": "PASS",
+    "preview_db_guard": "PASS_33_MIGRATIONS",
+    "preview_smoke": "PASS",
+    "console_critical_errors": 0,
+    "http_500_502_504": 0,
+    "postgres_redis_change": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

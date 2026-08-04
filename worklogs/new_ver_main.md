@@ -7954,3 +7954,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Rank説明、Prize原価、Draft VersionごとのRank relationを補うForward-safe Migration 000033と、Draft専用API／Admin Modalを実装する。
 - Task Policy SHA-256は`2ad21acf8b9e9f0d0baf613a098c22dbb0159e4f0b875d2d6dcff7db90a3cde3`。詳細Evidenceは`/var/lib/oripa-v2-evidence/MIG-061K/`へ保存する。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061L以降は開始しない。
+
+### MIG-061K Implementation／Preview
+
+- Draft Version単位のRank一覧／作成／更新、Prize一覧／作成／更新を実装し、Rank設定Modalと10列のPrize一覧、登録／編集ModalをGacha詳細へ追加した。
+- Migration 000033でRank説明、Prize原価、Version-Rank relationを追加した。Task DBは33件Fresh、rollback／reapply、Backend 3 tests／26 assertions、Admin対象Unit／Browser、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+- Application Commit `9099e4dd66e9524c26f3dc09c35083a1dc55fa2b`からPreview APIを`sha256:3e62b5e6...`、Adminを`sha256:4659b7e3...`へ更新し、Preview DBへ000033だけを適用した。
+- Owner Loginと画面SmokeはPASS、Console／Page ErrorとHTTP 500／502／504は0。Preview DataはEmptyのためSynthetic Gachaを投入していない。PostgreSQL／Redis、Nginx、V1は非変更。
+- GitHub Checks、Fresh Self-review、Squash Commit、CleanupはCloseoutで確定する。Gate G4／G5は`NOT COMPLETE`、MIG-061Lは開始しない。
