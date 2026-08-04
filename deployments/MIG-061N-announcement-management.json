@@ -1,0 +1,22 @@
+{
+  "task_id": "MIG-061N",
+  "risk": "R3",
+  "verification_profile": "FAST-TRACK-FEATURE",
+  "status": "implementation_verification_in_progress",
+  "base_branch": "main",
+  "base_sha": "d3b8e645916f576ce4a59ec505acf0ea47a852c7",
+  "task_policy_sha256": "3bdb3ae9e8ca226062b7e1d602de0f9aee41612953b07ab2410aadc94ae806a3",
+  "issue": 196,
+  "pull_request": null,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061N/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_change": "PENDING",
+    "admin_change": "PENDING",
+    "database_change": "NONE_EXPECTED",
+    "nginx_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

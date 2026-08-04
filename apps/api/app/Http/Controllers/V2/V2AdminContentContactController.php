@@ -25,6 +25,14 @@ final class V2AdminContentContactController
     public function staticPages(Request $request): JsonResponse { return $this->listing($request, 'static-page'); }
     public function createBanner(Request $request): JsonResponse { return $this->create($request, 'banner'); }
     public function createNotice(Request $request): JsonResponse { return $this->create($request, 'notice'); }
+    public function previewNotice(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->previewNotice($context, $request->all())
+        );
+    }
     public function createStaticPage(Request $request): JsonResponse { return $this->create($request, 'static-page'); }
     public function banner(Request $request, string $contentId): JsonResponse { return $this->show($request, 'banner', $contentId); }
     public function notice(Request $request, string $contentId): JsonResponse { return $this->show($request, 'notice', $contentId); }
@@ -119,7 +127,14 @@ final class V2AdminContentContactController
         return $this->handle(
             $request,
             fn (V2AdminAuthorizationContext $context): array =>
-                $this->service->createContent($context, $type, $request->all()),
+                $this->service->createContent(
+                    $context,
+                    $type,
+                    $request->all(),
+                    $type === 'notice'
+                        ? (string) $request->header('Idempotency-Key', '')
+                        : ''
+                ),
             201
         );
     }
@@ -138,7 +153,15 @@ final class V2AdminContentContactController
         return $this->handle(
             $request,
             fn (V2AdminAuthorizationContext $context): array =>
-                $this->service->createVersion($context, $type, $id, $request->all()),
+                $this->service->createVersion(
+                    $context,
+                    $type,
+                    $id,
+                    $request->all(),
+                    $type === 'notice'
+                        ? (string) $request->header('Idempotency-Key', '')
+                        : ''
+                ),
             201
         );
     }
@@ -212,4 +235,5 @@ final class V2AdminContentContactController
 
         return $requestId;
     }
+
 }

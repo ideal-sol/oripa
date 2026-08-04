@@ -4157,6 +4157,51 @@
         }
       }
     },
+    "/content/notices/preview": {
+      "post": {
+        "operationId": "previewAdminContentNotice",
+        "summary": "保存せず安全化済みNotice Previewを生成する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentVersionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "安全化済みNotice Preview。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminContentPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/content/notices/{content_id}": {
       "get": {
         "operationId": "getAdminContentNotice",
@@ -12696,6 +12741,16 @@
               }
             ]
           },
+          "latest_version": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminContentVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -12821,6 +12876,60 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminContentPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "summary",
+          "body_html",
+          "is_important",
+          "asset_id",
+          "publish_start_at",
+          "publish_end_at"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body_html": {
+            "type": "string"
+          },
+          "is_important": {
+            "type": "boolean"
+          },
+          "asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publish_start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -12867,6 +12976,9 @@
             "items": {
               "$ref": "#/components/schemas/AdminContentVersion"
             }
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },

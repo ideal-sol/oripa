@@ -7988,3 +7988,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1同等の最大原価／利益／目標差分／公開確率期待値をV2 Draft VersionとPrize APIへ接続し、Golden 3パターンを含むUnit 5件、Desktop／Mobile E2E 2件、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
 - Application Head `e264bb45c2dfc9b3d8f92bdbdb5d0556040c6b7b`からPreview Adminを`sha256:8245dcfe...`へ更新した。PreviewにGachaがないためSynthetic Dataは投入せず、利益画面は対象E2EをEvidence正本とした。
 - Owner Login、Health、Console／Page Error 0、HTTP 500／502／504 0を確認した。API／PostgreSQL／Redis、Migration、Nginx、V1は非変更。旧Admin ImageはRollback用に保持した。
+# MIG-061N お知らせ管理
+
+- Issue #196、Branch `feat/MIG-061N-announcement-management`、Risk R3、Verification `FAST-TRACK-FEATURE`で開始した。
+- V1 Noticeの一覧、登録／編集、公開状態、サムネイル、トップ表示をCharacterizationし、V2既存Content Notice／Version／Asset／Publish基盤へ移植する。
+- Migrationは不要。Admin Realm、Public ID、Server-side HTML Sanitizer、公開期間、IdempotencyをV2境界として使用する。
+- Preview更新対象はAPI／Adminのみ。DB／Nginx／V1／Storefrontは非変更とし、Gate G4／G5は`NOT COMPLETE`を維持する。

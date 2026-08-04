@@ -20,6 +20,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061n_announcement_path_registration_is_exact(self):
+        expected_content = {
+            "apps/api/tests/V2/AdminAnnouncementManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-announcement-management.spec.ts",
+            "apps/admin/src/app/announcements/[announcementPublicId]/page.tsx",
+            "apps/admin/src/components/announcements/announcement-management-workspace.tsx",
+            "apps/admin/test/admin-announcement-management.test.tsx",
+        }
+
+        self.assertTrue(
+            expected_content.issubset(policy_gate.V2_CONTENT_CONTACT_REQUIRED_FILES)
+        )
+        self.assertEqual(policy_gate.MIG_061N_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_content | expected_admin))
+
     def test_mig_061m_profit_simulation_path_registration_is_exact(self):
         expected_admin = {
             "apps/admin/e2e/admin-gacha-profit-simulation.spec.ts",

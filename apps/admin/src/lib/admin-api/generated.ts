@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 93a405575b3323f8d146e23e955ffa3de844dfc2061a4f5be796472307d92adb
+// Contract SHA-256: 970eea4ad2a3f089619d71d1f3217ab1bd57d2ef29c6f82f68fef9130057aacf
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1348,6 +1348,74 @@ export interface AdminCatalogProbabilityEntriesReplace {
 
 export interface AdminCatalogArchiveRequest {
   expected_revision: number;
+}
+
+export interface AdminContentVersionInput {
+  title: string;
+  summary?: string | null;
+  body_html: string;
+  sort_order?: number;
+  is_important?: boolean;
+  asset_id?: string | null;
+  publish_start_at: string;
+  publish_end_at?: string | null;
+}
+
+export interface AdminContentNoticeCreate extends AdminContentVersionInput {
+  slug: string;
+}
+
+export interface AdminContentVersion {
+  id: string;
+  version_number: number;
+  status: "draft" | "published";
+  title: string;
+  summary: string | null;
+  body_html: string | null;
+  link_url: string | null;
+  sort_order: number;
+  is_important: boolean;
+  publish_start_at: string;
+  publish_end_at: string | null;
+  checksum_sha256: string;
+  asset_id: string | null;
+  published_at: string | null;
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContentSummary {
+  id: string;
+  identifier: string;
+  status: "draft" | "published" | "archived";
+  is_legal: boolean;
+  published_version_id: string | null;
+  latest_version?: AdminContentVersion | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminContentCollection {
+  items: AdminContentSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminContentDetail {
+  id: string;
+  identifier: string;
+  status: "draft" | "published" | "archived";
+  is_legal: boolean;
+  versions: AdminContentVersion[];
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContentPreview {
+  title: string;
+  summary: string | null;
+  body_html: string;
+  is_important: boolean;
+  asset_id: string | null;
+  publish_start_at: string;
+  publish_end_at: string | null;
 }
 
 export interface AdminCatalogMutationResult<T> {
