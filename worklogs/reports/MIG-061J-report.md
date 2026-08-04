@@ -5,6 +5,8 @@
 - Issue: #188
 - PR: #189
 - Base: `ebb111830b767fba0d64ae562f84b853d7fafa38`
+- Implementation Commit: `49b476343ad7255baa78a31af63056defc68fbc7`
+- Task Policy SHA-256: `c3dc2801064941c7f7f7183124dc89a5eccbf718047a5576636340f485edf5c3`
 - Verification: `TARGETED-DRAW`
 
 ## 判定規則
@@ -26,7 +28,7 @@
 - Task DB: `oripa_v2_mig061j`、Marker `MIG-061J`、Purpose `v2-task-ephemeral`、Migration 32件。DB Target Safety Guard PASS。
 - 対象Domain／HTTP／QA: 11 tests、99 assertions、PASS、7.373秒。
 - Process Concurrency: 1 test、9 assertions、PASS、1.262秒。
-- Syntax、`git diff --check`: PASS。
+- Syntax、Local Policy Gate、Local Quality Gate、`git diff --check`: PASS。
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061J/`
 - Schema／Migration、Admin／Storefront、Preview、V1は変更していない。
 
