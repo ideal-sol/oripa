@@ -20,6 +20,23 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061p_banner_path_registration_is_exact(self):
+        expected_content = {
+            "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
+            "apps/api/tests/V2/AdminBannerManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-banner-management.spec.ts",
+            "apps/admin/src/components/banners/banner-management-workspace.tsx",
+            "apps/admin/test/admin-banner-management.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_061P_V2_CONTENT_FILES, expected_content)
+        self.assertTrue(expected_content.issubset(policy_gate.V2_CONTENT_CONTACT_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061P_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_content | expected_admin))
+
     def test_mig_061o_contact_path_registration_is_exact(self):
         expected_content = {
             "apps/api/tests/V2/AdminContactManagementTest.php",
@@ -583,6 +600,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_16_000029_add_v2_qa_plan_management.php",
             "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
             "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
+            "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

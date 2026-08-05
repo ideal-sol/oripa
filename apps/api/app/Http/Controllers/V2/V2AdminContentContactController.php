@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Http\Responses\V2ProblemDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 
 final class V2AdminContentContactController
@@ -49,6 +50,135 @@ final class V2AdminContentContactController
     public function archiveBanner(Request $request, string $contentId): JsonResponse { return $this->state($request, 'banner', $contentId, true); }
     public function archiveNotice(Request $request, string $contentId): JsonResponse { return $this->state($request, 'notice', $contentId, true); }
     public function archiveStaticPage(Request $request, string $contentId): JsonResponse { return $this->state($request, 'static-page', $contentId, true); }
+
+    public function bannerCategories(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->bannerCategories($context)
+        );
+    }
+
+    public function createBannerCategory(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->createBannerCategory(
+                    $context,
+                    $request->all(),
+                    (string) $request->header('Idempotency-Key', '')
+                ),
+            201
+        );
+    }
+
+    public function managedBanners(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->managedBanners(
+                    $context,
+                    $request->query('cursor'),
+                    (int) $request->query(
+                        'limit',
+                        config('v2_content_contact.cursor_page_size', 20)
+                    ),
+                    $request->filled('category_id')
+                        ? (string) $request->query('category_id')
+                        : null
+                )
+        );
+    }
+
+    public function createManagedBanner(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->createManagedBanner(
+                    $context,
+                    $request->all(),
+                    (string) $request->header('Idempotency-Key', '')
+                ),
+            201
+        );
+    }
+
+    public function updateManagedBanner(Request $request, string $bannerId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->updateManagedBanner(
+                    $context,
+                    $bannerId,
+                    $request->all(),
+                    (string) $request->header('Idempotency-Key', '')
+                )
+        );
+    }
+
+    public function deleteManagedBanner(Request $request, string $bannerId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->deleteManagedBanner(
+                    $context,
+                    $bannerId,
+                    (string) $request->header('Idempotency-Key', '')
+                )
+        );
+    }
+
+    public function uploadBannerAsset(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->uploadBannerAsset(
+                    $context,
+                    $request->all(),
+                    (string) $request->header('Idempotency-Key', '')
+                ),
+            201
+        );
+    }
+
+    public function bannerAssetContent(Request $request, string $assetId): Response|JsonResponse
+    {
+        try {
+            $context = $this->authorizer->context($request, $this->requestId($request));
+            $asset = $this->service->bannerAssetContent($context, $assetId);
+
+            return response($asset['content'], 200, [
+                'Content-Type' => $asset['mime_type'],
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $context->requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        } catch (V2AuthenticationException $exception) {
+            return V2ProblemDetails::fromAuthentication($request, $exception);
+        } catch (V2ContentContactException $exception) {
+            return response()->json([
+                'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
+                'title' => $exception->getMessage(),
+                'status' => $exception->status,
+                'code' => $exception->errorCode,
+                'request_id' => $this->requestId($request),
+                'retryable' => $exception->retryable,
+            ], $exception->status, [
+                'Content-Type' => 'application/problem+json',
+                'Cache-Control' => 'private, no-store',
+                'X-Request-Id' => $this->requestId($request),
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        }
+    }
 
     public function contacts(Request $request): JsonResponse
     {

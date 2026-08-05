@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 990b666bec9037e6b83150fc8aed0a7171c6276f9a5724f0b0b996d52f77b2e0
+// Contract SHA-256: aaaafeedfbf691067eef45963f5da358d659313fa4f1b4c10ae44942b4f54691
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1348,6 +1348,78 @@ export interface AdminCatalogProbabilityEntriesReplace {
 
 export interface AdminCatalogArchiveRequest {
   expected_revision: number;
+}
+
+export interface AdminBannerCategory {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface AdminBannerCategoryCollection {
+  items: AdminBannerCategory[];
+}
+
+export interface AdminBannerCategoryCreate {
+  name: string;
+}
+
+export interface AdminBannerCategoryMutationResult extends AdminBannerCategory {
+  idempotent_replay: boolean;
+}
+
+export interface AdminBannerAssetUpload {
+  file_name: string;
+  mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  content_base64: string;
+}
+
+export interface AdminBannerAssetMutationResult {
+  id: string;
+  public_url: string;
+  mime_type: string;
+  byte_size: number;
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedBannerInput {
+  category_id: string;
+  title: string;
+  asset_id?: string | null;
+}
+
+export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
+  asset_id: string;
+}
+
+export type AdminManagedBannerUpdate = AdminManagedBannerInput;
+
+export interface AdminManagedBanner {
+  id: string;
+  title: string;
+  status: "draft" | "published";
+  category: AdminBannerCategory;
+  asset: { id: string; public_url: string };
+  version_id: string;
+  version_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminManagedBannerMutationResult extends AdminManagedBanner {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedBannerCollection {
+  items: AdminManagedBanner[];
+  next_cursor: string | null;
+}
+
+export interface AdminManagedBannerDeleteResult {
+  id: string;
+  deleted: true;
+  asset_retained: true;
+  idempotent_replay: boolean;
 }
 
 export interface AdminContentVersionInput {

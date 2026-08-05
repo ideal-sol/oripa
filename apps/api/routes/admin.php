@@ -289,6 +289,14 @@ Route::prefix('v2')
         Route::post('/content/banners/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishBanner'])->whereUuid('contentId')->whereUuid('versionId');
         Route::post('/content/banners/{contentId}/unpublish', [V2AdminContentContactController::class, 'unpublishBanner'])->whereUuid('contentId');
         Route::post('/content/banners/{contentId}/archive', [V2AdminContentContactController::class, 'archiveBanner'])->whereUuid('contentId');
+        Route::get('/banner-management/categories', [V2AdminContentContactController::class, 'bannerCategories']);
+        Route::post('/banner-management/categories', [V2AdminContentContactController::class, 'createBannerCategory']);
+        Route::post('/banner-management/assets', [V2AdminContentContactController::class, 'uploadBannerAsset']);
+        Route::get('/banner-management/assets/{assetId}/content', [V2AdminContentContactController::class, 'bannerAssetContent'])->whereUuid('assetId');
+        Route::get('/banner-management/banners', [V2AdminContentContactController::class, 'managedBanners']);
+        Route::post('/banner-management/banners', [V2AdminContentContactController::class, 'createManagedBanner']);
+        Route::put('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'updateManagedBanner'])->whereUuid('bannerId');
+        Route::delete('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'deleteManagedBanner'])->whereUuid('bannerId');
         Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);
         Route::post('/content/notices', [V2AdminContentContactController::class, 'createNotice']);
         Route::post('/content/notices/preview', [V2AdminContentContactController::class, 'previewNotice']);

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { BannerManagementWorkspace } from "@/components/banners/banner-management-workspace";
 
-export const metadata: Metadata = { title: "バナー 一覧" };
+export const metadata: Metadata = { title: "バナー管理" };
 
 export default function BannersPage() {
-  return <ModuleRoutePage routeId="banners" />;
+  return <BannerManagementWorkspace />;
 }
