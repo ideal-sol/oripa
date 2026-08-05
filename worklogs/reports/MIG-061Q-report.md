@@ -23,6 +23,7 @@
 - Backend 3 tests／23 assertions、Admin Unit 24 files／116 tests、Desktop／Mobile Browser 2件、Typecheck、Lint、Production Build、OpenAPI 187 operations、Generated Client、Policy／Quality、`git diff --check`がPASSした。Vitestの対象指定は全24 filesへ展開される挙動を記録し、同一Headで再実行しない。
 - GitHub初回Checkで検出したPolicy Unit FixtureのMigration 000035不足と、既存Banner Categoryのoptional `created_at`を移動していたOpenAPI挿入位置を補正した。Policy Unit 104件、OpenAPI Breaking、Generated Client、Policy／Quality Gateを再確認し、Gate条件は緩和していない。
 - GitHub Integration Gateで検出した新規`content_page_categories`の厳密Schema Inventory未登録を、DB GuardとUnit Testへ完全一致で追加した。WildcardやInventory判定の緩和は行っていない。
+- DB Guard補正Push直後のWorkflowが更新前PR本文を参照してChanged files不一致となったため、PR本文23 Pathと実Diffの一致をGitHub APIで確認した。Canonical retrigger後も同一SHAへ旧Failure Runが残るため、この記録を含む新HeadでChecksを実行する。
 - Preview DB `oripa_v2_mig061a`へMigration `000035`だけを適用し、Target Guardは35 migrationsでPASSした。既存Dataは保持し、`migrate:fresh`は実行していない。
 - Preview APIを`sha256:4b528540...`から`sha256:cc516763...`、Adminを`sha256:8afac4e4...`から`sha256:4b9d4370...`へ更新した。両ImageはApplication HeadをOCI revisionに保持する。
 - Owner Login後に一覧、新規登録、カテゴリ即時反映、編集Routeを確認した。Synthetic Category 1件と非表示Synthetic Page 1件に限定し、Desktop／Mobile、Console／Page Error 0、HTTP 500／502／504 0、横溢れなしでPASSした。
