@@ -8015,6 +8015,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### MIG-061O Preview
 
-- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:fec21377...`、Adminを`sha256:310701b5...`へ更新した。
+- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:54656a8c...`、Adminを`sha256:310701b5...`へ更新した。
 - Owner Login、Contact Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
 - Migration 33件、PostgreSQL／Redis、Environment Key集合、固定IP、Nginx checksum、V1、Storefrontは非変更。Required ChecksとCloseoutはFinal Headで確定する。
+- GitHub Integration Gateが検出した取得不能な`linux-libc-dev=6.1.177-1`固定を、現在のBookworm Security正本`6.1.180-1`へ補正した。Policy追加はDockerfile 1 Pathだけで、API Image Healthを再確認した。

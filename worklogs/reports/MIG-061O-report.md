@@ -6,7 +6,7 @@
 - PR: #199
 - Base: `e8a1cad9ca7cf46b7248bd3178cec28c0617c99b`
 - Final Head／Squash Commit: Closeoutで確定
-- Task Policy SHA-256: `26a1842369992c72337da3733f13fb61c2a769d5bedfb9a54590d07aa761161b`
+- Task Policy SHA-256: `26a1842369992c72337da3733f13fb61c2a769d5bedfb9a54590d07aa761161b` -> `3414b08aeda508c152502fe67a76c8802c63e6858ced37f9d1cb57047afaa370`
 
 ## V1 Characterization／移植
 
@@ -24,7 +24,8 @@
 ## Verification／Preview
 
 - Task DBで対象BackendとContent回帰の計18 tests／139 assertions（一覧3 Query、詳細10 Query上限）、Admin Unit 3件、Desktop／Mobile E2E 2件がPASSした。OpenAPI Bundle／Breaking、Generated Client、Typecheck、Lint、Production Build、Policy／Quality、`git diff --check`もPASSした。
-- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:c9cf11b9...`から`sha256:fec21377...`、Adminを`sha256:f9c94d86...`から`sha256:310701b5...`へ更新した。旧ImageはRollback用に保持した。
+- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:c9cf11b9...`から`sha256:54656a8c...`、Adminを`sha256:f9c94d86...`から`sha256:310701b5...`へ更新した。旧ImageはRollback用に保持した。
+- GitHub Integration Gateで既存Dockerfileの取得不能な`linux-libc-dev=6.1.177-1`固定を検出したため、Policyへ同Dockerfile 1 Pathだけを追加し、Bookworm Securityの`6.1.180-1`へ補正した。Application、Contract、DBは変更していない。
 - Owner Login、一覧Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。Preview DBは33 migrationsのまま、Environment Key集合、固定IP、PostgreSQL／Redis設定、Nginx checksum、V1、Storefrontは不変。Secret Candidateは0。
 - GitHub Required ChecksとFinal HeadのSelf-reviewはCloseoutで確定する。
 - Preview更新対象はAPI／Adminのみ。DB Schema／Migration、PostgreSQL／Redis設定、Nginx、V1、Storefrontは変更しない。
