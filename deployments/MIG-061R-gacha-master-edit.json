@@ -13,11 +13,11 @@
   "preview": {
     "compose_project": "mig061a-v2-preview",
     "deployed_at": "2026-08-05T09:52:42Z",
-    "source_commit": "a6f405b8e4d926073ba70ae9657bf0e7e690f781",
+    "source_commit": "a9ae8c6944622bf6c491a8deba6a83cf6f8c63ed",
     "api_previous_image": "sha256:cc5167638bacbb218f8a4af2e95dba7681a11f058dec79f7da50cce7ae84e96d",
     "api_image": "sha256:282878b1992748f307fe708ab7dc2dca084e5bd412477b8cc54131f13eda228a",
     "admin_previous_image": "sha256:4b9d4370d97a3c0f616948a3553ea495074ac007a27a1fb9434b15addf781de5",
-    "admin_image": "sha256:4db76c8c22eff53cb3e230cff37f7a7611906e962f695a9b8b33bd6a2d44f2c9",
+    "admin_image": "sha256:0de7ad66db695be403ddb80235cf4f3e833be27d50ff62facc3f02dfd9cd44ed",
     "migration": "2026_08_23_000036_add_v2_gacha_external_public_code.php",
     "migration_count": 36,
     "database": "oripa_v2_mig061a",
