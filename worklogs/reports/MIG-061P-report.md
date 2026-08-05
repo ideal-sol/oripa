@@ -20,6 +20,7 @@
 - Migration `000034`で`content_banner_categories`とVersion単位のCategory relationを追加した。既存Versionはnullableのまま維持し、非Banner VersionへのFK付替えをTriggerで拒否する。
 - Task DB `oripa_v2_mig061p`、Marker `MIG-061P`、Purpose `v2-task-ephemeral`、34 migrationでDB Target Safety、Fresh 2回、rollback／reapply、Schema Inventory 92 objectがPASSした。
 - 対象Backend 3 tests／33 assertions、Admin Unit 3件、Desktop／Mobile Browser 2件、OpenAPI Bundle／Breaking 181 Admin operations、Generated Client、Typecheck、Lint、Production Build、Policy Unit 133件、Policy／Quality GateがPASSした。Public／Webhook Contractは非変更。GitHub ChecksはCloseoutで確定する。
+- GitHub初回確認で、PR本文のCanonical Metadata不足と、更新後一覧を待たず削除Buttonを取得するUnit Testの同期不足を検出した。本文をCanonical Schemaへ補正し、Unit Testは再取得後のAccessible Buttonを待つよう修正して対象Testを再度PASSさせた。Application挙動とPreview Artifactは変更していない。
 
 ## Preview／残課題／所要時間
 
