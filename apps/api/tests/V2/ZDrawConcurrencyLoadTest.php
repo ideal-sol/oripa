@@ -406,6 +406,11 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             unset($stage);
             $fixture['probability_versions'][] = $probability;
         }
+        $publicCodes = array_column($fixture['gachas'], 'public_code');
+        self::assertCount($count, array_unique($publicCodes));
+        foreach ($publicCodes as $publicCode) {
+            self::assertMatchesRegularExpression('/\A[A-Za-z0-9]{11}\z/', $publicCode);
+        }
         $fixture['expected_record_count'] += ($count - 1) * $cloneRecordCount;
         app(V2CatalogFixtureImporter::class)->import($fixture);
 

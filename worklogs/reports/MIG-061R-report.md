@@ -23,7 +23,7 @@
 - Backend対象37 tests／400 assertions、Admin Unit 2 files／9 tests、Desktop／Mobile Browser 2 tests、Typecheck、Lint、Production Build、OpenAPI lint／bundle、Generated Client、Policy／Quality、DB Guard、`git diff --check`がPASSした。
 - OpenAPI Breaking Checkで検出したResponse required追加は、Fieldを後方互換なoptional Contractとして追加し、現行Backendでは常時返す構成へ補正した。N-1 Clientは維持し、現行Adminは11文字コードを優先、欠落時だけLegacy UUID Resolverへfallbackし、通常UIにはUUIDを表示しない。補正後のBreaking Check、Generated Client、Unit 9件、Typecheck、Lint、Build、Browser 2件がPASSした。
 - GitHub Integration Gateで、負荷試験が基底Fixtureを20件へ複製する際に新規`public_code`も複製してUnique制約へ抵触することを検出した。Policyへ`ZDrawConcurrencyLoadTest.php`だけをAtomic追加し、複製行ごとに形式適合する決定的一意コードを設定した。併せて基底Fixtureの正本`expected_record_count`へ複製分だけを加算し、旧固定件数への依存を除去した。Application／Previewの再変更はない。
-- 補正後の対象負荷試験は1 test／15 assertions、58.634秒でPASSした。同一ガチャ10並行の最終完了8.604秒、20並行16.902秒、別ガチャ20並行17.553秒、Failure／未解決Deadlockはいずれも0だった。
+- 補正後の対象負荷試験は、生成した20件の外部コードの一意性／11文字形式も含む1 test／36 assertions、58.106秒でPASSした。同一ガチャ10並行の最終完了8.477秒、20並行16.996秒、別ガチャ20並行17.167秒、Failure／未解決Deadlockはいずれも0だった。
 - Preview DB Target Safety Guardを通過後、既存Dataを保持してMigration `000036`だけを適用した。Migration数は36、既存Gacha 1件の11文字Backfillと保護Trigger有効を確認した。
 - Preview API Imageは`sha256:cc516763...`から`sha256:282878b1...`、Admin Imageは`sha256:4b9d4370...`から最終`sha256:0de7ad66...`へ更新した。互換補正後はAdminだけを再反映し、固定IP、Network、Restart Policy、Environment Key集合はImage以外一致した。
 - Owner Login、11文字Canonical Route、Legacy UUID互換、全基本項目、専用Thumbnail直接Upload、Banner選択／Category API非依存、景品ID非表示、詳細／景品幅一致、Desktop／Mobileを確認した。Critical Console Error、Page Error、HTTP 500／502／504は0。既存Synthetic Prizeの欠損Asset URLによる非Critical 404が1件あり、Task外のPreview Data課題として残した。
