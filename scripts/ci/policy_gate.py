@@ -512,6 +512,10 @@ MIG_061P_V2_CONTENT_FILES = {
     "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
     "apps/api/tests/V2/AdminBannerManagementTest.php",
 }
+MIG_061Q_V2_CONTENT_FILES = {
+    "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
+    "apps/api/tests/V2/AdminPageManagementTest.php",
+}
 V2_CONTENT_CONTACT_REQUIRED_FILES = {
     "apps/api/app/Domain/ContentContact/Exceptions/V2ContentContactException.php",
     "apps/api/app/Domain/ContentContact/Services/V2ContentCursor.php",
@@ -540,6 +544,7 @@ V2_CONTENT_CONTACT_REQUIRED_FILES = {
     "packages/storefront-client/src/content-contact.ts",
     "packages/storefront-testkit/src/fixtures.ts",
     *MIG_061P_V2_CONTENT_FILES,
+    *MIG_061Q_V2_CONTENT_FILES,
 }
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
@@ -620,6 +625,13 @@ MIG_061P_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/admin-banner-management.spec.ts",
     "apps/admin/src/components/banners/banner-management-workspace.tsx",
     "apps/admin/test/admin-banner-management.test.tsx",
+}
+MIG_061Q_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-page-management.spec.ts",
+    "apps/admin/src/app/settings/pages/[pagePublicId]/page.tsx",
+    "apps/admin/src/app/settings/pages/new/page.tsx",
+    "apps/admin/src/components/pages/page-management-workspace.tsx",
+    "apps/admin/test/admin-page-management.test.tsx",
 }
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
@@ -731,6 +743,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061N_ADMIN_SKELETON_FILES,
     *MIG_061O_ADMIN_SKELETON_FILES,
     *MIG_061P_ADMIN_SKELETON_FILES,
+    *MIG_061Q_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2059,6 +2072,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_19_000032_add_v2_gacha_core_management_fields.php",
         "2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
         "2026_08_21_000034_add_v2_banner_management.php",
+        "2026_08_22_000035_add_v2_page_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

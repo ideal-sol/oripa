@@ -8033,3 +8033,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application Head `ed99068412fbac68d484634dc7b4aeda923b44a7`からPreview APIを`sha256:4b528540...`、Adminを`sha256:8afac4e4...`へ更新し、DBへ000034だけを適用した。
 - Owner Login、カテゴリ1件、Synthetic Banner 1件、画像Content、Filter、HealthがPASSした。Console／Page ErrorとHTTP 500／502／504は0。
 - Preview Networkは途中のone-shot Compose競合後に元の`192.168.61.0/24`と固定IP／service aliasへ復旧し、Container／Domain Healthを再確認した。PostgreSQL／Redis設定、Nginx、V1、Storefrontは非変更。
+# MIG-061Q ページ設定
+
+- Issue #202、Branch `feat/MIG-061Q-page-management`、Risk R3、Verification `FAST-TRACK-FEATURE`で開始した。
+- V1の固定ページ一覧／編集をCharacterizationし、V2 immutable Content Versionへカテゴリ、slug、表示状態を接続した。
+- Task DBでMigration fresh／rollback／reapply、Backend 3 tests／23 assertions、Admin Unit 116 tests、Desktop／Mobile E2E 2件、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
+- Preview反映、Required Checks、Closeoutは最終Headで確定する。Gate G4／G5は`NOT COMPLETE`、MIG-061Rは開始しない。

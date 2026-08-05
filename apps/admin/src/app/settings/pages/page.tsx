@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { PageManagementWorkspace } from "@/components/pages/page-management-workspace";
 
-export const metadata: Metadata = { title: "各種設定 ページ設定" };
+export const metadata: Metadata = { title: "ページ設定" };
 
 export default function PageSettingsPage() {
-  return <ModuleRoutePage routeId="page-settings" />;
+  return <PageManagementWorkspace mode="list" />;
 }

@@ -48,6 +48,12 @@ const operations = {
   listAdminContentNotices: ["get", "/content/notices"],
   listAdminBannerCategories: ["get", "/banner-management/categories"],
   createAdminBannerCategory: ["post", "/banner-management/categories"],
+  listAdminPageCategories: ["get", "/page-management/categories"],
+  createAdminPageCategory: ["post", "/page-management/categories"],
+  listManagedAdminPages: ["get", "/page-management/pages"],
+  createManagedAdminPage: ["post", "/page-management/pages"],
+  getManagedAdminPage: ["get", "/page-management/pages/{page_id}"],
+  updateManagedAdminPage: ["put", "/page-management/pages/{page_id}"],
   uploadAdminBannerAsset: ["post", "/banner-management/assets"],
   showAdminBannerAssetContent: ["get", "/banner-management/assets/{asset_id}/content"],
   listManagedAdminBanners: ["get", "/banner-management/banners"],
@@ -377,6 +383,12 @@ const requiredSchemas = [
   "DashboardDailyPointReport",
   "DashboardReversalReport",
   "AdminBannerCategoryCollection",
+  "AdminPageCategoryCollection",
+  "AdminPageCategoryCreate",
+  "AdminPageCategoryMutationResult",
+  "AdminManagedPageInput",
+  "AdminManagedPageMutationResult",
+  "AdminManagedPageCollection",
   "AdminBannerCategoryCreate",
   "AdminBannerCategoryMutationResult",
   "AdminBannerAssetUpload",
@@ -1844,6 +1856,58 @@ export interface AdminBannerCategory {
   id: string;
   name: string;
   created_at?: string;
+}
+
+export type AdminPageVisibility = "visible" | "hidden";
+
+export interface AdminPageCategory {
+  id: string;
+  name: string;
+  visibility: AdminPageVisibility;
+  created_at: string;
+}
+
+export interface AdminPageCategoryCollection {
+  items: AdminPageCategory[];
+}
+
+export interface AdminPageCategoryCreate {
+  name: string;
+  visibility: AdminPageVisibility;
+}
+
+export interface AdminPageCategoryMutationResult extends AdminPageCategory {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedPageInput {
+  category_id: string;
+  title: string;
+  body_html: string;
+  slug: string;
+  visibility: AdminPageVisibility;
+}
+
+export interface AdminManagedPage {
+  id: string;
+  slug: string;
+  title: string;
+  body_html: string;
+  visibility: AdminPageVisibility;
+  category: AdminPageCategory | null;
+  version_id: string;
+  version_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminManagedPageMutationResult extends AdminManagedPage {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedPageCollection {
+  items: AdminManagedPage[];
+  next_cursor: string | null;
 }
 
 export interface AdminBannerCategoryCollection {

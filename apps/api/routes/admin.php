@@ -297,6 +297,12 @@ Route::prefix('v2')
         Route::post('/banner-management/banners', [V2AdminContentContactController::class, 'createManagedBanner']);
         Route::put('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'updateManagedBanner'])->whereUuid('bannerId');
         Route::delete('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'deleteManagedBanner'])->whereUuid('bannerId');
+        Route::get('/page-management/categories', [V2AdminContentContactController::class, 'pageCategories']);
+        Route::post('/page-management/categories', [V2AdminContentContactController::class, 'createPageCategory']);
+        Route::get('/page-management/pages', [V2AdminContentContactController::class, 'managedPages']);
+        Route::post('/page-management/pages', [V2AdminContentContactController::class, 'createManagedPage']);
+        Route::get('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'managedPage'])->whereUuid('pageId');
+        Route::put('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'updateManagedPage'])->whereUuid('pageId');
         Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);
         Route::post('/content/notices', [V2AdminContentContactController::class, 'createNotice']);
         Route::post('/content/notices/preview', [V2AdminContentContactController::class, 'previewNotice']);
