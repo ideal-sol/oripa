@@ -17,7 +17,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Normalizer;
 
 final class V2ContentContactAdminService
 {
@@ -133,6 +135,434 @@ final class V2ContentContactAdminService
                 ? $this->cursor->encode((int) $rows->get($limit - 1)->id)
                 : null,
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function bannerCategories(V2AdminAuthorizationContext $context): array
+    {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+
+        return [
+            'items' => DB::table('content_banner_categories')
+                ->orderBy('name')->orderBy('id')
+                ->get(['public_id', 'name', 'created_at'])
+                ->map(static fn (object $row): array => [
+                    'id' => $row->public_id,
+                    'name' => $row->name,
+                    'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+                ])->all(),
+        ];
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function createBannerCategory(
+        V2AdminAuthorizationContext $context,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->assertFields($input, ['name'], ['name']);
+        $name = $this->plainText($input['name'], 1, 100);
+        $normalized = mb_strtolower($name, 'UTF-8');
+
+        return DB::transaction(function () use (
+            $context,
+            $admin,
+            $idempotencyKey,
+            $name,
+            $normalized
+        ): array {
+            $claim = $this->claimBannerMutation($admin, $idempotencyKey, [
+                'action' => 'category.create',
+                'name' => $name,
+            ]);
+            if ($claim->replay) {
+                return $this->bannerReplay($claim);
+            }
+            $publicId = (string) Str::uuid7();
+            $now = now()->startOfSecond();
+            try {
+                DB::table('content_banner_categories')->insert([
+                    'public_id' => $publicId,
+                    'name' => $name,
+                    'normalized_name' => $normalized,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            } catch (\Throwable) {
+                throw $this->conflict('BANNER_CATEGORY_NAME_CONFLICT');
+            }
+            $result = [
+                'id' => $publicId,
+                'name' => $name,
+                'created_at' => CarbonImmutable::parse($now)->toIso8601String(),
+            ];
+            $this->auditContent('content.banner_category_created', $context, 'banner_category', $publicId);
+            $this->completeBannerMutation($claim, 'banner_category', $publicId, $result, 201);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @return array<string, mixed> */
+    public function managedBanners(
+        V2AdminAuthorizationContext $context,
+        ?string $cursor,
+        int $limit,
+        ?string $categoryPublicId
+    ): array {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $after = $this->cursor->decode($cursor);
+        $limit = $this->limit($limit);
+        $categoryId = null;
+        if ($categoryPublicId !== null) {
+            $this->uuid($categoryPublicId, 'BANNER_CATEGORY_INVALID');
+            $categoryId = DB::table('content_banner_categories')
+                ->where('public_id', $categoryPublicId)->value('id');
+            if ($categoryId === null) {
+                throw $this->notFound('BANNER_CATEGORY_NOT_FOUND');
+            }
+        }
+        $latestVersions = DB::table('content_versions')
+            ->select('banner_id')->selectRaw('MAX(version_number) AS version_number')
+            ->whereNotNull('banner_id')->groupBy('banner_id');
+        $rows = DB::table('content_banners as banner')
+            ->joinSub($latestVersions, 'latest_number', function ($join): void {
+                $join->on('latest_number.banner_id', '=', 'banner.id');
+            })
+            ->join('content_versions as version', function ($join): void {
+                $join->on('version.banner_id', '=', 'banner.id')
+                    ->on('version.version_number', '=', 'latest_number.version_number');
+            })
+            ->join('content_banner_categories as category', 'category.id', '=', 'version.banner_category_id')
+            ->join('content_version_assets as link', function ($join): void {
+                $join->on('link.content_version_id', '=', 'version.id')
+                    ->where('link.usage_type', '=', 'image');
+            })
+            ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
+            ->where('banner.status', '<>', 'archived')
+            ->when($categoryId !== null, fn (Builder $query) =>
+                $query->where('version.banner_category_id', $categoryId))
+            ->when($after !== null, fn (Builder $query) => $query->where('banner.id', '<', $after))
+            ->orderByDesc('banner.id')->limit($limit + 1)
+            ->get([
+                'banner.id as internal_cursor',
+                'banner.public_id',
+                'banner.status',
+                'banner.created_at',
+                'banner.updated_at',
+                'version.public_id as version_public_id',
+                'version.version_number',
+                'version.title',
+                'category.public_id as category_public_id',
+                'category.name as category_name',
+                'asset.public_id as asset_public_id',
+                'asset.public_path as image_url',
+            ]);
+        $hasMore = $rows->count() > $limit;
+        $items = $rows->take($limit)->map(fn (object $row): array => $this->managedBanner($row))->all();
+
+        return [
+            'items' => $items,
+            'next_cursor' => $hasMore
+                ? $this->cursor->encode((int) $rows->get($limit - 1)->internal_cursor)
+                : null,
+        ];
+    }
+
+    /** @return array{content: string, mime_type: string} */
+    public function bannerAssetContent(
+        V2AdminAuthorizationContext $context,
+        string $publicId
+    ): array {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $this->uuid($publicId, 'BANNER_ASSET_INVALID');
+        $asset = DB::table('catalog_presentation_assets')
+            ->where('public_id', $publicId)
+            ->where('media_type', 'image')
+            ->where('is_public', true)
+            ->whereNull('archived_at')
+            ->first(['storage_identifier', 'mime_type']);
+        if ($asset === null) {
+            throw $this->notFound('BANNER_ASSET_NOT_FOUND');
+        }
+        $disk = Storage::disk(config('filesystems.default'));
+        if (! $disk->exists($asset->storage_identifier)) {
+            throw $this->notFound('BANNER_ASSET_NOT_FOUND');
+        }
+
+        return [
+            'content' => $disk->get($asset->storage_identifier),
+            'mime_type' => $asset->mime_type,
+        ];
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function createManagedBanner(
+        V2AdminAuthorizationContext $context,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $payload = $this->bannerInput($input, true);
+
+        return DB::transaction(function () use (
+            $context,
+            $admin,
+            $idempotencyKey,
+            $payload
+        ): array {
+            $claim = $this->claimBannerMutation($admin, $idempotencyKey, [
+                'action' => 'banner.create',
+                'input' => $payload,
+            ]);
+            if ($claim->replay) {
+                return $this->bannerReplay($claim);
+            }
+            $publicId = (string) Str::uuid7();
+            $now = now()->startOfSecond();
+            $parentId = DB::table('content_banners')->insertGetId([
+                'public_id' => $publicId,
+                'code' => 'banner-'.str_replace('-', '', $publicId),
+                'status' => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $version = $this->createVersionRow(
+                'banner',
+                'banner_id',
+                (int) $parentId,
+                1,
+                $this->bannerVersionInput($payload),
+                $admin
+            );
+            $this->auditContent('content.banner_created', $context, 'banner', $publicId, [
+                'version_public_id' => $version['id'],
+                'category_public_id' => $payload['category_id'],
+            ]);
+            $result = $this->managedBannerByPublicId($publicId);
+            $this->completeBannerMutation($claim, 'content_banner', $publicId, $result, 201);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function updateManagedBanner(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->uuid($publicId);
+        $payload = $this->bannerInput($input, false);
+
+        return DB::transaction(function () use (
+            $context,
+            $admin,
+            $idempotencyKey,
+            $publicId,
+            $payload
+        ): array {
+            $claim = $this->claimBannerMutation($admin, $idempotencyKey, [
+                'action' => 'banner.update',
+                'banner_id' => $publicId,
+                'input' => $payload,
+            ]);
+            if ($claim->replay) {
+                return $this->bannerReplay($claim);
+            }
+            $parent = DB::table('content_banners')->where('public_id', $publicId)
+                ->lockForUpdate()->first();
+            if ($parent === null) {
+                throw $this->notFound('BANNER_NOT_FOUND');
+            }
+            if ($parent->status === 'archived') {
+                throw $this->conflict('BANNER_ARCHIVED');
+            }
+            $latest = DB::table('content_versions')->where('banner_id', $parent->id)
+                ->orderByDesc('version_number')->lockForUpdate()->first();
+            if ($latest === null) {
+                throw $this->notFound('BANNER_VERSION_NOT_FOUND');
+            }
+            if ($payload['asset_id'] === null) {
+                $payload['asset_id'] = DB::table('content_version_assets as link')
+                    ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
+                    ->where('link.content_version_id', $latest->id)
+                    ->where('link.usage_type', 'image')
+                    ->value('asset.public_id');
+            }
+            if ($payload['asset_id'] === null) {
+                throw $this->invalid('BANNER_ASSET_REQUIRED');
+            }
+            $version = $this->createVersionRow(
+                'banner',
+                'banner_id',
+                (int) $parent->id,
+                (int) $latest->version_number + 1,
+                $this->bannerVersionInput($payload),
+                $admin
+            );
+            DB::table('content_banners')->where('id', $parent->id)->update([
+                'updated_at' => now()->startOfSecond(),
+            ]);
+            $this->auditContent('content.banner_updated', $context, 'banner', $publicId, [
+                'version_public_id' => $version['id'],
+                'category_public_id' => $payload['category_id'],
+            ]);
+            $result = $this->managedBannerByPublicId($publicId);
+            $this->completeBannerMutation($claim, 'content_banner', $publicId, $result);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @return array<string, mixed> */
+    public function deleteManagedBanner(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->uuid($publicId);
+
+        return DB::transaction(function () use (
+            $context,
+            $admin,
+            $idempotencyKey,
+            $publicId
+        ): array {
+            $claim = $this->claimBannerMutation($admin, $idempotencyKey, [
+                'action' => 'banner.delete',
+                'banner_id' => $publicId,
+            ]);
+            if ($claim->replay) {
+                return $this->bannerReplay($claim);
+            }
+            $parent = DB::table('content_banners')->where('public_id', $publicId)
+                ->lockForUpdate()->first();
+            if ($parent === null) {
+                throw $this->notFound('BANNER_NOT_FOUND');
+            }
+            DB::table('content_banners')->where('id', $parent->id)->update([
+                'status' => 'archived',
+                'published_version_id' => null,
+                'updated_at' => now()->startOfSecond(),
+            ]);
+            $result = ['id' => $publicId, 'deleted' => true, 'asset_retained' => true];
+            $this->auditContent('content.banner_archived', $context, 'banner', $publicId, [
+                'asset_retained' => true,
+            ]);
+            $this->completeBannerMutation($claim, 'content_banner', $publicId, $result);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function uploadBannerAsset(
+        V2AdminAuthorizationContext $context,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->assertFields($input, ['file_name', 'mime_type', 'content_base64'], [
+            'file_name', 'mime_type', 'content_base64',
+        ]);
+        $fileName = $this->plainText($input['file_name'], 1, 191);
+        $declaredMime = $this->plainText($input['mime_type'], 1, 128);
+        if (! is_string($input['content_base64'])) {
+            throw $this->invalid('BANNER_ASSET_INVALID');
+        }
+        $bytes = base64_decode($input['content_base64'], true);
+        if (! is_string($bytes) || $bytes === '' || strlen($bytes) > 5 * 1024 * 1024) {
+            throw $this->invalid('BANNER_ASSET_INVALID');
+        }
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        $extensions = [
+            'image/gif' => 'gif',
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+        if (! is_string($mime) || ! isset($extensions[$mime]) || $mime !== $declaredMime) {
+            throw $this->invalid('BANNER_ASSET_INVALID');
+        }
+        $checksum = hash('sha256', $bytes);
+        $storedPath = null;
+
+        try {
+            return DB::transaction(function () use (
+                $context,
+                $admin,
+                $idempotencyKey,
+                $fileName,
+                $mime,
+                $bytes,
+                $checksum,
+                $extensions,
+                &$storedPath
+            ): array {
+                $claim = $this->claimBannerMutation($admin, $idempotencyKey, [
+                    'action' => 'asset.upload',
+                    'file_name' => $fileName,
+                    'mime_type' => $mime,
+                    'checksum_sha256' => $checksum,
+                ]);
+                if ($claim->replay) {
+                    return $this->bannerReplay($claim);
+                }
+                $publicId = (string) Str::uuid7();
+                $storedPath = sprintf(
+                    'admin-assets/top-banner/%s/%s.%s',
+                    now()->format('Y/m'),
+                    $publicId,
+                    $extensions[$mime]
+                );
+                if (! Storage::disk(config('filesystems.default'))->put($storedPath, $bytes, [
+                    'ContentType' => $mime,
+                ])) {
+                    throw new \RuntimeException('Banner asset storage failed.');
+                }
+                $publicPath = '/admin/api/v2/banner-management/assets/'.$publicId.'/content';
+                $now = now()->startOfSecond();
+                DB::table('catalog_presentation_assets')->insert([
+                    'public_id' => $publicId,
+                    'storage_identifier' => $storedPath,
+                    'public_path' => $publicPath,
+                    'checksum_sha256' => $checksum,
+                    'media_type' => 'image',
+                    'mime_type' => $mime,
+                    'byte_size' => strlen($bytes),
+                    'alt_text' => $fileName,
+                    'is_public' => true,
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $result = [
+                    'id' => $publicId,
+                    'public_url' => $publicPath,
+                    'mime_type' => $mime,
+                    'byte_size' => strlen($bytes),
+                ];
+                $this->auditContent('content.banner_asset_uploaded', $context, 'banner_asset', $publicId, [
+                    'checksum_sha256' => $checksum,
+                    'mime_type' => $mime,
+                    'byte_size' => strlen($bytes),
+                ]);
+                $this->completeBannerMutation($claim, 'catalog_presentation_asset', $publicId, $result, 201);
+
+                return [...$result, 'idempotent_replay' => false];
+            }, 3);
+        } catch (\Throwable $exception) {
+            if ($storedPath !== null) {
+                Storage::disk(config('filesystems.default'))->delete($storedPath);
+            }
+            throw $exception;
+        }
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */
@@ -844,6 +1274,18 @@ final class V2ContentContactAdminService
         Admin $admin
     ): array {
         $title = $this->string($input['title'] ?? null, 1, 191);
+        $bannerCategory = null;
+        if ($type === 'banner' && array_key_exists('category_id', $input)) {
+            $categoryPublicId = $this->uuid(
+                $input['category_id'],
+                'BANNER_CATEGORY_INVALID'
+            );
+            $bannerCategory = DB::table('content_banner_categories')
+                ->where('public_id', $categoryPublicId)->first();
+            if ($bannerCategory === null) {
+                throw $this->notFound('BANNER_CATEGORY_NOT_FOUND');
+            }
+        }
         $summary = $this->nullableString($input['summary'] ?? null, 500);
         try {
             $body = $type === 'banner'
@@ -875,11 +1317,13 @@ final class V2ContentContactAdminService
             'is_important' => $important,
             'publish_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z'),
             'publish_end_at' => $end?->utc()->format('Y-m-d\TH:i:s\Z'),
+            'banner_category_id' => $bannerCategory?->public_id,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         $now = now()->startOfSecond();
         $attributes = [
             'public_id' => (string) Str::uuid7(),
             $ownerColumn => $ownerId,
+            'banner_category_id' => $bannerCategory?->id,
             'version_number' => $versionNumber,
             'status' => 'draft',
             'title' => $title,
@@ -921,6 +1365,101 @@ final class V2ContentContactAdminService
             ...$attributes,
             'asset_public_id' => $assetPublicId,
         ], true);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    private function bannerInput(array $input, bool $assetRequired): array
+    {
+        $required = $assetRequired
+            ? ['category_id', 'title', 'asset_id']
+            : ['category_id', 'title'];
+        $this->assertFields($input, ['category_id', 'title', 'asset_id'], $required);
+
+        return [
+            'category_id' => $this->uuid($input['category_id'], 'BANNER_CATEGORY_INVALID'),
+            'title' => $this->plainText($input['title'], 1, 191),
+            'asset_id' => array_key_exists('asset_id', $input) && $input['asset_id'] !== null
+                ? $this->uuid($input['asset_id'], 'BANNER_ASSET_INVALID')
+                : null,
+        ];
+    }
+
+    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    private function bannerVersionInput(array $payload): array
+    {
+        return [
+            'title' => $payload['title'],
+            'category_id' => $payload['category_id'],
+            'asset_id' => $payload['asset_id'],
+            'link_url' => null,
+            'sort_order' => 0,
+            'publish_start_at' => now()->startOfSecond()->toIso8601String(),
+            'publish_end_at' => null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function managedBannerByPublicId(string $publicId): array
+    {
+        $latest = DB::table('content_versions')
+            ->select('banner_id')->selectRaw('MAX(version_number) AS version_number')
+            ->whereNotNull('banner_id')->groupBy('banner_id');
+        $row = DB::table('content_banners as banner')
+            ->joinSub($latest, 'latest_number', function ($join): void {
+                $join->on('latest_number.banner_id', '=', 'banner.id');
+            })
+            ->join('content_versions as version', function ($join): void {
+                $join->on('version.banner_id', '=', 'banner.id')
+                    ->on('version.version_number', '=', 'latest_number.version_number');
+            })
+            ->join('content_banner_categories as category', 'category.id', '=', 'version.banner_category_id')
+            ->join('content_version_assets as link', function ($join): void {
+                $join->on('link.content_version_id', '=', 'version.id')
+                    ->where('link.usage_type', '=', 'image');
+            })
+            ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
+            ->where('banner.public_id', $publicId)
+            ->first([
+                'banner.id as internal_cursor',
+                'banner.public_id',
+                'banner.status',
+                'banner.created_at',
+                'banner.updated_at',
+                'version.public_id as version_public_id',
+                'version.version_number',
+                'version.title',
+                'category.public_id as category_public_id',
+                'category.name as category_name',
+                'asset.public_id as asset_public_id',
+                'asset.public_path as image_url',
+            ]);
+        if ($row === null) {
+            throw $this->notFound('BANNER_NOT_FOUND');
+        }
+
+        return $this->managedBanner($row);
+    }
+
+    /** @return array<string, mixed> */
+    private function managedBanner(object $row): array
+    {
+        return [
+            'id' => $row->public_id,
+            'title' => $row->title,
+            'status' => $row->status,
+            'category' => [
+                'id' => $row->category_public_id,
+                'name' => $row->category_name,
+            ],
+            'asset' => [
+                'id' => $row->asset_public_id,
+                'public_url' => $row->image_url,
+            ],
+            'version_id' => $row->version_public_id,
+            'version_number' => (int) $row->version_number,
+            'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+            'updated_at' => CarbonImmutable::parse($row->updated_at)->toIso8601String(),
+        ];
     }
 
     private function assertPublishable(string $type, object $version): void
@@ -1046,6 +1585,66 @@ final class V2ContentContactAdminService
                 default => $this->invalid('CONTENT_IDEMPOTENCY_KEY_INVALID'),
             };
         }
+    }
+
+    /** @param array<string, mixed> $request */
+    private function claimBannerMutation(
+        Admin $admin,
+        string $idempotencyKey,
+        array $request
+    ): V2IdempotencyClaim {
+        try {
+            return $this->idempotency->claim(
+                'content_banner_mutation',
+                'admin',
+                $admin->public_id,
+                $idempotencyKey,
+                $request
+            );
+        } catch (V2PointException $exception) {
+            throw match ($exception->getMessage()) {
+                'IDEMPOTENCY_KEY_REUSED' => $this->conflict(
+                    'BANNER_IDEMPOTENCY_KEY_REUSED'
+                ),
+                'IDEMPOTENCY_REQUEST_IN_PROGRESS' => new V2ContentContactException(
+                    'BANNER_IDEMPOTENCY_REQUEST_IN_PROGRESS',
+                    409,
+                    'The Banner request is still in progress.',
+                    true
+                ),
+                default => $this->invalid('BANNER_IDEMPOTENCY_KEY_INVALID'),
+            };
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function bannerReplay(V2IdempotencyClaim $claim): array
+    {
+        $data = $claim->record->response_data['data'] ?? null;
+        if (! is_array($data)) {
+            throw new \RuntimeException('Banner replay response is unavailable.');
+        }
+
+        return [...$data, 'idempotent_replay' => true];
+    }
+
+    /** @param array<string, mixed> $result */
+    private function completeBannerMutation(
+        V2IdempotencyClaim $claim,
+        string $resourceType,
+        string $resourcePublicId,
+        array $result,
+        int $status = 200
+    ): void {
+        $this->idempotency->complete(
+            $claim->record,
+            $resourceType,
+            $resourcePublicId,
+            ['data' => $result]
+        );
+        DB::table('idempotency_records')->where('id', $claim->record->id)->update([
+            'response_status' => $status,
+        ]);
     }
 
     /** @param array<string, mixed> $request */
@@ -1210,6 +1809,49 @@ final class V2ContentContactAdminService
         }
 
         return $value;
+    }
+
+    /**
+     * @param list<string> $allowed
+     * @param list<string> $required
+     * @param array<string, mixed> $input
+     */
+    private function assertFields(array $input, array $allowed, array $required): void
+    {
+        if (
+            array_diff(array_keys($input), $allowed) !== []
+            || array_diff($required, array_keys($input)) !== []
+        ) {
+            throw $this->invalid();
+        }
+    }
+
+    private function uuid(mixed $value, string $code = 'CONTENT_REQUEST_INVALID'): string
+    {
+        if (! is_string($value) || ! Str::isUuid($value)) {
+            throw $this->invalid($code);
+        }
+
+        return $value;
+    }
+
+    private function plainText(mixed $value, int $min, int $max): string
+    {
+        if (! is_string($value) || ! class_exists(Normalizer::class)) {
+            throw $this->invalid();
+        }
+        $normalized = Normalizer::normalize(trim($value), Normalizer::FORM_C);
+        if (
+            ! is_string($normalized)
+            || mb_strlen($normalized) < $min
+            || mb_strlen($normalized) > $max
+            || preg_match('/[<>]/u', $normalized) === 1
+            || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $normalized) === 1
+        ) {
+            throw $this->invalid();
+        }
+
+        return $normalized;
     }
 
     private function string(mixed $value, int $min, int $max): string

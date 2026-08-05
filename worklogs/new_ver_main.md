@@ -8020,3 +8020,16 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration 33件、PostgreSQL／Redis、Environment Key集合、固定IP、Nginx checksum、V1、Storefrontは非変更。Required ChecksとCloseoutはFinal Headで確定する。
 - GitHub Integration Gateが検出した取得不能な`linux-libc-dev=6.1.177-1`固定を、現在のBookworm Security正本`6.1.180-1`へ補正した。Policy追加はDockerfile 1 Pathだけで、API Image Healthを再確認した。
 - 後続Integration Gateで、100,000件Contact Performance Fixtureが暗号化Columnへ平文を投入していた不整合を検出した。当該Test 1 PathだけをPolicyへ追加し、有効な暗号文Fixtureへ補正した。1 test／31 assertions、一覧p95 12.427 ms、Concurrent 10/10、N+1なしでPASSした。
+
+# MIG-061P バナー管理
+
+- Issue #200、Branch `feat/MIG-061P-banner-management`、Risk R3、Verification `FAST-TRACK-FEATURE`で開始した。
+- 既存Content／Asset基盤を再利用し、カテゴリ作成、画像Upload、バナーCRUD、Server-side Filter、Cursor Paginationを実装した。
+- Migration 000034でBanner CategoryとContent Version relationを追加した。Version／共有Assetは物理削除せず、削除はArchiveと公開Pointer解除で扱う。
+- Task DBでBackend 3 tests／33 assertions、Admin Unit 3件、Desktop／Mobile E2E 2件、Typecheck／Lint／BuildがPASSした。Preview反映とCloseoutは最終Headで実施する。
+
+### MIG-061P Preview
+
+- Application Head `ed99068412fbac68d484634dc7b4aeda923b44a7`からPreview APIを`sha256:4b528540...`、Adminを`sha256:8afac4e4...`へ更新し、DBへ000034だけを適用した。
+- Owner Login、カテゴリ1件、Synthetic Banner 1件、画像Content、Filter、HealthがPASSした。Console／Page ErrorとHTTP 500／502／504は0。
+- Preview Networkは途中のone-shot Compose競合後に元の`192.168.61.0/24`と固定IP／service aliasへ復旧し、Container／Domain Healthを再確認した。PostgreSQL／Redis設定、Nginx、V1、Storefrontは非変更。

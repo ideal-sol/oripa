@@ -81,6 +81,11 @@ import {
   type AdminAuthenticationPolicyResponse,
   type AdminAuthenticationPolicyUpdate,
   type AdminAuthenticationPolicyMutationResult,
+  type AdminBannerAssetMutationResult,
+  type AdminBannerAssetUpload,
+  type AdminBannerCategoryCollection,
+  type AdminBannerCategoryCreate,
+  type AdminBannerCategoryMutationResult,
   type AdminAccountCreate,
   type AdminAccountCreateResponse,
   type AdminEnrollmentResult,
@@ -90,6 +95,11 @@ import {
   type AdminLineMessagingSettingResponse,
   type AdminLineMessagingSettingUpdate,
   type AdminMfaVerifyRequest,
+  type AdminManagedBannerCollection,
+  type AdminManagedBannerCreate,
+  type AdminManagedBannerDeleteResult,
+  type AdminManagedBannerMutationResult,
+  type AdminManagedBannerUpdate,
   type AdminQaMutationResult,
   type AdminQaPlanCollection,
   type AdminQaPlanCreate,
@@ -154,6 +164,11 @@ export interface AdminContactQuery {
   cursor?: string;
   email?: string;
   status?: AdminContactStatus;
+}
+
+export interface AdminBannerQuery {
+  category_id?: string;
+  cursor?: string;
 }
 
 export type AdminCatalogResource =
@@ -321,6 +336,112 @@ export class AdminApiClient {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/content/notices?${query.toString()}`, { signal });
+  }
+
+  listBannerCategories(
+    signal?: AbortSignal,
+  ): Promise<AdminBannerCategoryCollection> {
+    return this.request("GET", "/banner-management/categories", { signal });
+  }
+
+  createBannerCategory(
+    body: AdminBannerCategoryCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminBannerCategoryMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "BANNER_IDEMPOTENCY_KEY_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", "/banner-management/categories", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  uploadBannerAsset(
+    body: AdminBannerAssetUpload,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminBannerAssetMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "BANNER_IDEMPOTENCY_KEY_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", "/banner-management/assets", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  listManagedBanners(
+    query: AdminBannerQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminManagedBannerCollection> {
+    const parameters = new URLSearchParams({ limit: "20" });
+    if (query.category_id) parameters.set("category_id", query.category_id);
+    if (query.cursor) parameters.set("cursor", query.cursor);
+    return this.request(
+      "GET",
+      `/banner-management/banners?${parameters.toString()}`,
+      { signal },
+    );
+  }
+
+  createManagedBanner(
+    body: AdminManagedBannerCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedBannerMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "BANNER_IDEMPOTENCY_KEY_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", "/banner-management/banners", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  updateManagedBanner(
+    id: string,
+    body: AdminManagedBannerUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedBannerMutationResult> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "BANNER_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "PUT",
+      `/banner-management/banners/${encodeURIComponent(id)}`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  deleteManagedBanner(
+    id: string,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedBannerDeleteResult> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "BANNER_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "DELETE",
+      `/banner-management/banners/${encodeURIComponent(id)}`,
+      { body: {}, idempotencyKey, signal },
+    );
   }
 
   getContentNotice(
@@ -2078,9 +2199,10 @@ export class AdminApiClient {
   }
 
   private async request<T>(
-    method: "GET" | "POST" | "PUT",
+    method: "DELETE" | "GET" | "POST" | "PUT",
     path:
       | `/auth/${string}`
+      | `/banner-management/${string}`
       | `/catalog/${string}`
       | `/contact-inquiries${string}`
       | `/content/${string}`
@@ -2093,6 +2215,7 @@ export class AdminApiClient {
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
+        !path.startsWith("/banner-management/") &&
         !path.startsWith("/catalog/") &&
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&

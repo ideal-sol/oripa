@@ -508,6 +508,10 @@ V2_REPORTING_REQUIRED_FILES = {
     "openapi/admin/openapi.yaml",
     "openapi/bundled/admin.openapi.json",
 }
+MIG_061P_V2_CONTENT_FILES = {
+    "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
+    "apps/api/tests/V2/AdminBannerManagementTest.php",
+}
 V2_CONTENT_CONTACT_REQUIRED_FILES = {
     "apps/api/app/Domain/ContentContact/Exceptions/V2ContentContactException.php",
     "apps/api/app/Domain/ContentContact/Services/V2ContentCursor.php",
@@ -535,6 +539,7 @@ V2_CONTENT_CONTACT_REQUIRED_FILES = {
     "openapi/public/openapi.yaml",
     "packages/storefront-client/src/content-contact.ts",
     "packages/storefront-testkit/src/fixtures.ts",
+    *MIG_061P_V2_CONTENT_FILES,
 }
 LEGACY_FRONTEND_REQUIRED_FILES = {
     "legacy/v1-frontend/.env.example",
@@ -610,6 +615,11 @@ MIG_061O_ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/contacts/[contactPublicId]/page.tsx",
     "apps/admin/src/components/contacts/contact-management-workspace.tsx",
     "apps/admin/test/admin-contact-management.test.tsx",
+}
+MIG_061P_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-banner-management.spec.ts",
+    "apps/admin/src/components/banners/banner-management-workspace.tsx",
+    "apps/admin/test/admin-banner-management.test.tsx",
 }
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
@@ -720,6 +730,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061M_ADMIN_SKELETON_FILES,
     *MIG_061N_ADMIN_SKELETON_FILES,
     *MIG_061O_ADMIN_SKELETON_FILES,
+    *MIG_061P_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2047,6 +2058,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_18_000031_add_display_name_to_v2_users.php",
         "2026_08_19_000032_add_v2_gacha_core_management_fields.php",
         "2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
+        "2026_08_21_000034_add_v2_banner_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

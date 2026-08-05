@@ -3795,6 +3795,372 @@
         }
       }
     },
+    "/banner-management/categories": {
+      "get": {
+        "operationId": "listAdminBannerCategories",
+        "summary": "バナーカテゴリ一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "バナーカテゴリ一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerCategoryCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminBannerCategory",
+        "summary": "バナーカテゴリを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBannerCategoryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成したカテゴリ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerCategoryMutationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/assets": {
+      "post": {
+        "operationId": "uploadAdminBannerAsset",
+        "summary": "バナー画像を既存Asset基盤へ登録する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBannerAssetUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "登録した公開画像Asset。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerAssetMutationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/assets/{asset_id}/content": {
+      "get": {
+        "operationId": "showAdminBannerAssetContent",
+        "summary": "Public IDでバナー画像本体を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "バナー画像本体。",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/banners": {
+      "get": {
+        "operationId": "listManagedAdminBanners",
+        "summary": "管理用バナー一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理用バナー一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedBannerCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createManagedAdminBanner",
+        "summary": "管理用バナーを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminManagedBannerCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成したバナー。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedBannerMutationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/banners/{banner_id}": {
+      "put": {
+        "operationId": "updateManagedAdminBanner",
+        "summary": "管理用バナーを編集する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "banner_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminManagedBannerUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したバナー。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedBannerMutationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteManagedAdminBanner",
+        "summary": "バナーを論理削除しVersionとAssetを保持する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "banner_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "論理削除結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedBannerDeleteResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/content/banners": {
       "get": {
         "operationId": "listAdminContentBanners",
@@ -12726,6 +13092,314 @@
             }
           }
         ]
+      },
+      "AdminBannerCategory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminBannerCategoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminBannerCategory"
+            }
+          }
+        }
+      },
+      "AdminBannerCategoryCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "AdminBannerCategoryMutationResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminBannerCategory"
+          },
+          {
+            "type": "object",
+            "required": [
+              "idempotent_replay"
+            ],
+            "properties": {
+              "idempotent_replay": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "AdminBannerAssetUpload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file_name",
+          "mime_type",
+          "content_base64"
+        ],
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "mime_type": {
+            "type": "string",
+            "enum": [
+              "image/gif",
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "format": "byte",
+            "maxLength": 6990508
+          }
+        }
+      },
+      "AdminBannerAssetMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "public_url",
+          "mime_type",
+          "byte_size",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "public_url": {
+            "type": "string",
+            "pattern": "^/admin/api/assets/"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "byte_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5242880
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminManagedBannerInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category_id",
+          "title"
+        ],
+        "properties": {
+          "category_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminManagedBannerCreate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminManagedBannerInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "asset_id"
+            ]
+          }
+        ]
+      },
+      "AdminManagedBannerUpdate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminManagedBannerInput"
+          }
+        ]
+      },
+      "AdminManagedBanner": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "status",
+          "category",
+          "asset",
+          "version_id",
+          "version_number",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/AdminBannerCategory"
+          },
+          "asset": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "public_url"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "public_url": {
+                "type": "string"
+              }
+            }
+          },
+          "version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminManagedBannerMutationResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminManagedBanner"
+          },
+          {
+            "type": "object",
+            "required": [
+              "idempotent_replay"
+            ],
+            "properties": {
+              "idempotent_replay": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "AdminManagedBannerCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminManagedBanner"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminManagedBannerDeleteResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "deleted",
+          "asset_retained",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true
+          },
+          "asset_retained": {
+            "type": "boolean",
+            "const": true
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          }
+        }
       },
       "AdminContentSummary": {
         "type": "object",

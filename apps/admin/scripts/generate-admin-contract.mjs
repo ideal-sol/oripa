@@ -46,6 +46,14 @@ const operations = {
     "/reports/dashboard/reversals",
   ],
   listAdminContentNotices: ["get", "/content/notices"],
+  listAdminBannerCategories: ["get", "/banner-management/categories"],
+  createAdminBannerCategory: ["post", "/banner-management/categories"],
+  uploadAdminBannerAsset: ["post", "/banner-management/assets"],
+  showAdminBannerAssetContent: ["get", "/banner-management/assets/{asset_id}/content"],
+  listManagedAdminBanners: ["get", "/banner-management/banners"],
+  createManagedAdminBanner: ["post", "/banner-management/banners"],
+  updateManagedAdminBanner: ["put", "/banner-management/banners/{banner_id}"],
+  deleteManagedAdminBanner: ["delete", "/banner-management/banners/{banner_id}"],
   createAdminContentNotice: ["post", "/content/notices"],
   previewAdminContentNotice: ["post", "/content/notices/preview"],
   getAdminContentNotice: ["get", "/content/notices/{content_id}"],
@@ -368,6 +376,16 @@ const requiredSchemas = [
   "DashboardMonthlyPointReport",
   "DashboardDailyPointReport",
   "DashboardReversalReport",
+  "AdminBannerCategoryCollection",
+  "AdminBannerCategoryCreate",
+  "AdminBannerCategoryMutationResult",
+  "AdminBannerAssetUpload",
+  "AdminBannerAssetMutationResult",
+  "AdminManagedBannerCreate",
+  "AdminManagedBannerUpdate",
+  "AdminManagedBannerMutationResult",
+  "AdminManagedBannerCollection",
+  "AdminManagedBannerDeleteResult",
   "AdminContentCollection",
   "AdminContentDetail",
   "AdminContentPreview",
@@ -1820,6 +1838,78 @@ export interface AdminCatalogProbabilityEntriesReplace {
 
 export interface AdminCatalogArchiveRequest {
   expected_revision: number;
+}
+
+export interface AdminBannerCategory {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface AdminBannerCategoryCollection {
+  items: AdminBannerCategory[];
+}
+
+export interface AdminBannerCategoryCreate {
+  name: string;
+}
+
+export interface AdminBannerCategoryMutationResult extends AdminBannerCategory {
+  idempotent_replay: boolean;
+}
+
+export interface AdminBannerAssetUpload {
+  file_name: string;
+  mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  content_base64: string;
+}
+
+export interface AdminBannerAssetMutationResult {
+  id: string;
+  public_url: string;
+  mime_type: string;
+  byte_size: number;
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedBannerInput {
+  category_id: string;
+  title: string;
+  asset_id?: string | null;
+}
+
+export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
+  asset_id: string;
+}
+
+export type AdminManagedBannerUpdate = AdminManagedBannerInput;
+
+export interface AdminManagedBanner {
+  id: string;
+  title: string;
+  status: "draft" | "published";
+  category: AdminBannerCategory;
+  asset: { id: string; public_url: string };
+  version_id: string;
+  version_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminManagedBannerMutationResult extends AdminManagedBanner {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedBannerCollection {
+  items: AdminManagedBanner[];
+  next_cursor: string | null;
+}
+
+export interface AdminManagedBannerDeleteResult {
+  id: string;
+  deleted: true;
+  asset_retained: true;
+  idempotent_replay: boolean;
 }
 
 export interface AdminContentVersionInput {
