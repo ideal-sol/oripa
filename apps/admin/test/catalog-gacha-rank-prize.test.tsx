@@ -34,7 +34,7 @@ describe("Gacha Rank and Prize manager", () => {
     expect(await screen.findByRole("heading", { name: "ランク／景品管理" })).toBeVisible();
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(headers).toEqual([
-      "ID", "ランク", "景品名", "サムネイル", "総在庫数", "現在個数",
+      "ランク", "景品名", "サムネイル", "総在庫数", "現在個数",
       "交換ポイント", "状態", "登録日", "編集",
     ]);
     expect(screen.getByText("7")).toBeVisible();

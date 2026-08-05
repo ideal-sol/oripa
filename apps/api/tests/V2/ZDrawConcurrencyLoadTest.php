@@ -372,10 +372,17 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $baseVersion = $fixture['versions'][0];
         $baseRelations = $fixture['gacha_prizes'];
         $baseProbability = $fixture['probability_versions'][0];
+        $cloneRecordCount = 3
+            + (count($baseGacha['tag_codes']) * 2)
+            + count($baseRelations);
+        foreach ($baseProbability['stages'] as $stage) {
+            $cloneRecordCount += count($stage['entries']) + 2;
+        }
         for ($number = 2; $number <= $count; $number++) {
             $code = "fixture-catalog-{$number}";
             $gacha = $baseGacha;
             $gacha['public_id'] = $this->uuid($number, 11);
+            $gacha['public_code'] = sprintf('Load%07d', $number);
             $gacha['code'] = $code;
             $gacha['slug'] = $code;
             $fixture['gachas'][] = $gacha;
@@ -399,7 +406,12 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             unset($stage);
             $fixture['probability_versions'][] = $probability;
         }
-        $fixture['expected_record_count'] = 28 + (($count - 1) * 16);
+        $publicCodes = array_column($fixture['gachas'], 'public_code');
+        self::assertCount($count, array_unique($publicCodes));
+        foreach ($publicCodes as $publicCode) {
+            self::assertMatchesRegularExpression('/\A[A-Za-z0-9]{11}\z/', $publicCode);
+        }
+        $fixture['expected_record_count'] += ($count - 1) * $cloneRecordCount;
         app(V2CatalogFixtureImporter::class)->import($fixture);
 
         return array_column($fixture['gachas'], 'public_id');

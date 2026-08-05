@@ -203,6 +203,7 @@ final class V2CatalogFixtureImporter
         foreach ($manifest['gachas'] as $gacha) {
             $gachaId = DB::table('catalog_gachas')->insertGetId([
                 'public_id' => $gacha['public_id'],
+                'public_code' => $gacha['public_code'],
                 'code' => $gacha['code'],
                 'slug' => $gacha['slug'],
                 'category_id' => $this->id(
@@ -228,6 +229,8 @@ final class V2CatalogFixtureImporter
             DB::table('catalog_gacha_versions')->insert([
                 'public_id' => $version['public_id'],
                 'gacha_id' => $this->id('catalog_gachas', 'code', $version['gacha_code']),
+                'category_id' => DB::table('catalog_gachas')
+                    ->where('code', $version['gacha_code'])->value('category_id'),
                 'version_number' => $version['version_number'],
                 'status' => 'draft',
                 'title' => $version['title'],
@@ -248,6 +251,18 @@ final class V2CatalogFixtureImporter
                 'updated_at' => $now,
             ]);
             $count++;
+            $versionId = $this->gachaVersionId(
+                $version['gacha_code'],
+                $version['version_number']
+            );
+            $gachaId = $this->id('catalog_gachas', 'code', $version['gacha_code']);
+            foreach (DB::table('catalog_gacha_tags')->where('gacha_id', $gachaId)->pluck('tag_id') as $tagId) {
+                DB::table('catalog_gacha_version_tags')->insert([
+                    'gacha_version_id' => $versionId,
+                    'tag_id' => $tagId,
+                ]);
+                $count++;
+            }
         }
         foreach ($manifest['gacha_prizes'] as $relation) {
             DB::table('catalog_gacha_version_prizes')->insert([

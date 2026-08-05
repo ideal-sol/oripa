@@ -54,6 +54,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.catalog_gacha_tags",
     "public.catalog_gacha_version_prizes",
     "public.catalog_gacha_version_ranks",
+    "public.catalog_gacha_version_tags",
     "public.catalog_gacha_versions",
     "public.catalog_gachas",
     "public.catalog_import_runs",

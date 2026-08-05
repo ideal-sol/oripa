@@ -174,6 +174,7 @@ const operations = {
   listAdminCatalogGachas: ["get", "/catalog/gachas"],
   createAdminCatalogGacha: ["post", "/catalog/gachas"],
   createAdminCatalogGachaCore: ["post", "/catalog/gachas/core"],
+  uploadAdminGachaThumbnail: ["post", "/catalog/gacha-thumbnails"],
   getAdminCatalogGacha: ["get", "/catalog/gachas/{gacha_id}"],
   listAdminGachaUsageHistory: [
     "get",
@@ -462,6 +463,7 @@ const requiredSchemas = [
   "AdminCatalogGachaCreate",
   "AdminCatalogGachaCoreCreate",
   "AdminCatalogGachaUpdate",
+  "AdminGachaThumbnailUpload",
   "AdminCatalogGachaMutationResult",
   "AdminCatalogGachaCollection",
   "AdminGachaUsageHistoryCollection",
@@ -1365,10 +1367,12 @@ export interface AdminCatalogGachaCoreVersion {
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;
+  revision?: number;
 }
 
 export interface AdminCatalogGacha {
   id: string;
+  public_code?: string;
   code: string;
   slug: string;
   state: "draft" | "active" | "disabled";
@@ -1486,8 +1490,25 @@ export interface AdminCatalogGachaCoreCreate {
 
 export interface AdminCatalogGachaUpdate {
   expected_revision: number;
+  expected_version_revision?: number;
+  title?: string;
   category_id: string;
   tag_ids: string[];
+  price_points?: number;
+  total_count?: number;
+  daily_draw_limit?: number;
+  audience_code?: "all_users" | "first_time_users" | "line_users";
+  presentation_asset_id?: string;
+  publish_start_at?: string;
+  publish_end_at?: string | null;
+  description?: string | null;
+  notices?: string | null;
+}
+
+export interface AdminGachaThumbnailUpload {
+  file_name: string;
+  mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  content_base64: string;
 }
 
 export interface AdminCatalogGachaVersionPrizeInput {

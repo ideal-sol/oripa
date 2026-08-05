@@ -57,6 +57,7 @@ import {
   type AdminGachaImmediatePublishRequest,
   type AdminGachaUsageHistoryCollection,
   type AdminGachaUsageHistoryDetailResponse,
+  type AdminGachaThumbnailUpload,
   type AdminGachaVersionPrizeCollection,
   type AdminGachaVersionPrizeCreate,
   type AdminGachaVersionPrizeUpdate,
@@ -928,7 +929,7 @@ export class AdminApiClient {
     cursor?: string | null,
     signal?: AbortSignal,
   ): Promise<AdminGachaUsageHistoryCollection> {
-    if (!isOpaqueId(gachaId)) {
+    if (!isGachaIdentifier(gachaId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -947,7 +948,7 @@ export class AdminApiClient {
     drawRequestId: string,
     signal?: AbortSignal,
   ): Promise<AdminGachaUsageHistoryDetailResponse> {
-    if (!isOpaqueId(gachaId) || !isOpaqueId(drawRequestId)) {
+    if (!isGachaIdentifier(gachaId) || !isOpaqueId(drawRequestId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -977,6 +978,23 @@ export class AdminApiClient {
       "/catalog/gachas/core",
       { body, idempotencyKey, signal },
     );
+  }
+
+  uploadGachaThumbnail(
+    body: AdminGachaThumbnailUpload,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPresentationAsset>> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("POST", "/catalog/gacha-thumbnails", {
+      body,
+      idempotencyKey,
+      signal,
+    });
   }
 
   updateCatalogGacha(
@@ -1010,7 +1028,7 @@ export class AdminApiClient {
     versionId: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminCatalogGachaVersion>> {
-    if (!isOpaqueId(gachaId) || !isOpaqueId(versionId)) {
+    if (!isGachaIdentifier(gachaId) || !isOpaqueId(versionId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -1251,7 +1269,7 @@ export class AdminApiClient {
     gachaId: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminGachaPublishState>> {
-    if (!isOpaqueId(gachaId)) {
+    if (!isGachaIdentifier(gachaId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -1267,7 +1285,7 @@ export class AdminApiClient {
     gachaId: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminGachaSalesState>> {
-    if (!isOpaqueId(gachaId)) {
+    if (!isGachaIdentifier(gachaId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -1355,7 +1373,7 @@ export class AdminApiClient {
     gachaId: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminGachaUnpublishState>> {
-    if (!isOpaqueId(gachaId)) {
+    if (!isGachaIdentifier(gachaId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -2032,7 +2050,7 @@ export class AdminApiClient {
     id: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<T>> {
-    if (!isOpaqueId(id)) {
+    if (!(resource === "gachas" ? isGachaIdentifier(id) : isOpaqueId(id))) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -2050,7 +2068,10 @@ export class AdminApiClient {
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<TResult>> {
-    if ((id !== null && !isOpaqueId(id)) || !isIdempotencyKey(idempotencyKey)) {
+    if (
+      (id !== null && !(resource === "gachas" ? isGachaIdentifier(id) : isOpaqueId(id))) ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
       return Promise.reject(
         new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
       );
@@ -2074,7 +2095,7 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<TResult> {
     if (
-      !isOpaqueId(gachaId) ||
+      !isGachaIdentifier(gachaId) ||
       !isOpaqueId(versionId) ||
       (resourceId !== null && !isOpaqueId(resourceId)) ||
       (method !== "GET" && (idempotencyKey === null || !isIdempotencyKey(idempotencyKey)))
@@ -2099,7 +2120,7 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<TResult>> {
     if (
-      !isOpaqueId(id) ||
+      !(resource === "gachas" ? isGachaIdentifier(id) : isOpaqueId(id)) ||
       !Number.isSafeInteger(expectedRevision) ||
       expectedRevision < 1 ||
       !isIdempotencyKey(idempotencyKey)
@@ -2120,7 +2141,7 @@ export class AdminApiClient {
     query: AdminCatalogQuery,
     signal?: AbortSignal,
   ): Promise<AdminCatalogCollection<T>> {
-    if (!isOpaqueId(gachaId)) {
+    if (!isGachaIdentifier(gachaId)) {
       return Promise.reject(
         new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
       );
@@ -2147,7 +2168,7 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<AdminCatalogGachaVersion>> {
     if (
-      !isOpaqueId(gachaId) ||
+      !isGachaIdentifier(gachaId) ||
       (versionId !== null && !isOpaqueId(versionId)) ||
       !isIdempotencyKey(idempotencyKey)
     ) {
@@ -2179,7 +2200,7 @@ export class AdminApiClient {
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<TResult>> {
-    if (!isOpaqueId(gachaId) || !isIdempotencyKey(idempotencyKey)) {
+    if (!isGachaIdentifier(gachaId) || !isIdempotencyKey(idempotencyKey)) {
       return Promise.reject(
         new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
       );
@@ -2197,7 +2218,7 @@ export class AdminApiClient {
     probabilityVersionId?: string,
   ): `/catalog/${string}` | null {
     if (
-      !isOpaqueId(gachaId) ||
+      !isGachaIdentifier(gachaId) ||
       !isOpaqueId(gachaVersionId) ||
       (probabilityVersionId !== undefined && !isOpaqueId(probabilityVersionId))
     ) {
@@ -2215,7 +2236,7 @@ export class AdminApiClient {
     gachaId: string,
     gachaVersionId: string,
   ): `/catalog/${string}` | null {
-    if (!isOpaqueId(gachaId) || !isOpaqueId(gachaVersionId)) {
+    if (!isGachaIdentifier(gachaId) || !isOpaqueId(gachaVersionId)) {
       return null;
     }
     return (
@@ -2378,6 +2399,10 @@ function isOpaqueId(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+function isGachaIdentifier(value: string): boolean {
+  return /^[A-Za-z0-9]{11}$/.test(value) || isOpaqueId(value);
 }
 
 function isIdempotencyKey(value: string): boolean {

@@ -11,6 +11,7 @@ use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Http\Responses\V2ProblemDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 
 final class V2AdminCatalogController
@@ -206,6 +207,56 @@ final class V2AdminCatalogController
                     $request->json()->all()
                 )
         );
+    }
+
+    public function uploadGachaThumbnail(Request $request): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->uploadGachaThumbnail(
+                    $context,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function presentationAssetContent(
+        Request $request,
+        string $catalogResourceId
+    ): Response|JsonResponse {
+        try {
+            $context = $this->authorizer->context($request, $this->requestId($request));
+            $asset = $this->catalog->presentationAssetContent($context, $catalogResourceId);
+
+            return response($asset['content'], 200, [
+                'Content-Type' => $asset['mime_type'],
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $context->requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        } catch (V2AuthenticationException $exception) {
+            return V2ProblemDetails::fromAuthentication($request, $exception);
+        } catch (V2CatalogException $exception) {
+            $requestId = $this->requestId($request);
+
+            return response()->json([
+                'type' => 'https://oripa.example/problems/'
+                    .strtolower($exception->errorCode),
+                'title' => $exception->getMessage(),
+                'status' => $exception->status,
+                'code' => $exception->errorCode,
+                'request_id' => $requestId,
+                'retryable' => false,
+            ], $exception->status, [
+                'Content-Type' => 'application/problem+json',
+                'Cache-Control' => 'private, no-store',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        }
     }
 
     public function updateGacha(Request $request, string $gachaId): JsonResponse

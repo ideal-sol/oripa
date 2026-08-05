@@ -204,10 +204,9 @@ export function CatalogGachaRankPrizeManager({
       {prizes.length > 0 ? (
         <div className="catalog-table-wrap">
           <table className="catalog-table">
-            <thead><tr><th>ID</th><th>ランク</th><th>景品名</th><th>サムネイル</th><th>総在庫数</th><th>現在個数</th><th>交換ポイント</th><th>状態</th><th>登録日</th><th>編集</th></tr></thead>
+            <thead><tr><th>ランク</th><th>景品名</th><th>サムネイル</th><th>総在庫数</th><th>現在個数</th><th>交換ポイント</th><th>状態</th><th>登録日</th><th>編集</th></tr></thead>
             <tbody>{prizes.map((prize) => (
               <tr key={prize.id}>
-                <td><code>{prize.id}</code></td>
                 <td>{prize.rank.name}</td>
                 <td>{prize.name}</td>
                 <td><PublicAssetPreview asset={prize.presentation_asset} /></td>

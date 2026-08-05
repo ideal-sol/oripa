@@ -15,7 +15,10 @@ const TAG_ID = "01910191-0191-7191-8191-019101910192";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910193";
 const ASSET_ID = "01910191-0191-7191-8191-019101910194";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("Admin Gacha Draft management", () => {
   it("registers Gacha as a stable Catalog section", () => {
@@ -62,7 +65,6 @@ describe("Admin Gacha Draft management", () => {
 
   it("creates only a Draft core with audience and daily limit fields", async () => {
     mockMasterSelections();
-    mockVersionSelections();
     const submit = vi.fn().mockResolvedValue(undefined);
     render(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
 
@@ -73,8 +75,9 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("カテゴリ"), {
       target: { value: CATEGORY_ID },
     });
-    fireEvent.change(screen.getByLabelText("サムネイル"), {
-      target: { value: ASSET_ID },
+    const thumbnail = new File(["thumbnail"], "gacha.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/サムネイル画像/u), {
+      target: { files: [thumbnail] },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Featured" }));
     fireEvent.change(screen.getByLabelText("消費ポイント"), {
@@ -96,7 +99,9 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("終了日時（Asia/Tokyo）"), {
       target: { value: "2026-09-20T09:00" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "下書きを登録" }));
+    fireEvent.submit(
+      screen.getByRole("button", { name: "下書きを登録" }).closest("form")!,
+    );
 
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledWith(
@@ -104,15 +109,43 @@ describe("Admin Gacha Draft management", () => {
         audienceCode: "line_users",
         categoryId: CATEGORY_ID,
         dailyDrawLimit: 10,
-        presentationAssetId: ASSET_ID,
+        presentationAssetId: null,
         pricePoints: 200,
         tagIds: [TAG_ID],
         title: "新しいガチャ",
+        thumbnailFile: thumbnail,
         totalCount: 500,
       }),
     );
     expect(screen.getByLabelText("状態")).toHaveValue("下書き");
     expect(screen.queryByRole("button", { name: /公開/u })).not.toBeInTheDocument();
+  });
+
+  it("keeps the current thumbnail when editing without a new file", async () => {
+    mockMasterSelections();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CatalogGachaCoreForm
+        current={gachaFixture()}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByAltText("現在のサムネイル")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
+      target: { value: "編集後ガチャ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "編集Draftへ保存" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      presentationAssetId: ASSET_ID,
+      thumbnailFile: null,
+      title: "編集後ガチャ",
+    }));
   });
 
   it("submits a typed Draft Version without Probability mutation fields", async () => {
@@ -272,4 +305,48 @@ function mockVersionSelections() {
     ],
     next_cursor: null,
   });
+}
+
+function gachaFixture() {
+  return {
+    archived_at: null,
+    category: { code: "category-a", id: CATEGORY_ID, name: "Category A" },
+    code: "gacha-code",
+    created_at: "2026-08-01T00:00:00Z",
+    current_version: {
+      audience_code: "all_users" as const,
+      daily_draw_limit: 0,
+      description: "説明",
+      id: "01910191-0191-7191-8191-019101910199",
+      notices: "注意",
+      presentation_asset: {
+        alt_text: "現在のサムネイル",
+        id: ASSET_ID,
+        is_public: true,
+        media_type: "image" as const,
+        mime_type: "image/png",
+        public_path: "/admin/api/v2/catalog/presentation-assets/asset/content",
+      },
+      price_points: 100,
+      publish_end_at: null,
+      publish_start_at: "2026-08-20T00:00:00Z",
+      revision: 1,
+      status: "draft" as const,
+      title: "編集前ガチャ",
+      total_count: 100,
+      version_number: 1,
+    },
+    has_draw_history: false,
+    id: "01910191-0191-7191-8191-019101910198",
+    is_archived: false,
+    public_code: "A7k9P2x4Qm8",
+    published_version: null,
+    revision: 1,
+    slug: "gacha-code",
+    sold_count: 0,
+    state: "draft" as const,
+    tags: [{ code: "featured", id: TAG_ID, name: "Featured" }],
+    updated_at: "2026-08-01T00:00:00Z",
+    version_count: 1,
+  };
 }

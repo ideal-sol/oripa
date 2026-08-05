@@ -20,6 +20,22 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061r_gacha_master_edit_path_registration_is_exact(self):
+        expected_catalog = {
+            "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",
+            "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
+            "apps/api/tests/V2/AdminGachaMasterEditTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-gacha-master-edit.spec.ts",
+            "apps/admin/src/app/gachas/[gachaPublicCode]/edit/page.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_061R_V2_CATALOG_FILES, expected_catalog)
+        self.assertTrue(expected_catalog.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061R_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
+
     def test_mig_061q_page_path_registration_is_exact(self):
         expected_content = {
             "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
@@ -620,6 +636,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
             "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
             "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
+            "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

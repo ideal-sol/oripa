@@ -8040,6 +8040,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task DBでMigration fresh／rollback／reapply、Backend 3 tests／23 assertions、Admin Unit 116 tests、Desktop／Mobile E2E 2件、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
 - Preview反映、Required Checks、Closeoutは最終Headで確定する。Gate G4／G5は`NOT COMPLETE`、MIG-061Rは開始しない。
 
+# MIG-061R ガチャMaster編集・11文字Public ID・詳細UI調整
+
+- Issue #204、Branch `feat/MIG-061R-gacha-master-edit`、Risk R3、Verification `TARGETED-DOMAIN-MIGRATION`で開始した。
+- Master編集専用Route、全基本項目のDraft編集、CSPRNG英数字11文字Public ID、Legacy UUID互換Resolverを実装した。
+- 新規／編集共通の直接Thumbnail Uploadを実装し、Banner API／Category／Relationには依存しない。画像未選択時は既存Assetを維持し、差し替え時も旧Assetを即時削除しない。
+- Task DBでMigration fresh／rollback／reapply、Backend 37 tests／400 assertions、Admin Unit 9 tests、Desktop／Mobile E2E 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality／DB GuardがPASSした。
+- Preview反映、Required Checks、Closeoutは最終Headで確定する。Gate G4／G5は`NOT COMPLETE`を維持する。
+
 ### MIG-061Q Preview
 
 - Application Head `78ad60136c4919e2505117ab786e02d614d45cfc`からPreview APIを
@@ -8048,3 +8056,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Console／Page ErrorとHTTP 500／502／504は0で、Synthetic Dataはカテゴリ1件、ページ1件に限定した。
 - Migration 35件、DB Target Guard、API／Admin HealthがPASSした。既存Data、PostgreSQL／Redis設定、Network／固定IP、
   Nginx checksum、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。
+
+### MIG-061R Preview
+
+- Application Head `a9ae8c6944622bf6c491a8deba6a83cf6f8c63ed`からPreview APIを`sha256:282878b1...`、Adminを最終`sha256:0de7ad66...`へ更新し、DBへMigration 000036だけを適用した。
+- DB Target Guard、Migration 36件、既存Gacha 1件の11文字Public ID Backfill、Legacy UUID互換、保護Trigger有効を確認した。既存Data、固定IP、Network、Restart Policy、Environment Key集合を維持した。
+- Master編集の全項目、専用Thumbnail直接Upload、Banner選択API非依存、景品Public ID非表示、詳細幅、Desktop／MobileがPASSした。Critical Console／Page ErrorとHTTP 500／502／504は0。既存Synthetic Prizeの欠損Asset 404はTask外課題として記録した。
+- Nginx、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。
+- OpenAPI追加Fieldは後方互換なoptional Contractとし、現行Backendでは常時返す。Base比較Breaking Check、Generated Client、対象Unit／Browser、Typecheck／Lint／Buildを再確認した。
