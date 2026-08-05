@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0-alpha.1",
   "source_baseline_sha": "0000000000000000000000000000000000000001",
-  "expected_record_count": 28,
+  "expected_record_count": 29,
   "categories": [
     {
       "public_id": "0198a001-0000-7000-8000-000000000001",
@@ -116,6 +116,7 @@
   "gachas": [
     {
       "public_id": "0198a001-0000-7000-8000-000000000011",
+      "public_code": "Ab3Def7Gh9J",
       "code": "fixture-catalog",
       "slug": "fixture-catalog",
       "category_code": "cards",

@@ -23,6 +23,7 @@ final class CatalogProbabilityFoundationTest extends TestCase
         'catalog_gachas',
         'catalog_gacha_tags',
         'catalog_gacha_versions',
+        'catalog_gacha_version_tags',
         'catalog_gacha_version_prizes',
         'catalog_probability_versions',
         'catalog_probability_stages',
@@ -54,6 +55,8 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertTrue(Schema::hasColumn('catalog_prizes', 'cost_price'));
         self::assertFalse(Schema::hasColumn('catalog_probability_entries', 'no_prize'));
         self::assertTrue(Schema::hasColumn('catalog_gachas', 'public_id'));
+        self::assertTrue(Schema::hasColumn('catalog_gachas', 'public_code'));
+        self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'category_id'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'storage_identifier'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'checksum_sha256'));
     }
@@ -69,7 +72,7 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertTrue($second['replay']);
         self::assertSame($first['public_id'], $second['public_id']);
         self::assertSame($first['checksum'], $second['checksum']);
-        self::assertSame(28, $first['imported_count']);
+        self::assertSame(29, $first['imported_count']);
         self::assertSame($counts, $this->catalogCounts());
         self::assertSame(1, DB::table('catalog_import_runs')->count());
         self::assertSame(
@@ -78,6 +81,19 @@ final class CatalogProbabilityFoundationTest extends TestCase
                 ->where('storage_identifier', 'fixture/catalog/gacha-main.txt')
                 ->value('checksum_sha256')
         );
+    }
+
+    public function test_public_catalog_resolves_canonical_code_and_legacy_uuid(): void
+    {
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $gacha = DB::table('catalog_gachas')->first(['public_id', 'public_code']);
+
+        self::assertNotNull($gacha);
+        self::assertSame('Ab3Def7Gh9J', $gacha->public_code);
+
+        $catalog = app(V2CatalogReadService::class);
+        self::assertSame($gacha->public_id, $catalog->getByPublicId($gacha->public_code)['id']);
+        self::assertSame($gacha->public_id, $catalog->getByPublicId($gacha->public_id)['id']);
     }
 
     public function test_probability_stage_below_one_million_ppm_is_rejected(): void

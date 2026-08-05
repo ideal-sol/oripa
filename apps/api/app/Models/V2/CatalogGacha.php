@@ -2,6 +2,7 @@
 
 namespace App\Models\V2;
 
+use App\Domain\Catalog\Services\V2GachaPublicCodeGenerator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -11,6 +12,7 @@ final class CatalogGacha extends Model
 
     protected $fillable = [
         'public_id',
+        'public_code',
         'code',
         'slug',
         'category_id',
@@ -25,6 +27,7 @@ final class CatalogGacha extends Model
     {
         static::creating(function (self $gacha): void {
             $gacha->public_id ??= (string) Str::uuid7();
+            $gacha->public_code ??= app(V2GachaPublicCodeGenerator::class)->unique();
         });
     }
 

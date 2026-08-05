@@ -18,11 +18,9 @@ import { CatalogBreadcrumb } from "@/components/catalog/catalog-breadcrumb";
 import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
 import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-boundary";
 import {
-  CatalogGachaMasterForm,
   CatalogGachaCoreForm,
   CatalogGachaVersionForm,
   type GachaCoreDraft,
-  type GachaMasterDraft,
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
 import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
@@ -66,15 +64,17 @@ type ViewState =
       version: AdminCatalogGachaVersion;
     };
 
-type FormMode = "create-master" | "edit-master" | "create-version" | "edit-version";
+type FormMode = "create-version" | "edit-version";
 type ConfirmMode = "archive-master" | "discard-version";
 
 export function CatalogGachaWorkspace({
   createMode = false,
+  editMode = false,
   gachaId,
   versionId,
 }: {
   createMode?: boolean;
+  editMode?: boolean;
   gachaId?: string;
   versionId?: string;
 }) {
@@ -97,7 +97,11 @@ export function CatalogGachaWorkspace({
   const [confirmMode, setConfirmMode] = useState<ConfirmMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [mutationError, setMutationError] = useState<AdminApiError | null>(null);
-  const pendingMutation = useRef<{ fingerprint: string; key: string } | null>(null);
+  const pendingMutation = useRef<{
+    fingerprint: string;
+    key: string;
+    uploadKey?: string;
+  } | null>(null);
   const canManage = hasPermission("catalog.manage");
   const cursor = cursorHistory[cursorIndex] ?? null;
   const versionCursor = versionCursorHistory[versionCursorIndex] ?? null;
@@ -140,64 +144,60 @@ export function CatalogGachaWorkspace({
       : currentGacha?.current_version?.title ?? currentGacha?.code ?? "ガチャ管理";
 
   async function submitCore(draft: GachaCoreDraft) {
-    const result = await client.createCatalogGachaCore(
-      {
+    const fingerprint = JSON.stringify({
+      action: editMode ? "edit-gacha-core" : "create-gacha-core",
+      draft: { ...draft, thumbnailFile: draft.thumbnailFile ? {
+        name: draft.thumbnailFile.name,
+        size: draft.thumbnailFile.size,
+        type: draft.thumbnailFile.type,
+      } : null },
+      id: currentGacha?.public_code ?? null,
+      revision: currentGacha?.revision ?? null,
+    });
+    const key = mutationKey(fingerprint);
+    const uploadKey = mutationUploadKey(fingerprint);
+    try {
+      let presentationAssetId = draft.presentationAssetId;
+      if (draft.thumbnailFile) {
+        const upload = await client.uploadGachaThumbnail(
+          {
+            content_base64: await fileToBase64(draft.thumbnailFile),
+            file_name: draft.thumbnailFile.name,
+            mime_type: draft.thumbnailFile.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp",
+          },
+          uploadKey,
+        );
+        presentationAssetId = upload.data.id;
+      }
+      if (!presentationAssetId) throw new Error("Gacha thumbnail is required.");
+      const body = {
         audience_code: draft.audienceCode,
         category_id: draft.categoryId,
         daily_draw_limit: draft.dailyDrawLimit,
         description: draft.description,
         notices: draft.notices,
-        presentation_asset_id: draft.presentationAssetId,
+        presentation_asset_id: presentationAssetId,
         price_points: draft.pricePoints,
         publish_end_at: draft.publishEndAt,
         publish_start_at: draft.publishStartAt,
         tag_ids: draft.tagIds,
         title: draft.title,
         total_count: draft.totalCount,
-      },
-      mutationKey(JSON.stringify({ action: "create-gacha-core", draft })),
-    );
-    pendingMutation.current = null;
-    router.push(`/catalog/gachas/${result.data.id}`);
-  }
-
-  async function submitMaster(draft: GachaMasterDraft) {
-    const fingerprint = JSON.stringify({
-      action: formMode,
-      draft,
-      id: currentGacha?.id ?? null,
-      revision: currentGacha?.revision ?? null,
-    });
-    const key = mutationKey(fingerprint);
-    try {
-      const result =
-        formMode === "create-master"
-          ? await client.createCatalogGacha(
-              {
-                category_id: draft.categoryId,
-                code: draft.code,
-                slug: draft.slug,
-                tag_ids: draft.tagIds,
-              },
-              key,
-            )
-          : await client.updateCatalogGacha(
-              currentGacha!.id,
-              {
-                category_id: draft.categoryId,
-                expected_revision: currentGacha!.revision,
-                tag_ids: draft.tagIds,
-              },
-              key,
-            );
+      };
+      const result = editMode
+        ? await client.updateCatalogGacha(
+            currentGacha!.public_code,
+            {
+              ...body,
+              expected_revision: currentGacha!.revision,
+              expected_version_revision: currentGacha!.current_version!.revision,
+            },
+            key,
+          )
+        : await client.createCatalogGachaCore(body, key);
       pendingMutation.current = null;
       setMutationError(null);
-      setFormMode(null);
-      if (state.kind === "gacha" || state.kind === "version") {
-        setState({ ...state, gacha: result.data });
-      } else {
-        setReload((value) => value + 1);
-      }
+      router.push(`/catalog/gachas/${result.data.public_code}`);
     } catch (cause) {
       handleMutationError(cause);
       throw cause;
@@ -208,7 +208,7 @@ export function CatalogGachaWorkspace({
     const fingerprint = JSON.stringify({
       action: formMode,
       draft,
-      gachaId: currentGacha?.id,
+      gachaId: currentGacha?.public_code,
       revision: currentVersion?.revision ?? null,
       versionId: currentVersion?.id ?? null,
     });
@@ -231,9 +231,9 @@ export function CatalogGachaWorkspace({
     try {
       const result =
         formMode === "create-version"
-          ? await client.createCatalogGachaDraft(currentGacha!.id, body, key)
+          ? await client.createCatalogGachaDraft(currentGacha!.public_code, body, key)
           : await client.updateCatalogGachaDraft(
-              currentGacha!.id,
+              currentGacha!.public_code,
               currentVersion!.id,
               { expected_revision: currentVersion!.revision, ...body },
               key,
@@ -258,13 +258,13 @@ export function CatalogGachaWorkspace({
     }
     const fingerprint = JSON.stringify({
       action: "clone-version",
-      gachaId: currentGacha.id,
+      gachaId: currentGacha.public_code,
       versionId: version.id,
     });
     setBusy(true);
     try {
       await client.cloneCatalogGachaDraft(
-        currentGacha.id,
+        currentGacha.public_code,
         version.id,
         mutationKey(fingerprint),
       );
@@ -284,7 +284,7 @@ export function CatalogGachaWorkspace({
     if (!target) return;
     const fingerprint = JSON.stringify({
       action: confirmMode,
-      gachaId: currentGacha.id,
+      gachaId: currentGacha.public_code,
       id: target.id,
       revision: target.revision,
     });
@@ -292,7 +292,7 @@ export function CatalogGachaWorkspace({
     try {
       if (confirmMode === "archive-master") {
         const result = await client.archiveCatalogGacha(
-          currentGacha.id,
+          currentGacha.public_code,
           currentGacha.revision,
           mutationKey(fingerprint),
         );
@@ -309,7 +309,7 @@ export function CatalogGachaWorkspace({
         );
       } else {
         const result = await client.discardCatalogGachaDraft(
-          currentGacha.id,
+          currentGacha.public_code,
           currentVersion!.id,
           currentVersion!.revision,
           mutationKey(fingerprint),
@@ -336,6 +336,14 @@ export function CatalogGachaWorkspace({
     return key;
   }
 
+  function mutationUploadKey(fingerprint: string): string {
+    mutationKey(fingerprint);
+    if (!pendingMutation.current!.uploadKey) {
+      pendingMutation.current!.uploadKey = crypto.randomUUID();
+    }
+    return pendingMutation.current!.uploadKey;
+  }
+
   function handleMutationError(cause: unknown) {
     const error = normalizeError(cause);
     if (!error.retryable) pendingMutation.current = null;
@@ -352,6 +360,44 @@ export function CatalogGachaWorkspace({
             <CatalogBreadcrumb detail="登録" section={section} />
             <AdminPageHeader eyebrow="Catalog" title="ガチャ登録" description="Gacha Masterと初期Draft Versionを一度に作成します。" />
             <CatalogGachaCoreForm onCancel={() => router.push("/catalog/gachas")} onSubmit={submitCore} />
+          </div>
+        </ProtectedAdminRoute>
+      </AdminShell>
+    );
+  }
+
+  if (editMode) {
+    return (
+      <AdminShell>
+        <ProtectedAdminRoute permission="catalog.manage">
+          <div className="workspace">
+            <CatalogBreadcrumb detail="Master編集" section={section} />
+            <AdminPageHeader
+              description="全基本項目を編集Draftへ保存します。公開済みVersionは変更しません。"
+              eyebrow="Catalog"
+              title="ガチャ編集"
+            />
+            {state.kind === "loading" ? <LoadingState /> : null}
+            {state.kind === "error" ? (
+              <CatalogApiErrorBoundary
+                error={state.error}
+                retry={() => setReload((value) => value + 1)}
+              />
+            ) : null}
+            {state.kind === "gacha" ? (
+              <CatalogGachaCoreForm
+                current={state.gacha}
+                mode="edit"
+                onCancel={() => router.push(`/catalog/gachas/${state.gacha.public_code}`)}
+                onSubmit={submitCore}
+              />
+            ) : null}
+            {mutationError ? (
+              <CatalogApiErrorBoundary
+                error={mutationError}
+                retry={() => setMutationError(null)}
+              />
+            ) : null}
           </div>
         </ProtectedAdminRoute>
       </AdminShell>
@@ -379,10 +425,7 @@ export function CatalogGachaWorkspace({
                   disabled={busy}
                   onArchiveMaster={() => setConfirmMode("archive-master")}
                   onClone={() => currentVersion && cloneVersion(currentVersion)}
-                  onCreateMaster={() => setFormMode("create-master")}
-                  onCreateVersion={() => setFormMode("create-version")}
                   onDiscardVersion={() => setConfirmMode("discard-version")}
-                  onEditMaster={() => setFormMode("edit-master")}
                   onEditVersion={() => setFormMode("edit-version")}
                   state={state.kind}
                 />
@@ -474,17 +517,9 @@ export function CatalogGachaWorkspace({
           ) : null}
           {state.kind === "version" ? (
             <VersionDetail
-              gachaId={state.gacha.id}
+              gachaId={state.gacha.public_code}
               onCanonical={(version) => setState({ ...state, version })}
               version={state.version}
-            />
-          ) : null}
-          {formMode === "create-master" || formMode === "edit-master" ? (
-            <CatalogGachaMasterForm
-              current={formMode === "edit-master" ? currentGacha ?? undefined : undefined}
-              mode={formMode === "create-master" ? "create" : "edit"}
-              onCancel={() => setFormMode(null)}
-              onSubmit={submitMaster}
             />
           ) : null}
           {formMode === "create-version" || formMode === "edit-version" ? (
@@ -519,10 +554,7 @@ function HeaderActions({
   disabled,
   onArchiveMaster,
   onClone,
-  onCreateMaster,
-  onCreateVersion,
   onDiscardVersion,
-  onEditMaster,
   onEditVersion,
   state,
 }: {
@@ -531,10 +563,7 @@ function HeaderActions({
   disabled: boolean;
   onArchiveMaster: () => void;
   onClone: () => void;
-  onCreateMaster: () => void;
-  onCreateVersion: () => void;
   onDiscardVersion: () => void;
-  onEditMaster: () => void;
   onEditVersion: () => void;
   state: ViewState["kind"];
 }) {
@@ -550,14 +579,10 @@ function HeaderActions({
   if (state === "gacha") {
     return (
       <div className="catalog-header-actions">
-        <button className="secondary-button" onClick={onEditMaster} type="button">
+        <Link className="secondary-button" href={`/gachas/${currentGacha.public_code}/edit`}>
           <Pencil size={16} aria-hidden="true" />
           Master編集
-        </button>
-        <button className="primary-button" onClick={onCreateVersion} type="button">
-          <Plus size={16} aria-hidden="true" />
-          Draft作成
-        </button>
+        </Link>
         <button className="danger-button" onClick={onArchiveMaster} type="button">
           <Archive size={16} aria-hidden="true" />
           Archive
@@ -630,7 +655,7 @@ function GachaList({
             {items.map((gacha) => (
               <tr key={gacha.id}>
                 <td>
-                  <code>{gacha.id}</code>
+                  <code>{gacha.public_code}</code>
                 </td>
                 <td><strong>{gacha.current_version?.title ?? "未設定"}</strong></td>
                 <td><PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} /></td>
@@ -640,7 +665,7 @@ function GachaList({
                   <Link
                     aria-label={`${gacha.current_version?.title ?? gacha.code}の履歴`}
                     className="table-link"
-                    href={`/catalog/gachas/${gacha.id}/history`}
+                    href={`/catalog/gachas/${gacha.public_code}/history`}
                   >
                     履歴
                   </Link>
@@ -649,7 +674,7 @@ function GachaList({
                   <Link
                     aria-label={`${gacha.current_version?.title ?? gacha.code}の詳細`}
                     className="table-link"
-                    href={`/catalog/gachas/${gacha.id}`}
+                    href={`/catalog/gachas/${gacha.public_code}`}
                   >
                     詳細
                   </Link>
@@ -698,13 +723,13 @@ function GachaDetail({
         <header className="catalog-detail-title-row">
           <h2>{gacha.current_version?.title ?? gacha.code}</h2>
           <nav aria-label="ガチャ設計">
-            <Link className="secondary-button" href={`/catalog/gachas/${gacha.id}/profit-simulation`}>利益シミュレーション</Link>
-            <Link className="secondary-button" href={`/catalog/gachas/${gacha.id}/product-design-planner`}>商品設計プランナー</Link>
+            <Link className="secondary-button" href={`/catalog/gachas/${gacha.public_code}/profit-simulation`}>利益シミュレーション</Link>
+            <Link className="secondary-button" href={`/catalog/gachas/${gacha.public_code}/product-design-planner`}>商品設計プランナー</Link>
           </nav>
         </header>
         <PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} />
         <dl>
-          <Detail label="Public ID" value={gacha.id} />
+          <Detail label="Public ID" value={gacha.public_code} />
           <Detail label="ガチャタイトル" value={gacha.current_version?.title ?? "未設定"} />
           <Detail label="カテゴリ" value={gacha.category.name} />
           <Detail label="タグ" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
@@ -721,7 +746,7 @@ function GachaDetail({
       </section>
       <CatalogGachaRankPrizeManager
         canManage={canManage}
-        gachaId={gacha.id}
+        gachaId={gacha.public_code}
         version={editableDraft}
       />
       <section className="catalog-version-section">
@@ -759,7 +784,7 @@ function GachaDetail({
                       <div className="catalog-table-actions">
                         <Link
                           className="table-link"
-                          href={`/catalog/gachas/${gacha.id}/versions/${version.id}`}
+                          href={`/catalog/gachas/${gacha.public_code}/versions/${version.id}`}
                         >
                           詳細
                         </Link>
@@ -924,6 +949,23 @@ function normalizeError(cause: unknown): AdminApiError {
   return cause instanceof AdminApiError
     ? cause
     : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string" || !reader.result.includes(",")) {
+        reject(new Error("The selected thumbnail could not be read."));
+        return;
+      }
+      resolve(reader.result.slice(reader.result.indexOf(",") + 1));
+    });
+    reader.addEventListener("error", () => reject(
+      reader.error ?? new Error("The selected thumbnail could not be read."),
+    ));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function isEditableGachaVersion(

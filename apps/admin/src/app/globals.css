@@ -1752,6 +1752,38 @@ label {
 
 .catalog-gacha-detail {
   grid-template-columns: minmax(0, 1fr);
+  max-width: none;
+  width: 100%;
+}
+
+.catalog-gacha-detail dl {
+  display: grid;
+  gap: 0 28px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.catalog-gacha-detail dl > div {
+  min-width: 0;
+}
+
+.catalog-thumbnail-field {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+}
+
+.catalog-thumbnail-field .asset-preview,
+.catalog-thumbnail-field .asset-fallback {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 220px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .catalog-version-section {
@@ -2569,6 +2601,7 @@ label {
   }
 
   .catalog-form-grid,
+  .catalog-gacha-detail dl,
   .catalog-prize-row {
     grid-template-columns: 1fr;
   }

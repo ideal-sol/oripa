@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -190,10 +191,14 @@ final class V2AdminCatalogReadService
         string $publicId
     ): array {
         $this->authorize($context);
-        $this->assertUuid($publicId);
         $row = DB::table('catalog_gachas as gacha')
             ->join('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
-            ->where('gacha.public_id', $publicId)
+            ->where(function (Builder $query) use ($publicId): void {
+                $query->where('gacha.public_code', $publicId);
+                if (Str::isUuid($publicId)) {
+                    $query->orWhere('gacha.public_id', $publicId);
+                }
+            })
             ->select([
                 'gacha.*',
                 'category.public_id as category_public_id',
@@ -205,6 +210,22 @@ final class V2AdminCatalogReadService
         }
 
         return ['data' => $this->mapGacha($row)];
+    }
+
+    /** @return array{content: string, mime_type: string} */
+    public function presentationAssetContent(
+        V2AdminAuthorizationContext $context,
+        string $publicId
+    ): array {
+        $this->authorize($context);
+        $asset = $this->find('catalog_presentation_assets', $publicId);
+        if ($asset->media_type !== 'image' || ! (bool) $asset->is_public) {
+            throw $this->notFound();
+        }
+        $content = Storage::disk(config('filesystems.default'))
+            ->get($asset->storage_identifier);
+
+        return ['content' => $content, 'mime_type' => $asset->mime_type];
     }
 
     /** @param array<string, mixed> $filters */
@@ -1347,9 +1368,13 @@ final class V2AdminCatalogReadService
         string $publicId,
         array $columns = ['*']
     ): object {
-        $this->assertUuid($publicId);
+        $isGachaCode = $table === 'catalog_gachas'
+            && preg_match('/\A[A-Za-z0-9]{11}\z/', $publicId) === 1;
+        if (! $isGachaCode) {
+            $this->assertUuid($publicId);
+        }
         $row = DB::table($table)
-            ->where('public_id', $publicId)
+            ->where($isGachaCode ? 'public_code' : 'public_id', $publicId)
             ->select($columns)
             ->first();
         if ($row === null) {
@@ -1483,30 +1508,37 @@ final class V2AdminCatalogReadService
     /** @return array<string, mixed> */
     private function mapGacha(object $row): array
     {
-        $tags = DB::table('catalog_gacha_tags as relation')
-            ->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
-            ->where('relation.gacha_id', $row->id)
-            ->orderBy('tag.sort_order')
-            ->orderBy('tag.public_id')
-            ->get([
-                'tag.public_id',
-                'tag.code',
-                'tag.display_name',
-            ])->map(fn (object $tag): array => [
-                'id' => $tag->public_id,
-                'code' => $tag->code,
-                'name' => $tag->display_name,
-            ])->all();
         $publishedVersion = $row->published_version_id === null
             ? null
             : DB::table('catalog_gacha_versions')
                 ->where('id', $row->published_version_id)
                 ->first();
-        $currentVersion = $publishedVersion ?? DB::table('catalog_gacha_versions')
+        $currentVersion = DB::table('catalog_gacha_versions')
             ->where('gacha_id', $row->id)
+            ->where('status', 'draft')
             ->whereNull('archived_at')
             ->orderByDesc('version_number')
-            ->first();
+            ->first() ?? $publishedVersion;
+        $category = DB::table('catalog_categories')
+            ->where('id', $currentVersion?->category_id ?? $row->category_id)
+            ->firstOrFail();
+        $versionTags = $currentVersion === null ? collect() : DB::table(
+            'catalog_gacha_version_tags as relation'
+        )->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
+            ->where('relation.gacha_version_id', $currentVersion->id)
+            ->orderBy('tag.sort_order')->orderBy('tag.public_id')
+            ->get(['tag.public_id', 'tag.code', 'tag.display_name']);
+        $tags = ($versionTags->isNotEmpty() ? $versionTags : DB::table(
+            'catalog_gacha_tags as relation'
+        )->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
+            ->where('relation.gacha_id', $row->id)
+            ->orderBy('tag.sort_order')->orderBy('tag.public_id')
+            ->get(['tag.public_id', 'tag.code', 'tag.display_name']))
+            ->map(fn (object $tag): array => [
+                'id' => $tag->public_id,
+                'code' => $tag->code,
+                'name' => $tag->display_name,
+            ])->all();
         $hasActiveSchedule = DB::table('catalog_gacha_publish_schedules')
             ->where('gacha_id', $row->id)
             ->whereIn('status', ['scheduled', 'processing'])
@@ -1522,14 +1554,15 @@ final class V2AdminCatalogReadService
 
         return [
             'id' => $row->public_id,
+            'public_code' => $row->public_code,
             'code' => $row->code,
             'slug' => $row->slug,
             'state' => $row->state,
             'sold_count' => (int) $row->sold_count,
             'category' => [
-                'id' => $row->category_public_id,
-                'code' => $row->category_code,
-                'name' => $row->category_name,
+                'id' => $category->public_id,
+                'code' => $category->code,
+                'name' => $category->display_name,
             ],
             'tags' => $tags,
             'published_version' => $publishedVersion === null ? null : [
@@ -1591,6 +1624,7 @@ final class V2AdminCatalogReadService
             ],
             'publish_start_at' => $row->publish_start_at,
             'publish_end_at' => $row->publish_end_at,
+            'revision' => (int) $row->revision,
         ];
     }
 

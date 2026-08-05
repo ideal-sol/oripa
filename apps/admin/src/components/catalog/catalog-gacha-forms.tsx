@@ -4,7 +4,9 @@ import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient } from "@/lib/admin-api/client";
+import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import type {
+  AdminCatalogAssetReference,
   AdminCatalogCategory,
   AdminCatalogGacha,
   AdminCatalogGachaVersion,
@@ -44,49 +46,51 @@ export interface GachaCoreDraft {
   dailyDrawLimit: number;
   description: string | null;
   notices: string | null;
-  presentationAssetId: string;
+  presentationAssetId: string | null;
   pricePoints: number;
   publishEndAt: string | null;
   publishStartAt: string;
   tagIds: string[];
   title: string;
+  thumbnailFile: File | null;
   totalCount: number;
 }
 
 export function CatalogGachaCoreForm({
+  current,
+  mode = "create",
   onCancel,
   onSubmit,
 }: {
+  current?: AdminCatalogGacha;
+  mode?: "create" | "edit";
   onCancel: () => void;
   onSubmit: (draft: GachaCoreDraft) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<GachaCoreDraft>({
-    audienceCode: "all_users",
-    categoryId: "",
-    dailyDrawLimit: 0,
-    description: null,
-    notices: null,
-    presentationAssetId: "",
-    pricePoints: 1,
-    publishEndAt: null,
-    publishStartAt: "",
-    tagIds: [],
-    title: "",
-    totalCount: 1,
-  });
+  const initial = useMemo<GachaCoreDraft>(() => ({
+    audienceCode: current?.current_version?.audience_code ?? "all_users",
+    categoryId: current?.category.id ?? "",
+    dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
+    description: current?.current_version?.description ?? null,
+    notices: current?.current_version?.notices ?? null,
+    presentationAssetId: current?.current_version?.presentation_asset?.id ?? null,
+    pricePoints: current?.current_version?.price_points ?? 1,
+    publishEndAt: current?.current_version?.publish_end_at ?? null,
+    publishStartAt: current?.current_version?.publish_start_at ?? "",
+    tagIds: current?.tags.map((tag) => tag.id) ?? [],
+    title: current?.current_version?.title ?? "",
+    thumbnailFile: null,
+    totalCount: current?.current_version?.total_count ?? 1,
+  }), [current]);
+  const [draft, setDraft] = useState<GachaCoreDraft>(initial);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
-  const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const dirty =
-    draft.title !== "" ||
-    draft.categoryId !== "" ||
-    draft.presentationAssetId !== "" ||
-    draft.publishStartAt !== "" ||
-    draft.tagIds.length > 0 ||
-    draft.description !== null ||
-    draft.notices !== null;
+  const dirty = draft.thumbnailFile !== null || JSON.stringify({
+    ...draft,
+    thumbnailFile: null,
+  }) !== JSON.stringify(initial);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,19 +104,10 @@ export function CatalogGachaCoreForm({
         { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
         controller.signal,
       ),
-      client.listCatalogPresentationAssets(
-        { direction: "desc", limit: 100, sort: "created_at", visibility: "visible" },
-        controller.signal,
-      ),
     ])
-      .then(([categoryResponse, tagResponse, assetResponse]) => {
+      .then(([categoryResponse, tagResponse]) => {
         setCategories(categoryResponse.items.filter((item) => !item.is_archived));
         setTags(tagResponse.items.filter((item) => !item.is_archived));
-        setAssets(
-          assetResponse.items.filter(
-            (item) => !item.is_archived && item.media_type === "image",
-          ),
-        );
       })
       .catch(() => setErrors({ form: "登録用の選択肢を取得できませんでした。" }));
     return () => controller.abort();
@@ -124,7 +119,16 @@ export function CatalogGachaCoreForm({
     const nextErrors: Record<string, string> = {};
     if (!draft.title.trim()) nextErrors.title = "ガチャタイトルは必須です。";
     if (!draft.categoryId) nextErrors.category = "カテゴリを選択してください。";
-    if (!draft.presentationAssetId) nextErrors.asset = "サムネイルを選択してください。";
+    if (!draft.thumbnailFile && !draft.presentationAssetId) {
+      nextErrors.asset = "サムネイル画像を選択してください。";
+    }
+    if (
+      draft.thumbnailFile &&
+      (!(["image/gif", "image/jpeg", "image/png", "image/webp"] as string[])
+        .includes(draft.thumbnailFile.type) || draft.thumbnailFile.size > 5 * 1024 * 1024)
+    ) {
+      nextErrors.asset = "サムネイルはGIF、JPEG、PNG、WebPの5 MB以下にしてください。";
+    }
     if (!Number.isSafeInteger(draft.pricePoints) || draft.pricePoints < 1) {
       nextErrors.price = "消費ポイントは1以上の整数です。";
     }
@@ -156,7 +160,7 @@ export function CatalogGachaCoreForm({
         title: draft.title.normalize("NFC").trim(),
       });
     } catch {
-      setErrors({ form: "登録できませんでした。入力内容を確認してください。" });
+      setErrors({ form: `${mode === "create" ? "登録" : "保存"}できませんでした。入力内容を確認してください。` });
     } finally {
       setSubmitting(false);
     }
@@ -166,15 +170,19 @@ export function CatalogGachaCoreForm({
     <section className="catalog-core-form-card" aria-labelledby="gacha-core-heading">
       <header>
         <span className="eyebrow">Draft Gacha</span>
-        <h2 id="gacha-core-heading">ガチャ登録</h2>
-        <p>作成時の状態は下書きです。公開操作は登録後の管理画面で行います。</p>
+        <h2 id="gacha-core-heading">{mode === "create" ? "ガチャ登録" : "ガチャ編集"}</h2>
+        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : "変更は編集Draftへ保存され、公開済みVersionには直接反映されません。"}</p>
       </header>
       <form className="catalog-mutation-form" onSubmit={submit}>
         <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
         <FieldError message={errors.title} />
         <div className="catalog-form-grid">
           <label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label>サムネイル<select required value={draft.presentationAssetId} onChange={(event) => setDraft({ ...draft, presentationAssetId: event.target.value })}><option value="">選択してください</option>{assets.map((item) => <option key={item.id} value={item.id}>{item.alt_text ?? item.public_path ?? item.id}</option>)}</select></label>
+          <GachaThumbnailField
+            current={current?.current_version?.presentation_asset ?? null}
+            onChange={(thumbnailFile) => setDraft({ ...draft, thumbnailFile })}
+            required={mode === "create"}
+          />
         </div>
         <FieldError message={errors.category ?? errors.asset} />
         <fieldset className="catalog-choice-fieldset"><legend>タグ</legend>{tags.length === 0 ? <p>選択可能なタグはありません。</p> : null}{tags.map((tag) => <label className="catalog-checkbox" key={tag.id}><input type="checkbox" checked={draft.tagIds.includes(tag.id)} onChange={(event) => setDraft({ ...draft, tagIds: event.target.checked ? [...draft.tagIds, tag.id] : draft.tagIds.filter((id) => id !== tag.id) })} />{tag.name}</label>)}</fieldset>
@@ -194,9 +202,61 @@ export function CatalogGachaCoreForm({
         <TextArea label="説明" onChange={(description) => setDraft({ ...draft, description })} value={draft.description ?? ""} />
         <TextArea label="注意事項" onChange={(notices) => setDraft({ ...draft, notices })} value={draft.notices ?? ""} />
         {errors.form ? <FormError message={errors.form} /> : null}
-        <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}下書きを登録</button></div>
+        <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}{mode === "create" ? "下書きを登録" : "編集Draftへ保存"}</button></div>
       </form>
     </section>
+  );
+}
+
+function GachaThumbnailField({
+  current,
+  onChange,
+  required,
+}: {
+  current: AdminCatalogAssetReference | null;
+  onChange: (file: File | null) => void;
+  required: boolean;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewReader = useRef<FileReader | null>(null);
+
+  const selectFile = (selected: File | null) => {
+    previewReader.current?.abort();
+    onChange(selected);
+    if (!selected) {
+      setPreviewUrl(null);
+      return;
+    }
+    const reader = new FileReader();
+    previewReader.current = reader;
+    reader.addEventListener("load", () => {
+      setPreviewUrl(typeof reader.result === "string" ? reader.result : null);
+    });
+    reader.addEventListener("error", () => setPreviewUrl(null));
+    reader.readAsDataURL(selected);
+  };
+
+  return (
+    <label className="catalog-thumbnail-field">
+      サムネイル画像
+      {previewUrl ? (
+        // Browser-local preview generated from the selected file.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt="選択したサムネイルのPreview" className="asset-preview" src={previewUrl} />
+      ) : (
+        <PublicAssetPreview asset={current} />
+      )}
+      <input
+        accept="image/gif,image/jpeg,image/png,image/webp"
+        aria-describedby="gacha-thumbnail-help"
+        onChange={(event) => selectFile(event.target.files?.[0] ?? null)}
+        required={required && current === null}
+        type="file"
+      />
+      <span id="gacha-thumbnail-help" className="field-hint">
+        GIF、JPEG、PNG、WebP（最大5 MB）
+      </span>
+    </label>
   );
 }
 

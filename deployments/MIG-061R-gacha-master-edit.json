@@ -1,0 +1,41 @@
+{
+  "task_id": "MIG-061R",
+  "risk": "R3",
+  "verification_profile": "TARGETED-DOMAIN-MIGRATION",
+  "status": "verified_pending_preview",
+  "base_branch": "main",
+  "base_sha": "dd970361ecab9515d5b455dbfa3798cc57009823",
+  "task_policy_sha256": "17b67c2bdc1751b15d9f737168768ff36710caa6ec8f0358efbfb9e4b8220f83",
+  "issue": 204,
+  "pull_request": null,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061R/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "deployed_at": null,
+    "source_commit": null,
+    "api_previous_image": null,
+    "api_image": null,
+    "admin_previous_image": null,
+    "admin_image": null,
+    "migration": "2026_08_23_000036_add_v2_gacha_external_public_code.php",
+    "migration_count": null,
+    "database": "oripa_v2_mig061a",
+    "api_health": "PENDING",
+    "admin_health": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_37_TESTS_400_ASSERTIONS",
+    "admin_unit": "PASS_2_FILES_9_TESTS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "migration_fresh_rollback_reapply": "PASS",
+    "openapi_generated_client": "PASS",
+    "admin_typecheck_lint_build": "PASS",
+    "policy_quality_db_guard": "PASS",
+    "preview_smoke": "PENDING"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

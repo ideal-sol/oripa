@@ -108,7 +108,8 @@ final class V2CatalogReadService
      */
     public function getByPublicId(string $publicId): array
     {
-        if (! Str::isUuid($publicId)) {
+        $isPublicCode = preg_match('/\A[A-Za-z0-9]{11}\z/', $publicId) === 1;
+        if (! $isPublicCode && ! Str::isUuid($publicId)) {
             throw new V2CatalogException(
                 'CATALOG_NOT_FOUND',
                 404,
@@ -117,7 +118,10 @@ final class V2CatalogReadService
         }
 
         return $this->detail(
-            $this->publishedGachaQuery()->where('g.public_id', $publicId)->first(
+            $this->publishedGachaQuery()->where(
+                $isPublicCode ? 'g.public_code' : 'g.public_id',
+                $publicId
+            )->first(
                 $this->summaryColumns()
             )
         );
@@ -147,7 +151,13 @@ final class V2CatalogReadService
                 '=',
                 'gv.published_probability_version_id'
             )
-            ->join('catalog_categories as c', 'c.id', '=', 'g.category_id')
+            ->join('catalog_categories as c', function ($join): void {
+                $join->on(
+                    'c.id',
+                    '=',
+                    DB::raw('COALESCE(gv.category_id, g.category_id)')
+                );
+            })
             ->leftJoin(
                 'gacha_draw_states as ds',
                 'ds.id',
@@ -179,6 +189,7 @@ final class V2CatalogReadService
         return [
             'g.id as gacha_internal_id',
             'g.public_id',
+            'g.public_code',
             'g.slug',
             'g.sales_paused',
             DB::raw('COALESCE(ds.sold_count, g.sold_count) as sold_count'),
@@ -215,13 +226,19 @@ final class V2CatalogReadService
         }
         $grouped = [];
         foreach (
-            DB::table('catalog_gacha_tags as gt')
+            DB::table('catalog_gachas as g')
+                ->join(
+                    'catalog_gacha_version_tags as gt',
+                    'gt.gacha_version_id',
+                    '=',
+                    'g.published_version_id'
+                )
                 ->join('catalog_tags as t', 't.id', '=', 'gt.tag_id')
-                ->whereIn('gt.gacha_id', $gachaIds)
+                ->whereIn('g.id', $gachaIds)
                 ->where('t.is_visible', true)
                 ->orderBy('t.sort_order')
                 ->orderBy('t.public_id')
-                ->get(['gt.gacha_id', 't.public_id', 't.slug', 't.display_name'])
+                ->get(['g.id as gacha_id', 't.public_id', 't.slug', 't.display_name'])
             as $tag
         ) {
             $grouped[$tag->gacha_id][] = [

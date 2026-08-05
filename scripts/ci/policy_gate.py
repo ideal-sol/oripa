@@ -361,6 +361,11 @@ MIG_061K_V2_CATALOG_FILES = {
 MIG_061L_V2_CATALOG_FILES = {
     "apps/api/tests/V2/AdminGachaUsageHistoryTest.php",
 }
+MIG_061R_V2_CATALOG_FILES = {
+    "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",
+    "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
+    "apps/api/tests/V2/AdminGachaMasterEditTest.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -406,6 +411,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_061I_V2_CATALOG_FILES,
     *MIG_061K_V2_CATALOG_FILES,
     *MIG_061L_V2_CATALOG_FILES,
+    *MIG_061R_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -633,6 +639,10 @@ MIG_061Q_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/pages/page-management-workspace.tsx",
     "apps/admin/test/admin-page-management.test.tsx",
 }
+MIG_061R_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-master-edit.spec.ts",
+    "apps/admin/src/app/gachas/[gachaPublicCode]/edit/page.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -744,6 +754,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061O_ADMIN_SKELETON_FILES,
     *MIG_061P_ADMIN_SKELETON_FILES,
     *MIG_061Q_ADMIN_SKELETON_FILES,
+    *MIG_061R_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2073,6 +2084,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
         "2026_08_21_000034_add_v2_banner_management.php",
         "2026_08_22_000035_add_v2_page_management.php",
+        "2026_08_23_000036_add_v2_gacha_external_public_code.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3276,6 +3288,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/presentation-assets": {"get", "post"},
         "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
         "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
+        "/catalog/presentation-assets/{catalog_resource_id}/content": {"get"},
+        "/catalog/gacha-thumbnails": {"post"},
         "/catalog/gachas": {"get", "post"},
         "/catalog/gachas/core": {"post"},
         "/catalog/gachas/{gacha_id}": {"get", "put"},

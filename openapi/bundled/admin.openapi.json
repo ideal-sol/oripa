@@ -1660,6 +1660,105 @@
         }
       }
     },
+    "/catalog/gacha-thumbnails": {
+      "post": {
+        "operationId": "uploadAdminGachaThumbnail",
+        "summary": "Gacha thumbnail画像をPresentation AssetへUploadする",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaThumbnailUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Gacha thumbnail Asset登録結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCatalogPresentationAssetMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/presentation-assets/{catalog_resource_id}/content": {
+      "get": {
+        "operationId": "getAdminCatalogPresentationAssetContent",
+        "summary": "Presentation Assetの画像Contentを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Presentation Asset content。",
+            "content": {
+              "image/gif": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}": {
       "get": {
         "operationId": "getAdminCatalogGacha",
@@ -1696,7 +1795,7 @@
       },
       "put": {
         "operationId": "updateAdminCatalogGacha",
-        "summary": "Gacha MasterのCategory／Tag Relationを更新する",
+        "summary": "Gacha Masterの編集Draftへ基本項目を保存する",
         "x-idempotency": "required",
         "x-rate-limit": "catalog-mutation",
         "x-cache-policy": "no-store",
@@ -10195,7 +10294,8 @@
           "audience_code",
           "presentation_asset",
           "publish_start_at",
-          "publish_end_at"
+          "publish_end_at",
+          "revision"
         ],
         "properties": {
           "id": {
@@ -10271,6 +10371,10 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -10279,6 +10383,7 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "public_code",
           "code",
           "slug",
           "state",
@@ -10297,6 +10402,10 @@
         "properties": {
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
+          },
+          "public_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{11}$"
           },
           "code": {
             "type": "string",
@@ -10517,6 +10626,15 @@
             "type": "integer",
             "minimum": 1
           },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
           "category_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -10527,6 +10645,84 @@
             "items": {
               "$ref": "#/components/schemas/OpaqueId"
             }
+          },
+          "price_points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "total_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "daily_draw_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "audience_code": {
+            "type": "string",
+            "enum": [
+              "all_users",
+              "first_time_users",
+              "line_users"
+            ]
+          },
+          "presentation_asset_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "publish_start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "notices": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          }
+        }
+      },
+      "AdminGachaThumbnailUpload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file_name",
+          "mime_type",
+          "content_base64"
+        ],
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "mime_type": {
+            "type": "string",
+            "enum": [
+              "image/gif",
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6990508
           }
         }
       },
@@ -18216,7 +18412,8 @@
         "in": "path",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/OpaqueId"
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9]{11}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
         }
       },
       "GachaVersionId": {
