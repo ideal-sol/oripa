@@ -18,8 +18,11 @@ return new class extends Migration
         foreach (DB::table('catalog_gachas')->orderBy('id')->pluck('id') as $id) {
             DB::table('catalog_gachas')->where('id', $id)->update([
                 'public_code' => $this->uniqueCode(),
+                'revision' => DB::raw('revision + 1'),
+                'updated_at' => now()->startOfSecond(),
             ]);
         }
+        DB::statement('SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE');
 
         DB::statement('ALTER TABLE catalog_gachas ALTER COLUMN public_code SET NOT NULL');
         DB::statement(
@@ -34,12 +37,36 @@ return new class extends Migration
             $table->foreignId('category_id')->nullable()
                 ->constrained('catalog_categories')->restrictOnDelete();
         });
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'DISABLE TRIGGER catalog_gacha_versions_protect_draft_mutation'
+        );
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'DISABLE TRIGGER catalog_gacha_versions_protect_published'
+        );
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'DISABLE TRIGGER catalog_gacha_versions_schedule_guard'
+        );
         DB::statement(<<<'SQL'
             UPDATE catalog_gacha_versions version
             SET category_id = gacha.category_id
             FROM catalog_gachas gacha
             WHERE gacha.id = version.gacha_id
         SQL);
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'ENABLE TRIGGER catalog_gacha_versions_protect_draft_mutation'
+        );
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'ENABLE TRIGGER catalog_gacha_versions_protect_published'
+        );
+        DB::statement(
+            'ALTER TABLE catalog_gacha_versions '
+            .'ENABLE TRIGGER catalog_gacha_versions_schedule_guard'
+        );
 
         Schema::create('catalog_gacha_version_tags', function (Blueprint $table): void {
             $table->foreignId('gacha_version_id')
