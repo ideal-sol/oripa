@@ -8056,3 +8056,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
   Console／Page ErrorとHTTP 500／502／504は0で、Synthetic Dataはカテゴリ1件、ページ1件に限定した。
 - Migration 35件、DB Target Guard、API／Admin HealthがPASSした。既存Data、PostgreSQL／Redis設定、Network／固定IP、
   Nginx checksum、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。
+
+### MIG-061R Preview
+
+- Application Head `a6f405b8e4d926073ba70ae9657bf0e7e690f781`からPreview APIを`sha256:282878b1...`、Adminを`sha256:4db76c8c...`へ更新し、DBへMigration 000036だけを適用した。
+- DB Target Guard、Migration 36件、既存Gacha 1件の11文字Public ID Backfill、Legacy UUID互換、保護Trigger有効を確認した。既存Data、固定IP、Network、Restart Policy、Environment Key集合を維持した。
+- Master編集の全項目、専用Thumbnail直接Upload、Banner選択API非依存、景品Public ID非表示、詳細幅、Desktop／MobileがPASSした。Critical Console／Page ErrorとHTTP 500／502／504は0。既存Synthetic Prizeの欠損Asset 404はTask外課題として記録した。
+- Nginx、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。

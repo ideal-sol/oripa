@@ -3,9 +3,10 @@
 ## Issue／PR／Commit
 
 - Issue: #204
-- PR: Draft作成時に確定
+- PR: #205
 - Base: `dd970361ecab9515d5b455dbfa3798cc57009823`
-- Final Head／Squash Commit: Closeout時に確定
+- Application Head: `a6f405b8e4d926073ba70ae9657bf0e7e690f781`
+- Final Head／Squash Commit: PR #205のCloseout記録を正本とする
 - Task Policy SHA-256: `17b67c2bdc1751b15d9f737168768ff36710caa6ec8f0358efbfb9e4b8220f83`
 
 ## 実装
@@ -18,9 +19,11 @@
 
 ## Migration／Test／Preview
 
-- Migration `000036`で`catalog_gachas.public_code`、Draft／Published VersionごとのCategory snapshot、Tag relationを追加した。Task DBのfresh／rollback／reapply、既存Gacha保持、Published不変、Legacy UUID Resolverを確認した。
+- Migration `000036`で`catalog_gachas.public_code`、Draft／Published VersionごとのCategory snapshot、Tag relationを追加した。Task DBのfresh／rollback／reapplyに加え、既存Published Gachaを持つ状態でrollback／reapplyし、既存Gacha保持、Published不変、Trigger再有効化、Legacy UUID Resolverを確認した。
 - Backend対象37 tests／400 assertions、Admin Unit 2 files／9 tests、Desktop／Mobile Browser 2 tests、Typecheck、Lint、Production Build、OpenAPI lint／bundle、Generated Client、Policy／Quality、DB Guard、`git diff --check`がPASSした。
-- Preview API／Admin Image、Migration `000036`、既存Data保持、11文字Public ID、Master編集、直接Thumbnail Upload、Legacy UUID互換、景品ID非表示、詳細幅はPreview反映時に確定する。
-- Nginx、V1、Storefront、Payment Providerは変更しない。残課題はOrphan Asset回収を既存Asset Lifecycleへ委ねること。ランク演出、紹介ポイント、ポイント購入、Storefrontは対象外。
+- Preview DB Target Safety Guardを通過後、既存Dataを保持してMigration `000036`だけを適用した。Migration数は36、既存Gacha 1件の11文字Backfillと保護Trigger有効を確認した。
+- Preview API Imageは`sha256:cc516763...`から`sha256:282878b1...`、Admin Imageは`sha256:4b9d4370...`から`sha256:4db76c8c...`へ更新した。固定IP、Network、Restart Policy、Environment Key集合はImage以外一致した。
+- Owner Login、11文字Canonical Route、Legacy UUID互換、全基本項目、専用Thumbnail直接Upload、Banner選択／Category API非依存、景品ID非表示、詳細／景品幅一致、Desktop／Mobileを確認した。Critical Console Error、Page Error、HTTP 500／502／504は0。既存Synthetic Prizeの欠損Asset URLによる非Critical 404が1件あり、Task外のPreview Data課題として残した。
+- Nginx、V1、Storefront、Payment Providerは変更していない。残課題はOrphan Asset回収を既存Asset Lifecycleへ委ねることと、既存Synthetic Prizeの欠損Assetを別Taskで整理すること。ランク演出、紹介ポイント、ポイント購入、Storefrontは対象外。
 - 主な所要作業はDraft／Published境界のCharacterization、Version単位Category／Tag保持、直接UploadのCSP対応、Migration回帰。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
