@@ -13353,6 +13353,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -13570,10 +13574,6 @@
               "string",
               "null"
             ]
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },

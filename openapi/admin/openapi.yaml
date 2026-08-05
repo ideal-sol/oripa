@@ -5415,6 +5415,7 @@ components:
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         name: {type: string, minLength: 1, maxLength: 100}
+        created_at: {type: string, format: date-time}
     AdminPageVisibility:
       type: string
       enum: [visible, hidden]
@@ -5487,7 +5488,6 @@ components:
       properties:
         items: {type: array, items: {$ref: '#/components/schemas/AdminManagedPage'}}
         next_cursor: {type: [string, 'null']}
-        created_at: {type: string, format: date-time}
     AdminBannerCategoryCollection:
       type: object
       additionalProperties: false
