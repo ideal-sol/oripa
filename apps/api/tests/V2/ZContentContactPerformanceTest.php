@@ -11,6 +11,7 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Models\V2\Admin;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -333,20 +334,28 @@ final class ZContentContactPerformanceTest extends TestCase
             FROM content_versions cv
             WHERE cv.static_page_id = p.id AND cv.version_number = 100
             SQL);
-        DB::statement(<<<'SQL'
-            INSERT INTO contact_inquiries (
-                public_id, receipt_code, name_ciphertext, email_ciphertext,
-                subject_ciphertext, body_ciphertext, email_correlation_hash,
-                status, received_at, retention_until, created_at, updated_at
-            )
-            SELECT
-                ('00000000-0000-7000-8600-' || lpad(to_hex(gs), 12, '0'))::uuid,
-                'PERF-' || lpad(gs::text, 20, '0'), 'ciphertext', 'ciphertext',
-                'ciphertext', 'ciphertext', repeat('e', 64), 'new',
-                now() - (gs % 86400) * interval '1 second',
-                now() + interval '365 days', now(), now()
-            FROM generate_series(1, 100000) AS gs
-            SQL);
+        DB::statement(
+            <<<'SQL'
+                INSERT INTO contact_inquiries (
+                    public_id, receipt_code, name_ciphertext, email_ciphertext,
+                    subject_ciphertext, body_ciphertext, email_correlation_hash,
+                    status, received_at, retention_until, created_at, updated_at
+                )
+                SELECT
+                    ('00000000-0000-7000-8600-' || lpad(to_hex(gs), 12, '0'))::uuid,
+                    'PERF-' || lpad(gs::text, 20, '0'), ?, ?, ?, ?,
+                    repeat('e', 64), 'new',
+                    now() - (gs % 86400) * interval '1 second',
+                    now() + interval '365 days', now(), now()
+                FROM generate_series(1, 100000) AS gs
+                SQL,
+            [
+                Crypt::encryptString('Performance User'),
+                Crypt::encryptString('performance@example.test'),
+                Crypt::encryptString('Performance contact'),
+                Crypt::encryptString('Performance contact body'),
+            ]
+        );
     }
 
     private function context(): V2AdminAuthorizationContext

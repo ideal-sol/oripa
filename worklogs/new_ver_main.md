@@ -8019,3 +8019,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Owner Login、Contact Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
 - Migration 33件、PostgreSQL／Redis、Environment Key集合、固定IP、Nginx checksum、V1、Storefrontは非変更。Required ChecksとCloseoutはFinal Headで確定する。
 - GitHub Integration Gateが検出した取得不能な`linux-libc-dev=6.1.177-1`固定を、現在のBookworm Security正本`6.1.180-1`へ補正した。Policy追加はDockerfile 1 Pathだけで、API Image Healthを再確認した。
+- 後続Integration Gateで、100,000件Contact Performance Fixtureが暗号化Columnへ平文を投入していた不整合を検出した。当該Test 1 PathだけをPolicyへ追加し、有効な暗号文Fixtureへ補正した。1 test／31 assertions、一覧p95 12.427 ms、Concurrent 10/10、N+1なしでPASSした。
