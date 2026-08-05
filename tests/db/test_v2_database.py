@@ -214,6 +214,16 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
+    def test_page_management_schema_inventory_is_explicit(self):
+        self.assertIn(
+            "public.content_page_categories",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+
     def test_task_database_marker_and_actual_target_are_required(self):
         values = dict(self.values)
         values["COMPOSE_PROJECT_NAME"] = "mig060k-v2-scheduled-publish"
