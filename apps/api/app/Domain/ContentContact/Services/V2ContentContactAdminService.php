@@ -205,6 +205,191 @@ final class V2ContentContactAdminService
     }
 
     /** @return array<string, mixed> */
+    public function pageCategories(V2AdminAuthorizationContext $context): array
+    {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+
+        return ['items' => DB::table('content_page_categories')
+            ->orderBy('name')->orderBy('id')->get()
+            ->map(static fn (object $row): array => [
+                'id' => $row->public_id,
+                'name' => $row->name,
+                'visibility' => $row->is_visible ? 'visible' : 'hidden',
+                'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+            ])->all()];
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function createPageCategory(
+        V2AdminAuthorizationContext $context,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->assertFields($input, ['name', 'visibility'], ['name', 'visibility']);
+        $name = $this->plainText($input['name'], 1, 100);
+        $visibility = $this->pageVisibility($input['visibility']);
+        $normalized = mb_strtolower($name, 'UTF-8');
+
+        return DB::transaction(function () use ($context, $admin, $idempotencyKey, $name, $visibility, $normalized): array {
+            $claim = $this->claimPageMutation($admin, $idempotencyKey, [
+                'action' => 'category.create', 'name' => $name, 'visibility' => $visibility,
+            ]);
+            if ($claim->replay) {
+                return $this->pageReplay($claim);
+            }
+            $publicId = (string) Str::uuid7();
+            $now = now()->startOfSecond();
+            try {
+                DB::table('content_page_categories')->insert([
+                    'public_id' => $publicId, 'name' => $name,
+                    'normalized_name' => $normalized, 'is_visible' => $visibility === 'visible',
+                    'created_at' => $now, 'updated_at' => $now,
+                ]);
+            } catch (\Throwable) {
+                throw $this->conflict('PAGE_CATEGORY_NAME_CONFLICT');
+            }
+            $result = [
+                'id' => $publicId, 'name' => $name, 'visibility' => $visibility,
+                'created_at' => CarbonImmutable::parse($now)->toIso8601String(),
+            ];
+            $this->auditContent('content.page_category_created', $context, 'page_category', $publicId);
+            $this->completePageMutation($claim, 'page_category', $publicId, $result, 201);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @return array<string, mixed> */
+    public function managedPages(
+        V2AdminAuthorizationContext $context,
+        ?string $cursor,
+        int $limit
+    ): array {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $after = $this->cursor->decode($cursor);
+        $limit = $this->limit($limit);
+        $latest = DB::table('content_versions')->select('static_page_id')
+            ->selectRaw('MAX(version_number) AS version_number')
+            ->whereNotNull('static_page_id')->groupBy('static_page_id');
+        $rows = DB::table('content_static_pages as page')
+            ->joinSub($latest, 'latest_number', fn ($join) => $join->on('latest_number.static_page_id', '=', 'page.id'))
+            ->join('content_versions as version', function ($join): void {
+                $join->on('version.static_page_id', '=', 'page.id')
+                    ->on('version.version_number', '=', 'latest_number.version_number');
+            })
+            ->leftJoin('content_page_categories as category', 'category.id', '=', 'version.page_category_id')
+            ->where('page.status', '<>', 'archived')
+            ->when($after !== null, fn (Builder $query) => $query->where('page.id', '<', $after))
+            ->orderByDesc('page.id')->limit($limit + 1)
+            ->get($this->managedPageColumns());
+        $hasMore = $rows->count() > $limit;
+
+        return [
+            'items' => $rows->take($limit)->map(fn (object $row): array => $this->managedPageResult($row))->all(),
+            'next_cursor' => $hasMore ? $this->cursor->encode((int) $rows->get($limit - 1)->internal_cursor) : null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function managedPage(V2AdminAuthorizationContext $context, string $publicId): array
+    {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $this->uuid($publicId, 'PAGE_REQUEST_INVALID');
+
+        return $this->managedPageByPublicId($publicId);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function createManagedPage(
+        V2AdminAuthorizationContext $context,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $payload = $this->pageInput($input);
+
+        return DB::transaction(function () use ($context, $admin, $idempotencyKey, $payload): array {
+            $claim = $this->claimPageMutation($admin, $idempotencyKey, ['action' => 'page.create', 'input' => $payload]);
+            if ($claim->replay) {
+                return $this->pageReplay($claim);
+            }
+            $publicId = (string) Str::uuid7();
+            $now = now()->startOfSecond();
+            try {
+                $parentId = DB::table('content_static_pages')->insertGetId([
+                    'public_id' => $publicId, 'slug' => $payload['slug'],
+                    'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
+                    'status' => 'draft', 'created_at' => $now, 'updated_at' => $now,
+                ]);
+            } catch (\Throwable) {
+                throw $this->conflict('PAGE_SLUG_CONFLICT');
+            }
+            $version = $this->createVersionRow('static-page', 'static_page_id', (int) $parentId, 1, $this->pageVersionInput($payload), $admin);
+            $versionId = (int) DB::table('content_versions')->where('public_id', $version['id'])->value('id');
+            $this->applyPageVisibility((int) $parentId, $versionId, $payload['visibility'], $admin);
+            $this->auditContent('content.page_created', $context, 'static-page', $publicId, [
+                'version_public_id' => $version['id'], 'category_public_id' => $payload['category_id'],
+                'visibility' => $payload['visibility'],
+            ]);
+            $result = $this->managedPageByPublicId($publicId);
+            $this->completePageMutation($claim, 'content_static_page', $publicId, $result, 201);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function updateManagedPage(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->uuid($publicId, 'PAGE_REQUEST_INVALID');
+        $payload = $this->pageInput($input);
+
+        return DB::transaction(function () use ($context, $admin, $idempotencyKey, $publicId, $payload): array {
+            $claim = $this->claimPageMutation($admin, $idempotencyKey, [
+                'action' => 'page.update', 'page_id' => $publicId, 'input' => $payload,
+            ]);
+            if ($claim->replay) {
+                return $this->pageReplay($claim);
+            }
+            $parent = DB::table('content_static_pages')->where('public_id', $publicId)->lockForUpdate()->first();
+            if ($parent === null) {
+                throw $this->notFound('PAGE_NOT_FOUND');
+            }
+            if ($parent->status === 'archived') {
+                throw $this->conflict('PAGE_ARCHIVED');
+            }
+            $number = (int) DB::table('content_versions')->where('static_page_id', $parent->id)
+                ->max('version_number') + 1;
+            $version = $this->createVersionRow('static-page', 'static_page_id', (int) $parent->id, $number, $this->pageVersionInput($payload), $admin);
+            try {
+                DB::table('content_static_pages')->where('id', $parent->id)->update([
+                    'slug' => $payload['slug'],
+                    'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+            } catch (\Throwable) {
+                throw $this->conflict('PAGE_SLUG_CONFLICT');
+            }
+            $versionId = (int) DB::table('content_versions')->where('public_id', $version['id'])->value('id');
+            $this->applyPageVisibility((int) $parent->id, $versionId, $payload['visibility'], $admin);
+            $this->auditContent('content.page_updated', $context, 'static-page', $publicId, [
+                'version_public_id' => $version['id'], 'category_public_id' => $payload['category_id'],
+                'visibility' => $payload['visibility'],
+            ]);
+            $result = $this->managedPageByPublicId($publicId);
+            $this->completePageMutation($claim, 'content_static_page', $publicId, $result);
+
+            return [...$result, 'idempotent_replay' => false];
+        }, 3);
+    }
+
+    /** @return array<string, mixed> */
     public function managedBanners(
         V2AdminAuthorizationContext $context,
         ?string $cursor,
@@ -1275,6 +1460,7 @@ final class V2ContentContactAdminService
     ): array {
         $title = $this->string($input['title'] ?? null, 1, 191);
         $bannerCategory = null;
+        $pageCategory = null;
         if ($type === 'banner' && array_key_exists('category_id', $input)) {
             $categoryPublicId = $this->uuid(
                 $input['category_id'],
@@ -1284,6 +1470,13 @@ final class V2ContentContactAdminService
                 ->where('public_id', $categoryPublicId)->first();
             if ($bannerCategory === null) {
                 throw $this->notFound('BANNER_CATEGORY_NOT_FOUND');
+            }
+        }
+        if ($type === 'static-page' && array_key_exists('category_id', $input)) {
+            $categoryPublicId = $this->uuid($input['category_id'], 'PAGE_CATEGORY_INVALID');
+            $pageCategory = DB::table('content_page_categories')->where('public_id', $categoryPublicId)->first();
+            if ($pageCategory === null) {
+                throw $this->notFound('PAGE_CATEGORY_NOT_FOUND');
             }
         }
         $summary = $this->nullableString($input['summary'] ?? null, 500);
@@ -1318,12 +1511,14 @@ final class V2ContentContactAdminService
             'publish_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z'),
             'publish_end_at' => $end?->utc()->format('Y-m-d\TH:i:s\Z'),
             'banner_category_id' => $bannerCategory?->public_id,
+            'page_category_id' => $pageCategory?->public_id,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         $now = now()->startOfSecond();
         $attributes = [
             'public_id' => (string) Str::uuid7(),
             $ownerColumn => $ownerId,
             'banner_category_id' => $bannerCategory?->id,
+            'page_category_id' => $pageCategory?->id,
             'version_number' => $versionNumber,
             'status' => 'draft',
             'title' => $title,
@@ -1381,6 +1576,104 @@ final class V2ContentContactAdminService
             'asset_id' => array_key_exists('asset_id', $input) && $input['asset_id'] !== null
                 ? $this->uuid($input['asset_id'], 'BANNER_ASSET_INVALID')
                 : null,
+        ];
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    private function pageInput(array $input): array
+    {
+        $this->assertFields($input, ['category_id', 'title', 'body_html', 'slug', 'visibility'], ['category_id', 'title', 'body_html', 'slug', 'visibility']);
+        $slug = trim(trim((string) $input['slug']), '/');
+
+        return [
+            'category_id' => $this->uuid($input['category_id'], 'PAGE_CATEGORY_INVALID'),
+            'title' => $this->plainText($input['title'], 1, 191),
+            'body_html' => $this->string($input['body_html'], 1, 100_000),
+            'slug' => $this->identifier($slug),
+            'visibility' => $this->pageVisibility($input['visibility']),
+        ];
+    }
+
+    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    private function pageVersionInput(array $payload): array
+    {
+        return [
+            'category_id' => $payload['category_id'], 'title' => $payload['title'],
+            'body_html' => $payload['body_html'], 'publish_start_at' => now()->startOfSecond()->toIso8601String(),
+            'publish_end_at' => null,
+        ];
+    }
+
+    private function pageVisibility(mixed $value): string
+    {
+        if (! is_string($value) || ! in_array($value, ['visible', 'hidden'], true)) {
+            throw $this->invalid('PAGE_VISIBILITY_INVALID');
+        }
+        return $value;
+    }
+
+    private function applyPageVisibility(int $parentId, int $versionId, string $visibility, Admin $admin): void
+    {
+        $now = now()->startOfSecond();
+        if ($visibility === 'visible') {
+            DB::table('content_versions')->where('id', $versionId)->update([
+                'status' => 'published', 'published_by_admin_id' => $admin->id,
+                'published_at' => $now, 'updated_at' => $now,
+            ]);
+            DB::table('content_static_pages')->where('id', $parentId)->update([
+                'status' => 'published', 'published_version_id' => $versionId, 'updated_at' => $now,
+            ]);
+            return;
+        }
+        DB::table('content_static_pages')->where('id', $parentId)->update([
+            'status' => 'draft', 'published_version_id' => null, 'updated_at' => $now,
+        ]);
+    }
+
+    /** @return list<string> */
+    private function managedPageColumns(): array
+    {
+        return [
+            'page.id as internal_cursor', 'page.public_id', 'page.slug', 'page.status',
+            'page.created_at', 'page.updated_at', 'version.public_id as version_public_id',
+            'version.version_number', 'version.title', 'version.body_html',
+            'category.public_id as category_public_id', 'category.name as category_name',
+            'category.is_visible as category_is_visible', 'category.created_at as category_created_at',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function managedPageByPublicId(string $publicId): array
+    {
+        $latest = DB::table('content_versions')->select('static_page_id')
+            ->selectRaw('MAX(version_number) AS version_number')->whereNotNull('static_page_id')->groupBy('static_page_id');
+        $row = DB::table('content_static_pages as page')
+            ->joinSub($latest, 'latest_number', fn ($join) => $join->on('latest_number.static_page_id', '=', 'page.id'))
+            ->join('content_versions as version', function ($join): void {
+                $join->on('version.static_page_id', '=', 'page.id')->on('version.version_number', '=', 'latest_number.version_number');
+            })
+            ->leftJoin('content_page_categories as category', 'category.id', '=', 'version.page_category_id')
+            ->where('page.public_id', $publicId)->first($this->managedPageColumns());
+        if ($row === null) {
+            throw $this->notFound('PAGE_NOT_FOUND');
+        }
+        return $this->managedPageResult($row);
+    }
+
+    /** @return array<string, mixed> */
+    private function managedPageResult(object $row): array
+    {
+        return [
+            'id' => $row->public_id, 'slug' => $row->slug, 'title' => $row->title,
+            'body_html' => $row->body_html, 'visibility' => $row->status === 'published' ? 'visible' : 'hidden',
+            'category' => $row->category_public_id === null ? null : [
+                'id' => $row->category_public_id, 'name' => $row->category_name,
+                'visibility' => $row->category_is_visible ? 'visible' : 'hidden',
+                'created_at' => CarbonImmutable::parse($row->category_created_at)->toIso8601String(),
+            ],
+            'version_id' => $row->version_public_id, 'version_number' => (int) $row->version_number,
+            'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+            'updated_at' => CarbonImmutable::parse($row->updated_at)->toIso8601String(),
         ];
     }
 
@@ -1615,6 +1908,37 @@ final class V2ContentContactAdminService
                 default => $this->invalid('BANNER_IDEMPOTENCY_KEY_INVALID'),
             };
         }
+    }
+
+    /** @param array<string, mixed> $request */
+    private function claimPageMutation(Admin $admin, string $idempotencyKey, array $request): V2IdempotencyClaim
+    {
+        try {
+            return $this->idempotency->claim('content_page_mutation', 'admin', $admin->public_id, $idempotencyKey, $request);
+        } catch (V2PointException $exception) {
+            throw match ($exception->getMessage()) {
+                'IDEMPOTENCY_KEY_REUSED' => $this->conflict('PAGE_IDEMPOTENCY_KEY_REUSED'),
+                'IDEMPOTENCY_REQUEST_IN_PROGRESS' => new V2ContentContactException('PAGE_IDEMPOTENCY_REQUEST_IN_PROGRESS', 409, 'The Page request is still in progress.', true),
+                default => $this->invalid('PAGE_IDEMPOTENCY_KEY_INVALID'),
+            };
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function pageReplay(V2IdempotencyClaim $claim): array
+    {
+        $data = $claim->record->response_data['data'] ?? null;
+        if (! is_array($data)) {
+            throw new \RuntimeException('Page replay response is unavailable.');
+        }
+        return [...$data, 'idempotent_replay' => true];
+    }
+
+    /** @param array<string, mixed> $result */
+    private function completePageMutation(V2IdempotencyClaim $claim, string $type, string $id, array $result, int $status = 200): void
+    {
+        $this->idempotency->complete($claim->record, $type, $id, ['data' => $result]);
+        DB::table('idempotency_records')->where('id', $claim->record->id)->update(['response_status' => $status]);
     }
 
     /** @return array<string, mixed> */

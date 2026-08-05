@@ -86,6 +86,13 @@ import {
   type AdminBannerCategoryCollection,
   type AdminBannerCategoryCreate,
   type AdminBannerCategoryMutationResult,
+  type AdminPageCategoryCollection,
+  type AdminPageCategoryCreate,
+  type AdminPageCategoryMutationResult,
+  type AdminManagedPage,
+  type AdminManagedPageCollection,
+  type AdminManagedPageInput,
+  type AdminManagedPageMutationResult,
   type AdminAccountCreate,
   type AdminAccountCreateResponse,
   type AdminEnrollmentResult,
@@ -442,6 +449,59 @@ export class AdminApiClient {
       `/banner-management/banners/${encodeURIComponent(id)}`,
       { body: {}, idempotencyKey, signal },
     );
+  }
+
+  listPageCategories(signal?: AbortSignal): Promise<AdminPageCategoryCollection> {
+    return this.request("GET", "/page-management/categories", { signal });
+  }
+
+  createPageCategory(
+    body: AdminPageCategoryCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPageCategoryMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "PAGE_IDEMPOTENCY_KEY_INVALID", null, null, false));
+    }
+    return this.request("POST", "/page-management/categories", { body, idempotencyKey, signal });
+  }
+
+  listManagedPages(cursor?: string, signal?: AbortSignal): Promise<AdminManagedPageCollection> {
+    const parameters = new URLSearchParams({ limit: "20" });
+    if (cursor) parameters.set("cursor", cursor);
+    return this.request("GET", `/page-management/pages?${parameters.toString()}`, { signal });
+  }
+
+  getManagedPage(id: string, signal?: AbortSignal): Promise<AdminManagedPage> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(new AdminApiError(404, "PAGE_NOT_FOUND", null, null, false));
+    }
+    return this.request("GET", `/page-management/pages/${encodeURIComponent(id)}`, { signal });
+  }
+
+  createManagedPage(
+    body: AdminManagedPageInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedPageMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "PAGE_IDEMPOTENCY_KEY_INVALID", null, null, false));
+    }
+    return this.request("POST", "/page-management/pages", { body, idempotencyKey, signal });
+  }
+
+  updateManagedPage(
+    id: string,
+    body: AdminManagedPageInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedPageMutationResult> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "PAGE_REQUEST_INVALID", null, null, false));
+    }
+    return this.request("PUT", `/page-management/pages/${encodeURIComponent(id)}`, {
+      body, idempotencyKey, signal,
+    });
   }
 
   getContentNotice(
@@ -2203,6 +2263,7 @@ export class AdminApiClient {
     path:
       | `/auth/${string}`
       | `/banner-management/${string}`
+      | `/page-management/${string}`
       | `/catalog/${string}`
       | `/contact-inquiries${string}`
       | `/content/${string}`
@@ -2216,6 +2277,7 @@ export class AdminApiClient {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/banner-management/") &&
+        !path.startsWith("/page-management/") &&
         !path.startsWith("/catalog/") &&
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&

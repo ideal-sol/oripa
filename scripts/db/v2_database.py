@@ -73,6 +73,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.content_banner_categories",
     "public.content_banners",
     "public.content_notices",
+    "public.content_page_categories",
     "public.content_static_pages",
     "public.content_version_assets",
     "public.content_versions",

@@ -3795,6 +3795,251 @@
         }
       }
     },
+    "/page-management/categories": {
+      "get": {
+        "operationId": "listAdminPageCategories",
+        "summary": "ページカテゴリ一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ページカテゴリ一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPageCategoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminPageCategory",
+        "summary": "ページカテゴリを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPageCategoryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成したページカテゴリ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPageCategoryMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/page-management/pages": {
+      "get": {
+        "operationId": "listManagedAdminPages",
+        "summary": "管理用ページ一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理用ページ一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedPageCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createManagedAdminPage",
+        "summary": "管理用ページを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminManagedPageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成したページ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedPageMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/page-management/pages/{page_id}": {
+      "get": {
+        "operationId": "getManagedAdminPage",
+        "summary": "管理用ページ詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理用ページ詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateManagedAdminPage",
+        "summary": "管理用ページを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminManagedPageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したページ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedPageMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/banner-management/categories": {
       "get": {
         "operationId": "listAdminBannerCategories",
@@ -13112,6 +13357,223 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AdminPageVisibility": {
+        "type": "string",
+        "enum": [
+          "visible",
+          "hidden"
+        ]
+      },
+      "AdminPageCategory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "visibility",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/AdminPageVisibility"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPageCategoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPageCategory"
+            }
+          }
+        }
+      },
+      "AdminPageCategoryCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "visibility"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/AdminPageVisibility"
+          }
+        }
+      },
+      "AdminPageCategoryMutationResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminPageCategory"
+          },
+          {
+            "type": "object",
+            "required": [
+              "idempotent_replay"
+            ],
+            "properties": {
+              "idempotent_replay": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "AdminManagedPageInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category_id",
+          "title",
+          "body_html",
+          "slug",
+          "visibility"
+        ],
+        "properties": {
+          "category_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "body_html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 128
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/AdminPageVisibility"
+          }
+        }
+      },
+      "AdminManagedPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "body_html",
+          "visibility",
+          "category",
+          "version_id",
+          "version_number",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body_html": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/AdminPageVisibility"
+          },
+          "category": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminPageCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminManagedPageMutationResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminManagedPage"
+          },
+          {
+            "type": "object",
+            "required": [
+              "idempotent_replay"
+            ],
+            "properties": {
+              "idempotent_replay": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "AdminManagedPageCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminManagedPage"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

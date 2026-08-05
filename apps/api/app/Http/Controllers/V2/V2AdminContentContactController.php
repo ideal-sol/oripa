@@ -74,6 +74,59 @@ final class V2AdminContentContactController
         );
     }
 
+    public function pageCategories(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->pageCategories($context));
+    }
+
+    public function createPageCategory(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->createPageCategory(
+                $context,
+                $request->all(),
+                (string) $request->header('Idempotency-Key', '')
+            ), 201);
+    }
+
+    public function managedPages(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->managedPages(
+                $context,
+                $request->query('cursor'),
+                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20))
+            ));
+    }
+
+    public function managedPage(Request $request, string $pageId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->managedPage($context, $pageId));
+    }
+
+    public function createManagedPage(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->createManagedPage(
+                $context,
+                $request->all(),
+                (string) $request->header('Idempotency-Key', '')
+            ), 201);
+    }
+
+    public function updateManagedPage(Request $request, string $pageId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->updateManagedPage(
+                $context,
+                $pageId,
+                $request->all(),
+                (string) $request->header('Idempotency-Key', '')
+            ));
+    }
+
     public function managedBanners(Request $request): JsonResponse
     {
         return $this->handle(

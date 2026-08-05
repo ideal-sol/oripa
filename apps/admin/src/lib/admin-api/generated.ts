@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: aaaafeedfbf691067eef45963f5da358d659313fa4f1b4c10ae44942b4f54691
+// Contract SHA-256: e1ae37411d77b434a7924c1e3b1179bb5f75db9bc1a0ce10bb2504c3fa892ca8
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1354,6 +1354,58 @@ export interface AdminBannerCategory {
   id: string;
   name: string;
   created_at?: string;
+}
+
+export type AdminPageVisibility = "visible" | "hidden";
+
+export interface AdminPageCategory {
+  id: string;
+  name: string;
+  visibility: AdminPageVisibility;
+  created_at: string;
+}
+
+export interface AdminPageCategoryCollection {
+  items: AdminPageCategory[];
+}
+
+export interface AdminPageCategoryCreate {
+  name: string;
+  visibility: AdminPageVisibility;
+}
+
+export interface AdminPageCategoryMutationResult extends AdminPageCategory {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedPageInput {
+  category_id: string;
+  title: string;
+  body_html: string;
+  slug: string;
+  visibility: AdminPageVisibility;
+}
+
+export interface AdminManagedPage {
+  id: string;
+  slug: string;
+  title: string;
+  body_html: string;
+  visibility: AdminPageVisibility;
+  category: AdminPageCategory | null;
+  version_id: string;
+  version_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminManagedPageMutationResult extends AdminManagedPage {
+  idempotent_replay: boolean;
+}
+
+export interface AdminManagedPageCollection {
+  items: AdminManagedPage[];
+  next_cursor: string | null;
 }
 
 export interface AdminBannerCategoryCollection {
