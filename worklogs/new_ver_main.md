@@ -8012,3 +8012,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Task DBでBackend 18 tests／139 assertions、Admin Unit 3件、Desktop／Mobile E2E 2件、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
 - Contact一覧は3 Query、詳細はRead Auditを含む10 Query上限でN+1がないことを確認した。Preview反映、Required Checks、Closeoutは最終Headで実施する。
+
+### MIG-061O Preview
+
+- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:fec21377...`、Adminを`sha256:310701b5...`へ更新した。
+- Owner Login、Contact Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
+- Migration 33件、PostgreSQL／Redis、Environment Key集合、固定IP、Nginx checksum、V1、Storefrontは非変更。Required ChecksとCloseoutはFinal Headで確定する。

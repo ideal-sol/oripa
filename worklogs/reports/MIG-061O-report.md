@@ -24,11 +24,13 @@
 ## Verification／Preview
 
 - Task DBで対象BackendとContent回帰の計18 tests／139 assertions（一覧3 Query、詳細10 Query上限）、Admin Unit 3件、Desktop／Mobile E2E 2件がPASSした。OpenAPI Bundle／Breaking、Generated Client、Typecheck、Lint、Production Build、Policy／Quality、`git diff --check`もPASSした。
-- Preview結果、GitHub Required Checks、Final HeadのSelf-reviewはCloseoutで確定する。
+- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:c9cf11b9...`から`sha256:fec21377...`、Adminを`sha256:f9c94d86...`から`sha256:310701b5...`へ更新した。旧ImageはRollback用に保持した。
+- Owner Login、一覧Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。Preview DBは33 migrationsのまま、Environment Key集合、固定IP、PostgreSQL／Redis設定、Nginx checksum、V1、Storefrontは不変。Secret Candidateは0。
+- GitHub Required ChecksとFinal HeadのSelf-reviewはCloseoutで確定する。
 - Preview更新対象はAPI／Adminのみ。DB Schema／Migration、PostgreSQL／Redis設定、Nginx、V1、Storefrontは変更しない。
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061O/`
 
 ## 移植しなかった機能／所要時間
 
 - V1のメール部分一致検索と同期メール送信は、V2の暗号化PIIおよびOutbox境界を維持するため移植しない。外部メール配送の最終処理は後続課題とする。
-- Characterization、後方互換Contract、対象検証、Preview反映が主な作業。所要時間はCloseoutで確定する。
+- Characterization、後方互換Contract、対象検証、Preview反映が主な作業。Weekly limitは実行環境から取得できないため未記録。
