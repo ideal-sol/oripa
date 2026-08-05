@@ -526,6 +526,7 @@ V2_CONTENT_CONTACT_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_02_000013_create_v2_content_contact_vertical_slice.php",
     "apps/api/tests/V2/ContentContactVerticalSliceTest.php",
     "apps/api/tests/V2/AdminAnnouncementManagementTest.php",
+    "apps/api/tests/V2/AdminContactManagementTest.php",
     "apps/api/tests/V2/ZContentContactPerformanceTest.php",
     "docs/operations/content-contact/README.md",
     "openapi/admin/openapi.yaml",
@@ -603,6 +604,12 @@ MIG_061N_ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/announcements/[announcementPublicId]/page.tsx",
     "apps/admin/src/components/announcements/announcement-management-workspace.tsx",
     "apps/admin/test/admin-announcement-management.test.tsx",
+}
+MIG_061O_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-contact-management.spec.ts",
+    "apps/admin/src/app/contacts/[contactPublicId]/page.tsx",
+    "apps/admin/src/components/contacts/contact-management-workspace.tsx",
+    "apps/admin/test/admin-contact-management.test.tsx",
 }
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
@@ -712,6 +719,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061L_ADMIN_SKELETON_FILES,
     *MIG_061M_ADMIN_SKELETON_FILES,
     *MIG_061N_ADMIN_SKELETON_FILES,
+    *MIG_061O_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",

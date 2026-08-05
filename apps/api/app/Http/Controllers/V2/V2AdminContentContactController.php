@@ -56,7 +56,9 @@ final class V2AdminContentContactController
             $this->service->contactList(
                 $context,
                 $request->query('cursor'),
-                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20))
+                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20)),
+                $request->filled('status') ? (string) $request->query('status') : null,
+                $request->filled('email') ? (string) $request->query('email') : null
             ));
     }
 
@@ -78,7 +80,8 @@ final class V2AdminContentContactController
                     $context,
                     $contactId,
                     (string) $request->input('status'),
-                    (string) $request->input('reason_code')
+                    (string) $request->input('reason_code'),
+                    (string) $request->header('Idempotency-Key', '')
                 )
         );
     }
@@ -105,7 +108,8 @@ final class V2AdminContentContactController
                 $this->service->requestReply(
                     $context,
                     $contactId,
-                    (string) $request->input('message')
+                    (string) $request->input('message'),
+                    (string) $request->header('Idempotency-Key', '')
                 ),
             202
         );

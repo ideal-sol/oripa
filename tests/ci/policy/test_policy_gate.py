@@ -20,6 +20,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061o_contact_path_registration_is_exact(self):
+        expected_content = {
+            "apps/api/tests/V2/AdminContactManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-contact-management.spec.ts",
+            "apps/admin/src/app/contacts/[contactPublicId]/page.tsx",
+            "apps/admin/src/components/contacts/contact-management-workspace.tsx",
+            "apps/admin/test/admin-contact-management.test.tsx",
+        }
+
+        self.assertTrue(
+            expected_content.issubset(policy_gate.V2_CONTENT_CONTACT_REQUIRED_FILES)
+        )
+        self.assertEqual(policy_gate.MIG_061O_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_content | expected_admin))
+
     def test_mig_061n_announcement_path_registration_is_exact(self):
         expected_content = {
             "apps/api/tests/V2/AdminAnnouncementManagementTest.php",

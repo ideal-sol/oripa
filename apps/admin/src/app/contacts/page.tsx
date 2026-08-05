@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { ContactManagementWorkspace } from "@/components/contacts/contact-management-workspace";
 
 export const metadata: Metadata = { title: "お問い合わせ" };
 
 export default function ContactsPage() {
-  return <ModuleRoutePage routeId="contacts" />;
+  return <ContactManagementWorkspace mode="list" />;
 }

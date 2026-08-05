@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 970eea4ad2a3f089619d71d1f3217ab1bd57d2ef29c6f82f68fef9130057aacf
+// Contract SHA-256: 990b666bec9037e6b83150fc8aed0a7171c6276f9a5724f0b0b996d52f77b2e0
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1416,6 +1416,79 @@ export interface AdminContentPreview {
   asset_id: string | null;
   publish_start_at: string;
   publish_end_at: string | null;
+}
+
+export type AdminContactStatus = "new" | "in_progress" | "replied" | "closed";
+
+export interface AdminContactSummary {
+  id: string;
+  receipt_code: string;
+  status: AdminContactStatus;
+  authenticated: boolean;
+  received_at: string;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  body_excerpt?: string;
+  updated_at?: string;
+}
+
+export interface AdminContactCollection {
+  items: AdminContactSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminContactStatusHistory {
+  from_status: AdminContactStatus | null;
+  to_status: AdminContactStatus;
+  reason_code: string;
+  occurred_at: string;
+}
+
+export interface AdminContactInternalNote {
+  note: string;
+  created_at: string;
+}
+
+export interface AdminContactReplyRequest {
+  id: string;
+  message: string;
+  created_at: string;
+}
+
+export interface AdminContactDetail extends AdminContactSummary {
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string;
+  body: string;
+  closed_at: string | null;
+  updated_at: string;
+  status_history: AdminContactStatusHistory[];
+  internal_notes: AdminContactInternalNote[];
+  reply_requests?: AdminContactReplyRequest[];
+}
+
+export interface AdminContactStatusUpdate {
+  status: AdminContactStatus;
+  reason_code: string;
+}
+
+export interface AdminContactStatusResult {
+  id: string;
+  status: AdminContactStatus;
+  updated_at: string;
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContactReplyInput {
+  message: string;
+}
+
+export interface AdminContactReplyResult {
+  id: string;
+  status: "queued";
+  idempotent_replay?: boolean;
 }
 
 export interface AdminCatalogMutationResult<T> {

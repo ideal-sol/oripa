@@ -4686,7 +4686,7 @@
     "/contact-inquiries": {
       "get": {
         "operationId": "listAdminContactInquiries",
-        "summary": "Contact Inquiry一覧をPII非表示で取得する",
+        "summary": "Contact Inquiry一覧をV1互換列と絞り込みで取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "admin-read",
         "x-cache-policy": "no-store",
@@ -4702,6 +4702,32 @@
           },
           {
             "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ContactStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "description": "暗号化PIIを復号走査せずCorrelation Hashで完全一致検索する。",
+            "schema": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 320
+            }
           }
         ],
         "responses": {
@@ -13018,6 +13044,27 @@
           "received_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body_excerpt": {
+            "type": "string",
+            "maxLength": 48
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -13093,6 +13140,28 @@
           }
         }
       },
+      "ContactReplyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "message",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AdminContactDetail": {
         "allOf": [
           {
@@ -13149,6 +13218,16 @@
                 "items": {
                   "$ref": "#/components/schemas/ContactInternalNote"
                 }
+              },
+              "reply_requests": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ContactReplyRequest"
+                }
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
               }
             }
           }
@@ -13189,6 +13268,9 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },
@@ -13234,6 +13316,9 @@
           "recorded": {
             "type": "boolean",
             "const": true
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },
@@ -13251,6 +13336,9 @@
           "status": {
             "type": "string",
             "const": "queued"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },

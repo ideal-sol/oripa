@@ -61,6 +61,16 @@ const operations = {
     "post",
     "/content/notices/{content_id}/unpublish",
   ],
+  listAdminContactInquiries: ["get", "/contact-inquiries"],
+  getAdminContactInquiry: ["get", "/contact-inquiries/{contact_id}"],
+  updateAdminContactInquiryStatus: [
+    "put",
+    "/contact-inquiries/{contact_id}/status",
+  ],
+  createAdminContactReplyRequest: [
+    "post",
+    "/contact-inquiries/{contact_id}/reply-requests",
+  ],
   beginAdminTotpEnrollment: ["post", "/auth/mfa/totp"],
   confirmAdminTotpEnrollment: ["post", "/auth/mfa/totp/confirm"],
   createAdminWebauthnOptions: ["post", "/auth/mfa/webauthn/options"],
@@ -364,6 +374,13 @@ const requiredSchemas = [
   "AdminContentVersion",
   "CreateNoticeContentRequest",
   "DocumentVersionInput",
+  "AdminContactSummary",
+  "AdminContactCollection",
+  "AdminContactDetail",
+  "ContactStatusUpdate",
+  "ContactStatusResult",
+  "ContactReplyInput",
+  "ContactReplyResult",
   "AdminLineMessagingSetting",
   "AdminLineMessagingSettingResponse",
   "AdminLineMessagingSettingUpdate",
@@ -1871,6 +1888,79 @@ export interface AdminContentPreview {
   asset_id: string | null;
   publish_start_at: string;
   publish_end_at: string | null;
+}
+
+export type AdminContactStatus = "new" | "in_progress" | "replied" | "closed";
+
+export interface AdminContactSummary {
+  id: string;
+  receipt_code: string;
+  status: AdminContactStatus;
+  authenticated: boolean;
+  received_at: string;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  body_excerpt?: string;
+  updated_at?: string;
+}
+
+export interface AdminContactCollection {
+  items: AdminContactSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminContactStatusHistory {
+  from_status: AdminContactStatus | null;
+  to_status: AdminContactStatus;
+  reason_code: string;
+  occurred_at: string;
+}
+
+export interface AdminContactInternalNote {
+  note: string;
+  created_at: string;
+}
+
+export interface AdminContactReplyRequest {
+  id: string;
+  message: string;
+  created_at: string;
+}
+
+export interface AdminContactDetail extends AdminContactSummary {
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string;
+  body: string;
+  closed_at: string | null;
+  updated_at: string;
+  status_history: AdminContactStatusHistory[];
+  internal_notes: AdminContactInternalNote[];
+  reply_requests?: AdminContactReplyRequest[];
+}
+
+export interface AdminContactStatusUpdate {
+  status: AdminContactStatus;
+  reason_code: string;
+}
+
+export interface AdminContactStatusResult {
+  id: string;
+  status: AdminContactStatus;
+  updated_at: string;
+  idempotent_replay?: boolean;
+}
+
+export interface AdminContactReplyInput {
+  message: string;
+}
+
+export interface AdminContactReplyResult {
+  id: string;
+  status: "queued";
+  idempotent_replay?: boolean;
 }
 
 export interface AdminCatalogMutationResult<T> {
