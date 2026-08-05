@@ -4560,7 +4560,7 @@ def validate_release_artifact_foundation(
     api_dockerfile = (repository / "infra/docker/backend/Dockerfile").read_text(
         encoding="utf-8"
     )
-    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.177-1" not in api_dockerfile:
+    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.180-1" not in api_dockerfile:
         raise PolicyFailure(
             "infra/docker/backend/Dockerfile: patched multi-stage runtime is required"
         )

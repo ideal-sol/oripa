@@ -37,6 +37,11 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(policy_gate.MIG_061O_ADMIN_SKELETON_FILES, expected_admin)
         self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected_content | expected_admin))
+        api_dockerfile = (ROOT / "infra/docker/backend/Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("linux-libc-dev=6.1.180-1", api_dockerfile)
+        self.assertNotIn("linux-libc-dev=6.1.177-1", api_dockerfile)
 
     def test_mig_061n_announcement_path_registration_is_exact(self):
         expected_content = {
