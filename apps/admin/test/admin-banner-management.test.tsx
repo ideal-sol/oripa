@@ -100,7 +100,7 @@ describe("Banner management", () => {
     fireEvent.click(within(edit).getByRole("button", { name: "更新" }));
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
 
-    fireEvent.click(screen.getByRole("button", { name: "メインバナーを削除" }));
+    fireEvent.click(await screen.findByRole("button", { name: "メインバナーを削除" }));
     const deletion = screen.getByRole("dialog", { name: "バナー削除" });
     expect(within(deletion).getByText(/Versionと共有画像Assetは保持/)).toBeVisible();
     fireEvent.click(within(deletion).getByRole("button", { name: "削除" }));
