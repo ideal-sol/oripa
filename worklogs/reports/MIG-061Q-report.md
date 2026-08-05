@@ -3,9 +3,10 @@
 ## Issue／PR／Commit
 
 - Issue: #202
-- PR: Closeoutで確定
+- PR: #203
 - Base: `b4d60ae123fff584e3209b363a833e83ec0c701a`
-- Final Head／Squash Commit: Closeoutで確定
+- Application Head: `78ad60136c4919e2505117ab786e02d614d45cfc`
+- Final Head／Squash Commit: GitHub Closeout結果を提出時に確定
 - Task Policy SHA-256: `5b0a599bb9a3dc52bfe94760f47cf9407289edd519178733283292dd33352260`
 
 ## V1移植／API／Migration
@@ -20,7 +21,11 @@
 
 - Task DB `oripa_v2_mig061q`、Marker `MIG-061Q`、Purpose `v2-task-ephemeral`でTarget Guard、35 migrations、fresh、rollback／reapplyがPASSした。
 - Backend 3 tests／23 assertions、Admin Unit 24 files／116 tests、Desktop／Mobile Browser 2件、Typecheck、Lint、Production Build、OpenAPI 187 operations、Generated Client、Policy／Quality、`git diff --check`がPASSした。Vitestの対象指定は全24 filesへ展開される挙動を記録し、同一Headで再実行しない。
-- Preview API／AdminとMigration反映結果、GitHub Checks、Self-review、Squash CommitはCloseoutで確定する。
+- Preview DB `oripa_v2_mig061a`へMigration `000035`だけを適用し、Target Guardは35 migrationsでPASSした。既存Dataは保持し、`migrate:fresh`は実行していない。
+- Preview APIを`sha256:4b528540...`から`sha256:cc516763...`、Adminを`sha256:8afac4e4...`から`sha256:4b9d4370...`へ更新した。両ImageはApplication HeadをOCI revisionに保持する。
+- Owner Login後に一覧、新規登録、カテゴリ即時反映、編集Routeを確認した。Synthetic Category 1件と非表示Synthetic Page 1件に限定し、Desktop／Mobile、Console／Page Error 0、HTTP 500／502／504 0、横溢れなしでPASSした。
+- PostgreSQL／Redis設定、Network／固定IP、Nginx checksum、V1、Storefront、Payment Providerは変更していない。`admin.luxe-pack.biz/login`と`luxe-pack.biz`はHTTP 200を維持した。
+- GitHub Checks、Fresh Self-review、Squash CommitはCloseoutで確定する。
 - カテゴリ編集／削除、ページ削除、Storefront URL生成、Version履歴UIは対象外。Weekly limitは実行環境から取得できないため未記録。
 - 主な所要作業はV1 Characterization、既存Content VersionへのカテゴリRelation追加、Task DB Target整合、対象UI／Contract検証。
 - Gate G4／G5は`NOT COMPLETE`を維持し、MIG-061Rは開始しない。

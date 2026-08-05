@@ -8039,3 +8039,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1の固定ページ一覧／編集をCharacterizationし、V2 immutable Content Versionへカテゴリ、slug、表示状態を接続した。
 - Task DBでMigration fresh／rollback／reapply、Backend 3 tests／23 assertions、Admin Unit 116 tests、Desktop／Mobile E2E 2件、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
 - Preview反映、Required Checks、Closeoutは最終Headで確定する。Gate G4／G5は`NOT COMPLETE`、MIG-061Rは開始しない。
+
+### MIG-061Q Preview
+
+- Application Head `78ad60136c4919e2505117ab786e02d614d45cfc`からPreview APIを
+  `sha256:cc516763...`、Adminを`sha256:4b9d4370...`へ更新し、DBへMigration 000035だけを適用した。
+- Owner Login、ページ一覧、カテゴリ追加、非表示Synthetic Page作成、編集Route、Desktop／Mobileを確認した。
+  Console／Page ErrorとHTTP 500／502／504は0で、Synthetic Dataはカテゴリ1件、ページ1件に限定した。
+- Migration 35件、DB Target Guard、API／Admin HealthがPASSした。既存Data、PostgreSQL／Redis設定、Network／固定IP、
+  Nginx checksum、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。

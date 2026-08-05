@@ -2,20 +2,31 @@
   "task_id": "MIG-061Q",
   "risk": "R3",
   "verification_profile": "FAST-TRACK-FEATURE",
-  "status": "local_verified_preview_pending",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "b4d60ae123fff584e3209b363a833e83ec0c701a",
   "task_policy_sha256": "5b0a599bb9a3dc52bfe94760f47cf9407289edd519178733283292dd33352260",
   "issue": 202,
-  "pull_request": null,
+  "pull_request": 203,
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061Q/",
   "preview": {
     "compose_project": "mig061a-v2-preview",
-    "api_change": "PENDING",
-    "admin_change": "PENDING",
+    "deployed_at": "2026-08-05T07:05:53Z",
+    "source_commit": "78ad60136c4919e2505117ab786e02d614d45cfc",
+    "api_previous_image": "sha256:4b5285406a6def8056736e2c14caf10ae391548a3ef42225863821c006c6d150",
+    "api_image": "sha256:cc5167638bacbb218f8a4af2e95dba7681a11f058dec79f7da50cce7ae84e96d",
+    "admin_previous_image": "sha256:8afac4e4a580698b73a476291c42691c2e65ac06ea0e914e3d49692af09c89cf",
+    "admin_image": "sha256:4b9d4370d97a3c0f616948a3553ea495074ac007a27a1fb9434b15addf781de5",
     "migration": "2026_08_22_000035_add_v2_page_management.php",
-    "nginx_change": "NONE"
+    "migration_count": 35,
+    "database": "oripa_v2_mig061a",
+    "synthetic_categories": 1,
+    "synthetic_pages": 1,
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
   },
   "verification": {
     "backend_targeted": "PASS_3_TESTS_23_ASSERTIONS",
@@ -25,7 +36,7 @@
     "generated_client": "PASS",
     "admin_typecheck_lint_build": "PASS",
     "policy_quality": "PASS",
-    "preview_smoke": "PENDING"
+    "preview_smoke": "PASS_AUTHENTICATED_DESKTOP_MOBILE_NO_CONSOLE_PAGE_GATEWAY_ERRORS"
   },
   "gate_g4": "NOT COMPLETE",
   "gate_g5": "NOT COMPLETE"
