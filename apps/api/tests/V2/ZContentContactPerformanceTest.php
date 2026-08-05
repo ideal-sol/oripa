@@ -69,7 +69,11 @@ final class ZContentContactPerformanceTest extends TestCase
             'contact_100000_first_page' => $this->measure(
                 fn (): array => $admin->contactList($context, null, 50),
                 static fn (array $result): bool =>
-                    count($result['items']) === 50 && $result['next_cursor'] !== null
+                    count($result['items']) === 50
+                    && $result['next_cursor'] !== null
+                    && $result['items'][0]['name'] === 'Performance User'
+                    && $result['items'][0]['email'] === 'performance@example.test'
+                    && $result['items'][0]['body_excerpt'] === 'Performance contact body'
             ),
         ];
         $concurrency = $this->concurrentContacts(10);
