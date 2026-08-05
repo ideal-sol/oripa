@@ -1367,12 +1367,12 @@ export interface AdminCatalogGachaCoreVersion {
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;
-  revision: number;
+  revision?: number;
 }
 
 export interface AdminCatalogGacha {
   id: string;
-  public_code: string;
+  public_code?: string;
   code: string;
   slug: string;
   state: "draft" | "active" | "disabled";

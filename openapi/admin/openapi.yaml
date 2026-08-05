@@ -4432,7 +4432,7 @@ components:
     AdminCatalogGachaCoreVersion:
       type: object
       additionalProperties: false
-      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, presentation_asset, publish_start_at, publish_end_at, revision]
+      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, presentation_asset, publish_start_at, publish_end_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         version_number: {type: integer, minimum: 1}
@@ -4454,7 +4454,7 @@ components:
     AdminCatalogGacha:
       type: object
       additionalProperties: false
-      required: [id, public_code, code, slug, state, sold_count, category, tags, published_version, version_count, has_draw_history, is_archived, revision, archived_at, created_at, updated_at]
+      required: [id, code, slug, state, sold_count, category, tags, published_version, version_count, has_draw_history, is_archived, revision, archived_at, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         public_code: {type: string, pattern: '^[A-Za-z0-9]{11}$'}

@@ -10294,8 +10294,7 @@
           "audience_code",
           "presentation_asset",
           "publish_start_at",
-          "publish_end_at",
-          "revision"
+          "publish_end_at"
         ],
         "properties": {
           "id": {
@@ -10383,7 +10382,6 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "public_code",
           "code",
           "slug",
           "state",

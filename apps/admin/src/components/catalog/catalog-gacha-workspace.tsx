@@ -151,7 +151,7 @@ export function CatalogGachaWorkspace({
         size: draft.thumbnailFile.size,
         type: draft.thumbnailFile.type,
       } : null },
-      id: currentGacha?.public_code ?? null,
+      id: currentGacha ? gachaIdentifier(currentGacha) : null,
       revision: currentGacha?.revision ?? null,
     });
     const key = mutationKey(fingerprint);
@@ -184,20 +184,21 @@ export function CatalogGachaWorkspace({
         title: draft.title,
         total_count: draft.totalCount,
       };
+      const versionRevision = editMode ? requireCoreVersionRevision(currentGacha) : null;
       const result = editMode
         ? await client.updateCatalogGacha(
-            currentGacha!.public_code,
+            gachaIdentifier(currentGacha!),
             {
               ...body,
               expected_revision: currentGacha!.revision,
-              expected_version_revision: currentGacha!.current_version!.revision,
+              expected_version_revision: versionRevision!,
             },
             key,
           )
         : await client.createCatalogGachaCore(body, key);
       pendingMutation.current = null;
       setMutationError(null);
-      router.push(`/catalog/gachas/${result.data.public_code}`);
+      router.push(`/catalog/gachas/${gachaIdentifier(result.data)}`);
     } catch (cause) {
       handleMutationError(cause);
       throw cause;
@@ -208,7 +209,7 @@ export function CatalogGachaWorkspace({
     const fingerprint = JSON.stringify({
       action: formMode,
       draft,
-      gachaId: currentGacha?.public_code,
+      gachaId: currentGacha ? gachaIdentifier(currentGacha) : undefined,
       revision: currentVersion?.revision ?? null,
       versionId: currentVersion?.id ?? null,
     });
@@ -231,9 +232,9 @@ export function CatalogGachaWorkspace({
     try {
       const result =
         formMode === "create-version"
-          ? await client.createCatalogGachaDraft(currentGacha!.public_code, body, key)
+          ? await client.createCatalogGachaDraft(gachaIdentifier(currentGacha!), body, key)
           : await client.updateCatalogGachaDraft(
-              currentGacha!.public_code,
+              gachaIdentifier(currentGacha!),
               currentVersion!.id,
               { expected_revision: currentVersion!.revision, ...body },
               key,
@@ -258,13 +259,13 @@ export function CatalogGachaWorkspace({
     }
     const fingerprint = JSON.stringify({
       action: "clone-version",
-      gachaId: currentGacha.public_code,
+      gachaId: gachaIdentifier(currentGacha),
       versionId: version.id,
     });
     setBusy(true);
     try {
       await client.cloneCatalogGachaDraft(
-        currentGacha.public_code,
+        gachaIdentifier(currentGacha),
         version.id,
         mutationKey(fingerprint),
       );
@@ -284,7 +285,7 @@ export function CatalogGachaWorkspace({
     if (!target) return;
     const fingerprint = JSON.stringify({
       action: confirmMode,
-      gachaId: currentGacha.public_code,
+      gachaId: gachaIdentifier(currentGacha),
       id: target.id,
       revision: target.revision,
     });
@@ -292,7 +293,7 @@ export function CatalogGachaWorkspace({
     try {
       if (confirmMode === "archive-master") {
         const result = await client.archiveCatalogGacha(
-          currentGacha.public_code,
+          gachaIdentifier(currentGacha),
           currentGacha.revision,
           mutationKey(fingerprint),
         );
@@ -309,7 +310,7 @@ export function CatalogGachaWorkspace({
         );
       } else {
         const result = await client.discardCatalogGachaDraft(
-          currentGacha.public_code,
+          gachaIdentifier(currentGacha),
           currentVersion!.id,
           currentVersion!.revision,
           mutationKey(fingerprint),
@@ -388,7 +389,7 @@ export function CatalogGachaWorkspace({
               <CatalogGachaCoreForm
                 current={state.gacha}
                 mode="edit"
-                onCancel={() => router.push(`/catalog/gachas/${state.gacha.public_code}`)}
+                onCancel={() => router.push(`/catalog/gachas/${gachaIdentifier(state.gacha)}`)}
                 onSubmit={submitCore}
               />
             ) : null}
@@ -517,7 +518,7 @@ export function CatalogGachaWorkspace({
           ) : null}
           {state.kind === "version" ? (
             <VersionDetail
-              gachaId={state.gacha.public_code}
+              gachaId={gachaIdentifier(state.gacha)}
               onCanonical={(version) => setState({ ...state, version })}
               version={state.version}
             />
@@ -579,7 +580,7 @@ function HeaderActions({
   if (state === "gacha") {
     return (
       <div className="catalog-header-actions">
-        <Link className="secondary-button" href={`/gachas/${currentGacha.public_code}/edit`}>
+        <Link className="secondary-button" href={`/gachas/${gachaIdentifier(currentGacha)}/edit`}>
           <Pencil size={16} aria-hidden="true" />
           Master編集
         </Link>
@@ -655,7 +656,7 @@ function GachaList({
             {items.map((gacha) => (
               <tr key={gacha.id}>
                 <td>
-                  <code>{gacha.public_code}</code>
+                  <code>{gacha.public_code ?? "未発行"}</code>
                 </td>
                 <td><strong>{gacha.current_version?.title ?? "未設定"}</strong></td>
                 <td><PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} /></td>
@@ -665,7 +666,7 @@ function GachaList({
                   <Link
                     aria-label={`${gacha.current_version?.title ?? gacha.code}の履歴`}
                     className="table-link"
-                    href={`/catalog/gachas/${gacha.public_code}/history`}
+                    href={`/catalog/gachas/${gachaIdentifier(gacha)}/history`}
                   >
                     履歴
                   </Link>
@@ -674,7 +675,7 @@ function GachaList({
                   <Link
                     aria-label={`${gacha.current_version?.title ?? gacha.code}の詳細`}
                     className="table-link"
-                    href={`/catalog/gachas/${gacha.public_code}`}
+                    href={`/catalog/gachas/${gachaIdentifier(gacha)}`}
                   >
                     詳細
                   </Link>
@@ -723,13 +724,13 @@ function GachaDetail({
         <header className="catalog-detail-title-row">
           <h2>{gacha.current_version?.title ?? gacha.code}</h2>
           <nav aria-label="ガチャ設計">
-            <Link className="secondary-button" href={`/catalog/gachas/${gacha.public_code}/profit-simulation`}>利益シミュレーション</Link>
-            <Link className="secondary-button" href={`/catalog/gachas/${gacha.public_code}/product-design-planner`}>商品設計プランナー</Link>
+            <Link className="secondary-button" href={`/catalog/gachas/${gachaIdentifier(gacha)}/profit-simulation`}>利益シミュレーション</Link>
+            <Link className="secondary-button" href={`/catalog/gachas/${gachaIdentifier(gacha)}/product-design-planner`}>商品設計プランナー</Link>
           </nav>
         </header>
         <PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} />
         <dl>
-          <Detail label="Public ID" value={gacha.public_code} />
+          <Detail label="Public ID" value={gacha.public_code ?? "未発行"} />
           <Detail label="ガチャタイトル" value={gacha.current_version?.title ?? "未設定"} />
           <Detail label="カテゴリ" value={gacha.category.name} />
           <Detail label="タグ" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
@@ -746,7 +747,7 @@ function GachaDetail({
       </section>
       <CatalogGachaRankPrizeManager
         canManage={canManage}
-        gachaId={gacha.public_code}
+        gachaId={gachaIdentifier(gacha)}
         version={editableDraft}
       />
       <section className="catalog-version-section">
@@ -784,7 +785,7 @@ function GachaDetail({
                       <div className="catalog-table-actions">
                         <Link
                           className="table-link"
-                          href={`/catalog/gachas/${gacha.public_code}/versions/${version.id}`}
+                          href={`/catalog/gachas/${gachaIdentifier(gacha)}/versions/${version.id}`}
                         >
                           詳細
                         </Link>
@@ -813,6 +814,18 @@ function GachaDetail({
       </section>
     </>
   );
+}
+
+function gachaIdentifier(gacha: AdminCatalogGacha): string {
+  return gacha.public_code ?? gacha.id;
+}
+
+function requireCoreVersionRevision(gacha: AdminCatalogGacha | null): number {
+  const revision = gacha?.current_version?.revision;
+  if (!Number.isSafeInteger(revision) || (revision ?? 0) < 1) {
+    throw new Error("The editable Gacha version revision is unavailable.");
+  }
+  return revision!;
 }
 
 function publicationStatusLabel(status?: AdminCatalogGacha["publication_status"]): string {
