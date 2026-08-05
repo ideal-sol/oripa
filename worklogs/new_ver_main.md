@@ -8001,3 +8001,22 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task DBでBackend 15 tests／107 assertions、Admin Unit 3件、Desktop／Mobile E2E 2件、OpenAPI Breaking／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
 - Preview API Imageを`sha256:c9cf11b9...`、Admin Imageを`sha256:f9c94d86...`へ更新した。Owner Login、一覧、Sanitized Preview、Synthetic Draft 1件、HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
 - Migration／DB Schema、PostgreSQL／Redis設定、Nginx checksum、V1、Storefrontは非変更。Required Checks、Self-review、Squash Commit、CleanupはCloseoutで確定する。
+
+# MIG-061O お問い合わせ管理
+
+- Issue #198、Branch `feat/MIG-061O-contact-management`、Risk R3、Verification `FAST-TRACK-FEATURE`で開始した。
+- V1 Contactの一覧列、状態、詳細、返信導線をCharacterizationし、V2既存Contact Inquiry／Status History／Reply Request／Outbox基盤へ移植する。
+- 既存Schemaで実現できるためMigrationは追加しない。Preview更新対象はAPI／Adminのみとし、DB／Nginx／V1／Storefrontは非変更とする。
+
+### MIG-061O Target Verification
+
+- Task DBでBackend 18 tests／139 assertions、Admin Unit 3件、Desktop／Mobile E2E 2件、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+- Contact一覧は3 Query、詳細はRead Auditを含む10 Query上限でN+1がないことを確認した。Preview反映、Required Checks、Closeoutは最終Headで実施する。
+
+### MIG-061O Preview
+
+- Application Head `bed7b0a90243791f8fa545ed36f5fb2687d71136`からPreview APIを`sha256:54656a8c...`、Adminを`sha256:310701b5...`へ更新した。
+- Owner Login、Contact Empty State、API／Admin HealthがPASSし、Console／Page ErrorとHTTP 500／502／504は0だった。
+- Migration 33件、PostgreSQL／Redis、Environment Key集合、固定IP、Nginx checksum、V1、Storefrontは非変更。Required ChecksとCloseoutはFinal Headで確定する。
+- GitHub Integration Gateが検出した取得不能な`linux-libc-dev=6.1.177-1`固定を、現在のBookworm Security正本`6.1.180-1`へ補正した。Policy追加はDockerfile 1 Pathだけで、API Image Healthを再確認した。
+- 後続Integration Gateで、100,000件Contact Performance Fixtureが暗号化Columnへ平文を投入していた不整合を検出した。当該Test 1 PathだけをPolicyへ追加し、有効な暗号文Fixtureへ補正した。1 test／31 assertions、一覧p95 12.427 ms、Concurrent 10/10、N+1なしでPASSした。

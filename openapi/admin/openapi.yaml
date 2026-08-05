@@ -1866,13 +1866,27 @@ paths:
   /contact-inquiries:
     get:
       operationId: listAdminContactInquiries
-      summary: Contact Inquiry一覧をPII非表示で取得する
+      summary: Contact Inquiry一覧をV1互換列と絞り込みで取得する
       x-idempotency: safe
       x-rate-limit: admin-read
       x-cache-policy: no-store
       x-stability: alpha
       security: [{adminSession: []}]
-      parameters: [{$ref: '#/components/parameters/PageLimit'}, {$ref: '#/components/parameters/PageCursor'}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - name: status
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - {$ref: '#/components/schemas/ContactStatus'}
+              - {type: 'null'}
+        - name: email
+          in: query
+          required: false
+          description: 暗号化PIIを復号走査せずCorrelation Hashで完全一致検索する。
+          schema: {type: string, format: email, maxLength: 320}
       responses:
         '200': {description: Contact一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminContactCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
@@ -5283,6 +5297,11 @@ components:
         status: {$ref: '#/components/schemas/ContactStatus'}
         authenticated: {type: boolean}
         received_at: {type: string, format: date-time}
+        name: {type: string}
+        email: {type: string, format: email}
+        phone: {type: [string, 'null']}
+        body_excerpt: {type: string, maxLength: 48}
+        updated_at: {type: string, format: date-time}
     AdminContactCollection:
       type: object
       additionalProperties: false
@@ -5309,6 +5328,14 @@ components:
       properties:
         note: {type: string, maxLength: 5000}
         created_at: {type: string, format: date-time}
+    ContactReplyRequest:
+      type: object
+      additionalProperties: false
+      required: [id, message, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        message: {type: string, maxLength: 5000}
+        created_at: {type: string, format: date-time}
     AdminContactDetail:
       allOf:
         - {$ref: '#/components/schemas/AdminContactSummary'}
@@ -5324,6 +5351,8 @@ components:
             closed_at: {type: [string, 'null'], format: date-time}
             status_history: {type: array, items: {$ref: '#/components/schemas/ContactStatusHistory'}}
             internal_notes: {type: array, items: {$ref: '#/components/schemas/ContactInternalNote'}}
+            reply_requests: {type: array, items: {$ref: '#/components/schemas/ContactReplyRequest'}}
+            updated_at: {type: string, format: date-time}
     ContactStatusUpdate:
       type: object
       additionalProperties: false
@@ -5339,6 +5368,7 @@ components:
         id: {$ref: '#/components/schemas/OpaqueId'}
         status: {$ref: '#/components/schemas/ContactStatus'}
         updated_at: {type: string, format: date-time}
+        idempotent_replay: {type: boolean}
     ContactNoteInput:
       type: object
       additionalProperties: false
@@ -5358,6 +5388,7 @@ components:
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         recorded: {type: boolean, const: true}
+        idempotent_replay: {type: boolean}
     ContactReplyResult:
       type: object
       additionalProperties: false
@@ -5365,6 +5396,7 @@ components:
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         status: {type: string, const: queued}
+        idempotent_replay: {type: boolean}
     OpaqueId:
       $ref: ../components/common.yaml#/schemas/OpaqueId
     QaModeInput:

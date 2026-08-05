@@ -7,6 +7,7 @@ use App\Domain\ContentContact\Exceptions\V2ContentContactException;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use App\Domain\Identity\Services\V2EmailNormalizer;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -35,6 +36,7 @@ final class V2ContentContactAdminService
 
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorizer,
+        private readonly V2EmailNormalizer $emails,
         private readonly V2ContentCursor $cursor,
         private readonly V2ContentHtmlSanitizer $sanitizer,
         private readonly V2PointIdempotencyService $idempotency,
@@ -492,22 +494,49 @@ final class V2ContentContactAdminService
     public function contactList(
         V2AdminAuthorizationContext $context,
         ?string $cursor,
-        int $limit
+        int $limit,
+        ?string $status = null,
+        ?string $email = null
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContact);
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
+        if ($status !== null && ! array_key_exists($status, self::CONTACT_TRANSITIONS)) {
+            throw $this->invalid('CONTACT_FILTER_INVALID');
+        }
+        $emailHash = null;
+        if ($email !== null && trim($email) !== '') {
+            $normalizedEmail = $this->emails->normalize(trim($email));
+            if (filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
+                throw $this->invalid('CONTACT_FILTER_INVALID');
+            }
+            $emailHash = $this->contactEmailCorrelation($normalizedEmail);
+        }
         $rows = DB::table('contact_inquiries')
+            ->when($status !== null, fn (Builder $query) => $query->where('status', $status))
+            ->when($emailHash !== null, fn (Builder $query) =>
+                $query->where('email_correlation_hash', $emailHash))
             ->when($after !== null, fn (Builder $query) => $query->where('id', '<', $after))
             ->orderByDesc('id')->limit($limit + 1)->get();
         $hasMore = $rows->count() > $limit;
-        $items = $rows->take($limit)->map(static fn (object $row): array => [
-            'id' => $row->public_id,
-            'receipt_code' => $row->receipt_code,
-            'status' => $row->status,
-            'authenticated' => $row->user_id !== null,
-            'received_at' => CarbonImmutable::parse($row->received_at)->toIso8601String(),
-        ])->all();
+        $items = $rows->take($limit)->map(function (object $row): array {
+            $body = Crypt::decryptString($row->body_ciphertext);
+
+            return [
+                'id' => $row->public_id,
+                'receipt_code' => $row->receipt_code,
+                'status' => $row->status,
+                'authenticated' => $row->user_id !== null,
+                'name' => Crypt::decryptString($row->name_ciphertext),
+                'email' => Crypt::decryptString($row->email_ciphertext),
+                'phone' => $row->phone_ciphertext === null
+                    ? null
+                    : Crypt::decryptString($row->phone_ciphertext),
+                'body_excerpt' => mb_substr($body, 0, 48),
+                'received_at' => CarbonImmutable::parse($row->received_at)->toIso8601String(),
+                'updated_at' => CarbonImmutable::parse($row->updated_at)->toIso8601String(),
+            ];
+        })->all();
 
         return [
             'items' => $items,
@@ -542,6 +571,7 @@ final class V2ContentContactAdminService
             'subject' => Crypt::decryptString($contact->subject_ciphertext),
             'body' => Crypt::decryptString($contact->body_ciphertext),
             'received_at' => CarbonImmutable::parse($contact->received_at)->toIso8601String(),
+            'updated_at' => CarbonImmutable::parse($contact->updated_at)->toIso8601String(),
             'closed_at' => $contact->closed_at === null
                 ? null
                 : CarbonImmutable::parse($contact->closed_at)->toIso8601String(),
@@ -561,6 +591,14 @@ final class V2ContentContactAdminService
                     'note' => Crypt::decryptString($row->note_ciphertext),
                     'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
                 ])->all(),
+            'reply_requests' => DB::table('contact_reply_requests')
+                ->where('contact_inquiry_id', $contact->id)->orderBy('id')
+                ->get(['public_id', 'message_ciphertext', 'created_at'])
+                ->map(static fn (object $row): array => [
+                    'id' => $row->public_id,
+                    'message' => Crypt::decryptString($row->message_ciphertext),
+                    'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+                ])->all(),
         ];
     }
 
@@ -569,7 +607,8 @@ final class V2ContentContactAdminService
         V2AdminAuthorizationContext $context,
         string $publicId,
         string $toStatus,
-        string $reasonCode
+        string $reasonCode,
+        string $idempotencyKey = ''
     ): array {
         $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContact);
         if (! preg_match('/\A[a-z][a-z0-9_.:-]{0,63}\z/', $reasonCode)) {
@@ -581,8 +620,18 @@ final class V2ContentContactAdminService
             $publicId,
             $toStatus,
             $reasonCode,
-            $admin
+            $admin,
+            $idempotencyKey
         ): array {
+            $claim = $this->claimContactMutation($admin, $idempotencyKey, [
+                'action' => 'status',
+                'contact_id' => $publicId,
+                'status' => $toStatus,
+                'reason_code' => $reasonCode,
+            ]);
+            if ($claim?->replay === true) {
+                return $this->contactReplay($claim);
+            }
             $contact = DB::table('contact_inquiries')->where('public_id', $publicId)
                 ->lockForUpdate()->first();
             if ($contact === null) {
@@ -613,11 +662,14 @@ final class V2ContentContactAdminService
                 'reason_code' => $reasonCode,
             ]);
 
-            return [
+            $result = [
                 'id' => $publicId,
                 'status' => $toStatus,
                 'updated_at' => CarbonImmutable::parse($now)->toIso8601String(),
             ];
+            $this->completeContactMutation($claim, $publicId, $result);
+
+            return [...$result, 'idempotent_replay' => false];
         }, 3);
     }
 
@@ -657,7 +709,8 @@ final class V2ContentContactAdminService
     public function requestReply(
         V2AdminAuthorizationContext $context,
         string $publicId,
-        string $message
+        string $message,
+        string $idempotencyKey = ''
     ): array {
         $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContact);
         $message = trim($message);
@@ -665,7 +718,21 @@ final class V2ContentContactAdminService
             throw $this->invalid('CONTACT_REPLY_INVALID');
         }
 
-        return DB::transaction(function () use ($context, $publicId, $message, $admin): array {
+        return DB::transaction(function () use (
+            $context,
+            $publicId,
+            $message,
+            $admin,
+            $idempotencyKey
+        ): array {
+            $claim = $this->claimContactMutation($admin, $idempotencyKey, [
+                'action' => 'reply',
+                'contact_id' => $publicId,
+                'message' => $message,
+            ]);
+            if ($claim?->replay === true) {
+                return $this->contactReplay($claim);
+            }
             $contact = DB::table('contact_inquiries')->where('public_id', $publicId)
                 ->lockForUpdate()->first();
             if ($contact === null) {
@@ -713,7 +780,10 @@ final class V2ContentContactAdminService
             );
             $this->auditContact('contact.reply_requested', $context, $admin, $publicId);
 
-            return ['id' => $replyPublicId, 'status' => 'queued'];
+            $result = ['id' => $replyPublicId, 'status' => 'queued'];
+            $this->completeContactMutation($claim, $replyPublicId, $result);
+
+            return [...$result, 'idempotent_replay' => false];
         }, 3);
     }
 
@@ -976,6 +1046,81 @@ final class V2ContentContactAdminService
                 default => $this->invalid('CONTENT_IDEMPOTENCY_KEY_INVALID'),
             };
         }
+    }
+
+    /** @param array<string, mixed> $request */
+    private function claimContactMutation(
+        Admin $admin,
+        string $idempotencyKey,
+        array $request
+    ): ?V2IdempotencyClaim {
+        if ($idempotencyKey === '') {
+            return null;
+        }
+        try {
+            return $this->idempotency->claim(
+                'contact_mutation',
+                'admin',
+                $admin->public_id,
+                $idempotencyKey,
+                $request
+            );
+        } catch (V2PointException $exception) {
+            throw match ($exception->getMessage()) {
+                'IDEMPOTENCY_KEY_REUSED' => $this->conflict(
+                    'CONTACT_IDEMPOTENCY_KEY_REUSED'
+                ),
+                'IDEMPOTENCY_REQUEST_IN_PROGRESS' => new V2ContentContactException(
+                    'CONTACT_IDEMPOTENCY_REQUEST_IN_PROGRESS',
+                    409,
+                    'The Contact request is still in progress.',
+                    true
+                ),
+                default => $this->invalid('CONTACT_IDEMPOTENCY_KEY_INVALID'),
+            };
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function contactReplay(V2IdempotencyClaim $claim): array
+    {
+        $data = $claim->record->response_data['data'] ?? null;
+        if (! is_array($data)) {
+            throw new \RuntimeException('Contact replay response is unavailable.');
+        }
+
+        return [...$data, 'idempotent_replay' => true];
+    }
+
+    /** @param array<string, mixed> $result */
+    private function completeContactMutation(
+        ?V2IdempotencyClaim $claim,
+        string $resourcePublicId,
+        array $result
+    ): void {
+        if ($claim === null) {
+            return;
+        }
+        $this->idempotency->complete(
+            $claim->record,
+            'contact_inquiry',
+            $resourcePublicId,
+            ['data' => $result]
+        );
+    }
+
+    private function contactEmailCorrelation(string $email): string
+    {
+        $encoded = config('v2_content_contact.contact_hmac_key');
+        if (! is_string($encoded) || ! str_starts_with($encoded, 'base64:')) {
+            throw new \RuntimeException('Contact correlation key is unavailable.');
+        }
+        $key = base64_decode(substr($encoded, 7), true);
+        if (! is_string($key) || strlen($key) < 32) {
+            throw new \RuntimeException('Contact correlation key is invalid.');
+        }
+
+        return hash_hmac('sha256', $email, $key);
     }
 
     /** @return array{string, string, string} */

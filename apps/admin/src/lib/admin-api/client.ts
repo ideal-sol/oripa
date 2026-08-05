@@ -41,6 +41,13 @@ import {
   type AdminContentPreview,
   type AdminContentVersion,
   type AdminContentVersionInput,
+  type AdminContactCollection,
+  type AdminContactDetail,
+  type AdminContactReplyInput,
+  type AdminContactReplyResult,
+  type AdminContactStatus,
+  type AdminContactStatusResult,
+  type AdminContactStatusUpdate,
   type AdminGachaProbabilitySelection,
   type AdminGachaProbabilitySelectionRequest,
   type AdminGachaPublishPreflight,
@@ -141,6 +148,12 @@ export interface AdminQaQuery {
   limit?: number;
   q?: string;
   status?: "all" | "active" | "paused" | "completed" | "disabled";
+}
+
+export interface AdminContactQuery {
+  cursor?: string;
+  email?: string;
+  status?: AdminContactStatus;
 }
 
 export type AdminCatalogResource =
@@ -396,6 +409,69 @@ export class AdminApiClient {
       "POST",
       `/content/notices/${encodeURIComponent(id)}/unpublish`,
       { signal },
+    );
+  }
+
+  listContactInquiries(
+    query: AdminContactQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminContactCollection> {
+    const parameters = new URLSearchParams({ limit: "20" });
+    if (query.cursor) parameters.set("cursor", query.cursor);
+    if (query.email) parameters.set("email", query.email);
+    if (query.status) parameters.set("status", query.status);
+    return this.request("GET", `/contact-inquiries?${parameters.toString()}`, {
+      signal,
+    });
+  }
+
+  getContactInquiry(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContactDetail> {
+    if (!isOpaqueId(id)) {
+      return Promise.reject(
+        new AdminApiError(404, "CONTACT_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `/contact-inquiries/${encodeURIComponent(id)}`, {
+      signal,
+    });
+  }
+
+  updateContactInquiryStatus(
+    id: string,
+    body: AdminContactStatusUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContactStatusResult> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CONTACT_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "PUT",
+      `/contact-inquiries/${encodeURIComponent(id)}/status`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  requestContactInquiryReply(
+    id: string,
+    body: AdminContactReplyInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContactReplyResult> {
+    if (!isOpaqueId(id) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "CONTACT_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/contact-inquiries/${encodeURIComponent(id)}/reply-requests`,
+      { body, idempotencyKey, signal },
     );
   }
 
@@ -2006,6 +2082,7 @@ export class AdminApiClient {
     path:
       | `/auth/${string}`
       | `/catalog/${string}`
+      | `/contact-inquiries${string}`
       | `/content/${string}`
       | `/identity/${string}`
       | `/qa/${string}`
@@ -2017,6 +2094,7 @@ export class AdminApiClient {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/catalog/") &&
+        !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
         !path.startsWith("/qa/") &&
