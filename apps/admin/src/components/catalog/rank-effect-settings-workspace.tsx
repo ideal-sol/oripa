@@ -300,10 +300,11 @@ function RankEffectPreview({ compact = false, effect }: { compact?: boolean; eff
 }
 
 function LocalPreview({ compact = false, mediaType, url }: { compact?: boolean; mediaType: "image" | "video"; url: string }) {
+  const encodedUrl = encodeURI(url);
   return mediaType === "image"
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img alt="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={url} />
-    : <video aria-label="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={url} />;
+    ? <img alt="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={encodedUrl} />
+    : <video aria-label="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={encodedUrl} />;
 }
 
 function RankEffectBreadcrumb({ mode }: { mode: Mode }) {
