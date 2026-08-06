@@ -32,6 +32,7 @@
   },
   "verification": {
     "migration_fresh_rollback_reapply": "PASS",
+    "backup_restore_schema_equivalence": "PASS",
     "backend_targeted": "PASS_8_TESTS_119_ASSERTIONS",
     "admin_unit": "PASS_2_FILES_10_TESTS",
     "admin_browser_targeted": "PASS_2_TESTS",

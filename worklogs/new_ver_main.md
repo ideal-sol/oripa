@@ -8092,3 +8092,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - API／Admin Health、Desktop／Mobile、未認証401がPASSし、Console／Page ErrorとHTTP 500／502／504は0。旧ImageはRollback用に保持した。
 - Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
 - GitHub Policy GateでMigration 000037のIdentity Fixture登録漏れを検出し、完全一致Pathを1件追加した。Policy Unit 108件、Local Policy／Quality GateがPASSし、Gate条件は非変更である。
+- GitHub Integration GateでMigration 000037のCheck ConstraintがBackup-Restore後に等価な括弧へ正規化されるSchema差分を検出した。明示比較へ補正し、Task DB fresh、対象4 tests／58 assertions、Backup-Restore Schema diff 0を確認した。

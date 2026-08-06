@@ -82,9 +82,9 @@ return new class extends Migration
         DB::statement(
             'ALTER TABLE referral_point_settings ADD CONSTRAINT '.
             'referral_point_settings_values_check CHECK ('.
-            'referrer_point_amount BETWEEN 0 AND 1000000 AND '.
-            'referred_user_point_amount BETWEEN 0 AND 1000000 AND '.
-            'reward_expiration_days BETWEEN 1 AND 3650 AND revision >= 1)'
+            'referrer_point_amount >= 0 AND referrer_point_amount <= 1000000 AND '.
+            'referred_user_point_amount >= 0 AND referred_user_point_amount <= 1000000 AND '.
+            'reward_expiration_days >= 1 AND reward_expiration_days <= 3650 AND revision >= 1)'
         );
         DB::statement(
             'ALTER TABLE user_referrals ADD CONSTRAINT user_referrals_values_check CHECK ('.
