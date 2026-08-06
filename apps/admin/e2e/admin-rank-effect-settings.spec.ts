@@ -24,7 +24,7 @@ test("desktop list and edit preserve the existing asset and rank relation", asyn
   await page.getByRole("link", { name: "当選演出を編集" }).click();
   await expect(page.getByRole("heading", { name: "ランク演出編集" })).toBeVisible();
   await expect(page.getByLabel("ファイル差し替え（任意）")).not.toHaveAttribute("required");
-  await expect(page.getByRole("img", { name: "当選演出" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "ランク演出プレビュー" })).toBeVisible();
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
 

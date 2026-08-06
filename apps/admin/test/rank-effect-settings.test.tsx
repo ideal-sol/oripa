@@ -40,7 +40,7 @@ describe("Rank effect settings", () => {
     ]);
     expect(screen.getByText("当選演出")).toBeVisible();
     expect(screen.getByText("Sランク")).toBeVisible();
-    expect(screen.getByRole("img", { name: "当選演出" })).toHaveAttribute(
+    expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
       "src",
       `/admin/api/v2/catalog/presentation-assets/${effect().id}/content`,
     );
@@ -56,7 +56,7 @@ describe("Rank effect settings", () => {
     render(<RankEffectSettingsWorkspace id={effect().id} mode="edit" />);
     expect(await screen.findByRole("heading", { name: "ランク演出編集" })).toBeVisible();
     expect(screen.getByLabelText("タイトル")).toHaveValue("当選演出");
-    expect(screen.getByRole("img", { name: "当選演出" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toBeVisible();
     expect(screen.getByLabelText("ファイル差し替え（任意）")).not.toBeRequired();
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "更新演出" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -70,7 +70,7 @@ describe("Rank effect settings", () => {
       }),
       expect.any(String),
     ));
-    expect(await screen.findByRole("img", { name: "更新演出" })).toHaveAttribute(
+    expect(await screen.findByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
       "src",
       effect().content_path,
     );

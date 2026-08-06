@@ -280,7 +280,7 @@ function RankEffectForm({
         </div>
         <div className="rank-effect-preview-panel">
           <h3>プレビュー</h3>
-          {previewUrl ? <LocalPreview mediaType={assetType} title={title} url={previewUrl} /> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
+          {previewUrl ? <LocalPreview mediaType={assetType} url={previewUrl} /> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
         </div>
       </section>
       <section className="rank-effect-form-section" aria-labelledby="rank-effect-ranks-heading">
@@ -296,14 +296,14 @@ function RankEffectForm({
 }
 
 function RankEffectPreview({ compact = false, effect }: { compact?: boolean; effect: AdminRankEffect }) {
-  return <LocalPreview compact={compact} mediaType={effect.media_type} title={effect.alt_text ?? "ランク演出"} url={effect.content_path} />;
+  return <LocalPreview compact={compact} mediaType={effect.media_type} url={effect.content_path} />;
 }
 
-function LocalPreview({ compact = false, mediaType, title, url }: { compact?: boolean; mediaType: "image" | "video"; title: string; url: string }) {
+function LocalPreview({ compact = false, mediaType, url }: { compact?: boolean; mediaType: "image" | "video"; url: string }) {
   return mediaType === "image"
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img alt={title} className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={url} />
-    : <video className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={url}>{title}</video>;
+    ? <img alt="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={url} />
+    : <video aria-label="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={url} />;
 }
 
 function RankEffectBreadcrumb({ mode }: { mode: Mode }) {
