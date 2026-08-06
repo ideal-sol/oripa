@@ -28,6 +28,7 @@
 - Task DBでMigration 39件fresh、最新Migration rollback／reapply、LINE／Permission対象16 Test・223 AssertionがPASSした。
 - Admin Component／Navigation 2 files・11 Test、対象Browser 1 Test、Typecheck、Lint、Production Build、OpenAPI Bundle／4 Unit、Generated Client、Policy Unit 110件、`git diff --check`がPASSした。
 - Secret候補検査で新規Credential 0。LINE資格情報名は既存正本の参照だけで、値は記録していない。
+- 初回PR Policy GateはGovernance必須見出し不足を検出した。PR本文を`Task`、`Specification sources`、`Scope`、`Verification performed`、`Verification not performed`へ補正し、再Policy GateはPASSした。Gate条件とApplication差分は変更していない。
 - Application HeadからAPI `sha256:dd80b68de22c83c6016fd3adafe70f91edaaddff42ae1d924872d12186a49ef6`、Admin `sha256:6ab94d4c3925df6e4a942b2f2051ae9926c363e3721582e0942530b96c231f73`をBuildし、Previewへ反映した。Migration 000039だけを適用し、DB Guardは38件のBase集合と39件の適用後集合でPASSした。
 - Synthetic Ownerで友だち追加URLの一時保存、Canonical再取得、元値復元、友だち／ブロック統計、Secret field非表示を確認した。Mobile横溢れ、Console／Page Error、HTTP 500／502／504は0である。Operator Read-onlyと更新403は対象API／Component Testを正本とする。
 - API／Adminはhealthy、`admin.luxe-pack.biz/login`と`luxe-pack.biz`はHTTP 200。固定IP／Network／Restart Policy／Environment Key集合、Nginx checksum、V1、PostgreSQL／Redis設定は維持し、旧Imageへ専用Rollback tagを追加して保持した。
