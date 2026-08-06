@@ -28,7 +28,7 @@
 - Preview DB Target Safety Guard後、MigrationなしでAPIを`sha256:282878b1...`から`sha256:1f906e80...`、Adminを`sha256:0de7ad66...`から`sha256:58a01cfd...`へ更新した。固定IP、Network、Restart Policy、Environment Key集合を維持し、旧ImageはRollback用に保持した。
 - Synthetic演出は画像1件／動画1件。直接Upload、Content HTTP 200、Preview、Rank relation、表示順、編集時の既存Asset維持、Desktop／Mobileを確認した。Console／Page Error、HTTP 500／502／504、Critical Logは0。
 - Preview Migration数36、PostgreSQL／Redis設定、Nginx checksum、V1、Storefront、Payment Providerは非変更。`admin.luxe-pack.biz`と`luxe-pack.biz`はHTTP 200。
-- Required Checks、Self-review、Squash CommitはCloseoutで確定する。
+- PR本文をCanonical Policy Schemaへ合わせ、Pull Request Event相当のPolicy Gate検証がPASSした。旧失敗Runを含まないFinal HeadでRequired Checksを確定し、Self-reviewとSquash CommitはCloseoutで記録する。
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061S/`
 - 残課題はOrphan Asset回収を既存Asset Lifecycleへ委ねること。紹介ポイント、ポイント購入、LINE、Storefrontは対象外。
 - 主な所要作業はV1演出MasterとV2 Rank relationの差異確認、実MIMEを含むUpload境界、既存Asset維持のTransaction設計、動画Content配信境界の補正。
