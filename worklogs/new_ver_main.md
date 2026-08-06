@@ -8112,3 +8112,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1購入プランの一覧／登録／編集をV2 immutable Versionへ移植し、`all_users`／`first_purchase_users`の対象カテゴリ、Payment成功履歴による初回資格、Admin API／Generated Clientを追加した。
 - Task DBでMigration fresh／rollback／reapplyと既存商品Backfill、Backend 28 tests／181 assertions、Admin Unit 30 tests、Desktop／Mobile E2E 2 tests、Typecheck／Lint、OpenAPI／Generated ClientがPASSした。
 - Preview更新対象はAPI／Admin／Migration 000038のみ。Wallet／Ledger、Nginx、V1、Storefront、Payment Providerは変更しない。
+
+### MIG-061V Preview
+
+- Application Head `e88e0ca8142f63a089bf766596d18e65c5feb8d3`からPreview APIを`sha256:a432cf07...`、Adminを`sha256:1b000d51...`へ更新し、DBへMigration 000038だけを適用した。
+- Synthetic商品Logical 1件で初期対象`all_users`、編集後`first_purchase_users`、Version更新、保存後再取得、Desktop／Mobileを確認した。Console／Page ErrorとHTTP 500／502／504は0である。
+- Wallet有償0／無償7、Point Ledger 1件は前後一致した。Migration 38件、固定IP／Network／Restart Policy／Environment Key集合、Nginx checksum、V1、Storefront、Payment Providerは維持し、旧ImageはRollback用に保持した。
