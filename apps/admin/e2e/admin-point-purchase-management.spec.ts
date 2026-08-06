@@ -25,6 +25,9 @@ test("mobile create form defaults to all users without horizontal overflow", asy
   await expect(page.getByLabel("対象カテゴリ")).toHaveValue("all_users");
   await expect(page.getByRole("heading", { name: "ポイント商品登録" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await page.goto("/purchase-plans"))?.status()).toBe(200);
+  await expect(page.getByText("スタンダード")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
 

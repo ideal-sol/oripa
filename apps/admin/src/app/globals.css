@@ -4709,6 +4709,11 @@ label {
   width: 100%;
 }
 
+.point-purchase-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .point-purchase-table table {
   min-width: 1060px;
   width: 100%;
