@@ -171,6 +171,10 @@ const operations = {
     "post",
     "/catalog/presentation-assets/{catalog_resource_id}/archive",
   ],
+  listAdminRankEffects: ["get", "/catalog/rank-effects"],
+  createAdminRankEffect: ["post", "/catalog/rank-effects"],
+  getAdminRankEffect: ["get", "/catalog/rank-effects/{catalog_resource_id}"],
+  updateAdminRankEffect: ["put", "/catalog/rank-effects/{catalog_resource_id}"],
   listAdminCatalogGachas: ["get", "/catalog/gachas"],
   createAdminCatalogGacha: ["post", "/catalog/gachas"],
   createAdminCatalogGachaCore: ["post", "/catalog/gachas/core"],
@@ -444,6 +448,12 @@ const requiredSchemas = [
   "AdminCatalogPresentationAssetMutationResult",
   "AdminCatalogPresentationAssetUpdate",
   "AdminCatalogPresentationAssetCollection",
+  "AdminRankEffect",
+  "AdminRankEffectCreate",
+  "AdminRankEffectUpdate",
+  "AdminRankEffectCollection",
+  "AdminRankEffectDetail",
+  "AdminRankEffectMutationResult",
   "AdminCatalogPrize",
   "AdminCatalogPrizeCreate",
   "AdminCatalogPrizeMutationResult",
@@ -1200,6 +1210,42 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminRankEffectRankAssignment {
+  rank: AdminCatalogReference;
+  sort_order: number;
+}
+
+export interface AdminRankEffect extends AdminCatalogPresentationAsset {
+  content_path: string;
+  rank_assignments: AdminRankEffectRankAssignment[];
+}
+
+export interface AdminRankEffectRankAssignmentInput {
+  rank_id: string;
+  sort_order: number;
+}
+
+export interface AdminRankEffectCreate {
+  title: string;
+  asset_type: "image" | "video";
+  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  is_active: boolean;
+  file_name: string;
+  mime_type: string;
+  content_base64: string;
+}
+
+export interface AdminRankEffectUpdate {
+  expected_revision: number;
+  title: string;
+  asset_type: "image" | "video";
+  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  is_active: boolean;
+  file_name?: string;
+  mime_type?: string;
+  content_base64?: string;
 }
 
 export interface AdminCatalogCategoryCreate {

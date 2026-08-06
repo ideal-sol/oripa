@@ -98,7 +98,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("banners-create", "登録", "/banners/new", "content.manage", "banners", "scaffold"),
   route("contacts", "一覧", "/contacts", "contact.read", "contacts"),
   route("page-settings", "ページ設定", "/settings/pages", "content.read", "content", "scaffold"),
-  route("presentation-assets", "演出設定", "/catalog/presentation-assets", "catalog.read", "catalog"),
+  route("presentation-assets", "ランク演出", "/catalog/presentation-assets", "catalog.read", "catalog"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", null, "settings", "scaffold", "module-actions", true),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.manage", "line-settings"),
 

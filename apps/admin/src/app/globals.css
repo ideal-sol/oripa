@@ -24,6 +24,123 @@
     sans-serif;
 }
 
+.rank-effect-list,
+.rank-effect-form-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.rank-effect-form,
+.rank-effect-fields,
+.rank-effect-rank-list {
+  display: grid;
+  gap: 16px;
+}
+
+.rank-effect-form-section {
+  display: grid;
+  gap: 20px;
+}
+
+.rank-effect-section-heading,
+.rank-effect-actions,
+.rank-effect-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rank-effect-section-heading h2,
+.rank-effect-preview-panel h3 {
+  font-size: 1rem;
+  margin: 4px 0 0;
+}
+
+.rank-effect-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rank-effect-fields label,
+.rank-effect-fields fieldset,
+.rank-effect-file,
+.rank-effect-rank-row label {
+  display: grid;
+  gap: 7px;
+}
+
+.rank-effect-fields input,
+.rank-effect-fields select,
+.rank-effect-rank-row input[type="number"] {
+  min-height: 42px;
+}
+
+.rank-effect-file {
+  grid-column: 1 / -1;
+}
+
+.rank-effect-preview-panel {
+  min-width: 0;
+}
+
+.rank-effect-preview {
+  display: block;
+  max-height: 420px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.rank-effect-thumbnail {
+  display: block;
+  height: 56px;
+  object-fit: contain;
+  width: 88px;
+}
+
+.rank-effect-rank-row {
+  align-items: end;
+  border-bottom: 1px solid #e2e8f0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  padding: 12px 0;
+}
+
+.rank-effect-rank-row > label:first-child {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.rank-effect-table-container {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.rank-effect-table-container table {
+  min-width: 980px;
+  width: 100%;
+}
+
+.rank-effect-actions,
+.rank-effect-pagination {
+  justify-content: flex-start;
+}
+
+@media (max-width: 720px) {
+  .rank-effect-fields,
+  .rank-effect-rank-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rank-effect-list,
+  .rank-effect-form-section {
+    padding: 16px;
+  }
+}
+
 /* MIG-061N announcement management */
 .announcement-workspace {
   display: grid;

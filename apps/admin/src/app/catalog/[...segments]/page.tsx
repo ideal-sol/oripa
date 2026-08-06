@@ -6,6 +6,7 @@ import { CatalogGachaUsageHistory } from "@/components/catalog/catalog-gacha-usa
 import { CatalogGachaProfitSimulation } from "@/components/catalog/catalog-gacha-profit-simulation";
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
+import { RankEffectSettingsWorkspace } from "@/components/catalog/rank-effect-settings-workspace";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -68,6 +69,16 @@ export default async function CatalogResourcePage({
           probabilityVersionId={segments[5]}
         />
       );
+    }
+    notFound();
+  }
+  if (segments[0] === "presentation-assets") {
+    if (segments.length === 1) return <RankEffectSettingsWorkspace mode="list" />;
+    if (segments.length === 2 && segments[1] === "new") {
+      return <RankEffectSettingsWorkspace mode="create" />;
+    }
+    if (segments.length === 3 && segments[2] === "edit") {
+      return <RankEffectSettingsWorkspace id={segments[1]} mode="edit" />;
     }
     notFound();
   }

@@ -1060,6 +1060,7 @@ final class V2AdminCatalogReadService
         ];
         $query = DB::table('catalog_presentation_assets as asset')
             ->select([
+                'asset.id',
                 'asset.public_id',
                 'asset.public_path',
                 'asset.checksum_sha256',
@@ -1110,6 +1111,78 @@ final class V2AdminCatalogReadService
 
         return ['data' => $this->mapAsset(
             $this->find('catalog_presentation_assets', $publicId, [
+                'id',
+                'public_id',
+                'public_path',
+                'checksum_sha256',
+                'media_type',
+                'mime_type',
+                'byte_size',
+                'alt_text',
+                'is_public',
+                'revision',
+                'archived_at',
+                'created_at',
+                'updated_at',
+            ])
+        )];
+    }
+
+    /** @param array<string, mixed> $filters */
+    public function rankEffects(
+        V2AdminAuthorizationContext $context,
+        array $filters
+    ): array {
+        $this->authorize($context);
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $query = DB::table('catalog_presentation_assets as asset')
+            ->whereIn('asset.media_type', ['image', 'video'])
+            ->whereExists(function (Builder $relation): void {
+                $relation->selectRaw('1')
+                    ->from('catalog_rank_assets as relation')
+                    ->whereColumn('relation.presentation_asset_id', 'asset.id')
+                    ->whereIn('relation.usage_type', ['image', 'video']);
+            })
+            ->select([
+                'asset.id',
+                'asset.public_id',
+                'asset.public_path',
+                'asset.checksum_sha256',
+                'asset.media_type',
+                'asset.mime_type',
+                'asset.byte_size',
+                'asset.alt_text',
+                'asset.is_public',
+                'asset.revision',
+                'asset.archived_at',
+                'asset.created_at',
+                'asset.updated_at',
+            ]);
+        $this->applySearch($query, $filters, ['asset.alt_text', 'asset.mime_type']);
+        $this->applyVisibility($query, $filters, 'asset.is_public');
+
+        return $this->paginate(
+            'rank-effects',
+            $query,
+            $filters,
+            'asset.created_at',
+            'asset.public_id',
+            'created_at',
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array => $this->mapRankEffect($row)
+        );
+    }
+
+    public function rankEffect(
+        V2AdminAuthorizationContext $context,
+        string $publicId
+    ): array {
+        $this->authorize($context);
+
+        return ['data' => $this->mapRankEffect(
+            $this->find('catalog_presentation_assets', $publicId, [
+                'id',
                 'public_id',
                 'public_path',
                 'checksum_sha256',
@@ -1787,6 +1860,37 @@ final class V2AdminCatalogReadService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapRankEffect(object $row): array
+    {
+        $relations = DB::table('catalog_rank_assets as relation')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->where('relation.presentation_asset_id', $row->id)
+            ->whereIn('relation.usage_type', ['image', 'video'])
+            ->orderBy('relation.sort_order')
+            ->orderBy('rank.public_id')
+            ->get([
+                'rank.public_id',
+                'rank.code',
+                'rank.display_name',
+                'relation.sort_order',
+            ]);
+
+        return [
+            ...$this->mapAsset($row),
+            'content_path' => '/admin/api/v2/catalog/presentation-assets/'
+                .$row->public_id.'/content',
+            'rank_assignments' => $relations->map(fn (object $relation): array => [
+                'rank' => [
+                    'id' => $relation->public_id,
+                    'code' => $relation->code,
+                    'name' => $relation->display_name,
+                ],
+                'sort_order' => (int) $relation->sort_order,
+            ])->values()->all(),
         ];
     }
 

@@ -30,6 +30,9 @@ import {
   type AdminCatalogRank,
   type AdminCatalogRankCreate,
   type AdminCatalogRankUpdate,
+  type AdminRankEffect,
+  type AdminRankEffectCreate,
+  type AdminRankEffectUpdate,
   type AdminCatalogTag,
   type AdminCatalogTagCreate,
   type AdminCatalogTagUpdate,
@@ -184,6 +187,7 @@ export type AdminCatalogResource =
   | "gachas"
   | "tags"
   | "ranks"
+  | "rank-effects"
   | "prizes"
   | "presentation-assets";
 
@@ -908,6 +912,37 @@ export class AdminApiClient {
       idempotencyKey,
       signal,
     );
+  }
+
+  listRankEffects(
+    query: AdminCatalogQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogCollection<AdminRankEffect>> {
+    return this.catalogList("rank-effects", query, signal);
+  }
+
+  getRankEffect(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogDetail<AdminRankEffect>> {
+    return this.catalogDetail("rank-effects", id, signal);
+  }
+
+  createRankEffect(
+    body: AdminRankEffectCreate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminRankEffect>> {
+    return this.catalogMutation("POST", "rank-effects", null, body, idempotencyKey, signal);
+  }
+
+  updateRankEffect(
+    id: string,
+    body: AdminRankEffectUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminRankEffect>> {
+    return this.catalogMutation("PUT", "rank-effects", id, body, idempotencyKey, signal);
   }
 
   listCatalogGachas(

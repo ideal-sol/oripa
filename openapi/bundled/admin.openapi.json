@@ -1488,6 +1488,177 @@
         }
       }
     },
+    "/catalog/rank-effects": {
+      "get": {
+        "operationId": "listAdminRankEffects",
+        "summary": "ランク演出一覧を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogSearch"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogVisibility"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogDirection"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ランク演出一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRankEffectCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminRankEffect",
+        "summary": "ランク演出を登録する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRankEffectCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ランク演出登録結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRankEffectMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/rank-effects/{catalog_resource_id}": {
+      "get": {
+        "operationId": "getAdminRankEffect",
+        "summary": "ランク演出詳細を参照する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ランク演出詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRankEffectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminRankEffect",
+        "summary": "ランク演出を更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "catalog-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogResourceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRankEffectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ランク演出更新結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRankEffectMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas": {
       "get": {
         "operationId": "listAdminCatalogGachas",
@@ -9589,6 +9760,128 @@
           }
         }
       },
+      "AdminRankEffectRankAssignmentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank_id",
+          "sort_order"
+        ],
+        "properties": {
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      },
+      "AdminRankEffectCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "asset_type",
+          "rank_assignments",
+          "is_active",
+          "file_name",
+          "mime_type",
+          "content_base64"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ]
+          },
+          "rank_assignments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankEffectRankAssignmentInput"
+            }
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "AdminRankEffectUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "title",
+          "asset_type",
+          "rank_assignments",
+          "is_active"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ]
+          },
+          "rank_assignments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankEffectRankAssignmentInput"
+            }
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
       "AdminCatalogArchiveRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -9915,6 +10208,52 @@
           }
         }
       },
+      "AdminRankEffectRankAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "sort_order"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/AdminCatalogReference"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminRankEffect": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminCatalogPresentationAsset"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "content_path",
+              "rank_assignments"
+            ],
+            "properties": {
+              "content_path": {
+                "type": "string",
+                "pattern": "^/(?!/)",
+                "maxLength": 512
+              },
+              "rank_assignments": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/AdminRankEffectRankAssignment"
+                }
+              }
+            }
+          }
+        ]
+      },
       "AdminGachaVersionRankCollection": {
         "type": "object",
         "additionalProperties": false,
@@ -10165,6 +10504,28 @@
           }
         }
       },
+      "AdminRankEffectCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminRankEffect"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminCatalogCategoryDetail": {
         "type": "object",
         "additionalProperties": false,
@@ -10222,6 +10583,34 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminCatalogPresentationAsset"
+          }
+        }
+      },
+      "AdminRankEffectDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminRankEffect"
+          }
+        }
+      },
+      "AdminRankEffectMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminRankEffect"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
           }
         }
       },

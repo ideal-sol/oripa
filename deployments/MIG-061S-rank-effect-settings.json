@@ -1,0 +1,38 @@
+{
+  "task_id": "MIG-061S",
+  "risk": "R3",
+  "verification_profile": "TARGETED-CRUD-UI",
+  "status": "verification_complete_pending_preview",
+  "base_branch": "main",
+  "base_sha": "d019570d085b189b9577265787d0925b10e43b5f",
+  "task_policy_sha256": "9c86e7ca35f834c70f74d5a3d5d95d96635f0ef8213e3156012dfb8700220f30",
+  "issue": 206,
+  "pull_request": null,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061S/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "source_commit": null,
+    "api_previous_image": null,
+    "api_image": null,
+    "admin_previous_image": null,
+    "admin_image": null,
+    "migration": "NONE",
+    "database": "oripa_v2_mig061a",
+    "api_health": "PENDING",
+    "admin_health": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_3_TESTS_29_ASSERTIONS",
+    "admin_unit": "PASS_3_FILES_29_TESTS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "openapi_generated_client": "PASS",
+    "admin_typecheck_lint_build": "PASS",
+    "policy_quality": "PENDING",
+    "preview_smoke": "PENDING"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
