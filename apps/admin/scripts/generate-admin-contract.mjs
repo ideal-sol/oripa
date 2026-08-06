@@ -914,6 +914,9 @@ export interface AdminLineMessagingSetting {
   linked_follow_message: string;
   pending_follow_message: string;
   login_relative_path: string;
+  friend_add_url?: string | null;
+  friends_count?: number;
+  blocked_count?: number;
   reward_enabled?: boolean;
   reward_point_amount?: number;
   reward_expiration_days?: number;
@@ -930,6 +933,7 @@ export interface AdminLineMessagingSettingUpdate {
   expected_revision: number;
   linked_follow_message: string;
   pending_follow_message: string;
+  friend_add_url?: string | null;
   reward_enabled?: boolean;
   reward_point_amount?: number;
   reward_expiration_days?: number;

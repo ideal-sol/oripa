@@ -205,7 +205,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ownerだけが参照できるMessage設定。",
+            "description": "有効なAdmin Realmで参照できるLINE設定。",
             "content": {
               "application/json": {
                 "schema": {
@@ -222,7 +222,7 @@
       "put": {
         "operationId": "updateAdminLineMessagingSetting",
         "summary": "LINE Follow自動応答Message設定を更新する",
-        "description": "Ownerかつ5分以内のFresh MFA、Revision OCC、Idempotency-Keyを必須とする。",
+        "description": "OwnerまたはAdminかつ5分以内のFresh MFA、Revision OCC、Idempotency-Keyを必須とする。",
         "x-idempotency": "required",
         "x-rate-limit": "critical-admin-mutation",
         "x-cache-policy": "no-store",
@@ -9370,6 +9370,24 @@
             "pattern": "^/[A-Za-z0-9/_?&=.-]*$",
             "readOnly": true
           },
+          "friend_add_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "friends_count": {
+            "type": "integer",
+            "minimum": 0,
+            "readOnly": true
+          },
+          "blocked_count": {
+            "type": "integer",
+            "minimum": 0,
+            "readOnly": true
+          },
           "reward_enabled": {
             "type": "boolean"
           },
@@ -9445,6 +9463,14 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
+          },
+          "friend_add_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "maxLength": 2048
           },
           "reward_enabled": {
             "type": "boolean"
@@ -17745,6 +17771,7 @@
           "identity.admin.read",
           "identity.admin.manage",
           "identity.admin.session.revoke",
+          "identity.line.read",
           "identity.line.manage",
           "point.ledger.read",
           "point.adjustment.request",

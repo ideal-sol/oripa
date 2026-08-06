@@ -69,6 +69,9 @@ final class LineMessagingVerticalSliceTest extends TestCase
             ->assertJsonPath('data.reward_enabled', false)
             ->assertJsonPath('data.reward_point_amount', 0)
             ->assertJsonPath('data.reward_expiration_days', 180)
+            ->assertJsonPath('data.friend_add_url', null)
+            ->assertJsonPath('data.friends_count', 0)
+            ->assertJsonPath('data.blocked_count', 0)
             ->assertJsonPath('data.login_relative_path', '/login');
         self::assertTrue(Str::isUuid($read->json('request_id')));
 
@@ -76,6 +79,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
             'expected_revision' => 1,
             'linked_follow_message' => '友だち追加が完了しました。',
             'pending_follow_message' => '{login_url} からログインしてください。',
+            'friend_add_url' => 'https://line.me/R/ti/p/example',
             'reward_enabled' => true,
             'reward_point_amount' => 500,
             'reward_expiration_days' => 365,
@@ -120,9 +124,12 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 'linked_follow_message' => $setting->linked_follow_message,
                 'pending_follow_message' => $setting->pending_follow_message,
                 'login_relative_path' => $setting->login_relative_path,
+                'friend_add_url' => $setting->friend_add_url,
                 'reward_enabled' => (bool) $setting->reward_enabled,
                 'reward_point_amount' => (int) $setting->reward_point_amount,
                 'reward_expiration_days' => (int) $setting->reward_expiration_days,
+                'friends_count' => 0,
+                'blocked_count' => 0,
                 'revision' => (int) $setting->revision,
                 'updated_at' => $setting->updated_at->toIso8601String(),
             ])->sole());
@@ -137,15 +144,48 @@ final class LineMessagingVerticalSliceTest extends TestCase
         )->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
     }
 
-    public function test_message_settings_are_owner_only_fresh_and_reject_html_unknown_placeholder(): void
+    public function test_message_settings_are_role_bounded_fresh_and_reject_invalid_input(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {
             Auth::forgetGuards();
             $this->asAdmin($this->adminSession($role))
                 ->getJson('/admin/api/v2/identity/line-messaging')
-                ->assertForbidden()
-                ->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+                ->assertOk();
         }
+        $operator = $this->adminSession(V2AdminRole::Operator);
+        $this->adminMutation(
+            $operator,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            [
+                'expected_revision' => 1,
+                'linked_follow_message' => '完了',
+                'pending_follow_message' => '{login_url}',
+                'reward_enabled' => false,
+                'reward_point_amount' => 0,
+                'reward_expiration_days' => 180,
+            ]
+        )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+
+        Auth::forgetGuards();
+        $admin = $this->adminSession(V2AdminRole::Admin);
+        $this->adminMutation(
+            $admin,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            [
+                'expected_revision' => 1,
+                'friend_add_url' => 'https://line.me/R/ti/p/admin',
+                'linked_follow_message' => '完了',
+                'pending_follow_message' => '{login_url}',
+                'reward_enabled' => false,
+                'reward_point_amount' => 0,
+                'reward_expiration_days' => 180,
+            ],
+            'admin-line-setting-update'
+        )->assertOk()->assertJsonPath('data.friend_add_url', 'https://line.me/R/ti/p/admin');
+
+        LineMessagingSetting::query()->whereKey(1)->update(['revision' => 1]);
         $stale = $this->adminSession(V2AdminRole::Owner, now()->subMinutes(5));
         $this->adminMutation(
             $stale,
@@ -184,6 +224,53 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 'code',
                 'LINE_MESSAGING_SETTING_INVALID'
             );
+        }
+
+        Auth::forgetGuards();
+        $this->adminMutation(
+            $owner,
+            'PUT',
+            '/admin/api/v2/identity/line-messaging',
+            [
+                'expected_revision' => 1,
+                'friend_add_url' => 'javascript:alert(1)',
+                'linked_follow_message' => '完了',
+                'pending_follow_message' => '{login_url}',
+                'reward_enabled' => false,
+                'reward_point_amount' => 0,
+                'reward_expiration_days' => 180,
+            ],
+            'invalid-line-friend-url'
+        )->assertUnprocessable()->assertJsonPath('code', 'LINE_MESSAGING_SETTING_INVALID');
+    }
+
+    public function test_read_model_reports_friend_counts_without_exposing_provider_secrets(): void
+    {
+        $first = $this->user('line-count-one@example.test');
+        $second = $this->user('line-count-two@example.test');
+        $this->lineAccount($first, 'count-one-subject');
+        $this->lineAccount($second, 'count-two-subject');
+        $this->postWebhook($this->followEvent('count-one-follow', 'count-one-subject', 'count-one-reply'))
+            ->assertOk();
+        $this->postWebhook($this->followEvent('count-two-follow', 'count-two-subject', 'count-two-reply'))
+            ->assertOk();
+        $this->postWebhook([
+            'type' => 'unfollow',
+            'timestamp' => now()->addSecond()->getTimestampMs(),
+            'source' => ['type' => 'user', 'userId' => 'count-two-subject'],
+            'webhookEventId' => 'count-two-unfollow',
+            'deliveryContext' => ['isRedelivery' => false],
+        ])->assertOk();
+
+        Auth::forgetGuards();
+        $response = $this->asAdmin($this->adminSession(V2AdminRole::Operator))
+            ->getJson('/admin/api/v2/identity/line-messaging')
+            ->assertOk()
+            ->assertJsonPath('data.friends_count', 1)
+            ->assertJsonPath('data.blocked_count', 1);
+        $keys = array_keys($response->json('data'));
+        foreach (['channel_secret', 'channel_access_token', 'login_channel_secret'] as $secret) {
+            self::assertNotContains($secret, $keys);
         }
     }
 

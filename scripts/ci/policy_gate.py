@@ -188,6 +188,9 @@ MIG_061G_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AdminUserReadModelApiTest.php",
     "apps/api/tests/V2/ZAdminUserReadModelPerformanceTest.php",
 }
+MIG_061W_V2_IDENTITY_FILES = {
+    "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -259,6 +262,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
     "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
     "apps/api/database/migrations-v2/2026_08_17_000030_create_v2_admin_authentication_policy.php",
+    *MIG_061W_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -2130,6 +2134,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_23_000036_add_v2_gacha_external_public_code.php",
         "2026_08_24_000037_create_v2_referral_point_settings.php",
         "2026_08_25_000038_add_v2_point_purchase_management.php",
+        "2026_08_26_000039_add_v2_line_settings_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2457,6 +2462,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "apps/api/database/migrations-v2/2026_08_07_000018_add_line_external_identity_provider.php",
             "apps/api/database/migrations-v2/2026_08_07_000019_create_line_messaging_follow_foundation.php",
             "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
+            "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
             "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
             "apps/api/app/Domain/Line/Services/V2LineMessagingHttpTransport.php",
             "apps/api/app/Domain/Line/Services/V2LineMessagingSettingService.php",

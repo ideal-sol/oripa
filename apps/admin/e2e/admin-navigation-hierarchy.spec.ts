@@ -12,6 +12,7 @@ const ownerPermissions = [
   "identity.admin.read",
   "identity.admin.manage",
   "identity.admin.session.revoke",
+  "identity.line.read",
   "identity.line.manage",
   "point.ledger.read",
   "point.adjustment.request",

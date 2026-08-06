@@ -1475,6 +1475,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
     ) {
       return json(route, {
         data: {
+          blocked_count: 4,
+          friend_add_url: "https://line.me/R/ti/p/example",
+          friends_count: 25,
           id: "01910191-0191-7191-8191-019101910199",
           linked_follow_message: "友だち追加が完了しました。",
           login_relative_path: "/login",
@@ -1525,6 +1528,7 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
         }, 403, { "Content-Type": "application/problem+json" });
       }
       const input = request.postDataJSON() as {
+        friend_add_url: string | null;
         linked_follow_message: string;
         pending_follow_message: string;
         reward_enabled: boolean;
@@ -1534,6 +1538,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
       revision = 2;
       return json(route, {
         data: {
+          blocked_count: 4,
+          friend_add_url: input.friend_add_url,
+          friends_count: 25,
           id: "01910191-0191-7191-8191-019101910199",
           linked_follow_message: input.linked_follow_message,
           login_relative_path: "/login",
@@ -1552,7 +1559,9 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
   });
 
   await page.goto("/settings/line");
-  await expect(page.getByRole("heading", { name: "自動応答メッセージ" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "LINE設定" })).toBeVisible();
+  await expect(page.getByText("25人")).toBeVisible();
+  await expect(page.getByText("4人")).toBeVisible();
   await page
     .getByLabel("ログイン前ユーザー向け")
     .fill("{login_url} からLINEログインを完了してください。");
@@ -1624,6 +1633,7 @@ function authenticationPolicy(revision: number, invitationRequired: boolean) {
 function permissionResponse(role: "owner" | "admin" | "operator") {
   const common = [
     "catalog.read",
+    "identity.line.read",
     "shipping.request.manage",
     "content.read",
     "contact.read",
@@ -1632,7 +1642,7 @@ function permissionResponse(role: "owner" | "admin" | "operator") {
     permissions: [
       ...common,
       ...(role === "owner" ? ["qa.draw.manage"] : []),
-      ...(role === "owner" ? ["identity.line.manage"] : []),
+      ...(role !== "operator" ? ["identity.line.manage"] : []),
       ...(role === "owner" ? ["identity.admin.manage"] : []),
       ...(role !== "operator" ? ["catalog.manage"] : []),
       ...(role !== "operator" ? ["catalog.publish"] : []),
