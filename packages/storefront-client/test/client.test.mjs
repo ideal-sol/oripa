@@ -6,6 +6,7 @@ import {
   StorefrontTransportError,
   createBrowserStorefrontClient,
   createIdempotencyKey,
+  isAuthProblemError,
 } from "../dist/browser.js";
 import {
   createServerStorefrontClient,
@@ -230,6 +231,111 @@ test("CSRFは設定可能なInitializerをMutation前に一度だけ呼ぶ", asy
     csrf: "required",
   });
   assert.equal(csrfCalls, 1);
+});
+
+test("Browser認証ClientはSession EndpointでCSRFを初期化しCookieを追従する", async () => {
+  const requests = [];
+  let csrfCookie = "a".repeat(64);
+  const transport = createBrowserStorefrontClient({
+    ...browserConfig(async (url, init) => {
+      requests.push({ url, init });
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: false, user: null });
+      }
+      if (url === "/api/v2/auth/login") {
+        assert.equal(init.headers.get("X-XSRF-TOKEN"), "a".repeat(64));
+        csrfCookie = "b".repeat(64);
+        return jsonResponse({
+          authenticated: true,
+          user: {
+            id: "0198a001-0000-7000-8000-000000000501",
+            state: "active",
+            email_verified: true,
+          },
+        });
+      }
+      assert.equal(url, "/api/v2/auth/logout");
+      assert.equal(init.headers.get("X-XSRF-TOKEN"), "b".repeat(64));
+      return new Response(null, { status: 204 });
+    }),
+    cookie_reader: () => csrfCookie,
+  });
+  const identity = createStorefrontIdentityClient(transport);
+
+  const login = await identity.login({
+    email: "fixture@example.test",
+    password: "synthetic password",
+  });
+  assert.equal(login.data.authenticated, true);
+  await identity.logout();
+
+  assert.deepEqual(requests.map(({ url }) => url), [
+    "/api/v2/auth/session",
+    "/api/v2/auth/login",
+    "/api/v2/auth/logout",
+  ]);
+  assert.equal(requests.every(({ init }) => init.credentials === "include"), true);
+});
+
+test("認証Facadeは6操作とEmail Verification PathをPublic Contractどおり構築する", async () => {
+  const requests = [];
+  const transport = createBrowserStorefrontClient({
+    ...browserConfig(async (url, init) => {
+      requests.push({ url, method: init.method });
+      if (url.includes("/auth/email/verify/")) {
+        return jsonResponse({ authenticated: true, user: null, redirect_path: "/" });
+      }
+      if (url.endsWith("/auth/register")) {
+        return jsonResponse(
+          {
+            status: "pending_verification",
+            user_id: "0198a001-0000-7000-8000-000000000502",
+          },
+          { status: 202 },
+        );
+      }
+      if (url.endsWith("/verification-notification")) {
+        return jsonResponse({ status: "accepted" }, { status: 202 });
+      }
+      return jsonResponse({ authenticated: false, user: null });
+    }),
+    csrf_initializer: async () => "c".repeat(64),
+  });
+  const identity = createStorefrontIdentityClient(transport);
+  const userId = "0198a001-0000-7000-8000-000000000502";
+
+  await identity.register({
+    email: "fixture@example.test",
+    password: "synthetic password",
+  });
+  await identity.getCurrentSession();
+  await identity.resendEmailVerification({ user_id: userId });
+  await identity.completeEmailVerification({
+    user_id: userId,
+    hash: "d".repeat(64),
+  });
+
+  assert.deepEqual(requests.map(({ url }) => url), [
+    "/api/v2/auth/register",
+    "/api/v2/auth/session",
+    "/api/v2/auth/email/verification-notification",
+    `/api/v2/auth/email/verify/${userId}/${"d".repeat(64)}`,
+  ]);
+});
+
+test("認証Problem Codeを型付きGuardで判定する", () => {
+  const error = new ApiProblemError({
+    type: "https://oripa.example/problems/email-verification-required",
+    title: "Email verification is required before login.",
+    status: 403,
+    code: "EMAIL_VERIFICATION_REQUIRED",
+    request_id: "req_auth_problem",
+    retryable: false,
+  });
+
+  assert.equal(isAuthProblemError(error), true);
+  assert.equal(isAuthProblemError(error, "EMAIL_VERIFICATION_REQUIRED"), true);
+  assert.equal(isAuthProblemError(error, "INVALID_CREDENTIALS"), false);
 });
 
 test("Server ClientはCookie転送とGET／HEADだけを許可する", async () => {

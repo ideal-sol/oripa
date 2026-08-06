@@ -583,8 +583,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PendingRegistration'
+        '403':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '422':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '429':
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /auth/login:
     post:
       operationId: loginUser
@@ -609,8 +615,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSession'
+        '401':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '403':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '422':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '429':
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /auth/external/google/start:
     post:
       operationId: startGoogleLogin
@@ -831,8 +845,12 @@ paths:
       responses:
         '204':
           description: Sessionを失効した。
+        '401':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '403':
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /auth/email/verification-notification:
     post:
       operationId: resendUserEmailVerification
@@ -857,8 +875,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Accepted'
+        '403':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '422':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '429':
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /auth/email/verify/{user_id}/{hash}:
     get:
       operationId: verifyUserEmail
@@ -888,8 +912,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSession'
+        '409':
+          $ref: '#/components/responses/PublicAuthProblem'
+        '410':
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /auth/session:
     get:
       operationId: getUserSession
@@ -908,8 +936,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSession'
+        '401':
+          description: 期限切れまたは失効済みのSession Cookieが送信された。
+          $ref: '#/components/responses/PublicAuthProblem'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /me/external-identities:
     get:
       operationId: listExternalIdentities
@@ -1204,6 +1235,7 @@ components:
       type: apiKey
       in: cookie
       name: __Host-oripa_user_session
+      description: Secure、HttpOnly、SameSite=Lax、Host-only、Path=/ のUser Session Cookie。
   schemas:
     ContentAsset:
       type: object
@@ -1655,6 +1687,30 @@ components:
       $ref: ../components/common.yaml#/schemas/BusinessDate
     ProblemDetails:
       $ref: ../components/common.yaml#/schemas/ProblemDetails
+    PublicAuthProblemCode:
+      type: string
+      enum:
+        - AUTH_SERVICE_UNAVAILABLE
+        - AUTHENTICATION_REQUIRED
+        - CSRF_TOKEN_MISMATCH
+        - EMAIL_ALREADY_CLAIMED
+        - EMAIL_VERIFICATION_REQUIRED
+        - INVALID_CREDENTIALS
+        - INVALID_REDIRECT
+        - INVALID_REQUEST
+        - INVALID_VERIFICATION_LINK
+        - RATE_LIMITED
+        - SESSION_EXPIRED
+        - UNSUPPORTED_MEDIA_TYPE
+        - VERIFICATION_LINK_EXPIRED
+    PublicAuthProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              $ref: '#/components/schemas/PublicAuthProblemCode'
     CursorPageMeta:
       $ref: ../components/common.yaml#/schemas/CursorPageMeta
     PresentationAsset:
@@ -2610,3 +2666,16 @@ components:
   responses:
     Problem:
       $ref: ../components/common.yaml#/responses/Problem
+    PublicAuthProblem:
+      description: Storefront認証のRFC 9457 Problem Details。
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+        X-Oripa-Api-Version:
+          $ref: '#/components/headers/XOripaApiVersion'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/PublicAuthProblemDetails'

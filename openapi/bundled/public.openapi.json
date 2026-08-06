@@ -937,8 +937,17 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -978,8 +987,20 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1327,8 +1348,14 @@
           "204": {
             "description": "Sessionを失効した。"
           },
+          "401": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1368,8 +1395,17 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1414,8 +1450,14 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "410": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1445,8 +1487,12 @@
               }
             }
           },
+          "401": {
+            "description": "期限切れまたは失効済みのSession Cookieが送信された。",
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1932,7 +1978,8 @@
       "userSession": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "__Host-oripa_user_session"
+        "name": "__Host-oripa_user_session",
+        "description": "Secure、HttpOnly、SameSite=Lax、Host-only、Path=/ のUser Session Cookie。"
       }
     },
     "schemas": {
@@ -2801,6 +2848,42 @@
             "minimum": 0
           }
         }
+      },
+      "PublicAuthProblemCode": {
+        "type": "string",
+        "enum": [
+          "AUTH_SERVICE_UNAVAILABLE",
+          "AUTHENTICATION_REQUIRED",
+          "CSRF_TOKEN_MISMATCH",
+          "EMAIL_ALREADY_CLAIMED",
+          "EMAIL_VERIFICATION_REQUIRED",
+          "INVALID_CREDENTIALS",
+          "INVALID_REDIRECT",
+          "INVALID_REQUEST",
+          "INVALID_VERIFICATION_LINK",
+          "RATE_LIMITED",
+          "SESSION_EXPIRED",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "VERIFICATION_LINK_EXPIRED"
+        ]
+      },
+      "PublicAuthProblemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/PublicAuthProblemCode"
+              }
+            }
+          }
+        ]
       },
       "CursorPageMeta": {
         "type": "object",
@@ -4442,6 +4525,27 @@
           "application/problem+json": {
             "schema": {
               "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "PublicAuthProblem": {
+        "description": "Storefront認証のRFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Oripa-Api-Version": {
+            "$ref": "#/components/headers/XOripaApiVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicAuthProblemDetails"
             }
           }
         }

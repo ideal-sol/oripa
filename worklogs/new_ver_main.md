@@ -8093,3 +8093,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
 - GitHub Policy GateでMigration 000037のIdentity Fixture登録漏れを検出し、完全一致Pathを1件追加した。Policy Unit 108件、Local Policy／Quality GateがPASSし、Gate条件は非変更である。
 - GitHub Integration GateでMigration 000037のCheck ConstraintがBackup-Restore後に等価な括弧へ正規化されるSchema差分を検出した。明示比較へ補正し、Task DB fresh、対象4 tests／58 assertions、Backup-Restore Schema diff 0を確認した。
+
+# MIG-061U Storefront認証Public Contract／Client Completion
+
+- Issue #210、Branch `feat/MIG-061U-storefront-auth-contract`、Risk R4、Verification `TARGETED-AUTH-CONTRACT`で開始した。
+- 既存Laravel User Authentication、Cookie Session、CSRF、Email Verification、Rate Limitを再利用し、Public OpenAPI、Generated Type、Storefront Client／Testkitを同期する。
+- ArtifactはRepository外Evidenceへ固定Version、元Commit、OpenAPI／Artifact SHA-256付きで保存する。Storefront Repository、Nginx、V1、Payment、DB Schemaは変更しない。

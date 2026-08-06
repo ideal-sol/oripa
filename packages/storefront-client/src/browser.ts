@@ -1,14 +1,37 @@
-import { ApiProblemError, StorefrontTransportError } from "./errors.js";
+import {
+  ApiProblemError,
+  StorefrontTransportError,
+  isAuthProblemError,
+} from "./errors.js";
+import {
+  CLIENT_VERSION_HEADER,
+  SITE_VERSION_HEADER,
+  STOREFRONT_CLIENT_VERSION,
+  USER_CSRF_INITIALIZATION_PATH,
+  USER_XSRF_COOKIE,
+} from "./constants.js";
 import {
   createIdempotencyKey,
   createTransport,
 } from "./transport.js";
 import type {
   BrowserStorefrontClientConfig,
+  CsrfInitializer,
   StorefrontTransport,
 } from "./types.js";
 
-export { ApiProblemError, StorefrontTransportError, createIdempotencyKey };
+export {
+  USER_CSRF_INITIALIZATION_PATH,
+  USER_SESSION_COOKIE,
+  USER_XSRF_COOKIE,
+  XSRF_TOKEN_HEADER,
+} from "./constants.js";
+export {
+  ApiProblemError,
+  StorefrontTransportError,
+  createIdempotencyKey,
+  isAuthProblemError,
+};
 export type {
   BrowserStorefrontClientConfig,
   StorefrontRequestOptions,
@@ -16,11 +39,74 @@ export type {
   StorefrontResponseMetadata,
 } from "./types.js";
 
+function readDocumentCookie(name: string): string | undefined {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+  const prefix = `${name}=`;
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length);
+}
+
+function defaultCsrfInitializer(
+  configuration: BrowserStorefrontClientConfig,
+): CsrfInitializer {
+  const fetchImplementation = configuration.fetch ?? globalThis.fetch;
+
+  return async ({ signal }) => {
+    if (typeof fetchImplementation !== "function") {
+      throw new StorefrontTransportError(
+        "CSRF_INITIALIZATION_FAILED",
+        "CSRF initialization fetch is unavailable",
+      );
+    }
+    const response = await fetchImplementation(
+      `${configuration.base_url}${USER_CSRF_INITIALIZATION_PATH}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        signal,
+        headers: {
+          Accept: "application/json",
+          [CLIENT_VERSION_HEADER]:
+            configuration.client_version ?? STOREFRONT_CLIENT_VERSION,
+          [SITE_VERSION_HEADER]: configuration.site_version,
+        },
+      },
+    );
+    if (!response.ok && response.status !== 401) {
+      throw new StorefrontTransportError(
+        "CSRF_INITIALIZATION_FAILED",
+        `CSRF initialization failed with status ${response.status}`,
+      );
+    }
+    if (response.status === 401) {
+      const problem = await response.clone().json().catch(() => undefined) as
+        | { code?: unknown }
+        | undefined;
+      if (problem?.code !== "SESSION_EXPIRED") {
+        throw new StorefrontTransportError(
+          "CSRF_INITIALIZATION_FAILED",
+          "CSRF initialization was rejected",
+        );
+      }
+    }
+  };
+}
+
 export function createBrowserStorefrontClient(
   configuration: BrowserStorefrontClientConfig,
 ): StorefrontTransport {
   return createTransport({
     ...configuration,
+    csrf_initializer:
+      configuration.csrf_initializer ?? defaultCsrfInitializer(configuration),
+    csrf_token_reader: () =>
+      (configuration.cookie_reader ?? readDocumentCookie)(USER_XSRF_COOKIE),
     credentials: "include",
     server_safe_only: false,
   });

@@ -119,7 +119,7 @@ final class AuthenticationFlowTest extends TestCase
             ->value('revoked_at'));
     }
 
-    public function test_resend_revokes_old_verification_and_expiry_fails(): void
+    public function test_resend_revokes_old_verification_and_expiry_has_stable_code(): void
     {
         $service = app(V2UserAuthenticationService::class);
         $user = $service->register(
@@ -138,11 +138,42 @@ final class AuthenticationFlowTest extends TestCase
             ->value('revoked_at'));
         $this->travel(61)->minutes();
 
-        $this->expectException(V2AuthenticationException::class);
-        $service->verify($user->public_id, $new);
+        try {
+            $service->verify($user->public_id, $new);
+            self::fail('An expired verification link must fail.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('VERIFICATION_LINK_EXPIRED', $exception->errorCode);
+        }
     }
 
-    public function test_user_login_is_generic_and_rejects_unverified_or_suspended_accounts(): void
+    public function test_registration_rate_limit_returns_stable_retryable_problem_code(): void
+    {
+        config(['v2_identity.rate_limits.register_ip' => [1, 3600]]);
+        $service = app(V2UserAuthenticationService::class);
+        $service->register(
+            'rate-one@example.test',
+            'valid rate password',
+            '/',
+            '192.0.2.21'
+        );
+
+        try {
+            $service->register(
+                'rate-two@example.test',
+                'valid rate password',
+                '/',
+                '192.0.2.21'
+            );
+            self::fail('Registration IP rate limit must reject the second request.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('RATE_LIMITED', $exception->errorCode);
+            self::assertSame(429, $exception->status);
+            self::assertTrue($exception->retryable);
+            self::assertGreaterThan(0, $exception->retryAfterSeconds);
+        }
+    }
+
+    public function test_user_login_identifies_unverified_password_owner_without_enumerating_accounts(): void
     {
         $password = app(V2PasswordPolicy::class)->hash('valid state password');
         foreach ([
@@ -158,11 +189,24 @@ final class AuthenticationFlowTest extends TestCase
             ]);
         }
 
+        try {
+            app(V2UserAuthenticationService::class)->login(
+                'pending@example.test',
+                'valid state password',
+                '192.0.2.30'
+            );
+            self::fail('An unverified account must not login.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('EMAIL_VERIFICATION_REQUIRED', $exception->errorCode);
+        }
+
         foreach (['pending@example.test', 'suspended@example.test', 'absent@example.test'] as $email) {
             try {
                 app(V2UserAuthenticationService::class)->login(
                     $email,
-                    'valid state password',
+                    $email === 'pending@example.test'
+                        ? 'wrong pending password'
+                        : 'valid state password',
                     '192.0.2.'.random_int(30, 60)
                 );
                 self::fail('Unavailable accounts must not login.');
@@ -171,6 +215,92 @@ final class AuthenticationFlowTest extends TestCase
                 self::assertSame('The credentials could not be verified.', $exception->getMessage());
             }
         }
+    }
+
+    public function test_http_login_rotates_existing_session_and_auth_responses_are_private(): void
+    {
+        $service = app(V2UserAuthenticationService::class);
+        $service->register(
+            'rotation@example.test',
+            'valid rotation password',
+            '/',
+            '192.0.2.90'
+        );
+        $verified = $service->verify(
+            $this->notifier->messages[0]['user_id'],
+            $this->notifier->messages[0]['token']
+        );
+        $oldToken = $verified['session']['token'];
+        $csrf = str_repeat('c', 64);
+
+        $response = $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->withUnencryptedCookie('__Host-oripa_user_session', $oldToken)
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->postJson('/api/v2/auth/login', [
+                'email' => 'rotation@example.test',
+                'password' => 'valid rotation password',
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertHeader('X-Oripa-Api-Version', '2')
+            ->assertJsonPath('authenticated', true);
+        self::assertStringContainsString(
+            'private',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertStringContainsString(
+            'no-store',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertNotNull(DB::table('user_sessions')
+            ->where('session_id_hash', hash('sha256', $oldToken))
+            ->value('revoked_at'));
+        $sessionCookie = collect($response->headers->getCookies())
+            ->first(fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session');
+        self::assertNotNull($sessionCookie);
+        self::assertNotSame($oldToken, $sessionCookie->getValue());
+    }
+
+    public function test_session_endpoint_distinguishes_expired_cookie_and_rotates_csrf(): void
+    {
+        $user = User::query()->create([
+            'email_display' => 'expired-session@example.test',
+            'email_normalized' => 'expired-session@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid expired password'),
+            'state' => V2UserState::Active,
+        ]);
+        $session = app(V2SessionManager::class)->issue(V2Realm::User, $user->getKey());
+        $this->travel(61)->minutes();
+
+        $response = $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_session', $session['token'])
+            ->getJson('/api/v2/auth/session');
+
+        $response
+            ->assertStatus(401)
+            ->assertJsonPath('code', 'SESSION_EXPIRED');
+        self::assertStringContainsString(
+            'no-store',
+            (string) $response->headers->get('Cache-Control')
+        );
+        $cookies = collect($response->headers->getCookies());
+        self::assertNotNull($cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_xsrf'
+        ));
+        self::assertNotNull($cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
+        ));
     }
 
     public function test_admin_password_is_only_preauth_and_totp_issues_separate_session(): void

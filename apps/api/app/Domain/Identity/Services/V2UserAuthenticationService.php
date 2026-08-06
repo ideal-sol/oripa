@@ -147,13 +147,21 @@ final class V2UserAuthenticationService
                 $verification = UserEmailVerification::query()
                     ->where('user_id', $user->getKey())
                     ->where('token_hash', $this->tokens->hash($token))
-                    ->whereNull('used_at')
-                    ->whereNull('revoked_at')
-                    ->where('expires_at', '>', now())
                     ->lockForUpdate()
                     ->first();
-                if ($verification === null) {
+                if (
+                    $verification === null
+                    || $verification->used_at !== null
+                    || $verification->revoked_at !== null
+                ) {
                     throw $this->invalidVerification();
+                }
+                if (! $verification->expires_at->isFuture()) {
+                    throw new V2AuthenticationException(
+                        'VERIFICATION_LINK_EXPIRED',
+                        410,
+                        'The email verification link has expired.'
+                    );
                 }
 
                 $user->forceFill([
@@ -191,7 +199,7 @@ final class V2UserAuthenticationService
                 'reason' => 'concurrent_conflict',
             ]);
             throw new V2AuthenticationException(
-                'EMAIL_ALREADY_VERIFIED',
+                'EMAIL_ALREADY_CLAIMED',
                 409,
                 'The email address is already verified by another account.'
             );
@@ -215,9 +223,30 @@ final class V2UserAuthenticationService
             ->whereNotNull('email_verified_at')
             ->whereIn('state', [V2UserState::Active->value, V2UserState::Restricted->value])
             ->first();
+        if ($user === null) {
+            $pendingPasswordMatches = User::query()
+                ->where('email_normalized', $normalized)
+                ->whereNull('email_verified_at')
+                ->where('state', V2UserState::PendingVerification->value)
+                ->where('password_login_enabled', true)
+                ->get()
+                ->contains(fn (User $candidate): bool => $this->passwordPolicy->verify(
+                    $password,
+                    $candidate->password_hash
+                ));
+            if ($pendingPasswordMatches) {
+                throw new V2AuthenticationException(
+                    'EMAIL_VERIFICATION_REQUIRED',
+                    403,
+                    'Email verification is required before login.'
+                );
+            }
+            $this->rateLimiter->hitAccount('user_login_failure', $normalized, $ip);
+            $this->events->record('login_failure', ['realm' => 'user']);
+            throw $this->invalidCredentials();
+        }
         if (
-            $user === null
-            || ! $user->password_login_enabled
+            ! $user->password_login_enabled
             || ! $this->passwordPolicy->verify($password, $user->password_hash)
         ) {
             $this->rateLimiter->hitAccount('user_login_failure', $normalized, $ip);

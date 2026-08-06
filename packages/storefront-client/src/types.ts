@@ -43,7 +43,9 @@ export interface CsrfInitializationContext {
 
 export type CsrfInitializer = (
   context: CsrfInitializationContext,
-) => Promise<void>;
+) => Promise<unknown>;
+
+export type BrowserCookieReader = (name: string) => string | undefined;
 
 export interface StorefrontClientConfig {
   base_url: string;
@@ -55,6 +57,7 @@ export interface StorefrontClientConfig {
 
 export interface BrowserStorefrontClientConfig extends StorefrontClientConfig {
   csrf_initializer?: CsrfInitializer;
+  cookie_reader?: BrowserCookieReader;
 }
 
 export interface ServerStorefrontClientConfig extends StorefrontClientConfig {

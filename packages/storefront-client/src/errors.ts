@@ -41,8 +41,51 @@ export class ApiProblemError extends Error {
   }
 }
 
+export type AuthProblemCode =
+  | "AUTH_SERVICE_UNAVAILABLE"
+  | "AUTHENTICATION_REQUIRED"
+  | "CSRF_TOKEN_MISMATCH"
+  | "EMAIL_ALREADY_CLAIMED"
+  | "EMAIL_VERIFICATION_REQUIRED"
+  | "INVALID_CREDENTIALS"
+  | "INVALID_REDIRECT"
+  | "INVALID_REQUEST"
+  | "INVALID_VERIFICATION_LINK"
+  | "RATE_LIMITED"
+  | "SESSION_EXPIRED"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "VERIFICATION_LINK_EXPIRED";
+
+const AUTH_PROBLEM_CODES: ReadonlySet<string> = new Set<AuthProblemCode>([
+  "AUTH_SERVICE_UNAVAILABLE",
+  "AUTHENTICATION_REQUIRED",
+  "CSRF_TOKEN_MISMATCH",
+  "EMAIL_ALREADY_CLAIMED",
+  "EMAIL_VERIFICATION_REQUIRED",
+  "INVALID_CREDENTIALS",
+  "INVALID_REDIRECT",
+  "INVALID_REQUEST",
+  "INVALID_VERIFICATION_LINK",
+  "RATE_LIMITED",
+  "SESSION_EXPIRED",
+  "UNSUPPORTED_MEDIA_TYPE",
+  "VERIFICATION_LINK_EXPIRED",
+]);
+
+export function isAuthProblemError(
+  error: unknown,
+  code?: AuthProblemCode,
+): error is ApiProblemError & { readonly code: AuthProblemCode } {
+  return (
+    error instanceof ApiProblemError
+    && AUTH_PROBLEM_CODES.has(error.code)
+    && (code === undefined || error.code === code)
+  );
+}
+
 export type StorefrontTransportErrorCode =
   | "ABORTED"
+  | "CSRF_INITIALIZATION_FAILED"
   | "HTTP_ERROR"
   | "NETWORK_ERROR"
   | "TIMEOUT";

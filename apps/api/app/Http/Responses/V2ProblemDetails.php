@@ -35,6 +35,7 @@ final class V2ProblemDetails
             $exception->status,
             [
                 'Content-Type' => 'application/problem+json',
+                'Cache-Control' => 'private, no-store',
                 'X-Request-Id' => $requestId,
                 'X-Oripa-Api-Version' => '2',
             ]

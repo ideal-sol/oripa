@@ -7,6 +7,7 @@ import {
   RETRY_AFTER_HEADER,
   SITE_VERSION_HEADER,
   STOREFRONT_CLIENT_VERSION,
+  XSRF_TOKEN_HEADER,
 } from "./constants.js";
 import {
   ApiProblemError,
@@ -30,6 +31,7 @@ interface TransportConfiguration extends StorefrontClientConfig {
   credentials: RequestCredentials;
   cookie_header?: string;
   csrf_initializer?: CsrfInitializer;
+  csrf_token_reader?: () => string | undefined;
   server_safe_only: boolean;
 }
 
@@ -260,8 +262,8 @@ export function createTransport(
     throw new TypeError("fetch implementation is unavailable");
   }
 
-  let csrfInitialization: Promise<void> | undefined;
-  const initializeCsrf = (signal: AbortSignal): Promise<void> => {
+  let csrfInitialization: Promise<unknown> | undefined;
+  const initializeCsrf = (signal: AbortSignal): Promise<unknown> => {
     if (!configuration.csrf_initializer) {
       throw new TypeError(
         "csrf_initializer is required when csrf is marked as required",
@@ -303,7 +305,17 @@ export function createTransport(
         }
         const csrfSignal = requestSignal(options.signal, timeoutMs);
         try {
-          await initializeCsrf(csrfSignal.signal);
+          const initializedToken = await initializeCsrf(csrfSignal.signal);
+          const token = configuration.csrf_token_reader?.() ?? initializedToken;
+          if (typeof token === "string" && !headers.has(XSRF_TOKEN_HEADER)) {
+            if (!/^[0-9a-f]{64}$/.test(token)) {
+              throw new StorefrontTransportError(
+                "CSRF_INITIALIZATION_FAILED",
+                "CSRF token reader returned an invalid value",
+              );
+            }
+            headers.set(XSRF_TOKEN_HEADER, token);
+          }
         } catch (error) {
           if (csrfSignal.externally_aborted()) {
             throw new StorefrontTransportError(
@@ -346,9 +358,14 @@ export function createTransport(
           return await parseResponse<T>(response, method);
         } catch (error) {
           if (
-            error instanceof ApiProblemError ||
-            error instanceof StorefrontTransportError
+            error instanceof ApiProblemError
           ) {
+            if (error.code === "CSRF_TOKEN_MISMATCH") {
+              csrfInitialization = undefined;
+            }
+            throw error;
+          }
+          if (error instanceof StorefrontTransportError) {
             throw error;
           }
           if (attemptSignal.externally_aborted()) {

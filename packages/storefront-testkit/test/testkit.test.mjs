@@ -18,6 +18,7 @@ import {
   CAPABILITY_SITE_MANIFEST_FIXTURE,
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
+  PUBLIC_AUTH_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
@@ -37,6 +38,17 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
+
+test("Public Auth FixtureはCookie Session状態をCredentialなしで表現する", () => {
+  assert.equal(PUBLIC_AUTH_FIXTURE.anonymous_session.authenticated, false);
+  assert.equal(PUBLIC_AUTH_FIXTURE.authenticated_session.authenticated, true);
+  assert.equal(PUBLIC_AUTH_FIXTURE.pending_registration.status, "pending_verification");
+  assert.equal(PUBLIC_AUTH_FIXTURE.accepted.status, "accepted");
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_AUTH_FIXTURE),
+    /password|token|cookie|session_id|secret/i,
+  );
+});
 
 test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含まない", () => {
   assert.equal(PUBLIC_DRAW_FIXTURE.requested_count, 1000);
@@ -477,6 +489,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "CAPABILITY_SITE_MANIFEST_FIXTURE",
     "MINIMAL_SITE_MANIFEST_FIXTURE",
     "PLATFORM_COMPATIBILITY_FIXTURE",
+    "PUBLIC_AUTH_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",

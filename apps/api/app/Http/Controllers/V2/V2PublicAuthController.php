@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2PasswordRecoveryService;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Identity\Services\V2SmsVerificationService;
 use App\Domain\Identity\Services\V2UserAuthenticationService;
+use App\Http\Responses\V2ProblemDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -43,10 +44,10 @@ final class V2PublicAuthController
             $request->ip() ?? 'unknown'
         );
 
-        return response()->json([
+        return $this->privateResponse(response()->json([
             'status' => 'pending_verification',
             'user_id' => $user->public_id,
-        ], 202);
+        ], 202));
     }
 
     public function resendVerification(Request $request): JsonResponse
@@ -57,13 +58,13 @@ final class V2PublicAuthController
         ]);
         $this->authentication->resend($data['user_id'], $data['redirect_path'] ?? '/');
 
-        return response()->json(['status' => 'accepted'], 202);
+        return $this->privateResponse(response()->json(['status' => 'accepted'], 202));
     }
 
     public function verify(Request $request, string $userId, string $hash): JsonResponse
     {
         $result = $this->authentication->verify($userId, $hash);
-        $response = response()->json([
+        $response = $this->privateResponse(response()->json([
             'authenticated' => true,
             'user' => [
                 'id' => $result['user']->public_id,
@@ -71,7 +72,7 @@ final class V2PublicAuthController
                 'email_verified' => true,
             ],
             'redirect_path' => $result['redirect_path'],
-        ]);
+        ]));
         $this->sessions->attachSession(
             $response,
             V2Realm::User,
@@ -94,14 +95,15 @@ final class V2PublicAuthController
             $data['password'],
             $request->ip() ?? 'unknown'
         );
-        $response = response()->json([
+        $this->sessions->revoke($request, V2Realm::User);
+        $response = $this->privateResponse(response()->json([
             'authenticated' => true,
             'user' => [
                 'id' => $result['user']->public_id,
                 'state' => $result['user']->state->value,
                 'email_verified' => true,
             ],
-        ]);
+        ]));
         $this->sessions->attachSession(
             $response,
             V2Realm::User,
@@ -302,7 +304,7 @@ final class V2PublicAuthController
             $this->currentUser(),
             $request
         );
-        $response = response()->json(null, 204);
+        $response = $this->privateResponse(response()->json(null, 204));
         $this->sessions->attachSession(
             $response,
             V2Realm::User,
@@ -432,18 +434,44 @@ final class V2PublicAuthController
         return $response;
     }
 
-    public function session(): JsonResponse
+    public function session(Request $request): JsonResponse
     {
         $user = Auth::guard('v2_user')->user();
-        $response = response()->json([
+        if (
+            $user === null
+            && $this->sessions->rawToken($request, V2Realm::User) !== null
+        ) {
+            $response = V2ProblemDetails::fromAuthentication(
+                $request,
+                new V2AuthenticationException(
+                    'SESSION_EXPIRED',
+                    401,
+                    'The user session has expired.'
+                )
+            );
+            $this->sessions->expireSession($response, V2Realm::User);
+            $this->csrf->rotate($response, V2Realm::User);
+
+            return $response;
+        }
+
+        $response = $this->privateResponse(response()->json([
             'authenticated' => $user !== null,
             'user' => $user === null ? null : [
                 'id' => $user->public_id,
                 'state' => $user->state->value,
                 'email_verified' => $user->email_verified_at !== null,
             ],
-        ]);
+        ]));
         $this->csrf->rotate($response, V2Realm::User);
+
+        return $response;
+    }
+
+    private function privateResponse(JsonResponse $response): JsonResponse
+    {
+        $response->headers->set('Cache-Control', 'private, no-store');
+        $response->headers->set('X-Oripa-Api-Version', '2');
 
         return $response;
     }

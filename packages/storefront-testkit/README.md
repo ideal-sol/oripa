@@ -19,9 +19,10 @@ OwnerはPlatform Codex。親[`AGENTS.md`](../AGENTS.md)に従う。
 - Public OpenAPI Bundleから生成するOperation数とBundle SHA-256
 - Public-safeなSite Manifest、Compatibility、Response Metadata Fixture
 - Browser／Server／Public Surface／Site CompatibilityのBoundary Assertion
+- Anonymous／Authenticated Session、Pending Registration、Accepted ResponseのAuth Fixture
 
-Public API Operationは認証Contractの6件だけである。架空Endpoint、Fake Operation、
-Draw／Point／Payment等の業務Responseは提供しない。
+認証Fixtureは実Credential、Cookie、Token、PIIを含めず、Public OpenAPIの型に
+compile-timeで適合する。架空Endpointや認証判断は提供しない。
 
 ## Entry Points
 
