@@ -15,6 +15,8 @@ enum V2Permission: string
     case ManagePointAdjustment = 'point.adjustment.manage';
     case ReadReferralSettings = 'referral.settings.read';
     case ManageReferralSettings = 'referral.settings.manage';
+    case ReadPointPurchasePlan = 'payment.plan.read';
+    case ManagePointPurchasePlan = 'payment.plan.manage';
     case ReadCatalog = 'catalog.read';
     case ManageCatalog = 'catalog.manage';
     case PublishCatalog = 'catalog.publish';

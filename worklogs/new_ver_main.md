@@ -8105,3 +8105,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application／Artifact Source Head `76d8161de759d8969e74543f6d79b5f5b17cee1d`からClient／Testkit／Site Schemaの`2.0.0-alpha.1` tarball、Public OpenAPI、Manifest、SHA256SUMSを作成し、Workspace外Clean Install／ImportがPASSした。
 - Preview APIだけを`sha256:8d2f0592...`へ更新した。Health、匿名Session、CSRF Cookie、no-storeを確認し、Admin Image、DB／Migration、Nginx、V1は非変更である。
 - PreviewにはPublic API外部Routeと`V2_PUBLIC_ORIGIN`がないため、Public MutationはFail Closedの503となる。未承認のNginx／Origin変更は行わず、完全Auth Flowは対象Backend Testを正本とした。
+
+# MIG-061V ポイント購入管理
+
+- Issue #212、Branch `feat/MIG-061V-point-purchase-management`、Risk R4、Verification `TARGETED-POINT-PURCHASE`で開始した。
+- V1購入プランの一覧／登録／編集をV2 immutable Versionへ移植し、`all_users`／`first_purchase_users`の対象カテゴリ、Payment成功履歴による初回資格、Admin API／Generated Clientを追加した。
+- Task DBでMigration fresh／rollback／reapplyと既存商品Backfill、Backend 28 tests／181 assertions、Admin Unit 30 tests、Desktop／Mobile E2E 2 tests、Typecheck／Lint、OpenAPI／Generated ClientがPASSした。
+- Preview更新対象はAPI／Admin／Migration 000038のみ。Wallet／Ledger、Nginx、V1、Storefront、Payment Providerは変更しない。

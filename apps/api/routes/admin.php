@@ -47,6 +47,7 @@ use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
+use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
 
 $v2GachaIdentifierPattern = '[A-Za-z0-9]{11}|[0-9a-fA-F-]{36}';
 
@@ -116,6 +117,14 @@ Route::prefix('v2')
             ->name('v2.admin.settings.referral-points.show');
         Route::put('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'update'])
             ->name('v2.admin.settings.referral-points.update');
+        Route::get('/point-purchase-plans', [V2AdminPointPurchasePlanController::class, 'index'])
+            ->name('v2.admin.point-purchase-plans.index');
+        Route::post('/point-purchase-plans', [V2AdminPointPurchasePlanController::class, 'store'])
+            ->name('v2.admin.point-purchase-plans.store');
+        Route::get('/point-purchase-plans/{planId}', [V2AdminPointPurchasePlanController::class, 'show'])
+            ->whereUuid('planId')->name('v2.admin.point-purchase-plans.show');
+        Route::put('/point-purchase-plans/{planId}', [V2AdminPointPurchasePlanController::class, 'update'])
+            ->whereUuid('planId')->name('v2.admin.point-purchase-plans.update');
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
         Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])

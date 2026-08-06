@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 63a16a5e94ab5bae33e1291761053e078fb9f82887c7f24e5069a4852a1aa798
+// Contract SHA-256: 862be19c13f9a586fe87ac054afadbafaafcf83bcbe5f351b2bd183eeaab6d8d
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -15,6 +15,8 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.manage",
   "referral.settings.read",
   "referral.settings.manage",
+  "payment.plan.read",
+  "payment.plan.manage",
   "catalog.read",
   "catalog.manage",
   "catalog.publish",
@@ -458,6 +460,59 @@ export interface AdminReferralPointSettingUpdate {
 
 export interface AdminReferralPointSettingMutationResult {
   data: AdminReferralPointSetting;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export type AdminPointPurchaseAudience = "all_users" | "first_purchase_users";
+
+export interface AdminPointPurchasePlan {
+  id: string;
+  name: string;
+  amount: number;
+  paid_point_amount: number;
+  free_point_amount: number;
+  sort_order: number;
+  audience_code: AdminPointPurchaseAudience;
+  is_active: boolean;
+  status: "draft" | "published" | "retired";
+  available_from: string | null;
+  available_until: string | null;
+  version: number;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPointPurchasePlanInput {
+  name: string;
+  amount: number;
+  paid_point_amount: number;
+  free_point_amount: number;
+  sort_order: number;
+  audience_code: AdminPointPurchaseAudience;
+  is_active: boolean;
+  available_from: string | null;
+  available_until: string | null;
+}
+
+export interface AdminPointPurchasePlanUpdate extends AdminPointPurchasePlanInput {
+  expected_revision: number;
+}
+
+export interface AdminPointPurchasePlanCollection {
+  items: AdminPointPurchasePlan[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminPointPurchasePlanResponse {
+  data: AdminPointPurchasePlan;
+  request_id: string;
+}
+
+export interface AdminPointPurchasePlanMutationResult {
+  data: AdminPointPurchasePlan;
   idempotent_replay: boolean;
   request_id: string;
 }

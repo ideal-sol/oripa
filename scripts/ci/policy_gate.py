@@ -354,6 +354,14 @@ V2_POINT_REQUIRED_FILES = {
     *MIG_061H_V2_POINT_FILES,
     *MIG_061T_V2_POINT_FILES,
 }
+MIG_061V_V2_PAYMENT_FILES = {
+    "apps/api/app/Domain/Payment/V2/Exceptions/V2PointPurchasePlanException.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2PointPurchaseEligibilityService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2PointPurchasePlanService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminPointPurchasePlanController.php",
+    "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
+    "apps/api/tests/V2/AdminPointPurchasePlanManagementTest.php",
+}
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
     "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php",
@@ -361,6 +369,7 @@ V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
     "apps/api/tests/V2/PaymentModelFoundationTest.php",
     "docs/operations/payment-model/README.md",
+    *MIG_061V_V2_PAYMENT_FILES,
 }
 MIG_061I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
@@ -668,6 +677,12 @@ MIG_061T_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/settings/referral-point-settings.tsx",
     "apps/admin/test/referral-point-settings.test.tsx",
 }
+MIG_061V_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-point-purchase-management.spec.ts",
+    "apps/admin/src/app/purchase-plans/[planPublicId]/page.tsx",
+    "apps/admin/src/components/point-purchases/point-purchase-management-workspace.tsx",
+    "apps/admin/test/admin-point-purchase-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -782,6 +797,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061R_ADMIN_SKELETON_FILES,
     *MIG_061S_ADMIN_SKELETON_FILES,
     *MIG_061T_ADMIN_SKELETON_FILES,
+    *MIG_061V_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2113,6 +2129,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_22_000035_add_v2_page_management.php",
         "2026_08_23_000036_add_v2_gacha_external_public_code.php",
         "2026_08_24_000037_create_v2_referral_point_settings.php",
+        "2026_08_25_000038_add_v2_point_purchase_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
