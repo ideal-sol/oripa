@@ -120,6 +120,12 @@ final class AdminRankEffectSettingsTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.media_type', 'video')->json('data');
 
         Auth::forgetGuards();
+        $this->asAdmin($token)
+            ->get('/admin/api/v2/catalog/presentation-assets/'.$created['id'].'/content')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'video/mp4');
+
+        Auth::forgetGuards();
         $replacement = $this->mutate($token, 'PUT', '/admin/api/v2/catalog/rank-effects/'.$created['id'], [
             'expected_revision' => 1,
             'title' => '画像へ差し替え',

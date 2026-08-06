@@ -219,7 +219,8 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
         $asset = $this->find('catalog_presentation_assets', $publicId);
-        if ($asset->media_type !== 'image' || ! (bool) $asset->is_public) {
+        if (! in_array($asset->media_type, ['image', 'video'], true)
+            || ! (bool) $asset->is_public) {
             throw $this->notFound();
         }
         $content = Storage::disk(config('filesystems.default'))
