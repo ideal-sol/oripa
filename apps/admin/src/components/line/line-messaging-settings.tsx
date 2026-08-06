@@ -18,6 +18,7 @@ import {
 
 import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
+import { usePermissions } from "@/components/permissions/permission-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -29,6 +30,7 @@ import type {
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
 type Draft = {
+  friend_add_url: string;
   linked_follow_message: string;
   pending_follow_message: string;
   reward_enabled: boolean;
@@ -41,18 +43,22 @@ const MAX_REWARD_POINT_AMOUNT = 1_000_000;
 export function LineMessagingSettings() {
   const client = useMemo(() => new AdminApiClient(), []);
   const navigation = navigationItem("line-settings");
+  const { permissions } = usePermissions();
+  const canManage = permissions.has("identity.line.manage");
   const [setting, setSetting] = useState<AdminLineMessagingSetting | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState<AdminLineMessagingPreview | null>(null);
   const [error, setError] = useState<AdminApiError | null>(null);
   const [busy, setBusy] = useState<"load" | "preview" | "save" | null>("load");
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
   const pendingKey = useRef<string | null>(null);
 
   const dirty =
     setting !== null &&
     draft !== null &&
-    (setting.linked_follow_message !== draft.linked_follow_message ||
+    ((setting.friend_add_url ?? "") !== draft.friend_add_url ||
+      setting.linked_follow_message !== draft.linked_follow_message ||
       setting.pending_follow_message !== draft.pending_follow_message ||
       setting.reward_enabled !== draft.reward_enabled ||
       setting.reward_point_amount !== draft.reward_point_amount ||
@@ -65,10 +71,12 @@ export function LineMessagingSettings() {
       (!draft.reward_enabled && draft.reward_point_amount !== 0) ||
       draft.reward_expiration_days < 1 ||
       draft.reward_expiration_days > 3650);
+  const friendAddUrlInvalid = draft !== null && !validFriendAddUrl(draft.friend_add_url);
 
   const applySetting = useCallback((next: AdminLineMessagingSetting) => {
     setSetting(next);
     setDraft({
+      friend_add_url: next.friend_add_url ?? "",
       linked_follow_message: next.linked_follow_message,
       pending_follow_message: next.pending_follow_message,
       reward_enabled: next.reward_enabled ?? false,
@@ -76,6 +84,7 @@ export function LineMessagingSettings() {
       reward_expiration_days: next.reward_expiration_days ?? 180,
     });
     setPreview(null);
+    setSaved(false);
     pendingKey.current = null;
   }, []);
 
@@ -117,7 +126,13 @@ export function LineMessagingSettings() {
     setBusy("preview");
     setError(null);
     try {
-      setPreview(await client.previewLineMessagingSetting(draft));
+      setPreview(await client.previewLineMessagingSetting({
+        linked_follow_message: draft.linked_follow_message,
+        pending_follow_message: draft.pending_follow_message,
+        reward_enabled: draft.reward_enabled,
+        reward_point_amount: draft.reward_point_amount,
+        reward_expiration_days: draft.reward_expiration_days,
+      }));
     } catch (caught) {
       setError(asApiError(caught));
     } finally {
@@ -127,7 +142,7 @@ export function LineMessagingSettings() {
 
   async function save(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!draft || !setting || !dirty || rewardInvalid) return;
+    if (!canManage || !draft || !setting || !dirty || rewardInvalid || friendAddUrlInvalid) return;
     setBusy("save");
     setError(null);
     pendingKey.current ??= crypto.randomUUID();
@@ -136,10 +151,12 @@ export function LineMessagingSettings() {
         {
           expected_revision: setting.revision,
           ...draft,
+          friend_add_url: draft.friend_add_url.trim() || null,
         },
         pendingKey.current,
       );
       applySetting(response.data);
+      setSaved(true);
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
@@ -155,13 +172,13 @@ export function LineMessagingSettings() {
 
   return (
     <AdminShell>
-      <ProtectedAdminRoute permission="identity.line.manage">
+      <ProtectedAdminRoute permission="identity.line.read">
         <div className="workspace">
           <Breadcrumb item={navigation} />
           <AdminPageHeader
             action={<MessageSquareText size={26} aria-hidden="true" />}
-            eyebrow="LINE Messaging"
-            title="自動応答メッセージ"
+            eyebrow="LINE Settings"
+            title="LINE設定"
           />
           {busy === "load" ? (
             <section className="module-state" role="status">
@@ -171,9 +188,51 @@ export function LineMessagingSettings() {
           ) : setting && draft ? (
             <form className="line-settings-form" onSubmit={save}>
               {error ? <LineSettingsError error={error} onReload={load} /> : null}
+              {saved ? (
+                <p className="notice notice-success" role="status">
+                  LINE設定を保存しました。
+                </p>
+              ) : null}
+              <dl className="line-settings-summary">
+                <div>
+                  <dt>現在の友だち数</dt>
+                  <dd>{(setting.friends_count ?? 0).toLocaleString("ja-JP")}人</dd>
+                </div>
+                <div>
+                  <dt>現在のブロック数</dt>
+                  <dd>{(setting.blocked_count ?? 0).toLocaleString("ja-JP")}人</dd>
+                </div>
+                <div>
+                  <dt>Revision</dt>
+                  <dd>{setting.revision}</dd>
+                </div>
+                <div>
+                  <dt>更新日時</dt>
+                  <dd>{formatJst(setting.updated_at)}</dd>
+                </div>
+              </dl>
+              <label>
+                <span>LINE友だち追加URL</span>
+                <input
+                  disabled={!canManage}
+                  maxLength={2048}
+                  onChange={(event) =>
+                    setDraft({ ...draft, friend_add_url: event.target.value })
+                  }
+                  placeholder="https://line.me/R/ti/p/..."
+                  type="url"
+                  value={draft.friend_add_url}
+                />
+              </label>
+              {friendAddUrlInvalid ? (
+                <p className="field-error" role="alert">
+                  有効なHTTPまたはHTTPS URLを入力してください。
+                </p>
+              ) : null}
               <label>
                 <span>ログイン済みユーザー向け</span>
                 <textarea
+                  disabled={!canManage}
                   maxLength={1000}
                   onChange={(event) =>
                     setDraft({ ...draft, linked_follow_message: event.target.value })
@@ -186,6 +245,7 @@ export function LineMessagingSettings() {
               <label>
                 <span>ログイン前ユーザー向け</span>
                 <textarea
+                  disabled={!canManage}
                   maxLength={1000}
                   onChange={(event) =>
                     setDraft({ ...draft, pending_follow_message: event.target.value })
@@ -200,6 +260,7 @@ export function LineMessagingSettings() {
                 <label className="line-reward-toggle">
                   <input
                     checked={draft.reward_enabled}
+                    disabled={!canManage}
                     onChange={(event) =>
                       setDraft({
                         ...draft,
@@ -218,7 +279,7 @@ export function LineMessagingSettings() {
                   <label>
                     <span>付与ポイント数</span>
                     <input
-                      disabled={!draft.reward_enabled}
+                      disabled={!canManage || !draft.reward_enabled}
                       inputMode="numeric"
                       max={MAX_REWARD_POINT_AMOUNT}
                       min={draft.reward_enabled ? 1 : 0}
@@ -236,6 +297,7 @@ export function LineMessagingSettings() {
                   <label>
                     <span>有効期限日数</span>
                     <input
+                      disabled={!canManage}
                       inputMode="numeric"
                       max={3650}
                       min={1}
@@ -262,7 +324,7 @@ export function LineMessagingSettings() {
                   </p>
                 ) : null}
               </fieldset>
-              <div className="line-settings-actions">
+              {canManage ? <div className="line-settings-actions">
                 <button
                   className="secondary-button"
                   disabled={busy !== null || rewardInvalid}
@@ -274,7 +336,7 @@ export function LineMessagingSettings() {
                 </button>
                 <button
                   className="primary-button"
-                  disabled={busy !== null || !dirty || rewardInvalid}
+                  disabled={busy !== null || !dirty || rewardInvalid || friendAddUrlInvalid}
                   type="submit"
                 >
                   {busy === "save" ? (
@@ -284,7 +346,7 @@ export function LineMessagingSettings() {
                   )}
                   保存
                 </button>
-              </div>
+              </div> : null}
               {preview ? (
                 <section aria-live="polite" className="line-message-preview">
                   <h2>プレビュー</h2>
@@ -359,4 +421,26 @@ function asApiError(value: unknown): AdminApiError {
   return value instanceof AdminApiError
     ? value
     : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
+}
+
+function validFriendAddUrl(value: string): boolean {
+  const normalized = value.trim();
+  if (normalized === "") return true;
+  try {
+    const url = new URL(normalized);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      normalized.length <= 2048
+    );
+  } catch {
+    return false;
+  }
+}
+
+function formatJst(value: string): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(value));
 }

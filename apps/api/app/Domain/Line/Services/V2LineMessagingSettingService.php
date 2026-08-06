@@ -13,6 +13,7 @@ use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointService;
+use App\Models\V2\LineFriendship;
 use App\Models\V2\LineMessagingSetting;
 use Illuminate\Support\Facades\DB;
 
@@ -33,7 +34,7 @@ final class V2LineMessagingSettingService
     {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageLineMessaging,
+            V2Permission::ReadLineMessaging,
             false,
             'identity.line.messaging.read'
         );
@@ -173,6 +174,9 @@ final class V2LineMessagingSettingService
                 $rewardExpirationDays = $request['reward_expiration_days']
                     ?? (int) $setting->reward_expiration_days;
                 $before = [
+                    'friend_add_url_checksum' => $setting->friend_add_url === null
+                        ? null
+                        : hash('sha256', $setting->friend_add_url),
                     'linked_follow_message_checksum' => hash(
                         'sha256',
                         $setting->linked_follow_message
@@ -187,6 +191,9 @@ final class V2LineMessagingSettingService
                     'revision' => (int) $setting->revision,
                 ];
                 $setting->forceFill([
+                    'friend_add_url' => array_key_exists('friend_add_url', $request)
+                        ? $request['friend_add_url']
+                        : $setting->friend_add_url,
                     'linked_follow_message' => $request['linked_follow_message'],
                     'pending_follow_message' => $request['pending_follow_message'],
                     'reward_enabled' => $rewardEnabled,
@@ -208,6 +215,9 @@ final class V2LineMessagingSettingService
                     'target_public_id' => $setting->public_id,
                     'before' => $before,
                     'after' => [
+                        'friend_add_url_checksum' => $setting->friend_add_url === null
+                            ? null
+                            : hash('sha256', $setting->friend_add_url),
                         'linked_follow_message_checksum' => hash(
                             'sha256',
                             $setting->linked_follow_message
@@ -284,6 +294,7 @@ final class V2LineMessagingSettingService
             'reward_enabled',
             'reward_point_amount',
             'reward_expiration_days',
+            'friend_add_url',
         ];
         if ($allowRevision) {
             $allowed[] = 'expected_revision';
@@ -298,6 +309,28 @@ final class V2LineMessagingSettingService
             static fn (string $field): bool => array_key_exists($field, $input)
         );
         $hasRewardFields = count($providedRewardFields) === count($rewardFields);
+        $friendAddUrl = null;
+        if (array_key_exists('friend_add_url', $input)) {
+            if ($input['friend_add_url'] !== null && ! is_string($input['friend_add_url'])) {
+                throw $this->invalid();
+            }
+            $friendAddUrl = is_string($input['friend_add_url'])
+                ? trim($input['friend_add_url'])
+                : null;
+            if ($friendAddUrl === '') {
+                $friendAddUrl = null;
+            }
+            if ($friendAddUrl !== null) {
+                $scheme = parse_url($friendAddUrl, PHP_URL_SCHEME);
+                if (
+                    strlen($friendAddUrl) > 2048
+                    || filter_var($friendAddUrl, FILTER_VALIDATE_URL) === false
+                    || ! in_array($scheme, ['http', 'https'], true)
+                ) {
+                    throw $this->invalid();
+                }
+            }
+        }
         if (
             array_diff(array_keys($input), $allowed) !== []
             || ! isset($input['linked_follow_message'], $input['pending_follow_message'])
@@ -333,6 +366,9 @@ final class V2LineMessagingSettingService
             $validated['reward_point_amount'] = $input['reward_point_amount'];
             $validated['reward_expiration_days'] = $input['reward_expiration_days'];
         }
+        if (array_key_exists('friend_add_url', $input)) {
+            $validated['friend_add_url'] = $friendAddUrl;
+        }
 
         return $validated;
     }
@@ -345,9 +381,16 @@ final class V2LineMessagingSettingService
             'linked_follow_message' => $setting->linked_follow_message,
             'pending_follow_message' => $setting->pending_follow_message,
             'login_relative_path' => $setting->login_relative_path,
+            'friend_add_url' => $setting->friend_add_url,
             'reward_enabled' => (bool) $setting->reward_enabled,
             'reward_point_amount' => (int) $setting->reward_point_amount,
             'reward_expiration_days' => (int) $setting->reward_expiration_days,
+            'friends_count' => LineFriendship::query()
+                ->where('status', 'friend')
+                ->count(),
+            'blocked_count' => LineFriendship::query()
+                ->where('status', 'unfollowed')
+                ->count(),
             'revision' => (int) $setting->revision,
             'updated_at' => $setting->updated_at->toIso8601String(),
         ];

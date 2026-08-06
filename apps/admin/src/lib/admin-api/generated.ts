@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 862be19c13f9a586fe87ac054afadbafaafcf83bcbe5f351b2bd183eeaab6d8d
+// Contract SHA-256: 66a770c7aee968cc5d7156acb760110225bf0a027aeabd2966df364b27e44ddc
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -7,6 +7,7 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.admin.read",
   "identity.admin.manage",
   "identity.admin.session.revoke",
+  "identity.line.read",
   "identity.line.manage",
   "point.ledger.read",
   "point.adjustment.request",
@@ -388,6 +389,9 @@ export interface AdminLineMessagingSetting {
   linked_follow_message: string;
   pending_follow_message: string;
   login_relative_path: string;
+  friend_add_url?: string | null;
+  friends_count?: number;
+  blocked_count?: number;
   reward_enabled?: boolean;
   reward_point_amount?: number;
   reward_expiration_days?: number;
@@ -404,6 +408,7 @@ export interface AdminLineMessagingSettingUpdate {
   expected_revision: number;
   linked_follow_message: string;
   pending_follow_message: string;
+  friend_add_url?: string | null;
   reward_enabled?: boolean;
   reward_point_amount?: number;
   reward_expiration_days?: number;

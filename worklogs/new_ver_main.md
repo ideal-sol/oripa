@@ -8118,3 +8118,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application Head `e88e0ca8142f63a089bf766596d18e65c5feb8d3`からPreview APIを`sha256:a432cf07...`、Adminを`sha256:1b000d51...`へ更新し、DBへMigration 000038だけを適用した。
 - Synthetic商品Logical 1件で初期対象`all_users`、編集後`first_purchase_users`、Version更新、保存後再取得、Desktop／Mobileを確認した。Console／Page ErrorとHTTP 500／502／504は0である。
 - Wallet有償0／無償7、Point Ledger 1件は前後一致した。Migration 38件、固定IP／Network／Restart Policy／Environment Key集合、Nginx checksum、V1、Storefront、Payment Providerは維持し、旧ImageはRollback用に保持した。
+## MIG-061W LINE設定管理
+
+- Base `b85d3123943a5c61af2406b28a3b71d73a7ad145`からIssue #214、Branch `feat/MIG-061W-line-settings-management`で開始した。
+- V1 LINE設定とMIG-058B／MIG-058CをCharacterizationし、既存Singletonへ友だち追加URLと友だち／ブロック統計を補完した。
+- `identity.line.read`をOwner／Admin／Operator、`identity.line.manage`をOwner／Adminへ付与し、OperatorはRead-onlyとした。
+- Secret資格情報、Webhook署名、Follow Reward、Point冪等性は変更しない。
+- Task DB Migration fresh／rollback／reapply、LINE／Permission対象16 Test・223 Assertion、Admin 11 Test、対象Browser、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy UnitがPASSした。
+- Preview反映とGitHub Closeoutは後続の同Task Headで記録する。

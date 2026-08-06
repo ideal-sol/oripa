@@ -12,6 +12,7 @@ final class V2PermissionAuthorizer
             'identity.admin.read',
             'identity.admin.manage',
             'identity.admin.session.revoke',
+            'identity.line.read',
             'identity.line.manage',
             'point.ledger.read',
             'point.adjustment.request',
@@ -38,6 +39,8 @@ final class V2PermissionAuthorizer
         'admin' => [
             'identity.admin.read',
             'identity.admin.session.revoke',
+            'identity.line.read',
+            'identity.line.manage',
             'point.ledger.read',
             'point.adjustment.request',
             'point.adjustment.free.approve',
@@ -60,6 +63,7 @@ final class V2PermissionAuthorizer
         ],
         'operator' => [
             'identity.admin.read',
+            'identity.line.read',
             'point.ledger.read',
             'referral.settings.read',
             'payment.plan.read',

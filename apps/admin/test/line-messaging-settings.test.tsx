@@ -7,6 +7,11 @@ vi.mock("@/components/shell/admin-shell", () => ({
 vi.mock("@/components/permissions/protected-admin-route", () => ({
   ProtectedAdminRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+vi.mock("@/components/permissions/permission-provider", () => ({
+  usePermissions: vi.fn(() => ({
+    permissions: new Set(["identity.line.read", "identity.line.manage"]),
+  })),
+}));
 vi.mock("@/components/navigation/breadcrumb", () => ({
   Breadcrumb: () => <nav aria-label="breadcrumb" />,
 }));
@@ -19,10 +24,14 @@ vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
 }));
 
 import { LineMessagingSettings } from "@/components/line/line-messaging-settings";
+import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 
 const setting = {
   id: "01910191-0191-7191-8191-019101910191",
+  blocked_count: 4,
+  friend_add_url: "https://line.me/R/ti/p/example",
+  friends_count: 25,
   linked_follow_message: "完了しました",
   login_relative_path: "/login",
   pending_follow_message: "{login_url} からログイン",
@@ -33,8 +42,28 @@ const setting = {
   updated_at: "2026-07-29T00:00:00Z",
 };
 
+function permissionContext(manage: boolean): ReturnType<typeof usePermissions> {
+  const permissions = new Set(
+    manage
+      ? (["identity.line.read", "identity.line.manage"] as const)
+      : (["identity.line.read"] as const),
+  );
+  return {
+    error: null,
+    hasPermission: (permission) => permissions.has(permission as "identity.line.read"),
+    permissions,
+    requestId: setting.id,
+    retry: vi.fn(),
+    role: manage ? "admin" : "operator",
+    status: "ready",
+  };
+}
+
 describe("LINE Messaging settings", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.mocked(usePermissions).mockReturnValue(permissionContext(true));
+  });
 
   it("previews and saves the two messages through the server contract", async () => {
     vi.spyOn(AdminApiClient.prototype, "getLineMessagingSetting").mockResolvedValue({
@@ -65,6 +94,11 @@ describe("LINE Messaging settings", () => {
     const linked = await screen.findByRole("textbox", {
       name: "ログイン済みユーザー向け",
     });
+    expect(screen.getByText("25人")).toBeVisible();
+    expect(screen.getByText("4人")).toBeVisible();
+    expect(screen.getByLabelText("LINE友だち追加URL")).toHaveValue(
+      "https://line.me/R/ti/p/example",
+    );
     fireEvent.change(linked, { target: { value: "更新済み" } });
     fireEvent.click(screen.getByRole("checkbox", {
       name: "ポイント付与を有効にする",
@@ -92,6 +126,7 @@ describe("LINE Messaging settings", () => {
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
     expect(update.mock.calls[0][0]).toMatchObject({
       expected_revision: 1,
+      friend_add_url: "https://line.me/R/ti/p/example",
       linked_follow_message: "更新済み",
       reward_enabled: true,
       reward_expiration_days: 365,
@@ -151,5 +186,21 @@ describe("LINE Messaging settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Fresh MFA");
+  });
+
+  it("keeps Operator access read-only without exposing save actions", async () => {
+    vi.mocked(usePermissions).mockReturnValue(permissionContext(false));
+    vi.spyOn(AdminApiClient.prototype, "getLineMessagingSetting").mockResolvedValue({
+      data: setting,
+      request_id: setting.id,
+    });
+
+    render(<LineMessagingSettings />);
+
+    expect(await screen.findByLabelText("LINE友だち追加URL")).toBeDisabled();
+    expect(screen.getByLabelText("ログイン済みユーザー向け")).toBeDisabled();
+    expect(screen.getByLabelText("ポイント付与を有効にする")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "保存" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "プレビュー" })).not.toBeInTheDocument();
   });
 });
