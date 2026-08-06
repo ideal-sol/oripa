@@ -280,6 +280,33 @@ export const PUBLIC_IDENTITY_RECOVERY_FIXTURE = Object.freeze({
   sms_status: PublicComponents["schemas"]["SmsVerificationStatus"];
 });
 
+export const PUBLIC_AUTH_FIXTURE = Object.freeze({
+  anonymous_session: {
+    authenticated: false,
+    user: null,
+  },
+  authenticated_session: {
+    authenticated: true,
+    user: {
+      id: "0198a001-0000-7000-8000-000000000501",
+      state: "active",
+      email_verified: true,
+    },
+  },
+  pending_registration: {
+    status: "pending_verification",
+    user_id: "0198a001-0000-7000-8000-000000000502",
+  },
+  accepted: {
+    status: "accepted",
+  },
+} as const satisfies {
+  anonymous_session: PublicComponents["schemas"]["UserSession"];
+  authenticated_session: PublicComponents["schemas"]["UserSession"];
+  pending_registration: PublicComponents["schemas"]["PendingRegistration"];
+  accepted: PublicComponents["schemas"]["Accepted"];
+});
+
 export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
   start: {
     provider: "google",

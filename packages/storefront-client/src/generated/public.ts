@@ -918,6 +918,11 @@ export interface components {
             errors?: components["schemas"]["ValidationErrors"];
             retry_after_seconds?: number;
         };
+        /** @enum {string} */
+        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_REDIRECT" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "RATE_LIMITED" | "SESSION_EXPIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
+        PublicAuthProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["PublicAuthProblemCode"];
+        };
         CursorPageMeta: {
             page_size: number;
             has_more: boolean;
@@ -1264,6 +1269,18 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Storefront認証のRFC 9457 Problem Details。 */
+        PublicAuthProblem: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["PublicAuthProblemDetails"];
             };
         };
     };
@@ -1879,7 +1896,10 @@ export interface operations {
                     "application/json": components["schemas"]["PendingRegistration"];
                 };
             };
-            default: components["responses"]["Problem"];
+            403: components["responses"]["PublicAuthProblem"];
+            422: components["responses"]["PublicAuthProblem"];
+            429: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     loginUser: {
@@ -1906,7 +1926,11 @@ export interface operations {
                     "application/json": components["schemas"]["UserSession"];
                 };
             };
-            default: components["responses"]["Problem"];
+            401: components["responses"]["PublicAuthProblem"];
+            403: components["responses"]["PublicAuthProblem"];
+            422: components["responses"]["PublicAuthProblem"];
+            429: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     startGoogleLogin: {
@@ -2102,7 +2126,9 @@ export interface operations {
                 };
                 content?: never;
             };
-            default: components["responses"]["Problem"];
+            401: components["responses"]["PublicAuthProblem"];
+            403: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     resendUserEmailVerification: {
@@ -2129,7 +2155,10 @@ export interface operations {
                     "application/json": components["schemas"]["Accepted"];
                 };
             };
-            default: components["responses"]["Problem"];
+            403: components["responses"]["PublicAuthProblem"];
+            422: components["responses"]["PublicAuthProblem"];
+            429: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     verifyUserEmail: {
@@ -2153,7 +2182,9 @@ export interface operations {
                     "application/json": components["schemas"]["UserSession"];
                 };
             };
-            default: components["responses"]["Problem"];
+            409: components["responses"]["PublicAuthProblem"];
+            410: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     getUserSession: {
@@ -2174,7 +2205,9 @@ export interface operations {
                     "application/json": components["schemas"]["UserSession"];
                 };
             };
-            default: components["responses"]["Problem"];
+            /** @description 期限切れまたは失効済みのSession Cookieが送信された。 */
+            401: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     listExternalIdentities: {

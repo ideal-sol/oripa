@@ -9,6 +9,7 @@ use App\Http\Middleware\V2\EnforceV2BrowserSecurity;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
+use App\Http\Responses\V2ProblemDetails;
 
 final class BrowserSecurityTest extends TestCase
 {
@@ -82,5 +83,25 @@ final class BrowserSecurityTest extends TestCase
         self::assertSame('__Host-oripa_admin_xsrf', $cookies[1]->getName());
         self::assertFalse($cookies[0]->isHttpOnly());
         self::assertFalse($cookies[1]->isHttpOnly());
+    }
+
+    public function test_authentication_problem_details_are_private_and_versioned(): void
+    {
+        $request = Request::create('/api/v2/auth/login', 'POST');
+        $response = V2ProblemDetails::fromAuthentication(
+            $request,
+            new V2AuthenticationException('INVALID_CREDENTIALS', 401)
+        );
+
+        self::assertStringContainsString(
+            'private',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertStringContainsString(
+            'no-store',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertSame('2', $response->headers->get('X-Oripa-Api-Version'));
+        self::assertSame('application/problem+json', $response->headers->get('Content-Type'));
     }
 }

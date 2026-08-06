@@ -7,10 +7,31 @@ import type {
 type Schemas = PublicComponents["schemas"];
 
 export interface IdentityMutationOptions {
-  csrf_token: string;
+  csrf_token?: string;
 }
 
 export interface StorefrontIdentityClient {
+  initializeCsrf(): Promise<StorefrontResponse<Schemas["UserSession"]>>;
+  register(
+    input: Schemas["UserRegistrationRequest"],
+    options?: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["PendingRegistration"]>>;
+  login(
+    input: Schemas["PasswordLoginRequest"],
+    options?: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["UserSession"]>>;
+  logout(
+    options?: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<undefined>>;
+  getCurrentSession(): Promise<StorefrontResponse<Schemas["UserSession"]>>;
+  resendEmailVerification(
+    input: Schemas["VerificationResendRequest"],
+    options?: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["Accepted"]>>;
+  completeEmailVerification(input: {
+    user_id: string;
+    hash: string;
+  }): Promise<StorefrontResponse<Schemas["UserSession"]>>;
   startGoogleLogin(
     input: Schemas["ExternalIdentityStartRequest"],
     options: IdentityMutationOptions,
@@ -81,7 +102,10 @@ export interface StorefrontIdentityClient {
   ): Promise<StorefrontResponse<Schemas["SmsVerificationStatus"]>>;
 }
 
-function csrf(value: string): Record<string, string> {
+function csrf(value: string | undefined): Record<string, string> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
   if (!/^[0-9a-f]{64}$/.test(value)) {
     throw new TypeError("csrf_token is invalid");
   }
@@ -94,7 +118,7 @@ export function createStorefrontIdentityClient(
   const mutation = <T>(
     path: string,
     body: unknown,
-    options: IdentityMutationOptions,
+    options: IdentityMutationOptions = {},
   ): Promise<StorefrontResponse<T>> =>
     transport.request<T>({
       path,
@@ -105,6 +129,44 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    initializeCsrf: () =>
+      transport.request({ path: "/auth/session", retry: false }),
+    register: (input, options = {}) =>
+      mutation<Schemas["PendingRegistration"]>(
+        "/auth/register",
+        input,
+        options,
+      ),
+    login: (input, options = {}) =>
+      mutation<Schemas["UserSession"]>("/auth/login", input, options),
+    logout: (options = {}) =>
+      transport.request<undefined>({
+        path: "/auth/logout",
+        method: "POST",
+        headers: csrf(options.csrf_token),
+        csrf: "required",
+        retry: false,
+      }),
+    getCurrentSession: () =>
+      transport.request({ path: "/auth/session", retry: false }),
+    resendEmailVerification: (input, options = {}) =>
+      mutation<Schemas["Accepted"]>(
+        "/auth/email/verification-notification",
+        input,
+        options,
+      ),
+    completeEmailVerification: (input) => {
+      if (
+        !/^[0-9a-f-]{36}$/.test(input.user_id)
+        || !/^[0-9a-f]{64}$/.test(input.hash)
+      ) {
+        throw new TypeError("email verification input is invalid");
+      }
+      return transport.request({
+        path: `/auth/email/verify/${encodeURIComponent(input.user_id)}/${input.hash}`,
+        retry: false,
+      });
+    },
     startGoogleLogin: (input, options) =>
       mutation<Schemas["ExternalIdentityStart"]>(
         "/auth/external/google/start",
