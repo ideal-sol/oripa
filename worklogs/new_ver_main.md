@@ -8099,3 +8099,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Issue #210、Branch `feat/MIG-061U-storefront-auth-contract`、Risk R4、Verification `TARGETED-AUTH-CONTRACT`で開始した。
 - 既存Laravel User Authentication、Cookie Session、CSRF、Email Verification、Rate Limitを再利用し、Public OpenAPI、Generated Type、Storefront Client／Testkitを同期する。
 - ArtifactはRepository外Evidenceへ固定Version、元Commit、OpenAPI／Artifact SHA-256付きで保存する。Storefront Repository、Nginx、V1、Payment、DB Schemaは変更しない。
+
+### MIG-061U Artifact／Preview
+
+- Application／Artifact Source Head `76d8161de759d8969e74543f6d79b5f5b17cee1d`からClient／Testkit／Site Schemaの`2.0.0-alpha.1` tarball、Public OpenAPI、Manifest、SHA256SUMSを作成し、Workspace外Clean Install／ImportがPASSした。
+- Preview APIだけを`sha256:8d2f0592...`へ更新した。Health、匿名Session、CSRF Cookie、no-storeを確認し、Admin Image、DB／Migration、Nginx、V1は非変更である。
+- PreviewにはPublic API外部Routeと`V2_PUBLIC_ORIGIN`がないため、Public MutationはFail Closedの503となる。未承認のNginx／Origin変更は行わず、完全Auth Flowは対象Backend Testを正本とした。
