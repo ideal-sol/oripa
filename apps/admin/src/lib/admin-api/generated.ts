@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: de7c232542ef3d33dfa3412bccb94f5667f416bf2fa02076d6edd4c0f564608e
+// Contract SHA-256: 53ca090dbbb888a44693d051bdd10814c34f282fc093cbe78032a28e3e904242
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -696,6 +696,42 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminRankEffectRankAssignment {
+  rank: AdminCatalogReference;
+  sort_order: number;
+}
+
+export interface AdminRankEffect extends AdminCatalogPresentationAsset {
+  content_path: string;
+  rank_assignments: AdminRankEffectRankAssignment[];
+}
+
+export interface AdminRankEffectRankAssignmentInput {
+  rank_id: string;
+  sort_order: number;
+}
+
+export interface AdminRankEffectCreate {
+  title: string;
+  asset_type: "image" | "video";
+  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  is_active: boolean;
+  file_name: string;
+  mime_type: string;
+  content_base64: string;
+}
+
+export interface AdminRankEffectUpdate {
+  expected_revision: number;
+  title: string;
+  asset_type: "image" | "video";
+  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  is_active: boolean;
+  file_name?: string;
+  mime_type?: string;
+  content_base64?: string;
 }
 
 export interface AdminCatalogCategoryCreate {

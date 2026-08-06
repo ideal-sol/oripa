@@ -20,6 +20,21 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061s_rank_effect_paths_are_registered_exactly(self):
+        expected_catalog = {
+            "apps/api/tests/V2/AdminRankEffectSettingsTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-rank-effect-settings.spec.ts",
+            "apps/admin/src/components/catalog/rank-effect-settings-workspace.tsx",
+            "apps/admin/test/rank-effect-settings.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_061S_V2_CATALOG_FILES, expected_catalog)
+        self.assertTrue(expected_catalog.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061S_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
+
     def test_mig_061r_gacha_master_edit_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",
@@ -914,6 +929,27 @@ python3 scripts/db/v2_database.py smoke \\
             }
             bundle.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_catalog_physical_asset_delete_fails_without_cross_statement_false_positive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            service = (
+                root
+                / "apps/api/app/Domain/Catalog/Services/"
+                "V2CatalogMasterMutationService.php"
+            )
+            service.write_text(
+                service.read_text(encoding="utf-8")
+                + "\n<?php DB::table('catalog_presentation_assets')"
+                + "->where('id', 1)->delete();\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "physically deletes catalog_presentation_assets",
+            ):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
 
     def test_v2_admin_gacha_unpublish_contract_fails(self):

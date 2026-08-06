@@ -161,6 +161,14 @@ Route::prefix('v2')
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.update');
         Route::post('/catalog/presentation-assets/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveAsset'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.archive');
+        Route::get('/catalog/rank-effects', [V2AdminCatalogController::class, 'rankEffects'])
+            ->name('v2.admin.catalog.rank-effects.index');
+        Route::post('/catalog/rank-effects', [V2AdminCatalogController::class, 'createRankEffect'])
+            ->name('v2.admin.catalog.rank-effects.create');
+        Route::get('/catalog/rank-effects/{catalogResourceId}', [V2AdminCatalogController::class, 'rankEffect'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.rank-effects.show');
+        Route::put('/catalog/rank-effects/{catalogResourceId}', [V2AdminCatalogController::class, 'updateRankEffect'])
+            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.rank-effects.update');
         Route::get('/catalog/gachas', [V2AdminCatalogController::class, 'gachas'])
             ->name('v2.admin.catalog.gachas.index');
         Route::post('/catalog/gachas', [V2AdminCatalogController::class, 'createGacha'])

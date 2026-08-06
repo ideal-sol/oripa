@@ -456,6 +456,32 @@ describe("AdminApiClient", () => {
     expect((error as Error).message).not.toContain("internal detail");
   });
 
+  it("uses the dedicated rank effect read and idempotent mutation endpoints", async () => {
+    const id = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: { id }, idempotent_replay: false }, 201));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listRankEffects({ direction: "desc", limit: 20, sort: "created_at" });
+    await client.createRankEffect({
+      asset_type: "image",
+      content_base64: "aGVsbG8=",
+      file_name: "effect.png",
+      is_active: true,
+      mime_type: "image/png",
+      rank_assignments: [{ rank_id: id, sort_order: 0 }],
+      title: "当選演出",
+    }, "rank-effect-create-key");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/catalog/rank-effects?direction=desc&limit=20&sort=created_at",
+      "/admin/api/v2/catalog/rank-effects",
+    ]);
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
+      .toBe("rank-effect-create-key");
+  });
+
   it("honors AbortSignal and never reaches the transport", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(
       (_input, request) =>

@@ -8064,3 +8064,16 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Master編集の全項目、専用Thumbnail直接Upload、Banner選択API非依存、景品Public ID非表示、詳細幅、Desktop／MobileがPASSした。Critical Console／Page ErrorとHTTP 500／502／504は0。既存Synthetic Prizeの欠損Asset 404はTask外課題として記録した。
 - Nginx、V1、Storefront、Payment Providerは非変更。Required ChecksとCloseoutはFinal Headで確定する。
 - OpenAPI追加Fieldは後方互換なoptional Contractとし、現行Backendでは常時返す。Base比較Breaking Check、Generated Client、対象Unit／Browser、Typecheck／Lint／Buildを再確認した。
+
+# MIG-061S ランク演出設定
+
+- Issue #206、Branch `feat/MIG-061S-rank-effect-settings`、Risk R3、Verification `TARGETED-CRUD-UI`で開始した。
+- V1の演出Master一覧／登録／編集、直接画像・動画Upload、Preview、状態をCharacterizationし、V2既存Presentation Asset／Asset／Rank relationへ移植した。V1にない削除は追加していない。
+- Backend対象3 tests／29 assertions、Admin Unit 3 files／29 tests、Desktop／Mobile E2E 2 tests、OpenAPI／Generated Client、Typecheck／Lint／BuildがPASSした。Migrationは不要。
+- Preview更新対象はAPI／Adminのみ。DB Schema／Nginx／V1／Storefrontは非変更とし、Gate G4／G5は`NOT COMPLETE`を維持する。
+
+### MIG-061S Preview
+
+- Application Head `47f4e56fba8efbaf344027421072ab33b31895fe`からPreview APIを`sha256:1f906e80...`へ更新し、CodeQL High 2件を解消したAdmin Head `5f22b7d06ef372ec1fe6c7be4006bf540f2e15fb`からAdminを最終`sha256:afe611ff...`へ更新した。Migrationなし、固定IP／Network／Environment Key集合は維持した。
+- Synthetic画像／動画演出各1件で、直接Upload、Preview、Rank relation、表示順、編集時Asset維持、Desktop／MobileがPASSした。Console／Page Error、HTTP 500／502／504、Critical Logは0。
+- Migration数36、PostgreSQL／Redis設定、Nginx checksum、V1、Storefront、Payment Providerは非変更。旧API／Admin ImageはRollback用に保持した。

@@ -366,6 +366,9 @@ MIG_061R_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
     "apps/api/tests/V2/AdminGachaMasterEditTest.php",
 }
+MIG_061S_V2_CATALOG_FILES = {
+    "apps/api/tests/V2/AdminRankEffectSettingsTest.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -412,6 +415,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_061K_V2_CATALOG_FILES,
     *MIG_061L_V2_CATALOG_FILES,
     *MIG_061R_V2_CATALOG_FILES,
+    *MIG_061S_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -643,6 +647,11 @@ MIG_061R_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/admin-gacha-master-edit.spec.ts",
     "apps/admin/src/app/gachas/[gachaPublicCode]/edit/page.tsx",
 }
+MIG_061S_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-rank-effect-settings.spec.ts",
+    "apps/admin/src/components/catalog/rank-effect-settings-workspace.tsx",
+    "apps/admin/test/rank-effect-settings.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -755,6 +764,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061P_ADMIN_SKELETON_FILES,
     *MIG_061Q_ADMIN_SKELETON_FILES,
     *MIG_061R_ADMIN_SKELETON_FILES,
+    *MIG_061S_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -3096,8 +3106,9 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "catalog_gacha_versions",
     ):
         if re.search(
-            rf"DB::table\(['\"]{table}['\"]\)[\s\S]{{0,800}}?->delete\(",
+            rf"DB::table\(['\"]{table}['\"]\)(?:(?!;).)*?->delete\(",
             mutation_service,
+            re.DOTALL,
         ):
             raise PolicyFailure(
                 f"V2 Catalog mutation service physically deletes {table}"
@@ -3207,6 +3218,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "getAdminCatalogPrize",
         "listAdminCatalogPresentationAssets",
         "getAdminCatalogPresentationAsset",
+        "listAdminRankEffects",
+        "getAdminRankEffect",
         "createAdminCatalogCategory",
         "updateAdminCatalogCategory",
         "archiveAdminCatalogCategory",
@@ -3222,6 +3235,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "createAdminCatalogPresentationAsset",
         "updateAdminCatalogPresentationAsset",
         "archiveAdminCatalogPresentationAsset",
+        "createAdminRankEffect",
+        "updateAdminRankEffect",
         "listAdminCatalogGachas",
         "getAdminCatalogGacha",
         "createAdminCatalogGacha",
@@ -3289,6 +3304,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
         "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
         "/catalog/presentation-assets/{catalog_resource_id}/content": {"get"},
+        "/catalog/rank-effects": {"get", "post"},
+        "/catalog/rank-effects/{catalog_resource_id}": {"get", "put"},
         "/catalog/gacha-thumbnails": {"post"},
         "/catalog/gachas": {"get", "post"},
         "/catalog/gachas/core": {"post"},

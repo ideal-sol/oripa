@@ -555,6 +555,116 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function createRankEffect(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'rank_effect');
+        $this->rateLimit($context, $admin, 'create', 'rank_effect');
+        $payload = $this->validateRankEffect($input, false);
+        $storedPath = null;
+
+        try {
+            return $this->execute(
+                $context,
+                $admin,
+                'asset',
+                'create',
+                $idempotencyKey,
+                $this->rankEffectIdempotencyPayload($payload),
+                201,
+                function () use ($payload, &$storedPath): object {
+                    $row = $this->storeRankEffectAsset($payload, $storedPath);
+                    $this->replaceRankEffectAssignments(
+                        (int) $row->id,
+                        $payload['asset_type'],
+                        $payload['rank_assignments']
+                    );
+
+                    return $row;
+                },
+                true,
+                fn (object $row): array => $this->mapRankEffect($row)
+            );
+        } catch (\Throwable $exception) {
+            if ($storedPath !== null) {
+                Storage::disk(config('filesystems.default'))->delete($storedPath);
+            }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $input */
+    public function updateRankEffect(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'rank_effect');
+        $this->rateLimit($context, $admin, 'update', 'rank_effect');
+        $payload = $this->validateRankEffect($input, true);
+        $storedPath = null;
+
+        try {
+            return $this->execute(
+                $context,
+                $admin,
+                'asset',
+                'update',
+                $idempotencyKey,
+                ['id' => $publicId, ...$this->rankEffectIdempotencyPayload($payload)],
+                200,
+                function () use ($publicId, $payload, &$storedPath): object {
+                    $current = $this->find('catalog_presentation_assets', $publicId, true);
+                    $this->assertMutable($current, $payload['expected_revision']);
+                    if (! in_array($current->media_type, ['image', 'video'], true)) {
+                        throw $this->validationException();
+                    }
+
+                    if ($payload['file'] === null) {
+                        if ($current->media_type !== $payload['asset_type']) {
+                            throw $this->validationException();
+                        }
+                        DB::table('catalog_presentation_assets')->where('id', $current->id)->update([
+                            'alt_text' => $payload['title'],
+                            'is_public' => $payload['is_active'],
+                            'revision' => (int) $current->revision + 1,
+                            'updated_at' => now()->startOfSecond(),
+                        ]);
+                        $row = $this->find('catalog_presentation_assets', $publicId, false);
+                    } else {
+                        $row = $this->storeRankEffectAsset($payload, $storedPath);
+                        DB::table('catalog_rank_assets')
+                            ->where('presentation_asset_id', $current->id)
+                            ->whereIn('usage_type', ['image', 'video'])
+                            ->delete();
+                    }
+                    $this->replaceRankEffectAssignments(
+                        (int) $row->id,
+                        $payload['asset_type'],
+                        $payload['rank_assignments']
+                    );
+
+                    return $this->find(
+                        'catalog_presentation_assets',
+                        (string) $row->public_id,
+                        false
+                    );
+                },
+                true,
+                fn (object $row): array => $this->mapRankEffect($row)
+            );
+        } catch (\Throwable $exception) {
+            if ($storedPath !== null) {
+                Storage::disk(config('filesystems.default'))->delete($storedPath);
+            }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $input */
     public function archiveGacha(
         V2AdminAuthorizationContext $context,
         string $publicId,
@@ -3217,6 +3327,191 @@ final class V2CatalogMasterMutationService
             'mime_type' => $mime,
             'bytes' => $bytes,
             'extension' => $extensions[$mime],
+            'checksum_sha256' => hash('sha256', $bytes),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateRankEffect(array $input, bool $updating): array
+    {
+        $allowed = [
+            'title', 'asset_type', 'rank_assignments', 'is_active',
+            'file_name', 'mime_type', 'content_base64',
+        ];
+        $required = ['title', 'asset_type', 'rank_assignments', 'is_active'];
+        if ($updating) {
+            array_unshift($allowed, 'expected_revision');
+            array_unshift($required, 'expected_revision');
+        } else {
+            array_push($required, 'file_name', 'mime_type', 'content_base64');
+        }
+        $this->assertFields($input, $allowed, $required);
+        $fileFields = array_filter([
+            array_key_exists('file_name', $input),
+            array_key_exists('mime_type', $input),
+            array_key_exists('content_base64', $input),
+        ]);
+        if (count($fileFields) !== 0 && count($fileFields) !== 3) {
+            throw $this->validationException();
+        }
+        $assetType = $input['asset_type'] ?? null;
+        if (! is_string($assetType) || ! in_array($assetType, ['image', 'video'], true)) {
+            throw $this->validationException();
+        }
+        if (! is_array($input['rank_assignments']) || $input['rank_assignments'] === []) {
+            throw $this->validationException();
+        }
+        $rankAssignments = [];
+        $rankIds = [];
+        foreach ($input['rank_assignments'] as $assignment) {
+            if (! is_array($assignment)) {
+                throw $this->validationException();
+            }
+            $this->assertFields($assignment, ['rank_id', 'sort_order'], ['rank_id', 'sort_order']);
+            $rankId = $this->uuid($assignment['rank_id']);
+            if (isset($rankIds[$rankId])) {
+                throw $this->validationException();
+            }
+            $rankIds[$rankId] = true;
+            $rankAssignments[] = [
+                'rank_id' => $rankId,
+                'sort_order' => $this->sortOrder($assignment['sort_order']),
+            ];
+        }
+
+        $file = count($fileFields) === 3
+            ? $this->validateRankEffectFile($input, $assetType)
+            : null;
+
+        return [
+            ...($updating ? ['expected_revision' => $this->revision($input['expected_revision'])] : []),
+            'title' => $this->plainText($input['title'], 1, 191),
+            'asset_type' => $assetType,
+            'rank_assignments' => $rankAssignments,
+            'is_active' => $this->boolean($input['is_active']),
+            'file' => $file,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function rankEffectIdempotencyPayload(array $payload): array
+    {
+        $file = $payload['file'];
+
+        return [
+            ...array_diff_key($payload, ['file' => true]),
+            'file' => $file === null ? null : [
+                'file_name' => $file['file_name'],
+                'mime_type' => $file['mime_type'],
+                'checksum_sha256' => $file['checksum_sha256'],
+            ],
+        ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function storeRankEffectAsset(array $payload, ?string &$storedPath): object
+    {
+        $file = $payload['file'];
+        if (! is_array($file)) {
+            throw $this->validationException();
+        }
+        $publicId = (string) Str::uuid7();
+        $storedPath = sprintf(
+            'admin-assets/rank-effects/%s/%s.%s',
+            now()->format('Y/m'),
+            $publicId,
+            $file['extension']
+        );
+        if (! Storage::disk(config('filesystems.default'))->put(
+            $storedPath,
+            $file['bytes'],
+            ['ContentType' => $file['mime_type']]
+        )) {
+            throw new \RuntimeException('Rank effect storage failed.');
+        }
+        $now = now()->startOfSecond();
+        DB::table('catalog_presentation_assets')->insert([
+            'public_id' => $publicId,
+            'storage_identifier' => $storedPath,
+            'public_path' => '/admin/api/v2/catalog/presentation-assets/'
+                .$publicId.'/content',
+            'checksum_sha256' => $file['checksum_sha256'],
+            'media_type' => $payload['asset_type'],
+            'mime_type' => $file['mime_type'],
+            'byte_size' => strlen($file['bytes']),
+            'alt_text' => $payload['title'],
+            'is_public' => $payload['is_active'],
+            'revision' => 1,
+            'archived_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return $this->find('catalog_presentation_assets', $publicId, false);
+    }
+
+    /** @param list<array{rank_id: string, sort_order: int}> $assignments */
+    private function replaceRankEffectAssignments(
+        int $assetId,
+        string $usageType,
+        array $assignments
+    ): void {
+        DB::table('catalog_rank_assets')
+            ->where('presentation_asset_id', $assetId)
+            ->whereIn('usage_type', ['image', 'video'])
+            ->delete();
+        $now = now()->startOfSecond();
+        foreach ($assignments as $assignment) {
+            $rank = $this->find('catalog_ranks', $assignment['rank_id'], true);
+            if ($rank->archived_at !== null) {
+                throw $this->validationException();
+            }
+            DB::table('catalog_rank_assets')->insert([
+                'rank_id' => $rank->id,
+                'presentation_asset_id' => $assetId,
+                'usage_type' => $usageType,
+                'sort_order' => $assignment['sort_order'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function validateRankEffectFile(array $input, string $assetType): array
+    {
+        $fileName = $this->plainText($input['file_name'], 1, 191);
+        $declaredMime = $this->plainText($input['mime_type'], 1, 128);
+        if (! is_string($input['content_base64'])) {
+            throw $this->validationException();
+        }
+        $bytes = base64_decode($input['content_base64'], true);
+        $types = $assetType === 'image'
+            ? [
+                'image/gif' => 'gif',
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+            ]
+            : [
+                'video/mp4' => 'mp4',
+                'video/webm' => 'webm',
+                'video/quicktime' => 'mov',
+            ];
+        $maximum = $assetType === 'image' ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+        if (! is_string($bytes) || $bytes === '' || strlen($bytes) > $maximum) {
+            throw $this->validationException();
+        }
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        if (! is_string($mime) || ! isset($types[$mime]) || $mime !== $declaredMime) {
+            throw $this->validationException();
+        }
+
+        return [
+            'file_name' => $fileName,
+            'mime_type' => $mime,
+            'bytes' => $bytes,
+            'extension' => $types[$mime],
             'checksum_sha256' => hash('sha256', $bytes),
         ];
     }
@@ -6449,6 +6744,37 @@ final class V2CatalogMasterMutationService
             'archived_at' => $row->archived_at,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapRankEffect(object $row): array
+    {
+        $relations = DB::table('catalog_rank_assets as relation')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->where('relation.presentation_asset_id', $row->id)
+            ->whereIn('relation.usage_type', ['image', 'video'])
+            ->orderBy('relation.sort_order')
+            ->orderBy('rank.public_id')
+            ->get([
+                'rank.public_id',
+                'rank.code',
+                'rank.display_name',
+                'relation.sort_order',
+            ]);
+
+        return [
+            ...$this->mapAsset($row),
+            'content_path' => '/admin/api/v2/catalog/presentation-assets/'
+                .$row->public_id.'/content',
+            'rank_assignments' => $relations->map(fn (object $relation): array => [
+                'rank' => [
+                    'id' => $relation->public_id,
+                    'code' => $relation->code,
+                    'name' => $relation->display_name,
+                ],
+                'sort_order' => (int) $relation->sort_order,
+            ])->values()->all(),
         ];
     }
 

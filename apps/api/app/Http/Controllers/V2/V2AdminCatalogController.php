@@ -148,6 +148,45 @@ final class V2AdminCatalogController
         return $this->archive($request, 'asset', $catalogResourceId);
     }
 
+    public function rankEffects(Request $request): JsonResponse
+    {
+        return $this->list($request, 'rankEffects');
+    }
+
+    public function rankEffect(Request $request, string $catalogResourceId): JsonResponse
+    {
+        return $this->detail($request, 'rankEffect', $catalogResourceId);
+    }
+
+    public function createRankEffect(Request $request): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createRankEffect(
+                    $context,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateRankEffect(
+        Request $request,
+        string $catalogResourceId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateRankEffect(
+                    $context,
+                    $catalogResourceId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function gachas(Request $request): JsonResponse
     {
         return $this->list($request, 'gachas');
