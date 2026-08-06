@@ -8125,4 +8125,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `identity.line.read`をOwner／Admin／Operator、`identity.line.manage`をOwner／Adminへ付与し、OperatorはRead-onlyとした。
 - Secret資格情報、Webhook署名、Follow Reward、Point冪等性は変更しない。
 - Task DB Migration fresh／rollback／reapply、LINE／Permission対象16 Test・223 Assertion、Admin 11 Test、対象Browser、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy UnitがPASSした。
-- Preview反映とGitHub Closeoutは後続の同Task Headで記録する。
+- Application Head `0c844f825bbd683fc9cf76b27fa190610fd9adf0`からPreview APIを`sha256:dd80b68d...`、Adminを`sha256:6ab94d4c...`へ更新し、Migration 000039だけを適用した。
+- Ownerで友だち追加URLの一時保存、再取得、元値復元、Secret field非表示、Desktop／Mobileを確認した。Console／Page Error、HTTP 500／502／504は0で、Nginx checksum、V1、DB既存Data、Network／固定IP／Environmentは維持した。

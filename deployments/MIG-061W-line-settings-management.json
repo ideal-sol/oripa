@@ -1,12 +1,12 @@
 {
   "task_id": "MIG-061W",
   "risk": "R4",
-  "status": "preview_pending",
+  "status": "preview_deployed_pr_open",
   "base_branch": "main",
   "base_sha": "b85d3123943a5c61af2406b28a3b71d73a7ad145",
   "task_policy_sha256": "5cee0f14039cf15371893c4000302a5cf87faa83ff5ad1fc9392abdad9b90537",
   "issue": 214,
-  "pull_request": null,
+  "pull_request": 215,
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061W/",
   "preview": {
@@ -15,13 +15,13 @@
     "migration": "2026_08_26_000039_add_v2_line_settings_management.php",
     "api_previous_image": "sha256:a432cf07d74cec23d166243c7e0ec6474f39c9dfaedd55bbcffe847514028441",
     "admin_previous_image": "sha256:1b000d51c3e06512690c499ca640e08dea87117454d9cc8c348ec0b55684fcb3",
-    "api_image": null,
-    "admin_image": null,
+    "api_image": "sha256:dd80b68de22c83c6016fd3adafe70f91edaaddff42ae1d924872d12186a49ef6",
+    "admin_image": "sha256:6ab94d4c3925df6e4a942b2f2051ae9926c363e3721582e0942530b96c231f73",
     "migration_count_before": 38,
-    "migration_count_after": null,
-    "api_health": "PENDING",
-    "admin_health": "PENDING",
-    "browser_role_smoke": "PENDING",
+    "migration_count_after": 39,
+    "api_health": "PASS_HEALTHY",
+    "admin_health": "PASS_HTTP_200_HEALTHY",
+    "browser_role_smoke": "PASS_OWNER_SAVE_REFETCH_RESTORE_OPERATOR_TARGETED_TEST",
     "secrets_exposed": false,
     "rollback_images_retained": "YES",
     "nginx_change": "NONE",
@@ -35,7 +35,7 @@
     "openapi_generated_client": "PASS",
     "admin_typecheck_lint_build": "PASS",
     "policy_unit": "PASS_110_TESTS",
-    "preview_smoke": "PENDING"
+    "preview_smoke": "PASS"
   },
   "gate_g4": "NOT COMPLETE",
   "gate_g5": "NOT COMPLETE"
