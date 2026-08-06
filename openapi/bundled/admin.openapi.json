@@ -388,6 +388,182 @@
         }
       }
     },
+    "/point-purchase-plans": {
+      "get": {
+        "operationId": "listAdminPointPurchasePlans",
+        "summary": "ポイント購入商品一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ポイント購入商品一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPointPurchasePlanCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminPointPurchasePlan",
+        "summary": "ポイント購入商品を作成する",
+        "description": "OwnerまたはAdmin、Fresh MFA、Idempotency-Keyを必須とする。",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPointPurchasePlanInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成済みポイント購入商品。",
+            "headers": {
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPointPurchasePlanMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/point-purchase-plans/{plan_id}": {
+      "parameters": [
+        {
+          "name": "plan_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getAdminPointPurchasePlan",
+        "summary": "ポイント購入商品を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ポイント購入商品詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPointPurchasePlanResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminPointPurchasePlan",
+        "summary": "ポイント購入商品を更新する",
+        "description": "購入履歴を参照する公開済み商品は必要に応じて新Versionを作成する。",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPointPurchasePlanUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新済みポイント購入商品。",
+            "headers": {
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPointPurchasePlanMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/categories": {
       "get": {
         "operationId": "listAdminCatalogCategories",
@@ -8779,6 +8955,252 @@
       }
     },
     "schemas": {
+      "AdminPointPurchasePlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "amount",
+          "paid_point_amount",
+          "free_point_amount",
+          "sort_order",
+          "audience_code",
+          "is_active",
+          "status",
+          "available_from",
+          "available_until",
+          "version",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "paid_point_amount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "free_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "audience_code": {
+            "type": "string",
+            "enum": [
+              "all_users",
+              "first_purchase_users"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "retired"
+            ]
+          },
+          "available_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "available_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPointPurchasePlanInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "amount",
+          "paid_point_amount",
+          "free_point_amount",
+          "sort_order",
+          "audience_code",
+          "is_active",
+          "available_from",
+          "available_until"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "paid_point_amount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "free_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "audience_code": {
+            "type": "string",
+            "enum": [
+              "all_users",
+              "first_purchase_users"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "available_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "available_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPointPurchasePlanUpdate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminPointPurchasePlanInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "expected_revision"
+            ],
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        ]
+      },
+      "AdminPointPurchasePlanCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPointPurchasePlan"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminPointPurchasePlanResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPointPurchasePlan"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminPointPurchasePlanMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPointPurchasePlan"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
       "AdminReferralPointSetting": {
         "type": "object",
         "additionalProperties": false,
@@ -17331,6 +17753,8 @@
           "point.adjustment.manage",
           "referral.settings.read",
           "referral.settings.manage",
+          "payment.plan.read",
+          "payment.plan.manage",
           "catalog.read",
           "catalog.manage",
           "catalog.publish",
@@ -19379,6 +19803,21 @@
       "status": 409,
       "retryable": false,
       "description": "Idempotency-Keyが異なるRequestへ再利用された。"
+    },
+    "POINT_PURCHASE_PLAN_INVALID": {
+      "status": 422,
+      "retryable": false,
+      "description": "ポイント購入商品の入力またはCursorが不正。"
+    },
+    "POINT_PURCHASE_PLAN_NOT_FOUND": {
+      "status": 404,
+      "retryable": false,
+      "description": "ポイント購入商品が存在しない。"
+    },
+    "POINT_PURCHASE_PLAN_REVISION_CONFLICT": {
+      "status": 409,
+      "retryable": false,
+      "description": "ポイント購入商品が別の操作で更新済み。"
     },
     "LINE_MESSAGING_SETTING_INVALID": {
       "status": 422,

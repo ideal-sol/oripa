@@ -28,7 +28,8 @@ final class V2PaymentService
         private readonly V2PointTransactionRunner $transactions,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
-        private readonly V2OutboxService $outbox
+        private readonly V2OutboxService $outbox,
+        private readonly V2PointPurchaseEligibilityService $purchaseEligibility
     ) {
     }
 
@@ -85,6 +86,7 @@ final class V2PaymentService
             if ($plan === null) {
                 throw new V2PaymentException('PURCHASE_PLAN_NOT_AVAILABLE');
             }
+            $this->purchaseEligibility->assertEligible($user, $plan);
             $now = now()->startOfSecond();
             $publicId = (string) Str::uuid7();
             $paymentId = DB::table('payments')->insertGetId([
@@ -335,6 +337,12 @@ final class V2PaymentService
             if (! in_array('succeeded', self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
                 throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
             }
+            $plan = DB::table('point_purchase_plans')
+                ->where('id', $payment->point_purchase_plan_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $user = User::query()->findOrFail($payment->user_id);
+            $this->purchaseEligibility->assertEligible($user, $plan, (int) $payment->id);
             $this->transitionPayment($payment, 'succeeded', 'provider_event', $event->id);
             $grant = $this->grantPaymentPoints($payment);
             DB::table('payments')->where('id', $payment->id)->update([

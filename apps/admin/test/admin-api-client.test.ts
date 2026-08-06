@@ -482,6 +482,34 @@ describe("AdminApiClient", () => {
       .toBe("rank-effect-create-key");
   });
 
+  it("uses the point purchase read surface and idempotent management endpoints", async () => {
+    const id = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null, request_id: id }))
+      .mockResolvedValueOnce(jsonResponse({ data: { id }, idempotent_replay: false, request_id: id }, 201));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listPointPurchasePlans();
+    await client.createPointPurchasePlan({
+      amount: 1000,
+      audience_code: "all_users",
+      available_from: null,
+      available_until: null,
+      free_point_amount: 100,
+      is_active: true,
+      name: "スタンダード",
+      paid_point_amount: 1000,
+      sort_order: 10,
+    }, "point-purchase-create-key");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/point-purchase-plans?limit=20",
+      "/admin/api/v2/point-purchase-plans",
+    ]);
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
+      .toBe("point-purchase-create-key");
+  });
+
   it("honors AbortSignal and never reaches the transport", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(
       (_input, request) =>

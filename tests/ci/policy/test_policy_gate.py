@@ -20,6 +20,27 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061v_point_purchase_paths_are_registered_exactly(self):
+        expected_payment = {
+            "apps/api/app/Domain/Payment/V2/Exceptions/V2PointPurchasePlanException.php",
+            "apps/api/app/Domain/Payment/V2/Services/V2PointPurchaseEligibilityService.php",
+            "apps/api/app/Domain/Payment/V2/Services/V2PointPurchasePlanService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminPointPurchasePlanController.php",
+            "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
+            "apps/api/tests/V2/AdminPointPurchasePlanManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-point-purchase-management.spec.ts",
+            "apps/admin/src/app/purchase-plans/[planPublicId]/page.tsx",
+            "apps/admin/src/components/point-purchases/point-purchase-management-workspace.tsx",
+            "apps/admin/test/admin-point-purchase-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_061V_V2_PAYMENT_FILES, expected_payment)
+        self.assertTrue(expected_payment.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061V_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_payment | expected_admin))
+
     def test_mig_061t_referral_point_paths_are_registered_exactly(self):
         expected_point = {
             "apps/api/app/Domain/Referral/Exceptions/V2ReferralException.php",
@@ -675,6 +696,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
             "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
             "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
+            "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

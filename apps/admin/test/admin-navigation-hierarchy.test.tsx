@@ -135,7 +135,10 @@ describe("Admin sidebar hierarchy", () => {
     const userGroup = document.getElementById("admin-nav-users")!;
     expect(within(userGroup).getByRole("link", { name: "一覧" })).toBeVisible();
     expect(within(userGroup).queryByRole("link", { name: "履歴" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "ポイント購入" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "ポイント購入" }));
+    const purchaseGroup = document.getElementById("admin-nav-purchase")!;
+    expect(within(purchaseGroup).getByRole("link", { name: "一覧" })).toBeVisible();
+    expect(within(purchaseGroup).getByRole("link", { name: "登録" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "各種設定" }));
     expect(screen.getByRole("link", { name: "紹介ポイント設定" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "ガチャ" }));

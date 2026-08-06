@@ -4705,3 +4705,92 @@ label {
   .contact-detail-card, .contact-action-card, .contact-history { padding: 14px; }
   .contact-detail-list > div { gap: 4px; grid-template-columns: 1fr; }
 }
+.point-purchase-workspace {
+  width: 100%;
+}
+
+.point-purchase-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.point-purchase-table table {
+  min-width: 1060px;
+  width: 100%;
+}
+
+.point-purchase-table th,
+.point-purchase-table td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.point-purchase-form {
+  display: grid;
+  gap: 16px;
+  max-width: 980px;
+}
+
+.point-purchase-section {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.point-purchase-section h2 {
+  color: #101828;
+  font-size: 18px;
+  margin: 0;
+}
+
+.point-purchase-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.point-purchase-grid label {
+  color: #344054;
+  display: grid;
+  font-size: 14px;
+  gap: 7px;
+}
+
+.point-purchase-grid input,
+.point-purchase-grid select {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.point-purchase-grid input:focus,
+.point-purchase-grid select:focus {
+  border-color: #175cd3;
+  outline: 3px solid #d1e9ff;
+}
+
+.point-purchase-back {
+  justify-self: start;
+}
+
+.form-hint {
+  color: #667085;
+  font-size: 13px;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .point-purchase-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .point-purchase-section {
+    padding: 16px;
+  }
+}

@@ -103,6 +103,10 @@ const operations = {
   ],
   getAdminReferralPointSetting: ["get", "/settings/referral-points"],
   updateAdminReferralPointSetting: ["put", "/settings/referral-points"],
+  listAdminPointPurchasePlans: ["get", "/point-purchase-plans"],
+  createAdminPointPurchasePlan: ["post", "/point-purchase-plans"],
+  getAdminPointPurchasePlan: ["get", "/point-purchase-plans/{plan_id}"],
+  updateAdminPointPurchasePlan: ["put", "/point-purchase-plans/{plan_id}"],
   listQaManagementPlans: ["get", "/qa/plans"],
   createQaManagementPlan: ["post", "/qa/plans"],
   getQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}"],
@@ -428,6 +432,12 @@ const requiredSchemas = [
   "AdminReferralPointSettingResponse",
   "AdminReferralPointSettingUpdate",
   "AdminReferralPointSettingMutationResult",
+  "AdminPointPurchasePlan",
+  "AdminPointPurchasePlanInput",
+  "AdminPointPurchasePlanUpdate",
+  "AdminPointPurchasePlanCollection",
+  "AdminPointPurchasePlanResponse",
+  "AdminPointPurchasePlanMutationResult",
   "QaManagementPlanCreate",
   "QaManagementPlanUpdate",
   "QaManagementPlanSummary",
@@ -976,6 +986,59 @@ export interface AdminReferralPointSettingUpdate {
 
 export interface AdminReferralPointSettingMutationResult {
   data: AdminReferralPointSetting;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export type AdminPointPurchaseAudience = "all_users" | "first_purchase_users";
+
+export interface AdminPointPurchasePlan {
+  id: string;
+  name: string;
+  amount: number;
+  paid_point_amount: number;
+  free_point_amount: number;
+  sort_order: number;
+  audience_code: AdminPointPurchaseAudience;
+  is_active: boolean;
+  status: "draft" | "published" | "retired";
+  available_from: string | null;
+  available_until: string | null;
+  version: number;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPointPurchasePlanInput {
+  name: string;
+  amount: number;
+  paid_point_amount: number;
+  free_point_amount: number;
+  sort_order: number;
+  audience_code: AdminPointPurchaseAudience;
+  is_active: boolean;
+  available_from: string | null;
+  available_until: string | null;
+}
+
+export interface AdminPointPurchasePlanUpdate extends AdminPointPurchasePlanInput {
+  expected_revision: number;
+}
+
+export interface AdminPointPurchasePlanCollection {
+  items: AdminPointPurchasePlan[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminPointPurchasePlanResponse {
+  data: AdminPointPurchasePlan;
+  request_id: string;
+}
+
+export interface AdminPointPurchasePlanMutationResult {
+  data: AdminPointPurchasePlan;
   idempotent_replay: boolean;
   request_id: string;
 }

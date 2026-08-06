@@ -108,6 +108,11 @@ import {
   type AdminReferralPointSettingMutationResult,
   type AdminReferralPointSettingResponse,
   type AdminReferralPointSettingUpdate,
+  type AdminPointPurchasePlanCollection,
+  type AdminPointPurchasePlanInput,
+  type AdminPointPurchasePlanMutationResult,
+  type AdminPointPurchasePlanResponse,
+  type AdminPointPurchasePlanUpdate,
   type AdminMfaVerifyRequest,
   type AdminManagedBannerCollection,
   type AdminManagedBannerCreate,
@@ -348,6 +353,22 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminReferralPointSettingResponse> {
     return this.request("GET", "/settings/referral-points", { signal });
+  }
+
+  listPointPurchasePlans(
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPointPurchasePlanCollection> {
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return this.request("GET", `/point-purchase-plans?${query.toString()}`, { signal });
+  }
+
+  getPointPurchasePlan(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPointPurchasePlanResponse> {
+    return this.request("GET", `/point-purchase-plans/${encodeURIComponent(id)}`, { signal });
   }
 
   listContentNotices(
@@ -714,6 +735,33 @@ export class AdminApiClient {
       );
     }
     return this.request("PUT", "/settings/referral-points", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  createPointPurchasePlan(
+    body: AdminPointPurchasePlanInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPointPurchasePlanMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "POINT_PURCHASE_PLAN_INVALID", null, null, false));
+    }
+    return this.request("POST", "/point-purchase-plans", { body, idempotencyKey, signal });
+  }
+
+  updatePointPurchasePlan(
+    id: string,
+    body: AdminPointPurchasePlanUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminPointPurchasePlanMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "POINT_PURCHASE_PLAN_INVALID", null, null, false));
+    }
+    return this.request("PUT", `/point-purchase-plans/${encodeURIComponent(id)}`, {
       body,
       idempotencyKey,
       signal,
@@ -2346,6 +2394,7 @@ export class AdminApiClient {
       | `/auth/${string}`
       | `/banner-management/${string}`
       | `/page-management/${string}`
+      | `/point-purchase-plans${string}`
       | `/catalog/${string}`
       | `/contact-inquiries${string}`
       | `/content/${string}`
@@ -2361,6 +2410,7 @@ export class AdminApiClient {
       (!path.startsWith("/auth/") &&
         !path.startsWith("/banner-management/") &&
         !path.startsWith("/page-management/") &&
+        !path.startsWith("/point-purchase-plans") &&
         !path.startsWith("/catalog/") &&
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&
