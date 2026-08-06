@@ -41,6 +41,7 @@
 ## Verification／Preview
 
 - Targeted Test: Backend Auth／Browser Security 18件・101 assertions、Public OpenAPI lint／bundle／Breaking Check、Generated Type同期、Client 17件、Testkit 23件、Typecheck／Lint／Build、Policy／Quality Gate、`git diff --check`はすべてPASS。
+- GitHub Policy Gateの初回実行でPR必須見出し、再実行でChanged filesの箇条書き形式不足を検出した。Application／Gate条件を変更せず、PR本文をCanonical metadataと25 Pathの完全一致箇条書きへ補正した。
 - Artifact Clean Install／Import: 3 tarballのChecksum、Manifest、外部一時ProjectへのClean Install、ESM ImportがPASSした。Packed package内のWorkspace／`file:`／Repository Path参照は0。未公開Private packageのため、Consumerは3 tarballを依存へ固定し、Testkitの同Version依存を`pnpm.overrides`で同梱tarballへ解決する。
 - Preview: APIのみ`sha256:ed95e50b60a8a1d0e9543e59dff6f8f4b193e1980ed5874bbb2ad3f0201b4fe9`から`sha256:8d2f0592ad1e1dcefe9128691947d271f0faeb2ed7d3320ad5c2af5fce58311d`へ更新した。Health 200、匿名Session 200、CSRF Cookie、`private, no-store`、API Version 2を確認し、Critical／500／502／504 Logは0。
 - Preview制約: 現行PreviewにはPublic APIの外部Nginx Routeと`V2_PUBLIC_ORIGIN`がないため、MutationはFail Closedの`AUTH_SERVICE_UNAVAILABLE` 503となる。Nginx／Originを無断変更せず、登録、Login、Logout、Email Verificationの完全FlowはTask DB対象Testを正本とした。
