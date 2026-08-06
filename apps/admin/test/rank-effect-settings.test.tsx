@@ -35,7 +35,7 @@ describe("Rank effect settings", () => {
   it("renders the V1-equivalent ordered list, preview, rank, state, and edit route", async () => {
     render(<RankEffectSettingsWorkspace mode="list" />);
     expect(await screen.findByRole("heading", { name: "ランク演出" })).toBeVisible();
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+    expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
       "種別", "タイトル", "ランク", "プレビュー", "表示順", "状態", "更新日時", "操作",
     ]);
     expect(screen.getByText("当選演出")).toBeVisible();
@@ -52,7 +52,7 @@ describe("Rank effect settings", () => {
 
   it("edits metadata without requiring a replacement file and preserves current preview", async () => {
     const update = vi.spyOn(AdminApiClient.prototype, "updateRankEffect")
-      .mockResolvedValue({ data: { ...effect(), alt_text: "更新演出" }, idempotent_replay: false });
+      .mockResolvedValue({ data: { ...effect(), alt_text: "更新演出", revision: 2 }, idempotent_replay: false });
     render(<RankEffectSettingsWorkspace id={effect().id} mode="edit" />);
     expect(await screen.findByRole("heading", { name: "ランク演出編集" })).toBeVisible();
     expect(screen.getByLabelText("タイトル")).toHaveValue("当選演出");
@@ -68,6 +68,16 @@ describe("Rank effect settings", () => {
         rank_assignments: [{ rank_id: rank().id, sort_order: 4 }],
         title: "更新演出",
       }),
+      expect.any(String),
+    ));
+    expect(await screen.findByRole("img", { name: "更新演出" })).toHaveAttribute(
+      "src",
+      effect().content_path,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(
+      effect().id,
+      expect.objectContaining({ expected_revision: 2 }),
       expect.any(String),
     ));
     expect(replace).toHaveBeenCalledWith(`/catalog/presentation-assets/${effect().id}/edit`);

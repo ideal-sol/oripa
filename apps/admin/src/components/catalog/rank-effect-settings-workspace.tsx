@@ -183,6 +183,7 @@ function RankEffectForm({
   ranks: AdminCatalogRank[];
 }) {
   const router = useRouter();
+  const [currentEffect, setCurrentEffect] = useState(effect);
   const [title, setTitle] = useState(effect?.alt_text ?? "");
   const [assetType, setAssetType] = useState<"image" | "video">(effect?.media_type ?? "image");
   const [active, setActive] = useState(effect?.is_public ?? true);
@@ -218,7 +219,7 @@ function RankEffectForm({
     setMessage(null);
     const assignments = rankAssignments(selections);
     const selectedRankCount = Object.values(selections).filter((value) => value.selected).length;
-    if (!title.trim() || assignments.length === 0 || assignments.length !== selectedRankCount || (mode === "create" && !file)) {
+    if (!title.trim() || assignments.length === 0 || assignments.length !== selectedRankCount || (!currentEffect && !file)) {
       setError("タイトル、Rank、登録ファイルを確認してください。");
       return;
     }
@@ -242,9 +243,9 @@ function RankEffectForm({
         title: title.trim(),
         ...filePayload,
       };
-      const result = effect
-        ? await client.updateRankEffect(effect.id, {
-            expected_revision: effect.revision ?? 1,
+      const result = currentEffect
+        ? await client.updateRankEffect(currentEffect.id, {
+            expected_revision: currentEffect.revision ?? 1,
             ...common,
           }, key.current)
         : await client.createRankEffect({
@@ -254,6 +255,7 @@ function RankEffectForm({
             content_base64: encodedFile!,
           }, key.current);
       key.current = null;
+      setCurrentEffect(result.data);
       setMessage(result.idempotent_replay ? "保存済みの結果を再表示しました。" : "ランク演出を保存しました。");
       router.replace(`/catalog/presentation-assets/${result.data.id}/edit`);
     } catch (cause) {
@@ -272,13 +274,13 @@ function RankEffectForm({
         {message ? <p className="status-alert" role="status">{message}</p> : null}
         <div className="rank-effect-fields">
           <label><span>タイトル</span><input maxLength={191} onChange={(event) => setTitle(event.target.value)} required value={title} /></label>
-          <fieldset><legend>種別</legend><div className="segmented-control"><label><input checked={assetType === "image"} disabled={Boolean(effect && !file)} name="asset-type" onChange={() => setAssetType("image")} type="radio" />画像</label><label><input checked={assetType === "video"} disabled={Boolean(effect && !file)} name="asset-type" onChange={() => setAssetType("video")} type="radio" />動画</label></div></fieldset>
+          <fieldset><legend>種別</legend><div className="segmented-control"><label><input checked={assetType === "image"} disabled={Boolean(currentEffect && !file)} name="asset-type" onChange={() => setAssetType("image")} type="radio" />画像</label><label><input checked={assetType === "video"} disabled={Boolean(currentEffect && !file)} name="asset-type" onChange={() => setAssetType("video")} type="radio" />動画</label></div></fieldset>
           <label><span>状態</span><select onChange={(event) => setActive(event.target.value === "active")} value={active ? "active" : "inactive"}><option value="active">有効</option><option value="inactive">無効</option></select></label>
-          <div className="rank-effect-file"><label htmlFor="rank-effect-file">{effect ? "ファイル差し替え（任意）" : "ファイル"}</label><input accept="image/gif,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" id="rank-effect-file" onChange={(event) => selectFile(event.target.files?.[0] ?? null)} required={!effect} type="file" /><small>画像5MB以下、動画50MB以下</small></div>
+          <div className="rank-effect-file"><label htmlFor="rank-effect-file">{currentEffect ? "ファイル差し替え（任意）" : "ファイル"}</label><input accept="image/gif,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" id="rank-effect-file" onChange={(event) => selectFile(event.target.files?.[0] ?? null)} required={!currentEffect} type="file" /><small>画像5MB以下、動画50MB以下</small></div>
         </div>
         <div className="rank-effect-preview-panel">
           <h3>プレビュー</h3>
-          {previewUrl ? <LocalPreview mediaType={assetType} title={title} url={previewUrl} /> : effect ? <RankEffectPreview effect={effect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
+          {previewUrl ? <LocalPreview mediaType={assetType} title={title} url={previewUrl} /> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
         </div>
       </section>
       <section className="rank-effect-form-section" aria-labelledby="rank-effect-ranks-heading">
