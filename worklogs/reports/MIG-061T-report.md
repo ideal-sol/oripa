@@ -3,9 +3,10 @@
 ## Issue／PR／Commit
 
 - Issue: #208
-- PR: Initial Push後に確定
+- PR: #209
 - Base: `149b5d3d882de60e0e67366d4968c5f4bae09010`
-- Final Head／Squash Commit: Closeoutで確定
+- Application Head: `0c0de98e4c2c4afbe63e80de3ad282d95148a269`
+- Final Head／Squash Commit: GitHub Closeout結果として完了報告へ記録
 - Task Policy SHA-256: `f0e45473918abc741cc58de93ff626e7c34a08d3606b61581f0be98ad95be5fc`
 
 ## V1 Characterization
@@ -26,7 +27,10 @@
 - Task専用DB `oripa_v2_mig061t`でTarget Safety Guard、Migration fresh、最新Migration rollback／reapplyがPASSした。
 - Backend対象8 tests／119 assertions、Admin Unit 2 files／10 tests、Desktop／Mobile Browser 2 tests、OpenAPI lint／bundle、Generated Client、Typecheck、Lint、Production Build、Policy／Quality Gate、`git diff --check`がPASSした。
 - Setting取得／更新、Owner／Admin／Operator境界、0／最大値／不正値、Revision競合、Idempotency Replay／異内容拒否、Audit／Outbox、設定保存時の残高／Ledger不変、未来成立分Snapshot、双方への一度だけ付与、有効期限、無効時取消を確認した。
-- Preview反映結果、設定値復元、Image Digestは反映後に確定する。Nginx、V1、Storefront、Payment Providerは変更しない。
+- Preview DBへMigration `000037`だけを適用し、Migration集合37件とTarget Safety Guard PASSを確認した。設定初期値は有効、紹介者0、紹介されたユーザー0、有効期限180日である。
+- Preview APIを`sha256:acb08dfefe438de89a26a118b1adf92dce2ed2149b995c15d84a7193a543f1af`、Adminを`sha256:3b5f759be2c79935076c7e0ad2d20ad17d5897274f7ec197d7de850635882e0f`へ更新した。旧API／Admin ImageはRollback用に保持した。
+- Owner Login後に設定を一時変更し、保存後再取得を確認して元の値へ復元した。Revisionは1から3へ進んだが、Wallet合計（有償0／無償7）とPoint Ledger 1件は前後一致し、設定保存だけでは残高／Ledgerを変更しない。
+- Desktop／Mobile表示、API／Admin Health、未認証API 401、Console／Page Error、HTTP 500／502／504 0を確認した。Nginx checksum `9832e492f8995db08a45d72f22566d09111d44539524b6509a79b986909f7347`、V1 HTTP 200、Storefront、Payment Providerは非変更である。
 - Evidence: `/var/lib/oripa-v2-evidence/MIG-061T/`
 - 残課題: Publicな紹介Code受付／登録UIはStorefront対象のため本Taskでは追加していない。
 - 主な所要作業: V1設定SnapshotとSMS認証付与条件のCharacterization、V2 Referral foundation不在の確認、Point Transaction／Idempotency境界、Task DB Migration検証。

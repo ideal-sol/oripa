@@ -8084,3 +8084,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - V1の紹介設定、将来成立分Snapshot、SMS認証完了時の一度だけ付与をCharacterizationし、V2では最新人間決定に従って紹介者／紹介されたユーザーの値を独立設定にした。
 - Task DBでMigration fresh／rollback／reapply、Backend 8 tests／119 assertions、Admin Unit 2 files／10 tests、Desktop／Mobile E2E 2 tests、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
 - Preview更新対象はAPI／Admin／Migration 000037のみ。設定Smoke後は元の値へ戻し、DB既存Data、Nginx、V1、Storefront、Payment Providerを維持する。
+
+### MIG-061T Preview
+
+- Application Head `0c0de98e4c2c4afbe63e80de3ad282d95148a269`からPreview APIを`sha256:acb08dfe...`、Adminを`sha256:3b5f759b...`へ更新し、DBへMigration 000037だけを適用した。
+- Owner Loginで設定の一時変更、保存後再取得、初期値への復元を確認した。Wallet合計とPoint Ledger件数は前後一致し、設定保存によるポイント残高変更はない。
+- API／Admin Health、Desktop／Mobile、未認証401がPASSし、Console／Page ErrorとHTTP 500／502／504は0。旧ImageはRollback用に保持した。
+- Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
