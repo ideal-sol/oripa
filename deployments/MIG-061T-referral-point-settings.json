@@ -8,7 +8,8 @@
   "task_policy_sha256": "f0e45473918abc741cc58de93ff626e7c34a08d3606b61581f0be98ad95be5fc",
   "issue": 208,
   "pull_request": 209,
-  "application_head": "0c0de98e4c2c4afbe63e80de3ad282d95148a269",
+  "api_application_head": "ef258879433d24bc2eefceedfcb615d3a9634630",
+  "admin_application_head": "0c0de98e4c2c4afbe63e80de3ad282d95148a269",
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061T/",
   "preview": {
@@ -17,7 +18,7 @@
     "migration": "2026_08_24_000037_create_v2_referral_point_settings.php",
     "api_previous_image": "sha256:1f906e80ff13687b34c7091082a877e229f16b760307fcc0a23cf5ae9efcd204",
     "admin_previous_image": "sha256:afe611ff95014e9f73744780826603928732cf73f48828d7939f28acf9105a4b",
-    "api_image": "sha256:acb08dfefe438de89a26a118b1adf92dce2ed2149b995c15d84a7193a543f1af",
+    "api_image": "sha256:ed95e50b60a8a1d0e9543e59dff6f8f4b193e1980ed5874bbb2ad3f0201b4fe9",
     "admin_image": "sha256:3b5f759be2c79935076c7e0ad2d20ad17d5897274f7ec197d7de850635882e0f",
     "api_health": "PASS",
     "admin_health": "PASS",

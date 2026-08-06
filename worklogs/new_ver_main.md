@@ -8087,7 +8087,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ### MIG-061T Preview
 
-- Application Head `0c0de98e4c2c4afbe63e80de3ad282d95148a269`からPreview APIを`sha256:acb08dfe...`、Adminを`sha256:3b5f759b...`へ更新し、DBへMigration 000037だけを適用した。
+- API Head `ef258879433d24bc2eefceedfcb615d3a9634630`からPreview APIを最終`sha256:ed95e50b...`、Admin Head `0c0de98e4c2c4afbe63e80de3ad282d95148a269`からAdminを`sha256:3b5f759b...`へ更新し、DBへMigration 000037だけを適用した。
 - Owner Loginで設定の一時変更、保存後再取得、初期値への復元を確認した。Wallet合計とPoint Ledger件数は前後一致し、設定保存によるポイント残高変更はない。
 - API／Admin Health、Desktop／Mobile、未認証401がPASSし、Console／Page ErrorとHTTP 500／502／504は0。旧ImageはRollback用に保持した。
 - Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
