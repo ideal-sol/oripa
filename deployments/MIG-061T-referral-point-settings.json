@@ -35,6 +35,7 @@
     "backend_targeted": "PASS_8_TESTS_119_ASSERTIONS",
     "admin_unit": "PASS_2_FILES_10_TESTS",
     "admin_browser_targeted": "PASS_2_TESTS",
+    "policy_unit": "PASS_108_TESTS",
     "openapi_generated_client": "PASS",
     "admin_typecheck_lint_build": "PASS",
     "policy_quality": "PASS",

@@ -8091,3 +8091,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Owner Loginで設定の一時変更、保存後再取得、初期値への復元を確認した。Wallet合計とPoint Ledger件数は前後一致し、設定保存によるポイント残高変更はない。
 - API／Admin Health、Desktop／Mobile、未認証401がPASSし、Console／Page ErrorとHTTP 500／502／504は0。旧ImageはRollback用に保持した。
 - Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
+- GitHub Policy GateでMigration 000037のIdentity Fixture登録漏れを検出し、完全一致Pathを1件追加した。Policy Unit 108件、Local Policy／Quality GateがPASSし、Gate条件は非変更である。

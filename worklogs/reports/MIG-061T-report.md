@@ -26,6 +26,7 @@
 
 - Task専用DB `oripa_v2_mig061t`でTarget Safety Guard、Migration fresh、最新Migration rollback／reapplyがPASSした。
 - Backend対象8 tests／119 assertions、Admin Unit 2 files／10 tests、Desktop／Mobile Browser 2 tests、OpenAPI lint／bundle、Generated Client、Typecheck、Lint、Production Build、Policy／Quality Gate、`git diff --check`がPASSした。
+- GitHub Policy Gateが、Migration `000037`をIdentity境界の一時RepositoryへコピーしていないPolicy Unit Fixture不整合を検出した。Gate条件は変更せず、許可済みTestへ当該Migration Pathを完全一致で1件登録し、Policy Unit 108 tests、Local Policy／Quality Gateを再確認した。
 - Setting取得／更新、Owner／Admin／Operator境界、0／最大値／不正値、Revision競合、Idempotency Replay／異内容拒否、Audit／Outbox、設定保存時の残高／Ledger不変、未来成立分Snapshot、双方への一度だけ付与、有効期限、無効時取消を確認した。
 - Preview DBへMigration `000037`だけを適用し、Migration集合37件とTarget Safety Guard PASSを確認した。設定初期値は有効、紹介者0、紹介されたユーザー0、有効期限180日である。
 - Preview APIを`sha256:acb08dfefe438de89a26a118b1adf92dce2ed2149b995c15d84a7193a543f1af`、Adminを`sha256:3b5f759be2c79935076c7e0ad2d20ad17d5897274f7ec197d7de850635882e0f`へ更新した。旧API／Admin ImageはRollback用に保持した。

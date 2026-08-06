@@ -674,6 +674,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
             "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
             "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
+            "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
