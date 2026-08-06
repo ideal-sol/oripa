@@ -319,6 +319,16 @@ MIG_061H_V2_POINT_FILES = {
     "apps/api/tests/V2/AdminUserPointAdjustmentApiTest.php",
     "apps/api/tests/V2/ZAdminUserPointAdjustmentConcurrencyTest.php",
 }
+MIG_061T_V2_POINT_FILES = {
+    "apps/api/app/Domain/Referral/Exceptions/V2ReferralException.php",
+    "apps/api/app/Domain/Referral/Services/V2ReferralPointSettingService.php",
+    "apps/api/app/Domain/Referral/Services/V2ReferralRewardService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminReferralPointSettingController.php",
+    "apps/api/app/Models/V2/ReferralPointSetting.php",
+    "apps/api/app/Models/V2/UserReferral.php",
+    "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
+    "apps/api/tests/V2/ReferralPointSettingsTest.php",
+}
 V2_POINT_REQUIRED_FILES = {
     "apps/api/app/Domain/Point/Exceptions/V2PointException.php",
     "apps/api/app/Domain/Point/Services/V2PointIdempotencyService.php",
@@ -342,6 +352,7 @@ V2_POINT_REQUIRED_FILES = {
     "apps/api/tests/V2/PointModelFoundationTest.php",
     "docs/operations/point-model/README.md",
     *MIG_061H_V2_POINT_FILES,
+    *MIG_061T_V2_POINT_FILES,
 }
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
@@ -652,6 +663,11 @@ MIG_061S_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-effect-settings-workspace.tsx",
     "apps/admin/test/rank-effect-settings.test.tsx",
 }
+MIG_061T_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-referral-point-settings.spec.ts",
+    "apps/admin/src/components/settings/referral-point-settings.tsx",
+    "apps/admin/test/referral-point-settings.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -765,6 +781,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061Q_ADMIN_SKELETON_FILES,
     *MIG_061R_ADMIN_SKELETON_FILES,
     *MIG_061S_ADMIN_SKELETON_FILES,
+    *MIG_061T_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2095,6 +2112,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_21_000034_add_v2_banner_management.php",
         "2026_08_22_000035_add_v2_page_management.php",
         "2026_08_23_000036_add_v2_gacha_external_public_code.php",
+        "2026_08_24_000037_create_v2_referral_point_settings.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

@@ -46,6 +46,7 @@ use App\Http\Controllers\V2\V2AdminUserController;
 use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
+use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
 
 $v2GachaIdentifierPattern = '[A-Za-z0-9]{11}|[0-9a-fA-F-]{36}';
 
@@ -111,6 +112,10 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.update');
         Route::post('/identity/line-messaging/preview', [V2AdminLineMessagingController::class, 'preview'])
             ->name('v2.admin.identity.line-messaging.preview');
+        Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])
+            ->name('v2.admin.settings.referral-points.show');
+        Route::put('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'update'])
+            ->name('v2.admin.settings.referral-points.update');
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
         Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])

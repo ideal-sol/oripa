@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 53ca090dbbb888a44693d051bdd10814c34f282fc093cbe78032a28e3e904242
+// Contract SHA-256: 63a16a5e94ab5bae33e1291761053e078fb9f82887c7f24e5069a4852a1aa798
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -13,6 +13,8 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.free.approve",
   "point.adjustment.paid.approve",
   "point.adjustment.manage",
+  "referral.settings.read",
+  "referral.settings.manage",
   "catalog.read",
   "catalog.manage",
   "catalog.publish",
@@ -424,6 +426,38 @@ export interface AdminLineMessagingPreview {
 
 export interface AdminLineMessagingMutationResult {
   data: AdminLineMessagingSetting;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminReferralPointSetting {
+  id: string;
+  is_enabled: boolean;
+  referrer_point_amount: number;
+  referred_user_point_amount: number;
+  reward_expiration_days: number;
+  grant_condition: "referred_user_sms_verified";
+  grant_timing: "on_sms_verification_completion";
+  applies_to: "future_referrals_only";
+  revision: number;
+  updated_at: string;
+}
+
+export interface AdminReferralPointSettingResponse {
+  data: AdminReferralPointSetting;
+  request_id: string;
+}
+
+export interface AdminReferralPointSettingUpdate {
+  expected_revision: number;
+  is_enabled: boolean;
+  referrer_point_amount: number;
+  referred_user_point_amount: number;
+  reward_expiration_days: number;
+}
+
+export interface AdminReferralPointSettingMutationResult {
+  data: AdminReferralPointSetting;
   idempotent_replay: boolean;
   request_id: string;
 }

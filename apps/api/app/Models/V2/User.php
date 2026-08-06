@@ -12,6 +12,7 @@ final class User extends Authenticatable
 
     protected $fillable = [
         'public_id',
+        'referral_code',
         'display_name',
         'email_display',
         'email_normalized',
@@ -45,6 +46,16 @@ final class User extends Authenticatable
     {
         static::creating(function (self $user): void {
             $user->public_id ??= (string) Str::uuid();
+            $user->referral_code ??= self::generateReferralCode();
         });
+    }
+
+    public static function generateReferralCode(): string
+    {
+        do {
+            $code = 'LP'.Str::random(10);
+        } while (self::query()->where('referral_code', $code)->exists());
+
+        return $code;
     }
 }
