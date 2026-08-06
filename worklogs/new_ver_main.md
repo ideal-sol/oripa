@@ -8077,3 +8077,19 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application Head `47f4e56fba8efbaf344027421072ab33b31895fe`からPreview APIを`sha256:1f906e80...`へ更新し、CodeQL High 2件を解消したAdmin Head `5f22b7d06ef372ec1fe6c7be4006bf540f2e15fb`からAdminを最終`sha256:afe611ff...`へ更新した。Migrationなし、固定IP／Network／Environment Key集合は維持した。
 - Synthetic画像／動画演出各1件で、直接Upload、Preview、Rank relation、表示順、編集時Asset維持、Desktop／MobileがPASSした。Console／Page Error、HTTP 500／502／504、Critical Logは0。
 - Migration数36、PostgreSQL／Redis設定、Nginx checksum、V1、Storefront、Payment Providerは非変更。旧API／Admin ImageはRollback用に保持した。
+
+# MIG-061T 紹介ポイント設定
+
+- Issue #208、Branch `feat/MIG-061T-referral-point-settings`、Risk R3、Verification `TARGETED-POINT-CONFIG`で開始した。
+- V1の紹介設定、将来成立分Snapshot、SMS認証完了時の一度だけ付与をCharacterizationし、V2では最新人間決定に従って紹介者／紹介されたユーザーの値を独立設定にした。
+- Task DBでMigration fresh／rollback／reapply、Backend 8 tests／119 assertions、Admin Unit 2 files／10 tests、Desktop／Mobile E2E 2 tests、OpenAPI／Generated Client、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+- Preview更新対象はAPI／Admin／Migration 000037のみ。設定Smoke後は元の値へ戻し、DB既存Data、Nginx、V1、Storefront、Payment Providerを維持する。
+
+### MIG-061T Preview
+
+- API Head `ef258879433d24bc2eefceedfcb615d3a9634630`からPreview APIを最終`sha256:ed95e50b...`、Admin Head `0c0de98e4c2c4afbe63e80de3ad282d95148a269`からAdminを`sha256:3b5f759b...`へ更新し、DBへMigration 000037だけを適用した。
+- Owner Loginで設定の一時変更、保存後再取得、初期値への復元を確認した。Wallet合計とPoint Ledger件数は前後一致し、設定保存によるポイント残高変更はない。
+- API／Admin Health、Desktop／Mobile、未認証401がPASSし、Console／Page ErrorとHTTP 500／502／504は0。旧ImageはRollback用に保持した。
+- Migration 37件、既存Data、PostgreSQL／Redis設定、固定IP／Network／Environment、Nginx checksum、V1、Storefront、Payment Providerは維持した。
+- GitHub Policy GateでMigration 000037のIdentity Fixture登録漏れを検出し、完全一致Pathを1件追加した。Policy Unit 108件、Local Policy／Quality GateがPASSし、Gate条件は非変更である。
+- GitHub Integration GateでMigration 000037のCheck ConstraintがBackup-Restore後に等価な括弧へ正規化されるSchema差分を検出した。明示比較へ補正し、Task DB fresh、対象4 tests／58 assertions、Backup-Restore Schema diff 0を確認した。

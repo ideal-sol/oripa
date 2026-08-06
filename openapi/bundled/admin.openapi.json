@@ -309,6 +309,85 @@
         }
       }
     },
+    "/settings/referral-points": {
+      "get": {
+        "operationId": "getAdminReferralPointSetting",
+        "summary": "紹介ポイント設定を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "現在の紹介ポイント設定。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReferralPointSettingResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminReferralPointSetting",
+        "summary": "紹介ポイント設定を更新する",
+        "description": "OwnerまたはAdmin、Fresh MFA、Revision OCC、Idempotency-Keyを必須とする。",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminReferralPointSettingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新済み紹介ポイント設定。",
+            "headers": {
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReferralPointSettingMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/categories": {
       "get": {
         "operationId": "listAdminCatalogCategories",
@@ -8700,6 +8779,145 @@
       }
     },
     "schemas": {
+      "AdminReferralPointSetting": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "is_enabled",
+          "referrer_point_amount",
+          "referred_user_point_amount",
+          "reward_expiration_days",
+          "grant_condition",
+          "grant_timing",
+          "applies_to",
+          "revision",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "referrer_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "referred_user_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "reward_expiration_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "grant_condition": {
+            "type": "string",
+            "enum": [
+              "referred_user_sms_verified"
+            ],
+            "readOnly": true
+          },
+          "grant_timing": {
+            "type": "string",
+            "enum": [
+              "on_sms_verification_completion"
+            ],
+            "readOnly": true
+          },
+          "applies_to": {
+            "type": "string",
+            "enum": [
+              "future_referrals_only"
+            ],
+            "readOnly": true
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminReferralPointSettingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminReferralPointSetting"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminReferralPointSettingUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "is_enabled",
+          "referrer_point_amount",
+          "referred_user_point_amount",
+          "reward_expiration_days"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "referrer_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "referred_user_point_amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "reward_expiration_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          }
+        }
+      },
+      "AdminReferralPointSettingMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminReferralPointSetting"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
       "AdminLineMessagingSetting": {
         "type": "object",
         "additionalProperties": false,
@@ -17111,6 +17329,8 @@
           "point.adjustment.free.approve",
           "point.adjustment.paid.approve",
           "point.adjustment.manage",
+          "referral.settings.read",
+          "referral.settings.manage",
           "catalog.read",
           "catalog.manage",
           "catalog.publish",

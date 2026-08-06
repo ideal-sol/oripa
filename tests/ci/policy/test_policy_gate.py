@@ -20,6 +20,28 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061t_referral_point_paths_are_registered_exactly(self):
+        expected_point = {
+            "apps/api/app/Domain/Referral/Exceptions/V2ReferralException.php",
+            "apps/api/app/Domain/Referral/Services/V2ReferralPointSettingService.php",
+            "apps/api/app/Domain/Referral/Services/V2ReferralRewardService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminReferralPointSettingController.php",
+            "apps/api/app/Models/V2/ReferralPointSetting.php",
+            "apps/api/app/Models/V2/UserReferral.php",
+            "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
+            "apps/api/tests/V2/ReferralPointSettingsTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-referral-point-settings.spec.ts",
+            "apps/admin/src/components/settings/referral-point-settings.tsx",
+            "apps/admin/test/referral-point-settings.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_061T_V2_POINT_FILES, expected_point)
+        self.assertTrue(expected_point.issubset(policy_gate.V2_POINT_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_061T_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_point | expected_admin))
+
     def test_mig_061s_rank_effect_paths_are_registered_exactly(self):
         expected_catalog = {
             "apps/api/tests/V2/AdminRankEffectSettingsTest.php",
@@ -652,6 +674,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
             "apps/api/database/migrations-v2/2026_08_22_000035_add_v2_page_management.php",
             "apps/api/database/migrations-v2/2026_08_23_000036_add_v2_gacha_external_public_code.php",
+            "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

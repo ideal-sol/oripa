@@ -2947,6 +2947,138 @@ label {
   }
 }
 
+.referral-settings-form {
+  display: grid;
+  gap: 18px;
+  max-width: 960px;
+}
+
+.referral-settings-section {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.referral-settings-section h2,
+.referral-settings-heading p {
+  margin: 0;
+}
+
+.referral-settings-section h2 {
+  font-size: 18px;
+}
+
+.referral-settings-heading {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.referral-settings-heading p {
+  color: var(--ink-muted);
+  margin-top: 5px;
+}
+
+.referral-settings-toggle {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  font-weight: 800;
+  gap: 9px;
+}
+
+.referral-settings-toggle input {
+  height: 20px;
+  width: 20px;
+}
+
+.referral-settings-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.referral-settings-grid label {
+  display: grid;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.referral-settings-grid input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.referral-settings-grid input:focus {
+  border-color: var(--forest);
+  outline: 2px solid color-mix(in srgb, var(--forest) 24%, transparent);
+}
+
+.referral-settings-grid input:disabled {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+}
+
+.referral-settings-summary {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.referral-settings-summary > div {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+  padding: 12px 0;
+}
+
+.referral-settings-summary > div:first-child {
+  border-top: 0;
+}
+
+.referral-settings-summary dt {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.referral-settings-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.referral-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .referral-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .referral-settings-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .referral-settings-summary > div {
+    gap: 4px;
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-auth-settings {
   display: grid;
   gap: 20px;

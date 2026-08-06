@@ -205,6 +205,13 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 
+    def test_referral_point_schema_inventory_is_explicit(self):
+        for table in (
+            "public.referral_point_settings",
+            "public.user_referrals",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
     def test_banner_management_schema_inventory_is_explicit(self):
         self.assertIn(
             "public.content_banner_categories",

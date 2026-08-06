@@ -6,6 +6,7 @@ use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Referral\Services\V2ReferralRewardService;
 use App\Models\V2\SmsVerificationChallenge;
 use App\Models\V2\User;
 use App\Models\V2\UserPhoneNumber;
@@ -23,6 +24,7 @@ final class V2SmsVerificationService
         private readonly V2SecureToken $tokens,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2SessionManager $sessions,
+        private readonly V2ReferralRewardService $referrals,
         private readonly V2OutboxService $outbox,
         private readonly V2SecurityEventSink $events
     ) {
@@ -177,6 +179,7 @@ final class V2SmsVerificationService
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => $now]);
+            $this->referrals->rewardForReferredUser($user);
             $rotated = $this->sessions->rotateLockedUserSession($session);
             $this->outbox->enqueue(
                 'identity.phone-verified',

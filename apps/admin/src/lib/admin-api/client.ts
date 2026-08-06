@@ -105,6 +105,9 @@ import {
   type AdminLineMessagingPreviewRequest,
   type AdminLineMessagingSettingResponse,
   type AdminLineMessagingSettingUpdate,
+  type AdminReferralPointSettingMutationResult,
+  type AdminReferralPointSettingResponse,
+  type AdminReferralPointSettingUpdate,
   type AdminMfaVerifyRequest,
   type AdminManagedBannerCollection,
   type AdminManagedBannerCreate,
@@ -339,6 +342,12 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminLineMessagingSettingResponse> {
     return this.request("GET", "/identity/line-messaging", { signal });
+  }
+
+  getReferralPointSetting(
+    signal?: AbortSignal,
+  ): Promise<AdminReferralPointSettingResponse> {
+    return this.request("GET", "/settings/referral-points", { signal });
   }
 
   listContentNotices(
@@ -688,6 +697,23 @@ export class AdminApiClient {
       );
     }
     return this.request("PUT", "/identity/line-messaging", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  updateReferralPointSetting(
+    body: AdminReferralPointSettingUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminReferralPointSettingMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "REFERRAL_SETTING_INVALID", null, null, false),
+      );
+    }
+    return this.request("PUT", "/settings/referral-points", {
       body,
       idempotencyKey,
       signal,
@@ -2327,6 +2353,7 @@ export class AdminApiClient {
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
+      | "/settings/referral-points"
       | `/users${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
@@ -2341,6 +2368,7 @@ export class AdminApiClient {
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
+        path !== "/settings/referral-points" &&
         path !== "/users" &&
         !path.startsWith("/users?") &&
         !path.startsWith("/users/")) ||

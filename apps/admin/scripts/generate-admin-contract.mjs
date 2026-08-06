@@ -101,6 +101,8 @@ const operations = {
     "post",
     "/identity/line-messaging/preview",
   ],
+  getAdminReferralPointSetting: ["get", "/settings/referral-points"],
+  updateAdminReferralPointSetting: ["put", "/settings/referral-points"],
   listQaManagementPlans: ["get", "/qa/plans"],
   createQaManagementPlan: ["post", "/qa/plans"],
   getQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}"],
@@ -422,6 +424,10 @@ const requiredSchemas = [
   "AdminLineMessagingPreviewRequest",
   "AdminLineMessagingPreview",
   "AdminLineMessagingMutationResult",
+  "AdminReferralPointSetting",
+  "AdminReferralPointSettingResponse",
+  "AdminReferralPointSettingUpdate",
+  "AdminReferralPointSettingMutationResult",
   "QaManagementPlanCreate",
   "QaManagementPlanUpdate",
   "QaManagementPlanSummary",
@@ -938,6 +944,38 @@ export interface AdminLineMessagingPreview {
 
 export interface AdminLineMessagingMutationResult {
   data: AdminLineMessagingSetting;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminReferralPointSetting {
+  id: string;
+  is_enabled: boolean;
+  referrer_point_amount: number;
+  referred_user_point_amount: number;
+  reward_expiration_days: number;
+  grant_condition: "referred_user_sms_verified";
+  grant_timing: "on_sms_verification_completion";
+  applies_to: "future_referrals_only";
+  revision: number;
+  updated_at: string;
+}
+
+export interface AdminReferralPointSettingResponse {
+  data: AdminReferralPointSetting;
+  request_id: string;
+}
+
+export interface AdminReferralPointSettingUpdate {
+  expected_revision: number;
+  is_enabled: boolean;
+  referrer_point_amount: number;
+  referred_user_point_amount: number;
+  reward_expiration_days: number;
+}
+
+export interface AdminReferralPointSettingMutationResult {
+  data: AdminReferralPointSetting;
   idempotent_replay: boolean;
   request_id: string;
 }

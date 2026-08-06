@@ -19,6 +19,8 @@ final class V2PointService
 {
     public const MAX_LINE_FRIEND_REWARD_AMOUNT = 1_000_000;
 
+    public const MAX_REFERRAL_REWARD_AMOUNT = 1_000_000;
+
     public function __construct(
         private readonly V2PointTransactionRunner $transactions,
         private readonly V2PointIdempotencyService $idempotency,
@@ -231,6 +233,95 @@ final class V2PointService
             'before' => ['free_balance' => $before],
             'after' => ['free_balance' => (int) $wallet->free_balance],
             'metadata' => [
+                'amount' => $amount,
+                'operation_public_id' => $operation->public_id,
+                'user_public_id' => $user->public_id,
+            ],
+        ]);
+
+        return $operation;
+    }
+
+    public function grantReferralReward(
+        int $userId,
+        int $referralId,
+        string $referralPublicId,
+        string $beneficiary,
+        int $amount,
+        CarbonInterface $expireAt,
+        CarbonInterface $occurredAt
+    ): PointOperation {
+        if (
+            DB::transactionLevel() < 1
+            || $userId < 1
+            || $referralId < 1
+            || ! Str::isUuid($referralPublicId)
+            || ! in_array($beneficiary, ['referrer', 'referred'], true)
+            || $amount < 1
+            || $amount > self::MAX_REFERRAL_REWARD_AMOUNT
+        ) {
+            throw new V2PointException('Referral reward input is invalid.');
+        }
+        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
+        if ($expiry->lessThanOrEqualTo($occurred)) {
+            throw new V2PointException('Referral reward expiry is invalid.');
+        }
+        $businessKey = 'referral.reward:'.$referralPublicId.':'.$beneficiary;
+        $existing = PointOperation::query()->where('business_key', $businessKey)->first();
+        if ($existing instanceof PointOperation) {
+            return $existing;
+        }
+
+        $user = User::query()->whereKey($userId)->firstOrFail();
+        $wallet = $this->lockWallet($userId);
+        $before = (int) $wallet->free_balance;
+        $operation = $this->operation(
+            $userId,
+            'free_grant',
+            'referral',
+            $businessKey,
+            $occurred,
+            'system',
+            null,
+            $referralId
+        );
+        $lot = new PointLot();
+        $lot->forceFill([
+            'user_id' => $userId,
+            'grant_operation_id' => $operation->id,
+            'point_type' => 'free',
+            'granted_amount' => $amount,
+            'remaining_amount' => $amount,
+            'reserved_amount' => 0,
+            'granted_at' => $occurred,
+            'expire_at' => $expiry,
+        ])->save();
+        $wallet->forceFill([
+            'free_balance' => $before + $amount,
+            'lock_version' => (int) $wallet->lock_version + 1,
+        ])->save();
+        $this->ledger(
+            $operation,
+            $wallet,
+            $lot,
+            1,
+            'free',
+            'grant',
+            $amount,
+            (int) $wallet->free_balance,
+            $amount,
+            $occurred
+        );
+        $this->audit->record('point.referral_reward_granted', [
+            'actor_type' => 'system',
+            'auth_realm' => 'system',
+            'target_type' => 'user_referral',
+            'target_public_id' => $referralPublicId,
+            'before' => ['free_balance' => $before],
+            'after' => ['free_balance' => (int) $wallet->free_balance],
+            'metadata' => [
+                'beneficiary' => $beneficiary,
                 'amount' => $amount,
                 'operation_public_id' => $operation->public_id,
                 'user_public_id' => $user->public_id,

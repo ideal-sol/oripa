@@ -13,6 +13,8 @@ enum V2Permission: string
     case ApproveFreePointAdjustment = 'point.adjustment.free.approve';
     case ApprovePaidPointAdjustment = 'point.adjustment.paid.approve';
     case ManagePointAdjustment = 'point.adjustment.manage';
+    case ReadReferralSettings = 'referral.settings.read';
+    case ManageReferralSettings = 'referral.settings.manage';
     case ReadCatalog = 'catalog.read';
     case ManageCatalog = 'catalog.manage';
     case PublishCatalog = 'catalog.publish';
