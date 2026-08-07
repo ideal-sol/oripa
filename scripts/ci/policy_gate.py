@@ -1971,7 +1971,14 @@ def validate_compose_skeletons(repository: Path) -> None:
         raise PolicyFailure("docker-compose.yml: V1 non-Production purpose is missing")
 
     v2 = (repository / "docker-compose.v2.yml").read_text(encoding="utf-8")
-    for required in ("api:", "admin:", "postgres:", "redis:", "healthcheck:"):
+    for required in (
+        "api:",
+        "admin:",
+        "postgres:",
+        "redis:",
+        "healthcheck:",
+        "V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}",
+    ):
         if required not in v2:
             raise PolicyFailure(f"docker-compose.v2.yml: required value missing {required}")
     for prohibited in ("legacy/v1-frontend", "container_name:"):
