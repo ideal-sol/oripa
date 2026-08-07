@@ -8159,3 +8159,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview APIだけを`sha256:55006860...`へ更新しHealthを確認した。公開Gachaは0件のため実データPresentation SmokeはTask DB Testを正本とし、Synthetic Dataは投入していない。Admin／DB／Migration／Nginx／V1は非変更、旧API Imageは保持した。
 - Required Quality GateでPlatform Alpha Version一貫性を確認し、Platform／Admin／3 Contract／3 Packageを`2.0.0-alpha.2`へ機械的に同期した。Release Test／Source ValidationとOpenAPI 3面がPASSし、Gate条件は変更していない。
 - Admin OpenAPI Version更新後はCanonical GeneratorでContract SHA Markerを同期し、GitHub Quality Gateのstale generated findingを解消した。
+- 既存Gacha Detailの後方互換を維持するため`sale_state`はoptional additive、Presentation専用Contractではrequiredとし、OpenAPI Breaking CheckをPASSさせた。

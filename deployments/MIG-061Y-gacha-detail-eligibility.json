@@ -5,7 +5,7 @@
   "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "5cd779d5918fbc39e8598ccb699863200747aabe",
-  "application_source_commit": "e2d392bbbb168f4223c1a6ee3490857764a01bba",
+  "application_source_commit": "12610e1fefa9c4a6cb555fdd933253bbe54dd0e4",
   "task_policy_sha256": "253e95cc09cbfd1670eb836ecaecf31f620fa5cf841330b6e767935eb91747ce",
   "issue": 220,
   "pull_request": 221,
@@ -13,10 +13,10 @@
   "artifact": {
     "version": "2.0.0-alpha.2",
     "directory": "/var/lib/oripa-v2-evidence/MIG-061Y/artifacts/",
-    "manifest_sha256": "43019b7a9c38f01c61865c667ae3f02bddb6e0e9839c5f79b61106907732ac59",
-    "public_openapi_sha256": "63146915b9440bf96724812ff0fe23a54575072c8fe404a37a597587d51ffd01",
-    "storefront_client_sha256": "df4f2c59f90aefe63feaa07748498977c649a2d25cc51d93026e69a84af7f474",
-    "storefront_testkit_sha256": "f09a35946a85b1ed252189b91df297b5072488854cb10e8e52fce8276b4f6d5d",
+    "manifest_sha256": "9a48612c702b5d5b530145bcbe9b848fb081fd5994ac8f73e99395039fb404e0",
+    "public_openapi_sha256": "ea95cd45465c9ec37824dab529c433ed8cfa7f1ba97b89d623f25b457f1952dc",
+    "storefront_client_sha256": "5bade24015db08848c7f6a2134ee256f8471f81ea140f2e5ad5581bfb67d3e5e",
+    "storefront_testkit_sha256": "0ddb5dd88c6663575bcb43d07034da9175f436f60951b53c8fa53e1b81379370",
     "site_schema_sha256": "adbd0157cc5a1b48c984ad1786cc62c8370d70d49ade6fd5662b74fd300d1136"
   },
   "preview": {
