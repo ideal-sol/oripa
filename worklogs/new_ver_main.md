@@ -8160,3 +8160,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Required Quality GateでPlatform Alpha Version一貫性を確認し、Platform／Admin／3 Contract／3 Packageを`2.0.0-alpha.2`へ機械的に同期した。Release Test／Source ValidationとOpenAPI 3面がPASSし、Gate条件は変更していない。
 - Admin OpenAPI Version更新後はCanonical GeneratorでContract SHA Markerを同期し、GitHub Quality Gateのstale generated findingを解消した。
 - 既存Gacha Detailの後方互換を維持するため`sale_state`はoptional additive、Presentation専用Contractではrequiredとし、OpenAPI Breaking CheckをPASSさせた。
+
+## MIG-061Z Public API Route／Origin／同一Origin Proxy
+
+- Issue #222、Branch `feat/MIG-061Z-public-api-origin-proxy`、Base `cea1fd97ddfcc60861b1650b434f43a60f95d810`で開始した。
+- Preview Public Originを`https://test.luxe-pack.biz`に固定し、同一Origin `/api/v2/`だけを既存V2 Public APIへ転送した。`/admin/api/`はHTTP 404で分離し、Storefront rootはSITE-004配備まで閉じた。
+- API Containerへ`V2_PUBLIC_ORIGIN`を明示注入し、Compose／Policy Gateで欠落をFail Closedにした。API Image、DB／Migration、Admin Container、既存V1／Admin vhostは変更していない。
+- Auth Session、CSRF Cookie、register／login Validation経路、Public Catalog、Gacha Presentation、RFC 9457、Cross-Origin拒否、Admin API遮断、V1／V2 Admin非影響をHTTP Smokeで確認した。

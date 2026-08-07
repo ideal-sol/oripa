@@ -1752,6 +1752,8 @@ services:
             """# This is never a Production deployment.
 services:
   api:
+    environment:
+      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}
     healthcheck:
       test: health
   admin:
@@ -2190,6 +2192,21 @@ services:
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited value"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_without_public_origin_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}\n",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "V2_PUBLIC_ORIGIN"):
                 policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_api_application_layout_passes(self):

@@ -29,6 +29,7 @@ services:
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?V2_AUDIT_HMAC_KEY is required}
       V2_ADMIN_ORIGIN: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?V2_PII_CORRELATION_KEY is required}
+      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}
       V2_WEBAUTHN_ORIGIN: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       V2_WEBAUTHN_RP_ID: ${V2_WEBAUTHN_RP_ID:-localhost}
     depends_on:
