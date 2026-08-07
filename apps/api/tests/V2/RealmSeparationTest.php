@@ -6,12 +6,14 @@ use App\Auth\V2RealmSessionGuard;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Services\V2RealmBoundary;
 use App\Domain\Identity\Services\V2PasswordPolicy;
+use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Http\Middleware\V2\EnforceV2Realm;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Mockery;
@@ -28,15 +30,15 @@ final class RealmSeparationTest extends TestCase
 
         self::assertSame('user_sessions', $user['table']);
         self::assertSame('__Host-oripa_user_session', $user['cookie']);
-        self::assertSame(60, $user['idle_minutes']);
+        self::assertSame(720, $user['idle_minutes']);
         self::assertSame(1440, $user['absolute_minutes']);
         self::assertSame('lax', $user['same_site']);
         self::assertTrue($user['remember']);
 
         self::assertSame('admin_sessions', $admin['table']);
         self::assertSame('__Host-oripa_admin_session', $admin['cookie']);
-        self::assertSame(15, $admin['idle_minutes']);
-        self::assertSame(480, $admin['absolute_minutes']);
+        self::assertSame(360, $admin['idle_minutes']);
+        self::assertSame(720, $admin['absolute_minutes']);
         self::assertSame('strict', $admin['same_site']);
         self::assertFalse($admin['remember']);
         self::assertNotSame($user['cookie'], $admin['cookie']);
@@ -60,6 +62,67 @@ final class RealmSeparationTest extends TestCase
             $policy->hashSessionId($first)
         );
         self::assertNotSame($first, $policy->hashSessionId($first));
+    }
+
+    public function test_issued_sessions_use_the_canonical_idle_and_absolute_timeouts(): void
+    {
+        DB::beginTransaction();
+        Carbon::setTestNow('2026-08-07 00:00:00 UTC');
+
+        try {
+            $password = app(V2PasswordPolicy::class)->hash('session policy password');
+            $userId = (int) DB::table('users')->insertGetId([
+                'public_id' => (string) Str::uuid(),
+                'email_display' => 'session-policy-user@example.test',
+                'email_normalized' => 'session-policy-user@example.test',
+                'email_verified_at' => now(),
+                'password_hash' => $password,
+                'state' => 'active',
+            ]);
+            $adminId = (int) DB::table('admins')->insertGetId([
+                'public_id' => (string) Str::uuid(),
+                'email_display' => 'session-policy-admin@example.test',
+                'email_normalized' => 'session-policy-admin@example.test',
+                'email_verified_at' => now(),
+                'password_hash' => $password,
+                'role' => 'operator',
+                'state' => 'active',
+            ]);
+
+            $manager = app(V2SessionManager::class);
+            $policy = app(V2SessionPolicy::class);
+            $userSession = $manager->issue(V2Realm::User, $userId);
+            $adminSession = $manager->issue(V2Realm::Admin, $adminId, true);
+
+            $userRow = DB::table('user_sessions')
+                ->where('session_id_hash', $policy->hashSessionId($userSession['token']))
+                ->first();
+            $adminRow = DB::table('admin_sessions')
+                ->where('session_id_hash', $policy->hashSessionId($adminSession['token']))
+                ->first();
+
+            self::assertNotNull($userRow);
+            self::assertSame(
+                now()->addHours(12)->toISOString(),
+                Carbon::parse($userRow->idle_expires_at)->toISOString()
+            );
+            self::assertSame(
+                now()->addHours(24)->toISOString(),
+                Carbon::parse($userRow->absolute_expires_at)->toISOString()
+            );
+            self::assertNotNull($adminRow);
+            self::assertSame(
+                now()->addHours(6)->toISOString(),
+                Carbon::parse($adminRow->idle_expires_at)->toISOString()
+            );
+            self::assertSame(
+                now()->addHours(12)->toISOString(),
+                Carbon::parse($adminRow->absolute_expires_at)->toISOString()
+            );
+        } finally {
+            DB::rollBack();
+            Carbon::setTestNow();
+        }
     }
 
     public function test_boundary_rejects_cross_realm_unknown_and_unverified_admin(): void
@@ -162,7 +225,7 @@ final class RealmSeparationTest extends TestCase
                 'user_id' => $userId,
                 'created_at' => $createdAt,
                 'last_activity_at' => $lastActivityAt,
-                'idle_expires_at' => $lastActivityAt->copy()->addMinutes(60),
+                'idle_expires_at' => $lastActivityAt->copy()->addHours(12),
                 'absolute_expires_at' => $createdAt->copy()->addHours(24),
             ]);
             DB::table('admin_sessions')->insert([
@@ -171,8 +234,8 @@ final class RealmSeparationTest extends TestCase
                 'mfa_verified_at' => now(),
                 'created_at' => $createdAt,
                 'last_activity_at' => $lastActivityAt,
-                'idle_expires_at' => $lastActivityAt->copy()->addMinutes(15),
-                'absolute_expires_at' => $createdAt->copy()->addHours(8),
+                'idle_expires_at' => $lastActivityAt->copy()->addHours(6),
+                'absolute_expires_at' => $createdAt->copy()->addHours(12),
             ]);
 
             $request = Request::create('/testing-only', 'GET');
