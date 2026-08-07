@@ -1,0 +1,48 @@
+{
+  "task_id": "MIG-061Y",
+  "risk": "R3",
+  "verification_profile": "TARGETED_PUBLIC_CONTRACT",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "5cd779d5918fbc39e8598ccb699863200747aabe",
+  "application_source_commit": "539ba74a6f16689bd0966e86556226dbb05fed4e",
+  "task_policy_sha256": "8d6f090b6d837a90d124cc71c1394f2912d4cf95f15bced7126b30b6f8dc6091",
+  "issue": 220,
+  "pull_request": 221,
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061Y/",
+  "artifact": {
+    "version": "2.0.0-alpha.2",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-061Y/artifacts/",
+    "manifest_sha256": "e25a9f2a4a30fafcaeceb35b34c505c49448936eaa6c7372f0369a7576127605",
+    "public_openapi_sha256": "63146915b9440bf96724812ff0fe23a54575072c8fe404a37a597587d51ffd01",
+    "storefront_client_sha256": "df4f2c59f90aefe63feaa07748498977c649a2d25cc51d93026e69a84af7f474",
+    "storefront_testkit_sha256": "f09a35946a85b1ed252189b91df297b5072488854cb10e8e52fce8276b4f6d5d",
+    "site_schema_sha256": "adbd0157cc5a1b48c984ad1786cc62c8370d70d49ade6fd5662b74fd300d1136"
+  },
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_previous_image": "sha256:dd80b68de22c83c6016fd3adafe70f91edaaddff42ae1d924872d12186a49ef6",
+    "api_image": "sha256:55006860b616fd13d04980405de5fd3da33707631890d87c6a807300e3d41d12",
+    "api_health": "PASS_HEALTHY",
+    "public_gacha_list": "PASS_HTTP_200_EMPTY",
+    "presentation_smoke": "SKIP_NO_PUBLISHED_PREVIEW_GACHA",
+    "admin_image_change": "NONE",
+    "database_change": "NONE",
+    "migration": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "rollback_image_retained": "YES"
+  },
+  "verification": {
+    "backend_targeted": "PASS_18_TESTS_158_ASSERTIONS_PLUS_QA_EXCLUSION",
+    "public_openapi": "PASS_48_OPERATIONS",
+    "storefront_client": "PASS_17_TESTS",
+    "site_schema": "PASS_10_TESTS",
+    "storefront_testkit": "PASS_24_TESTS",
+    "artifact_clean_install": "PASS",
+    "policy_quality_security_gates": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
