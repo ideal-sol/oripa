@@ -1395,7 +1395,7 @@ This is a non-Production Skeleton and contains no application implementation.
             json.dumps(
                 {
                     "name": "@oripa/platform-workspace",
-                    "version": "2.0.0-alpha.1",
+                    "version": "2.0.0-alpha.2",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -1454,7 +1454,7 @@ packages:
                 json.dumps(
                     {
                         "name": name,
-                        "version": "2.0.0-alpha.1",
+                        "version": "2.0.0-alpha.2",
                         "private": True,
                         "description": "Fixture Skeleton",
                         "license": "UNLICENSED",
