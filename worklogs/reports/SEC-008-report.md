@@ -5,6 +5,7 @@
 - Task ID: `SEC-008`
 - Risk: `R4`
 - Issue: `#218`
+- PR: `#219`（Draft、Security Gate blockerあり）
 - Branch: `security/SEC-008-commonmark-advisory`
 - Base: `6cf5f2735e7d60915938064ba32c649a9d8b45d6`
 - PR／Final Head／Squash Commit: Closeout時に確定する。
