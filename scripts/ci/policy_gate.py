@@ -1183,7 +1183,7 @@ def validate_workspace_configuration(repository: Path) -> None:
         "overrides": {
             "brace-expansion": "5.0.9",
             "fast-uri": "3.1.5",
-            "js-yaml": "4.3.0",
+            "js-yaml": "4.3.1",
             "minimatch": "10.2.5",
             "postcss": "8.5.23",
             "sharp": "0.35.0",
