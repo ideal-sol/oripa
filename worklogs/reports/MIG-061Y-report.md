@@ -6,7 +6,7 @@
 - PR: #221
 - Base: `5cd779d5918fbc39e8598ccb699863200747aabe`
 - Application／Artifact Source Commit: `e2d392bbbb168f4223c1a6ee3490857764a01bba`
-- Task Policy SHA-256: `357faa3359478103467e91a7cf39ac6d83dd7d6e876e8b2a0b47e32540b20c55`
+- Task Policy SHA-256: `253e95cc09cbfd1670eb836ecaecf31f620fa5cf841330b6e767935eb91747ce`
 - Squash Commit: Closeout時にGitHubで確定
 
 ## Endpoint／判定Contract

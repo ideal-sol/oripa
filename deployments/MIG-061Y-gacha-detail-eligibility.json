@@ -6,7 +6,7 @@
   "base_branch": "main",
   "base_sha": "5cd779d5918fbc39e8598ccb699863200747aabe",
   "application_source_commit": "e2d392bbbb168f4223c1a6ee3490857764a01bba",
-  "task_policy_sha256": "357faa3359478103467e91a7cf39ac6d83dd7d6e876e8b2a0b47e32540b20c55",
+  "task_policy_sha256": "253e95cc09cbfd1670eb836ecaecf31f620fa5cf841330b6e767935eb91747ce",
   "issue": 220,
   "pull_request": 221,
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061Y/",
