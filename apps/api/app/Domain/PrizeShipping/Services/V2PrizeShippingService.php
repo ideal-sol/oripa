@@ -60,7 +60,10 @@ final class V2PrizeShippingService
             ->limit($limit + 1)
             ->get();
         $hasMore = $rows->count() > $limit;
-        $items = $rows->take($limit)->map(fn (object $row): array => $this->prize($row))->all();
+        $now = CarbonImmutable::parse(now())->startOfSecond();
+        $items = $rows->take($limit)
+            ->map(fn (object $row): array => $this->prize($row, $now))
+            ->all();
 
         return [
             'items' => $items,
@@ -88,7 +91,10 @@ final class V2PrizeShippingService
                 'occurred_at' => CarbonImmutable::parse($item->occurred_at)->toIso8601String(),
             ])->all();
 
-        return [...$this->prize($row), 'status_history' => $history];
+        return [
+            ...$this->prize($row, CarbonImmutable::parse(now())->startOfSecond()),
+            'status_history' => $history,
+        ];
     }
 
     /**
@@ -137,11 +143,7 @@ final class V2PrizeShippingService
             $this->assertNoActiveHold($prizes->pluck('id')->map(fn ($id): int => (int) $id)->all());
             $now = CarbonImmutable::parse(now())->startOfSecond();
             foreach ($prizes as $prize) {
-                if (
-                    $prize->status !== 'stored'
-                    || CarbonImmutable::parse($prize->storage_expires_at)->lessThanOrEqualTo($now)
-                    || (int) $prize->exchange_point_snapshot <= 0
-                ) {
+                if (! $this->prizeActions($prize, $now, false)['point_exchange']['allowed']) {
                     throw new V2PrizeShippingException(
                         'PRIZE_NOT_EXCHANGEABLE',
                         409,
@@ -387,10 +389,7 @@ final class V2PrizeShippingService
             $this->assertNoActiveHold($prizes->pluck('id')->map(fn ($id): int => (int) $id)->all());
             $now = CarbonImmutable::parse(now())->startOfSecond();
             foreach ($prizes as $prize) {
-                if (
-                    $prize->status !== 'stored'
-                    || CarbonImmutable::parse($prize->storage_expires_at)->lessThanOrEqualTo($now)
-                ) {
+                if (! $this->prizeActions($prize, $now, false)['shipping']['allowed']) {
                     throw new V2PrizeShippingException(
                         'PRIZE_NOT_SHIPPABLE',
                         409,
@@ -656,6 +655,13 @@ final class V2PrizeShippingService
     {
         return DB::table('user_prizes as up')
             ->join('draw_results as dr', 'dr.id', '=', 'up.draw_result_id')
+            ->leftJoinSub(
+                $this->activePaymentHoldQuery(),
+                'active_payment_hold',
+                'active_payment_hold.user_prize_id',
+                '=',
+                'up.id'
+            )
             ->where('up.user_id', $userId)
             ->select([
                 'up.id',
@@ -669,18 +675,43 @@ final class V2PrizeShippingService
                 'dr.public_id as draw_result_public_id',
                 'dr.display_snapshot',
                 'dr.display_snapshot_sha256',
+                'active_payment_hold.user_prize_id as active_payment_hold_prize_id',
             ]);
     }
 
     /** @return array<string, mixed> */
-    private function prize(object $row): array
+    private function prize(object $row, CarbonImmutable $now): array
     {
         $snapshot = is_string($row->display_snapshot)
             ? json_decode($row->display_snapshot, true, flags: JSON_THROW_ON_ERROR)
             : (array) $row->display_snapshot;
+        $prize = $snapshot['prize'] ?? null;
+        $rank = $snapshot['rank'] ?? null;
+        if (! is_array($prize) || ! is_array($rank)) {
+            throw new V2PrizeShippingException(
+                'USER_PRIZE_PRESENTATION_UNAVAILABLE',
+                500,
+                'The User Prize presentation is unavailable.'
+            );
+        }
+        $actions = $this->prizeActions(
+            $row,
+            $now,
+            $row->active_payment_hold_prize_id !== null
+        );
 
         return [
             'id' => $row->public_id,
+            'presentation' => [
+                'prize_id' => $prize['id'],
+                'name' => $prize['name'],
+                'image' => $prize['presentation_asset'] ?? null,
+                'rank' => [
+                    'id' => $rank['id'],
+                    'code' => $rank['code'],
+                    'name' => $rank['name'],
+                ],
+            ],
             'status' => $row->status,
             'exchange_points' => (int) $row->exchange_point_snapshot,
             'acquired_at' => CarbonImmutable::parse($row->acquired_at)->toIso8601String(),
@@ -688,8 +719,47 @@ final class V2PrizeShippingService
                 $row->storage_expires_at
             )->toIso8601String(),
             'draw_result_id' => $row->draw_result_public_id,
-            'display' => $snapshot['prize'] ?? null,
-            'rank' => $snapshot['rank'] ?? null,
+            'allowed_actions' => $actions,
+            'display' => $prize,
+            'rank' => $rank,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function prizeActions(
+        object $prize,
+        CarbonImmutable $now,
+        bool $hasActivePaymentHold
+    ): array {
+        $commonReason = match (true) {
+            $hasActivePaymentHold => 'payment_hold',
+            $prize->status !== 'stored' => 'status_not_actionable',
+            CarbonImmutable::parse($prize->storage_expires_at)->lessThanOrEqualTo($now) =>
+                'storage_expired',
+            default => null,
+        };
+        $shipping = $this->actionState($commonReason);
+        $pointExchange = $this->actionState(
+            $commonReason ?? ((int) $prize->exchange_point_snapshot <= 0
+                ? 'exchange_points_unavailable'
+                : null)
+        );
+
+        return [
+            'shipping' => $shipping,
+            'point_exchange' => $pointExchange,
+            'selection' => $this->actionState(
+                $shipping['allowed'] || $pointExchange['allowed'] ? null : $commonReason
+            ),
+        ];
+    }
+
+    /** @return array{allowed: bool, unavailable_reason: string|null} */
+    private function actionState(?string $reason): array
+    {
+        return [
+            'allowed' => $reason === null,
+            'unavailable_reason' => $reason,
         ];
     }
 
@@ -984,10 +1054,9 @@ final class V2PrizeShippingService
 
     private function assertNoActiveHold(array $prizeIds): void
     {
-        $hold = DB::table('payment_adjustment_prize_actions')
+        $hold = DB::query()
+            ->fromSub($this->activePaymentHoldQuery(), 'active_payment_hold')
             ->whereIn('user_prize_id', $prizeIds)
-            ->whereIn('action_type', ['hold', 'return_request'])
-            ->whereIn('status', ['pending', 'completed', 'manual_review'])
             ->exists();
         if ($hold) {
             throw new V2PrizeShippingException(
@@ -996,6 +1065,15 @@ final class V2PrizeShippingService
                 'The Prize is held by a Payment Adjustment.'
             );
         }
+    }
+
+    private function activePaymentHoldQuery(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('payment_adjustment_prize_actions')
+            ->select('user_prize_id')
+            ->whereIn('action_type', ['hold', 'return_request'])
+            ->whereIn('status', ['pending', 'completed', 'manual_review'])
+            ->groupBy('user_prize_id');
     }
 
     private function prizeStatusForShipping(string $shippingStatus): string

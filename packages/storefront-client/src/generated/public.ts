@@ -821,16 +821,44 @@ export interface components {
         OpaqueId: string;
         /** @enum {string} */
         UserPrizeStatus: "stored" | "exchange_processing" | "converted" | "shipping_requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "expired" | "canceled";
+        /** @enum {string} */
+        UserPrizeActionUnavailableReason: "payment_hold" | "status_not_actionable" | "storage_expired" | "exchange_points_unavailable";
+        UserPrizeActionState: {
+            allowed: boolean;
+            unavailable_reason: components["schemas"]["UserPrizeActionUnavailableReason"] | null;
+        };
+        UserPrizeAllowedActions: {
+            shipping: components["schemas"]["UserPrizeActionState"];
+            point_exchange: components["schemas"]["UserPrizeActionState"];
+            /** @description ShippingまたはPoint交換の少なくとも一方を選択可能な状態。 */
+            selection: components["schemas"]["UserPrizeActionState"];
+        };
+        UserPrizePresentation: {
+            prize_id: components["schemas"]["OpaqueId"];
+            name: string;
+            image: components["schemas"]["NullablePresentationAsset"];
+            rank: components["schemas"]["RankReference"];
+        };
         UserPrize: {
             id: components["schemas"]["OpaqueId"];
+            presentation: components["schemas"]["UserPrizePresentation"];
             status: components["schemas"]["UserPrizeStatus"];
             exchange_points: number;
             acquired_at: components["schemas"]["UtcDateTime"];
             storage_expires_at: components["schemas"]["UtcDateTime"];
             draw_result_id: components["schemas"]["OpaqueId"];
+            allowed_actions: components["schemas"]["UserPrizeAllowedActions"];
+            /**
+             * @deprecated
+             * @description 後方互換用Snapshot。新規実装はpresentationを使用する。
+             */
             display: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * @deprecated
+             * @description 後方互換用Snapshot。新規実装はpresentation.rankを使用する。
+             */
             rank: {
                 [key: string]: unknown;
             } | null;

@@ -16,6 +16,7 @@ import {
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
+  createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
 
 const jsonResponse = (body, init = {}) =>
@@ -56,7 +57,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.2");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.3");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -627,6 +628,26 @@ test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡
     () => draw.createDraw("valid", 2, { idempotency_key: key, csrf_token: csrf }),
     /draw_count is invalid/,
   );
+});
+
+test("Prize Shipping FacadeはUser Prize一覧／詳細のCanonical Pathだけを送る", async () => {
+  const paths = [];
+  const prizeShipping = createStorefrontPrizeShippingClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: { items: [], next_cursor: null },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+  await prizeShipping.listPrizes("opaque-cursor");
+  await prizeShipping.getPrize("0198a001-0000-7000-8000-000000000120");
+
+  assert.deepEqual(paths, [
+    "/me/prizes?cursor=opaque-cursor",
+    "/me/prizes/0198a001-0000-7000-8000-000000000120",
+  ]);
 });
 
 test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () => {

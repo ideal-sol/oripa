@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.2",
+      storefront_client_version: "2.0.0-alpha.3",
       required_capabilities: [],
     },
     public: {
@@ -33,12 +33,20 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
     ...MINIMAL_SITE_MANIFEST_FIXTURE,
     compatibility: {
       ...MINIMAL_SITE_MANIFEST_FIXTURE.compatibility,
-      required_capabilities: ["auth.session.v2", "gacha.presentation.v2"],
+      required_capabilities: [
+        "auth.session.v2",
+        "gacha.presentation.v2",
+        "user-prize.presentation.v2",
+      ],
     },
     public: {
       ...MINIMAL_SITE_MANIFEST_FIXTURE.public,
       features: {
-        enabled: ["auth.session.v2", "gacha.presentation.v2"],
+        enabled: [
+          "auth.session.v2",
+          "gacha.presentation.v2",
+          "user-prize.presentation.v2",
+        ],
       },
     },
   } as const satisfies SiteManifest,
@@ -46,8 +54,12 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.2",
-  capabilities: ["auth.session.v2", "gacha.presentation.v2"],
+  minimum_storefront_client_version: "2.0.0-alpha.3",
+  capabilities: [
+    "auth.session.v2",
+    "gacha.presentation.v2",
+    "user-prize.presentation.v2",
+  ],
 }) satisfies PlatformRuntimeCompatibility;
 
 export const PUBLIC_RESPONSE_METADATA_FIXTURE = Object.freeze({
@@ -226,11 +238,26 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
 
 export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000120",
+  presentation: {
+    prize_id: "0198a001-0000-7000-8000-000000000009",
+    name: "Fixture S景品",
+    image: null,
+    rank: {
+      id: "0198a001-0000-7000-8000-000000000003",
+      code: "S",
+      name: "Sランク",
+    },
+  },
   status: "stored",
   exchange_points: 8000,
   acquired_at: "2026-07-30T00:00:00Z",
   storage_expires_at: "2026-09-28T00:00:00Z",
   draw_result_id: "0198a001-0000-7000-8000-000000000121",
+  allowed_actions: {
+    shipping: { allowed: true, unavailable_reason: null },
+    point_exchange: { allowed: true, unavailable_reason: null },
+    selection: { allowed: true, unavailable_reason: null },
+  },
   display: {
     id: "0198a001-0000-7000-8000-000000000009",
     name: "Fixture S景品",

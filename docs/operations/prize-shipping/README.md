@@ -12,6 +12,8 @@ V1の最終業務状態をCharacterizationし、`stored`から交換または発
 
 交換PointとStorage期限はDraw時Snapshotを正本とする。所有User、Draw Result、Catalog Relation、Snapshotは変更不可で、状態変更は`user_prize_status_histories`へAppend-onlyで保存する。
 
+Public一覧／詳細はSnapshotから型付きPrize／Asset／Rank Presentationを返し、Action可否はBackendで判定する。`stored`、Storage期限、交換Point、Active Payment HoldをStorefrontで組み合わせて推測してはならない。`selection`はShippingまたはPoint交換の少なくとも一方を選べることを表し、User固有Responseは`private, no-store`かつ`Vary: Cookie`とする。
+
 ## Point Exchange
 
 `Idempotency-Key`を必須とし、Wallet、User Prize、Point Lot、Operation、Ledger、Audit、Outboxを同一Transactionで確定する。全景品が交換可能な場合だけfree Pointを付与し、一部成功やReplay時の二重付与を許可しない。

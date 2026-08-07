@@ -16,6 +16,7 @@ use App\Models\V2\Admin;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -41,6 +42,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
 
     protected function tearDown(): void
     {
+        Auth::forgetGuards();
         CarbonImmutable::setTestNow();
         DB::rollBack();
         parent::tearDown();
@@ -96,11 +98,118 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertCount(2, $service->prizes($user, $page['next_cursor'], 2)['items']);
         self::assertSame([], $service->prizes($other, null, 20)['items']);
         self::assertSame($prizes[4], $page['items'][0]['id']);
+        self::assertSame(
+            '0198a001-0000-7000-8000-000000000009',
+            $page['items'][0]['presentation']['prize_id']
+        );
+        self::assertSame('Fixture S景品', $page['items'][0]['presentation']['name']);
+        self::assertSame('S', $page['items'][0]['presentation']['rank']['code']);
+        self::assertTrue($page['items'][0]['allowed_actions']['shipping']['allowed']);
+        self::assertTrue($page['items'][0]['allowed_actions']['point_exchange']['allowed']);
+        self::assertTrue($page['items'][0]['allowed_actions']['selection']['allowed']);
         $serialized = json_encode($page, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('internal_id', $serialized);
         self::assertStringNotContainsString('exchange_point_snapshot', $serialized);
         self::assertStringNotContainsString('individual_ppm', $serialized);
         self::assertStringNotContainsString('cost_price', $serialized);
+    }
+
+    public function test_prize_presentation_actions_are_backend_authoritative_and_private(): void
+    {
+        [$user, $prizes] = $this->fixture(10);
+        CarbonImmutable::setTestNow('2026-09-01T00:00:00Z');
+        DB::table('user_prizes')->where('public_id', $prizes[2])->update([
+            'status' => 'exchange_processing',
+            'updated_at' => now(),
+        ]);
+        DB::table('user_prizes')->where('public_id', $prizes[3])->update([
+            'status' => 'delivered',
+            'terminal_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('user_prizes')->where('public_id', $prizes[4])->update([
+            'status' => 'expired',
+            'terminal_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->placePaymentHold($user, $prizes[6]);
+
+        $service = app(V2PrizeShippingService::class);
+        $both = $service->prizeDetail($user, $prizes[0]);
+        self::assertSame(
+            ['shipping' => true, 'point_exchange' => true, 'selection' => true],
+            collect($both['allowed_actions'])
+                ->map(fn (array $action): bool => $action['allowed'])
+                ->all()
+        );
+        self::assertNull($both['allowed_actions']['shipping']['unavailable_reason']);
+        self::assertArrayNotHasKey('internal_id', $both['presentation']);
+
+        foreach ([
+            $prizes[2] => 'status_not_actionable',
+            $prizes[3] => 'status_not_actionable',
+            $prizes[4] => 'status_not_actionable',
+            $prizes[6] => 'payment_hold',
+        ] as $publicId => $reason) {
+            $item = $service->prizeDetail($user, $publicId);
+            self::assertFalse($item['allowed_actions']['shipping']['allowed']);
+            self::assertFalse($item['allowed_actions']['point_exchange']['allowed']);
+            self::assertFalse($item['allowed_actions']['selection']['allowed']);
+            self::assertSame(
+                $reason,
+                $item['allowed_actions']['selection']['unavailable_reason']
+            );
+        }
+
+        Auth::guard('v2_user')->setUser($user);
+        $response = $this->getJson('/api/v2/me/prizes/'.$prizes[0])
+            ->assertOk()
+            ->assertJsonPath('presentation.name', 'Fixture S景品')
+            ->assertJsonPath('allowed_actions.point_exchange.allowed', true);
+        self::assertStringContainsString(
+            'private',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertStringContainsString(
+            'no-store',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertSame('Cookie', $response->headers->get('Vary'));
+        $this->getJson('/api/v2/me/prizes/'.Str::uuid7())
+            ->assertNotFound()
+            ->assertJsonPath('code', 'USER_PRIZE_NOT_FOUND');
+
+        Auth::forgetGuards();
+        $this->getJson('/api/v2/me/prizes')->assertUnauthorized();
+    }
+
+    public function test_zero_exchange_points_allow_shipping_but_not_point_exchange(): void
+    {
+        [$user, $prizes] = $this->fixture(1, 0);
+        $item = app(V2PrizeShippingService::class)->prizeDetail($user, $prizes[0]);
+
+        self::assertTrue($item['allowed_actions']['shipping']['allowed']);
+        self::assertFalse($item['allowed_actions']['point_exchange']['allowed']);
+        self::assertSame(
+            'exchange_points_unavailable',
+            $item['allowed_actions']['point_exchange']['unavailable_reason']
+        );
+        self::assertTrue($item['allowed_actions']['selection']['allowed']);
+    }
+
+    public function test_storage_expiry_boundary_disallows_all_actions(): void
+    {
+        [$user, $prizes] = $this->fixture(1);
+        $expiresAt = DB::table('user_prizes')
+            ->where('public_id', $prizes[0])
+            ->value('storage_expires_at');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($expiresAt));
+
+        $item = app(V2PrizeShippingService::class)->prizeDetail($user, $prizes[0]);
+        foreach ($item['allowed_actions'] as $action) {
+            self::assertFalse($action['allowed']);
+            self::assertSame('storage_expired', $action['unavailable_reason']);
+        }
     }
 
     public function test_bulk_exchange_grants_snapshot_free_points_and_replays_once(): void
@@ -558,7 +667,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
     }
 
     /** @return array{User, list<string>} */
-    private function fixture(int $prizeCount): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -567,6 +676,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = max(1000, $prizeCount + 10);
+        $fixture['prizes'][0]['exchange_points'] = $exchangePoints;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = max(1000, $prizeCount + 10);
         }
@@ -602,6 +712,51 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertCount($prizeCount, $ids);
 
         return [$user, $ids];
+    }
+
+    private function placePaymentHold(User $user, string $prizePublicId): void
+    {
+        $paymentId = DB::table('payments')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $user->id,
+            'provider_code' => 'fixture',
+            'status' => 'succeeded',
+            'amount' => 100,
+            'currency' => 'JPY',
+            'paid_point_amount' => 100,
+            'free_point_amount' => 0,
+            'plan_name_snapshot' => 'Fixture',
+            'plan_code_snapshot' => 'fixture',
+            'succeeded_at' => now(),
+            'points_granted_at' => now(),
+            'metadata' => '{}',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $adjustmentId = DB::table('payment_adjustments')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'payment_id' => $paymentId,
+            'type' => 'chargeback',
+            'status' => 'manual_review',
+            'amount' => 100,
+            'currency' => 'JPY',
+            'requested_at' => now(),
+            'manual_review_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('payment_adjustment_prize_actions')->insert([
+            'payment_adjustment_id' => $adjustmentId,
+            'user_prize_id' => DB::table('user_prizes')
+                ->where('public_id', $prizePublicId)
+                ->value('id'),
+            'action_type' => 'hold',
+            'status' => 'completed',
+            'requested_at' => now(),
+            'mail_status' => 'not_requested',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /** @return array{mixed, float, int} */

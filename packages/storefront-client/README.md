@@ -35,13 +35,17 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.2`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.3`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
 Catalog Facadeの`getGachaPresentation`は、販売状態、Audience、日次上限、実行可能な
 Draw Count、CTA状態をBackend判定済みの`private, no-store` Responseとして取得する。
 Storefront側でEligibilityを再計算しない。
+
+Prize Shipping Facadeの`listPrizes`／`getPrize`は、型付きPrize Presentationと
+Backend判定済みのShipping／Point交換／選択可否を取得する。Storefront側でStatus、
+期限、交換PointからAction可否を再計算しない。
 
 ## Entry Points
 

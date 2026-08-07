@@ -8167,3 +8167,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview Public Originを`https://test.luxe-pack.biz`に固定し、同一Origin `/api/v2/`だけを既存V2 Public APIへ転送した。`/admin/api/`はHTTP 404で分離し、Storefront rootはSITE-004配備まで閉じた。
 - Preview API Containerへ`V2_PUBLIC_ORIGIN`を明示注入し、Compose／Policy GateでOrigin mappingの欠落を拒否する。API Image、DB／Migration、Admin Container、既存V1／Admin vhostは変更していない。
 - Auth Session、CSRF Cookie、register／login Validation経路、Public Catalog、Gacha Presentation、RFC 9457、Cross-Origin拒否、Admin API遮断、V1／V2 Admin非影響をHTTP Smokeで確認した。
+
+## MIG-062A User Prize Presentation／Allowed Actions Public Contract
+
+- Base `2e171ff474b6b9103279c1041a31e6b1a87f994d`からIssue #224、Branch `feat/MIG-062A-user-prize-presentation-contract`、Risk R3で開始した。
+- 既存User Prize一覧／詳細へ型付きPresentationとBackend正本のAllowed Actions／Machine-readable理由をadditiveに追加し、Shipping／Point Exchange Mutationと同じ判定を再利用した。
+- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.3`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
