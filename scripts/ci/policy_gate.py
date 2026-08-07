@@ -1977,7 +1977,7 @@ def validate_compose_skeletons(repository: Path) -> None:
         "postgres:",
         "redis:",
         "healthcheck:",
-        "V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}",
+        "V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}",
     ):
         if required not in v2:
             raise PolicyFailure(f"docker-compose.v2.yml: required value missing {required}")

@@ -12,7 +12,7 @@
 
 - Public Originは既存DNSでPreview用に割り当て済みの`https://test.luxe-pack.biz`とした。V2 APIの外部URLは同一Originの`https://test.luxe-pack.biz/api/v2/...`である。
 - 新規vhost `/etc/nginx/conf.d/test.luxe-pack.biz.conf`の`/api/v2/`だけを既存Preview API Upstreamへ透過転送する。`/admin/api/`はNginxでHTTP 404とし、Admin APIと完全分離した。Storefront本体はSITE-004配備前のため`/`をHTTP 404のまま閉じた。
-- API Containerへ`V2_PUBLIC_ORIGIN=https://test.luxe-pack.biz`を追加した。Composeは値を必須化し、Policy Gateで欠落を拒否する。API Image DigestとRuntime Commitは変更していない。
+- API Containerへ`V2_PUBLIC_ORIGIN=https://test.luxe-pack.biz`を明示適用した。非本番ComposeはLocal／CI用のlocalhost既定値を持ち、Policy GateでOrigin mapping自体の欠落を拒否する。API Image DigestとRuntime Commitは変更していない。
 - `test.luxe-pack.biz`専用Let’s Encrypt証明書を既存Canonical DNS-01方式で発行した。既存証明書、既存vhost、V1／V2 Admin Upstreamは変更していない。
 
 ## Cookie／CSRF／CORS

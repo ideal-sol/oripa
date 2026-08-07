@@ -1753,7 +1753,7 @@ services:
 services:
   api:
     environment:
-      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}
+      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}
     healthcheck:
       test: health
   admin:
@@ -2201,7 +2201,7 @@ services:
             compose = root / "docker-compose.v2.yml"
             compose.write_text(
                 compose.read_text(encoding="utf-8").replace(
-                    "      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:?V2_PUBLIC_ORIGIN is required}\n",
+                    "      V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}\n",
                     "",
                 ),
                 encoding="utf-8",

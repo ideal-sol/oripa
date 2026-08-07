@@ -8165,5 +8165,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Issue #222、Branch `feat/MIG-061Z-public-api-origin-proxy`、Base `cea1fd97ddfcc60861b1650b434f43a60f95d810`で開始した。
 - Preview Public Originを`https://test.luxe-pack.biz`に固定し、同一Origin `/api/v2/`だけを既存V2 Public APIへ転送した。`/admin/api/`はHTTP 404で分離し、Storefront rootはSITE-004配備まで閉じた。
-- API Containerへ`V2_PUBLIC_ORIGIN`を明示注入し、Compose／Policy Gateで欠落をFail Closedにした。API Image、DB／Migration、Admin Container、既存V1／Admin vhostは変更していない。
+- Preview API Containerへ`V2_PUBLIC_ORIGIN`を明示注入し、Compose／Policy GateでOrigin mappingの欠落を拒否する。API Image、DB／Migration、Admin Container、既存V1／Admin vhostは変更していない。
 - Auth Session、CSRF Cookie、register／login Validation経路、Public Catalog、Gacha Presentation、RFC 9457、Cross-Origin拒否、Admin API遮断、V1／V2 Admin非影響をHTTP Smokeで確認した。
