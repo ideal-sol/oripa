@@ -8134,3 +8134,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Backend正本のSession Policyを、AdminはIdle 6時間／Absolute 12時間、StorefrontはIdle 12時間／Absolute 24時間へ更新した。
 - Migration 000040でDB Duration Checkを同じ上限へ更新し、長時間Sessionを含むrollback／reapplyと対象6 tests／42 assertionsを確認した。
 - Remember me、Cookie／CSRF、認証Contract、Nginx、V1、Storefront Repository、Payment Providerは変更しない。
+
+# SEC-008 CommonMark Advisory最小更新
+
+- Issue #218、Branch `security/SEC-008-commonmark-advisory`、Risk R4で開始した。
+- Composer Auditで`league/commonmark 2.8.2`に新規検出された6 Advisoryを確認し、全件の最小修正版である`2.9.0`へ限定更新した。
+- Composer Resolverのpackage version差分はCommonMark 1件だけ。Baseline、Manifest、Application Source、Migration、Runtimeは変更しない。
+- Composer validate／Frozen Install／AuditはPASSし、CommonMark Findingは0件となった。
+- 同時点でScope外の`js-yaml 4.3.0`に新規High Advisory `GHSA-5p4m-2wfm-xmqj`が公開されていたため、Local Security GateはFAILした。Baseline追加やScope外更新は行わず、Mergeを停止する。
+- Draft PR #219へ固定差分を保存した。PR本文のTask ID／Changed files／Allowed pathsをCanonical形式へ揃え、Required Checksでblockerを確認する。
+- 人間承認により同じSEC-008で`GHSA-5p4m-2wfm-xmqj`を追加対象とし、Root／Legacyのexact overrideとLockfileを`js-yaml 4.3.1`へ限定更新した。他Dependency、Baseline、Gateは変更していない。
