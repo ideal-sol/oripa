@@ -6,7 +6,7 @@
   "base_sha": "cea1fd97ddfcc60861b1650b434f43a60f95d810",
   "task_policy_sha256": "9caef5ce3fd263ba9b5c9cff9139881951d25b9880c39cc0b8bcb490ee40e497",
   "issue": 222,
-  "pull_request": null,
+  "pull_request": 223,
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-061Z/",
   "public_origin": "https://test.luxe-pack.biz",
   "external_api_prefix": "/api/v2/",
@@ -33,6 +33,12 @@
     "storefront_root": "CLOSED_HTTP_404_UNTIL_SITE_004"
   },
   "verification": {
+    "policy_unit": "PASS_112_TESTS",
+    "policy_gate": "PASS",
+    "quality_gate": "PASS",
+    "security_gate": "PASS_NO_NEW_FINDINGS",
+    "compose_config": "PASS",
+    "git_diff_check": "PASS",
     "nginx_test": "PASS",
     "auth_session": "PASS_HTTP_200_ANONYMOUS",
     "csrf_cookie": "PASS_SECURE_HOST_ONLY_SAMESITE_LAX",

@@ -3,7 +3,7 @@
 ## Issue／PR／Commit
 
 - Issue: #222
-- PR: 作成後に確定
+- PR: #223
 - Base: `cea1fd97ddfcc60861b1650b434f43a60f95d810`
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `9caef5ce3fd263ba9b5c9cff9139881951d25b9880c39cc0b8bcb490ee40e497`
@@ -27,5 +27,6 @@
 - Public CatalogはHTTP 200。公開Gachaが0件のためPresentationは有効UUID形式でRFC 9457 HTTP 404 `CATALOG_NOT_FOUND`まで到達し、Route／Proxyを確認した。実在Gachaの200はSITE-004または公開Test Data準備後の確認事項である。
 - Public OriginからAdmin APIはHTTP 404。`luxe-pack.biz`はHTTP 200、`ad.luxe-pack.biz/login`は既存Login Redirect、`admin.luxe-pack.biz/login`はHTTP 200を維持した。DB／Migration、Admin Container、V1、Storefront Repository、Payment Providerは非変更。
 - SITE-004は同一Origin Public API接続を再開可能。認証の実ユーザーBrowser FlowはStorefront UI配備後に既存Synthetic Credentialで確認する。
+- Policy Unit 112件、Policy／Quality／Security Gate、Compose config、`git diff --check`はPASS。Application Suite／BuildはTask範囲外のため実行していない。
 
 - Gate G4／G5: `NOT COMPLETE`
