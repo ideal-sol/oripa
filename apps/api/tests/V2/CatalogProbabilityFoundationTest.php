@@ -236,9 +236,10 @@ final class CatalogProbabilityFoundationTest extends TestCase
         $future['versions'][0]['publish_start_at'] = '2026-08-01T00:00:00Z';
         $future['versions'][0]['publish_end_at'] = '2026-09-01T00:00:00Z';
         app(V2CatalogFixtureImporter::class)->import($future);
+        $this->getJson('/api/v2/gachas')->assertJsonCount(0, 'data');
         $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
-            ->assertNotFound()
-            ->assertHeader('Content-Type', 'application/problem+json');
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'coming_soon');
     }
 
     public function test_expired_version_is_not_public(): void
@@ -247,7 +248,10 @@ final class CatalogProbabilityFoundationTest extends TestCase
         $expired['versions'][0]['publish_start_at'] = '2025-01-01T00:00:00Z';
         $expired['versions'][0]['publish_end_at'] = '2026-01-01T00:00:00Z';
         app(V2CatalogFixtureImporter::class)->import($expired);
-        $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')->assertNotFound();
+        $this->getJson('/api/v2/gachas')->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'ended');
     }
 
     public function test_invalid_cursor_uses_rfc_9457_problem_details(): void

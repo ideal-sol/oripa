@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gacha-presentations/{gacha_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gacha詳細の販売状態とUser別CTA判定を取得する */
+        get: operations["getGachaPresentation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gachas/{gacha_id}/draws": {
         parameters: {
             query?: never;
@@ -1046,9 +1063,45 @@ export interface components {
             notices: string | null;
             ranks: components["schemas"]["RankDisplay"][];
             probability_stages: components["schemas"]["ProbabilityStage"][];
+            sale_state?: components["schemas"]["GachaSaleState"];
         };
         GachaDetailResponse: {
             data: components["schemas"]["GachaDetail"];
+        };
+        /** @enum {string} */
+        GachaSaleState: "coming_soon" | "on_sale" | "sold_out" | "ended";
+        /** @enum {string} */
+        GachaAudience: "all_users" | "first_time_users" | "line_users";
+        /** @enum {string|null} */
+        GachaPresentationReason: "sale_not_started" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "daily_limit_reached" | null;
+        GachaDailyLimitState: {
+            limit: number;
+            unlimited: boolean;
+            used: number | null;
+            remaining: number | null;
+            resets_at: components["schemas"]["UtcDateTime"];
+        };
+        GachaCtaState: {
+            /** @enum {string} */
+            state: "enabled" | "disabled" | "hidden";
+            /** @enum {string|null} */
+            action: "login" | "draw" | null;
+            reason: components["schemas"]["GachaPresentationReason"];
+        };
+        GachaPresentationState: {
+            gacha_id: components["schemas"]["OpaqueId"];
+            sale_state: components["schemas"]["GachaSaleState"];
+            /** @enum {string} */
+            user_state: "unauthenticated" | "authenticated";
+            audience: components["schemas"]["GachaAudience"];
+            eligible: boolean;
+            ineligible_reason: components["schemas"]["GachaPresentationReason"];
+            allowed_draw_counts: (1 | 5 | 10 | 100 | 1000)[];
+            daily_limit: components["schemas"]["GachaDailyLimitState"];
+            cta: components["schemas"]["GachaCtaState"];
+        };
+        GachaPresentationResponse: {
+            data: components["schemas"]["GachaPresentationState"];
         };
         CreateDrawRequest: {
             /** @enum {integer} */
@@ -1536,6 +1589,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getGachaPresentation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gacha_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Backend判定済みのGacha表示・CTA状態。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GachaPresentationResponse"];
                 };
             };
             default: components["responses"]["Problem"];

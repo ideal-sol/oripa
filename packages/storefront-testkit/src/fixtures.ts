@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.1",
+      storefront_client_version: "2.0.0-alpha.2",
       required_capabilities: [],
     },
     public: {
@@ -33,12 +33,12 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
     ...MINIMAL_SITE_MANIFEST_FIXTURE,
     compatibility: {
       ...MINIMAL_SITE_MANIFEST_FIXTURE.compatibility,
-      required_capabilities: ["auth.session.v2"],
+      required_capabilities: ["auth.session.v2", "gacha.presentation.v2"],
     },
     public: {
       ...MINIMAL_SITE_MANIFEST_FIXTURE.public,
       features: {
-        enabled: ["auth.session.v2"],
+        enabled: ["auth.session.v2", "gacha.presentation.v2"],
       },
     },
   } as const satisfies SiteManifest,
@@ -46,8 +46,8 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.1",
-  capabilities: ["auth.session.v2"],
+  minimum_storefront_client_version: "2.0.0-alpha.2",
+  capabilities: ["auth.session.v2", "gacha.presentation.v2"],
 }) satisfies PlatformRuntimeCompatibility;
 
 export const PUBLIC_RESPONSE_METADATA_FIXTURE = Object.freeze({
@@ -142,8 +142,33 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
         },
       },
     ],
+    sale_state: "on_sale",
   },
 } as const satisfies PublicComponents["schemas"]["GachaDetailResponse"]);
+
+export const PUBLIC_GACHA_PRESENTATION_FIXTURE = Object.freeze({
+  data: {
+    gacha_id: "0198a001-0000-7000-8000-000000000011",
+    sale_state: "on_sale",
+    user_state: "authenticated",
+    audience: "first_time_users",
+    eligible: true,
+    ineligible_reason: null,
+    allowed_draw_counts: [1, 5, 10],
+    daily_limit: {
+      limit: 10,
+      unlimited: false,
+      used: 0,
+      remaining: 10,
+      resets_at: "2026-07-29T15:00:00Z",
+    },
+    cta: {
+      state: "enabled",
+      action: "draw",
+      reason: null,
+    },
+  },
+} as const satisfies PublicComponents["schemas"]["GachaPresentationResponse"]);
 
 export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000099",

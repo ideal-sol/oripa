@@ -20,6 +20,7 @@ import {
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_AUTH_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
+  PUBLIC_GACHA_PRESENTATION_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
@@ -368,9 +369,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつGoogle／LINEを含むOperation 47件である", () => {
+test("Public OpenAPIは3.1.1かつGacha Presentationを含むOperation 48件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 47);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 48);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -386,6 +387,7 @@ test("Public OpenAPIは3.1.1かつGoogle／LINEを含むOperation 47件である
     "getDrawRequest",
     "getGacha",
     "getGachaBySlug",
+    "getGachaPresentation",
     "getShippingAddress",
     "getShippingRequest",
     "getSmsVerificationStatus",
@@ -452,6 +454,19 @@ test("Public Catalog Fixtureは集約確率だけを持ち内部情報を公開�
   }
 });
 
+test("Gacha Presentation FixtureはBackend判定済みCTAだけを公開する", () => {
+  assert.equal(PUBLIC_GACHA_PRESENTATION_FIXTURE.data.sale_state, "on_sale");
+  assert.deepEqual(
+    PUBLIC_GACHA_PRESENTATION_FIXTURE.data.allowed_draw_counts,
+    [1, 5, 10],
+  );
+  assert.equal(PUBLIC_GACHA_PRESENTATION_FIXTURE.data.cta.action, "draw");
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_GACHA_PRESENTATION_FIXTURE),
+    /user_id|internal_id|email|cookie|session|password/i,
+  );
+});
+
 test("Public-safeなResponse Metadata Fixtureを固定する", () => {
   assert.doesNotThrow(() =>
     assertResponseMetadata(PUBLIC_RESPONSE_METADATA_FIXTURE),
@@ -495,6 +510,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
+    "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
