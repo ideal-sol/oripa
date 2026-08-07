@@ -1063,7 +1063,7 @@ export interface components {
             notices: string | null;
             ranks: components["schemas"]["RankDisplay"][];
             probability_stages: components["schemas"]["ProbabilityStage"][];
-            sale_state: components["schemas"]["GachaSaleState"];
+            sale_state?: components["schemas"]["GachaSaleState"];
         };
         GachaDetailResponse: {
             data: components["schemas"]["GachaDetail"];

@@ -2068,7 +2068,6 @@ components:
         - notices
         - ranks
         - probability_stages
-        - sale_state
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'

@@ -3470,8 +3470,7 @@
           "description",
           "notices",
           "ranks",
-          "probability_stages",
-          "sale_state"
+          "probability_stages"
         ],
         "properties": {
           "id": {
