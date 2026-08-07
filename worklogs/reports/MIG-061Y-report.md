@@ -26,6 +26,7 @@
 ## Test／Preview
 
 - Backend対象18 tests／158 assertionsと既存QA除外Test、Public OpenAPI 48 operations、Client 17 tests、Site Schema 10 tests、Testkit 24 testsがPASSした。Package Typecheck／Lint／Build、OpenAPI 3面、Release Test 10件／Source Validation、Frozen Lockfile、Policy Unit／Gate、Quality Gate、Security Gate、Secret／PII Scan、`git diff --check`もPASSした。
+- GitHub Quality GateがPlatform Alpha Version不一致とAdmin Generated Contract Markerのstaleを検出した。Version正本を`2.0.0-alpha.2`へ完全一致させ、Generated差分はContract SHAコメント1行だけをCanonical Generatorで更新した。Policy Assertionも同じ厳密値へ更新し、Gateは緩和していない。
 - Preview APIだけを旧`sha256:dd80b68d...`から`sha256:55006860...`へ更新した。新ImageはRuntime Application Commit `539ba74...`、Docker HealthはDB／Redis／Storageを含めてPASS。後続`e2d392b...`はRelease Version MetadataだけのためPreview再Buildは行っていない。旧ImageはRollback用に保持した。
 - Preview公開Gacha一覧はHTTP 200だが0件のため、Presentation実データSmokeはSynthetic Dataを追加せずSkipした。Task DBの対象Contract Testを正本とする。Admin、PostgreSQL、Redis、DB Data／Migration、Nginx Checksum、V1は非変更である。
 - SITE-004は`2.0.0-alpha.2`の3 PackageとPublic OpenAPIを固定導入し、Public API経路が同Endpointを公開する環境で再開可能。Storefront側へBusiness Ruleを実装しない。
