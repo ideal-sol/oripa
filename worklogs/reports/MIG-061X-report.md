@@ -3,8 +3,9 @@
 ## Issue／PR／Commit
 
 - Issue: #216
-- PR: Closeout時に確定
+- PR: #217
 - Base: `6cf5f2735e7d60915938064ba32c649a9d8b45d6`
+- Application Head: `b8e355a4055fe54867be92ab352bf8073281a402`
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `b7163f42976e42a7427994bb08dbeb16b741d1f62248e84c2983ea9030d4ea26`
 

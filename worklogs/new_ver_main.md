@@ -8130,7 +8130,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ## MIG-061X Session有効時間更新
 
-- Issue #216、Branch `security/MIG-061X-session-timeout-policy`、Risk R4で開始した。
+- Issue #216、PR #217、Branch `security/MIG-061X-session-timeout-policy`、Risk R4で開始した。
 - Backend正本のSession Policyを、AdminはIdle 6時間／Absolute 12時間、StorefrontはIdle 12時間／Absolute 24時間へ更新した。
 - Migration 000040でDB Duration Checkを同じ上限へ更新し、長時間Sessionを含むrollback／reapplyと対象6 tests／42 assertionsを確認した。
 - Remember me、Cookie／CSRF、認証Contract、Nginx、V1、Storefront Repository、Payment Providerは変更しない。
