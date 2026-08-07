@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.3",
+    "version": "2.0.0-alpha.4",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2482,13 +2482,11 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "presentation",
           "status",
           "exchange_points",
           "acquired_at",
           "storage_expires_at",
           "draw_result_id",
-          "allowed_actions",
           "display",
           "rank"
         ],

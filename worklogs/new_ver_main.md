@@ -8172,5 +8172,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Base `2e171ff474b6b9103279c1041a31e6b1a87f994d`からIssue #224、Branch `feat/MIG-062A-user-prize-presentation-contract`、Risk R3で開始した。
 - 既存User Prize一覧／詳細へ型付きPresentationとBackend正本のAllowed Actions／Machine-readable理由をadditiveに追加し、Shipping／Point Exchange Mutationと同じ判定を再利用した。
-- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.3`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
-- Application Head `1c4b54a893c7c047f247507f970459534907d2b6`からArtifact一式を`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/`へ作成し、Checksum、Manifest、Workspace外Clean Install／Importを確認した。既存Artifact Versionは上書きしていない。
+- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.4`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
+- 初回`.3`候補はOpenAPI Breaking Checkでrequired field追加を検出したため配布対象外とし、既存Artifactを上書きせずoptional additiveへ補正した`.4`を別Directoryへ生成する。

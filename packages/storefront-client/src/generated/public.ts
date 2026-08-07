@@ -841,13 +841,13 @@ export interface components {
         };
         UserPrize: {
             id: components["schemas"]["OpaqueId"];
-            presentation: components["schemas"]["UserPrizePresentation"];
+            presentation?: components["schemas"]["UserPrizePresentation"];
             status: components["schemas"]["UserPrizeStatus"];
             exchange_points: number;
             acquired_at: components["schemas"]["UtcDateTime"];
             storage_expires_at: components["schemas"]["UtcDateTime"];
             draw_result_id: components["schemas"]["OpaqueId"];
-            allowed_actions: components["schemas"]["UserPrizeAllowedActions"];
+            allowed_actions?: components["schemas"]["UserPrizeAllowedActions"];
             /**
              * @deprecated
              * @description 後方互換用Snapshot。新規実装はpresentationを使用する。
