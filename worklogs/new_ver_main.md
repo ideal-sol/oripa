@@ -8127,3 +8127,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task DB Migration fresh／rollback／reapply、LINE／Permission対象16 Test・223 Assertion、Admin 11 Test、対象Browser、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy UnitがPASSした。
 - Application Head `0c844f825bbd683fc9cf76b27fa190610fd9adf0`からPreview APIを`sha256:dd80b68d...`、Adminを`sha256:6ab94d4c...`へ更新し、Migration 000039だけを適用した。
 - Ownerで友だち追加URLの一時保存、再取得、元値復元、Secret field非表示、Desktop／Mobileを確認した。Console／Page Error、HTTP 500／502／504は0で、Nginx checksum、V1、DB既存Data、Network／固定IP／Environmentは維持した。
+
+# SEC-008 CommonMark Advisory最小更新
+
+- Issue #218、Branch `security/SEC-008-commonmark-advisory`、Risk R4で開始した。
+- Composer Auditで`league/commonmark 2.8.2`に新規検出された6 Advisoryを確認し、全件の最小修正版である`2.9.0`へ限定更新した。
+- Composer Resolverのpackage version差分はCommonMark 1件だけ。Baseline、Manifest、Application Source、Migration、Runtimeは変更しない。
+- Composer validate／Frozen Install／AuditはPASSし、CommonMark Findingは0件となった。
+- 同時点でScope外の`js-yaml 4.3.0`に新規High Advisory `GHSA-5p4m-2wfm-xmqj`が公開されていたため、Local Security GateはFAILした。Baseline追加やScope外更新は行わず、Mergeを停止する。
