@@ -20,6 +20,14 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_061x_session_timeout_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_08_27_000040_update_v2_session_timeout_constraints.php",
+        }
+        self.assertEqual(policy_gate.MIG_061X_V2_IDENTITY_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_061w_line_settings_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",

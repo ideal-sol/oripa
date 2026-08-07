@@ -160,9 +160,9 @@ V2ではこれらを捨てず、認証Realm、MFA、権限、監査、Recovery�
 | Default Laravel配置 | 同一Source / Imageから3 Runtime |
 | Browser認証 | Laravel Sanctum Session Cookie |
 | Browser Token保存 | Local Storage禁止 |
-| User Session | Idle 60分、Absolute 24時間 |
+| User Session | Idle 12時間、Absolute 24時間 |
 | User Remember me | 任意、30日、Device別・Rotation |
-| Admin Session | Idle 15分、Absolute 8時間 |
+| Admin Session | Idle 6時間、Absolute 12時間 |
 | Admin Remember me | 禁止 |
 | User Step-up | 10分間有効 |
 | Admin Step-up | 5分間有効 |
@@ -981,7 +981,7 @@ Session IDはLogへ出さず、必要な相関にはKeyed Hashを使用する。
 ## 19.2 User Session
 
 ```text
-Idle Timeout:     60分
+Idle Timeout:     12時間
 Absolute Timeout: 24時間
 ```
 
@@ -1010,8 +1010,8 @@ Domain:   未指定
 ## 19.3 Admin Session
 
 ```text
-Idle Timeout:     15分
-Absolute Timeout: 8時間
+Idle Timeout:     6時間
+Absolute Timeout: 12時間
 ```
 
 Cookie:
@@ -2076,10 +2076,10 @@ Admin型をStorefront Clientへ含めない。
 
 ## 37.7 Session / CSRF
 
-- User 60分Idle
+- User 12時間Idle
 - User 24時間Absolute
-- Admin 15分Idle
-- Admin 8時間Absolute
+- Admin 6時間Idle
+- Admin 12時間Absolute
 - Admin Remember meなし
 - Cookie属性
 - CSRF

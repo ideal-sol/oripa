@@ -191,6 +191,9 @@ MIG_061G_V2_IDENTITY_FILES = {
 MIG_061W_V2_IDENTITY_FILES = {
     "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
 }
+MIG_061X_V2_IDENTITY_FILES = {
+    "apps/api/database/migrations-v2/2026_08_27_000040_update_v2_session_timeout_constraints.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -263,6 +266,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_07_000020_add_line_friend_reward_enabled.php",
     "apps/api/database/migrations-v2/2026_08_17_000030_create_v2_admin_authentication_policy.php",
     *MIG_061W_V2_IDENTITY_FILES,
+    *MIG_061X_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -2135,6 +2139,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_24_000037_create_v2_referral_point_settings.php",
         "2026_08_25_000038_add_v2_point_purchase_management.php",
         "2026_08_26_000039_add_v2_line_settings_management.php",
+        "2026_08_27_000040_update_v2_session_timeout_constraints.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2220,10 +2225,10 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "__Host-oripa_admin_session",
         "__Host-oripa_user_xsrf",
         "__Host-oripa_admin_xsrf",
-        "'idle_minutes' => 60",
+        "'idle_minutes' => 720",
         "'absolute_minutes' => 1440",
-        "'idle_minutes' => 15",
-        "'absolute_minutes' => 480",
+        "'idle_minutes' => 360",
+        "'absolute_minutes' => 720",
         "'same_site' => 'lax'",
         "'same_site' => 'strict'",
         "'remember' => false",

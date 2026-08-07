@@ -8128,6 +8128,18 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application Head `0c844f825bbd683fc9cf76b27fa190610fd9adf0`からPreview APIを`sha256:dd80b68d...`、Adminを`sha256:6ab94d4c...`へ更新し、Migration 000039だけを適用した。
 - Ownerで友だち追加URLの一時保存、再取得、元値復元、Secret field非表示、Desktop／Mobileを確認した。Console／Page Error、HTTP 500／502／504は0で、Nginx checksum、V1、DB既存Data、Network／固定IP／Environmentは維持した。
 
+## MIG-061X Session有効時間更新
+
+- Issue #216、PR #217、Branch `security/MIG-061X-session-timeout-policy`、Risk R4で開始した。
+- Backend正本のSession Policyを、AdminはIdle 6時間／Absolute 12時間、StorefrontはIdle 12時間／Absolute 24時間へ更新した。
+- Migration 000040でDB Duration Checkを同じ上限へ更新し、長時間Sessionを含むrollback／reapplyと対象6 tests／42 assertionsを確認した。
+- Remember me、Cookie／CSRF、認証Contract、Nginx、V1、Storefront Repository、Payment Providerは変更しない。
+
+### MIG-061X SEC-008後Closeout
+
+- SEC-008後の`origin/main@83c573724601b7459fc35d3a73591008f908836c`を既存Task Branchへ取り込み、CommonMark 2.9.0とRoot／Legacy `js-yaml 4.3.1`を維持した。
+- `AuthenticationFlowTest`の旧Session期限前提だけを補正し、Adminは16分後に有効かつ最終Activityから6時間1分後に失効、Storefrontは12時間1分後に失効することを15 tests／95 assertionsで確認した。
+
 # SEC-008 CommonMark Advisory最小更新
 
 - Issue #218、Branch `security/SEC-008-commonmark-advisory`、Risk R4で開始した。

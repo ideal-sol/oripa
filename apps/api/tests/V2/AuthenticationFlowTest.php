@@ -24,6 +24,7 @@ use App\Models\V2\AdminRecoveryCode;
 use App\Models\V2\AdminTotpMethod;
 use App\Models\V2\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use OTPHP\TOTP;
@@ -269,7 +270,7 @@ final class AuthenticationFlowTest extends TestCase
         self::assertNotSame($oldToken, $sessionCookie->getValue());
     }
 
-    public function test_session_endpoint_distinguishes_expired_cookie_and_rotates_csrf(): void
+    public function test_storefront_session_endpoint_expires_after_twelve_idle_hours_and_rotates_csrf(): void
     {
         $user = User::query()->create([
             'email_display' => 'expired-session@example.test',
@@ -279,7 +280,8 @@ final class AuthenticationFlowTest extends TestCase
             'state' => V2UserState::Active,
         ]);
         $session = app(V2SessionManager::class)->issue(V2Realm::User, $user->getKey());
-        $this->travel(61)->minutes();
+        $this->travel(12)->hours();
+        $this->travel(1)->minute();
 
         $response = $this
             ->withCredentials()
@@ -301,6 +303,47 @@ final class AuthenticationFlowTest extends TestCase
         self::assertNotNull($cookies->first(
             fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
         ));
+    }
+
+    public function test_admin_session_is_valid_after_sixteen_minutes_and_expires_after_six_idle_hours(): void
+    {
+        $admin = $this->createAdmin(V2AdminRole::Operator);
+        $session = app(V2SessionManager::class)->issue(
+            V2Realm::Admin,
+            $admin->getKey(),
+            true
+        );
+
+        $this->travel(16)->minutes();
+
+        $active = $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_admin_session', $session['token'])
+            ->getJson('/admin/api/v2/auth/session');
+
+        $active
+            ->assertOk()
+            ->assertJsonPath('authenticated', true)
+            ->assertJsonPath('admin.id', $admin->public_id);
+        self::assertNotNull(collect($active->headers->getCookies())->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_admin_xsrf'
+        ));
+
+        $this->travel(6)->hours();
+        $this->travel(1)->minute();
+        Auth::forgetGuards();
+
+        $expired = $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_admin_session', $session['token'])
+            ->getJson('/admin/api/v2/auth/session');
+
+        $expired
+            ->assertOk()
+            ->assertJsonPath('authenticated', false)
+            ->assertJsonPath('admin', null);
     }
 
     public function test_admin_password_is_only_preauth_and_totp_issues_separate_session(): void
