@@ -8136,3 +8136,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Composer validate／Frozen Install／AuditはPASSし、CommonMark Findingは0件となった。
 - 同時点でScope外の`js-yaml 4.3.0`に新規High Advisory `GHSA-5p4m-2wfm-xmqj`が公開されていたため、Local Security GateはFAILした。Baseline追加やScope外更新は行わず、Mergeを停止する。
 - Draft PR #219へ固定差分を保存した。PR本文のTask ID／Changed files／Allowed pathsをCanonical形式へ揃え、Required Checksでblockerを確認する。
+- 人間承認により同じSEC-008で`GHSA-5p4m-2wfm-xmqj`を追加対象とし、Root／Legacyのexact overrideとLockfileを`js-yaml 4.3.1`へ限定更新した。他Dependency、Baseline、Gateは変更していない。
