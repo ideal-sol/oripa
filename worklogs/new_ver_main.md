@@ -8135,6 +8135,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration 000040でDB Duration Checkを同じ上限へ更新し、長時間Sessionを含むrollback／reapplyと対象6 tests／42 assertionsを確認した。
 - Remember me、Cookie／CSRF、認証Contract、Nginx、V1、Storefront Repository、Payment Providerは変更しない。
 
+### MIG-061X SEC-008後Closeout
+
+- SEC-008後の`origin/main@83c573724601b7459fc35d3a73591008f908836c`を既存Task Branchへ取り込み、CommonMark 2.9.0とRoot／Legacy `js-yaml 4.3.1`を維持した。
+- `AuthenticationFlowTest`の旧Session期限前提だけを補正し、Adminは16分後に有効かつ最終Activityから6時間1分後に失効、Storefrontは12時間1分後に失効することを15 tests／95 assertionsで確認した。
+
 # SEC-008 CommonMark Advisory最小更新
 
 - Issue #218、Branch `security/SEC-008-commonmark-advisory`、Risk R4で開始した。
