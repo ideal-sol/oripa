@@ -8157,3 +8157,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public OpenAPI／Generated Types／Storefront Client／Site Schema／Testkitを`2.0.0-alpha.2`へ同期した。ArtifactはRepository外Evidenceへ保存し、`2.0.0-alpha.1`は上書きしていない。
 - Backend対象18 tests／158 assertions、QA除外、Package 51 tests、OpenAPI、Typecheck／Lint／Build、Policy／Quality／Security Gate、Workspace外Clean InstallがPASSした。
 - Preview APIだけを`sha256:55006860...`へ更新しHealthを確認した。公開Gachaは0件のため実データPresentation SmokeはTask DB Testを正本とし、Synthetic Dataは投入していない。Admin／DB／Migration／Nginx／V1は非変更、旧API Imageは保持した。
+- Required Quality GateでPlatform Alpha Version一貫性を確認し、Platform／Admin／3 Contract／3 Packageを`2.0.0-alpha.2`へ機械的に同期した。Release Test／Source ValidationとOpenAPI 3面がPASSし、Gate条件は変更していない。
