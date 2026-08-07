@@ -854,8 +854,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.2",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.2",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.4",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.4",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1171,7 +1171,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
-    if package.get("version") != "2.0.0-alpha.2":
+    if package.get("version") != "2.0.0-alpha.4":
         raise PolicyFailure("package.json: V2 workspace version is invalid")
     if package.get("private") is not True:
         raise PolicyFailure("package.json: root workspace must be private")
@@ -1292,7 +1292,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     package = load_json(repository, "apps/admin/package.json")
     if (
         package.get("name") != "@oripa/admin"
-        or package.get("version") != "2.0.0-alpha.2"
+        or package.get("version") != "2.0.0-alpha.4"
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
@@ -1543,7 +1543,7 @@ def validate_package_skeletons(repository: Path) -> None:
         package = load_json(repository, relative)
         if (
             package.get("name") != expected_name
-            or package.get("version") != "2.0.0-alpha.2"
+            or package.get("version") != "2.0.0-alpha.4"
             or package.get("private") is not True
         ):
             raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
@@ -1587,7 +1587,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.2",
+        "version": "2.0.0-alpha.4",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1628,8 +1628,11 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.2",
-        "requiredCapabilities": ["gacha.presentation.v2"],
+        "minimumPublicApiContract": "2.0.0-alpha.4",
+        "requiredCapabilities": [
+            "gacha.presentation.v2",
+            "user-prize.presentation.v2",
+        ],
     }:
         raise PolicyFailure(
             "packages/storefront-client/package.json: compatibility metadata is invalid"
@@ -1718,7 +1721,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.2",
+        "version": "2.0.0-alpha.4",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1836,7 +1839,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.2",
+        "version": "2.0.0-alpha.4",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1877,8 +1880,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.2",
-        "siteSchemaVersion": "2.0.0-alpha.2",
+        "storefrontClientVersion": "2.0.0-alpha.4",
+        "siteSchemaVersion": "2.0.0-alpha.4",
         "publicApiOperationCount": 48,
     }:
         raise PolicyFailure(
@@ -3867,6 +3870,8 @@ def validate_v2_prize_shipping_boundary(
     ).read_text(encoding="utf-8")
     for required in (
         "exchangePrizes",
+        "listPrizes",
+        "getPrize",
         "createShippingAddress",
         "createShippingRequest",
         "idempotency_key",
@@ -3881,6 +3886,7 @@ def validate_v2_prize_shipping_boundary(
     for required in (
         "test_schema_uses_snapshots_encrypted_pii_and_immutable_histories",
         "test_prize_list_is_owner_scoped_cursor_paginated_and_public_safe",
+        "test_prize_presentation_actions_are_backend_authoritative_and_private",
         "test_bulk_exchange_grants_snapshot_free_points_and_replays_once",
         "test_exchange_rolls_back_all_items_when_one_prize_is_invalid",
         "test_address_is_encrypted_owner_scoped_masked_and_snapshot_is_stable",
@@ -4694,9 +4700,9 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     required_statements = {
-        'PLATFORM_VERSION = "2.0.0-alpha.2"',
+        'PLATFORM_VERSION = "2.0.0-alpha.4"',
         'CHANNEL = "alpha"',
-        'RELEASE_TAG = "platform-v2.0.0-alpha.2"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.4"',
         "PRODUCTION_ALLOWED = False",
         "DATA_RETENTION_GUARANTEED = False",
         "pnpm",

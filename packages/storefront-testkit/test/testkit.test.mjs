@@ -61,6 +61,12 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
 
 test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開する", () => {
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.status, "stored");
+  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.presentation.rank.code, "S");
+  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
+  assert.equal(
+    PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.point_exchange.unavailable_reason,
+    null,
+  );
   assert.equal(PUBLIC_SHIPPING_REQUEST_FIXTURE.status, "requested");
   const serialized = JSON.stringify({
     prize: PUBLIC_USER_PRIZE_FIXTURE,

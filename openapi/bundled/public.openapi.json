@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.2",
+    "version": "2.0.0-alpha.4",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2395,6 +2395,88 @@
           "canceled"
         ]
       },
+      "UserPrizeActionUnavailableReason": {
+        "type": "string",
+        "enum": [
+          "payment_hold",
+          "status_not_actionable",
+          "storage_expired",
+          "exchange_points_unavailable"
+        ]
+      },
+      "UserPrizeActionState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allowed",
+          "unavailable_reason"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserPrizeActionUnavailableReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "UserPrizeAllowedActions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shipping",
+          "point_exchange",
+          "selection"
+        ],
+        "properties": {
+          "shipping": {
+            "$ref": "#/components/schemas/UserPrizeActionState"
+          },
+          "point_exchange": {
+            "$ref": "#/components/schemas/UserPrizeActionState"
+          },
+          "selection": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserPrizeActionState"
+              }
+            ],
+            "description": "ShippingまたはPoint交換の少なくとも一方を選択可能な状態。"
+          }
+        }
+      },
+      "UserPrizePresentation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prize_id",
+          "name",
+          "image",
+          "rank"
+        ],
+        "properties": {
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "image": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/RankReference"
+          }
+        }
+      },
       "UserPrize": {
         "type": "object",
         "additionalProperties": false,
@@ -2412,6 +2494,9 @@
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
+          "presentation": {
+            "$ref": "#/components/schemas/UserPrizePresentation"
+          },
           "status": {
             "$ref": "#/components/schemas/UserPrizeStatus"
           },
@@ -2428,19 +2513,26 @@
           "draw_result_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
+          "allowed_actions": {
+            "$ref": "#/components/schemas/UserPrizeAllowedActions"
+          },
           "display": {
             "type": [
               "object",
               "null"
             ],
-            "additionalProperties": true
+            "additionalProperties": true,
+            "deprecated": true,
+            "description": "後方互換用Snapshot。新規実装はpresentationを使用する。"
           },
           "rank": {
             "type": [
               "object",
               "null"
             ],
-            "additionalProperties": true
+            "additionalProperties": true,
+            "deprecated": true,
+            "description": "後方互換用Snapshot。新規実装はpresentation.rankを使用する。"
           }
         }
       },

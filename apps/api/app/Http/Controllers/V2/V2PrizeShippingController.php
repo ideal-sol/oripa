@@ -194,7 +194,8 @@ final class V2PrizeShippingController
     private function headers(string $requestId): array
     {
         return [
-            'Cache-Control' => 'no-store',
+            'Cache-Control' => 'private, no-store',
+            'Vary' => 'Cookie',
             'X-Request-Id' => $requestId,
             'X-Oripa-Api-Version' => '2',
         ];

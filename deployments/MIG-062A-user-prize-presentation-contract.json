@@ -1,0 +1,47 @@
+{
+  "task_id": "MIG-062A",
+  "risk": "R3",
+  "verification_profile": "TARGETED_PUBLIC_CONTRACT",
+  "status": "artifact_created",
+  "base_branch": "main",
+  "base_sha": "2e171ff474b6b9103279c1041a31e6b1a87f994d",
+  "application_source_commit": "a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33",
+  "task_policy_sha256": "4e429a23f67cce3b3206ee90e38a13585e4d30ef7e50f04a581d194fd408e79d",
+  "issue": 224,
+  "pull_request": 225,
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062A/",
+  "artifact": {
+    "version": "2.0.0-alpha.4",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/",
+    "manifest_file": "artifact-manifest.json",
+    "manifest_sha256": "2c630e6920a8a48de4a9e7750f80cbc3cbaa5de9c319efbf82441d3cc7ec7646",
+    "public_openapi_file": "public.openapi.json",
+    "public_openapi_sha256": "d9512a3bce378172b8ee330ed29f56a71a2b478329fdcf469e58909523ee7e08",
+    "storefront_client_file": "oripa-storefront-client-2.0.0-alpha.4.tgz",
+    "storefront_client_sha256": "b649c173168a215bf4a8f671818c54e030855f5689208725c763fbff47949e68",
+    "storefront_testkit_file": "oripa-storefront-testkit-2.0.0-alpha.4.tgz",
+    "storefront_testkit_sha256": "d9cfdb38929263b77c6ac549a39eb53d9c28a91a1f9b3069da169574d77d1794",
+    "site_schema_file": "oripa-site-schema-2.0.0-alpha.4.tgz",
+    "site_schema_sha256": "cb4f528f0dbdcab8b309dfc221636fae3e5babc9150948c4c31ed45c18bd4f8c"
+  },
+  "runtime": {
+    "preview_change": "NONE",
+    "database_change": "NONE",
+    "migration": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_repository_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_12_TESTS_156_ASSERTIONS",
+    "public_openapi": "PASS_48_OPERATIONS",
+    "storefront_client": "PASS_18_TESTS",
+    "site_schema": "PASS_10_TESTS",
+    "storefront_testkit": "PASS_24_TESTS",
+    "artifact_clean_install": "PASS",
+    "policy_quality_security_gates": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
