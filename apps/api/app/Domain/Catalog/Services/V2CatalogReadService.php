@@ -3,6 +3,8 @@
 namespace App\Domain\Catalog\Services;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
+use App\Domain\Draw\Services\V2DrawEligibilityService;
+use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -11,6 +13,11 @@ use Illuminate\Support\Str;
 
 final class V2CatalogReadService
 {
+    public function __construct(
+        private readonly V2DrawEligibilityService $eligibility
+    ) {
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -118,7 +125,7 @@ final class V2CatalogReadService
         }
 
         return $this->detail(
-            $this->publishedGachaQuery()->where(
+            $this->publishedGachaQuery(false)->where(
                 $isPublicCode ? 'g.public_code' : 'g.public_id',
                 $publicId
             )->first(
@@ -133,13 +140,82 @@ final class V2CatalogReadService
     public function getBySlug(string $slug): array
     {
         return $this->detail(
-            $this->publishedGachaQuery()->where('g.slug', $slug)->first(
+            $this->publishedGachaQuery(false)->where('g.slug', $slug)->first(
                 $this->summaryColumns()
             )
         );
     }
 
-    private function publishedGachaQuery(): Builder
+    /**
+     * @return array<string, mixed>
+     */
+    public function presentationState(string $publicId, ?User $user): array
+    {
+        $isPublicCode = preg_match('/\A[A-Za-z0-9]{11}\z/', $publicId) === 1;
+        if (! $isPublicCode && ! Str::isUuid($publicId)) {
+            throw new V2CatalogException(
+                'CATALOG_NOT_FOUND',
+                404,
+                'The requested catalog resource was not found.'
+            );
+        }
+
+        $row = $this->publishedGachaQuery(false)->where(
+            $isPublicCode ? 'g.public_code' : 'g.public_id',
+            $publicId
+        )->first($this->summaryColumns());
+        if ($row === null) {
+            throw new V2CatalogException(
+                'CATALOG_NOT_FOUND',
+                404,
+                'The requested catalog resource was not found.'
+            );
+        }
+
+        $now = CarbonImmutable::now('UTC')->startOfSecond();
+        $saleState = $this->saleState($row, $now);
+        $evaluation = $this->eligibility->evaluate(
+            $user,
+            (int) $row->gacha_internal_id,
+            (string) $row->audience_code,
+            (int) $row->daily_draw_limit,
+            $now
+        );
+        $reason = $this->presentationReason($saleState, $evaluation);
+        $remainingCount = max(0, (int) $row->total_count - (int) $row->sold_count);
+        $allowedCounts = [];
+        if ($reason === null) {
+            $dailyRemaining = $evaluation['daily']['remaining'];
+            $configured = config('v2_draw.allowed_counts', []);
+            $allowedCounts = array_values(array_filter(
+                is_array($configured) ? $configured : [],
+                static fn (mixed $count): bool => is_int($count)
+                    && $count <= $remainingCount
+                    && ($dailyRemaining === null || $count <= $dailyRemaining)
+            ));
+            if ($allowedCounts === []) {
+                $reason = $remainingCount === 0
+                    ? 'sold_out'
+                    : 'daily_limit_reached';
+            }
+        }
+
+        return [
+            'gacha_id' => $row->public_id,
+            'sale_state' => $saleState,
+            'user_state' => $evaluation['authenticated']
+                ? 'authenticated'
+                : 'unauthenticated',
+            'audience' => $evaluation['audience_code'],
+            'eligible' => $reason === null,
+            'ineligible_reason' => $reason,
+            'allowed_draw_counts' => $allowedCounts,
+            'daily_limit' => $evaluation['daily'],
+            'cta' => $this->cta($saleState, $reason),
+        ];
+    }
+
+    private function publishedGachaQuery(bool $withinPublishedPeriod = true): Builder
     {
         $now = CarbonImmutable::now('UTC');
 
@@ -174,10 +250,12 @@ final class V2CatalogReadService
             ->where('gv.status', 'published')
             ->where('pv.status', 'published')
             ->where('c.is_visible', true)
-            ->where('gv.publish_start_at', '<=', $now)
-            ->where(function (Builder $query) use ($now): void {
-                $query->whereNull('gv.publish_end_at')
-                    ->orWhere('gv.publish_end_at', '>', $now);
+            ->when($withinPublishedPeriod, function (Builder $query) use ($now): void {
+                $query->where('gv.publish_start_at', '<=', $now)
+                    ->where(function (Builder $period) use ($now): void {
+                        $period->whereNull('gv.publish_end_at')
+                            ->orWhere('gv.publish_end_at', '>', $now);
+                    });
             });
     }
 
@@ -193,12 +271,15 @@ final class V2CatalogReadService
             'g.slug',
             'g.sales_paused',
             DB::raw('COALESCE(ds.sold_count, g.sold_count) as sold_count'),
+            'ds.status as draw_state_status',
             'gv.id as version_internal_id',
             'gv.title',
             'gv.description',
             'gv.notices',
             'gv.price_points',
             'gv.total_count',
+            'gv.daily_draw_limit',
+            'gv.audience_code',
             'gv.publish_start_at',
             'gv.publish_end_at',
             'gv.published_probability_version_id',
@@ -297,6 +378,10 @@ final class V2CatalogReadService
 
         $tags = $this->tagsForGachas([(int) $row->gacha_internal_id]);
         $result = $this->summary($row, $tags[$row->gacha_internal_id] ?? []);
+        $result['sale_state'] = $this->saleState(
+            $row,
+            CarbonImmutable::now('UTC')->startOfSecond()
+        );
         $result['description'] = $row->description;
         $result['notices'] = $row->notices;
         $result['ranks'] = $this->ranks((int) $row->version_internal_id);
@@ -306,6 +391,77 @@ final class V2CatalogReadService
         );
 
         return $result;
+    }
+
+    private function saleState(object $row, CarbonImmutable $now): string
+    {
+        $startsAt = CarbonImmutable::parse($row->publish_start_at)->utc();
+        $endsAt = $row->publish_end_at === null
+            ? null
+            : CarbonImmutable::parse($row->publish_end_at)->utc();
+        if ($now->lessThan($startsAt)) {
+            return 'coming_soon';
+        }
+        if ($endsAt !== null && ! $now->lessThan($endsAt)) {
+            return 'ended';
+        }
+        if ((bool) $row->sales_paused) {
+            return 'ended';
+        }
+        if (
+            $row->draw_state_status === 'sold_out'
+            || (int) $row->sold_count >= (int) $row->total_count
+        ) {
+            return 'sold_out';
+        }
+
+        return $row->draw_state_status === 'selling' ? 'on_sale' : 'ended';
+    }
+
+    /**
+     * @param array<string, mixed> $evaluation
+     */
+    private function presentationReason(string $saleState, array $evaluation): ?string
+    {
+        if ($saleState !== 'on_sale') {
+            return match ($saleState) {
+                'coming_soon' => 'sale_not_started',
+                'sold_out' => 'sold_out',
+                default => 'sale_ended',
+            };
+        }
+        if (! $evaluation['authenticated']) {
+            return 'authentication_required';
+        }
+        if (! $evaluation['audience_eligible']) {
+            return 'audience_not_eligible';
+        }
+        if (
+            ! $evaluation['daily']['unlimited']
+            && $evaluation['daily']['remaining'] === 0
+        ) {
+            return 'daily_limit_reached';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{state: string, action: ?string, reason: ?string}
+     */
+    private function cta(string $saleState, ?string $reason): array
+    {
+        if (in_array($saleState, ['sold_out', 'ended'], true)) {
+            return ['state' => 'hidden', 'action' => null, 'reason' => $reason];
+        }
+        if ($reason === 'authentication_required') {
+            return ['state' => 'enabled', 'action' => 'login', 'reason' => $reason];
+        }
+        if ($reason !== null) {
+            return ['state' => 'disabled', 'action' => 'draw', 'reason' => $reason];
+        }
+
+        return ['state' => 'enabled', 'action' => 'draw', 'reason' => null];
     }
 
     /**

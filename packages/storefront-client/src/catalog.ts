@@ -27,6 +27,9 @@ export interface StorefrontCatalogClient {
   getGachaBySlug(
     slug: string,
   ): Promise<StorefrontResponse<Schemas["GachaDetailResponse"]>>;
+  getGachaPresentation(
+    gachaId: string,
+  ): Promise<StorefrontResponse<Schemas["GachaPresentationResponse"]>>;
 }
 
 function pathSegment(value: string, name: string): string {
@@ -70,6 +73,10 @@ export function createStorefrontCatalogClient(
     getGachaBySlug: (slug) =>
       transport.request({
         path: `/gachas/by-slug/${pathSegment(slug, "slug")}`,
+      }),
+    getGachaPresentation: (gachaId) =>
+      transport.request({
+        path: `/gacha-presentations/${pathSegment(gachaId, "gacha_id")}`,
       }),
   };
 }

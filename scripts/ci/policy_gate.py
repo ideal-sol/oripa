@@ -421,6 +421,7 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_14_000027_add_v2_gacha_sales_pause.php",
     "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
     "apps/api/tests/V2/CatalogProbabilityFoundationTest.php",
+    "apps/api/tests/V2/GachaDetailPresentationContractTest.php",
     "apps/api/tests/V2/AdminCatalogReadTest.php",
     "apps/api/tests/V2/AdminCatalogMutationTest.php",
     "apps/api/tests/V2/AdminGachaDraftManagementTest.php",
@@ -448,6 +449,7 @@ V2_CATALOG_REQUIRED_FILES = {
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
     "apps/api/app/Domain/Draw/Services/V2CryptographicRandomSource.php",
+    "apps/api/app/Domain/Draw/Services/V2DrawEligibilityService.php",
     "apps/api/app/Domain/Draw/Services/V2DrawService.php",
     "apps/api/app/Domain/Draw/Services/V2DrawTransactionRunner.php",
     "apps/api/app/Http/Controllers/V2/V2DrawController.php",
@@ -852,8 +854,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.1",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.1",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.2",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.2",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1585,7 +1587,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.1",
+        "version": "2.0.0-alpha.2",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1626,8 +1628,8 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.1",
-        "requiredCapabilities": [],
+        "minimumPublicApiContract": "2.0.0-alpha.2",
+        "requiredCapabilities": ["gacha.presentation.v2"],
     }:
         raise PolicyFailure(
             "packages/storefront-client/package.json: compatibility metadata is invalid"
@@ -1716,7 +1718,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.1",
+        "version": "2.0.0-alpha.2",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1834,7 +1836,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.1",
+        "version": "2.0.0-alpha.2",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1875,9 +1877,9 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.1",
-        "siteSchemaVersion": "2.0.0-alpha.1",
-        "publicApiOperationCount": 47,
+        "storefrontClientVersion": "2.0.0-alpha.2",
+        "siteSchemaVersion": "2.0.0-alpha.2",
+        "publicApiOperationCount": 48,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -1895,8 +1897,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 47",
-        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        "operation_count: 48",
+        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3491,6 +3493,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     for required in (
         "getGacha",
         "getGachaBySlug",
+        "getGachaPresentation",
         "listGachaCategories",
         "listGachaTags",
         "listGachas",
@@ -3547,6 +3550,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "listGachas",
         "getGacha",
         "getGachaBySlug",
+        "getGachaPresentation",
     ):
         if required not in generated or required not in facade:
             raise PolicyFailure(f"Storefront Catalog Client missing {required}")

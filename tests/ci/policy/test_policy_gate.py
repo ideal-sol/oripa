@@ -1466,7 +1466,7 @@ packages:
             json.dumps(
                 {
                     "name": "@oripa/site-schema",
-                    "version": "2.0.0-alpha.1",
+                    "version": "2.0.0-alpha.2",
                     "private": True,
                     "description": "Fixture Alpha",
                     "license": "UNLICENSED",
@@ -1606,7 +1606,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.1",
+                    "version": "2.0.0-alpha.2",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -1644,8 +1644,8 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.1",
-                        "requiredCapabilities": [],
+                        "minimumPublicApiContract": "2.0.0-alpha.2",
+                        "requiredCapabilities": ["gacha.presentation.v2"],
                     },
                 }
             ),
@@ -1946,8 +1946,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 47",
                     "operation_count: 48",
+                    "operation_count: 49",
                 ),
                 encoding="utf-8",
             )

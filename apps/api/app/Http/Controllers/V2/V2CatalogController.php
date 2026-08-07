@@ -6,6 +6,7 @@ use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 final class V2CatalogController
@@ -85,6 +86,23 @@ final class V2CatalogController
                 $request,
                 (string) config('v2_catalog.collection_cache_control')
             );
+        } catch (V2CatalogException $exception) {
+            return $this->problem($request, $exception);
+        }
+    }
+
+    public function presentation(Request $request, string $gachaId): JsonResponse
+    {
+        try {
+            $user = Auth::guard('v2_user')->user();
+            $response = $this->success(
+                ['data' => $this->catalog->presentationState($gachaId, $user)],
+                $request,
+                'private, no-store'
+            );
+            $response->headers->set('Vary', 'Cookie');
+
+            return $response;
         } catch (V2CatalogException $exception) {
             return $this->problem($request, $exception);
         }

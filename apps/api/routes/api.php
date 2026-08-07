@@ -57,6 +57,10 @@ Route::prefix('v2')->group(function (): void {
 Route::prefix('v2')
     ->middleware('v2.browser:user')
     ->group(function (): void {
+        Route::get('/gacha-presentations/{gachaId}', [
+            V2CatalogController::class,
+            'presentation',
+        ])->whereUuid('gachaId')->name('v2.public.catalog.gachas.presentation');
         Route::post('/contact-inquiries', [V2ContentContactController::class, 'contact'])
             ->name('v2.public.contacts.store');
     });

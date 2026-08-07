@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.1",
+    "version": "2.0.0-alpha.2",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -356,6 +356,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GachaDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/gacha-presentations/{gacha_id}": {
+      "get": {
+        "operationId": "getGachaPresentation",
+        "summary": "Gacha詳細の販売状態とUser別CTA判定を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {},
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gacha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backend判定済みのGacha表示・CTA状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GachaPresentationResponse"
                 }
               }
             }
@@ -3429,7 +3470,8 @@
           "description",
           "notices",
           "ranks",
-          "probability_stages"
+          "probability_stages",
+          "sale_state"
         ],
         "properties": {
           "id": {
@@ -3504,6 +3546,9 @@
             "items": {
               "$ref": "#/components/schemas/ProbabilityStage"
             }
+          },
+          "sale_state": {
+            "$ref": "#/components/schemas/GachaSaleState"
           }
         }
       },
@@ -3516,6 +3561,179 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/GachaDetail"
+          }
+        }
+      },
+      "GachaSaleState": {
+        "type": "string",
+        "enum": [
+          "coming_soon",
+          "on_sale",
+          "sold_out",
+          "ended"
+        ]
+      },
+      "GachaAudience": {
+        "type": "string",
+        "enum": [
+          "all_users",
+          "first_time_users",
+          "line_users"
+        ]
+      },
+      "GachaPresentationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "sale_not_started",
+          "sold_out",
+          "sale_ended",
+          "authentication_required",
+          "audience_not_eligible",
+          "daily_limit_reached",
+          null
+        ]
+      },
+      "GachaDailyLimitState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "limit",
+          "unlimited",
+          "used",
+          "remaining",
+          "resets_at"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unlimited": {
+            "type": "boolean"
+          },
+          "used": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "resets_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "GachaCtaState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled",
+              "hidden"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "login",
+              "draw",
+              null
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/GachaPresentationReason"
+          }
+        }
+      },
+      "GachaPresentationState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_id",
+          "sale_state",
+          "user_state",
+          "audience",
+          "eligible",
+          "ineligible_reason",
+          "allowed_draw_counts",
+          "daily_limit",
+          "cta"
+        ],
+        "properties": {
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "sale_state": {
+            "$ref": "#/components/schemas/GachaSaleState"
+          },
+          "user_state": {
+            "type": "string",
+            "enum": [
+              "unauthenticated",
+              "authenticated"
+            ]
+          },
+          "audience": {
+            "$ref": "#/components/schemas/GachaAudience"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "ineligible_reason": {
+            "$ref": "#/components/schemas/GachaPresentationReason"
+          },
+          "allowed_draw_counts": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "enum": [
+                1,
+                5,
+                10,
+                100,
+                1000
+              ]
+            }
+          },
+          "daily_limit": {
+            "$ref": "#/components/schemas/GachaDailyLimitState"
+          },
+          "cta": {
+            "$ref": "#/components/schemas/GachaCtaState"
+          }
+        }
+      },
+      "GachaPresentationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GachaPresentationState"
           }
         }
       },
