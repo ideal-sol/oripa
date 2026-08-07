@@ -8174,3 +8174,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 既存User Prize一覧／詳細へ型付きPresentationとBackend正本のAllowed Actions／Machine-readable理由をadditiveに追加し、Shipping／Point Exchange Mutationと同じ判定を再利用した。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.4`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - 初回`.3`候補はOpenAPI Breaking Checkでrequired field追加を検出したため配布対象外とし、既存Artifactを上書きせずoptional additiveへ補正した`.4`を別Directoryへ生成する。
+- Application Head `a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`から`.4` Artifact一式を`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/`へ作成し、Checksum、Manifest、Workspace外Clean Install／Importを確認した。

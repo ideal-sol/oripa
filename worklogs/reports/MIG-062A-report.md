@@ -5,7 +5,7 @@
 - Issue: #224
 - PR: #225
 - Base: `2e171ff474b6b9103279c1041a31e6b1a87f994d`
-- Application／Artifact Source Commit: Artifact作成時に確定
+- Application／Artifact Source Commit: `a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `4e429a23f67cce3b3206ee90e38a13585e4d30ef7e50f04a581d194fd408e79d`
 - Risk／Verification: R3／`TARGETED_PUBLIC_CONTRACT`
@@ -27,10 +27,15 @@
 ## Verification／Artifact
 
 - Backend対象12 tests／156 assertions、Public OpenAPI 48 operations、Client 18 tests、Site Schema 10 tests、Testkit 24 testsがPASSした。Cursor、Presentation、Shippingのみ、両方可能、両方不可、処理中／完了／既存expired、期限境界、Payment Hold、交換Point 0、Mutation再検証、Cache、非認証／Not Foundを確認した。
-- 1000件一覧を10 Pageで測定し、Query count 10、p50 28.507 ms、p95 48.134 msでN+1はない。Frozen Install、Typecheck／Lint／Build、OpenAPI生成同期、Policy Unit 112件、Policy／Quality／Security／Release Gate、Secret Scan、`git diff --check`もPASSした。
+- 1000件一覧を10 Pageで測定し、Query count 10、p50 34.792 ms、p95 51.121 msでN+1はない。Frozen Install、Typecheck／Lint／Build、OpenAPI生成同期、Policy Unit 112件、Policy／Quality／Security／Release Gate、Secret Scan、`git diff --check`もPASSした。
 - 初回`.3`候補は既存`UserPrize`へrequired fieldを追加してOpenAPI Breaking Checkに失敗したため配布対象外とした。既存Artifactを上書きせず、両Fieldをoptional additiveに補正した`.4`を別Directoryへ生成する。
-- Artifact Versionは`2.0.0-alpha.4`。配置先、Source Commit、Manifestおよび4 ArtifactのFile名／SHA-256、Workspace外Clean Install結果はArtifact作成後に確定する。
+- Artifact Versionは`2.0.0-alpha.4`。配置先は`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/`、Source Commitは`a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`である。
+- Manifest: `artifact-manifest.json`／`2c630e6920a8a48de4a9e7750f80cbc3cbaa5de9c319efbf82441d3cc7ec7646`。
+- Client: `oripa-storefront-client-2.0.0-alpha.4.tgz`／`b649c173168a215bf4a8f671818c54e030855f5689208725c763fbff47949e68`。
+- Testkit: `oripa-storefront-testkit-2.0.0-alpha.4.tgz`／`d9cfdb38929263b77c6ac549a39eb53d9c28a91a1f9b3069da169574d77d1794`。
+- Site Schema: `oripa-site-schema-2.0.0-alpha.4.tgz`／`cb4f528f0dbdcab8b309dfc221636fae3e5babc9150948c4c31ed45c18bd4f8c`。
+- Public OpenAPI: `public.openapi.json`／`d9512a3bce378172b8ee330ed29f56a71a2b478329fdcf469e58909523ee7e08`。`SHA256SUMS` 4件、Manifest内部整合性、Workspace外Clean Install／ESM Import、Package内Workspace／`file:`／Repository Path非混入がPASSした。
 - Runtime、Preview、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
-- SITE-007は最終`.4` Artifact整合性とCloseout完了後に再開可能とする。
+- SITE-007は`.4`の3 PackageとPublic OpenAPIを固定導入し、FrontendでAction判定を再実装しない条件でCloseout後に再開可能である。
 - 残課題: 未確定の失効条件は追加していない。将来DomainがPoint交換のみ可能な状態を導入する場合は同じBackend判定へ追加する。
 - 所要時間: 約2時間。既存Domain Characterization、Mutation判定共通化、Contract／Package同期、Artifact外部導入検証に時間を要した。
