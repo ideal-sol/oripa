@@ -8175,3 +8175,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.4`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - 初回`.3`候補はOpenAPI Breaking Checkでrequired field追加を検出したため配布対象外とし、既存Artifactを上書きせずoptional additiveへ補正した`.4`を別Directoryへ生成する。
 - Application Head `a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`から`.4` Artifact一式を`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/`へ作成し、Checksum、Manifest、Workspace外Clean Install／Importを確認した。
+
+## SEC-009 Dependency Advisory Baseline期限切れ対応
+
+- Issue #229、Branch `security/SEC-009-dependency-advisory-baseline`、Risk R4で開始した。
+- `PKSA-mnyp-475s-ywph`／`GHSA-pcw8-m77r-2528`は2026-08-10時点でも有効で、`mtdowling/jmespath.php 2.8.0`を最小修正版`2.9.1`へ限定更新した。
+- Fresh Composer Audit 0件を確認し、解消済みEntryをBaselineから削除した。空BaselineのFresh Review期限は`2026-08-17`で、Findingの追加・無視・Gate弱体化は行わない。
+- 継続承認後、clean Composer Auditの`advisories: []`だけを正常化し、Malformed／欠落をFail Closedとするparser Unitを追加した。Root `nanoid`は`postcss 8.5.23`配下の`3.3.16`から最小修正版`3.3.17`へexact overrideで更新した。
+- Composer／Root pnpm／Legacy pnpm Audit 0件、Composer／Root Frozen Install、Security Unit 10件、Local Security GateはPASSした。
