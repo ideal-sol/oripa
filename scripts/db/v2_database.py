@@ -134,6 +134,8 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.user_referrals",
     "public.user_remember_devices",
     "public.user_sessions",
+    "public.user_tag_assignments",
+    "public.user_tags",
     "public.users",
     "public.wallets",
 ]

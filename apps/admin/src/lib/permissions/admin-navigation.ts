@@ -4,6 +4,7 @@ export type AdminRouteId =
   | "dashboard"
   | "users-list"
   | "users-history"
+  | "users-tags"
   | "gachas"
   | "gachas-create"
   | "gachas-simulation"
@@ -82,6 +83,7 @@ export type AdminNavigationNode = AdminNavigationItem | AdminNavigationGroup;
 const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
   route("users-list", "一覧", "/users", null, "users", "available", "none"),
+  route("users-tags", "会員タグ", "/users/tags", "user.tag.read", "users", "available"),
   route("users-history", "履歴", "/users/history", null, "users", "scaffold", "module-actions", true),
   route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
   route("gachas-create", "登録", "/catalog/gachas/new", "catalog.manage", "gacha", "scaffold"),
@@ -115,7 +117,7 @@ const ROUTES_BY_ID = new Map(ADMIN_ROUTE_ITEMS.map((item) => [item.id, item]));
 
 export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigation([
   navigationItem("dashboard"),
-  group("users", "ユーザー", "users", ["users-list", "users-history"]),
+  group("users", "ユーザー", "users", ["users-list", "users-tags", "users-history"]),
   group("gacha", "ガチャ", "gacha", [
     "gachas",
     "gachas-create",

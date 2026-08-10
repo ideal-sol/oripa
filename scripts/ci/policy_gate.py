@@ -194,6 +194,14 @@ MIG_061W_V2_IDENTITY_FILES = {
 MIG_061X_V2_IDENTITY_FILES = {
     "apps/api/database/migrations-v2/2026_08_27_000040_update_v2_session_timeout_constraints.php",
 }
+MIG_062B_V2_IDENTITY_FILES = {
+    "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
+    "apps/api/app/Domain/Identity/Services/V2UserTagService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminUserTagController.php",
+    "apps/api/database/migrations-v2/2026_08_28_000041_create_v2_user_tag_management.php",
+    "apps/api/database/migrations-v2/2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
+    "apps/api/tests/V2/AdminUserTagManagementTest.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -267,6 +275,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_08_17_000030_create_v2_admin_authentication_policy.php",
     *MIG_061W_V2_IDENTITY_FILES,
     *MIG_061X_V2_IDENTITY_FILES,
+    *MIG_062B_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -693,6 +702,12 @@ MIG_061V_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/point-purchases/point-purchase-management-workspace.tsx",
     "apps/admin/test/admin-point-purchase-management.test.tsx",
 }
+MIG_062B_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-user-tag-management.spec.ts",
+    "apps/admin/src/app/users/tags/page.tsx",
+    "apps/admin/src/components/users/admin-user-tag-management.tsx",
+    "apps/admin/test/admin-user-tag-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -808,6 +823,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061S_ADMIN_SKELETON_FILES,
     *MIG_061T_ADMIN_SKELETON_FILES,
     *MIG_061V_ADMIN_SKELETON_FILES,
+    *MIG_062B_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2153,6 +2169,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_25_000038_add_v2_point_purchase_management.php",
         "2026_08_26_000039_add_v2_line_settings_management.php",
         "2026_08_27_000040_update_v2_session_timeout_constraints.php",
+        "2026_08_28_000041_create_v2_user_tag_management.php",
+        "2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

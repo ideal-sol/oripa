@@ -47,6 +47,8 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertOk()
                 ->assertJsonPath('data.id', $user['public_id'])
                 ->assertJsonPath('data.email', $user['email'])
+                ->assertJsonPath('data.tag_assignment_revision', 1)
+                ->assertJsonCount(0, 'data.tags')
                 ->assertJsonMissingPath('data.password_hash')
                 ->assertJsonMissingPath('data.email_normalized');
             $this->assertPrivateContract($detail);

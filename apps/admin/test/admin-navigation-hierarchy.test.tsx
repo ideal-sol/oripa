@@ -70,7 +70,7 @@ describe("Admin sidebar hierarchy", () => {
     ]);
 
     const expectedChildren = new Map([
-      ["ユーザー", ["一覧", "履歴"]],
+      ["ユーザー", ["一覧", "会員タグ", "履歴"]],
       ["ガチャ", ["一覧", "登録", "シミュレーション", "カテゴリ", "タグ", "履歴"]],
       ["配送", ["一覧"]],
       ["ポイント購入", ["一覧", "登録"]],
@@ -134,6 +134,7 @@ describe("Admin sidebar hierarchy", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザー" }));
     const userGroup = document.getElementById("admin-nav-users")!;
     expect(within(userGroup).getByRole("link", { name: "一覧" })).toBeVisible();
+    expect(within(userGroup).getByRole("link", { name: "会員タグ" })).toBeVisible();
     expect(within(userGroup).queryByRole("link", { name: "履歴" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "ポイント購入" }));
     const purchaseGroup = document.getElementById("admin-nav-purchase")!;

@@ -65,6 +65,7 @@ final class V2AdminUserReadService
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
             ->where('users.public_id', $userPublicId)
             ->select([
+                'users.id',
                 'users.public_id',
                 'users.display_name',
                 'users.email_display',
@@ -72,6 +73,7 @@ final class V2AdminUserReadService
                 'users.state',
                 'users.created_at',
                 'users.updated_at',
+                'users.tag_assignment_revision',
                 'wallets.id as wallet_id',
                 'wallets.paid_balance',
                 'wallets.free_balance',
@@ -94,6 +96,8 @@ final class V2AdminUserReadService
                     : $this->timestamp($row->email_verified_at),
                 'status' => (string) $row->state,
                 'point_balance' => $this->pointBalance($row),
+                'tag_assignment_revision' => (int) $row->tag_assignment_revision,
+                'tags' => $this->userTags((int) $row->id),
                 'created_at' => $this->timestamp($row->created_at),
                 'updated_at' => $this->timestamp($row->updated_at),
             ],
@@ -231,6 +235,28 @@ final class V2AdminUserReadService
             'paid_balance' => $paid,
             'free_balance' => $free,
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function userTags(int $userId): array
+    {
+        return DB::table('user_tag_assignments as assignment')
+            ->join('user_tags as tag', 'tag.id', '=', 'assignment.user_tag_id')
+            ->where('assignment.user_id', $userId)
+            ->orderBy('tag.normalized_name')
+            ->orderBy('tag.id')
+            ->get([
+                'tag.public_id',
+                'tag.name',
+                'tag.is_active',
+                'assignment.assigned_at',
+            ])
+            ->map(fn (object $tag): array => [
+                'id' => (string) $tag->public_id,
+                'name' => (string) $tag->name,
+                'is_active' => (bool) $tag->is_active,
+                'assigned_at' => $this->timestamp($tag->assigned_at),
+            ])->values()->all();
     }
 
     private function timestamp(mixed $value): string

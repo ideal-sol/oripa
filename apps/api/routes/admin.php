@@ -44,6 +44,7 @@ use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 use App\Http\Controllers\V2\V2AdminUserController;
 use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
+use App\Http\Controllers\V2\V2AdminUserTagController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
@@ -101,8 +102,20 @@ Route::prefix('v2')
     ->group(function () use ($v2GachaIdentifierPattern): void {
         Route::get('/users', [V2AdminUserController::class, 'index'])
             ->name('v2.admin.users.index');
+        Route::get('/user-tags', [V2AdminUserTagController::class, 'index'])
+            ->name('v2.admin.user-tags.index');
+        Route::post('/user-tags', [V2AdminUserTagController::class, 'store'])
+            ->name('v2.admin.user-tags.store');
+        Route::put('/user-tags/{tagId}', [V2AdminUserTagController::class, 'update'])
+            ->whereUuid('tagId')->name('v2.admin.user-tags.update');
         Route::get('/users/{userId}', [V2AdminUserController::class, 'show'])
             ->whereUuid('userId')->name('v2.admin.users.show');
+        Route::get('/users/{userId}/tags', [V2AdminUserTagController::class, 'userTags'])
+            ->whereUuid('userId')->name('v2.admin.users.tags.index');
+        Route::post('/users/{userId}/tags/{tagId}', [V2AdminUserTagController::class, 'assign'])
+            ->whereUuid('userId')->whereUuid('tagId')->name('v2.admin.users.tags.assign');
+        Route::delete('/users/{userId}/tags/{tagId}', [V2AdminUserTagController::class, 'detach'])
+            ->whereUuid('userId')->whereUuid('tagId')->name('v2.admin.users.tags.detach');
         Route::get('/users/{userId}/gacha-history', [V2AdminUserController::class, 'gachaHistory'])
             ->whereUuid('userId')->name('v2.admin.users.gacha-history.index');
         Route::post('/users/{userId}/point-adjustments', V2AdminUserPointAdjustmentController::class)

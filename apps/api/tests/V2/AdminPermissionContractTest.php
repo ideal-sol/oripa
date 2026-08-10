@@ -73,6 +73,7 @@ final class AdminPermissionContractTest extends TestCase
             V2Permission::ReadLineMessaging->value,
             V2Permission::ReadReferralSettings->value,
             V2Permission::ReadPointPurchasePlan->value,
+            V2Permission::ReadUserTag->value,
         ] as $permission) {
             self::assertContains($permission, $owner);
             self::assertContains($permission, $admin);
@@ -96,6 +97,9 @@ final class AdminPermissionContractTest extends TestCase
         self::assertContains(V2Permission::ManageLineMessaging->value, $owner);
         self::assertContains(V2Permission::ManageLineMessaging->value, $admin);
         self::assertNotContains(V2Permission::ManageLineMessaging->value, $operator);
+        self::assertContains(V2Permission::ManageUserTag->value, $owner);
+        self::assertContains(V2Permission::ManageUserTag->value, $admin);
+        self::assertNotContains(V2Permission::ManageUserTag->value, $operator);
         self::assertContains(V2Permission::PublishCatalog->value, $owner);
         self::assertContains(V2Permission::PublishCatalog->value, $admin);
         self::assertNotContains(V2Permission::PublishCatalog->value, $operator);

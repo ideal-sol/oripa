@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: b8b6a8d875d231a8abd02dff9939d18b84a74ec4561a31631dcd04788ad3ba06
+// Contract SHA-256: 667b59c4e44eff6bc66a87ff54968eb2dd3d5ccd1d0a27d22a24f7245ee5fe49
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -9,6 +9,8 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.admin.session.revoke",
   "identity.line.read",
   "identity.line.manage",
+  "user.tag.read",
+  "user.tag.manage",
   "point.ledger.read",
   "point.adjustment.request",
   "point.adjustment.free.approve",
@@ -132,11 +134,71 @@ export interface AdminUserCollection {
 export interface AdminUserDetail extends AdminUserSummary {
   email: string;
   email_verified_at: string | null;
+  tag_assignment_revision?: number;
+  tags?: AdminUserTagAssignment[];
   updated_at: string;
 }
 
 export interface AdminUserDetailResponse {
   data: AdminUserDetail;
+  request_id: string;
+}
+
+export interface AdminUserTag {
+  id: string;
+  name: string;
+  is_active: boolean;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserTagAssignment {
+  id: string;
+  name: string;
+  is_active: boolean;
+  assigned_at: string;
+}
+
+export interface AdminUserTagInput {
+  name: string;
+  is_active: boolean;
+}
+
+export interface AdminUserTagUpdate extends AdminUserTagInput {
+  expected_revision: number;
+}
+
+export interface AdminUserTagCollection {
+  items: AdminUserTag[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserTagMutationResult {
+  data: AdminUserTag;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminUserTagSet {
+  user_id: string;
+  revision: number;
+  tags: AdminUserTagAssignment[];
+}
+
+export interface AdminUserTagSetResponse {
+  data: AdminUserTagSet;
+  request_id: string;
+}
+
+export interface AdminUserTagAssignmentChange {
+  expected_revision: number;
+}
+
+export interface AdminUserTagSetMutationResult {
+  data: AdminUserTagSet;
+  idempotent_replay: boolean;
   request_id: string;
 }
 
