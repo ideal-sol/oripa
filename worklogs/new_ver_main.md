@@ -8198,5 +8198,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Base `8b8e50dd571c360edb0c37bbc4668b11bea15080`からIssue #231、Branch `feat/MIG-062C-browser-safe-draw-contract`、Risk R3で開始した。
 - 既存Browser Auth ClientのCSRF／Cookie Transportを再利用するDraw Facadeと、Backend実在CodeだけのTyped Draw Error Contractを追加した。Draw Transaction／Business Ruleは変更していない。
-- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.5`へ同期し、既存`.4`を変更せずRepository外Artifactへ固定した。
+- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.6`へ同期し、既存`.4`と未採用`.5`を変更せずRepository外Artifactへ固定した。
+- Fresh Self-reviewで`.5`のOpenAPI `oneOf` Branch重複を検出し、`anyOf`へ補正した`.6`を最終Artifactとした。
 - Backend対象4 tests／34 assertions、Client 21 tests、Site Schema 10 tests、Testkit 25 tests、OpenAPI 48 operations、Policy／Quality Gate、Workspace外Clean／Frozen InstallがPASSした。Runtime／Preview／DB／Nginx／V1／Storefront Repositoryは非変更である。
