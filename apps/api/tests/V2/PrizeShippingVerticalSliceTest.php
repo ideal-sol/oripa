@@ -365,6 +365,11 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(1, DB::table('shipping_addresses')->count());
         self::assertSame(1, DB::table('audit_logs')
             ->where('action_code', 'shipping.address_created')->count());
+        $idempotency = DB::table('idempotency_records')
+            ->where('scope', 'shipping.address.create')
+            ->first();
+        self::assertNull($idempotency->response_data);
+        self::assertSame($first['data']['id'], $idempotency->resource_public_id);
 
         try {
             $service->createAddressIdempotent(
@@ -380,7 +385,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(1, DB::table('shipping_addresses')->count());
     }
 
-    public function test_address_create_endpoint_requires_idempotency_and_reports_replay(): void
+    public function test_address_create_endpoint_replays_idempotency_and_keeps_legacy_request(): void
     {
         [$user] = $this->fixture(1);
         Auth::guard('v2_user')->setUser($user);

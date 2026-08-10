@@ -5,7 +5,7 @@
 - Issue: #235
 - PR: #236
 - Base: `f08ff71edcd8c0cbbcf0fff83c2a69e753f012b6`
-- Application／Artifact Source Commit: `ce965fdc4d8e37ac3fa943a4f39841685d0e5874`
+- Application／Artifact Source Commit: 確定前
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `4d9b8b0779fdf3b078c572d5a24049145c77cfad21280d4d41c7909baffdeddf`
 - Risk／Verification: R4／`TARGETED_FULFILLMENT_CONTRACT`
@@ -25,14 +25,10 @@
 
 ## Verification／Artifact
 
-- Backend対象7 tests／90 assertions、Public OpenAPI 48 operations、Storefront Client 24 tests、Site Schema 10 tests、Storefront Testkit 26 testsがPASSした。
+- Backend対象7 tests／92 assertions、Public OpenAPI 48 operations、Storefront Client 24 tests、Site Schema 10 tests、Storefront Testkit 26 testsがPASSした。Idempotency Recordへ配送先PIIを保存せず、Public IDだけを保持してReplay時に暗号化Addressを再取得することを確認した。
 - OpenAPI生成同期／Breaking Check、Frozen Install、Client／Schema／Testkit Typecheck・Lint・Build、Policy Unit／Gate、Quality／Security Gate、`git diff --check`を対象範囲で確認した。Composer／Root／Legacy Auditは0件、Secret／PII Candidateは0件。全Suiteは実行していない。
-- Artifact Versionは既存Release順の未使用`2.0.0-alpha.7`。既存`2.0.0-alpha.6`は前後Checksum一致を確認し、再生成・変更していない。`/var/lib/oripa-v2-evidence/MIG-062E/artifacts/2.0.0-alpha.7/`へ新規生成した。
-- Manifest: `artifact-manifest.json`／`423940776e74d31a5a66f616c9e29e8010b4213087da1d70cca0430a9b96ea24`。
-- Client: `oripa-storefront-client-2.0.0-alpha.7.tgz`／`568bfa1c5447ba2db8feb293b91466e8ecae99d74ef4b1cf5d2c94230b6d49d7`。
-- Testkit: `oripa-storefront-testkit-2.0.0-alpha.7.tgz`／`7d0e1a98b2b0ae6cd764827ab8246e413bb5826a7f25362ee52e3bce17bc95c8`。
-- Site Schema: `oripa-site-schema-2.0.0-alpha.7.tgz`／`869409ddfb1d694de000454d71185f391edd3073f581da2e290ab40d01acac23`。
-- Public OpenAPI: `public.openapi.json`／`ad4fbf0b109dd60fb9274244bf23423fd38d4e01e16ef73507e1d75d4a47bd0c`。`SHA256SUMS` 4件、Manifest内部整合、Workspace外Clean／Frozen Install／ESM ImportがPASSした。
+- Fresh reviewでalpha.7 SourceのAddress Idempotency ResponseへPIIを複製する問題を検出した。alpha.7は未採用のまま上書きせず保持し、PII補正後の未使用`2.0.0-alpha.8`を最終Artifactとして新規生成する。
+- 既存`2.0.0-alpha.6`は前後Checksum一致を確認し、再生成・変更していない。alpha.8のSource Commit、Manifest、各SHA-256、Workspace外Clean Install結果はArtifact生成後に確定する。
 - Runtime、Preview、DB、Migration、Nginx、V1、Storefront Repositoryは変更していない。
-- SITE-012はCloseout後、alpha.7 Artifactを固定導入しBrowser ClientのRetry／Reconciliation Contractへ従う条件で再開可能となる。
+- SITE-012はCloseout後、alpha.8 Artifactを固定導入しBrowser ClientのRetry／Reconciliation Contractへ従う条件で再開可能となる。
 - 残課題: 配送先update／deleteは自動Retry不可であり、通信結果不明時はRead Methodによる照合が必要。Backendに新しいFulfillment拒否Codeを追加する場合はPublic OpenAPIとPackageを同時更新する。

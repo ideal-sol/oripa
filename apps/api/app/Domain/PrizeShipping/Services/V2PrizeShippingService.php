@@ -321,8 +321,20 @@ final class V2PrizeShippingService
                 $plain
             );
             if ($claim->replay) {
+                $address = ShippingAddress::query()
+                    ->where('user_id', $user->id)
+                    ->where('public_id', $claim->record->resource_public_id)
+                    ->first();
+                if (! $address instanceof ShippingAddress) {
+                    throw new V2PrizeShippingException(
+                        'IDEMPOTENCY_FAILURE',
+                        409,
+                        'The original Address response is no longer available.'
+                    );
+                }
+
                 return [
-                    'data' => $claim->record->response_data,
+                    'data' => $this->address($address, true),
                     'idempotent_replay' => true,
                 ];
             }
@@ -330,8 +342,7 @@ final class V2PrizeShippingService
             $this->idempotency->complete(
                 $claim->record,
                 'shipping_address',
-                $response['id'],
-                $response
+                $response['id']
             );
 
             return [
