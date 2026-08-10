@@ -3,12 +3,12 @@
 ## Issue／PR／Commit
 
 - Issue: #229
-- PR: #230（Draft。別Security FindingとGate parser不整合の解消待ち）
+- PR: #230
 - Base: `0f5687dce15a197db429c22e8927343caf04d3ce`
 - Dependency／Baseline Head: `ce08cf7c820df85d5670ecf47ba5f1df5d3d1746`
 - Final Head／Squash Commit: Required Checks成功後のCloseout時に確定
-- Task Policy SHA-256: `60ee4c2174d2f009aa18017dd24f934e98eb03509d207b9dc6bdcbb2ba65fa64`
-- Policy再発行: 旧SHA-256 `936d471dc381f786ceba370e791275729d123f7379985ec324dfb82ce42b38d4`から、解消済みBaseline EntryのUnit Assertionを更新する`tests/ci/security/test_security_gate.py`だけを追加許可した。
+- Task Policy SHA-256: `b60ce3a2b1e3bdecf490790f5226431a71720346185242670d4c1442e0d7c7b5`
+- Policy再発行: 旧SHA-256 `936d471dc381f786ceba370e791275729d123f7379985ec324dfb82ce42b38d4`から、Baseline Unit、Composer parser、Root Manifest／Lock、exact override Policy検査の個別Pathだけを追加許可した。
 
 ## Advisory／対応
 
@@ -22,12 +22,12 @@
 
 - Fresh Composer AuditでFinding 0を確認後、解消済みJMESPath EntryをBaselineから削除した。脆弱性のBaseline追加・延長はない。
 - 空Baseline管理情報はFresh Audit日を正本として`SEC-009`へ更新し、Review期限を`2026-08-17`とした。新規Findingは専用Security Taskなしに追加・無視できない。
-- PHP 8.4 ContainerでComposer Frozen Install PASS、`composer validate --strict --no-check-publish` PASS、Composer Audit 0件、Legacy pnpm Audit 0件、Security Unit 6件PASSを確認した。
-- Root pnpm Auditは、SEC-009開始後に検出された別Finding `nanoid`／`GHSA-2v37-7h3g-55p8`（High、`<3.3.17`）1件のためFAILした。このTaskでは関係ないDependency更新もBaseline追加も禁止されているため変更していない。
-- Local Security Gateは、Finding 0件時のComposer 2.9.8 JSONが`advisories: []`を返す一方、既存Gateがobjectを前提とするparser不整合で停止した。このGate実装修正もSEC-009の対象外であり、Gate弱体化や入力改変は行っていない。
-- 上記2件によりRequired Security Check成功条件を満たせないため、PRはDraft、IssueはOpenのまま停止する。Policy Unit 112件、PR本文補正後のPull Request event相当Policy Gate、`git diff --check`はPASSした。
+- Composer 2.9.8のclean結果`advisories: []`だけを正常化し、key欠落、非空配列、型不正はFail Closedとした。非空Advisory objectの抽出条件は変更していない。
+- Root `nanoid`は`apps/admin > vitest > vite > postcss 8.5.23 > nanoid 3.3.16`の経路だった。既存Root exact override規約で最小修正版`3.3.17`へ固定し、Manifest追加はoverride 1件だけ、Lock差分は同Packageの解決だけに限定した。
+- PHP 8.4 Composer Frozen Install、Root pnpm Frozen Install、`composer validate --strict --no-check-publish`、Composer／Root pnpm／Legacy pnpm Audit 0件、Security Unit 10件、Local Security GateはPASSした。
+- Policy Unit、PR event Policy Gate、`git diff --check`、Required Checksは最終Headで記録する。
 - Application Source、Runtime、DB／Migration、Nginx、V1、Storefront Repository、MIG-062B PRは変更していない。
 
 ## 残課題
 
-- 別Security Taskで`nanoid`を最小安全Versionへ更新し、clean Composer Audit JSONを扱えるようSecurity Gate parserと対象Unitを補正する。その後、SEC-009のRequired ChecksとCloseoutを再開する。
+- 新規Dependency FindingはBaselineへ追加せず、期限内にFresh Auditで再確認する。

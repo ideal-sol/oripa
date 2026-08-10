@@ -8181,4 +8181,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Issue #229、Branch `security/SEC-009-dependency-advisory-baseline`、Risk R4で開始した。
 - `PKSA-mnyp-475s-ywph`／`GHSA-pcw8-m77r-2528`は2026-08-10時点でも有効で、`mtdowling/jmespath.php 2.8.0`を最小修正版`2.9.1`へ限定更新した。
 - Fresh Composer Audit 0件を確認し、解消済みEntryをBaselineから削除した。空BaselineのFresh Review期限は`2026-08-17`で、Findingの追加・無視・Gate弱体化は行わない。
-- Composer Frozen InstallとSecurity UnitはPASSした。Root pnpmに別Finding `nanoid`／`GHSA-2v37-7h3g-55p8`が新規検出され、clean Composer Audit JSONに対する既存Security Gate parser不整合も確認したため、対象外変更を行わずDraft PRで停止した。
+- 継続承認後、clean Composer Auditの`advisories: []`だけを正常化し、Malformed／欠落をFail Closedとするparser Unitを追加した。Root `nanoid`は`postcss 8.5.23`配下の`3.3.16`から最小修正版`3.3.17`へexact overrideで更新した。
+- Composer／Root pnpm／Legacy pnpm Audit 0件、Composer／Root Frozen Install、Security Unit 10件、Local Security GateはPASSした。
