@@ -776,6 +776,8 @@ test("Prize Shipping FacadeはUser Prize一覧／詳細のCanonical Pathだけ�
 test("Browser Fulfillment ClientはCSRFを隠蔽し冪等Mutationだけ同一Keyで再試行する", async () => {
   const requests = [];
   const addressKey = "shipping-address-browser-key-0001";
+  const exchangeKey = "prize-exchange-browser-key-0001";
+  const shippingKey = "shipping-request-browser-key-0001";
   let createAttempts = 0;
   const client = createBrowserStorefrontPrizeShippingClient({
     ...browserConfig(async (url, init) => {
@@ -811,12 +813,21 @@ test("Browser Fulfillment ClientはCSRFを隠蔽し冪等Mutationだけ同一Key
     { idempotency_key: addressKey },
   );
   await client.getShippingAddress("address-public-id");
+  await client.exchangePrizes(
+    ["prize-public-id"],
+    { idempotency_key: exchangeKey },
+  );
+  await client.createShippingRequest(
+    "address-public-id",
+    ["prize-public-id"],
+    { idempotency_key: shippingKey },
+  );
 
   const mutations = requests.filter(({ init }) => init.method === "POST");
   assert.equal(createAttempts, 2);
   assert.deepEqual(
     mutations.map(({ init }) => init.headers.get("Idempotency-Key")),
-    [addressKey, addressKey],
+    [addressKey, addressKey, exchangeKey, shippingKey],
   );
   assert.equal(
     mutations.every(({ init }) => init.headers.get("X-XSRF-TOKEN") === "f".repeat(64)),
@@ -854,7 +865,11 @@ test("Address update／deleteは通信結果不明時に自動再送せずGET照
     client.updateShippingAddress("address-public-id", address),
     (error) => error instanceof StorefrontTransportError && error.code === "NETWORK_ERROR",
   );
-  assert.equal(mutationCalls, 1);
+  await assert.rejects(
+    client.deleteShippingAddress("address-public-id"),
+    (error) => error instanceof StorefrontTransportError && error.code === "NETWORK_ERROR",
+  );
+  assert.equal(mutationCalls, 2);
   const reconciled = await client.getShippingAddress("address-public-id");
   assert.equal(reconciled.data.id, "address-public-id");
 });
