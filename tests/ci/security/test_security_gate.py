@@ -15,6 +15,55 @@ SPEC.loader.exec_module(security_gate)
 
 
 class SecurityGateTest(unittest.TestCase):
+    def test_clean_composer_audit_empty_list_is_accepted(self):
+        self.assertEqual(
+            security_gate.composer_findings({"advisories": []}, {"packages": []}),
+            [],
+        )
+
+    def test_composer_audit_advisory_object_is_preserved(self):
+        audit = {
+            "advisories": {
+                "example/package": [
+                    {
+                        "advisoryId": "PKSA-fixture",
+                        "cve": "CVE-2026-0001",
+                        "severity": "high",
+                    }
+                ]
+            }
+        }
+        lock = {"packages": [{"name": "example/package", "version": "1.0.0"}]}
+
+        self.assertEqual(
+            security_gate.composer_findings(audit, lock),
+            [
+                {
+                    "source": "composer",
+                    "advisory_id": "PKSA-fixture",
+                    "package": "example/package",
+                    "version": "1.0.0",
+                    "severity": "high",
+                    "cve": "CVE-2026-0001",
+                }
+            ],
+        )
+
+    def test_composer_audit_missing_advisories_fails_closed(self):
+        with self.assertRaisesRegex(
+            security_gate.SecurityFailure, "advisories are missing"
+        ):
+            security_gate.composer_findings({}, {"packages": []})
+
+    def test_composer_audit_nonempty_list_fails_closed(self):
+        with self.assertRaisesRegex(
+            security_gate.SecurityFailure, "advisories are malformed"
+        ):
+            security_gate.composer_findings(
+                {"advisories": [{"advisoryId": "PKSA-fixture"}]},
+                {"packages": []},
+            )
+
     def test_private_key_candidate_is_detected_without_value_output(self):
         data = b"-----BEGIN " + b"PRIVATE KEY-----\\nredacted\\n"
         categories = [
@@ -107,7 +156,7 @@ class SecurityGateTest(unittest.TestCase):
                 (finding["package"], finding["severity"])
                 for finding in baseline["composer"]
             ],
-            [("mtdowling/jmespath.php", "unknown")],
+            [],
         )
         self.assertFalse(
             any(

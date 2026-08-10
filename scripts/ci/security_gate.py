@@ -78,13 +78,25 @@ def secret_candidates(repository: Path, paths: list[str]) -> list[dict]:
 
 
 def composer_findings(audit: dict, lock: dict) -> list[dict]:
+    if not isinstance(audit, dict) or "advisories" not in audit:
+        raise SecurityFailure("composer audit advisories are missing")
+    advisories_by_package = audit["advisories"]
+    if advisories_by_package == []:
+        advisories_by_package = {}
+    if not isinstance(advisories_by_package, dict):
+        raise SecurityFailure("composer audit advisories are malformed")
+
     versions = {
         item["name"]: item["version"]
         for item in lock.get("packages", []) + lock.get("packages-dev", [])
     }
     findings = []
-    for package, advisories in audit.get("advisories", {}).items():
+    for package, advisories in advisories_by_package.items():
+        if not isinstance(package, str) or not isinstance(advisories, list):
+            raise SecurityFailure("composer audit advisories are malformed")
         for advisory in advisories:
+            if not isinstance(advisory, dict):
+                raise SecurityFailure("composer audit advisories are malformed")
             findings.append(
                 {
                     "source": "composer",

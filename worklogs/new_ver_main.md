@@ -8185,3 +8185,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PreviewへMigration 000041を単独適用し、API `sha256:e9cd6235...`／Admin `sha256:32bcb9cb...`へ更新した。Owner Tag付与／無効化後維持、Desktop／Mobile、Health、不正Cursor 422を確認し、旧Imageを保持した。
 - GitHub Integrationで検出した新規2 TableのCanonical Schema inventory未登録を補正し、DB Unit 33 testsとTask DB実Schema 98件の完全一致を確認した。Application／Previewは再変更していない。
 - Backup Restore時の`BETWEEN`表現差は000042で明示比較へ正規化した。Task DB rollback／reapplyとSchema checksum一致後、Preview Safety Guard前後PASSのもと000042だけを適用し、Migration 42件へ更新した。API／Admin Containerは再作成していない。
+
+## SEC-009 Dependency Advisory Baseline期限切れ対応
+
+- Issue #229、Branch `security/SEC-009-dependency-advisory-baseline`、Risk R4で開始した。
+- `PKSA-mnyp-475s-ywph`／`GHSA-pcw8-m77r-2528`は2026-08-10時点でも有効で、`mtdowling/jmespath.php 2.8.0`を最小修正版`2.9.1`へ限定更新した。
+- Fresh Composer Audit 0件を確認し、解消済みEntryをBaselineから削除した。空BaselineのFresh Review期限は`2026-08-17`で、Findingの追加・無視・Gate弱体化は行わない。
+- 継続承認後、clean Composer Auditの`advisories: []`だけを正常化し、Malformed／欠落をFail Closedとするparser Unitを追加した。Root `nanoid`は`postcss 8.5.23`配下の`3.3.16`から最小修正版`3.3.17`へexact overrideで更新した。
+- Composer／Root pnpm／Legacy pnpm Audit 0件、Composer／Root Frozen Install、Security Unit 10件、Local Security GateはPASSした。
