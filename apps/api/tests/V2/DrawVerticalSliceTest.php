@@ -445,9 +445,13 @@ final class DrawVerticalSliceTest extends TestCase
             ->assertHeader('Content-Type', 'application/problem+json')
             ->assertJsonPath('code', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
 
+        $drawRequestCount = DB::table('draw_requests')->count();
+        $drawResultCount = DB::table('draw_results')->count();
         $this->getJson("/api/v2/draw-requests/{$drawRequestId}")
             ->assertOk()
             ->assertJsonPath('id', $drawRequestId);
+        self::assertSame($drawRequestCount, DB::table('draw_requests')->count());
+        self::assertSame($drawResultCount, DB::table('draw_results')->count());
 
         Auth::forgetGuards();
         $this->postJson(

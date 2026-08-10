@@ -1,5 +1,7 @@
 import {
   ApiProblemError,
+  isDrawProblemError,
+  type DrawProblemCode,
   type StorefrontResponseMetadata,
 } from "@oripa/storefront-client";
 import {
@@ -73,6 +75,16 @@ export function assertProblemDetails(error: unknown): asserts error is ApiProble
   requireValue(
     error instanceof ApiProblemError,
     "Error must be converted from RFC 9457 Problem Details",
+  );
+}
+
+export function assertDrawProblemDetails(
+  error: unknown,
+  code?: DrawProblemCode,
+): asserts error is ApiProblemError & { readonly code: DrawProblemCode } {
+  requireValue(
+    isDrawProblemError(error, code),
+    "Error must be a typed Draw Problem Details response",
   );
 }
 

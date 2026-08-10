@@ -2,6 +2,7 @@ export {
   ApiProblemError,
   StorefrontTransportError,
   isAuthProblemError,
+  isDrawProblemError,
 } from "./errors.js";
 export {
   createIdempotencyKey,
@@ -32,6 +33,8 @@ export type {
   StorefrontCatalogClient,
 } from "./catalog.js";
 export type {
+  BrowserCreateDrawOptions,
+  BrowserStorefrontDrawClient,
   CreateDrawOptions,
   DrawCount,
   StorefrontDrawClient,
@@ -52,6 +55,7 @@ export type {
 export type {
   AuthProblemCode,
   ApiProblem,
+  DrawProblemCode,
   StorefrontTransportErrorCode,
 } from "./errors.js";
 export type {

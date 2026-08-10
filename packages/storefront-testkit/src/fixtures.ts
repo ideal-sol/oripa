@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.4",
+      storefront_client_version: "2.0.0-alpha.6",
       required_capabilities: [],
     },
     public: {
@@ -35,6 +35,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
       ...MINIMAL_SITE_MANIFEST_FIXTURE.compatibility,
       required_capabilities: [
         "auth.session.v2",
+        "draw.browser-mutation.v2",
         "gacha.presentation.v2",
         "user-prize.presentation.v2",
       ],
@@ -44,6 +45,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
       features: {
         enabled: [
           "auth.session.v2",
+          "draw.browser-mutation.v2",
           "gacha.presentation.v2",
           "user-prize.presentation.v2",
         ],
@@ -54,9 +56,10 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.4",
+  minimum_storefront_client_version: "2.0.0-alpha.6",
   capabilities: [
     "auth.session.v2",
+    "draw.browser-mutation.v2",
     "gacha.presentation.v2",
     "user-prize.presentation.v2",
   ],
@@ -235,6 +238,33 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   processing_duration_ms: 583,
   created_at: "2026-07-27T00:00:00Z",
 } as const satisfies PublicComponents["schemas"]["DrawResponse"]);
+
+export const PUBLIC_DRAW_PROBLEM_FIXTURES = Object.freeze([
+  {
+    type: "https://oripa.example/problems/insufficient_points",
+    title: "Available points are insufficient.",
+    status: 409,
+    code: "INSUFFICIENT_POINTS",
+    request_id: "request-fixture-draw-problem-001",
+    retryable: false,
+  },
+  {
+    type: "https://oripa.example/problems/gacha_audience_not_eligible",
+    title: "The user is not eligible for this Gacha.",
+    status: 403,
+    code: "GACHA_AUDIENCE_NOT_ELIGIBLE",
+    request_id: "request-fixture-draw-problem-002",
+    retryable: false,
+  },
+  {
+    type: "https://oripa.example/problems/daily_draw_limit_exceeded",
+    title: "The daily Draw limit would be exceeded.",
+    status: 409,
+    code: "DAILY_DRAW_LIMIT_EXCEEDED",
+    request_id: "request-fixture-draw-problem-003",
+    retryable: false,
+  },
+] as const satisfies readonly PublicComponents["schemas"]["DrawProblemDetails"][]);
 
 export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000120",

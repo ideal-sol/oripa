@@ -35,7 +35,7 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.4`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.6`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -46,6 +46,11 @@ Storefront側でEligibilityを再計算しない。
 Prize Shipping Facadeの`listPrizes`／`getPrize`は、型付きPrize Presentationと
 Backend判定済みのShipping／Point交換／選択可否を取得する。Storefront側でStatus、
 期限、交換PointからAction可否を再計算しない。
+
+Browser Draw Facadeの`createBrowserStorefrontDrawClient`は、CanonicalなSession
+初期化とCSRF Cookie／Header処理を内部化する。Callerは`Idempotency-Key`だけを明示し、
+同じRetryへ同じKeyを渡す。Draw拒否は`isDrawProblemError`でGenerated codeを判別し、
+未知のProblem codeは汎用`ApiProblemError`として扱う。
 
 ## Entry Points
 

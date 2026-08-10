@@ -968,6 +968,13 @@ export interface components {
         PublicAuthProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
+        /** @enum {string} */
+        DrawProblemCode: "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
+        DrawProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["DrawProblemCode"];
+        };
+        /** @description 既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。 */
+        DrawProblemResponse: components["schemas"]["DrawProblemDetails"] | components["schemas"]["ProblemDetails"];
         CursorPageMeta: {
             page_size: number;
             has_more: boolean;
@@ -1352,6 +1359,18 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Draw Mutationで実在するRFC 9457 Problem Details。 */
+        DrawProblem: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["DrawProblemResponse"];
+            };
+        };
         /** @description Storefront認証のRFC 9457 Problem Details。 */
         PublicAuthProblem: {
             headers: {
@@ -1672,7 +1691,7 @@ export interface operations {
                     "application/json": components["schemas"]["DrawResponse"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["DrawProblem"];
         };
     };
     getDrawRequest: {

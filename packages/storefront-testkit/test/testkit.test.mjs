@@ -25,6 +25,7 @@ import {
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
+  PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
@@ -33,6 +34,7 @@ import {
   UnexpectedMockRequestError,
   assertBrowserRequestBoundary,
   assertCompatibleSiteManifest,
+  assertDrawProblemDetails,
   assertProblemDetails,
   assertPublicRequestBoundary,
   assertResponseMetadata,
@@ -57,6 +59,27 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
   assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("Draw Problem FixtureはGenerated Codeと型付きAssertionを同期する", () => {
+  for (const problem of PUBLIC_DRAW_PROBLEM_FIXTURES) {
+    const error = new ApiProblemError(problem);
+    assertDrawProblemDetails(error, problem.code);
+    assert.equal(error.code, problem.code);
+  }
+
+  const unknown = new ApiProblemError({
+    type: "https://oripa.example/problems/unknown",
+    title: "Unknown error.",
+    status: 500,
+    code: "UNOBSERVED_DRAW_ERROR",
+    request_id: "request-fixture-unknown",
+    retryable: false,
+  });
+  assert.throws(
+    () => assertDrawProblemDetails(unknown),
+    TestkitAssertionError,
+  );
 });
 
 test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開する", () => {
@@ -515,6 +538,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
+    "PUBLIC_DRAW_PROBLEM_FIXTURES",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
@@ -526,6 +550,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "UnexpectedMockRequestError",
     "assertBrowserRequestBoundary",
     "assertCompatibleSiteManifest",
+    "assertDrawProblemDetails",
     "assertProblemDetails",
     "assertPublicRequestBoundary",
     "assertResponseMetadata",

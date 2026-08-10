@@ -1,6 +1,7 @@
 export {
   assertBrowserRequestBoundary,
   assertCompatibleSiteManifest,
+  assertDrawProblemDetails,
   assertProblemDetails,
   assertPublicRequestBoundary,
   assertResponseMetadata,
@@ -17,6 +18,7 @@ export {
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
+  PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,

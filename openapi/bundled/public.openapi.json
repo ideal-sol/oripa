@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.4",
+    "version": "2.0.0-alpha.6",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -458,7 +458,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/DrawProblem"
           }
         }
       }
@@ -3018,6 +3018,52 @@
           }
         ]
       },
+      "DrawProblemCode": {
+        "type": "string",
+        "enum": [
+          "AUTHENTICATION_REQUIRED",
+          "CSRF_TOKEN_MISMATCH",
+          "DAILY_DRAW_LIMIT_EXCEEDED",
+          "DRAW_COUNT_INSUFFICIENT",
+          "GACHA_AUDIENCE_NOT_ELIGIBLE",
+          "GACHA_NOT_DRAWABLE",
+          "GACHA_SALES_PAUSED",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+          "INSUFFICIENT_POINTS",
+          "INVALID_DRAW_REQUEST",
+          "RATE_LIMITED"
+        ]
+      },
+      "DrawProblemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/DrawProblemCode"
+              }
+            }
+          }
+        ]
+      },
+      "DrawProblemResponse": {
+        "description": "既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DrawProblemDetails"
+          },
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          }
+        ]
+      },
       "CursorPageMeta": {
         "type": "object",
         "additionalProperties": false,
@@ -4834,6 +4880,27 @@
           "application/problem+json": {
             "schema": {
               "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "DrawProblem": {
+        "description": "Draw Mutationで実在するRFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Oripa-Api-Version": {
+            "$ref": "#/components/headers/XOripaApiVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/DrawProblemResponse"
             }
           }
         }

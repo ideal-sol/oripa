@@ -1,4 +1,7 @@
-import type { StorefrontResponseMetadata } from "./types.js";
+import type {
+  PublicComponents,
+  StorefrontResponseMetadata,
+} from "./types.js";
 
 export interface ApiProblem {
   type: string;
@@ -79,6 +82,34 @@ export function isAuthProblemError(
   return (
     error instanceof ApiProblemError
     && AUTH_PROBLEM_CODES.has(error.code)
+    && (code === undefined || error.code === code)
+  );
+}
+
+export type DrawProblemCode = PublicComponents["schemas"]["DrawProblemCode"];
+
+const DRAW_PROBLEM_CODES: ReadonlySet<string> = new Set<DrawProblemCode>([
+  "AUTHENTICATION_REQUIRED",
+  "CSRF_TOKEN_MISMATCH",
+  "DAILY_DRAW_LIMIT_EXCEEDED",
+  "DRAW_COUNT_INSUFFICIENT",
+  "GACHA_AUDIENCE_NOT_ELIGIBLE",
+  "GACHA_NOT_DRAWABLE",
+  "GACHA_SALES_PAUSED",
+  "IDEMPOTENCY_KEY_REUSED",
+  "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+  "INSUFFICIENT_POINTS",
+  "INVALID_DRAW_REQUEST",
+  "RATE_LIMITED",
+]);
+
+export function isDrawProblemError(
+  error: unknown,
+  code?: DrawProblemCode,
+): error is ApiProblemError & { readonly code: DrawProblemCode } {
+  return (
+    error instanceof ApiProblemError
+    && DRAW_PROBLEM_CODES.has(error.code)
     && (code === undefined || error.code === code)
   );
 }
