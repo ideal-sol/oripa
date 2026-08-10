@@ -7,7 +7,8 @@
 - Base: `8b8e50dd571c360edb0c37bbc4668b11bea15080`
 - Application／Artifact Source Commit: `41758bb26523a45b990b82564bc450bf6e470107`
 - Final Head／Squash Commit: Closeout時に確定
-- Task Policy SHA-256: `1641af606c8753739b7dca782d336e326afb83809d0ae5b98bb26d29dbd1322f`
+- Task Policy SHA-256 (initial): `b3e054121fd8ef392e759149326c2e4839080b0fa2459dbfbd03acd1d6a2b424`
+- Task Policy SHA-256 (current): `1641af606c8753739b7dca782d336e326afb83809d0ae5b98bb26d29dbd1322f`
 - Risk／Verification: R3／`TARGETED_DRAW_CONTRACT`
 
 ## Browser-safe Draw Contract
@@ -26,6 +27,7 @@
 
 - Backend対象4 tests／34 assertions、Public OpenAPI 48 operations、Storefront Client 21 tests、Site Schema 10 tests、Storefront Testkit 25 testsがPASSした。Browser CSRF初期化、同一Key Retry、CSRF Problem、既知／未知Draw Error、Result再取得、既存Auth／Gacha Presentation Contractを確認した。
 - Frozen Install、OpenAPI生成同期、Client／Testkit Typecheck・Lint・Build、Policy Unit対象3件、Local Policy／Quality Gate、`git diff --check`がPASSした。全Suiteは実行していない。
+- 初回GitHub Policy GateはPR本文のCanonical見出し不足を検出した。Application／Gate条件は変更せず、必須見出しと実Diff／Allowed Paths各37件が完全一致する本文へ補正した。
 - Artifact Version: `2.0.0-alpha.5`。既存`2.0.0-alpha.4`は変更せず、`/var/lib/oripa-v2-evidence/MIG-062C/artifacts/2.0.0-alpha.5/`へ新規生成した。
 - Manifest: `artifact-manifest.json`／`52c442da31b93977158bbe43c867b7b49b4c0bcd35a36534ae1717c92c47d564`。
 - Client: `oripa-storefront-client-2.0.0-alpha.5.tgz`／`fd40bc2fd357dadb2a2f2f1d1f1ef6854b00a495c30e4c0760b1c35949442d50`。
@@ -35,4 +37,3 @@
 - Runtime、Preview、DB、Migration、Nginx、V1、Storefront Repositoryは変更していない。
 - SITE-005はCloseout後、`.5`の3 PackageとPublic OpenAPIを固定導入し、Browser FacadeとTyped Guardを使用する条件で再開可能である。
 - 残課題: Backendが将来新しいDraw拒否Codeを追加する場合は、Public OpenAPIとGenerated Packageを同時更新する。未知Codeはそれまで汎用Errorとして扱う。
-
