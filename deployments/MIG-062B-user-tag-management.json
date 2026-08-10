@@ -8,7 +8,7 @@
   "task_policy_sha256": "c25aae5e272c43a4f78a89a0fe29377bfd34bf3c8e78a54627554558fe92a216",
   "issue": 226,
   "pull_request": 227,
-  "application_head": "c121b0c2e2b05073c3c2da4235f0be7d0666799b",
+  "application_head": "e70087bcb55fe9c4f9a944c034dc6669e1ea21f1",
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062B/",
   "preview": {
@@ -17,7 +17,7 @@
     "migration": "2026_08_28_000041_create_v2_user_tag_management.php",
     "api_previous_image": "sha256:f452b1f213a76fd5ada87fdaf229a023215d4dca5f43426c17036b1297ecc705",
     "admin_previous_image": "sha256:6ab94d4c3925df6e4a942b2f2051ae9926c363e3721582e0942530b96c231f73",
-    "api_image": "sha256:758ad81c2cfdbfed499db52f3f186d1eca0078e928b9b8f9cdac102992a27709",
+    "api_image": "sha256:e9cd6235b7e6ed88765e98bcf268010e759594d220a0e147fba819fea7a3634a",
     "admin_image": "sha256:32bcb9cb2426f11046fb3186eb7e8765027d88fd4e681deb12defc968ff536ee",
     "migration_count": 41,
     "browser_desktop_mobile": "PASS",
@@ -28,7 +28,7 @@
   },
   "verification": {
     "migration_fresh_rollback_reapply": "PASS",
-    "backend_targeted": "PASS_11_TESTS_197_ASSERTIONS",
+    "backend_targeted": "PASS_12_TESTS_201_ASSERTIONS",
     "admin_unit": "PASS_4_FILES_37_TESTS",
     "admin_browser_targeted": "PASS_2_TESTS",
     "openapi_generated_client": "PASS",
