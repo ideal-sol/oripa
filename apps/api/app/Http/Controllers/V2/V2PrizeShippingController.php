@@ -74,9 +74,19 @@ final class V2PrizeShippingController
 
     public function createAddress(Request $request): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->createAddress(
+        $key = $request->header('Idempotency-Key');
+        if (! is_string($key) || $key === '') {
+            return $this->handle($request, fn (): array => $this->service->createAddress(
+                $this->user(),
+                $request->only($this->addressFields()),
+                $this->requestId($request)
+            ), 201);
+        }
+
+        return $this->handleIdempotent($request, fn (): array => $this->service->createAddressIdempotent(
             $this->user(),
             $request->only($this->addressFields()),
+            $key,
             $this->requestId($request)
         ), 201);
     }
@@ -168,6 +178,24 @@ final class V2PrizeShippingController
         $requestId = $this->requestId($request);
         try {
             return response()->json($callback(), $status, $this->headers($requestId));
+        } catch (V2PrizeShippingException $exception) {
+            return $this->problem($exception, $requestId);
+        }
+    }
+
+    private function handleIdempotent(
+        Request $request,
+        callable $callback,
+        int $status
+    ): JsonResponse {
+        $requestId = $this->requestId($request);
+        try {
+            $result = $callback();
+
+            return response()->json($result['data'], $status, [
+                ...$this->headers($requestId),
+                'Idempotency-Replayed' => $result['idempotent_replay'] ? 'true' : 'false',
+            ]);
         } catch (V2PrizeShippingException $exception) {
             return $this->problem($exception, $requestId);
         }

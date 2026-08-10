@@ -114,6 +114,45 @@ export function isDrawProblemError(
   );
 }
 
+export type FulfillmentProblemCode =
+  PublicComponents["schemas"]["FulfillmentProblemCode"];
+
+const FULFILLMENT_PROBLEM_CODES: ReadonlySet<string> =
+  new Set<FulfillmentProblemCode>([
+    "AUTHENTICATION_REQUIRED",
+    "CONCURRENT_OPERATION_RETRY_EXHAUSTED",
+    "CSRF_TOKEN_MISMATCH",
+    "IDEMPOTENCY_FAILURE",
+    "IDEMPOTENCY_KEY_REUSED",
+    "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+    "INVALID_EXCHANGE_REQUEST",
+    "INVALID_IDEMPOTENCY_KEY",
+    "INVALID_PRIZE_SELECTION",
+    "INVALID_SHIPPING_ADDRESS",
+    "INVALID_SHIPPING_REQUEST",
+    "PII_PROTECTION_UNAVAILABLE",
+    "PRIZE_NOT_EXCHANGEABLE",
+    "PRIZE_NOT_SHIPPABLE",
+    "PRIZE_ON_PAYMENT_HOLD",
+    "RATE_LIMITED",
+    "SESSION_EXPIRED",
+    "SHIPPING_ADDRESS_NOT_FOUND",
+    "SHIPPING_REQUEST_NOT_FOUND",
+    "UNSUPPORTED_MEDIA_TYPE",
+    "USER_PRIZE_NOT_FOUND",
+  ]);
+
+export function isFulfillmentProblemError(
+  error: unknown,
+  code?: FulfillmentProblemCode,
+): error is ApiProblemError & { readonly code: FulfillmentProblemCode } {
+  return (
+    error instanceof ApiProblemError
+    && FULFILLMENT_PROBLEM_CODES.has(error.code)
+    && (code === undefined || error.code === code)
+  );
+}
+
 export type StorefrontTransportErrorCode =
   | "ABORTED"
   | "CSRF_INITIALIZATION_FAILED"

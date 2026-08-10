@@ -341,6 +341,78 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertStringNotContainsString($this->address()['phone_number'], $audit);
     }
 
+    public function test_address_create_is_idempotent_and_rejects_key_reuse(): void
+    {
+        [$user] = $this->fixture(1);
+        $service = app(V2PrizeShippingService::class);
+        $key = 'shipping-address-create-0001';
+        $first = $service->createAddressIdempotent(
+            $user,
+            $this->address(),
+            $key,
+            (string) Str::uuid7()
+        );
+        $replay = $service->createAddressIdempotent(
+            $user,
+            $this->address(),
+            $key,
+            (string) Str::uuid7()
+        );
+
+        self::assertFalse($first['idempotent_replay']);
+        self::assertTrue($replay['idempotent_replay']);
+        self::assertSame($first['data']['id'], $replay['data']['id']);
+        self::assertSame(1, DB::table('shipping_addresses')->count());
+        self::assertSame(1, DB::table('audit_logs')
+            ->where('action_code', 'shipping.address_created')->count());
+        $idempotency = DB::table('idempotency_records')
+            ->where('scope', 'shipping.address.create')
+            ->first();
+        self::assertNull($idempotency->response_data);
+        self::assertSame($first['data']['id'], $idempotency->resource_public_id);
+
+        try {
+            $service->createAddressIdempotent(
+                $user,
+                [...$this->address(), 'city' => '別の検証市'],
+                $key,
+                (string) Str::uuid7()
+            );
+            self::fail('Reusing an Address Idempotency Key must fail closed.');
+        } catch (V2PrizeShippingException $exception) {
+            self::assertSame('IDEMPOTENCY_KEY_REUSED', $exception->errorCode);
+        }
+        self::assertSame(1, DB::table('shipping_addresses')->count());
+    }
+
+    public function test_address_create_endpoint_replays_idempotency_and_keeps_legacy_request(): void
+    {
+        [$user] = $this->fixture(1);
+        Auth::guard('v2_user')->setUser($user);
+        $this->withoutMiddleware();
+        $key = 'shipping-address-http-key-0001';
+
+        $first = $this->postJson('/api/v2/me/shipping-addresses', $this->address(), [
+            'Idempotency-Key' => $key,
+        ])->assertCreated()->assertHeader('Idempotency-Replayed', 'false');
+        $this->postJson('/api/v2/me/shipping-addresses', $this->address(), [
+            'Idempotency-Key' => $key,
+        ])->assertCreated()
+            ->assertHeader('Idempotency-Replayed', 'true')
+            ->assertJsonPath('id', $first->json('id'));
+        $this->postJson(
+            '/api/v2/me/shipping-addresses',
+            [...$this->address(), 'city' => '別の検証市'],
+            ['Idempotency-Key' => $key]
+        )->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
+        $this->postJson(
+            '/api/v2/me/shipping-addresses',
+            [...$this->address(), 'city' => 'Legacy Client City']
+        )->assertCreated();
+
+        self::assertSame(2, DB::table('shipping_addresses')->count());
+    }
+
     public function test_address_mutations_rollback_when_pii_access_audit_fails(): void
     {
         [$user] = $this->fixture(1);

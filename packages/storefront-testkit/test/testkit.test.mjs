@@ -26,6 +26,7 @@ import {
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
+  PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
@@ -35,6 +36,7 @@ import {
   assertBrowserRequestBoundary,
   assertCompatibleSiteManifest,
   assertDrawProblemDetails,
+  assertFulfillmentProblemDetails,
   assertProblemDetails,
   assertPublicRequestBoundary,
   assertResponseMetadata,
@@ -78,6 +80,27 @@ test("Draw Problem FixtureはGenerated Codeと型付きAssertionを同期する"
   });
   assert.throws(
     () => assertDrawProblemDetails(unknown),
+    TestkitAssertionError,
+  );
+});
+
+test("Fulfillment Problem FixtureはGenerated Codeと型付きAssertionを同期する", () => {
+  for (const problem of PUBLIC_FULFILLMENT_PROBLEM_FIXTURES) {
+    const error = new ApiProblemError(problem);
+    assertFulfillmentProblemDetails(error, problem.code);
+    assert.equal(error.code, problem.code);
+  }
+
+  const unknown = new ApiProblemError({
+    type: "https://oripa.example/problems/unknown",
+    title: "Unknown error.",
+    status: 500,
+    code: "UNOBSERVED_FULFILLMENT_ERROR",
+    request_id: "request-fixture-unknown-fulfillment",
+    retryable: false,
+  });
+  assert.throws(
+    () => assertFulfillmentProblemDetails(unknown),
     TestkitAssertionError,
   );
 });
@@ -540,6 +563,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_DRAW_PROBLEM_FIXTURES",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
+    "PUBLIC_FULFILLMENT_PROBLEM_FIXTURES",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
@@ -551,6 +575,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "assertBrowserRequestBoundary",
     "assertCompatibleSiteManifest",
     "assertDrawProblemDetails",
+    "assertFulfillmentProblemDetails",
     "assertProblemDetails",
     "assertPublicRequestBoundary",
     "assertResponseMetadata",

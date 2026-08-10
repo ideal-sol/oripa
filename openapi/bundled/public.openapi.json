@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.6",
+    "version": "2.0.0-alpha.8",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -581,6 +581,7 @@
         "operationId": "exchangeUserPrizes",
         "summary": "User自身の景品を一括でfree Pointへ交換する",
         "x-idempotency": "required",
+        "x-retry-semantics": "same-idempotency-key",
         "x-rate-limit": "user-mutation",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
@@ -619,7 +620,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       }
@@ -657,6 +658,8 @@
         "operationId": "createShippingAddress",
         "summary": "配送先を作成する",
         "x-idempotency": "not-supported",
+        "x-idempotency-optional": true,
+        "x-retry-semantics": "same-idempotency-key-when-provided",
         "x-rate-limit": "user-mutation",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
@@ -666,6 +669,9 @@
           }
         ],
         "parameters": [
+          {
+            "$ref": "#/components/parameters/OptionalIdempotencyKey"
+          },
           {
             "$ref": "#/components/parameters/XsrfToken"
           }
@@ -692,7 +698,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       }
@@ -735,6 +741,7 @@
         "operationId": "updateShippingAddress",
         "summary": "User本人の配送先を更新する",
         "x-idempotency": "not-supported",
+        "x-retry-semantics": "reconcile-before-retry",
         "x-rate-limit": "user-mutation",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
@@ -773,7 +780,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       },
@@ -781,6 +788,7 @@
         "operationId": "deleteShippingAddress",
         "summary": "User本人の配送先を削除する",
         "x-idempotency": "naturally-idempotent",
+        "x-retry-semantics": "reconcile-before-retry",
         "x-rate-limit": "user-mutation",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
@@ -819,7 +827,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       }
@@ -865,6 +873,7 @@
         "operationId": "createShippingRequest",
         "summary": "複数景品を1件のShipping Requestへまとめる",
         "x-idempotency": "required",
+        "x-retry-semantics": "same-idempotency-key",
         "x-rate-limit": "user-mutation",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
@@ -903,7 +912,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       }
@@ -3064,6 +3073,61 @@
           }
         ]
       },
+      "FulfillmentProblemCode": {
+        "type": "string",
+        "enum": [
+          "AUTHENTICATION_REQUIRED",
+          "CONCURRENT_OPERATION_RETRY_EXHAUSTED",
+          "CSRF_TOKEN_MISMATCH",
+          "IDEMPOTENCY_FAILURE",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+          "INVALID_EXCHANGE_REQUEST",
+          "INVALID_IDEMPOTENCY_KEY",
+          "INVALID_PRIZE_SELECTION",
+          "INVALID_SHIPPING_ADDRESS",
+          "INVALID_SHIPPING_REQUEST",
+          "PII_PROTECTION_UNAVAILABLE",
+          "PRIZE_NOT_EXCHANGEABLE",
+          "PRIZE_NOT_SHIPPABLE",
+          "PRIZE_ON_PAYMENT_HOLD",
+          "RATE_LIMITED",
+          "SESSION_EXPIRED",
+          "SHIPPING_ADDRESS_NOT_FOUND",
+          "SHIPPING_REQUEST_NOT_FOUND",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "USER_PRIZE_NOT_FOUND"
+        ]
+      },
+      "FulfillmentProblemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/FulfillmentProblemCode"
+              }
+            }
+          }
+        ]
+      },
+      "FulfillmentProblemResponse": {
+        "description": "景品交換・配送・配送先Mutationで実在する既知Code、または未知のProblem Details。",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FulfillmentProblemDetails"
+          },
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          }
+        ]
+      },
       "CursorPageMeta": {
         "type": "object",
         "additionalProperties": false,
@@ -4734,6 +4798,17 @@
       }
     },
     "parameters": {
+      "OptionalIdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "指定時は同じRequestを同じKeyで安全に再送できる。Browser Clientは必須とする。",
+        "schema": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        }
+      },
       "UserPrizeId": {
         "name": "prize_id",
         "in": "path",
@@ -4901,6 +4976,27 @@
           "application/problem+json": {
             "schema": {
               "$ref": "#/components/schemas/DrawProblemResponse"
+            }
+          }
+        }
+      },
+      "FulfillmentProblem": {
+        "description": "景品交換・配送・配送先MutationのRFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Oripa-Api-Version": {
+            "$ref": "#/components/headers/XOripaApiVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/FulfillmentProblemResponse"
             }
           }
         }

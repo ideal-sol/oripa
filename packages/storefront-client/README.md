@@ -35,7 +35,7 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.6`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.8`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -51,6 +51,14 @@ Browser Draw Facadeの`createBrowserStorefrontDrawClient`は、CanonicalなSessi
 初期化とCSRF Cookie／Header処理を内部化する。Callerは`Idempotency-Key`だけを明示し、
 同じRetryへ同じKeyを渡す。Draw拒否は`isDrawProblemError`でGenerated codeを判別し、
 未知のProblem codeは汎用`ApiProblemError`として扱う。
+
+Browser Fulfillment Facadeの`createBrowserStorefrontPrizeShippingClient`も同じ
+CSRF境界を使い、景品交換、配送依頼、配送先作成ではCallerが明示した同一
+`Idempotency-Key`だけを自動再試行する。配送先更新／削除は自動再試行せず、通信結果が
+不明な場合は`getShippingAddress`または`listShippingAddresses`で状態を照合する。
+Shipping成功後は`getShippingRequest`または`getPrize`、Point交換成功後は`getPrize`で
+Canonical状態を再取得する。既知の拒否は`isFulfillmentProblemError`、未知Codeは汎用
+`ApiProblemError`として扱う。
 
 ## Entry Points
 

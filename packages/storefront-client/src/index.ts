@@ -3,6 +3,7 @@ export {
   StorefrontTransportError,
   isAuthProblemError,
   isDrawProblemError,
+  isFulfillmentProblemError,
 } from "./errors.js";
 export {
   createIdempotencyKey,
@@ -21,6 +22,8 @@ export {
 } from "./draw.js";
 export {
   createStorefrontPrizeShippingClient,
+  createCsrfManagedStorefrontPrizeShippingClient,
+  FULFILLMENT_MUTATION_RETRY_SEMANTICS,
 } from "./prize-shipping.js";
 export {
   createStorefrontContentContactClient,
@@ -41,6 +44,10 @@ export type {
 } from "./draw.js";
 export type {
   PrizeShippingMutationOptions,
+  BrowserPrizeShippingMutationOptions,
+  BrowserPrizeShippingNonRetryableMutationOptions,
+  BrowserStorefrontPrizeShippingClient,
+  FulfillmentMutationRetrySemantics,
   StorefrontPrizeShippingClient,
 } from "./prize-shipping.js";
 export type {
@@ -56,6 +63,7 @@ export type {
   AuthProblemCode,
   ApiProblem,
   DrawProblemCode,
+  FulfillmentProblemCode,
   StorefrontTransportErrorCode,
 } from "./errors.js";
 export type {

@@ -1,7 +1,9 @@
 import {
   ApiProblemError,
   isDrawProblemError,
+  isFulfillmentProblemError,
   type DrawProblemCode,
+  type FulfillmentProblemCode,
   type StorefrontResponseMetadata,
 } from "@oripa/storefront-client";
 import {
@@ -85,6 +87,16 @@ export function assertDrawProblemDetails(
   requireValue(
     isDrawProblemError(error, code),
     "Error must be a typed Draw Problem Details response",
+  );
+}
+
+export function assertFulfillmentProblemDetails(
+  error: unknown,
+  code?: FulfillmentProblemCode,
+): asserts error is ApiProblemError & { readonly code: FulfillmentProblemCode } {
+  requireValue(
+    isFulfillmentProblemError(error, code),
+    "Error must be a typed Fulfillment Problem Details response",
   );
 }
 

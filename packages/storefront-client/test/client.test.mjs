@@ -6,9 +6,11 @@ import {
   StorefrontTransportError,
   createBrowserStorefrontClient,
   createBrowserStorefrontDrawClient,
+  createBrowserStorefrontPrizeShippingClient,
   createIdempotencyKey,
   isAuthProblemError,
   isDrawProblemError,
+  isFulfillmentProblemError,
 } from "../dist/browser.js";
 import {
   createServerStorefrontClient,
@@ -59,7 +61,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.6");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.8");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -769,6 +771,139 @@ test("Prize Shipping FacadeはUser Prize一覧／詳細のCanonical Pathだけ�
     "/me/prizes?cursor=opaque-cursor",
     "/me/prizes/0198a001-0000-7000-8000-000000000120",
   ]);
+});
+
+test("Browser Fulfillment ClientはCSRFを隠蔽し冪等Mutationだけ同一Keyで再試行する", async () => {
+  const requests = [];
+  const addressKey = "shipping-address-browser-key-0001";
+  const exchangeKey = "prize-exchange-browser-key-0001";
+  const shippingKey = "shipping-request-browser-key-0001";
+  let createAttempts = 0;
+  const client = createBrowserStorefrontPrizeShippingClient({
+    ...browserConfig(async (url, init) => {
+      requests.push({ url, init });
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: true, user: null });
+      }
+      if (url === "/api/v2/me/shipping-addresses" && init.method === "POST") {
+        createAttempts += 1;
+        if (createAttempts === 1) {
+          return jsonResponse({ unavailable: true }, { status: 503 });
+        }
+        return jsonResponse({ id: "address-public-id" }, { status: 201 });
+      }
+      if (url.endsWith("/address-public-id") && init.method === "GET") {
+        return jsonResponse({ id: "address-public-id" });
+      }
+      return jsonResponse({ id: "mutation-result" });
+    }),
+    cookie_reader: () => "f".repeat(64),
+  });
+
+  await client.createShippingAddress(
+    {
+      recipient_name: "Fixture User",
+      postal_code: "000-0000",
+      prefecture: "Fixture",
+      city: "Fixture City",
+      street: "1-2-3",
+      building: null,
+      phone_number: "000-0000-0000",
+    },
+    { idempotency_key: addressKey },
+  );
+  await client.getShippingAddress("address-public-id");
+  await client.exchangePrizes(
+    ["prize-public-id"],
+    { idempotency_key: exchangeKey },
+  );
+  await client.createShippingRequest(
+    "address-public-id",
+    ["prize-public-id"],
+    { idempotency_key: shippingKey },
+  );
+
+  const mutations = requests.filter(({ init }) => init.method === "POST");
+  assert.equal(createAttempts, 2);
+  assert.deepEqual(
+    mutations.map(({ init }) => init.headers.get("Idempotency-Key")),
+    [addressKey, addressKey, exchangeKey, shippingKey],
+  );
+  assert.equal(
+    mutations.every(({ init }) => init.headers.get("X-XSRF-TOKEN") === "f".repeat(64)),
+    true,
+  );
+  assert.equal(requests.every(({ init }) => init.credentials === "include"), true);
+});
+
+test("Address update／deleteは通信結果不明時に自動再送せずGET照合を利用できる", async () => {
+  let mutationCalls = 0;
+  const client = createBrowserStorefrontPrizeShippingClient({
+    ...browserConfig(async (url, init) => {
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: true, user: null });
+      }
+      if (["PUT", "DELETE"].includes(init.method)) {
+        mutationCalls += 1;
+        throw new TypeError("synthetic unknown network result");
+      }
+      return jsonResponse({ id: "address-public-id" });
+    }),
+    cookie_reader: () => "e".repeat(64),
+  });
+  const address = {
+    recipient_name: "Fixture User",
+    postal_code: "000-0000",
+    prefecture: "Fixture",
+    city: "Fixture City",
+    street: "1-2-3",
+    building: null,
+    phone_number: "000-0000-0000",
+  };
+
+  await assert.rejects(
+    client.updateShippingAddress("address-public-id", address),
+    (error) => error instanceof StorefrontTransportError && error.code === "NETWORK_ERROR",
+  );
+  await assert.rejects(
+    client.deleteShippingAddress("address-public-id"),
+    (error) => error instanceof StorefrontTransportError && error.code === "NETWORK_ERROR",
+  );
+  assert.equal(mutationCalls, 2);
+  const reconciled = await client.getShippingAddress("address-public-id");
+  assert.equal(reconciled.data.id, "address-public-id");
+});
+
+test("Fulfillment Problem Codeは実在Codeだけを型付きGuardで判定する", () => {
+  for (const code of [
+    "PRIZE_NOT_EXCHANGEABLE",
+    "PRIZE_NOT_SHIPPABLE",
+    "PRIZE_ON_PAYMENT_HOLD",
+    "IDEMPOTENCY_KEY_REUSED",
+    "CONCURRENT_OPERATION_RETRY_EXHAUSTED",
+    "SHIPPING_ADDRESS_NOT_FOUND",
+  ]) {
+    const error = new ApiProblemError({
+      type: `https://oripa.example/problems/${code.toLowerCase()}`,
+      title: "Fulfillment request was rejected.",
+      status: 409,
+      code,
+      request_id: `req_${code.toLowerCase()}`,
+      retryable: false,
+    });
+    assert.equal(isFulfillmentProblemError(error), true);
+    assert.equal(isFulfillmentProblemError(error, code), true);
+  }
+
+  const unknown = new ApiProblemError({
+    type: "https://oripa.example/problems/unknown",
+    title: "Unknown failure.",
+    status: 500,
+    code: "UNOBSERVED_FULFILLMENT_ERROR",
+    request_id: "req_unknown_fulfillment",
+    retryable: false,
+  });
+  assert.equal(isFulfillmentProblemError(unknown), false);
 });
 
 test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () => {

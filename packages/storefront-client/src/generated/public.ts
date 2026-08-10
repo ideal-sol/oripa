@@ -975,6 +975,13 @@ export interface components {
         };
         /** @description 既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。 */
         DrawProblemResponse: components["schemas"]["DrawProblemDetails"] | components["schemas"]["ProblemDetails"];
+        /** @enum {string} */
+        FulfillmentProblemCode: "AUTHENTICATION_REQUIRED" | "CONCURRENT_OPERATION_RETRY_EXHAUSTED" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_FAILURE" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INVALID_EXCHANGE_REQUEST" | "INVALID_IDEMPOTENCY_KEY" | "INVALID_PRIZE_SELECTION" | "INVALID_SHIPPING_ADDRESS" | "INVALID_SHIPPING_REQUEST" | "PII_PROTECTION_UNAVAILABLE" | "PRIZE_NOT_EXCHANGEABLE" | "PRIZE_NOT_SHIPPABLE" | "PRIZE_ON_PAYMENT_HOLD" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SHIPPING_ADDRESS_NOT_FOUND" | "SHIPPING_REQUEST_NOT_FOUND" | "UNSUPPORTED_MEDIA_TYPE" | "USER_PRIZE_NOT_FOUND";
+        FulfillmentProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["FulfillmentProblemCode"];
+        };
+        /** @description 景品交換・配送・配送先Mutationで実在する既知Code、または未知のProblem Details。 */
+        FulfillmentProblemResponse: components["schemas"]["FulfillmentProblemDetails"] | components["schemas"]["ProblemDetails"];
         CursorPageMeta: {
             page_size: number;
             has_more: boolean;
@@ -1371,6 +1378,18 @@ export interface components {
                 "application/problem+json": components["schemas"]["DrawProblemResponse"];
             };
         };
+        /** @description 景品交換・配送・配送先MutationのRFC 9457 Problem Details。 */
+        FulfillmentProblem: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["FulfillmentProblemResponse"];
+            };
+        };
         /** @description Storefront認証のRFC 9457 Problem Details。 */
         PublicAuthProblem: {
             headers: {
@@ -1385,6 +1404,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description 指定時は同じRequestを同じKeyで安全に再送できる。Browser Clientは必須とする。 */
+        OptionalIdempotencyKey: string;
         UserPrizeId: components["schemas"]["OpaqueId"];
         ShippingAddressId: components["schemas"]["OpaqueId"];
         ShippingRequestId: components["schemas"]["OpaqueId"];
@@ -1789,7 +1810,7 @@ export interface operations {
                     "application/json": components["schemas"]["PrizeExchangeResponse"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     listShippingAddresses: {
@@ -1817,6 +1838,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description 指定時は同じRequestを同じKeyで安全に再送できる。Browser Clientは必須とする。 */
+                "Idempotency-Key"?: components["parameters"]["OptionalIdempotencyKey"];
                 "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
             };
             path?: never;
@@ -1837,7 +1860,7 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddress"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     getShippingAddress: {
@@ -1889,7 +1912,7 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddress"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     deleteShippingAddress: {
@@ -1917,7 +1940,7 @@ export interface operations {
                     };
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     listShippingRequests: {
@@ -1969,7 +1992,7 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingRequestSummary"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     getShippingRequest: {

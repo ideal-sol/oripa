@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.6",
+      storefront_client_version: "2.0.0-alpha.8",
       required_capabilities: [],
     },
     public: {
@@ -37,6 +37,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         "auth.session.v2",
         "draw.browser-mutation.v2",
         "gacha.presentation.v2",
+        "prize.fulfillment-browser-mutation.v2",
         "user-prize.presentation.v2",
       ],
     },
@@ -47,6 +48,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
           "auth.session.v2",
           "draw.browser-mutation.v2",
           "gacha.presentation.v2",
+          "prize.fulfillment-browser-mutation.v2",
           "user-prize.presentation.v2",
         ],
       },
@@ -56,11 +58,12 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.6",
+  minimum_storefront_client_version: "2.0.0-alpha.8",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
     "gacha.presentation.v2",
+    "prize.fulfillment-browser-mutation.v2",
     "user-prize.presentation.v2",
   ],
 }) satisfies PlatformRuntimeCompatibility;
@@ -265,6 +268,33 @@ export const PUBLIC_DRAW_PROBLEM_FIXTURES = Object.freeze([
     retryable: false,
   },
 ] as const satisfies readonly PublicComponents["schemas"]["DrawProblemDetails"][]);
+
+export const PUBLIC_FULFILLMENT_PROBLEM_FIXTURES = Object.freeze([
+  {
+    type: "https://oripa.example/problems/prize_on_payment_hold",
+    title: "One or more Prizes are on Payment hold.",
+    status: 409,
+    code: "PRIZE_ON_PAYMENT_HOLD",
+    request_id: "request-fixture-fulfillment-problem-001",
+    retryable: false,
+  },
+  {
+    type: "https://oripa.example/problems/idempotency_key_reused",
+    title: "The Idempotency Key was used for a different request.",
+    status: 409,
+    code: "IDEMPOTENCY_KEY_REUSED",
+    request_id: "request-fixture-fulfillment-problem-002",
+    retryable: false,
+  },
+  {
+    type: "https://oripa.example/problems/prize_not_shippable",
+    title: "One or more Prizes cannot be shipped.",
+    status: 409,
+    code: "PRIZE_NOT_SHIPPABLE",
+    request_id: "request-fixture-fulfillment-problem-003",
+    retryable: false,
+  },
+] as const satisfies readonly PublicComponents["schemas"]["FulfillmentProblemDetails"][]);
 
 export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000120",
