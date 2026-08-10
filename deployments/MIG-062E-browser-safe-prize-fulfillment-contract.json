@@ -1,0 +1,47 @@
+{
+  "task_id": "MIG-062E",
+  "risk": "R4",
+  "verification_profile": "TARGETED_FULFILLMENT_CONTRACT",
+  "status": "verification_complete_pending_artifact",
+  "base_branch": "main",
+  "base_sha": "f08ff71edcd8c0cbbcf0fff83c2a69e753f012b6",
+  "application_source_commit": "PENDING",
+  "task_policy_sha256": "4d9b8b0779fdf3b078c572d5a24049145c77cfad21280d4d41c7909baffdeddf",
+  "issue": 235,
+  "pull_request": null,
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062E/",
+  "artifact": {
+    "version": "2.0.0-alpha.7",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-062E/artifacts/2.0.0-alpha.7/",
+    "manifest_file": "artifact-manifest.json",
+    "manifest_sha256": "PENDING",
+    "public_openapi_file": "public.openapi.json",
+    "public_openapi_sha256": "PENDING",
+    "storefront_client_file": "oripa-storefront-client-2.0.0-alpha.7.tgz",
+    "storefront_client_sha256": "PENDING",
+    "storefront_testkit_file": "oripa-storefront-testkit-2.0.0-alpha.7.tgz",
+    "storefront_testkit_sha256": "PENDING",
+    "site_schema_file": "oripa-site-schema-2.0.0-alpha.7.tgz",
+    "site_schema_sha256": "PENDING"
+  },
+  "runtime": {
+    "preview_change": "NONE",
+    "database_change": "NONE",
+    "migration": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_repository_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_7_TESTS_90_ASSERTIONS",
+    "public_openapi": "PASS_48_OPERATIONS",
+    "storefront_client": "PASS_24_TESTS",
+    "site_schema": "PASS_10_TESTS",
+    "storefront_testkit": "PASS_26_TESTS",
+    "artifact_clean_install": "PENDING",
+    "policy_quality_security_gates": "PENDING",
+    "git_diff_check": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

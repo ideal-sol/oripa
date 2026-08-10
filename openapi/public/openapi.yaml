@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.6
+  version: 2.0.0-alpha.7
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -372,6 +372,7 @@ paths:
       operationId: exchangeUserPrizes
       summary: User自身の景品を一括でfree Pointへ交換する
       x-idempotency: required
+      x-retry-semantics: same-idempotency-key
       x-rate-limit: user-mutation
       x-cache-policy: no-store
       x-stability: alpha
@@ -394,7 +395,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PrizeExchangeResponse'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-addresses:
     get:
       operationId: listShippingAddresses
@@ -418,12 +419,15 @@ paths:
       operationId: createShippingAddress
       summary: 配送先を作成する
       x-idempotency: not-supported
+      x-idempotency-optional: true
+      x-retry-semantics: same-idempotency-key-when-provided
       x-rate-limit: user-mutation
       x-cache-policy: no-store
       x-stability: alpha
       security:
         - userSession: []
       parameters:
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/XsrfToken'
       requestBody:
         required: true
@@ -439,7 +443,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShippingAddress'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-addresses/{address_id}:
     get:
       operationId: getShippingAddress
@@ -465,6 +469,7 @@ paths:
       operationId: updateShippingAddress
       summary: User本人の配送先を更新する
       x-idempotency: not-supported
+      x-retry-semantics: reconcile-before-retry
       x-rate-limit: user-mutation
       x-cache-policy: no-store
       x-stability: alpha
@@ -487,11 +492,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShippingAddress'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
     delete:
       operationId: deleteShippingAddress
       summary: User本人の配送先を削除する
       x-idempotency: naturally-idempotent
+      x-retry-semantics: reconcile-before-retry
       x-rate-limit: user-mutation
       x-cache-policy: no-store
       x-stability: alpha
@@ -514,7 +520,7 @@ paths:
                     type: boolean
                     const: true
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-requests:
     get:
       operationId: listShippingRequests
@@ -541,6 +547,7 @@ paths:
       operationId: createShippingRequest
       summary: 複数景品を1件のShipping Requestへまとめる
       x-idempotency: required
+      x-retry-semantics: same-idempotency-key
       x-rate-limit: user-mutation
       x-cache-policy: no-store
       x-stability: alpha
@@ -563,7 +570,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShippingRequestSummary'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-requests/{shipping_request_id}:
     get:
       operationId: getShippingRequest
@@ -1818,6 +1825,43 @@ components:
       anyOf:
         - $ref: '#/components/schemas/DrawProblemDetails'
         - $ref: '#/components/schemas/ProblemDetails'
+    FulfillmentProblemCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - CONCURRENT_OPERATION_RETRY_EXHAUSTED
+        - CSRF_TOKEN_MISMATCH
+        - IDEMPOTENCY_FAILURE
+        - IDEMPOTENCY_KEY_REUSED
+        - IDEMPOTENCY_REQUEST_IN_PROGRESS
+        - INVALID_EXCHANGE_REQUEST
+        - INVALID_IDEMPOTENCY_KEY
+        - INVALID_PRIZE_SELECTION
+        - INVALID_SHIPPING_ADDRESS
+        - INVALID_SHIPPING_REQUEST
+        - PII_PROTECTION_UNAVAILABLE
+        - PRIZE_NOT_EXCHANGEABLE
+        - PRIZE_NOT_SHIPPABLE
+        - PRIZE_ON_PAYMENT_HOLD
+        - RATE_LIMITED
+        - SESSION_EXPIRED
+        - SHIPPING_ADDRESS_NOT_FOUND
+        - SHIPPING_REQUEST_NOT_FOUND
+        - UNSUPPORTED_MEDIA_TYPE
+        - USER_PRIZE_NOT_FOUND
+    FulfillmentProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              $ref: '#/components/schemas/FulfillmentProblemCode'
+    FulfillmentProblemResponse:
+      description: 景品交換・配送・配送先Mutationで実在する既知Code、または未知のProblem Details。
+      anyOf:
+        - $ref: '#/components/schemas/FulfillmentProblemDetails'
+        - $ref: '#/components/schemas/ProblemDetails'
     CursorPageMeta:
       $ref: ../components/common.yaml#/schemas/CursorPageMeta
     PresentationAsset:
@@ -2790,6 +2834,15 @@ components:
           type: string
           const: accepted
   parameters:
+    OptionalIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 指定時は同じRequestを同じKeyで安全に再送できる。Browser Clientは必須とする。
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
     UserPrizeId:
       name: prize_id
       in: path
@@ -2879,6 +2932,19 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/DrawProblemResponse'
+    FulfillmentProblem:
+      description: 景品交換・配送・配送先MutationのRFC 9457 Problem Details。
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+        X-Oripa-Api-Version:
+          $ref: '#/components/headers/XOripaApiVersion'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/FulfillmentProblemResponse'
     PublicAuthProblem:
       description: Storefront認証のRFC 9457 Problem Details。
       headers:

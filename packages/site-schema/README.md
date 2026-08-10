@@ -67,6 +67,6 @@ Design、Draw／Point／Payment判断、Laravel／OpenAPI実装、V1 Codeを含�
 
 ## Status
 
-Package Versionは`2.0.0-alpha.6`、Site Manifest Schema Versionは引き続き
+Package Versionは`2.0.0-alpha.7`、Site Manifest Schema Versionは引き続き
 `2.0.0-alpha.1`である。Package Publish前かつProduction利用不可。
 Business Capability、Site Template、V2 DB／Redisは未実装である。

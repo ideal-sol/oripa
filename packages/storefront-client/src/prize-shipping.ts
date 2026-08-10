@@ -10,14 +10,47 @@ export interface PrizeShippingMutationOptions {
   csrf_token: string;
   idempotency_key?: string;
   signal?: AbortSignal;
+  timeout_ms?: number;
 }
+
+export interface BrowserPrizeShippingMutationOptions {
+  idempotency_key: string;
+  signal?: AbortSignal;
+  timeout_ms?: number;
+}
+
+export interface BrowserPrizeShippingNonRetryableMutationOptions {
+  signal?: AbortSignal;
+  timeout_ms?: number;
+}
+
+type IdempotentPrizeShippingMutationOptions =
+  Required<Pick<PrizeShippingMutationOptions, "csrf_token" | "idempotency_key">>
+  & Pick<PrizeShippingMutationOptions, "signal" | "timeout_ms">;
+
+type NonRetryablePrizeShippingMutationOptions =
+  Pick<PrizeShippingMutationOptions, "csrf_token" | "signal" | "timeout_ms">;
+
+type OptionalIdempotentPrizeShippingMutationOptions =
+  Pick<PrizeShippingMutationOptions, "csrf_token" | "idempotency_key" | "signal" | "timeout_ms">;
+
+export const FULFILLMENT_MUTATION_RETRY_SEMANTICS = Object.freeze({
+  exchangePrizes: "same-idempotency-key",
+  createShippingAddress: "same-idempotency-key",
+  updateShippingAddress: "reconcile-before-retry",
+  deleteShippingAddress: "reconcile-before-retry",
+  createShippingRequest: "same-idempotency-key",
+} as const);
+
+export type FulfillmentMutationRetrySemantics =
+  (typeof FULFILLMENT_MUTATION_RETRY_SEMANTICS)[keyof typeof FULFILLMENT_MUTATION_RETRY_SEMANTICS];
 
 export interface StorefrontPrizeShippingClient {
   listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
   getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
   exchangePrizes(
     prizeIds: string[],
-    options: Required<Pick<PrizeShippingMutationOptions, "csrf_token" | "idempotency_key">>,
+    options: IdempotentPrizeShippingMutationOptions,
   ): Promise<StorefrontResponse<Schemas["PrizeExchangeResponse"]>>;
   listShippingAddresses(): Promise<
     StorefrontResponse<Schemas["ShippingAddressCollection"]>
@@ -27,16 +60,16 @@ export interface StorefrontPrizeShippingClient {
   ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
   createShippingAddress(
     address: Schemas["ShippingAddressInput"],
-    options: Pick<PrizeShippingMutationOptions, "csrf_token">,
+    options: OptionalIdempotentPrizeShippingMutationOptions,
   ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
   updateShippingAddress(
     addressId: string,
     address: Schemas["ShippingAddressInput"],
-    options: Pick<PrizeShippingMutationOptions, "csrf_token">,
+    options: NonRetryablePrizeShippingMutationOptions,
   ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
   deleteShippingAddress(
     addressId: string,
-    options: Pick<PrizeShippingMutationOptions, "csrf_token">,
+    options: NonRetryablePrizeShippingMutationOptions,
   ): Promise<StorefrontResponse<{ deleted: true }>>;
   listShippingRequests(
     cursor?: string,
@@ -47,7 +80,46 @@ export interface StorefrontPrizeShippingClient {
   createShippingRequest(
     addressId: string,
     prizeIds: string[],
-    options: Required<Pick<PrizeShippingMutationOptions, "csrf_token" | "idempotency_key">>,
+    options: IdempotentPrizeShippingMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ShippingRequestSummary"]>>;
+}
+
+export interface BrowserStorefrontPrizeShippingClient {
+  listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
+  getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
+  exchangePrizes(
+    prizeIds: string[],
+    options: BrowserPrizeShippingMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["PrizeExchangeResponse"]>>;
+  listShippingAddresses(): Promise<
+    StorefrontResponse<Schemas["ShippingAddressCollection"]>
+  >;
+  getShippingAddress(
+    addressId: string,
+  ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
+  createShippingAddress(
+    address: Schemas["ShippingAddressInput"],
+    options: BrowserPrizeShippingMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
+  updateShippingAddress(
+    addressId: string,
+    address: Schemas["ShippingAddressInput"],
+    options?: BrowserPrizeShippingNonRetryableMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["ShippingAddress"]>>;
+  deleteShippingAddress(
+    addressId: string,
+    options?: BrowserPrizeShippingNonRetryableMutationOptions,
+  ): Promise<StorefrontResponse<{ deleted: true }>>;
+  listShippingRequests(
+    cursor?: string,
+  ): Promise<StorefrontResponse<Schemas["ShippingRequestCollection"]>>;
+  getShippingRequest(
+    requestId: string,
+  ): Promise<StorefrontResponse<Schemas["ShippingRequestDetail"]>>;
+  createShippingRequest(
+    addressId: string,
+    prizeIds: string[],
+    options: BrowserPrizeShippingMutationOptions,
   ): Promise<StorefrontResponse<Schemas["ShippingRequestSummary"]>>;
 }
 
@@ -85,6 +157,8 @@ export function createStorefrontPrizeShippingClient(
         headers: csrf(options.csrf_token),
         idempotency_key: options.idempotency_key,
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
       }),
     listShippingAddresses: () =>
       transport.request({ path: "/me/shipping-addresses" }),
@@ -98,7 +172,10 @@ export function createStorefrontPrizeShippingClient(
         method: "POST",
         body: address,
         headers: csrf(options.csrf_token),
+        idempotency_key: options.idempotency_key,
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
       }),
     updateShippingAddress: (id, address, options) =>
       transport.request({
@@ -107,6 +184,9 @@ export function createStorefrontPrizeShippingClient(
         body: address,
         headers: csrf(options.csrf_token),
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
       }),
     deleteShippingAddress: (id, options) =>
       transport.request({
@@ -114,6 +194,9 @@ export function createStorefrontPrizeShippingClient(
         method: "DELETE",
         headers: csrf(options.csrf_token),
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
       }),
     listShippingRequests: (value) =>
       transport.request({ path: `/me/shipping-requests${cursor(value)}` }),
@@ -129,6 +212,80 @@ export function createStorefrontPrizeShippingClient(
         headers: csrf(options.csrf_token),
         idempotency_key: options.idempotency_key,
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+      }),
+  };
+}
+
+export function createCsrfManagedStorefrontPrizeShippingClient(
+  transport: StorefrontTransport,
+): BrowserStorefrontPrizeShippingClient {
+  return {
+    listPrizes: (value) =>
+      transport.request({ path: `/me/prizes${cursor(value)}` }),
+    getPrize: (id) =>
+      transport.request({ path: `/me/prizes/${segment(id, "prize_id")}` }),
+    exchangePrizes: (prizeIds, options) =>
+      transport.request({
+        path: "/me/prizes/exchange",
+        method: "POST",
+        body: { prize_ids: prizeIds },
+        idempotency_key: options.idempotency_key,
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+      }),
+    listShippingAddresses: () =>
+      transport.request({ path: "/me/shipping-addresses" }),
+    getShippingAddress: (id) =>
+      transport.request({
+        path: `/me/shipping-addresses/${segment(id, "address_id")}`,
+      }),
+    createShippingAddress: (address, options) =>
+      transport.request({
+        path: "/me/shipping-addresses",
+        method: "POST",
+        body: address,
+        idempotency_key: options.idempotency_key,
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+      }),
+    updateShippingAddress: (id, address, options = {}) =>
+      transport.request({
+        path: `/me/shipping-addresses/${segment(id, "address_id")}`,
+        method: "PUT",
+        body: address,
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
+      }),
+    deleteShippingAddress: (id, options = {}) =>
+      transport.request({
+        path: `/me/shipping-addresses/${segment(id, "address_id")}`,
+        method: "DELETE",
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
+      }),
+    listShippingRequests: (value) =>
+      transport.request({ path: `/me/shipping-requests${cursor(value)}` }),
+    getShippingRequest: (id) =>
+      transport.request({
+        path: `/me/shipping-requests/${segment(id, "shipping_request_id")}`,
+      }),
+    createShippingRequest: (addressId, prizeIds, options) =>
+      transport.request({
+        path: "/me/shipping-requests",
+        method: "POST",
+        body: { shipping_address_id: addressId, prize_ids: prizeIds },
+        idempotency_key: options.idempotency_key,
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
       }),
   };
 }

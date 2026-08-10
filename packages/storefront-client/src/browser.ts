@@ -3,6 +3,7 @@ import {
   StorefrontTransportError,
   isAuthProblemError,
   isDrawProblemError,
+  isFulfillmentProblemError,
 } from "./errors.js";
 import {
   CLIENT_VERSION_HEADER,
@@ -19,6 +20,10 @@ import {
   createCsrfManagedStorefrontDrawClient,
   type BrowserStorefrontDrawClient,
 } from "./draw.js";
+import {
+  createCsrfManagedStorefrontPrizeShippingClient,
+  type BrowserStorefrontPrizeShippingClient,
+} from "./prize-shipping.js";
 import type {
   BrowserStorefrontClientConfig,
   CsrfInitializer,
@@ -37,6 +42,7 @@ export {
   createIdempotencyKey,
   isAuthProblemError,
   isDrawProblemError,
+  isFulfillmentProblemError,
 };
 export type {
   BrowserStorefrontClientConfig,
@@ -49,6 +55,16 @@ export type {
   BrowserStorefrontDrawClient,
 } from "./draw.js";
 export type { DrawProblemCode } from "./errors.js";
+export type { FulfillmentProblemCode } from "./errors.js";
+export {
+  FULFILLMENT_MUTATION_RETRY_SEMANTICS,
+} from "./prize-shipping.js";
+export type {
+  BrowserPrizeShippingMutationOptions,
+  BrowserPrizeShippingNonRetryableMutationOptions,
+  BrowserStorefrontPrizeShippingClient,
+  FulfillmentMutationRetrySemantics,
+} from "./prize-shipping.js";
 
 function readDocumentCookie(name: string): string | undefined {
   if (typeof document === "undefined") {
@@ -127,6 +143,14 @@ export function createBrowserStorefrontDrawClient(
   configuration: BrowserStorefrontClientConfig,
 ): BrowserStorefrontDrawClient {
   return createCsrfManagedStorefrontDrawClient(
+    createBrowserStorefrontClient(configuration),
+  );
+}
+
+export function createBrowserStorefrontPrizeShippingClient(
+  configuration: BrowserStorefrontClientConfig,
+): BrowserStorefrontPrizeShippingClient {
+  return createCsrfManagedStorefrontPrizeShippingClient(
     createBrowserStorefrontClient(configuration),
   );
 }

@@ -8209,3 +8209,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.6`へ同期し、既存`.4`と未採用`.5`を変更せずRepository外Artifactへ固定した。
 - Fresh Self-reviewで`.5`のOpenAPI `oneOf` Branch重複を検出し、`anyOf`へ補正した`.6`を最終Artifactとした。
 - Backend対象4 tests／34 assertions、Client 21 tests、Site Schema 10 tests、Testkit 25 tests、OpenAPI 48 operations、Policy／Quality Gate、Workspace外Clean／Frozen InstallがPASSした。Runtime／Preview／DB／Nginx／V1／Storefront Repositoryは非変更である。
+
+## MIG-062E Browser-safe Prize Fulfillment Mutation Contract
+
+- Base `f08ff71edcd8c0cbbcf0fff83c2a69e753f012b6`からIssue #235、Branch `feat/MIG-062E-browser-safe-prize-fulfillment-contract`、Risk R4で開始した。
+- MIG-062Cと同じBrowser CSRF／Cookie Transportへ景品Point交換、配送先、配送依頼Mutationを接続し、CallerによるCookie名／XSRF Header管理を不要にした。
+- 配送先作成へ既存Idempotency基盤を追加し、Browser ClientではKeyを必須化した。配送先update／deleteは自動Retryを禁止し、Read MethodによるReconciliation境界を明示した。
+- Backend実在CodeだけのTyped Fulfillment Problem ContractをPublic OpenAPI／Generated Types／Storefront Client／Site Schema／Testkitへ同期した。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。

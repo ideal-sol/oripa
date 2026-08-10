@@ -282,25 +282,84 @@ final class V2PrizeShippingService
     }
 
     /** @param array<string, string|null> $input @return array<string, mixed> */
-    public function createAddress(User $user, array $input, string $requestId): array
+    public function createAddress(
+        User $user,
+        array $input,
+        string $requestId
+    ): array
     {
         $plain = $this->validatedAddress($input);
 
-        return $this->transaction(function () use ($user, $plain, $requestId): array {
-            $address = new ShippingAddress();
-            $address->forceFill([
-                'user_id' => $user->id,
-                ...$this->encryptedAddress($plain),
-            ])->save();
-            $this->audit->record('shipping.address_created', $this->auditAttributes(
-                $user,
-                'shipping_address',
-                $address->public_id,
-                $requestId
-            ));
+        return $this->transaction(
+            fn (): array => $this->persistAddress($user, $plain, $requestId)
+        );
+    }
 
-            return $this->address($address, true);
+    /**
+     * @param array<string, string|null> $input
+     * @return array{data: array<string, mixed>, idempotent_replay: bool}
+     */
+    public function createAddressIdempotent(
+        User $user,
+        array $input,
+        string $idempotencyKey,
+        string $requestId
+    ): array {
+        $plain = $this->validatedAddress($input);
+        $this->idempotencyKey($idempotencyKey);
+
+        return $this->transaction(function () use (
+            $user,
+            $plain,
+            $idempotencyKey,
+            $requestId
+        ): array {
+            $claim = $this->claim(
+                'shipping.address.create',
+                $user,
+                $idempotencyKey,
+                $plain
+            );
+            if ($claim->replay) {
+                return [
+                    'data' => $claim->record->response_data,
+                    'idempotent_replay' => true,
+                ];
+            }
+            $response = $this->persistAddress($user, $plain, $requestId);
+            $this->idempotency->complete(
+                $claim->record,
+                'shipping_address',
+                $response['id'],
+                $response
+            );
+
+            return [
+                'data' => $response,
+                'idempotent_replay' => false,
+            ];
         });
+    }
+
+    /**
+     * @param array<string, string> $plain
+     * @return array<string, mixed>
+     */
+    private function persistAddress(User $user, array $plain, string $requestId): array
+    {
+        $address = new ShippingAddress();
+        $address->forceFill([
+            'user_id' => $user->id,
+            ...$this->encryptedAddress($plain),
+        ])->save();
+        $this->audit->record('shipping.address_created', $this->auditAttributes(
+            $user,
+            'shipping_address',
+            $address->public_id,
+            $requestId
+        ));
+
+        return $this->address($address, true);
     }
 
     /** @param array<string, string|null> $input @return array<string, mixed> */
