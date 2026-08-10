@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.5",
+    "version": "2.0.0-alpha.6",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -3055,7 +3055,7 @@
       },
       "DrawProblemResponse": {
         "description": "既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。",
-        "oneOf": [
+        "anyOf": [
           {
             "$ref": "#/components/schemas/DrawProblemDetails"
           },
