@@ -20,6 +20,14 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062d_point_purchase_target_tag_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+        }
+        self.assertEqual(policy_gate.MIG_062D_V2_PAYMENT_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -735,6 +743,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
             "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
+            "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

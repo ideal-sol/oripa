@@ -1,0 +1,41 @@
+{
+  "task_id": "MIG-062D",
+  "risk": "R4",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "e4bd8ecb9bc6e95785142411b2a0cadc63336d5f",
+  "task_policy_sha256": "060f0c443dd8e1783a38d53f553828adbd633050c393fce119e8eeb2f96a8081",
+  "issue": 233,
+  "pull_request": 234,
+  "application_head": "761515ef81ae74cf8b130c4c681519807d83655e",
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062D/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+    "api_previous_image": "sha256:e9cd6235b7e6ed88765e98bcf268010e759594d220a0e147fba819fea7a3634a",
+    "admin_previous_image": "sha256:32bcb9cb2426f11046fb3186eb7e8765027d88fd4e681deb12defc968ff536ee",
+    "api_image": "sha256:907e6aca2e0caac46b21424291150ac4361fc8f3a39f7389ae8b2eab727be696",
+    "admin_image": "sha256:65c9a44580a8ea87553f9d93b963728cec680276b40eeb53de85d76deaf7a7ec",
+    "migration_count": 43,
+    "admin_browser": "PASS_DESKTOP_MOBILE",
+    "console_page_gateway_errors": 0,
+    "rollback_images_retained": "YES",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "migration_rollback_reapply": "PASS",
+    "backend_targeted": "PASS_8_TESTS_54_ASSERTIONS",
+    "admin_unit": "PASS_3_TESTS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "openapi_generated_client": "PASS",
+    "admin_typecheck_lint": "PASS",
+    "admin_production_build": "PASS",
+    "policy_unit_gate": "PASS",
+    "quality_gate": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

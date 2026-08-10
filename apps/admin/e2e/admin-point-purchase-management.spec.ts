@@ -11,10 +11,11 @@ test("desktop list uses canonical V1 columns and real plan data", async ({ page 
   const errors = observeErrors(page);
   expect((await page.goto("/purchase-plans"))?.status()).toBe(200);
   await expect(page.getByRole("columnheader")).toHaveText([
-    "ID", "商品名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "対象カテゴリ", "状態", "編集",
+    "ID", "商品名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "対象カテゴリ", "対象タグ", "状態", "編集",
   ]);
   await expect(page.getByText("スタンダード")).toBeVisible();
   await expect(page.getByText("初回ユーザー")).toBeVisible();
+  await expect(page.getByText("VIP")).toBeVisible();
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
 
@@ -23,6 +24,7 @@ test("mobile create form defaults to all users without horizontal overflow", asy
   const errors = observeErrors(page);
   expect((await page.goto("/purchase-plans/new"))?.status()).toBe(200);
   await expect(page.getByLabel("対象カテゴリ")).toHaveValue("all_users");
+  await expect(page.getByLabel("対象タグ")).toHaveValue("");
   await expect(page.getByRole("heading", { name: "ポイント商品登録" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect((await page.goto("/purchase-plans"))?.status()).toBe(200);
@@ -36,13 +38,15 @@ async function installApi(page: Page): Promise<void> {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/auth/session")) return json(route, { admin: { id: uuid("9"), mfa_verified: true, role: "admin", state: "active" }, authenticated: true, mfa_required: false, requires_mfa_enrollment: false });
     if (url.pathname.endsWith("/auth/permissions")) return json(route, { permissions: ["payment.plan.read", "payment.plan.manage"], request_id: uuid("9"), role: "admin" });
+    if (url.pathname.includes("/user-tags")) return json(route, { items: [tag()], next_cursor: null, request_id: uuid("9") });
     if (url.pathname.endsWith("/point-purchase-plans")) return json(route, { items: [plan()], next_cursor: null, request_id: uuid("9") });
     if (url.pathname.includes("/point-purchase-plans/")) return json(route, { data: plan(), request_id: uuid("9") });
     return route.fulfill({ status: 404 });
   });
 }
 
-function plan() { return { amount: 1000, audience_code: "first_purchase_users", available_from: "2026-08-01T00:00:00+09:00", available_until: "2026-09-01T00:00:00+09:00", created_at: "2026-08-01T00:00:00Z", free_point_amount: 100, id: planId, is_active: true, name: "スタンダード", paid_point_amount: 1000, revision: 1, sort_order: 10, status: "published", updated_at: "2026-08-01T00:00:00Z", version: 1 }; }
+function plan() { return { amount: 1000, audience_code: "first_purchase_users", target_user_tag: { id: uuid("2"), is_active: true, name: "VIP" }, available_from: "2026-08-01T00:00:00+09:00", available_until: "2026-09-01T00:00:00+09:00", created_at: "2026-08-01T00:00:00Z", free_point_amount: 100, id: planId, is_active: true, name: "スタンダード", paid_point_amount: 1000, revision: 1, sort_order: 10, status: "published", updated_at: "2026-08-01T00:00:00Z", version: 1 }; }
+function tag() { return { created_at: "2026-08-01T00:00:00Z", id: uuid("2"), is_active: true, name: "VIP", revision: 1, updated_at: "2026-08-01T00:00:00Z" }; }
 function observeErrors(page: Page) { const consoleErrors: string[] = []; const pageErrors: string[] = []; const gatewayErrors: number[] = []; page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); }); page.on("pageerror", (error) => pageErrors.push(error.message)); page.on("response", (response) => { if ([500, 502, 504].includes(response.status())) gatewayErrors.push(response.status()); }); return () => ({ console: consoleErrors, gateway: gatewayErrors, page: pageErrors }); }
 async function json(route: Route, body: unknown): Promise<void> { await route.fulfill({ body: JSON.stringify(body), headers: { "Cache-Control": "private, no-store", "Content-Type": "application/json" }, status: 200 }); }
 function uuid(last: string): string { return `01910191-0191-7191-8191-01910191019${last}`; }

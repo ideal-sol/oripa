@@ -193,6 +193,102 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         self::assertFalse($eligibility->eligible($user, $plan));
     }
 
+    public function test_target_tag_is_public_versioned_and_inactive_tags_are_rejected(): void
+    {
+        $service = app(V2PointPurchasePlanService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $tag = $this->tag('VIP');
+        $created = $service->create($context, [
+            ...$this->payload(),
+            'target_user_tag_id' => $tag->public_id,
+        ], (string) Str::uuid7());
+        self::assertSame([
+            'id' => $tag->public_id,
+            'name' => 'VIP',
+            'is_active' => true,
+        ], $created['data']['target_user_tag']);
+        self::assertArrayNotHasKey('target_user_tag_id', $created['data']);
+
+        $updated = $service->update($context, $created['data']['id'], [
+            ...$this->payload(),
+            'target_user_tag_id' => null,
+            'expected_revision' => 1,
+        ], (string) Str::uuid7());
+        self::assertSame(2, $updated['data']['version']);
+        self::assertNull($updated['data']['target_user_tag']);
+
+        DB::table('user_tags')->where('id', $tag->id)->update(['is_active' => false]);
+        try {
+            $service->create($context, [
+                ...$this->payload(),
+                'target_user_tag_id' => $tag->public_id,
+            ], (string) Str::uuid7());
+            self::fail('An inactive tag must not be selectable.');
+        } catch (V2PointPurchasePlanException $exception) {
+            self::assertSame('POINT_PURCHASE_PLAN_INVALID', $exception->errorCode);
+        }
+    }
+
+    public function test_tag_and_audience_eligibility_are_combined_without_frontend_inference(): void
+    {
+        $user = $this->user('tag-match');
+        $other = $this->user('tag-mismatch');
+        $target = $this->tag('対象会員');
+        $extra = $this->tag('別タグ');
+        $plan = $this->plan('all_users', $target->id);
+        $eligibility = app(V2PointPurchaseEligibilityService::class);
+        self::assertFalse($eligibility->eligible($user, $plan));
+        $this->assignTag($user, $extra);
+        self::assertFalse($eligibility->eligible($user, $plan));
+        $this->assignTag($user, $target);
+        self::assertTrue($eligibility->eligible($user, $plan));
+        self::assertFalse($eligibility->eligible($other, $plan));
+
+        DB::table('user_tags')->where('id', $target->id)->update(['is_active' => false]);
+        self::assertTrue($eligibility->eligible($user, $plan));
+
+        $firstPurchasePlan = $this->plan('first_purchase_users', $target->id);
+        self::assertTrue($eligibility->eligible($user, $firstPurchasePlan));
+        $this->payment($user, $firstPurchasePlan, 'succeeded');
+        self::assertFalse($eligibility->eligible($user, $firstPurchasePlan));
+    }
+
+    public function test_payment_start_and_success_revalidate_current_tag_assignment(): void
+    {
+        $user = $this->user('tag-revalidation');
+        $tag = $this->tag('購入対象');
+        $plan = $this->plan('all_users', $tag->id);
+        $service = app(V2PaymentService::class);
+        try {
+            $service->createPayment(
+                $user->id, $plan->id, 'mock', 'missing-tag', (string) Str::uuid7()
+            );
+            self::fail('Purchase creation must reject a user without the target tag.');
+        } catch (V2PaymentException $exception) {
+            self::assertSame('POINT_PURCHASE_USER_TAG_REQUIRED', $exception->getMessage());
+        }
+
+        $this->assignTag($user, $tag);
+        $payment = $service->createPayment(
+            $user->id, $plan->id, 'mock', 'tagged-user', (string) Str::uuid7()
+        );
+        DB::table('user_tag_assignments')->where([
+            'user_id' => $user->id,
+            'user_tag_id' => $tag->id,
+        ])->delete();
+        $event = $service->recordVerifiedProviderEvent(
+            'mock', 'event-tag-'.Str::uuid7(), 'payment.succeeded', '{}', [], $payment->id
+        );
+        try {
+            $service->confirmSucceeded($event->id);
+            self::fail('Success confirmation must revalidate the current tag assignment.');
+        } catch (V2PaymentException $exception) {
+            self::assertSame('POINT_PURCHASE_USER_TAG_REQUIRED', $exception->getMessage());
+        }
+        self::assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'created']);
+        self::assertDatabaseMissing('payment_point_grants', ['payment_id' => $payment->id]);
+    }
+
     public function test_success_confirmation_rechecks_first_purchase_under_user_lock(): void
     {
         $user = $this->user('completion');
@@ -235,6 +331,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'available_from' => '2026-08-01T00:00:00+09:00',
             'available_until' => '2026-09-01T00:00:00+09:00',
             'audience_code' => 'all_users',
+            'target_user_tag_id' => null,
         ];
     }
 
@@ -285,7 +382,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         ]);
     }
 
-    private function plan(string $audience): object
+    private function plan(string $audience, ?int $targetTagId = null): object
     {
         $id = DB::table('point_purchase_plans')->insertGetId([
             'public_id' => (string) Str::uuid7(),
@@ -299,6 +396,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'status' => 'published',
             'sort_order' => 1,
             'audience_code' => $audience,
+            'target_user_tag_id' => $targetTagId,
             'revision' => 1,
             'published_at' => now(),
             'created_at' => now(),
@@ -306,6 +404,31 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         ]);
 
         return DB::table('point_purchase_plans')->find($id);
+    }
+
+    private function tag(string $name): object
+    {
+        $id = DB::table('user_tags')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'name' => $name,
+            'normalized_name' => mb_strtolower($name),
+            'is_active' => true,
+            'revision' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return DB::table('user_tags')->find($id);
+    }
+
+    private function assignTag(User $user, object $tag): void
+    {
+        DB::table('user_tag_assignments')->insert([
+            'user_id' => $user->id,
+            'user_tag_id' => $tag->id,
+            'assigned_by_admin_public_id' => (string) Str::uuid7(),
+            'assigned_at' => now(),
+        ]);
     }
 
     private function payment(User $user, object $plan, string $status): void

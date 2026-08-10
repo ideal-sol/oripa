@@ -4204,6 +4204,10 @@ components:
         free_point_amount: {type: integer, minimum: 0, maximum: 1000000}
         sort_order: {type: integer, minimum: 0, maximum: 1000000}
         audience_code: {type: string, enum: [all_users, first_purchase_users]}
+        target_user_tag:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminPointPurchaseTargetTag'}
+            - {type: 'null'}
         is_active: {type: boolean}
         status: {type: string, enum: [draft, published, retired]}
         available_from: {type: [string, 'null'], format: date-time}
@@ -4223,9 +4227,21 @@ components:
         free_point_amount: {type: integer, minimum: 0, maximum: 1000000}
         sort_order: {type: integer, minimum: 0, maximum: 1000000}
         audience_code: {type: string, enum: [all_users, first_purchase_users]}
+        target_user_tag_id:
+          type: [string, 'null']
+          format: uuid
+          description: 対象会員タグのPublic ID。nullはタグ条件なし。
         is_active: {type: boolean}
         available_from: {type: [string, 'null'], format: date-time}
         available_until: {type: [string, 'null'], format: date-time}
+    AdminPointPurchaseTargetTag:
+      type: object
+      additionalProperties: false
+      required: [id, name, is_active]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        name: {type: string, minLength: 1, maxLength: 100}
+        is_active: {type: boolean}
     AdminPointPurchasePlanUpdate:
       allOf:
         - {$ref: '#/components/schemas/AdminPointPurchasePlanInput'}

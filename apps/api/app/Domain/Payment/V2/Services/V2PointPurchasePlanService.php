@@ -10,6 +10,7 @@ use App\Domain\Payment\V2\Exceptions\V2PointPurchasePlanException;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -44,7 +45,8 @@ final class V2PointPurchasePlanService
         $query = DB::table('point_purchase_plans as plan')
             ->joinSub($latest, 'latest', fn ($join) => $join
                 ->on('latest.code', '=', 'plan.code')
-                ->on('latest.version_no', '=', 'plan.version_no'));
+                ->on('latest.version_no', '=', 'plan.version_no'))
+            ->leftJoin('user_tags as target_tag', 'target_tag.id', '=', 'plan.target_user_tag_id');
         if ($afterId !== null) {
             $query->where(fn ($next) => $next
                 ->where('plan.sort_order', '>', $afterSort)
@@ -53,7 +55,12 @@ final class V2PointPurchasePlanService
                     ->where('plan.id', '>', $afterId)));
         }
         $rows = $query->orderBy('plan.sort_order')->orderBy('plan.id')
-            ->limit($limit + 1)->select('plan.*')->get();
+            ->limit($limit + 1)->select(
+                'plan.*',
+                'target_tag.public_id as target_user_tag_public_id',
+                'target_tag.name as target_user_tag_name',
+                'target_tag.is_active as target_user_tag_is_active'
+            )->get();
         $hasMore = $rows->count() > $limit;
         $items = $rows->take($limit)->map(fn (object $row): array => $this->serialize($row))
             ->values()->all();
@@ -107,10 +114,11 @@ final class V2PointPurchasePlanService
             if ($claim->replay) {
                 return $this->replay($claim->record->response_data);
             }
+            $targetTagId = $this->targetTagId($payload['target_user_tag_id']);
             $now = now()->startOfSecond();
             $publicId = (string) Str::uuid7();
             $id = DB::table('point_purchase_plans')->insertGetId([
-                ...$this->attributes($payload),
+                ...$this->attributes($payload, $targetTagId),
                 'public_id' => $publicId,
                 'code' => 'plan-'.Str::lower(Str::random(20)),
                 'version_no' => 1,
@@ -121,7 +129,7 @@ final class V2PointPurchasePlanService
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            $data = $this->serialize(DB::table('point_purchase_plans')->find($id));
+            $data = $this->serialize($this->planById($id));
             $this->audit->record('payment.plan.created', $this->auditData(
                 $context,
                 $admin->public_id,
@@ -195,13 +203,15 @@ final class V2PointPurchasePlanService
                     'The purchase plan was updated by another operation.'
                 );
             }
-            $before = $this->serialize($current);
+            $targetTagId = $this->targetTagId($payload['target_user_tag_id']);
+            $before = $this->serialize($this->planById((int) $current->id));
             $versionedChange = $current->status === 'published' && (
                 $current->name !== $payload['name']
                 || (int) $current->amount !== $payload['amount']
                 || (int) $current->paid_point_amount !== $payload['paid_point_amount']
                 || (int) $current->free_point_amount !== $payload['free_point_amount']
                 || $current->audience_code !== $payload['audience_code']
+                || (int) ($current->target_user_tag_id ?? 0) !== (int) ($targetTagId ?? 0)
             );
             $now = now()->startOfSecond();
             if ($versionedChange) {
@@ -213,7 +223,7 @@ final class V2PointPurchasePlanService
                 ]);
                 $nextPublicId = (string) Str::uuid7();
                 $nextId = DB::table('point_purchase_plans')->insertGetId([
-                    ...$this->attributes($payload),
+                    ...$this->attributes($payload, $targetTagId),
                     'public_id' => $nextPublicId,
                     'code' => $current->code,
                     'version_no' => (int) $current->version_no + 1,
@@ -224,10 +234,10 @@ final class V2PointPurchasePlanService
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
-                $next = DB::table('point_purchase_plans')->find($nextId);
+                $next = $this->planById($nextId);
             } else {
                 DB::table('point_purchase_plans')->where('id', $current->id)->update([
-                    ...$this->attributes($payload),
+                    ...$this->attributes($payload, $targetTagId),
                     'revision' => DB::raw('revision + 1'),
                     'published_at' => $payload['is_active']
                         ? ($current->published_at ?? $now)
@@ -235,7 +245,7 @@ final class V2PointPurchasePlanService
                     'retired_at' => $payload['is_active'] ? null : $now,
                     'updated_at' => $now,
                 ]);
-                $next = DB::table('point_purchase_plans')->find($current->id);
+                $next = $this->planById((int) $current->id);
                 $nextPublicId = $publicId;
             }
             $data = $this->serialize($next);
@@ -265,11 +275,13 @@ final class V2PointPurchasePlanService
             'name', 'amount', 'paid_point_amount', 'free_point_amount', 'sort_order',
             'is_active', 'available_from', 'available_until', 'audience_code',
         ];
+        $allowedKeys = [...$keys, 'target_user_tag_id'];
         if ($update) {
             $keys[] = 'expected_revision';
+            $allowedKeys[] = 'expected_revision';
         }
         if (array_diff($keys, array_keys($input)) !== []
-            || array_diff(array_keys($input), $keys) !== []) {
+            || array_diff(array_keys($input), $allowedKeys) !== []) {
             throw $this->invalid();
         }
         foreach (['amount', 'paid_point_amount', 'free_point_amount', 'sort_order'] as $key) {
@@ -295,7 +307,10 @@ final class V2PointPurchasePlanService
             || ! in_array($input['audience_code'] ?? null, [
                 V2PointPurchaseEligibilityService::AUDIENCE_ALL,
                 V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE,
-            ], true)) {
+            ], true)
+            || (! is_null($input['target_user_tag_id'] ?? null)
+                && (! is_string($input['target_user_tag_id'])
+                    || ! Str::isUuid($input['target_user_tag_id'])))) {
             throw $this->invalid();
         }
         $from = $this->date($input['available_from'] ?? null);
@@ -307,13 +322,14 @@ final class V2PointPurchasePlanService
         return [
             ...$input,
             'name' => trim($input['name']),
+            'target_user_tag_id' => $input['target_user_tag_id'] ?? null,
             'available_from' => $from?->utc()->toIso8601String(),
             'available_until' => $until?->utc()->toIso8601String(),
         ];
     }
 
     /** @return array<string, mixed> */
-    private function attributes(array $payload): array
+    private function attributes(array $payload, ?int $targetTagId): array
     {
         return [
             'name' => $payload['name'],
@@ -322,6 +338,7 @@ final class V2PointPurchasePlanService
             'free_point_amount' => $payload['free_point_amount'],
             'sort_order' => $payload['sort_order'],
             'audience_code' => $payload['audience_code'],
+            'target_user_tag_id' => $targetTagId,
             'status' => $payload['is_active'] ? 'published' : 'draft',
             'available_from' => $payload['available_from'],
             'available_until' => $payload['available_until'],
@@ -339,6 +356,11 @@ final class V2PointPurchasePlanService
             'free_point_amount' => (int) $plan->free_point_amount,
             'sort_order' => (int) $plan->sort_order,
             'audience_code' => $plan->audience_code,
+            'target_user_tag' => $plan->target_user_tag_public_id === null ? null : [
+                'id' => (string) $plan->target_user_tag_public_id,
+                'name' => (string) $plan->target_user_tag_name,
+                'is_active' => (bool) $plan->target_user_tag_is_active,
+            ],
             'is_active' => $plan->status === 'published',
             'status' => $plan->status,
             'available_from' => $this->iso($plan->available_from),
@@ -357,7 +379,7 @@ final class V2PointPurchasePlanService
                 'POINT_PURCHASE_PLAN_NOT_FOUND', 404, 'The purchase plan was not found.'
             );
         }
-        $plan = DB::table('point_purchase_plans')->where('public_id', $publicId)->first();
+        $plan = $this->planQuery()->where('plan.public_id', $publicId)->first();
         if ($plan === null) {
             throw new V2PointPurchasePlanException(
                 'POINT_PURCHASE_PLAN_NOT_FOUND', 404, 'The purchase plan was not found.'
@@ -365,6 +387,38 @@ final class V2PointPurchasePlanService
         }
 
         return $plan;
+    }
+
+    private function planById(int $id): object
+    {
+        return $this->planQuery()->where('plan.id', $id)->firstOrFail();
+    }
+
+    private function planQuery(): Builder
+    {
+        return DB::table('point_purchase_plans as plan')
+            ->leftJoin('user_tags as target_tag', 'target_tag.id', '=', 'plan.target_user_tag_id')
+            ->select(
+                'plan.*',
+                'target_tag.public_id as target_user_tag_public_id',
+                'target_tag.name as target_user_tag_name',
+                'target_tag.is_active as target_user_tag_is_active'
+            );
+    }
+
+    private function targetTagId(?string $publicId): ?int
+    {
+        if ($publicId === null) {
+            return null;
+        }
+        $tag = DB::table('user_tags')->where('public_id', $publicId)->lockForUpdate()->first([
+            'id', 'is_active',
+        ]);
+        if ($tag === null || ! (bool) $tag->is_active) {
+            throw $this->invalid('The selected user tag is unavailable.');
+        }
+
+        return (int) $tag->id;
     }
 
     private function mutation(callable $operation): array
@@ -458,9 +512,29 @@ final class V2PointPurchasePlanService
             'session_correlation_hash' => $context->sessionCorrelationHash,
             'target_type' => 'point_purchase_plan',
             'target_public_id' => $targetPublicId,
-            'before' => $before,
-            'after' => $after,
+            'before' => $before === null ? null : $this->auditSnapshot($before),
+            'after' => $this->auditSnapshot($after),
             'outcome' => 'success',
+        ];
+    }
+
+    /** @param array<string, mixed> $plan */
+    private function auditSnapshot(array $plan): array
+    {
+        $targetTag = $plan['target_user_tag'] ?? null;
+        unset($plan['target_user_tag']);
+
+        return [
+            ...$plan,
+            'target_user_tag_public_id' => is_array($targetTag)
+                ? ($targetTag['id'] ?? null)
+                : null,
+            'target_user_tag_name' => is_array($targetTag)
+                ? ($targetTag['name'] ?? null)
+                : null,
+            'target_user_tag_is_active' => is_array($targetTag)
+                ? ($targetTag['is_active'] ?? null)
+                : null,
         ];
     }
 }
