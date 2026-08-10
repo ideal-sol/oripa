@@ -3,8 +3,9 @@
 ## Issue／PR／Commit
 
 - Issue: #226
-- PR: Draft PRを初回Push後に接続
+- PR: #227
 - Base: `0f5687dce15a197db429c22e8927343caf04d3ce`
+- Application Head: `c121b0c2e2b05073c3c2da4235f0be7d0666799b`
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `c25aae5e272c43a4f78a89a0fe29377bfd34bf3c8e78a54627554558fe92a216`
 
@@ -24,8 +25,11 @@
 
 - Task DB `oripa_v2_mig062b`／Marker `MIG-062B`でTarget Safety Guard、41 Migration fresh、最新Migration rollback／reapplyがPASSした。
 - Backend 11 tests／197 assertions、Admin Unit 4 files／37 tests、対象Browser 2 tests、Typecheck、対象Lint、Webpack Production Build、OpenAPI lint／bundle、Generated Client、Policy Unit 113 tests、Policy／Quality Gate、`git diff --check`がPASSした。
-- 通常Turbopack Local BuildはWorktree外node_modules symlinkを拒否したため、Application Errorではなく検証環境制約として停止した。Preview Candidate ImageのFrozen Install／通常`pnpm build`を正本として確認する。
-- Preview反映、Image Digest、Migration 000041適用、Owner／Admin／Operator Smokeは最終Application Headで1回実施する。Nginx、V1、Storefront、Point、Gacha、Paymentは変更しない。
+- 通常Turbopack Local BuildはWorktree外node_modules symlinkを拒否したが、Candidate Docker Buildではpnpm `10.12.1`のFrozen Installと通常Turbopack `pnpm build`がPASSし、`/users/tags`を含むProduction Artifactを作成した。
+- Preview DB Safety Guardが`oripa_v2_mig061a`／Marker `MIG-061A`／Purpose `v2-persistent`でPASSした後、Migration `000041`だけを適用した。Migrationは40件から41件となり、適用後GuardもRepository set一致でPASSした。
+- API Imageを`sha256:758ad81c2cfdbfed499db52f3f186d1eca0078e928b9b8f9cdac102992a27709`、Admin Imageを`sha256:32bcb9cb2426f11046fb3186eb7e8765027d88fd4e681deb12defc968ff536ee`へ更新した。Container名、Network、固定IP、Loopback Port、Restart Policy、Environment Key集合は不変である。
+- Owner PreviewでTag作成、User付与、Tag無効化後の既存付与維持、Desktop／Mobileを確認した。Console／Page／500・502・504は0件、API HealthとLoginは200、未認証Tag APIは401であった。
+- 旧API Image `sha256:f452b1f213a76fd5ada87fdaf229a023215d4dca5f43426c17036b1297ecc705`と旧Admin Image `sha256:6ab94d4c3925df6e4a942b2f2051ae9926c363e3721582e0942530b96c231f73`はRollback用に保持した。Nginx checksum、V1、Storefront、Point、Gacha、Paymentは変更していない。
 
 ## 残課題
 

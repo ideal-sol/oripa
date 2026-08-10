@@ -8182,3 +8182,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Tag Masterの一覧／作成／編集／有効状態、Userへの複数Tag付与／解除、Revision OCC、Idempotency、Audit、Owner／Admin Mutation・Operator Read-only境界を実装した。
 - Task DBでMigration fresh／rollback／reapply、Backend 11 tests／197 assertions、Admin Unit 37 tests、Desktop／Mobile Browser 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
 - Preview更新対象はAPI／Admin／Migration 000041のみ。Tag限定ポイント購入、Storefront Public API、Point／Gacha／Payment、Nginx、V1は変更しない。
+- PreviewへMigration 000041を単独適用し、API `sha256:758ad81c...`／Admin `sha256:32bcb9cb...`へ更新した。Owner Tag付与／無効化後維持、Desktop／Mobile、Healthを確認し、旧Imageを保持した。
