@@ -212,6 +212,17 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 
+    def test_user_tag_schema_inventory_is_explicit_and_sorted(self):
+        for table in (
+            "public.user_tag_assignments",
+            "public.user_tags",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+
     def test_banner_management_schema_inventory_is_explicit(self):
         self.assertIn(
             "public.content_banner_categories",

@@ -8183,3 +8183,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task DBでMigration fresh／rollback／reapply、Backend 12 tests／201 assertions、Admin Unit 37 tests、Desktop／Mobile Browser 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
 - Preview更新対象はAPI／Admin／Migration 000041のみ。Tag限定ポイント購入、Storefront Public API、Point／Gacha／Payment、Nginx、V1は変更しない。
 - PreviewへMigration 000041を単独適用し、API `sha256:e9cd6235...`／Admin `sha256:32bcb9cb...`へ更新した。Owner Tag付与／無効化後維持、Desktop／Mobile、Health、不正Cursor 422を確認し、旧Imageを保持した。
+- GitHub Integrationで検出した新規2 TableのCanonical Schema inventory未登録を補正し、DB Unit 33 testsとTask DB実Schema 98件の完全一致を確認した。Application／Previewは再変更していない。

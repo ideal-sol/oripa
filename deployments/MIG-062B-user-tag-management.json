@@ -5,7 +5,7 @@
   "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "0f5687dce15a197db429c22e8927343caf04d3ce",
-  "task_policy_sha256": "c25aae5e272c43a4f78a89a0fe29377bfd34bf3c8e78a54627554558fe92a216",
+  "task_policy_sha256": "bf9052785e3c104781e70270f33c9a735e924a3fce55a538638fea05057387b0",
   "issue": 226,
   "pull_request": 227,
   "application_head": "e70087bcb55fe9c4f9a944c034dc6669e1ea21f1",
@@ -36,6 +36,7 @@
     "admin_production_build": "PASS_TURBOPACK_DOCKER_FROZEN_INSTALL",
     "policy_unit": "PASS_113_TESTS",
     "policy_gate": "PASS",
+    "schema_inventory": "PASS_98_TABLES",
     "quality_gate": "PASS"
   },
   "gate_g4": "NOT COMPLETE",
