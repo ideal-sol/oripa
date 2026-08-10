@@ -3,9 +3,10 @@
 ## Issue／PR／Commit
 
 - Issue: #229
-- PR: Closeout時に確定
+- PR: #230（Draft。別Security FindingとGate parser不整合の解消待ち）
 - Base: `0f5687dce15a197db429c22e8927343caf04d3ce`
-- Final Head／Squash Commit: Closeout時に確定
+- Dependency／Baseline Head: `ce08cf7c820df85d5670ecf47ba5f1df5d3d1746`
+- Final Head／Squash Commit: Required Checks成功後のCloseout時に確定
 - Task Policy SHA-256: `60ee4c2174d2f009aa18017dd24f934e98eb03509d207b9dc6bdcbb2ba65fa64`
 - Policy再発行: 旧SHA-256 `936d471dc381f786ceba370e791275729d123f7379985ec324dfb82ce42b38d4`から、解消済みBaseline EntryのUnit Assertionを更新する`tests/ci/security/test_security_gate.py`だけを追加許可した。
 
