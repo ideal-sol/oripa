@@ -2,13 +2,11 @@
   "schema_version": "1.0",
   "management": {
     "owner": "security-owners",
-    "reason": "Re-reviewed on 2026-08-04 in SEC-007. Root and Legacy pnpm audits are clean; Guzzle and PSR-7 findings are resolved, and the exact remaining JMESPath finding is unknown severity.",
-    "removal_condition": "Upgrade mtdowling/jmespath.php to 2.9.1 or later in a dedicated security task; remove only when absent from a fresh Composer audit.",
-    "expires_at": "2026-08-07",
-    "tracking_task": "SEC-007"
+    "reason": "Re-reviewed on 2026-08-10 in SEC-009 after upgrading mtdowling/jmespath.php to the minimum patched 2.9.1; fresh Composer, Root pnpm, and Legacy pnpm audits contain no findings.",
+    "removal_condition": "Keep the Composer and pnpm finding arrays empty; any new finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
+    "expires_at": "2026-08-17",
+    "tracking_task": "SEC-009"
   },
-  "composer": [
-    {"source":"composer","advisory_id":"PKSA-mnyp-475s-ywph","package":"mtdowling/jmespath.php","version":"2.8.0","severity":"unknown","cve":"CVE-2026-54133"}
-  ],
+  "composer": [],
   "pnpm": []
 }

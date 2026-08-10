@@ -107,7 +107,7 @@ class SecurityGateTest(unittest.TestCase):
                 (finding["package"], finding["severity"])
                 for finding in baseline["composer"]
             ],
-            [("mtdowling/jmespath.php", "unknown")],
+            [],
         )
         self.assertFalse(
             any(

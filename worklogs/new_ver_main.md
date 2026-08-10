@@ -8175,3 +8175,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.4`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - 初回`.3`候補はOpenAPI Breaking Checkでrequired field追加を検出したため配布対象外とし、既存Artifactを上書きせずoptional additiveへ補正した`.4`を別Directoryへ生成する。
 - Application Head `a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`から`.4` Artifact一式を`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/`へ作成し、Checksum、Manifest、Workspace外Clean Install／Importを確認した。
+
+## SEC-009 Dependency Advisory Baseline期限切れ対応
+
+- Issue #229、Branch `security/SEC-009-dependency-advisory-baseline`、Risk R4で開始した。
+- `PKSA-mnyp-475s-ywph`／`GHSA-pcw8-m77r-2528`は2026-08-10時点でも有効で、`mtdowling/jmespath.php 2.8.0`を最小修正版`2.9.1`へ限定更新した。
+- Fresh Composer Audit 0件を確認し、解消済みEntryをBaselineから削除した。空BaselineのFresh Review期限は`2026-08-17`で、Findingの追加・無視・Gate弱体化は行わない。
+- Composer Frozen InstallとSecurity UnitはPASSした。Root pnpmに別Finding `nanoid`／`GHSA-2v37-7h3g-55p8`が新規検出され、clean Composer Audit JSONに対する既存Security Gate parser不整合も確認したため、対象外変更を行わずDraft PRで停止した。
