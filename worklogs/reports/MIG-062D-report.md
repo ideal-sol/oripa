@@ -3,8 +3,9 @@
 ## Issue／PR／Commit
 
 - Issue: #233
-- PR: 作成後に確定
+- PR: #234
 - Base: `e4bd8ecb9bc6e95785142411b2a0cadc63336d5f`
+- Application Head: `761515ef81ae74cf8b130c4c681519807d83655e`
 - Final Head／Squash Commit: Closeout時に確定
 - Task Policy SHA-256: `060f0c443dd8e1783a38d53f553828adbd633050c393fce119e8eeb2f96a8081`
 
@@ -29,7 +30,10 @@
 
 - Task DB `oripa_v2_mig062d`でTarget Safety Guard、Migration 43件、`000043` rollback／reapply、既存商品NULL Backfill、restrict FKを確認した。
 - Backend 8 tests／54 assertions、Admin Unit 3 tests、Desktop／Mobile Browser 2 tests、Typecheck、対象Lint、Production Build、OpenAPI bundle／Generated Client、Policy Unit／Gate、Quality Gate、`git diff --check`がPASSした。
-- Preview反映結果は反映後に確定する。
+- Preview DB Safety Guardが`oripa_v2_mig061a`／Marker `MIG-061A`／Purpose `v2-persistent`、既存Migration 42件完全一致でPASSした後、`000043`だけを適用した。適用後は43件完全一致、最新Migration、既存商品のTag NULL、restrict FKを確認した。
+- Application HeadからAPI Imageを`sha256:907e6aca2e0caac46b21424291150ac4361fc8f3a39f7389ae8b2eab727be696`、Admin Imageを`sha256:65c9a44580a8ea87553f9d93b963728cec680276b40eeb53de85d76deaf7a7ec`へ更新した。Runtime OCI revision、固定IP `.10/.11`、Network、Restart Policy、Environment key集合を維持した。
+- Owner PreviewでLogin、商品一覧の対象Tag列、内部Tag DB ID非露出、新規FormのDefault「指定なし」、Tag選択肢、Mobile横溢れなしを確認した。API Health／Admin Login／V1 Publicは200、Console／Page／HTTP 500・502・504は0件である。
+- 旧API Image `sha256:e9cd6235b7e6ed88765e98bcf268010e759594d220a0e147fba819fea7a3634a`と旧Admin Image `sha256:32bcb9cb2426f11046fb3186eb7e8765027d88fd4e681deb12defc968ff536ee`はRollback用に保持した。Nginx 3 vhost checksum、V1、Storefront、Payment Providerは変更していない。
 
 ## 残課題
 

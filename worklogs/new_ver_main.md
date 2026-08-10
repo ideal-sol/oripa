@@ -8200,6 +8200,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - MIG-061Vの商品Audienceと独立した任意Tag条件を追加し、MIG-062BのUser Tag AssignmentをPayment開始／成功確定時にBackendでAND再検証する。
 - Admin一覧／登録／編集へTag表示・単一選択を追加した。Tag未指定は既存挙動、無効Tagは新規選択不可、OperatorはRead-onlyを維持する。
 - Task DBでMigration rollback／reapply、Backend 8 tests／54 assertions、Admin Unit 3 tests、対象Browser 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
+- Preview DB Guard後にMigration 000043だけを適用し、API `sha256:907e6aca...`／Admin `sha256:65c9a445...`へ更新した。Ownerで対象Tag列、TagなしDefault、Public ID Contract、Desktop／Mobileを確認し、Nginx、V1、Storefront、Payment Providerは非変更である。
 
 ## MIG-062C Browser-safe Draw Mutation／Typed Draw Error Contract
 
