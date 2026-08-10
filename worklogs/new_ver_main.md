@@ -8216,3 +8216,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - MIG-062Cと同じBrowser CSRF／Cookie Transportへ景品Point交換、配送先、配送依頼Mutationを接続し、CallerによるCookie名／XSRF Header管理を不要にした。
 - 配送先作成へ既存Idempotency基盤を追加し、Browser ClientではKeyを必須化した。配送先update／deleteは自動Retryを禁止し、Read MethodによるReconciliation境界を明示した。
 - Backend実在CodeだけのTyped Fulfillment Problem ContractをPublic OpenAPI／Generated Types／Storefront Client／Site Schema／Testkitへ同期した。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
+- Application Head `ce965fdc4d8e37ac3fa943a4f39841685d0e5874`から`2.0.0-alpha.7` ArtifactをRepository外Evidenceへ新規生成した。Manifest／4配布物Checksum、Workspace外Frozen Install／ImportがPASSし、既存`.6`は不変である。
