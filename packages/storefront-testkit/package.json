@@ -1,6 +1,6 @@
 {
   "name": "@oripa/storefront-testkit",
-  "version": "2.0.0-alpha.4",
+  "version": "2.0.0-alpha.5",
   "private": true,
   "description": "Site StorefrontのPlatform Contract適合を検証する非Production Test Package。",
   "license": "UNLICENSED",
@@ -43,8 +43,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.4",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.4"
+    "@oripa/site-schema": "workspace:2.0.0-alpha.5",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.5"
   },
   "devDependencies": {
     "eslint": "9.39.4",
@@ -53,8 +53,8 @@
   },
   "oripaCompatibility": {
     "family": 2,
-    "storefrontClientVersion": "2.0.0-alpha.4",
-    "siteSchemaVersion": "2.0.0-alpha.4",
+    "storefrontClientVersion": "2.0.0-alpha.5",
+    "siteSchemaVersion": "2.0.0-alpha.5",
     "publicApiOperationCount": 48
   }
 }

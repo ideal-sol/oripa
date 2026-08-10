@@ -2,6 +2,7 @@ import {
   ApiProblemError,
   StorefrontTransportError,
   isAuthProblemError,
+  isDrawProblemError,
 } from "./errors.js";
 import {
   CLIENT_VERSION_HEADER,
@@ -14,6 +15,10 @@ import {
   createIdempotencyKey,
   createTransport,
 } from "./transport.js";
+import {
+  createCsrfManagedStorefrontDrawClient,
+  type BrowserStorefrontDrawClient,
+} from "./draw.js";
 import type {
   BrowserStorefrontClientConfig,
   CsrfInitializer,
@@ -31,6 +36,7 @@ export {
   StorefrontTransportError,
   createIdempotencyKey,
   isAuthProblemError,
+  isDrawProblemError,
 };
 export type {
   BrowserStorefrontClientConfig,
@@ -38,6 +44,11 @@ export type {
   StorefrontResponse,
   StorefrontResponseMetadata,
 } from "./types.js";
+export type {
+  BrowserCreateDrawOptions,
+  BrowserStorefrontDrawClient,
+} from "./draw.js";
+export type { DrawProblemCode } from "./errors.js";
 
 function readDocumentCookie(name: string): string | undefined {
   if (typeof document === "undefined") {
@@ -110,4 +121,12 @@ export function createBrowserStorefrontClient(
     credentials: "include",
     server_safe_only: false,
   });
+}
+
+export function createBrowserStorefrontDrawClient(
+  configuration: BrowserStorefrontClientConfig,
+): BrowserStorefrontDrawClient {
+  return createCsrfManagedStorefrontDrawClient(
+    createBrowserStorefrontClient(configuration),
+  );
 }

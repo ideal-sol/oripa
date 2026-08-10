@@ -1,4 +1,4 @@
-export const STOREFRONT_CLIENT_VERSION = "2.0.0-alpha.4";
+export const STOREFRONT_CLIENT_VERSION = "2.0.0-alpha.5";
 
 export const CLIENT_VERSION_HEADER = "X-Oripa-Client-Version";
 export const SITE_VERSION_HEADER = "X-Oripa-Site-Version";

@@ -5,8 +5,10 @@ import {
   ApiProblemError,
   StorefrontTransportError,
   createBrowserStorefrontClient,
+  createBrowserStorefrontDrawClient,
   createIdempotencyKey,
   isAuthProblemError,
+  isDrawProblemError,
 } from "../dist/browser.js";
 import {
   createServerStorefrontClient,
@@ -57,7 +59,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.4");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.5");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -337,6 +339,41 @@ test("認証Problem Codeを型付きGuardで判定する", () => {
   assert.equal(isAuthProblemError(error), true);
   assert.equal(isAuthProblemError(error, "EMAIL_VERIFICATION_REQUIRED"), true);
   assert.equal(isAuthProblemError(error, "INVALID_CREDENTIALS"), false);
+});
+
+test("Draw Problem Codeは実在Codeだけを型付きGuardで判定する", () => {
+  for (const code of [
+    "INSUFFICIENT_POINTS",
+    "GACHA_AUDIENCE_NOT_ELIGIBLE",
+    "DAILY_DRAW_LIMIT_EXCEEDED",
+    "GACHA_NOT_DRAWABLE",
+    "GACHA_SALES_PAUSED",
+    "DRAW_COUNT_INSUFFICIENT",
+    "INVALID_DRAW_REQUEST",
+    "IDEMPOTENCY_KEY_REUSED",
+    "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+  ]) {
+    const error = new ApiProblemError({
+      type: `https://oripa.example/problems/${code.toLowerCase()}`,
+      title: "Draw request was rejected.",
+      status: 409,
+      code,
+      request_id: `req_${code.toLowerCase()}`,
+      retryable: false,
+    });
+    assert.equal(isDrawProblemError(error), true);
+    assert.equal(isDrawProblemError(error, code), true);
+  }
+
+  const unknown = new ApiProblemError({
+    type: "https://oripa.example/problems/unknown",
+    title: "Unknown failure.",
+    status: 500,
+    code: "UNOBSERVED_DRAW_ERROR",
+    request_id: "req_unknown_draw",
+    retryable: false,
+  });
+  assert.equal(isDrawProblemError(unknown), false);
 });
 
 test("Server ClientはCookie転送とGET／HEADだけを許可する", async () => {
@@ -627,6 +664,90 @@ test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡
   assert.throws(
     () => draw.createDraw("valid", 2, { idempotency_key: key, csrf_token: csrf }),
     /draw_count is invalid/,
+  );
+});
+
+test("Browser Draw ClientはCSRF初期化とCookie Headerを内部化し同じKeyでRetryする", async () => {
+  const requests = [];
+  const key = "0198a001-0000-7000-8000-000000000099";
+  const csrf = "f".repeat(64);
+  let drawCalls = 0;
+  const draw = createBrowserStorefrontDrawClient({
+    ...browserConfig(async (url, init) => {
+      requests.push({ url, init });
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: true, user: null });
+      }
+      if (url.includes("/draw-requests/")) {
+        assert.equal(init.method, "GET");
+        assert.equal(init.headers.get("Idempotency-Key"), null);
+        return jsonResponse({
+          id: "0198a001-0000-7000-8000-000000000099",
+          status: "completed",
+        });
+      }
+      drawCalls += 1;
+      assert.equal(init.headers.get("X-XSRF-TOKEN"), csrf);
+      assert.equal(init.headers.get("Idempotency-Key"), key);
+      if (drawCalls === 1) {
+        return jsonResponse({ unavailable: true }, { status: 503 });
+      }
+      return jsonResponse({
+        id: "0198a001-0000-7000-8000-000000000099",
+        status: "completed",
+      });
+    }),
+    cookie_reader: () => csrf,
+  });
+
+  const result = await draw.createDraw(
+    "0198a001-0000-7000-8000-000000000011",
+    10,
+    { idempotency_key: key },
+  );
+
+  assert.equal(result.data.id, "0198a001-0000-7000-8000-000000000099");
+  const reloaded = await draw.getDrawRequest(result.data.id);
+  assert.equal(reloaded.data.id, result.data.id);
+  assert.deepEqual(requests.map(({ url }) => url), [
+    "/api/v2/auth/session",
+    "/api/v2/gachas/0198a001-0000-7000-8000-000000000011/draws",
+    "/api/v2/gachas/0198a001-0000-7000-8000-000000000011/draws",
+    "/api/v2/draw-requests/0198a001-0000-7000-8000-000000000099",
+  ]);
+  assert.equal(drawCalls, 2);
+  assert.equal(requests.every(({ init }) => init.credentials === "include"), true);
+});
+
+test("Browser Draw ClientはCSRF Problemを型付きErrorとして返す", async () => {
+  const csrf = "c".repeat(64);
+  const draw = createBrowserStorefrontDrawClient({
+    ...browserConfig(async (url) => {
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: true, user: null });
+      }
+      return jsonResponse(
+        {
+          type: "https://oripa.example/problems/csrf-token-mismatch",
+          title: "CSRF token mismatch.",
+          status: 419,
+          code: "CSRF_TOKEN_MISMATCH",
+          request_id: "req_draw_csrf",
+          retryable: false,
+        },
+        { status: 419, headers: { "Content-Type": "application/problem+json" } },
+      );
+    }),
+    cookie_reader: () => csrf,
+  });
+
+  await assert.rejects(
+    draw.createDraw(
+      "0198a001-0000-7000-8000-000000000011",
+      1,
+      { idempotency_key: "draw-csrf-fixture-key" },
+    ),
+    (error) => isDrawProblemError(error, "CSRF_TOKEN_MISMATCH"),
   );
 });
 

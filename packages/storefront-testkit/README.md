@@ -81,6 +81,6 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Versionは`2.0.0-alpha.4`。Gacha／User Prize Presentation Contract Fixtureを含む非公開Alphaで
-ありProduction利用不可。
+Versionは`2.0.0-alpha.5`。Gacha／User Prize Presentationと型付きDraw Problem
+Contract Fixtureを含む非公開AlphaでありProduction利用不可。
 Canonical Site Templateや認証以外のPublic API Operationの実装済みを意味しない。
