@@ -37,3 +37,8 @@
 
 - Tag限定ポイント購入プランとStorefront Public Contractは後続Task。本TaskではTag MasterとUser Assignment Domainまでを提供する。
 - Gate G4／G5は`NOT COMPLETE`を維持する。
+
+## SEC-009後Closeout
+
+- SEC-009 Merge後の`main@18b027440099e979403087839dc1cb12454ed438`をTask Branchへ取り込み、Dependency、Baseline、Security Gate修正を維持した。MIG-062BのTask差分はPolicyの34個の個別Pathと完全一致し、Application／Migrationの追加変更はない。
+- Migration 000041／000042のSHA-256はそれぞれ`d1d0c34e67ad880c664b868a149e26355aef0040835a81a27e51eebc24ddb571`／`cbf154fedf8d593cba00d4790caede58dbcb07b7b53d3c0ba8a8f487b8060dd0`で取込み前後一致した。Preview Image／DB／Runtimeは再変更していない。
