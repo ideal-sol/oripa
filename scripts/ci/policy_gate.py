@@ -199,6 +199,7 @@ MIG_062B_V2_IDENTITY_FILES = {
     "apps/api/app/Domain/Identity/Services/V2UserTagService.php",
     "apps/api/app/Http/Controllers/V2/V2AdminUserTagController.php",
     "apps/api/database/migrations-v2/2026_08_28_000041_create_v2_user_tag_management.php",
+    "apps/api/database/migrations-v2/2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
     "apps/api/tests/V2/AdminUserTagManagementTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
@@ -2168,6 +2169,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_26_000039_add_v2_line_settings_management.php",
         "2026_08_27_000040_update_v2_session_timeout_constraints.php",
         "2026_08_28_000041_create_v2_user_tag_management.php",
+        "2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
