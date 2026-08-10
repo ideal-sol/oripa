@@ -12,7 +12,7 @@ import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-ro
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { AdminPointPurchaseAudience, AdminPointPurchasePlan, AdminPointPurchasePlanInput } from "@/lib/admin-api/generated";
+import type { AdminPointPurchaseAudience, AdminPointPurchasePlan, AdminPointPurchasePlanInput, AdminUserTag } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
 type Mode = "list" | "create" | "edit";
@@ -23,6 +23,7 @@ type FormDraft = {
   freePointAmount: string;
   sortOrder: string;
   audienceCode: AdminPointPurchaseAudience;
+  targetUserTagId: string;
   isActive: boolean;
   availableFrom: string;
   availableUntil: string;
@@ -35,6 +36,7 @@ const EMPTY_FORM: FormDraft = {
   freePointAmount: "0",
   sortOrder: "10",
   audienceCode: "all_users",
+  targetUserTagId: "",
   isActive: true,
   availableFrom: "",
   availableUntil: "",
@@ -48,6 +50,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
   const router = useRouter();
   const [plans, setPlans] = useState<AdminPointPurchasePlan[]>([]);
   const [plan, setPlan] = useState<AdminPointPurchasePlan | null>(null);
+  const [tags, setTags] = useState<AdminUserTag[]>([]);
   const [draft, setDraft] = useState<FormDraft>(EMPTY_FORM);
   const [cursor, setCursor] = useState<string | undefined>();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -66,10 +69,15 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
         setPlans(result.items);
         setNextCursor(result.next_cursor);
       } else if (mode === "edit" && planId) {
-        const result = await client.getPointPurchasePlan(planId);
+        const [result, availableTags] = await Promise.all([
+          client.getPointPurchasePlan(planId),
+          loadAllUserTags(client),
+        ]);
         setPlan(result.data);
+        setTags(availableTags);
         setDraft(toDraft(result.data));
       } else {
+        setTags(await loadAllUserTags(client));
         setDraft(EMPTY_FORM);
       }
     } catch (caught) {
@@ -86,7 +94,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
 
   async function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!canManage || invalid(draft)) return;
+    if (!canManage || invalid(draft, tags)) return;
     setBusy("save");
     setError(null);
     pendingKey.current ??= crypto.randomUUID();
@@ -120,9 +128,9 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
           />
           {error ? <ErrorNotice error={error} onRetry={load} /> : null}
           {busy === "load" ? <Loading /> : mode === "list" ? (
-            <PlanList plans={plans} />
+            <PlanList canManage={canManage} plans={plans} />
           ) : (
-            <PlanForm draft={draft} disabled={!canManage || busy === "save"} editing={mode === "edit"} onChange={setDraft} onSubmit={submit} />
+            <PlanForm draft={draft} disabled={!canManage || busy === "save"} editing={mode === "edit"} onChange={setDraft} onSubmit={submit} tags={tags} />
           )}
           {mode === "list" && busy !== "load" ? (
             <nav aria-label="ポイント購入商品ページ" className="cursor-actions">
@@ -138,13 +146,13 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
   );
 }
 
-function PlanList({ plans }: { plans: AdminPointPurchasePlan[] }) {
+function PlanList({ canManage, plans }: { canManage: boolean; plans: AdminPointPurchasePlan[] }) {
   if (plans.length === 0) return <section className="module-state"><h2>ポイント購入商品はありません</h2></section>;
-  return <div className="table-scroll point-purchase-table"><table><thead><tr>{["ID", "商品名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "対象カテゴリ", "状態", "編集"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{plans.map((item) => <tr key={item.id}><td><code>{item.id}</code></td><td>{item.name}</td><td>{yen(item.amount)}</td><td>{points(item.paid_point_amount)}</td><td>{points(item.free_point_amount)}</td><td>{period(item)}</td><td>{item.sort_order}</td><td>{audience(item.audience_code)}</td><td><span className={`status-pill ${item.is_active ? "status-active" : "status-muted"}`}>{item.is_active ? "有効" : "無効"}</span></td><td><Link aria-label={`${item.name}を編集`} className="secondary-button compact-button" href={`/purchase-plans/${item.id}`}>編集</Link></td></tr>)}</tbody></table></div>;
+  return <div className="table-scroll point-purchase-table"><table><thead><tr>{["ID", "商品名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "対象カテゴリ", "対象タグ", "状態", "編集"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{plans.map((item) => <tr key={item.id}><td><code>{item.id}</code></td><td>{item.name}</td><td>{yen(item.amount)}</td><td>{points(item.paid_point_amount)}</td><td>{points(item.free_point_amount)}</td><td>{period(item)}</td><td>{item.sort_order}</td><td>{audience(item.audience_code)}</td><td>{targetTag(item)}</td><td><span className={`status-pill ${item.is_active ? "status-active" : "status-muted"}`}>{item.is_active ? "有効" : "無効"}</span></td><td>{canManage ? <Link aria-label={`${item.name}を編集`} className="secondary-button compact-button" href={`/purchase-plans/${item.id}`}>編集</Link> : "閲覧のみ"}</td></tr>)}</tbody></table></div>;
 }
 
-function PlanForm({ draft, disabled, editing, onChange, onSubmit }: { draft: FormDraft; disabled: boolean; editing: boolean; onChange: (next: FormDraft) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
-  const invalidForm = invalid(draft);
+function PlanForm({ draft, disabled, editing, onChange, onSubmit, tags }: { draft: FormDraft; disabled: boolean; editing: boolean; onChange: (next: FormDraft) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; tags: AdminUserTag[] }) {
+  const invalidForm = invalid(draft, tags);
   return <form className="point-purchase-form" onSubmit={onSubmit}>
     <section className="point-purchase-section"><h2>商品内容</h2><div className="point-purchase-grid">
       <TextField label="商品名" value={draft.name} onChange={(name) => onChange({ ...draft, name })} />
@@ -153,6 +161,7 @@ function PlanForm({ draft, disabled, editing, onChange, onSubmit }: { draft: For
       <NumberField label="付与無償ポイント" min={0} value={draft.freePointAmount} onChange={(freePointAmount) => onChange({ ...draft, freePointAmount })} />
       <NumberField label="並び順" min={0} value={draft.sortOrder} onChange={(sortOrder) => onChange({ ...draft, sortOrder })} />
       <label><span>対象カテゴリ</span><select value={draft.audienceCode} onChange={(event) => onChange({ ...draft, audienceCode: event.target.value as AdminPointPurchaseAudience })}><option value="all_users">すべてのユーザー</option><option value="first_purchase_users">初回ユーザー</option></select></label>
+      <label><span>対象タグ</span><select value={draft.targetUserTagId} onChange={(event) => onChange({ ...draft, targetUserTagId: event.target.value })}><option value="">指定なし</option>{tags.map((tag) => <option disabled={!tag.is_active} key={tag.id} value={tag.id}>{tag.name}{tag.is_active ? "" : "（無効）"}</option>)}</select></label>
     </div></section>
     <section className="point-purchase-section"><h2>掲載設定</h2><div className="point-purchase-grid">
       <label><span>販売開始日時</span><input type="datetime-local" value={draft.availableFrom} onChange={(event) => onChange({ ...draft, availableFrom: event.target.value })} /></label>
@@ -169,13 +178,15 @@ function Loading() { return <section className="module-state" role="status"><Loa
 function ErrorNotice({ error, onRetry }: { error: AdminApiError; onRetry: () => Promise<void> }) { return <div className="notice notice-error" role="alert"><p>{error.status === 409 ? "別の操作で更新されています。最新情報を取得してください。" : error.message}</p><button className="secondary-button" onClick={() => void onRetry()} type="button"><RotateCcw aria-hidden="true" size={17} />再読み込み</button></div>; }
 function asApiError(value: unknown): AdminApiError { return value instanceof AdminApiError ? value : new AdminApiError(0, "NETWORK_ERROR", null, null, true); }
 function int(value: string): number { return Number(value); }
-function invalid(draft: FormDraft): boolean { const amount = int(draft.amount), paid = int(draft.paidPointAmount), free = int(draft.freePointAmount), sort = int(draft.sortOrder); return draft.name.trim() === "" || ![amount, paid, free, sort].every(Number.isInteger) || amount < 1 || amount > 1_000_000 || paid !== amount || free < 0 || free > 1_000_000 || sort < 0 || sort > 1_000_000 || (!!draft.availableFrom && !!draft.availableUntil && draft.availableUntil <= draft.availableFrom); }
-function toInput(draft: FormDraft): AdminPointPurchasePlanInput { return { name: draft.name.trim(), amount: int(draft.amount), paid_point_amount: int(draft.paidPointAmount), free_point_amount: int(draft.freePointAmount), sort_order: int(draft.sortOrder), audience_code: draft.audienceCode, is_active: draft.isActive, available_from: fromJst(draft.availableFrom), available_until: fromJst(draft.availableUntil) }; }
-function toDraft(plan: AdminPointPurchasePlan): FormDraft { return { name: plan.name, amount: String(plan.amount), paidPointAmount: String(plan.paid_point_amount), freePointAmount: String(plan.free_point_amount), sortOrder: String(plan.sort_order), audienceCode: plan.audience_code, isActive: plan.is_active, availableFrom: toJstInput(plan.available_from), availableUntil: toJstInput(plan.available_until) }; }
+function invalid(draft: FormDraft, tags: AdminUserTag[]): boolean { const amount = int(draft.amount), paid = int(draft.paidPointAmount), free = int(draft.freePointAmount), sort = int(draft.sortOrder); const target = draft.targetUserTagId ? tags.find((tag) => tag.id === draft.targetUserTagId) : null; return draft.name.trim() === "" || ![amount, paid, free, sort].every(Number.isInteger) || amount < 1 || amount > 1_000_000 || paid !== amount || free < 0 || free > 1_000_000 || sort < 0 || sort > 1_000_000 || (!!draft.targetUserTagId && !target?.is_active) || (!!draft.availableFrom && !!draft.availableUntil && draft.availableUntil <= draft.availableFrom); }
+function toInput(draft: FormDraft): AdminPointPurchasePlanInput { return { name: draft.name.trim(), amount: int(draft.amount), paid_point_amount: int(draft.paidPointAmount), free_point_amount: int(draft.freePointAmount), sort_order: int(draft.sortOrder), audience_code: draft.audienceCode, target_user_tag_id: draft.targetUserTagId || null, is_active: draft.isActive, available_from: fromJst(draft.availableFrom), available_until: fromJst(draft.availableUntil) }; }
+function toDraft(plan: AdminPointPurchasePlan): FormDraft { return { name: plan.name, amount: String(plan.amount), paidPointAmount: String(plan.paid_point_amount), freePointAmount: String(plan.free_point_amount), sortOrder: String(plan.sort_order), audienceCode: plan.audience_code, targetUserTagId: plan.target_user_tag?.id ?? "", isActive: plan.is_active, availableFrom: toJstInput(plan.available_from), availableUntil: toJstInput(plan.available_until) }; }
 function fromJst(value: string): string | null { return value ? `${value}:00+09:00` : null; }
 function toJstInput(value: string | null): string { if (!value) return ""; const date = new Date(value); return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16); }
 function formatJst(value: string): string { return new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date(value)); }
 function period(plan: AdminPointPurchasePlan): string { if (!plan.available_from && !plan.available_until) return "無期限"; return `${plan.available_from ? formatJst(plan.available_from) : "指定なし"} - ${plan.available_until ? formatJst(plan.available_until) : "指定なし"}`; }
 function audience(value: AdminPointPurchaseAudience): string { return value === "first_purchase_users" ? "初回ユーザー" : "すべてのユーザー"; }
+function targetTag(plan: AdminPointPurchasePlan): string { return plan.target_user_tag ? `${plan.target_user_tag.name}${plan.target_user_tag.is_active ? "" : "（無効）"}` : "指定なし"; }
+async function loadAllUserTags(client: AdminApiClient): Promise<AdminUserTag[]> { const items: AdminUserTag[] = []; let cursor: string | undefined; do { const page = await client.listUserTags(cursor); items.push(...page.items); cursor = page.next_cursor ?? undefined; } while (cursor); return items; }
 function yen(value: number): string { return new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY" }).format(value); }
 function points(value: number): string { return `${value.toLocaleString("ja-JP")} P`; }

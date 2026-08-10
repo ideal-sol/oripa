@@ -8194,6 +8194,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 継続承認後、clean Composer Auditの`advisories: []`だけを正常化し、Malformed／欠落をFail Closedとするparser Unitを追加した。Root `nanoid`は`postcss 8.5.23`配下の`3.3.16`から最小修正版`3.3.17`へexact overrideで更新した。
 - Composer／Root pnpm／Legacy pnpm Audit 0件、Composer／Root Frozen Install、Security Unit 10件、Local Security GateはPASSした。
 
+## MIG-062D タグ限定ポイント購入プラン
+
+- Base `e4bd8ecb9bc6e95785142411b2a0cadc63336d5f`からIssue #233、Branch `feat/MIG-062D-tag-restricted-point-purchase`、Risk R4で開始した。
+- MIG-061Vの商品Audienceと独立した任意Tag条件を追加し、MIG-062BのUser Tag AssignmentをPayment開始／成功確定時にBackendでAND再検証する。
+- Admin一覧／登録／編集へTag表示・単一選択を追加した。Tag未指定は既存挙動、無効Tagは新規選択不可、OperatorはRead-onlyを維持する。
+- Task DBでMigration rollback／reapply、Backend 8 tests／54 assertions、Admin Unit 3 tests、対象Browser 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
+
 ## MIG-062C Browser-safe Draw Mutation／Typed Draw Error Contract
 
 - Base `8b8e50dd571c360edb0c37bbc4668b11bea15080`からIssue #231、Branch `feat/MIG-062C-browser-safe-draw-contract`、Risk R3で開始した。

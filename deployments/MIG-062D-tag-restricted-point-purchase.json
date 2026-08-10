@@ -1,0 +1,39 @@
+{
+  "task_id": "MIG-062D",
+  "risk": "R4",
+  "status": "verification_complete",
+  "base_branch": "main",
+  "base_sha": "e4bd8ecb9bc6e95785142411b2a0cadc63336d5f",
+  "task_policy_sha256": "060f0c443dd8e1783a38d53f553828adbd633050c393fce119e8eeb2f96a8081",
+  "issue": 233,
+  "pull_request": null,
+  "application_head": null,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062D/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+    "api_previous_image": null,
+    "admin_previous_image": null,
+    "api_image": null,
+    "admin_image": null,
+    "migration_count": null,
+    "admin_browser": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "migration_rollback_reapply": "PASS",
+    "backend_targeted": "PASS_8_TESTS_54_ASSERTIONS",
+    "admin_unit": "PASS_3_TESTS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "openapi_generated_client": "PASS",
+    "admin_typecheck_lint": "PASS",
+    "admin_production_build": "PASS",
+    "policy_unit_gate": "PASS",
+    "quality_gate": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

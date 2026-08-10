@@ -379,6 +379,9 @@ MIG_061V_V2_PAYMENT_FILES = {
     "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
     "apps/api/tests/V2/AdminPointPurchasePlanManagementTest.php",
 }
+MIG_062D_V2_PAYMENT_FILES = {
+    "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+}
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
     "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php",
@@ -387,6 +390,7 @@ V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/tests/V2/PaymentModelFoundationTest.php",
     "docs/operations/payment-model/README.md",
     *MIG_061V_V2_PAYMENT_FILES,
+    *MIG_062D_V2_PAYMENT_FILES,
 }
 MIG_061I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
@@ -2172,6 +2176,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_27_000040_update_v2_session_timeout_constraints.php",
         "2026_08_28_000041_create_v2_user_tag_management.php",
         "2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
+        "2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

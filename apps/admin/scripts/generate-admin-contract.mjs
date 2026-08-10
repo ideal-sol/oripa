@@ -1066,6 +1066,12 @@ export interface AdminReferralPointSettingMutationResult {
 
 export type AdminPointPurchaseAudience = "all_users" | "first_purchase_users";
 
+export interface AdminPointPurchaseTargetTag {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 export interface AdminPointPurchasePlan {
   id: string;
   name: string;
@@ -1074,6 +1080,7 @@ export interface AdminPointPurchasePlan {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
+  target_user_tag: AdminPointPurchaseTargetTag | null;
   is_active: boolean;
   status: "draft" | "published" | "retired";
   available_from: string | null;
@@ -1091,6 +1098,7 @@ export interface AdminPointPurchasePlanInput {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
+  target_user_tag_id?: string | null;
   is_active: boolean;
   available_from: string | null;
   available_until: string | null;

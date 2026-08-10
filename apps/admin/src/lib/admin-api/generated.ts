@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 6e5edb1e469b095f7edc295d2a9ccab259b43d33e85648960ae3e53d76c25a2d
+// Contract SHA-256: 95ad6765bc4a9ae575628b4b22a4723522464cea6dc96c1453a5c0f86948702f
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -533,6 +533,12 @@ export interface AdminReferralPointSettingMutationResult {
 
 export type AdminPointPurchaseAudience = "all_users" | "first_purchase_users";
 
+export interface AdminPointPurchaseTargetTag {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 export interface AdminPointPurchasePlan {
   id: string;
   name: string;
@@ -541,6 +547,7 @@ export interface AdminPointPurchasePlan {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
+  target_user_tag: AdminPointPurchaseTargetTag | null;
   is_active: boolean;
   status: "draft" | "published" | "retired";
   available_from: string | null;
@@ -558,6 +565,7 @@ export interface AdminPointPurchasePlanInput {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
+  target_user_tag_id?: string | null;
   is_active: boolean;
   available_from: string | null;
   available_until: string | null;
