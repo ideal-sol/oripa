@@ -743,6 +743,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
             "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
+            "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

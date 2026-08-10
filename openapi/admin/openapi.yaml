@@ -4195,7 +4195,7 @@ components:
     AdminPointPurchasePlan:
       type: object
       additionalProperties: false
-      required: [id, name, amount, paid_point_amount, free_point_amount, sort_order, audience_code, target_user_tag, is_active, status, available_from, available_until, version, revision, created_at, updated_at]
+      required: [id, name, amount, paid_point_amount, free_point_amount, sort_order, audience_code, is_active, status, available_from, available_until, version, revision, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         name: {type: string, minLength: 1, maxLength: 191}

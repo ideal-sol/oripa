@@ -30,6 +30,7 @@
 
 - Task DB `oripa_v2_mig062d`でTarget Safety Guard、Migration 43件、`000043` rollback／reapply、既存商品NULL Backfill、restrict FKを確認した。
 - Backend 8 tests／54 assertions、Admin Unit 3 tests、Desktop／Mobile Browser 2 tests、Typecheck、対象Lint、Production Build、OpenAPI bundle／Generated Client、Policy Unit／Gate、Quality Gate、`git diff --check`がPASSした。
+- 初回Required Checksで、追加Response Fieldがrequired扱いだったためOpenAPI Breaking Checkが、Migration inventoryへ追加した`000043`をIdentity Policy fixtureが複製していなかったためPolicy Unitが失敗した。`target_user_tag`を後方互換なoptional Response Fieldへ補正し、fixtureへ`000043`を完全一致登録した。Runtime ResponseとApplication動作は変更していないため、Preview Imageの再Build／再反映は行っていない。
 - Preview DB Safety Guardが`oripa_v2_mig061a`／Marker `MIG-061A`／Purpose `v2-persistent`、既存Migration 42件完全一致でPASSした後、`000043`だけを適用した。適用後は43件完全一致、最新Migration、既存商品のTag NULL、restrict FKを確認した。
 - Application HeadからAPI Imageを`sha256:907e6aca2e0caac46b21424291150ac4361fc8f3a39f7389ae8b2eab727be696`、Admin Imageを`sha256:65c9a44580a8ea87553f9d93b963728cec680276b40eeb53de85d76deaf7a7ec`へ更新した。Runtime OCI revision、固定IP `.10/.11`、Network、Restart Policy、Environment key集合を維持した。
 - Owner PreviewでLogin、商品一覧の対象Tag列、内部Tag DB ID非露出、新規FormのDefault「指定なし」、Tag選択肢、Mobile横溢れなしを確認した。API Health／Admin Login／V1 Publicは200、Console／Page／HTTP 500・502・504は0件である。

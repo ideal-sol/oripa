@@ -9234,7 +9234,6 @@
           "free_point_amount",
           "sort_order",
           "audience_code",
-          "target_user_tag",
           "is_active",
           "status",
           "available_from",

@@ -1080,7 +1080,7 @@ export interface AdminPointPurchasePlan {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
-  target_user_tag: AdminPointPurchaseTargetTag | null;
+  target_user_tag?: AdminPointPurchaseTargetTag | null;
   is_active: boolean;
   status: "draft" | "published" | "retired";
   available_from: string | null;

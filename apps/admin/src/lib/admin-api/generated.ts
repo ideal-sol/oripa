@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 95ad6765bc4a9ae575628b4b22a4723522464cea6dc96c1453a5c0f86948702f
+// Contract SHA-256: 9c4b531672241f3d32ff0e2006e87eb2ba5a86754c2d6108b09c66e48eef6f68
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -547,7 +547,7 @@ export interface AdminPointPurchasePlan {
   free_point_amount: number;
   sort_order: number;
   audience_code: AdminPointPurchaseAudience;
-  target_user_tag: AdminPointPurchaseTargetTag | null;
+  target_user_tag?: AdminPointPurchaseTargetTag | null;
   is_active: boolean;
   status: "draft" | "published" | "retired";
   available_from: string | null;
