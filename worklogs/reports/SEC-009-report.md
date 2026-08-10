@@ -25,7 +25,7 @@
 - PHP 8.4 ContainerでComposer Frozen Install PASS、`composer validate --strict --no-check-publish` PASS、Composer Audit 0件、Legacy pnpm Audit 0件、Security Unit 6件PASSを確認した。
 - Root pnpm Auditは、SEC-009開始後に検出された別Finding `nanoid`／`GHSA-2v37-7h3g-55p8`（High、`<3.3.17`）1件のためFAILした。このTaskでは関係ないDependency更新もBaseline追加も禁止されているため変更していない。
 - Local Security Gateは、Finding 0件時のComposer 2.9.8 JSONが`advisories: []`を返す一方、既存Gateがobjectを前提とするparser不整合で停止した。このGate実装修正もSEC-009の対象外であり、Gate弱体化や入力改変は行っていない。
-- 上記2件によりRequired Security Check成功条件を満たせないため、PRはDraft、IssueはOpenのまま停止する。Policy Gateと`git diff --check`の結果はDraft PR作成時に記録する。
+- 上記2件によりRequired Security Check成功条件を満たせないため、PRはDraft、IssueはOpenのまま停止する。Policy Unit 112件、PR本文補正後のPull Request event相当Policy Gate、`git diff --check`はPASSした。
 - Application Source、Runtime、DB／Migration、Nginx、V1、Storefront Repository、MIG-062B PRは変更していない。
 
 ## 残課題
