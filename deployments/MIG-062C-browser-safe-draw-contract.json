@@ -1,0 +1,47 @@
+{
+  "task_id": "MIG-062C",
+  "risk": "R3",
+  "verification_profile": "TARGETED_DRAW_CONTRACT",
+  "status": "artifact_created",
+  "base_branch": "main",
+  "base_sha": "8b8e50dd571c360edb0c37bbc4668b11bea15080",
+  "application_source_commit": "41758bb26523a45b990b82564bc450bf6e470107",
+  "task_policy_sha256": "1641af606c8753739b7dca782d336e326afb83809d0ae5b98bb26d29dbd1322f",
+  "issue": 231,
+  "pull_request": 232,
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062C/",
+  "artifact": {
+    "version": "2.0.0-alpha.5",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-062C/artifacts/2.0.0-alpha.5/",
+    "manifest_file": "artifact-manifest.json",
+    "manifest_sha256": "52c442da31b93977158bbe43c867b7b49b4c0bcd35a36534ae1717c92c47d564",
+    "public_openapi_file": "public.openapi.json",
+    "public_openapi_sha256": "3b479426c9a5f70c4123cbeef29dba49de31a6b3d13c50e8cd010b1910301542",
+    "storefront_client_file": "oripa-storefront-client-2.0.0-alpha.5.tgz",
+    "storefront_client_sha256": "fd40bc2fd357dadb2a2f2f1d1f1ef6854b00a495c30e4c0760b1c35949442d50",
+    "storefront_testkit_file": "oripa-storefront-testkit-2.0.0-alpha.5.tgz",
+    "storefront_testkit_sha256": "266e3634bdb107363a30cdd00981df53ae69388a9375a26fda2f2f118dc27901",
+    "site_schema_file": "oripa-site-schema-2.0.0-alpha.5.tgz",
+    "site_schema_sha256": "56a6138e0f8be99816d9d13277a3da79b81e383b15327dd9d73d83841dcb715e"
+  },
+  "runtime": {
+    "preview_change": "NONE",
+    "database_change": "NONE",
+    "migration": "NONE",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_repository_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_4_TESTS_34_ASSERTIONS",
+    "public_openapi": "PASS_48_OPERATIONS",
+    "storefront_client": "PASS_21_TESTS",
+    "site_schema": "PASS_10_TESTS",
+    "storefront_testkit": "PASS_25_TESTS",
+    "artifact_clean_install": "PASS",
+    "policy_quality_gates": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
