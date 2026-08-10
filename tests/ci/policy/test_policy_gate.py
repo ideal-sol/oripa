@@ -20,6 +20,26 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062b_user_tag_paths_are_registered_exactly(self):
+        expected_identity = {
+            "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
+            "apps/api/app/Domain/Identity/Services/V2UserTagService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminUserTagController.php",
+            "apps/api/database/migrations-v2/2026_08_28_000041_create_v2_user_tag_management.php",
+            "apps/api/tests/V2/AdminUserTagManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-user-tag-management.spec.ts",
+            "apps/admin/src/app/users/tags/page.tsx",
+            "apps/admin/src/components/users/admin-user-tag-management.tsx",
+            "apps/admin/test/admin-user-tag-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_062B_V2_IDENTITY_FILES, expected_identity)
+        self.assertTrue(expected_identity.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_062B_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_identity | expected_admin))
+
     def test_mig_061x_session_timeout_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_08_27_000040_update_v2_session_timeout_constraints.php",

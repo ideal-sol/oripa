@@ -23,6 +23,12 @@ const operations = {
   getAdminSession: ["get", "/auth/session"],
   listAdminUsers: ["get", "/users"],
   getAdminUser: ["get", "/users/{user_id}"],
+  listAdminUserTags: ["get", "/user-tags"],
+  createAdminUserTag: ["post", "/user-tags"],
+  updateAdminUserTag: ["put", "/user-tags/{tag_id}"],
+  getAdminUserTags: ["get", "/users/{user_id}/tags"],
+  assignAdminUserTag: ["post", "/users/{user_id}/tags/{tag_id}"],
+  detachAdminUserTag: ["delete", "/users/{user_id}/tags/{tag_id}"],
   listAdminUserGachaHistory: ["get", "/users/{user_id}/gacha-history"],
   adjustAdminUserPoints: ["post", "/users/{user_id}/point-adjustments"],
   getAdminDashboardMonthlySales: [
@@ -378,6 +384,10 @@ const requiredSchemas = [
   "AdminSession",
   "AdminUserCollection",
   "AdminUserDetailResponse",
+  "AdminUserTagCollection",
+  "AdminUserTagMutationResult",
+  "AdminUserTagSetResponse",
+  "AdminUserTagSetMutationResult",
   "AdminUserGachaHistoryCollection",
   "AdminPointAdjustmentRequest",
   "AdminPointAdjustmentMutationResult",
@@ -657,11 +667,71 @@ export interface AdminUserCollection {
 export interface AdminUserDetail extends AdminUserSummary {
   email: string;
   email_verified_at: string | null;
+  tag_assignment_revision?: number;
+  tags?: AdminUserTagAssignment[];
   updated_at: string;
 }
 
 export interface AdminUserDetailResponse {
   data: AdminUserDetail;
+  request_id: string;
+}
+
+export interface AdminUserTag {
+  id: string;
+  name: string;
+  is_active: boolean;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserTagAssignment {
+  id: string;
+  name: string;
+  is_active: boolean;
+  assigned_at: string;
+}
+
+export interface AdminUserTagInput {
+  name: string;
+  is_active: boolean;
+}
+
+export interface AdminUserTagUpdate extends AdminUserTagInput {
+  expected_revision: number;
+}
+
+export interface AdminUserTagCollection {
+  items: AdminUserTag[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserTagMutationResult {
+  data: AdminUserTag;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminUserTagSet {
+  user_id: string;
+  revision: number;
+  tags: AdminUserTagAssignment[];
+}
+
+export interface AdminUserTagSetResponse {
+  data: AdminUserTagSet;
+  request_id: string;
+}
+
+export interface AdminUserTagAssignmentChange {
+  expected_revision: number;
+}
+
+export interface AdminUserTagSetMutationResult {
+  data: AdminUserTagSet;
+  idempotent_replay: boolean;
   request_id: string;
 }
 

@@ -8021,6 +8021,137 @@
         }
       }
     },
+    "/user-tags": {
+      "get": {
+        "operationId": "listAdminUserTags",
+        "summary": "会員タグマスタを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stable Sortされた会員タグ一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminUserTag",
+        "summary": "OwnerまたはAdminが会員タグを作成する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserTagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成した会員タグ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/user-tags/{tag_id}": {
+      "put": {
+        "operationId": "updateAdminUserTag",
+        "summary": "OwnerまたはAdminが会員タグを更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserTagId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserTagUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新した会員タグ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/users/{user_id}": {
       "get": {
         "operationId": "getAdminUser",
@@ -8046,6 +8177,143 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminUserDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/tags": {
+      "get": {
+        "operationId": "getAdminUserTags",
+        "summary": "Userへ現在付与されている会員タグを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Userの会員タグ割当。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagSetResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/tags/{tag_id}": {
+      "post": {
+        "operationId": "assignAdminUserTag",
+        "summary": "OwnerまたはAdminがUserへ会員タグを付与する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/UserTagId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserTagAssignmentChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したUser会員タグ割当。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagSetMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "detachAdminUserTag",
+        "summary": "OwnerまたはAdminがUserから会員タグを解除する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/UserTagId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserTagAssignmentChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したUser会員タグ割当。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTagSetMutationResult"
                 }
               }
             }
@@ -17773,6 +18041,8 @@
           "identity.admin.session.revoke",
           "identity.line.read",
           "identity.line.manage",
+          "user.tag.read",
+          "user.tag.manage",
           "point.ledger.read",
           "point.adjustment.request",
           "point.adjustment.free.approve",
@@ -18091,6 +18361,16 @@
                 ],
                 "format": "date-time"
               },
+              "tag_assignment_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminUserTagAssignment"
+                }
+              },
               "updated_at": {
                 "type": "string",
                 "format": "date-time"
@@ -18098,6 +18378,227 @@
             }
           }
         ]
+      },
+      "AdminUserTag": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "is_active",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "AdminUserTagAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "is_active",
+          "assigned_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "assigned_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "AdminUserTagInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "is_active"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminUserTagUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "is_active",
+          "expected_revision"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminUserTagCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTag"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminUserTagMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUserTag"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminUserTagSet": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "revision",
+          "tags"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTagAssignment"
+            }
+          }
+        }
+      },
+      "AdminUserTagSetResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUserTagSet"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminUserTagAssignmentChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminUserTagSetMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUserTagSet"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
       },
       "AdminUserDetailResponse": {
         "type": "object",
@@ -19652,6 +20153,14 @@
       },
       "UserId": {
         "name": "user_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/OpaqueId"
+        }
+      },
+      "UserTagId": {
+        "name": "tag_id",
         "in": "path",
         "required": true,
         "schema": {

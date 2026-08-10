@@ -134,6 +134,13 @@ import {
   type AdminUserCollection,
   type AdminUserDetailResponse,
   type AdminUserGachaHistoryCollection,
+  type AdminUserTagAssignmentChange,
+  type AdminUserTagCollection,
+  type AdminUserTagInput,
+  type AdminUserTagMutationResult,
+  type AdminUserTagSetMutationResult,
+  type AdminUserTagSetResponse,
+  type AdminUserTagUpdate,
   type AdminPointAdjustmentMutationResult,
   type AdminPointAdjustmentRequest,
   type ProblemDetails,
@@ -253,6 +260,66 @@ export class AdminApiClient {
       );
     }
     return this.request("GET", `/users/${encodeURIComponent(userId)}`, { signal });
+  }
+
+  listUserTags(
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagCollection> {
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (cursor) parameters.set("cursor", cursor);
+    return this.request("GET", `/user-tags?${parameters.toString()}`, { signal });
+  }
+
+  createUserTag(
+    input: AdminUserTagInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagMutationResult> {
+    return this.request("POST", "/user-tags", { body: input, idempotencyKey, signal });
+  }
+
+  updateUserTag(
+    tagId: string,
+    input: AdminUserTagUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagMutationResult> {
+    if (!isOpaqueId(tagId)) {
+      return Promise.reject(new AdminApiError(404, "USER_TAG_NOT_FOUND", null, null, false));
+    }
+    return this.request("PUT", `/user-tags/${encodeURIComponent(tagId)}`, {
+      body: input,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  getUserTags(userId: string, signal?: AbortSignal): Promise<AdminUserTagSetResponse> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false));
+    }
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/tags`, { signal });
+  }
+
+  assignUserTag(
+    userId: string,
+    tagId: string,
+    input: AdminUserTagAssignmentChange,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagSetMutationResult> {
+    return this.changeUserTag("POST", userId, tagId, input, idempotencyKey, signal);
+  }
+
+  detachUserTag(
+    userId: string,
+    tagId: string,
+    input: AdminUserTagAssignmentChange,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagSetMutationResult> {
+    return this.changeUserTag("DELETE", userId, tagId, input, idempotencyKey, signal);
   }
 
   listAdminUserGachaHistory(
@@ -2403,6 +2470,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | `/user-tags${string}`
       | `/users${string}`,
     options: RequestOptions = {},
   ): Promise<T> {
@@ -2419,6 +2487,9 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        path !== "/user-tags" &&
+        !path.startsWith("/user-tags?") &&
+        !path.startsWith("/user-tags/") &&
         path !== "/users" &&
         !path.startsWith("/users?") &&
         !path.startsWith("/users/")) ||
@@ -2505,6 +2576,24 @@ export class AdminApiClient {
       }
     }
     return this.request("GET", `${path}?${parameters.toString()}`, { signal });
+  }
+
+  private changeUserTag(
+    method: "DELETE" | "POST",
+    userId: string,
+    tagId: string,
+    input: AdminUserTagAssignmentChange,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserTagSetMutationResult> {
+    if (!isOpaqueId(userId) || !isOpaqueId(tagId)) {
+      return Promise.reject(new AdminApiError(404, "USER_TAG_NOT_FOUND", null, null, false));
+    }
+    return this.request(
+      method,
+      `/users/${encodeURIComponent(userId)}/tags/${encodeURIComponent(tagId)}`,
+      { body: input, idempotencyKey, signal },
+    );
   }
 }
 

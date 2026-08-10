@@ -8175,3 +8175,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Storefront Testkitを`2.0.0-alpha.4`へ同期する。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - 初回`.3`候補はOpenAPI Breaking Checkでrequired field追加を検出したため配布対象外とし、既存Artifactを上書きせずoptional additiveへ補正した`.4`を別Directoryへ生成する。
 - Application Head `a3f8aeb3af5dc7a22f533c2e920e2b1a0c450f33`から`.4` Artifact一式を`/var/lib/oripa-v2-evidence/MIG-062A/artifacts/2.0.0-alpha.4/`へ作成し、Checksum、Manifest、Workspace外Clean Install／Importを確認した。
+
+## MIG-062B 会員タグ管理基盤
+
+- Base `0f5687dce15a197db429c22e8927343caf04d3ce`からIssue #226、Branch `feat/MIG-062B-user-tag-management`、Risk R3で開始した。
+- Tag Masterの一覧／作成／編集／有効状態、Userへの複数Tag付与／解除、Revision OCC、Idempotency、Audit、Owner／Admin Mutation・Operator Read-only境界を実装した。
+- Task DBでMigration fresh／rollback／reapply、Backend 11 tests／197 assertions、Admin Unit 37 tests、Desktop／Mobile Browser 2 tests、Typecheck／Lint／Build、OpenAPI／Generated Client、Policy／Quality GateがPASSした。
+- Preview更新対象はAPI／Admin／Migration 000041のみ。Tag限定ポイント購入、Storefront Public API、Point／Gacha／Payment、Nginx、V1は変更しない。

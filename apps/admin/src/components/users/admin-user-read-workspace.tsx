@@ -7,6 +7,7 @@ import { type ReactNode, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
+import { AdminUserTagSection } from "@/components/users/admin-user-tag-management";
 import {
   type AdminUserReadMode,
   useAdminUserReadModel,
@@ -69,8 +70,8 @@ export function AdminUserReadWorkspace({
       ) : null}
       {!state.loading && !state.error && state.data?.kind === "detail" ? (
         <UserDetail
-          onRefresh={() => {
-            setNotice("ポイント調整を反映し、最新残高を再取得しました。");
+          onRefresh={(message) => {
+            setNotice(message);
             state.retry();
           }}
           user={state.data.value}
@@ -136,7 +137,7 @@ function UserList({ items }: { items: AdminUserSummary[] }) {
   );
 }
 
-function UserDetail({ onRefresh, user }: { onRefresh: () => void; user: AdminUserDetail }) {
+function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void; user: AdminUserDetail }) {
   const { hasPermission } = usePermissions();
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const canAdjustPoints = hasPermission("point.adjustment.manage");
@@ -185,13 +186,17 @@ function UserDetail({ onRefresh, user }: { onRefresh: () => void; user: AdminUse
           </div>
         ) : <State message="Walletはまだ作成されていません。" />}
       </section>
+      <AdminUserTagSection
+        onRefresh={() => onRefresh("会員タグを更新し、最新情報を再取得しました。")}
+        user={user}
+      />
       {canAdjustPoints ? (
         <AdminUserPointAdjustmentModal
           displayName={user.display_name}
           freeBalance={freeBalance}
           onClose={() => setAdjustmentOpen(false)}
           onSuccess={() => {
-            onRefresh();
+            onRefresh("ポイント調整を反映し、最新残高を再取得しました。");
           }}
           open={adjustmentOpen}
           paidBalance={paidBalance}

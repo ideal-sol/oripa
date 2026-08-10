@@ -9,6 +9,8 @@ enum V2Permission: string
     case RevokeAdminSession = 'identity.admin.session.revoke';
     case ReadLineMessaging = 'identity.line.read';
     case ManageLineMessaging = 'identity.line.manage';
+    case ReadUserTag = 'user.tag.read';
+    case ManageUserTag = 'user.tag.manage';
     case ReadPointLedger = 'point.ledger.read';
     case RequestPointAdjustment = 'point.adjustment.request';
     case ApproveFreePointAdjustment = 'point.adjustment.free.approve';

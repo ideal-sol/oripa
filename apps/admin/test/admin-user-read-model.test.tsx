@@ -26,6 +26,7 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
+vi.mock("@/components/auth/fresh-mfa-dialog", () => ({ FreshMfaDialog: () => null }));
 
 import { AdminUserReadWorkspace } from "@/components/users/admin-user-read-workspace";
 
@@ -67,6 +68,8 @@ describe("Admin User Read workspace", () => {
       ...userSummary(),
       email: "user@example.test",
       email_verified_at: "2026-08-03T00:00:00Z",
+      tag_assignment_revision: 1,
+      tags: [],
       updated_at: "2026-08-03T01:00:00Z",
     } };
     render(<AdminUserReadWorkspace mode="detail" userPublicId={uuid("1")} />);
@@ -86,6 +89,8 @@ describe("Admin User Read workspace", () => {
       ...userSummary(),
       email: "user@example.test",
       email_verified_at: "2026-08-03T00:00:00Z",
+      tag_assignment_revision: 1,
+      tags: [],
       updated_at: "2026-08-03T01:00:00Z",
     } };
     permissions.add("point.adjustment.manage");

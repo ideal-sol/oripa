@@ -124,6 +124,30 @@ describe("AdminApiClient", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("uses typed User Tag reads and mutations with public IDs and CSRF", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const tagId = "01910191-0191-7191-8191-019101910192";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: { revision: 1, tags: [], user_id: userId } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { revision: 2, tags: [], user_id: userId }, idempotent_replay: false }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listUserTags();
+    await client.getUserTags(userId);
+    await client.assignUserTag(userId, tagId, { expected_revision: 1 }, "tag-key");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/user-tags?limit=50",
+      `/admin/api/v2/users/${userId}/tags`,
+      `/admin/api/v2/users/${userId}/tags/${tagId}`,
+    ]);
+    const mutation = fetcher.mock.calls[2][1];
+    expect(mutation?.method).toBe("POST");
+    expect(new Headers(mutation?.headers).get("Idempotency-Key")).toBe("tag-key");
+    expect(new Headers(mutation?.headers).get("X-XSRF-TOKEN")).toBe(csrf);
+  });
+
   it("sends point adjustments with CSRF and an explicit idempotency key", async () => {
     const userId = "01910191-0191-7191-8191-019101910191";
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
