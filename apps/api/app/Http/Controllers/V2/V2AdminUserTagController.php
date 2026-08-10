@@ -7,6 +7,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Exceptions\V2UserTagException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\Identity\Services\V2UserTagService;
+use App\Domain\Reporting\Exceptions\V2ReportingException;
 use App\Http\Responses\V2ProblemDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -105,6 +106,22 @@ final class V2AdminUserTagController
             ]);
         } catch (V2AuthenticationException $exception) {
             return V2ProblemDetails::fromAuthentication($request, $exception);
+        } catch (V2ReportingException $exception) {
+            $requestId = $this->requestId($request);
+
+            return response()->json([
+                'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
+                'title' => $exception->getMessage(),
+                'status' => $exception->status,
+                'code' => $exception->errorCode,
+                'request_id' => $requestId,
+                'retryable' => $exception->retryable,
+            ], $exception->status, [
+                'Content-Type' => 'application/problem+json',
+                'Cache-Control' => 'private, no-store',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
         } catch (V2UserTagException $exception) {
             $requestId = $this->requestId($request);
 

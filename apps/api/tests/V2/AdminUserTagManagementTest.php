@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Exceptions\V2UserTagException;
 use App\Domain\Identity\Services\V2PasswordPolicy;
+use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Identity\Services\V2UserTagService;
 use App\Models\V2\Admin;
 use Illuminate\Support\Facades\DB;
@@ -215,6 +216,44 @@ final class AdminUserTagManagementTest extends TestCase
         $encoded = json_encode($service->userTags($admin, $user), JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('user_tag_id', $encoded);
         self::assertStringNotContainsString('assigned_by_admin_public_id', $encoded);
+    }
+
+    public function test_invalid_cursor_uses_problem_details_contract(): void
+    {
+        $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
+        $email = 'user-tag-api-'.Str::uuid7().'@example.test';
+        $admin = Admin::query()->create([
+            'email_display' => $email,
+            'email_normalized' => $email,
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid admin password'),
+            'role' => V2AdminRole::Owner,
+            'state' => V2AdminState::Active,
+        ]);
+        DB::table('admin_sessions')->insert([
+            'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
+            'admin_id' => $admin->id,
+            'mfa_verified_at' => now(),
+            'requires_mfa_enrollment' => false,
+            'created_at' => now()->subMinute(),
+            'last_activity_at' => now(),
+            'idle_expires_at' => now()->addHours(6),
+            'absolute_expires_at' => now()->addHours(11),
+        ]);
+
+        $response = $this->withCredentials()
+            ->withUnencryptedCookie('__Host-oripa_admin_session', $token)
+            ->getJson('/admin/api/v2/user-tags?cursor=internal-id')
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'REPORTING_CURSOR_INVALID');
+        self::assertStringContainsString(
+            'application/problem+json',
+            (string) $response->headers->get('Content-Type')
+        );
+        self::assertStringContainsString(
+            'no-store',
+            (string) $response->headers->get('Cache-Control')
+        );
     }
 
     private function context(V2AdminRole $role): V2AdminAuthorizationContext
