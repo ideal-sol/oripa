@@ -8217,3 +8217,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 配送先作成へ既存Idempotency基盤を追加し、Browser ClientではKeyを必須化した。配送先update／deleteは自動Retryを禁止し、Read MethodによるReconciliation境界を明示した。
 - Backend実在CodeだけのTyped Fulfillment Problem ContractをPublic OpenAPI／Generated Types／Storefront Client／Site Schema／Testkitへ同期した。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - Fresh reviewでalpha.7のAddress Idempotency ResponseへPIIが複製される問題を検出した。alpha.7は未採用のまま上書きせず、Idempotency RecordへPublic IDだけを保持する補正後のalpha.8を最終Artifactとして生成する。
+- Application Head `5c9053ca2434847032a51f8b4f09dd25c8ef8535`からalpha.8を新規生成し、Manifest／4配布物Checksum、Workspace外Frozen Install／ImportがPASSした。既存alpha.6と未採用alpha.7は不変である。
