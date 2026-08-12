@@ -4,7 +4,7 @@
 
 Platform API and Admin Preview images are built only by
 `.github/workflows/preview-image-build.yml` on GitHub-hosted
-`ubuntu-24.04-arm`. The Preview host must never run `docker build`.
+`ubuntu-24.04` x64. The Preview host must never run `docker build`.
 
 The workflow accepts an approved Task ID, an open internal PR number, and its
 exact head SHA. It rejects an external PR, a non-`main` base, a branch or title
@@ -15,12 +15,12 @@ without the Task ID, and a changed head before checking out source.
 The one-day GitHub Artifact is named
 `oripa-preview-images-<TASK_ID>-<FULL_HEAD_SHA>` and contains:
 
-- `oripa-v2-api-linux-arm64.docker.tar.zst`
-- `oripa-v2-admin-linux-arm64.docker.tar.zst`
+- `oripa-v2-api-linux-amd64.docker.tar.zst`
+- `oripa-v2-admin-linux-amd64.docker.tar.zst`
 - `manifest.json`
 - `SHA256SUMS`
 
-The manifest fixes the Task, PR, source commit, `linux/arm64` platform, image
+The manifest fixes the Task, PR, source commit, `linux/amd64` platform, image
 references, image IDs, archive checksums, and OCI labels. The OCI revision is
 the requested PR head SHA.
 
@@ -41,9 +41,9 @@ python3 /var/www/oripa/scripts/ops/preview_image_artifact.py load \
   --task-id <TASK_ID> --pr-number <PR_NUMBER> --source-sha <HEAD_SHA>
 ```
 
-`load` first re-verifies the artifact, then rejects any Docker host that is not
-ARM64. It only invokes `docker image load`; it neither builds nor removes an
-image.
+`load` first re-verifies the artifact, then rejects any machine or Docker host
+that is not AMD64. It only invokes `docker image load`; it neither builds nor
+removes an image.
 
 ## Preview Update
 
@@ -61,10 +61,9 @@ docker compose -p mig061a-v2-preview \
 Record current and rollback image IDs before replacement. Do not remove either
 image. Health and browser checks remain Task-specific deployment gates.
 
-## Current Host Limitation
+## Target Architecture
 
-As of OPS-004, the existing Preview host and Docker daemon are `x86_64`. The
-required ARM64 artifact can be built and downloaded, but `load` intentionally
-rejects this host before importing images. Preview deployment requires an
-approved ARM64 Preview host; emulation or a cloud resource change is not part
-of OPS-004.
+OPS-005 confirms that the existing Preview host and Docker daemon are `x86_64`.
+The canonical artifact target is therefore `linux/amd64`. The artifact helper
+owns this target value; both CI build selection and the host load guard consume
+that boundary. Cross-architecture loading remains fail closed.

@@ -1161,9 +1161,9 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         repository / ".github/workflows/preview-image-build.yml"
     ).read_text(encoding="utf-8")
     required_workflow = {
-        "runs-on: ubuntu-24.04-arm",
         "checks: read",
-        "--platform linux/arm64",
+        "preview_image_artifact.py target --field platform",
+        "preview_image_artifact.py host-check",
         "OCI_REVISION=${INPUT_HEAD_SHA}",
         "retention-days: 1",
         "compression-level: 0",
@@ -1177,12 +1177,19 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         raise PolicyFailure(
             "Preview image workflow boundary missing: " + ", ".join(missing_workflow)
         )
+    if not re.search(r"^\s+runs-on:\s*ubuntu-24\.04\s*$", workflow, re.MULTILINE):
+        raise PolicyFailure("Preview image workflow must use the GitHub-hosted x64 runner")
     if "actions: write" in workflow or "packages: write" in workflow:
         raise PolicyFailure("Preview image workflow permissions are too broad")
 
     helper = (repository / "scripts/ops/preview_image_artifact.py").read_text(
         encoding="utf-8"
     )
+    if any(
+        obsolete in workflow + helper
+        for obsolete in ("ubuntu-24.04-arm", "linux/arm64", "linux-arm64")
+    ):
+        raise PolicyFailure("Preview image pipeline contains an obsolete ARM64 target")
     if "docker build" in helper or '["docker", "image", "load"' not in helper:
         raise PolicyFailure("Preview host helper may only load verified images")
     wrapper = (

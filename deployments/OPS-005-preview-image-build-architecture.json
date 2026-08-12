@@ -1,0 +1,18 @@
+{
+  "task_id": "OPS-005",
+  "risk": "R4",
+  "base_branch": "main",
+  "base_sha": "0b0915bbaf9cc4420acc5b66bd24c83e65a6dfb4",
+  "status": "pipeline_updated_no_runtime_deployment",
+  "runner": "ubuntu-24.04",
+  "image_platform": "linux/amd64",
+  "artifact_retention_days": 1,
+  "registry": "NONE",
+  "new_secret": "NONE",
+  "runtime_deployment": "NONE",
+  "preview_machine_architecture": "amd64",
+  "preview_docker_architecture": "amd64",
+  "mig_062f_pull_request": 238,
+  "mig_062f_head": "8daba6e6ce547e81c90e767e8fcdfdb2b38b0e2b",
+  "mig_062f_change": "NONE"
+}

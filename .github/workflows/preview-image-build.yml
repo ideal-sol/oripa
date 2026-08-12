@@ -27,8 +27,8 @@ concurrency:
 
 jobs:
   build-preview-images:
-    name: build-preview-images-arm64
-    runs-on: ubuntu-24.04-arm
+    name: build-preview-images-amd64
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Validate the approved internal PR head
@@ -130,27 +130,26 @@ jobs:
           INPUT_HEAD_SHA: ${{ inputs.head_sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$INPUT_HEAD_SHA"
-          test "$(uname -m)" = "aarch64"
-          test "$(docker info --format '{{.Architecture}}')" = "aarch64" \
-            || test "$(docker info --format '{{.Architecture}}')" = "arm64"
+          python3 scripts/ops/preview_image_artifact.py host-check
           command -v zstd >/dev/null
 
-      - name: Build immutable linux arm64 images
+      - name: Build immutable target architecture images
         env:
           INPUT_PR_NUMBER: ${{ inputs.pr_number }}
           INPUT_TASK_ID: ${{ inputs.task_id }}
           INPUT_HEAD_SHA: ${{ inputs.head_sha }}
         run: |
           created_at="$(git show -s --format=%cI "$INPUT_HEAD_SHA")"
+          target_platform="$(python3 scripts/ops/preview_image_artifact.py target --field platform)"
           api_image="oripa-v2-api:preview-${INPUT_TASK_ID}-${INPUT_HEAD_SHA:0:12}"
           admin_image="oripa-v2-admin:preview-${INPUT_TASK_ID}-${INPUT_HEAD_SHA:0:12}"
-          docker build --platform linux/arm64 \
+          docker build --platform "$target_platform" \
             --build-arg "OCI_VERSION=preview-${INPUT_TASK_ID}" \
             --build-arg "OCI_REVISION=${INPUT_HEAD_SHA}" \
             --build-arg "OCI_CREATED=${created_at}" \
             --file infra/docker/backend/Dockerfile \
             --tag "$api_image" .
-          docker build --platform linux/arm64 \
+          docker build --platform "$target_platform" \
             --build-arg "OCI_VERSION=preview-${INPUT_TASK_ID}" \
             --build-arg "OCI_REVISION=${INPUT_HEAD_SHA}" \
             --build-arg "OCI_CREATED=${created_at}" \

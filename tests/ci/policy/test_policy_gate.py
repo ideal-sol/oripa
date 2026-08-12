@@ -530,7 +530,7 @@ jobs:
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
             policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
 
-    def test_preview_image_pipeline_uses_pinned_arm64_artifacts_and_host_guards(self):
+    def test_preview_image_pipeline_uses_pinned_amd64_artifacts_and_host_guards(self):
         policy_gate.validate_preview_image_pipeline(
             ROOT,
             set(policy_gate.tracked_paths(ROOT))
@@ -550,6 +550,28 @@ jobs:
             helper.write_text(helper.read_text() + "\n# docker build\n")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "may only load verified images"
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
+    def test_preview_image_pipeline_rejects_arm64_runner_regression(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = root / ".github/workflows/preview-image-build.yml"
+            workflow.write_text(
+                workflow.read_text().replace(
+                    "runs-on: ubuntu-24.04", "runs-on: ubuntu-24.04-arm"
+                )
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "GitHub-hosted x64 runner"
             ):
                 policy_gate.validate_preview_image_pipeline(
                     root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES

@@ -31,19 +31,19 @@ wrapper = load_module(
 )
 
 
-TASK = "OPS-004"
-PR = 239
+TASK = "OPS-005"
+PR = 241
 HEAD = "a" * 40
 BASE_LABELS = {
     "org.opencontainers.image.created": "2026-08-12T00:00:00Z",
     "org.opencontainers.image.revision": HEAD,
     "org.opencontainers.image.source": "https://github.com/ideal-sol/oripa",
-    "org.opencontainers.image.version": "preview-OPS-004",
+    "org.opencontainers.image.version": "preview-OPS-005",
 }
 
 
 def create_docker_archive(directory: Path, name: str) -> dict:
-    reference = f"oripa-v2-{name}:preview-OPS-004-aaaaaaaaaaaa"
+    reference = f"oripa-v2-{name}:preview-OPS-005-aaaaaaaaaaaa"
     labels = {
         **BASE_LABELS,
         "org.opencontainers.image.title": (
@@ -51,7 +51,7 @@ def create_docker_archive(directory: Path, name: str) -> dict:
         ),
     }
     config = {
-        "architecture": "arm64",
+        "architecture": "amd64",
         "os": "linux",
         "config": {"Labels": labels},
         "rootfs": {"type": "layers", "diff_ids": []},
@@ -83,7 +83,7 @@ def create_docker_archive(directory: Path, name: str) -> dict:
         "archive_bytes": archive.stat().st_size,
         "archive_uncompressed_bytes": raw_size,
         "image_id": f"sha256:{config_digest}",
-        "architecture": "arm64",
+        "architecture": "amd64",
         "os": "linux",
         "labels": labels,
     }
@@ -98,7 +98,7 @@ def create_artifact(directory: Path) -> None:
         "pull_request": PR,
         "source_commit": HEAD,
         "created_at": "2026-08-12T00:00:00Z",
-        "platform": "linux/arm64",
+        "platform": "linux/amd64",
         "images": images,
     }
     manifest_path = directory / "manifest.json"
@@ -119,7 +119,7 @@ class PreviewImageArtifactTest(unittest.TestCase):
                 directory, task_id=TASK, pr_number=PR, source_sha=HEAD
             )
         self.assertEqual(result["status"], "verified")
-        self.assertEqual(result["platform"], "linux/arm64")
+        self.assertEqual(result["platform"], "linux/amd64")
         self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
 
     def test_checksum_tampering_is_rejected_before_load(self):
@@ -142,7 +142,7 @@ class PreviewImageArtifactTest(unittest.TestCase):
                     directory, task_id=TASK, pr_number=PR, source_sha="b" * 40
                 )
 
-    def test_load_refuses_non_arm64_host_before_docker_load(self):
+    def test_load_refuses_non_amd64_host_before_docker_load(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             create_artifact(directory)
@@ -152,7 +152,11 @@ class PreviewImageArtifactTest(unittest.TestCase):
             with mock.patch.object(
                 artifact, "verify_artifact", return_value={"status": "verified"}
             ):
-                with mock.patch.object(artifact, "docker_host_architecture", return_value="x86_64"):
+                with mock.patch.object(
+                    artifact,
+                    "host_architectures",
+                    return_value={"machine": "arm64", "docker": "arm64"},
+                ):
                     with mock.patch.object(artifact.subprocess, "Popen") as popen:
                         with self.assertRaisesRegex(artifact.ArtifactError, "host_architecture_mismatch"):
                             artifact.load_artifact(arguments)
@@ -163,14 +167,27 @@ class PreviewImageArtifactTest(unittest.TestCase):
         self.assertNotIn("docker build", source)
         self.assertIn('["docker", "image", "load"', source)
 
+    def test_target_architecture_is_canonical_for_host_guard(self):
+        self.assertEqual(artifact.TARGET_ARCHITECTURE, "amd64")
+        self.assertEqual(artifact.TARGET_PLATFORM, "linux/amd64")
+        with mock.patch.object(
+            artifact,
+            "host_architectures",
+            return_value={"machine": "amd64", "docker": "amd64"},
+        ):
+            self.assertEqual(
+                artifact.require_target_host(),
+                {"machine": "amd64", "docker": "amd64"},
+            )
+
 
 class GitHubAppArtifactBoundaryTest(unittest.TestCase):
     def policy(self):
         return {
             "task_id": TASK,
-            "branch": "ci/OPS-004-preview-image-build-pipeline",
+            "branch": "ci/OPS-005-preview-image-build-architecture",
             "base_branch": "main",
-            "pr_title": "[OPS-004] Non-Production Preview Image Build Pipeline",
+            "pr_title": "[OPS-005] Preview Image Build Architecture Fix",
         }
 
     def pull(self):
@@ -213,6 +230,22 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
                 archive_file.writestr("../manifest.json", "{}")
             with self.assertRaisesRegex(wrapper.WrapperError, "artifact_file_set_invalid"):
                 wrapper.safe_extract(source, destination)
+
+    def test_wrapper_extracts_only_canonical_amd64_artifact_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "artifact.zip"
+            destination = Path(temporary) / "payload"
+            destination.mkdir()
+            expected = {
+                "manifest.json",
+                "SHA256SUMS",
+                *artifact.ARCHIVE_NAMES.values(),
+            }
+            with zipfile.ZipFile(source, "w") as archive_file:
+                for filename in expected:
+                    archive_file.writestr(filename, b"placeholder")
+            wrapper.safe_extract(source, destination)
+            self.assertEqual({path.name for path in destination.iterdir()}, expected)
 
     def test_failed_or_wrong_workflow_run_is_rejected(self):
         run = {

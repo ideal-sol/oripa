@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import subprocess
 import sys
@@ -24,9 +25,12 @@ ISO_DATETIME = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
 IMAGE_NAMES = ("api", "admin")
+TARGET_OS = "linux"
+TARGET_ARCHITECTURE = "amd64"
+TARGET_PLATFORM = f"{TARGET_OS}/{TARGET_ARCHITECTURE}"
 ARCHIVE_NAMES = {
-    "api": "oripa-v2-api-linux-arm64.docker.tar.zst",
-    "admin": "oripa-v2-admin-linux-arm64.docker.tar.zst",
+    "api": "oripa-v2-api-linux-amd64.docker.tar.zst",
+    "admin": "oripa-v2-admin-linux-amd64.docker.tar.zst",
 }
 REQUIRED_LABELS = {
     "org.opencontainers.image.revision",
@@ -100,15 +104,18 @@ def image_metadata(inspect: dict, source_sha: str) -> dict:
         fail("oci_revision_mismatch")
     if labels["org.opencontainers.image.source"] != SOURCE_URL:
         fail("oci_source_mismatch")
-    if inspect.get("Architecture") != "arm64" or inspect.get("Os") != "linux":
+    if (
+        normalise_architecture(inspect.get("Architecture")) != TARGET_ARCHITECTURE
+        or inspect.get("Os") != TARGET_OS
+    ):
         fail("image_platform_mismatch")
     image_id = inspect.get("Id")
     if not isinstance(image_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
         fail("image_id_invalid")
     return {
         "image_id": image_id,
-        "architecture": "arm64",
-        "os": "linux",
+        "architecture": TARGET_ARCHITECTURE,
+        "os": TARGET_OS,
         "labels": {key: labels[key] for key in sorted(REQUIRED_LABELS)},
     }
 
@@ -152,7 +159,7 @@ def package_images(arguments: argparse.Namespace) -> dict:
         "pull_request": arguments.pr_number,
         "source_commit": arguments.source_sha,
         "created_at": arguments.created_at,
-        "platform": "linux/arm64",
+        "platform": TARGET_PLATFORM,
         "images": images,
     }
     manifest_path = output / "manifest.json"
@@ -282,7 +289,7 @@ def verify_artifact(
         or manifest.get("repository") != "ideal-sol/oripa"
         or manifest.get("pull_request") != pr_number
         or manifest.get("source_commit") != source_sha
-        or manifest.get("platform") != "linux/arm64"
+        or manifest.get("platform") != TARGET_PLATFORM
     ):
         fail("manifest_identity_mismatch")
     created_at = manifest.get("created_at")
@@ -332,10 +339,10 @@ def verify_artifact(
             metadata["image_id"] != image["image_id"]
             or metadata["reference"] != image["reference"]
             or image["reference"] != expected_reference
-            or metadata["architecture"] != "arm64"
-            or metadata["os"] != "linux"
-            or image["architecture"] != "arm64"
-            or image["os"] != "linux"
+            or normalise_architecture(metadata["architecture"]) != TARGET_ARCHITECTURE
+            or metadata["os"] != TARGET_OS
+            or image["architecture"] != TARGET_ARCHITECTURE
+            or image["os"] != TARGET_OS
         ):
             fail("image_metadata_mismatch")
         labels = image["labels"]
@@ -360,16 +367,34 @@ def verify_artifact(
         "task_id": task_id,
         "pull_request": pr_number,
         "source_commit": source_sha,
-        "platform": "linux/arm64",
+        "platform": TARGET_PLATFORM,
         "manifest_sha256": checksums["manifest.json"],
         "images": verified_images,
         "status": "verified",
     }
 
 
-def docker_host_architecture() -> str:
-    value = run(["docker", "info", "--format", "{{.Architecture}}"], capture=True)
-    return "arm64" if value in {"arm64", "aarch64"} else value
+def normalise_architecture(value: object) -> str:
+    if value in {"x86_64", "amd64"}:
+        return "amd64"
+    if value in {"aarch64", "arm64"}:
+        return "arm64"
+    return value if isinstance(value, str) else ""
+
+
+def host_architectures() -> dict[str, str]:
+    machine = normalise_architecture(platform.machine())
+    docker = normalise_architecture(
+        run(["docker", "info", "--format", "{{.Architecture}}"], capture=True)
+    )
+    return {"machine": machine, "docker": docker}
+
+
+def require_target_host() -> dict[str, str]:
+    architectures = host_architectures()
+    if any(value != TARGET_ARCHITECTURE for value in architectures.values()):
+        fail("host_architecture_mismatch")
+    return architectures
 
 
 def load_artifact(arguments: argparse.Namespace) -> dict:
@@ -379,8 +404,7 @@ def load_artifact(arguments: argparse.Namespace) -> dict:
         pr_number=arguments.pr_number,
         source_sha=arguments.source_sha,
     )
-    if docker_host_architecture() != "arm64":
-        fail("host_architecture_mismatch")
+    require_target_host()
     manifest = load_json(arguments.directory / "manifest.json")
     for image in manifest["images"]:
         with tempfile.TemporaryDirectory(prefix="oripa-preview-load-") as temporary:
@@ -401,6 +425,9 @@ def load_artifact(arguments: argparse.Namespace) -> dict:
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser()
     commands = value.add_subparsers(dest="command", required=True)
+    target = commands.add_parser("target")
+    target.add_argument("--field", choices=("architecture", "platform"))
+    commands.add_parser("host-check")
     package = commands.add_parser("package")
     package.add_argument("--output", type=Path, required=True)
     package.add_argument("--task-id", required=True)
@@ -421,7 +448,22 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     arguments = parser().parse_args()
     try:
-        if arguments.command == "package":
+        if arguments.command == "target":
+            result = {
+                "architecture": TARGET_ARCHITECTURE,
+                "platform": TARGET_PLATFORM,
+            }
+            if arguments.field:
+                print(result[arguments.field])
+                return 0
+        elif arguments.command == "host-check":
+            result = {
+                "architecture": TARGET_ARCHITECTURE,
+                "platform": TARGET_PLATFORM,
+                **require_target_host(),
+                "status": "matched",
+            }
+        elif arguments.command == "package":
             result = package_images(arguments)
         elif arguments.command == "verify":
             result = verify_artifact(

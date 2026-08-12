@@ -384,8 +384,8 @@ def safe_extract(source: Path, destination: Path) -> None:
     allowed = {
         "manifest.json",
         "SHA256SUMS",
-        "oripa-v2-api-linux-arm64.docker.tar.zst",
-        "oripa-v2-admin-linux-arm64.docker.tar.zst",
+        "oripa-v2-api-linux-amd64.docker.tar.zst",
+        "oripa-v2-admin-linux-amd64.docker.tar.zst",
     }
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
