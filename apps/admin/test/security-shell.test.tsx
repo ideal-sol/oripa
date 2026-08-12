@@ -55,6 +55,7 @@ import { proxy } from "@/proxy";
 
 describe("Admin shell and security boundaries", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     permission.role = "owner";
     auth.freshTotp.mockReset().mockResolvedValue(undefined);
     auth.freshPassword.mockReset().mockResolvedValue(undefined);
@@ -108,6 +109,7 @@ describe("Admin shell and security boundaries", () => {
   });
 
   it("rejects unknown hosts and hardens allowed responses", () => {
+    vi.stubEnv("V2_PUBLIC_ORIGIN", "https://luxe-pack.biz/content");
     const blocked = proxy(new NextRequest("http://unknown.example/login"));
     expect(blocked.status).toBe(404);
 
@@ -118,6 +120,9 @@ describe("Admin shell and security boundaries", () => {
     expect(allowed.headers.get("X-Robots-Tag")).toContain("noindex");
     expect(allowed.headers.get("Content-Security-Policy")).toContain(
       "frame-ancestors 'none'",
+    );
+    expect(allowed.headers.get("Content-Security-Policy")).toContain(
+      "img-src 'self' data: https://luxe-pack.biz",
     );
   });
 });

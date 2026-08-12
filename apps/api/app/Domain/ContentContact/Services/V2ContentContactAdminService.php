@@ -442,7 +442,6 @@ final class V2ContentContactAdminService
                 'category.public_id as category_public_id',
                 'category.name as category_name',
                 'asset.public_id as asset_public_id',
-                'asset.public_path as image_url',
             ]);
         $hasMore = $rows->count() > $limit;
         $items = $rows->take($limit)->map(fn (object $row): array => $this->managedBanner($row))->all();
@@ -710,7 +709,7 @@ final class V2ContentContactAdminService
                 ])) {
                     throw new \RuntimeException('Banner asset storage failed.');
                 }
-                $publicPath = '/admin/api/v2/banner-management/assets/'.$publicId.'/content';
+                $publicPath = $this->bannerAssetPublicPath($publicId);
                 $now = now()->startOfSecond();
                 DB::table('catalog_presentation_assets')->insert([
                     'public_id' => $publicId,
@@ -729,7 +728,7 @@ final class V2ContentContactAdminService
                 ]);
                 $result = [
                     'id' => $publicId,
-                    'public_url' => $publicPath,
+                    'public_url' => $this->bannerAssetPublicUrl($publicId),
                     'mime_type' => $mime,
                     'byte_size' => strlen($bytes),
                 ];
@@ -1724,7 +1723,6 @@ final class V2ContentContactAdminService
                 'category.public_id as category_public_id',
                 'category.name as category_name',
                 'asset.public_id as asset_public_id',
-                'asset.public_path as image_url',
             ]);
         if ($row === null) {
             throw $this->notFound('BANNER_NOT_FOUND');
@@ -1746,13 +1744,38 @@ final class V2ContentContactAdminService
             ],
             'asset' => [
                 'id' => $row->asset_public_id,
-                'public_url' => $row->image_url,
+                'public_url' => $this->bannerAssetPublicUrl($row->asset_public_id),
             ],
             'version_id' => $row->version_public_id,
             'version_number' => (int) $row->version_number,
             'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
             'updated_at' => CarbonImmutable::parse($row->updated_at)->toIso8601String(),
         ];
+    }
+
+    private function bannerAssetPublicPath(string $publicId): string
+    {
+        return '/api/v2/content/assets/'.$publicId;
+    }
+
+    private function bannerAssetPublicUrl(string $publicId): string
+    {
+        $origin = rtrim((string) config('v2_identity.origins.user'), '/');
+        $components = parse_url($origin);
+        if (filter_var($origin, FILTER_VALIDATE_URL) === false
+            || ! is_array($components)
+            || ! in_array($components['scheme'] ?? null, ['http', 'https'], true)
+            || ! isset($components['host'])
+            || isset($components['user'])
+            || isset($components['pass'])
+            || isset($components['query'])
+            || isset($components['fragment'])
+            || (($components['path'] ?? '') !== '')
+        ) {
+            throw new \RuntimeException('V2 public origin is not configured.');
+        }
+
+        return $origin.$this->bannerAssetPublicPath($publicId);
     }
 
     private function assertPublishable(string $type, object $version): void
@@ -1947,6 +1970,14 @@ final class V2ContentContactAdminService
         $data = $claim->record->response_data['data'] ?? null;
         if (! is_array($data)) {
             throw new \RuntimeException('Banner replay response is unavailable.');
+        }
+        if (isset($data['asset']) && is_array($data['asset'])
+            && isset($data['asset']['id']) && is_string($data['asset']['id'])) {
+            $data['asset']['public_url'] = $this->bannerAssetPublicUrl($data['asset']['id']);
+        }
+        if (array_key_exists('public_url', $data)
+            && isset($data['id']) && is_string($data['id'])) {
+            $data['public_url'] = $this->bannerAssetPublicUrl($data['id']);
         }
 
         return [...$data, 'idempotent_replay' => true];

@@ -10,6 +10,7 @@ use App\Http\Responses\V2ProblemDetails;
 use App\Models\V2\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -28,6 +29,36 @@ final class V2ContentContactController
             fn (): array => $this->content->banners(),
             cache: true
         );
+    }
+
+    public function assetContent(Request $request, string $assetId): Response|JsonResponse
+    {
+        $requestId = $this->requestId($request);
+        try {
+            $asset = $this->content->assetContent($assetId);
+
+            return response($asset['content'], 200, [
+                'Content-Type' => $asset['mime_type'],
+                'Cache-Control' => 'public, max-age=31536000, immutable',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        } catch (V2ContentContactException $exception) {
+            return response()->json([
+                'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
+                'title' => $exception->getMessage(),
+                'status' => $exception->status,
+                'code' => $exception->errorCode,
+                'request_id' => $requestId,
+                'retryable' => $exception->retryable,
+            ], $exception->status, [
+                'Content-Type' => 'application/problem+json',
+                'Cache-Control' => 'private, no-store',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        }
     }
 
     public function notices(Request $request): JsonResponse

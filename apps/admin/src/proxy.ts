@@ -45,13 +45,14 @@ function securityHeaders(nonce: string): Record<string, string> {
   const scriptSource = nonce
     ? `'nonce-${nonce}' 'strict-dynamic'`
     : "'none'";
+  const imageSource = publicOrigin();
   return {
     "Cache-Control": "private, no-store",
     "Content-Security-Policy": [
       "default-src 'self'",
       `script-src ${scriptSource}`,
       "style-src 'self'",
-      "img-src 'self' data:",
+      `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}`,
       "font-src 'self'",
       "connect-src 'self'",
       "object-src 'none'",
@@ -67,6 +68,18 @@ function securityHeaders(nonce: string): Record<string, string> {
     "X-Frame-Options": "DENY",
     "X-Robots-Tag": "noindex, nofollow, noarchive",
   };
+}
+
+function publicOrigin(): string | null {
+  const configured = process.env.V2_PUBLIC_ORIGIN;
+  if (!configured) return null;
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 export const config = {

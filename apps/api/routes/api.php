@@ -33,6 +33,8 @@ use App\Http\Controllers\V2\V2ContentContactController;
 Route::prefix('v2')->group(function (): void {
     Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
         ->name('v2.public.content.banners');
+    Route::get('/content/assets/{assetId}', [V2ContentContactController::class, 'assetContent'])
+        ->whereUuid('assetId')->name('v2.public.content.assets.show');
     Route::get('/content/notices', [V2ContentContactController::class, 'notices'])
         ->name('v2.public.content.notices');
     Route::get('/content/notices/{noticeId}', [V2ContentContactController::class, 'notice'])

@@ -15227,7 +15227,8 @@
           },
           "public_url": {
             "type": "string",
-            "pattern": "^/admin/api/assets/"
+            "format": "uri",
+            "pattern": "^https?://"
           },
           "mime_type": {
             "type": "string"
@@ -15333,7 +15334,9 @@
                 "$ref": "#/components/schemas/OpaqueId"
               },
               "public_url": {
-                "type": "string"
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://"
               }
             }
           },

@@ -42,7 +42,9 @@ BASE_LABELS = {
 }
 
 
-def create_docker_archive(directory: Path, name: str) -> dict:
+def create_docker_archive(
+    directory: Path, name: str, *, oci_config_path: bool = False
+) -> dict:
     reference = f"oripa-v2-{name}:preview-OPS-005-aaaaaaaaaaaa"
     labels = {
         **BASE_LABELS,
@@ -58,13 +60,18 @@ def create_docker_archive(directory: Path, name: str) -> dict:
     }
     config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
     config_digest = hashlib.sha256(config_bytes).hexdigest()
+    config_name = (
+        f"blobs/sha256/{config_digest}"
+        if oci_config_path
+        else f"{config_digest}.json"
+    )
     raw = directory / f"{name}.tar"
     with tarfile.open(raw, "w") as bundle:
-        config_info = tarfile.TarInfo(f"{config_digest}.json")
+        config_info = tarfile.TarInfo(config_name)
         config_info.size = len(config_bytes)
         bundle.addfile(config_info, io.BytesIO(config_bytes))
         manifest_bytes = json.dumps(
-            [{"Config": f"{config_digest}.json", "RepoTags": [reference], "Layers": []}]
+            [{"Config": config_name, "RepoTags": [reference], "Layers": []}]
         ).encode()
         manifest_info = tarfile.TarInfo("manifest.json")
         manifest_info.size = len(manifest_bytes)
@@ -121,6 +128,17 @@ class PreviewImageArtifactTest(unittest.TestCase):
         self.assertEqual(result["status"], "verified")
         self.assertEqual(result["platform"], "linux/amd64")
         self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
+
+    def test_docker_archive_accepts_oci_content_store_config_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            image = create_docker_archive(directory, "api", oci_config_path=True)
+            result = artifact.docker_archive_metadata(
+                directory / artifact.ARCHIVE_NAMES["api"],
+                image["archive_uncompressed_bytes"],
+            )
+        self.assertEqual(result["image_id"], image["image_id"])
+        self.assertEqual(result["architecture"], "amd64")
 
     def test_checksum_tampering_is_rejected_before_load(self):
         with tempfile.TemporaryDirectory() as temporary:
