@@ -8225,3 +8225,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub-hosted `ubuntu-24.04-arm`でExact PR HeadのAPI／Admin ImageをBuildし、zstd Docker archive、Manifest、Checksumを1日保持Artifactとして搬入するCanonical経路を追加する。
 - Host側はGitHub App wrapperで外側Digestと内側Checksum／Image metadataを検証し、ARM64 Hostで`docker image load`だけを許可する。Production Host Build、Registry、Secret、Cloud Resource、Runtime Deployは追加しない。
 - 現行Preview Hostは`x86_64`であり、ARM64 Image実行と互換しないためload前にFail Closedとする。MIG-062F PR #238／Head `8daba6e6ce547e81c90e767e8fcdfdb2b38b0e2b`は変更しない。
+
+# OPS-005 Preview Image Build Architecture Fix
+
+- Preview machineとDocker daemonをRead-onlyで再測定し、いずれも`x86_64`であることを確認した。
+- OPS-004のPreview Image Build PipelineをGitHub-hosted x64 runner／`linux/amd64`へ最小修正する。
+- exact SHA、PR Head、Required Checks、Artifact digest／checksum、OCI revision、Image ID、Host architectureのFail Closed境界を維持する。
+- Production Host Build、Runtime Deploy、MIG-062F変更は実施しない。

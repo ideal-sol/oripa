@@ -1161,9 +1161,10 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         repository / ".github/workflows/preview-image-build.yml"
     ).read_text(encoding="utf-8")
     required_workflow = {
-        "runs-on: ubuntu-24.04-arm",
+        "runs-on: ubuntu-24.04",
         "checks: read",
-        "--platform linux/arm64",
+        "preview_image_artifact.py target --field platform",
+        "preview_image_artifact.py host-check",
         "OCI_REVISION=${INPUT_HEAD_SHA}",
         "retention-days: 1",
         "compression-level: 0",

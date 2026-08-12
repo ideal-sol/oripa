@@ -530,7 +530,7 @@ jobs:
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
             policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
 
-    def test_preview_image_pipeline_uses_pinned_arm64_artifacts_and_host_guards(self):
+    def test_preview_image_pipeline_uses_pinned_amd64_artifacts_and_host_guards(self):
         policy_gate.validate_preview_image_pipeline(
             ROOT,
             set(policy_gate.tracked_paths(ROOT))
