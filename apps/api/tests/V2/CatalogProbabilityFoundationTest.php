@@ -94,6 +94,12 @@ final class CatalogProbabilityFoundationTest extends TestCase
         $catalog = app(V2CatalogReadService::class);
         self::assertSame($gacha->public_id, $catalog->getByPublicId($gacha->public_code)['id']);
         self::assertSame($gacha->public_id, $catalog->getByPublicId($gacha->public_id)['id']);
+        $this->getJson('/api/v2/gachas/'.$gacha->public_code)
+            ->assertOk()
+            ->assertJsonPath('data.id', $gacha->public_id);
+        $this->getJson('/api/v2/gacha-presentations/'.$gacha->public_code)
+            ->assertOk()
+            ->assertJsonPath('data.gacha_id', $gacha->public_id);
     }
 
     public function test_probability_stage_below_one_million_ppm_is_rejected(): void
@@ -196,6 +202,14 @@ final class CatalogProbabilityFoundationTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', '0198a001-0000-7000-8000-000000000011')
+            ->assertJsonPath('data.0.drawn_count', 5)
+            ->assertJsonPath('data.0.presentation.sale_state', 'on_sale')
+            ->assertJsonPath('data.0.presentation.eligible', false)
+            ->assertJsonPath(
+                'data.0.presentation.ineligible_reason',
+                'authentication_required'
+            )
+            ->assertJsonPath('data.0.presentation.display.show_price_points', true)
             ->assertJsonPath('data.0.remaining_count', 995)
             ->assertJsonPath('meta.has_more', false)
             ->assertJsonPath('meta.next_cursor', null);
@@ -215,6 +229,10 @@ final class CatalogProbabilityFoundationTest extends TestCase
             ->assertJsonPath(
                 'data.presentation_asset.checksum_sha256',
                 '0605cbbe5fcd83f57adc97efe4eb39efc5639b28f6fc48e097dc4a9ba68d86c8'
+            )
+            ->assertJsonPath(
+                'data.presentation_asset.path',
+                '/api/v2/content/assets/0198a001-0000-7000-8000-000000000005'
             );
         $json = (string) $response->getContent();
         foreach ([
@@ -236,7 +254,10 @@ final class CatalogProbabilityFoundationTest extends TestCase
         $future['versions'][0]['publish_start_at'] = '2026-08-01T00:00:00Z';
         $future['versions'][0]['publish_end_at'] = '2026-09-01T00:00:00Z';
         app(V2CatalogFixtureImporter::class)->import($future);
-        $this->getJson('/api/v2/gachas')->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.presentation.sale_state', 'coming_soon')
+            ->assertJsonPath('data.0.presentation.display.show_price_points', true);
         $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'coming_soon');
@@ -248,7 +269,12 @@ final class CatalogProbabilityFoundationTest extends TestCase
         $expired['versions'][0]['publish_start_at'] = '2025-01-01T00:00:00Z';
         $expired['versions'][0]['publish_end_at'] = '2026-01-01T00:00:00Z';
         app(V2CatalogFixtureImporter::class)->import($expired);
-        $this->getJson('/api/v2/gachas')->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.presentation.sale_state', 'ended')
+            ->assertJsonPath('data.0.presentation.display.show_price_points', false)
+            ->assertJsonPath('data.0.presentation.display.show_total_count', false)
+            ->assertJsonPath('data.0.presentation.display.show_drawn_count', false);
         $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'ended');

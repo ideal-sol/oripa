@@ -52,14 +52,22 @@ final class V2CatalogController
                 $limit,
                 $this->queryString($request, 'cursor'),
                 $this->queryString($request, 'category'),
-                $this->queryString($request, 'tag')
+                $this->queryString($request, 'tag'),
+                Auth::guard('v2_user')->user()
             );
-
-            return $this->success(
+            $authenticated = Auth::guard('v2_user')->check();
+            $response = $this->success(
                 $result,
                 $request,
-                (string) config('v2_catalog.collection_cache_control')
+                $authenticated
+                    ? 'private, no-store'
+                    : (string) config('v2_catalog.collection_cache_control')
             );
+            if ($authenticated) {
+                $response->headers->set('Vary', 'Cookie');
+            }
+
+            return $response;
         } catch (V2CatalogException $exception) {
             return $this->problem($request, $exception);
         }

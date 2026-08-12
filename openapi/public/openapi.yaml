@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.8
+  version: 2.0.0-alpha.9
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -170,10 +170,10 @@ paths:
   /gachas:
     get:
       operationId: listGachas
-      summary: 公開期間内のGachaをCursor順で取得する
+      summary: Public対象Gachaを販売状態にかかわらずCursor順で取得する
       x-idempotency: safe
       x-rate-limit: public-read
-      x-cache-policy: public-60-seconds
+      x-cache-policy: public-anonymous-private-authenticated
       x-stability: alpha
       security: []
       parameters:
@@ -230,7 +230,7 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/OpaqueId'
+            $ref: '#/components/schemas/GachaPublicId'
       responses:
         '200':
           description: 公開Gacha詳細。
@@ -256,7 +256,7 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/OpaqueId'
+            $ref: '#/components/schemas/GachaPublicId'
       responses:
         '200':
           description: Backend判定済みのGacha表示・CTA状態。
@@ -1459,6 +1459,10 @@ components:
           $ref: '#/components/schemas/OpaqueId'
     OpaqueId:
       $ref: ../components/common.yaml#/schemas/OpaqueId
+    GachaPublicId:
+      type: string
+      pattern: '^(?:[A-Za-z0-9]{11}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$'
+      description: Canonicalな英数字11文字コード。既存Link互換のためUUIDv7も受理する。
     UserPrizeStatus:
       type: string
       enum:
@@ -1960,7 +1964,7 @@ components:
         - presentation_asset
       properties:
         id:
-          $ref: '#/components/schemas/OpaqueId'
+          $ref: '#/components/schemas/GachaPublicId'
         slug:
           type: string
           pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
@@ -1974,6 +1978,9 @@ components:
           type: integer
           minimum: 1
         remaining_count:
+          type: integer
+          minimum: 0
+        drawn_count:
           type: integer
           minimum: 0
         publish_start_at:
@@ -1990,6 +1997,8 @@ components:
             $ref: '#/components/schemas/GachaTag'
         presentation_asset:
           $ref: '#/components/schemas/NullablePresentationAsset'
+        presentation:
+          $ref: '#/components/schemas/GachaPresentationState'
     GachaSummaryCollection:
       type: object
       additionalProperties: false
@@ -2195,7 +2204,7 @@ components:
         - probability_stages
       properties:
         id:
-          $ref: '#/components/schemas/OpaqueId'
+          $ref: '#/components/schemas/GachaPublicId'
         slug:
           type: string
           pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
@@ -2294,6 +2303,17 @@ components:
           enum: [login, draw, null]
         reason:
           $ref: '#/components/schemas/GachaPresentationReason'
+    GachaCatalogDisplay:
+      type: object
+      additionalProperties: false
+      required: [show_price_points, show_total_count, show_drawn_count]
+      properties:
+        show_price_points:
+          type: boolean
+        show_total_count:
+          type: boolean
+        show_drawn_count:
+          type: boolean
     GachaPresentationState:
       type: object
       additionalProperties: false
@@ -2309,7 +2329,7 @@ components:
         - cta
       properties:
         gacha_id:
-          $ref: '#/components/schemas/OpaqueId'
+          $ref: '#/components/schemas/GachaPublicId'
         sale_state:
           $ref: '#/components/schemas/GachaSaleState'
         user_state:
@@ -2331,6 +2351,8 @@ components:
           $ref: '#/components/schemas/GachaDailyLimitState'
         cta:
           $ref: '#/components/schemas/GachaCtaState'
+        display:
+          $ref: '#/components/schemas/GachaCatalogDisplay'
     GachaPresentationResponse:
       type: object
       additionalProperties: false

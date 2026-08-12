@@ -47,12 +47,16 @@ Route::prefix('v2')->group(function (): void {
     Route::get('/gacha-tags', [V2CatalogController::class, 'tags'])
         ->name('v2.public.catalog.tags');
     Route::get('/gachas', [V2CatalogController::class, 'index'])
+        ->middleware('v2.browser:user')
         ->name('v2.public.catalog.gachas');
     Route::get('/gachas/by-slug/{slug}', [V2CatalogController::class, 'showBySlug'])
         ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
         ->name('v2.public.catalog.gachas.by-slug');
     Route::get('/gachas/{gachaId}', [V2CatalogController::class, 'show'])
-        ->whereUuid('gachaId')
+        ->where(
+            'gachaId',
+            '(?:[A-Za-z0-9]{11}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})'
+        )
         ->name('v2.public.catalog.gachas.show');
 });
 
@@ -62,7 +66,11 @@ Route::prefix('v2')
         Route::get('/gacha-presentations/{gachaId}', [
             V2CatalogController::class,
             'presentation',
-        ])->whereUuid('gachaId')->name('v2.public.catalog.gachas.presentation');
+        ])->where(
+            'gachaId',
+            '(?:[A-Za-z0-9]{11}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})'
+        )
+            ->name('v2.public.catalog.gachas.presentation');
         Route::post('/contact-inquiries', [V2ContentContactController::class, 'contact'])
             ->name('v2.public.contacts.store');
     });

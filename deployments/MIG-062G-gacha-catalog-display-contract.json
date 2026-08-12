@@ -1,0 +1,48 @@
+{
+  "task_id": "MIG-062G",
+  "risk": "R3",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "21f58399e8869a00249398dac3b06a74e1e9da97",
+  "task_policy_sha256": "6db64cdbd6c87aa2a9ab0aadb1d7af1c4993b83b35368a86b2a042d0c183739f",
+  "issue": 243,
+  "pull_request": 244,
+  "application_head": "36220b5c08820741b4763363a7e86c18274b9688",
+  "target": "test.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062G/",
+  "artifact": {
+    "version": "2.0.0-alpha.9",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-062G/artifacts/2.0.0-alpha.9/",
+    "manifest": "artifact-manifest.json",
+    "manifest_sha256": "b1ecfc891070045bc9729421a88562fc0d8fafbb86c4b9add60eb99cc6341ee2",
+    "status": "verified"
+  },
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "build_workflow_run": 31575994537,
+    "api_image": "oripa-v2-api:preview-MIG-062G-36220b5c0882",
+    "api_image_id": "sha256:1b8b62fa5d2446041396bd09e3d147b6e8df06c3eac4672db2ee337d98152259",
+    "previous_api_image": "oripa-v2-api:preview-MIG-062F-026da71a1076",
+    "architecture": "linux/amd64",
+    "status": "healthy",
+    "smoke": "PASS_5_GACHAS_CATALOG_DETAIL_PRESENTATION_ELIGIBILITY_CACHE_ASSET",
+    "nginx_change": "NONE",
+    "database_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_30_TESTS_277_ASSERTIONS",
+    "openapi_generated_contract": "PASS",
+    "storefront_client": "PASS_24_TESTS",
+    "site_schema_test": "PASS_FRESH_CI",
+    "storefront_testkit_test": "PASS_FRESH_CI",
+    "policy_gate": "PASS",
+    "quality_gate": "PASS",
+    "security_gate": "PASS",
+    "integration_gate": "PASS",
+    "ci_gate": "PASS",
+    "preview_http_500_502_504": 0
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

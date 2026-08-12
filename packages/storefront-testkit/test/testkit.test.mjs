@@ -20,6 +20,7 @@ import {
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_AUTH_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
+  PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
   PUBLIC_GACHA_PRESENTATION_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
@@ -519,6 +520,37 @@ test("Gacha Presentation FixtureはBackend判定済みCTAだけを公開する",
   );
 });
 
+test("Gacha Catalog Fixtureは販売状態とUser判定をBackend Presentationで表現する", () => {
+  assert.deepEqual(
+    Object.keys(PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES),
+    [
+      "on_sale",
+      "coming_soon",
+      "ended",
+      "sold_out",
+      "authenticated_eligible",
+      "authenticated_ineligible",
+      "anonymous",
+    ],
+  );
+  assert.equal(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.authenticated_ineligible.presentation
+      .ineligible_reason,
+    "audience_not_eligible",
+  );
+  for (const state of ["ended", "sold_out"]) {
+    const display =
+      PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES[state].presentation.display;
+    assert.equal(display.show_price_points, false);
+    assert.equal(display.show_total_count, false);
+    assert.equal(display.show_drawn_count, false);
+  }
+  assert.match(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.on_sale.presentation_asset.path,
+    /^\/api\/v2\/content\/assets\//,
+  );
+});
+
 test("Public-safeなResponse Metadata Fixtureを固定する", () => {
   assert.doesNotThrow(() =>
     assertResponseMetadata(PUBLIC_RESPONSE_METADATA_FIXTURE),
@@ -564,6 +596,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_DRAW_PROBLEM_FIXTURES",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
     "PUBLIC_FULFILLMENT_PROBLEM_FIXTURES",
+    "PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",

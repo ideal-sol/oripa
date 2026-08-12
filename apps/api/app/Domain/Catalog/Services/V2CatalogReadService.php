@@ -60,7 +60,8 @@ final class V2CatalogReadService
         int $limit,
         ?string $cursor,
         ?string $categorySlug,
-        ?string $tagSlug
+        ?string $tagSlug,
+        ?User $user = null
     ): array {
         $maximum = (int) config('v2_catalog.maximum_page_size', 100);
         if ($limit < 1 || $limit > $maximum) {
@@ -71,7 +72,7 @@ final class V2CatalogReadService
             );
         }
         $cursorId = $this->decodeCursor($cursor);
-        $query = $this->publishedGachaQuery()
+        $query = $this->publishedGachaQuery(false)
             ->when($cursorId !== null, fn (Builder $builder): Builder =>
                 $builder->where('g.public_id', '>', $cursorId))
             ->when($categorySlug !== null, fn (Builder $builder): Builder =>
@@ -93,8 +94,13 @@ final class V2CatalogReadService
         $hasMore = $query->count() > $limit;
         $rows = $query->take($limit);
         $tags = $this->tagsForGachas($rows->pluck('gacha_internal_id')->all());
+        $now = CarbonImmutable::now('UTC')->startOfSecond();
         $data = $rows->map(
-            fn (object $row): array => $this->summary($row, $tags[$row->gacha_internal_id] ?? [])
+            fn (object $row): array => [
+                ...$this->summary($row, $tags[$row->gacha_internal_id] ?? []),
+                'drawn_count' => (int) $row->sold_count,
+                'presentation' => $this->presentationForRow($row, $user, $now),
+            ]
         )->values()->all();
         $last = $rows->last();
 
@@ -172,7 +178,21 @@ final class V2CatalogReadService
             );
         }
 
-        $now = CarbonImmutable::now('UTC')->startOfSecond();
+        return $this->presentationForRow(
+            $row,
+            $user,
+            CarbonImmutable::now('UTC')->startOfSecond()
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function presentationForRow(
+        object $row,
+        ?User $user,
+        CarbonImmutable $now
+    ): array {
         $saleState = $this->saleState($row, $now);
         $evaluation = $this->eligibility->evaluate(
             $user,
@@ -212,6 +232,21 @@ final class V2CatalogReadService
             'allowed_draw_counts' => $allowedCounts,
             'daily_limit' => $evaluation['daily'],
             'cta' => $this->cta($saleState, $reason),
+            'display' => $this->catalogDisplay($saleState),
+        ];
+    }
+
+    /**
+     * @return array{show_price_points: bool, show_total_count: bool, show_drawn_count: bool}
+     */
+    private function catalogDisplay(string $saleState): array
+    {
+        $showSalesValues = ! in_array($saleState, ['sold_out', 'ended'], true);
+
+        return [
+            'show_price_points' => $showSalesValues,
+            'show_total_count' => $showSalesValues,
+            'show_drawn_count' => $showSalesValues,
         ];
     }
 
@@ -687,7 +722,7 @@ final class V2CatalogReadService
 
         return [
             'id' => $row->asset_public_id,
-            'path' => $row->asset_public_path,
+            'path' => '/api/v2/content/assets/'.$row->asset_public_id,
             'checksum_sha256' => $row->asset_checksum_sha256,
             'media_type' => $row->asset_media_type,
             'mime_type' => $row->asset_mime_type,
