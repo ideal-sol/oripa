@@ -8,7 +8,7 @@
 - Branch: `feat/MIG-062I-gacha-draw-count-configuration`
 - Risk: R3
 - Task Policy SHA-256: `207ff4561a3b8f63cccd93b8fa823774ee413b6bd5f1adc05f7b36729d686704`
-- Application Head: `52de91b627f36dc51a19514a27edb612d226c598`
+- Application Head: `bcde94cf3ab7a3c9c8ea124215e0edba557e9158`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Schema／Admin
@@ -28,6 +28,7 @@
 
 - Task DBでMigration fresh、rollback、既存Gacha行へのreapply、Default、DB Constraint拒否を確認した。
 - Backend対象46 tests（492 assertions。通常Draw、QA Draw、1000件景品Fixtureを含む）、Admin Unit 6 tests、Policy Unit 120 tests、Admin Typecheck／Lint、OpenAPI lint／bundle／check、`git diff --check`がPASSした。
+- Integration Gateで検出したQA Draw制限順と1000件Fixtureを補正し、既存QA DrawのPlatform対応Countおよび通常DrawのGacha制限を両立した。
 - Preview Image／Migration／Smoke、Required Checks、Fresh Self-reviewはCloseout時に追記する。
 - 全Suite、Storefront Repository、V1、Nginx、Point／Payment、Draw Algorithm変更はTask対象外で実施しない。
 - G4／G5はNOT COMPLETEを維持する。
