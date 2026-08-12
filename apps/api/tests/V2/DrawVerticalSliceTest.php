@@ -426,6 +426,10 @@ final class DrawVerticalSliceTest extends TestCase
         );
         $drawRequestId = $response->json('id');
 
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(8),
+        ]);
+
         $this->withCredentials()
             ->withServerVariables(['HTTPS' => 'on'])
             ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)

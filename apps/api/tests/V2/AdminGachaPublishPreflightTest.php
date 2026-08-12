@@ -1819,7 +1819,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->assertJsonCount(0, 'data.blocking_reasons');
 
         Auth::forgetGuards();
-        $unpublished = $this->mutatingRequest(
+        $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
@@ -1913,7 +1913,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         );
 
         Auth::forgetGuards();
-        $this->mutatingRequest(
+        $unpublished = $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
@@ -2075,7 +2075,11 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $root.'/unpublish',
             ['expected_gacha_revision' => $paused['gacha_revision']],
             'gacha-unpublish-db-mutation'
-        )->assertOk()->json('data');
+        )->assertOk();
+        $unpublished = $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID)
+            ->assertOk()
+            ->json('data');
 
         DB::beginTransaction();
         try {
@@ -2084,7 +2088,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 ->update([
                     'sales_paused' => false,
                     'sales_resumed_at' => DB::raw('CURRENT_TIMESTAMP'),
-                    'revision' => $unpublished['gacha_revision'] + 1,
+                    'revision' => $unpublished['revision'] + 1,
                 ]);
             DB::rollBack();
             self::fail('An unpublished Gacha must not resume by direct SQL.');
