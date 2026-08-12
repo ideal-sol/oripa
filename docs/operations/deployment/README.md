@@ -7,6 +7,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 
 ## Documents
 
+- [Preview Image Build Pipeline](preview-image-build.md)
 - [OIDC Baseline](oidc-baseline.md)
 - [Site Credential Boundary](site-credential-boundary.md)
 - [Provider Onboarding Checklist](provider-onboarding-checklist.md)

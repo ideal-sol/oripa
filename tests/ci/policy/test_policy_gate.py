@@ -530,6 +530,31 @@ jobs:
         with self.assertRaisesRegex(policy_gate.PolicyFailure, "write workflow permission"):
             policy_gate.validate_workflow_text(".github/workflows/unsafe.yml", workflow)
 
+    def test_preview_image_pipeline_uses_pinned_arm64_artifacts_and_host_guards(self):
+        policy_gate.validate_preview_image_pipeline(
+            ROOT,
+            set(policy_gate.tracked_paths(ROOT))
+            | policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES,
+        )
+
+    def test_preview_image_pipeline_rejects_production_host_build_helper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            helper = root / "scripts/ops/preview_image_artifact.py"
+            helper.write_text(helper.read_text() + "\n# docker build\n")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "may only load verified images"
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 

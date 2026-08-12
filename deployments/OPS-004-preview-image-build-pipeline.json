@@ -1,0 +1,18 @@
+{
+  "task_id": "OPS-004",
+  "risk": "R4",
+  "base_branch": "main",
+  "base_sha": "f66209549dfc9c8fae4acaa51645710040694d1c",
+  "status": "pipeline_implemented_no_runtime_deployment",
+  "runner": "ubuntu-24.04-arm",
+  "image_platform": "linux/arm64",
+  "artifact_retention_days": 1,
+  "registry": "NONE",
+  "new_secret": "NONE",
+  "runtime_deployment": "NONE",
+  "preview_host_architecture": "x86_64",
+  "preview_load_status": "BLOCKED_BY_HOST_ARCHITECTURE",
+  "mig_062f_pull_request": 238,
+  "mig_062f_head": "8daba6e6ce547e81c90e767e8fcdfdb2b38b0e2b",
+  "mig_062f_change": "NONE"
+}
