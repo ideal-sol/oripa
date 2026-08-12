@@ -179,6 +179,13 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
     "scripts/release/platform_artifact.py",
     "tests/release/test_platform_artifact.py",
 }
+PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
+    ".github/workflows/preview-image-build.yml",
+    "infrastructure/github-app/oripa-github-app-api",
+    "scripts/ops/preview_image_artifact.py",
+    "tests/ops/test_preview_image_pipeline.py",
+    "docs/operations/deployment/preview-image-build.md",
+}
 MIG_061G_V2_IDENTITY_FILES = {
     "apps/api/app/Domain/Identity/Exceptions/V2AdminUserReadException.php",
     "apps/api/app/Domain/Identity/Services/V2AdminUserReadService.php",
@@ -1142,6 +1149,58 @@ def validate_workflow_text(path: str, text: str) -> None:
             raise PolicyFailure(
                 f"{path}: untrusted pull request input appears in a shell block"
             )
+
+
+def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> None:
+    missing = sorted(PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES - set(paths))
+    if missing:
+        raise PolicyFailure(
+            "required Preview image pipeline files missing: " + ", ".join(missing)
+        )
+    workflow = (
+        repository / ".github/workflows/preview-image-build.yml"
+    ).read_text(encoding="utf-8")
+    required_workflow = {
+        "runs-on: ubuntu-24.04-arm",
+        "checks: read",
+        "--platform linux/arm64",
+        "OCI_REVISION=${INPUT_HEAD_SHA}",
+        "retention-days: 1",
+        "compression-level: 0",
+        "external pull request rejected",
+        "pull request head mismatch",
+        "required checks not successful",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    }
+    missing_workflow = sorted(item for item in required_workflow if item not in workflow)
+    if missing_workflow:
+        raise PolicyFailure(
+            "Preview image workflow boundary missing: " + ", ".join(missing_workflow)
+        )
+    if "actions: write" in workflow or "packages: write" in workflow:
+        raise PolicyFailure("Preview image workflow permissions are too broad")
+
+    helper = (repository / "scripts/ops/preview_image_artifact.py").read_text(
+        encoding="utf-8"
+    )
+    if "docker build" in helper or '["docker", "image", "load"' not in helper:
+        raise PolicyFailure("Preview host helper may only load verified images")
+    wrapper = (
+        repository / "infrastructure/github-app/oripa-github-app-api"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "outer_artifact_digest_mismatch",
+        "inner_artifact_verification_failed",
+        "pull_request_identity_mismatch",
+        "workflow_run_rejected",
+    ):
+        if required not in wrapper:
+            raise PolicyFailure(f"GitHub App artifact boundary missing: {required}")
+    runbook = (
+        repository / "docs/operations/deployment/preview-image-build.md"
+    ).read_text(encoding="utf-8")
+    if "--no-build --no-deps api admin" not in runbook:
+        raise PolicyFailure("Preview deployment must prohibit host builds")
 
 
 def validate_basic_structures(repository: Path, paths: Iterable[str]) -> None:
@@ -4935,6 +4994,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_basic_structures(repository, paths)
     validate_workspace_skeleton(repository, paths)
     validate_release_artifact_foundation(repository, paths)
+    validate_preview_image_pipeline(repository, paths)
     validate_api_application_layout(paths)
     validate_legacy_frontend_layout(repository, paths)
     validate_v2_database_boundary(repository, paths)
