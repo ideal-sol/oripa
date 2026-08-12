@@ -8,7 +8,7 @@
 - Branch: `feat/MIG-062I-gacha-draw-count-configuration`
 - Risk: R3
 - Task Policy SHA-256: `cff9e1c7add6643789f66788039533e27f45e491e37f7122e39a07f10bb115fd`
-- Application Head: Closeout時に確定
+- Application Head: `09a340ed34adcc971f121a4d18a752d13c1672e5`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Schema／Admin
