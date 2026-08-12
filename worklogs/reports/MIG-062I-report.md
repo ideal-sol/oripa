@@ -3,11 +3,12 @@
 ## Task
 
 - Issue: #247
-- PR: Closeout時に確定
+- PR: #248
 - Base: `main@1f4c452dcfb9631530f7b1d3f400637165646e00`
 - Branch: `feat/MIG-062I-gacha-draw-count-configuration`
 - Risk: R3
 - Task Policy SHA-256: `57c8c1c8497c972263f3e8555c990573691fe1995c7d7418e94671d925a1d426`
+- Application Head: `52de91b627f36dc51a19514a27edb612d226c598`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Schema／Admin

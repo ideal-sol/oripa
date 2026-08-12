@@ -6,8 +6,8 @@
   "base_sha": "1f4c452dcfb9631530f7b1d3f400637165646e00",
   "task_policy_sha256": "57c8c1c8497c972263f3e8555c990573691fe1995c7d7418e94671d925a1d426",
   "issue": 247,
-  "pull_request": null,
-  "application_head": null,
+  "pull_request": 248,
+  "application_head": "52de91b627f36dc51a19514a27edb612d226c598",
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062I/",
   "preview": {
