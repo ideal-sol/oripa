@@ -1684,6 +1684,9 @@ final class V2AdminCatalogReadService
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
+            'allowed_draw_counts' => $this->allowedDrawCounts(
+                $row->allowed_draw_counts ?? null
+            ),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,
@@ -1758,6 +1761,9 @@ final class V2AdminCatalogReadService
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
+            'allowed_draw_counts' => $this->allowedDrawCounts(
+                $row->allowed_draw_counts ?? null
+            ),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,
@@ -1984,6 +1990,25 @@ final class V2AdminCatalogReadService
     private function timestamp(mixed $value): string
     {
         return CarbonImmutable::parse($value)->utc()->toIso8601String();
+    }
+
+    /** @return list<int> */
+    private function allowedDrawCounts(mixed $value): array
+    {
+        if ($value === null) {
+            return [1, 5, 10];
+        }
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            [1, 5, 10, 100, 1000],
+            static fn (int $count): bool => in_array($count, $value, true)
+        ));
     }
 
     private function invalidQuery(): V2CatalogException

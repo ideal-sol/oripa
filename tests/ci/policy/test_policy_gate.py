@@ -20,6 +20,19 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062i_gacha_draw_count_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
+        }
+        self.assertEqual(policy_gate.MIG_062I_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("DEFAULT '[1,5,10]'::jsonb", migration)
+        self.assertIn("catalog_gacha_versions_allowed_draw_counts_check", migration)
+        self.assertIn("'[1,5,10,100,1000]'::jsonb", migration)
+
     def test_mig_062h_gacha_eligibility_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
@@ -800,6 +813,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
             "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
             "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
+            "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

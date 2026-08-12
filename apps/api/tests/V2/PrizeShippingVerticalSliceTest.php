@@ -748,6 +748,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = max(1000, $prizeCount + 10);
+        $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         $fixture['prizes'][0]['exchange_points'] = $exchangePoints;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = max(1000, $prizeCount + 10);

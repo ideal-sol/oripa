@@ -347,6 +347,10 @@ final class V2CatalogMasterMutationService
                     'daily_draw_limit' => $payload['daily_draw_limit'],
                     'audience_code' => $payload['audience_code'],
                     'first_time_eligible_days' => $payload['first_time_eligible_days'],
+                    'allowed_draw_counts' => json_encode(
+                        $payload['allowed_draw_counts'],
+                        JSON_THROW_ON_ERROR
+                    ),
                     'presentation_asset_id' => $asset->id,
                     'published_probability_version_id' => null,
                     'publish_start_at' => $payload['publish_start_at'],
@@ -482,6 +486,10 @@ final class V2CatalogMasterMutationService
                     'daily_draw_limit' => $payload['daily_draw_limit'],
                     'audience_code' => $payload['audience_code'],
                     'first_time_eligible_days' => $payload['first_time_eligible_days'],
+                    'allowed_draw_counts' => json_encode(
+                        $payload['allowed_draw_counts'],
+                        JSON_THROW_ON_ERROR
+                    ),
                     'presentation_asset_id' => $asset->id,
                     'publish_start_at' => $payload['publish_start_at'],
                     'publish_end_at' => $payload['publish_end_at'],
@@ -822,6 +830,9 @@ final class V2CatalogMasterMutationService
                         'daily_draw_limit' => (int) ($source->daily_draw_limit ?? 0),
                         'audience_code' => $source->audience_code ?? 'all_users',
                         'first_time_eligible_days' => (int) ($source->first_time_eligible_days ?? 7),
+                        'allowed_draw_counts' => $this->storedAllowedDrawCounts(
+                            $source->allowed_draw_counts ?? null
+                        ),
                     ],
                     (int) $source->id
                 );
@@ -3232,6 +3243,33 @@ final class V2CatalogMasterMutationService
         return $value;
     }
 
+    /** @return list<int> */
+    private function allowedDrawCounts(mixed $value): array
+    {
+        if (! is_array($value)) {
+            throw $this->validationException();
+        }
+        $canonical = array_values(array_filter(
+            [1, 5, 10, 100, 1000],
+            static fn (int $count): bool => in_array($count, $value, true)
+        ));
+        if ($canonical !== $value || ! in_array(1, $canonical, true)) {
+            throw $this->validationException();
+        }
+
+        return $canonical;
+    }
+
+    /** @return list<int> */
+    private function storedAllowedDrawCounts(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+
+        return $this->allowedDrawCounts($value ?? [1, 5, 10]);
+    }
+
     private function applyManagementStatus(
         V2AdminAuthorizationContext $context,
         Admin $admin,
@@ -3365,6 +3403,7 @@ final class V2CatalogMasterMutationService
             'daily_draw_limit',
             'audience_code',
             'first_time_eligible_days',
+            'allowed_draw_counts',
             'presentation_asset_id',
             'publish_start_at',
             'publish_end_at',
@@ -3374,7 +3413,10 @@ final class V2CatalogMasterMutationService
         $this->assertFields(
             $input,
             $fields,
-            array_values(array_diff($fields, ['first_time_eligible_days']))
+            array_values(array_diff(
+                $fields,
+                ['first_time_eligible_days', 'allowed_draw_counts']
+            ))
         );
         $startsAt = $this->timestamp($input['publish_start_at']);
         $endsAt = $input['publish_end_at'] === null
@@ -3402,6 +3444,9 @@ final class V2CatalogMasterMutationService
         if (! is_int($firstTimeEligibleDays) || $firstTimeEligibleDays < 1) {
             throw $this->validationException();
         }
+        $allowedDrawCounts = $this->allowedDrawCounts(
+            $input['allowed_draw_counts'] ?? [1, 5, 10]
+        );
 
         return [
             'title' => $this->plainText($input['title'], 1, 191),
@@ -3414,6 +3459,7 @@ final class V2CatalogMasterMutationService
             ),
             'audience_code' => $input['audience_code'],
             'first_time_eligible_days' => $firstTimeEligibleDays,
+            'allowed_draw_counts' => $allowedDrawCounts,
             'presentation_asset_id' => $this->uuid(
                 $input['presentation_asset_id']
             ),
@@ -3430,7 +3476,8 @@ final class V2CatalogMasterMutationService
         $baseFields = ['expected_revision', 'category_id', 'tag_ids'];
         $draftFields = [
             'expected_version_revision', 'title', 'price_points', 'total_count',
-            'daily_draw_limit', 'audience_code', 'first_time_eligible_days', 'presentation_asset_id',
+            'daily_draw_limit', 'audience_code', 'first_time_eligible_days',
+            'allowed_draw_counts', 'presentation_asset_id',
             'publish_start_at', 'publish_end_at', 'description', 'notices',
         ];
         $this->assertFields(
@@ -3450,7 +3497,10 @@ final class V2CatalogMasterMutationService
                 'updates_draft' => false,
             ];
         }
-        foreach (array_diff($draftFields, ['first_time_eligible_days']) as $field) {
+        foreach (array_diff(
+            $draftFields,
+            ['first_time_eligible_days', 'allowed_draw_counts']
+        ) as $field) {
             if (! array_key_exists($field, $input)) {
                 throw $this->validationException();
             }
@@ -4762,6 +4812,10 @@ final class V2CatalogMasterMutationService
             'daily_draw_limit' => $payload['daily_draw_limit'] ?? 0,
             'audience_code' => $payload['audience_code'] ?? 'all_users',
             'first_time_eligible_days' => $payload['first_time_eligible_days'] ?? 7,
+            'allowed_draw_counts' => json_encode(
+                $payload['allowed_draw_counts'] ?? [1, 5, 10],
+                JSON_THROW_ON_ERROR
+            ),
             'presentation_asset_id' => $asset?->id,
             'published_probability_version_id' => null,
             'publish_start_at' => $payload['publish_start_at'],
@@ -4818,6 +4872,9 @@ final class V2CatalogMasterMutationService
             'daily_draw_limit' => (int) ($source->daily_draw_limit ?? 0),
             'audience_code' => $source->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($source->first_time_eligible_days ?? 7),
+            'allowed_draw_counts' => $this->storedAllowedDrawCounts(
+                $source->allowed_draw_counts ?? null
+            ),
             'presentation_asset_id' => $assetPublicId,
             'publish_start_at' => (string) $source->publish_start_at,
             'publish_end_at' => $source->publish_end_at,
@@ -6599,6 +6656,9 @@ final class V2CatalogMasterMutationService
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
+            'allowed_draw_counts' => $this->storedAllowedDrawCounts(
+                $row->allowed_draw_counts ?? null
+            ),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,
@@ -6673,6 +6733,9 @@ final class V2CatalogMasterMutationService
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
+            'allowed_draw_counts' => $this->storedAllowedDrawCounts(
+                $row->allowed_draw_counts ?? null
+            ),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,

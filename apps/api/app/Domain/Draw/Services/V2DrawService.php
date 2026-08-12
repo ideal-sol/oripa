@@ -150,6 +150,30 @@ final class V2DrawService
                     );
                 }
                 $context = $this->publishedContext($gacha, $state);
+                $qaSelection = $this->qaDraw->resolve(
+                    $user,
+                    (int) $gacha->id,
+                    (int) $context['version']->id,
+                    $drawCount,
+                    $requestId,
+                    $qaRetryItemIds,
+                    $adminCommand
+                );
+                if ($qaSelection['active']) {
+                    $qaAttempted = true;
+                    $qaRetryItemIds ??= $qaSelection['item_ids'];
+                }
+                if (! $qaSelection['active'] && $adminCommand === null && ! in_array(
+                    $drawCount,
+                    $this->allowedDrawCounts($context['version']->allowed_draw_counts ?? null),
+                    true
+                )) {
+                    throw new V2DrawException(
+                        'INVALID_DRAW_REQUEST',
+                        422,
+                        'The Draw request is invalid.'
+                    );
+                }
                 if ($state->status !== 'selling') {
                     throw new V2DrawException(
                         'GACHA_NOT_DRAWABLE',
@@ -166,19 +190,7 @@ final class V2DrawService
                 }
                 $totalCost = $this->totalCost((int) $context['version']->price_points, $drawCount);
                 $occurredAt = CarbonImmutable::now()->startOfSecond();
-                $qaSelection = $this->qaDraw->resolve(
-                    $user,
-                    (int) $gacha->id,
-                    (int) $context['version']->id,
-                    $drawCount,
-                    $requestId,
-                    $qaRetryItemIds,
-                    $adminCommand
-                );
-                if ($qaSelection['active']) {
-                    $qaAttempted = true;
-                    $qaRetryItemIds ??= $qaSelection['item_ids'];
-                } else {
+                if (! $qaSelection['active']) {
                     $this->eligibility->assertForDraw(
                         $user,
                         $gacha,
@@ -491,6 +503,25 @@ final class V2DrawService
                 'The Draw request is invalid.'
             );
         }
+    }
+
+    /** @return list<int> */
+    private function allowedDrawCounts(mixed $value): array
+    {
+        if ($value === null) {
+            return [1, 5, 10];
+        }
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            [1, 5, 10, 100, 1000],
+            static fn (int $count): bool => in_array($count, $value, true)
+        ));
     }
 
     /**

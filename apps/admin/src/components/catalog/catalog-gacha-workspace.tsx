@@ -174,6 +174,7 @@ export function CatalogGachaWorkspace({
       }
       if (!presentationAssetId) throw new Error("Gacha thumbnail is required.");
       const body = {
+        allowed_draw_counts: draft.allowedDrawCounts,
         audience_code: draft.audienceCode,
         category_id: draft.categoryId,
         daily_draw_limit: draft.dailyDrawLimit,
@@ -767,6 +768,7 @@ function GachaDetail({
           <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
           <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
           {gacha.current_version?.audience_code === "first_time_users" ? <Detail label="初回ユーザー期間" value={`${gacha.current_version.first_time_eligible_days ?? 7}日（24時間単位）`} /> : null}
+          <Detail label="許可Draw Count" value={(gacha.current_version?.allowed_draw_counts ?? [1, 5, 10]).join(" / ")} />
           <Detail label="開始日時" value={gacha.current_version?.publish_start_at ?? "未設定"} />
           <Detail label="終了日時" value={gacha.current_version?.publish_end_at ?? "無期限"} />
           <Detail label="説明" value={gacha.current_version?.description ?? "未設定"} />

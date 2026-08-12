@@ -11641,6 +11641,23 @@
           }
         }
       },
+      "AdminGachaAllowedDrawCounts": {
+        "type": "array",
+        "description": "Canonically ordered Draw counts. The value 1 is always required.",
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": true,
+        "items": {
+          "type": "integer",
+          "enum": [
+            1,
+            5,
+            10,
+            100,
+            1000
+          ]
+        }
+      },
       "AdminCatalogGachaCoreVersion": {
         "type": "object",
         "additionalProperties": false,
@@ -11717,6 +11734,14 @@
             "type": "integer",
             "minimum": 1,
             "default": 7
+          },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts",
+            "default": [
+              1,
+              5,
+              10
+            ]
           },
           "presentation_asset": {
             "oneOf": [
@@ -11954,6 +11979,14 @@
             "minimum": 1,
             "default": 7
           },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts",
+            "default": [
+              1,
+              5,
+              10
+            ]
+          },
           "presentation_asset_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -12040,6 +12073,9 @@
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1
+          },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
           },
           "management_status": {
             "type": "string",
@@ -12667,6 +12703,9 @@
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1
+          },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
           },
           "presentation_asset": {
             "oneOf": [

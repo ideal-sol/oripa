@@ -122,6 +122,7 @@ final class AdminGachaMasterEditTest extends TestCase
                 'daily_draw_limit' => 25,
                 'audience_code' => 'first_time_users',
                 'first_time_eligible_days' => 14,
+                'allowed_draw_counts' => [1, 10, 100],
                 'expected_revision' => $created['revision'],
                 'expected_version_revision' => $created['current_version']['revision'],
             ],
@@ -132,6 +133,7 @@ final class AdminGachaMasterEditTest extends TestCase
         self::assertSame(self::ASSET_ID, $updated['current_version']['presentation_asset']['id']);
         self::assertSame('first_time_users', $updated['current_version']['audience_code']);
         self::assertSame(14, $updated['current_version']['first_time_eligible_days']);
+        self::assertSame([1, 10, 100], $updated['current_version']['allowed_draw_counts']);
         self::assertDatabaseHas('catalog_gacha_versions', [
             'public_id' => $created['current_version']['id'],
             'status' => 'draft',
@@ -218,6 +220,21 @@ final class AdminGachaMasterEditTest extends TestCase
         ]);
     }
 
+    public function test_allowed_draw_counts_require_one_unique_supported_canonical_values(): void
+    {
+        $token = $this->createAdminSession();
+        foreach ([[5, 10], [1, 1, 5], [1, 2], [10, 1]] as $index => $counts) {
+            Auth::forgetGuards();
+            $this->mutate(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/gachas/core',
+                [...$this->coreInput(self::ASSET_ID), 'allowed_draw_counts' => $counts],
+                'mig062i-invalid-counts-'.$index
+            )->assertUnprocessable()->assertJsonPath('code', 'CATALOG_MUTATION_INVALID');
+        }
+    }
+
     public function test_public_code_generator_retries_collision(): void
     {
         $candidates = [self::PUBLISHED_GACHA_CODE, 'Z9y8X7w6V5u'];
@@ -242,6 +259,7 @@ final class AdminGachaMasterEditTest extends TestCase
             'daily_draw_limit' => 0,
             'audience_code' => 'all_users',
             'first_time_eligible_days' => 7,
+            'allowed_draw_counts' => [1, 5, 10],
             'presentation_asset_id' => $assetId,
             'publish_start_at' => '2026-08-24T00:00:00Z',
             'publish_end_at' => '2027-08-24T00:00:00Z',

@@ -90,6 +90,10 @@ describe("Admin Gacha Draft management", () => {
       screen.getByLabelText("1日規定回数（0は無制限・JST 0時リセット）"),
       { target: { value: "10" } },
     );
+    expect(screen.getByRole("checkbox", { name: "1回" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "1回" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "5回" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "100回" }));
     fireEvent.change(screen.getByLabelText("会員ランク"), {
       target: { value: "first_time_users" },
     });
@@ -110,6 +114,7 @@ describe("Admin Gacha Draft management", () => {
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
         audienceCode: "first_time_users",
+        allowedDrawCounts: [1, 10, 100],
         categoryId: CATEGORY_ID,
         dailyDrawLimit: 10,
         firstTimeEligibleDays: 14,
@@ -139,6 +144,8 @@ describe("Admin Gacha Draft management", () => {
 
     await screen.findByRole("option", { name: "Category A" });
     expect(screen.getByAltText("現在のサムネイル")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "1回" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "5回" })).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
       target: { value: "編集後ガチャ" },
     });
@@ -149,6 +156,7 @@ describe("Admin Gacha Draft management", () => {
 
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      allowedDrawCounts: [1],
       presentationAssetId: ASSET_ID,
       managementStatus: "scheduled",
       thumbnailFile: null,
@@ -323,6 +331,7 @@ function gachaFixture() {
     created_at: "2026-08-01T00:00:00Z",
     current_version: {
       audience_code: "all_users" as const,
+      allowed_draw_counts: [1] as Array<1 | 5 | 10 | 100 | 1000>,
       daily_draw_limit: 0,
       first_time_eligible_days: 7,
       description: "説明",

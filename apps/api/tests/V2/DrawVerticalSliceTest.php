@@ -80,7 +80,8 @@ final class DrawVerticalSliceTest extends TestCase
     {
         [$user] = $this->fixture(
             [5_000, 50_000, 150_000, 999_999],
-            dailyDrawLimit: 1_116
+            dailyDrawLimit: 1_116,
+            allowedDrawCounts: [1, 5, 10, 100, 1000]
         );
         $expected = 0;
         foreach ([1, 5, 10, 100, 1000] as $count) {
@@ -262,7 +263,7 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_point_consumption_point_back_and_reconciliation_are_consistent(): void
     {
-        [$user] = $this->fixture([150_000]);
+        [$user] = $this->fixture([150_000], allowedDrawCounts: [1, 5, 10, 100]);
         $response = $this->draw($user, 100, 'point-back-key-0001');
 
         self::assertSame(10_000, $response['point_cost_total']);
@@ -333,7 +334,10 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_chunk_failure_rolls_back_point_inventory_history_audit_and_outbox(): void
     {
-        [$user] = $this->fixture([999_999]);
+        [$user] = $this->fixture(
+            [999_999],
+            allowedDrawCounts: [1, 5, 10, 100, 1000]
+        );
         $walletBefore = (int) DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance');
         $inventory = DB::table('prize_inventories as inventory')
@@ -488,9 +492,42 @@ final class DrawVerticalSliceTest extends TestCase
             ->assertJsonPath('code', 'DAILY_DRAW_LIMIT_EXCEEDED');
     }
 
+    public function test_http_contract_rejects_count_disabled_for_gacha(): void
+    {
+        [$user, $gachaId] = $this->fixture(
+            [5_000],
+            allowedDrawCounts: [1, 10, 100]
+        );
+        config(['v2_identity.origins.user' => 'https://storefront.example.test']);
+        Auth::guard('v2_user')->setUser($user);
+        $csrf = str_repeat('c', 64);
+
+        $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+                'Idempotency-Key' => 'http-gacha-disabled-count-key',
+            ])
+            ->postJson("/api/v2/gachas/{$gachaId}/draws", ['draw_count' => 5])
+            ->assertUnprocessable()
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('code', 'INVALID_DRAW_REQUEST');
+
+        self::assertSame(0, DB::table('draw_requests')->count());
+        self::assertSame(0, DB::table('draw_results')->count());
+    }
+
     public function test_single_bulk_performance_meets_merge_thresholds(): void
     {
-        [$user] = $this->fixture([150_000], freePoints: 2_000_000, totalCount: 10_000);
+        [$user] = $this->fixture(
+            [150_000],
+            freePoints: 2_000_000,
+            totalCount: 10_000,
+            allowedDrawCounts: [1, 5, 10, 100, 1000]
+        );
         $active = false;
         $queryCount = 0;
         $queryTypes = [];
@@ -542,6 +579,39 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertLessThan(100_000, $evidence['1000']['response_size_max']);
     }
 
+    public function test_gacha_disabled_count_is_rejected_before_draw_mutation(): void
+    {
+        [$user] = $this->fixture(
+            [5_000],
+            allowedDrawCounts: [1, 10, 100]
+        );
+        $walletBefore = (int) DB::table('wallets')->where('user_id', $user->id)
+            ->value('free_balance');
+        $soldBefore = (int) DB::table('gacha_draw_states')->value('sold_count');
+        $inventoryBefore = (int) DB::table('prize_inventories')->sum('won_count');
+
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 5, 'gacha-disabled-count-key'),
+            'INVALID_DRAW_REQUEST'
+        );
+
+        self::assertSame(0, DB::table('draw_requests')->count());
+        self::assertSame(0, DB::table('draw_results')->count());
+        self::assertSame(0, DB::table('user_prizes')->count());
+        self::assertSame($walletBefore, (int) DB::table('wallets')
+            ->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame($soldBefore, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($inventoryBefore, (int) DB::table('prize_inventories')->sum('won_count'));
+
+        $first = $this->draw($user, 10, 'gacha-enabled-count-key');
+        $replay = $this->draw($user, 10, 'gacha-enabled-count-key');
+        self::assertSame(10, $first['executed_count']);
+        self::assertFalse($first['idempotent_replay']);
+        self::assertTrue($replay['idempotent_replay']);
+        self::assertSame(1, DB::table('draw_requests')->count());
+        self::assertSame(10, DB::table('draw_results')->count());
+    }
+
     /**
      * @param list<int> $randomValues
      * @return array{User, string}
@@ -551,7 +621,8 @@ final class DrawVerticalSliceTest extends TestCase
         int $freePoints = 1_000_000,
         int $totalCount = 5_000,
         string $audienceCode = 'all_users',
-        int $dailyDrawLimit = 0
+        int $dailyDrawLimit = 0,
+        array $allowedDrawCounts = [1, 5, 10]
     ): array
     {
         $fixture = json_decode(
@@ -563,6 +634,7 @@ final class DrawVerticalSliceTest extends TestCase
         $fixture['versions'][0]['total_count'] = $totalCount;
         $fixture['versions'][0]['audience_code'] = $audienceCode;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
+        $fixture['versions'][0]['allowed_draw_counts'] = $allowedDrawCounts;
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = $totalCount;
         }
