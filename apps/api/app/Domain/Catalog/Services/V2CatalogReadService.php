@@ -198,6 +198,7 @@ final class V2CatalogReadService
             $user,
             (int) $row->gacha_internal_id,
             (string) $row->audience_code,
+            (int) $row->first_time_eligible_days,
             (int) $row->daily_draw_limit,
             $now
         );
@@ -315,6 +316,7 @@ final class V2CatalogReadService
             'gv.total_count',
             'gv.daily_draw_limit',
             'gv.audience_code',
+            'gv.first_time_eligible_days',
             'gv.publish_start_at',
             'gv.publish_end_at',
             'gv.published_probability_version_id',

@@ -1,0 +1,37 @@
+{
+  "task_id": "MIG-062H",
+  "risk": "R3",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "27a19604d87513fc9a66088588bd2697bfeadba5",
+  "task_policy_sha256": "1a7172163be4ff81acf48798ea46dd528e8007013c4dde86c4e5a60bb09c8cf9",
+  "issue": 245,
+  "pull_request": 246,
+  "application_head": "0a2f7db58e8ccc886cb039401b4a69adb203ada6",
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062H/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
+    "architecture": "linux/amd64",
+    "workflow_run": 31590083432,
+    "artifact_digest": "sha256:5abec5e9eb04b5085c3130e853e30caba8e881e70bb4e7498623cd30ae4e3cad",
+    "manifest_sha256": "bf5ace414d8606b89c922f078560181b9a85718a9e54c9502bb616cdba2ecd51",
+    "api_image": "oripa-v2-api:preview-MIG-062H-0a2f7db58e8c",
+    "admin_image": "oripa-v2-admin:preview-MIG-062H-0a2f7db58e8c",
+    "status": "healthy",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "migration_fresh_rollback_reapply": "PASS",
+    "backend_targeted": "PASS",
+    "policy_unit": "PASS_119_TESTS",
+    "policy_gate": "PASS",
+    "required_checks": "PASS",
+    "preview_smoke": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

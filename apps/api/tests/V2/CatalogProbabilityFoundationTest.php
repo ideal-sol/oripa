@@ -56,9 +56,17 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertFalse(Schema::hasColumn('catalog_probability_entries', 'no_prize'));
         self::assertTrue(Schema::hasColumn('catalog_gachas', 'public_id'));
         self::assertTrue(Schema::hasColumn('catalog_gachas', 'public_code'));
+        self::assertTrue(Schema::hasColumn('catalog_gachas', 'management_status'));
         self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'category_id'));
+        self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'first_time_eligible_days'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'storage_identifier'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'checksum_sha256'));
+        self::assertSame(
+            'O',
+            DB::table('pg_trigger')
+                ->where('tgname', 'catalog_gachas_protect_draft_mutation')
+                ->value('tgenabled')
+        );
     }
 
     public function test_fixture_import_order_checksum_and_replay_are_deterministic(): void
@@ -75,6 +83,7 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertSame(29, $first['imported_count']);
         self::assertSame($counts, $this->catalogCounts());
         self::assertSame(1, DB::table('catalog_import_runs')->count());
+        self::assertSame(7, (int) DB::table('catalog_gacha_versions')->value('first_time_eligible_days'));
         self::assertSame(
             $fixture['assets'][0]['checksum_sha256'],
             DB::table('catalog_presentation_assets')

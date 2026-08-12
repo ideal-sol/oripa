@@ -17,6 +17,7 @@ final class CatalogGacha extends Model
         'slug',
         'category_id',
         'state',
+        'management_status',
         'sold_count',
         'published_version_id',
         'revision',

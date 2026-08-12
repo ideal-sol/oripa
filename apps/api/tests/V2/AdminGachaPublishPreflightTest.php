@@ -913,7 +913,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $payload,
             'gacha-schedule-create'
         )->assertCreated()
-            ->assertJsonPath('data.status', 'scheduled')
+            ->assertJsonPath('data.status', 'completed')
             ->assertJsonPath('data.attempts', 0)
             ->assertJsonPath('idempotent_replay', false)
             ->json('data');
@@ -979,11 +979,11 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'expected_gacha_revision' => $scheduled['gacha_revision'],
             ],
             'gacha-immediate-conflicts-with-schedule'
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_GACHA_SCHEDULE_CONFLICT');
+        )->assertUnprocessable()
+            ->assertJsonPath('code', 'CATALOG_GACHA_PUBLISH_INVALID');
 
         Auth::forgetGuards();
-        $cancelled = $this->mutatingRequest(
+        $this->mutatingRequest(
             $token,
             'POST',
             $root.'/publish-schedule/'.$scheduled['id'].'/cancel',
@@ -994,44 +994,39 @@ final class AdminGachaPublishPreflightTest extends TestCase
                     $scheduled['gacha_version_revision'],
             ],
             'gacha-schedule-cancel'
-        )->assertOk()
-            ->assertJsonPath('data.status', 'cancelled')
-            ->json('data');
-        self::assertNotNull($cancelled['cancelled_at']);
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_SCHEDULE_CONFLICT');
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson($root.'/publish-schedule')
             ->assertOk()
-            ->assertJsonPath('data.status', 'cancelled')
+            ->assertJsonPath('data.status', 'completed')
             ->assertJsonPath(
                 'data.gacha_revision',
-                $cancelled['gacha_revision']
+                $scheduled['gacha_revision']
             )
             ->assertJsonPath(
                 'data.gacha_version_revision',
-                $cancelled['gacha_version_revision']
+                $scheduled['gacha_version_revision']
             );
         self::assertDatabaseHas('audit_logs', [
             'action_code' => 'catalog.master.publish_scheduled',
             'target_public_id' => $scheduled['id'],
         ]);
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'catalog.master.publish_schedule_cancelled',
-            'target_public_id' => $scheduled['id'],
+        self::assertDatabaseHas('catalog_gachas', [
+            'public_id' => self::GACHA_ID,
+            'management_status' => 'scheduled',
         ]);
-        DB::table('catalog_gacha_versions')
-            ->where('public_id', $draft['id'])
-            ->update([
-                'title' => 'Editable after cancellation',
-                'revision' => $cancelled['gacha_version_revision'] + 1,
-                'updated_at' => now(),
-            ]);
         self::assertDatabaseHas('catalog_gacha_versions', [
             'public_id' => $draft['id'],
-            'title' => 'Editable after cancellation',
+            'status' => 'published',
         ]);
+        self::assertSame(
+            0,
+            app(V2ScheduledGachaPublishWorker::class)->run('compatibility-worker', 1)
+        );
     }
 
-    public function test_due_schedule_worker_activates_once_with_public_draw_atomicity(): void
+    public function test_master_scheduled_state_changes_effective_sale_state_without_worker(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
@@ -1053,45 +1048,42 @@ final class AdminGachaPublishPreflightTest extends TestCase
             DB::selectOne('SELECT CURRENT_TIMESTAMP AS value')->value
         )->addHour()->toIso8601String();
         Auth::forgetGuards();
-        $schedule = $this->mutatingRequest(
+        $detail = $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID)
+            ->assertOk()->json('data');
+        Auth::forgetGuards();
+        $masterPayload = [
+            'category_id' => $detail['category']['id'],
+            'tag_ids' => array_column($detail['tags'], 'id'),
+            'title' => $selected['title'],
+            'price_points' => $selected['price_points'],
+            'total_count' => $selected['total_count'],
+            'daily_draw_limit' => $selected['daily_draw_limit'],
+            'audience_code' => $selected['audience_code'],
+            'first_time_eligible_days' => $selected['first_time_eligible_days'],
+            'presentation_asset_id' => $selected['presentation_asset']['id'],
+            'publish_start_at' => $scheduledFor,
+            'publish_end_at' => $selected['publish_end_at'] === null
+                ? null
+                : CarbonImmutable::parse($selected['publish_end_at'])->toIso8601String(),
+            'description' => $selected['description'],
+            'notices' => $selected['notices'],
+            'management_status' => 'scheduled',
+            'expected_revision' => (int) $gachaBefore->revision,
+            'expected_version_revision' => $selected['revision'],
+        ];
+        $scheduled = $this->mutatingRequest(
             $token,
-            'POST',
-            $root.'/publish-schedule',
-            [
-                'scheduled_for' => $scheduledFor,
-                'expected_revision' => $selected['revision'],
-                'expected_gacha_revision' => $gachaBefore->revision,
-            ],
-            'gacha-worker-schedule'
-        )->assertCreated()->json('data');
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.self::GACHA_ID,
+            $masterPayload,
+            'gacha-master-scheduled-state'
+        )->assertOk()
+            ->assertJsonPath('data.publication_status', 'scheduled')
+            ->json('data');
 
         self::assertSame(
             0,
-            app(V2ScheduledGachaPublishWorker::class)->run('worker-a', 5)
-        );
-        DB::statement(
-            'ALTER TABLE catalog_gacha_publish_schedules '.
-            'DISABLE TRIGGER catalog_gacha_publish_schedules_guard'
-        );
-        try {
-            DB::table('catalog_gacha_publish_schedules')
-                ->where('public_id', $schedule['id'])
-                ->update([
-                    'scheduled_for' => DB::raw(
-                        "CURRENT_TIMESTAMP - INTERVAL '1 minute'"
-                    ),
-                    'next_attempt_at' => DB::raw(
-                        "CURRENT_TIMESTAMP - INTERVAL '1 minute'"
-                    ),
-                ]);
-        } finally {
-            DB::statement(
-                'ALTER TABLE catalog_gacha_publish_schedules '.
-                'ENABLE TRIGGER catalog_gacha_publish_schedules_guard'
-            );
-        }
-        self::assertSame(
-            1,
             app(V2ScheduledGachaPublishWorker::class)->run('worker-a', 5)
         );
         self::assertSame(
@@ -1112,35 +1104,35 @@ final class AdminGachaPublishPreflightTest extends TestCase
             (int) $version->published_probability_version_id,
             (int) $drawState->probability_version_id
         );
-        self::assertDatabaseHas('catalog_gacha_publish_schedules', [
-            'public_id' => $schedule['id'],
-            'status' => 'completed',
-            'attempts' => 1,
-        ]);
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'catalog.gacha.schedule.publish_succeeded',
-            'target_public_id' => $schedule['id'],
-        ]);
-        self::assertDatabaseHas('outbox_messages', [
-            'aggregate_public_id' => $draft['id'],
-            'event_type' => 'scheduled_publish_completed',
+        self::assertSame('scheduled', $scheduled['publication_status']);
+        self::assertDatabaseMissing('catalog_gacha_publish_schedules', [
+            'gacha_id' => $gachaAfter->id,
+            'status' => 'scheduled',
         ]);
         self::assertDatabaseHas('catalog_gacha_versions', [
             'id' => $gachaBefore->published_version_id,
             'status' => 'published',
         ]);
         Auth::forgetGuards();
-        $this->asAdmin($token)->getJson($root.'/publish-schedule')
+        $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID)
             ->assertOk()
-            ->assertJsonPath('data.status', 'completed')
-            ->assertJsonPath(
-                'data.gacha_revision',
-                (int) $gachaAfter->revision
-            )
-            ->assertJsonPath(
-                'data.gacha_version_revision',
-                (int) $version->revision
+            ->assertJsonPath('data.publication_status', 'scheduled');
+        self::assertSame(
+            'coming_soon',
+            app(V2CatalogReadService::class)
+                ->getByPublicId(self::GACHA_ID)['sale_state']
+        );
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($scheduledFor)->addSecond());
+        try {
+            self::assertSame(
+                'on_sale',
+                app(V2CatalogReadService::class)
+                    ->getByPublicId(self::GACHA_ID)['sale_state']
             );
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_schedule_requires_publish_permission_fresh_mfa_and_csrf(): void
@@ -1219,7 +1211,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         ]);
     }
 
-    public function test_worker_retries_transient_failure_and_stops_at_maximum(): void
+    public function test_scheduled_publish_worker_is_a_compatibility_no_op(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         [$draft, $probability] = $this->createDraftWithPublishedProbability($token);
@@ -1251,67 +1243,22 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ],
             'gacha-worker-retry-schedule'
         )->assertCreated()->json('data');
-        DB::unprepared(<<<'SQL'
-            CREATE FUNCTION v2_test_reject_scheduled_publish_outbox()
-            RETURNS trigger
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                IF NEW.event_type = 'scheduled_publish_completed' THEN
-                    RAISE EXCEPTION 'synthetic scheduled publish outbox failure';
-                END IF;
-                RETURN NEW;
-            END;
-            $$
-        SQL);
-        DB::statement(
-            'CREATE TRIGGER v2_test_reject_scheduled_publish_outbox '.
-            'BEFORE INSERT ON outbox_messages FOR EACH ROW '.
-            'EXECUTE FUNCTION v2_test_reject_scheduled_publish_outbox()'
-        );
-
-        try {
-            foreach (range(1, 3) as $attempt) {
-                $this->forceScheduleDue($schedule['id']);
-                self::assertSame(
-                    1,
-                    app(V2ScheduledGachaPublishWorker::class)
-                        ->run('retry-worker', 1)
-                );
-                self::assertDatabaseHas('catalog_gacha_publish_schedules', [
-                    'public_id' => $schedule['id'],
-                    'status' => $attempt === 3 ? 'failed' : 'scheduled',
-                    'attempts' => $attempt,
-                ]);
-            }
-        } finally {
-            DB::statement(
-                'DROP TRIGGER IF EXISTS '.
-                'v2_test_reject_scheduled_publish_outbox ON outbox_messages'
-            );
-            DB::statement(
-                'DROP FUNCTION IF EXISTS '.
-                'v2_test_reject_scheduled_publish_outbox()'
-            );
-        }
-
         self::assertSame(
             0,
             app(V2ScheduledGachaPublishWorker::class)->run('retry-worker', 1)
         );
         self::assertDatabaseHas('catalog_gacha_publish_schedules', [
             'public_id' => $schedule['id'],
-            'status' => 'failed',
-            'attempts' => 3,
-            'failure_code' => 'scheduled_publish_failed',
+            'status' => 'completed',
+            'attempts' => 0,
         ]);
         self::assertDatabaseHas('catalog_gachas', [
             'public_id' => self::GACHA_ID,
-            'published_version_id' => $gachaBefore->published_version_id,
+            'management_status' => 'scheduled',
         ]);
         self::assertDatabaseHas('catalog_gacha_versions', [
             'public_id' => $draft['id'],
-            'status' => 'draft',
+            'status' => 'published',
         ]);
     }
 
@@ -1756,22 +1703,21 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ],
             'gacha-paused-schedule-pause'
         )->assertOk()
-            ->assertJsonPath('data.publish_schedule.status', 'scheduled')
+            ->assertJsonPath('data.publish_schedule.status', 'completed')
             ->assertJsonPath(
                 'data.publish_schedule.revision',
-                $schedule['revision'] + 1
+                $schedule['revision']
             )
             ->json('data');
         self::assertDatabaseHas('catalog_gacha_publish_schedules', [
             'public_id' => $schedule['id'],
-            'expected_gacha_revision' => $paused['gacha_revision'],
-            'revision' => $schedule['revision'] + 1,
-            'status' => 'scheduled',
+            'expected_gacha_revision' => $schedule['gacha_revision'],
+            'revision' => $schedule['revision'],
+            'status' => 'completed',
         ]);
 
-        $this->forceScheduleDue($schedule['id']);
         self::assertSame(
-            1,
+            0,
             app(V2ScheduledGachaPublishWorker::class)
                 ->run('paused-schedule-worker', 1)
         );
@@ -2123,13 +2069,17 @@ final class AdminGachaPublishPreflightTest extends TestCase
             'gacha-unpublish-db-pause'
         )->assertOk()->json('data');
         Auth::forgetGuards();
-        $unpublished = $this->mutatingRequest(
+        $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
             ['expected_gacha_revision' => $paused['gacha_revision']],
             'gacha-unpublish-db-mutation'
-        )->assertOk()->json('data');
+        )->assertOk();
+        $unpublished = $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID)
+            ->assertOk()
+            ->json('data');
 
         DB::beginTransaction();
         try {
@@ -2138,7 +2088,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 ->update([
                     'sales_paused' => false,
                     'sales_resumed_at' => DB::raw('CURRENT_TIMESTAMP'),
-                    'revision' => $unpublished['gacha_revision'] + 1,
+                    'revision' => $unpublished['revision'] + 1,
                 ]);
             DB::rollBack();
             self::fail('An unpublished Gacha must not resume by direct SQL.');
@@ -2148,7 +2098,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         }
     }
 
-    public function test_unpublish_blocks_active_schedule_without_cancelling_it(): void
+    public function test_unpublish_allows_completed_schedule_history_to_remain(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
@@ -2193,10 +2143,6 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ],
             'gacha-unpublish-schedule-pause'
         )->assertOk()->json('data');
-        $pointersBefore = DB::table('catalog_gachas')
-            ->where('public_id', self::GACHA_ID)
-            ->first(['published_version_id', 'active_draw_state_id']);
-
         Auth::forgetGuards();
         $preflight = $this->mutatingRequest(
             $token,
@@ -2205,31 +2151,30 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ['expected_gacha_revision' => $paused['gacha_revision']],
             'gacha-unpublish-schedule-preflight'
         )->assertOk()
-            ->assertJsonPath('data.allowed', false)
+            ->assertJsonPath('data.allowed', true)
             ->json('data');
-        self::assertContains(
+        self::assertNotContains(
             'GACHA_FUTURE_PUBLISH_SCHEDULE_EXISTS',
             $preflight['validation_codes']
         );
         Auth::forgetGuards();
-        $this->mutatingRequest(
+        $unpublished = $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
             ['expected_gacha_revision' => $paused['gacha_revision']],
-            'gacha-unpublish-schedule-rejected'
-        )->assertUnprocessable()
-            ->assertJsonPath('code', 'CATALOG_GACHA_UNPUBLISH_INVALID');
+            'gacha-unpublish-completed-schedule'
+        )->assertOk()->json('data');
         self::assertDatabaseHas('catalog_gacha_publish_schedules', [
             'public_id' => $schedule['id'],
-            'status' => 'scheduled',
+            'status' => 'completed',
         ]);
-        self::assertEquals(
-            $pointersBefore,
-            DB::table('catalog_gachas')
-                ->where('public_id', self::GACHA_ID)
-                ->first(['published_version_id', 'active_draw_state_id'])
-        );
+        self::assertDatabaseHas('catalog_gachas', [
+            'public_id' => self::GACHA_ID,
+            'management_status' => 'unpublished',
+            'published_version_id' => null,
+            'active_draw_state_id' => null,
+        ]);
     }
 
     private function publishValidGachaVersion(

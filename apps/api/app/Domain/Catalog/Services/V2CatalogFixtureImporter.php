@@ -240,6 +240,7 @@ final class V2CatalogFixtureImporter
                 'total_count' => $version['total_count'],
                 'daily_draw_limit' => $version['daily_draw_limit'] ?? 0,
                 'audience_code' => $version['audience_code'] ?? 'all_users',
+                'first_time_eligible_days' => $version['first_time_eligible_days'] ?? 7,
                 'presentation_asset_id' => $this->id(
                     'catalog_presentation_assets',
                     'storage_identifier',
@@ -435,6 +436,7 @@ final class V2CatalogFixtureImporter
             ) {
                 DB::table('catalog_gachas')->where('id', $gachaRow->id)->update([
                     'state' => 'active',
+                    'management_status' => 'published',
                     'published_version_id' => $version->id,
                     'active_draw_state_id' => $stateId,
                     'revision' => (int) $gachaRow->revision + 1,
@@ -508,6 +510,8 @@ final class V2CatalogFixtureImporter
                     ['all_users', 'first_time_users', 'line_users'],
                     true
                 )
+                || ! is_int($version['first_time_eligible_days'] ?? 7)
+                || ($version['first_time_eligible_days'] ?? 7) < 1
             ) {
                 throw new V2CatalogException(
                     'INVALID_CATALOG_FIXTURE',

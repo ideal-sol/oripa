@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: d6d88f520f5ba1d54df1ddc7e19d5f24195ad4531e84ef69ec6d686a3883106a
+// Contract SHA-256: 5150d7052f0e7ab0ba4f581a0d423df77e7e98d50f782e05ebe25bcf9f5b4e7e
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1060,6 +1060,7 @@ export interface AdminCatalogGachaCoreVersion {
   total_count: number;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1177,6 +1178,7 @@ export interface AdminCatalogGachaCoreCreate {
   total_count: number;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
   presentation_asset_id: string;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1194,6 +1196,8 @@ export interface AdminCatalogGachaUpdate {
   total_count?: number;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
+  management_status?: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
   presentation_asset_id?: string;
   publish_start_at?: string;
   publish_end_at?: string | null;
@@ -1235,6 +1239,7 @@ export interface AdminCatalogGachaVersion {
   total_count: number;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
   presentation_asset: AdminCatalogAssetReference | null;
   published_probability_version: {
     id: string;

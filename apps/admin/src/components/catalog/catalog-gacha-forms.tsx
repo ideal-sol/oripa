@@ -44,6 +44,7 @@ export interface GachaCoreDraft {
   audienceCode: "all_users" | "first_time_users" | "line_users";
   categoryId: string;
   dailyDrawLimit: number;
+  firstTimeEligibleDays: number;
   description: string | null;
   notices: string | null;
   presentationAssetId: string | null;
@@ -54,6 +55,7 @@ export interface GachaCoreDraft {
   title: string;
   thumbnailFile: File | null;
   totalCount: number;
+  managementStatus: "draft" | "published" | "scheduled" | "sales_paused" | "unpublished";
 }
 
 export function CatalogGachaCoreForm({
@@ -71,6 +73,7 @@ export function CatalogGachaCoreForm({
     audienceCode: current?.current_version?.audience_code ?? "all_users",
     categoryId: current?.category.id ?? "",
     dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
+    firstTimeEligibleDays: current?.current_version?.first_time_eligible_days ?? 7,
     description: current?.current_version?.description ?? null,
     notices: current?.current_version?.notices ?? null,
     presentationAssetId: current?.current_version?.presentation_asset?.id ?? null,
@@ -81,6 +84,7 @@ export function CatalogGachaCoreForm({
     title: current?.current_version?.title ?? "",
     thumbnailFile: null,
     totalCount: current?.current_version?.total_count ?? 1,
+    managementStatus: current?.publication_status ?? "draft",
   }), [current]);
   const [draft, setDraft] = useState<GachaCoreDraft>(initial);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
@@ -138,6 +142,9 @@ export function CatalogGachaCoreForm({
     if (!Number.isSafeInteger(draft.dailyDrawLimit) || draft.dailyDrawLimit < 0) {
       nextErrors.daily = "1日規定回数は0以上の整数です。";
     }
+    if (!Number.isSafeInteger(draft.firstTimeEligibleDays) || draft.firstTimeEligibleDays < 1) {
+      nextErrors.firstTimeDays = "初回ユーザー日数は1以上の整数です。";
+    }
     const startsAt = Date.parse(draft.publishStartAt);
     const endsAt = draft.publishEndAt ? Date.parse(draft.publishEndAt) : null;
     if (!Number.isFinite(startsAt)) nextErrors.start = "開始日時は必須です。";
@@ -190,10 +197,11 @@ export function CatalogGachaCoreForm({
           <NumberField label="消費ポイント" min={1} onChange={(pricePoints) => setDraft({ ...draft, pricePoints })} value={draft.pricePoints} />
           <NumberField label="総口数" min={1} onChange={(totalCount) => setDraft({ ...draft, totalCount })} value={draft.totalCount} />
           <NumberField label="1日規定回数（0は無制限・JST 0時リセット）" min={0} onChange={(dailyDrawLimit) => setDraft({ ...draft, dailyDrawLimit })} value={draft.dailyDrawLimit} />
-          <label>状態<input disabled value="下書き" /></label>
+          {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}><option value="draft">下書き</option><option value="scheduled">予約公開</option><option value="published">公開</option><option value="sales_paused">販売停止</option><option value="unpublished">非公開</option></select></label>}
         </div>
         <FieldError message={errors.price ?? errors.total ?? errors.daily} />
         <label>会員ランク<select value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
+        {draft.audienceCode === "first_time_users" ? <><NumberField label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
         <div className="catalog-form-grid">
           <DateTimeField label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />
           <DateTimeField label="終了日時（Asia/Tokyo）" onChange={(publishEndAt) => setDraft({ ...draft, publishEndAt: publishEndAt || null })} required={false} value={draft.publishEndAt ?? ""} />

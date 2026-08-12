@@ -120,7 +120,8 @@ final class AdminGachaMasterEditTest extends TestCase
                 'title' => '編集後Master',
                 'total_count' => 1200,
                 'daily_draw_limit' => 25,
-                'audience_code' => 'line_users',
+                'audience_code' => 'first_time_users',
+                'first_time_eligible_days' => 14,
                 'expected_revision' => $created['revision'],
                 'expected_version_revision' => $created['current_version']['revision'],
             ],
@@ -129,7 +130,8 @@ final class AdminGachaMasterEditTest extends TestCase
 
         self::assertSame('編集後Master', $updated['current_version']['title']);
         self::assertSame(self::ASSET_ID, $updated['current_version']['presentation_asset']['id']);
-        self::assertSame('line_users', $updated['current_version']['audience_code']);
+        self::assertSame('first_time_users', $updated['current_version']['audience_code']);
+        self::assertSame(14, $updated['current_version']['first_time_eligible_days']);
         self::assertDatabaseHas('catalog_gacha_versions', [
             'public_id' => $created['current_version']['id'],
             'status' => 'draft',
@@ -239,6 +241,7 @@ final class AdminGachaMasterEditTest extends TestCase
             'total_count' => 1000,
             'daily_draw_limit' => 0,
             'audience_code' => 'all_users',
+            'first_time_eligible_days' => 7,
             'presentation_asset_id' => $assetId,
             'publish_start_at' => '2026-08-24T00:00:00Z',
             'publish_end_at' => '2027-08-24T00:00:00Z',

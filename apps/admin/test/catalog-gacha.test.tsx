@@ -91,7 +91,10 @@ describe("Admin Gacha Draft management", () => {
       { target: { value: "10" } },
     );
     fireEvent.change(screen.getByLabelText("会員ランク"), {
-      target: { value: "line_users" },
+      target: { value: "first_time_users" },
+    });
+    fireEvent.change(screen.getByLabelText("新規登録後の日数（1日＝24時間）"), {
+      target: { value: "14" },
     });
     fireEvent.change(screen.getByLabelText("開始日時（Asia/Tokyo）"), {
       target: { value: "2026-08-20T09:00" },
@@ -106,9 +109,10 @@ describe("Admin Gacha Draft management", () => {
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
-        audienceCode: "line_users",
+        audienceCode: "first_time_users",
         categoryId: CATEGORY_ID,
         dailyDrawLimit: 10,
+        firstTimeEligibleDays: 14,
         presentationAssetId: null,
         pricePoints: 200,
         tagIds: [TAG_ID],
@@ -138,11 +142,15 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
       target: { value: "編集後ガチャ" },
     });
+    fireEvent.change(screen.getByLabelText("状態"), {
+      target: { value: "scheduled" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "編集Draftへ保存" }));
 
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       presentationAssetId: ASSET_ID,
+      managementStatus: "scheduled",
       thumbnailFile: null,
       title: "編集後ガチャ",
     }));
@@ -316,6 +324,7 @@ function gachaFixture() {
     current_version: {
       audience_code: "all_users" as const,
       daily_draw_limit: 0,
+      first_time_eligible_days: 7,
       description: "説明",
       id: "01910191-0191-7191-8191-019101910199",
       notices: "注意",
@@ -340,6 +349,7 @@ function gachaFixture() {
     id: "01910191-0191-7191-8191-019101910198",
     is_archived: false,
     public_code: "A7k9P2x4Qm8",
+    publication_status: "draft" as const,
     published_version: null,
     revision: 1,
     slug: "gacha-code",

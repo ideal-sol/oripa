@@ -8249,3 +8249,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Application Head `36220b5c08820741b4763363a7e86c18274b9688`のTargeted TestとRequired GatesがPASSし、alpha.9 Artifact 5件のSHA-256とWorkspace外Importを確認した。
 - GitHub-hosted amd64 Run `31575994537`の検証済みAPI ImageをHost Buildなしでloadし、Preview APIだけを`sha256:1b8b62fa...`へ更新した。既存5件のCatalog／State／Eligibility／表示Flag／11文字Route／Cacheを確認した。
 - QA作成時のCanonical upload元とchecksumが一致する既存Asset実体を復元し、Public Asset HTTP 200を確認した。Container local Asset storageの非永続性は別運用課題として残し、DB、Nginx、V1、Storefront Repositoryは変更していない。
+
+## MIG-062H ガチャ登録／編集・初回ユーザー条件修正
+
+- Base `27a19604d87513fc9a66088588bd2697bfeadba5`からIssue #245、Branch `feat/MIG-062H-gacha-registration-eligibility`、Risk R4で開始した。
+- 初回ユーザー条件をDraw履歴から切り離し、Gacha Versionごとの登録後日数 x 24時間へ変更する。Default 7日で既存Versionを移行する。
+- Master編集へ管理状態を接続し、予約公開はDB状態を書き換えるWorkerを使用せず、開始日時と既存販売条件から実効Sale Stateを都度評価する。
+- Admin共通Formへ条件付き日数入力を追加し、ガチャ詳細をDesktopで景品一覧相当のContent幅へ拡張する。
+- 2026-08-12 MIG-062H: `first_time_users`をDraw履歴から分離し、Gacha Versionの登録後日数（Default 7、24時間単位）をBackend正本とした。管理状態をDraft／予約公開／公開／販売停止／非公開として保存し、予約公開はScheduler更新なしで実効Sale Stateを時刻評価する。Migration `000044`、Admin登録／編集、詳細幅、対象TestとRequired Checksを完了し、検証済みamd64 ArtifactからPreview API／AdminをHost Buildなしで更新した。G4／G5はNOT COMPLETE。
