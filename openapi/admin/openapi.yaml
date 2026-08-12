@@ -6165,7 +6165,7 @@ components:
       required: [id, public_url, mime_type, byte_size, idempotent_replay]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
-        public_url: {type: string, pattern: '^/admin/api/assets/'}
+        public_url: {type: string, format: uri, pattern: '^https?://'}
         mime_type: {type: string}
         byte_size: {type: integer, minimum: 1, maximum: 5242880}
         idempotent_replay: {type: boolean}
@@ -6203,7 +6203,7 @@ components:
           required: [id, public_url]
           properties:
             id: {$ref: '#/components/schemas/OpaqueId'}
-            public_url: {type: string}
+            public_url: {type: string, format: uri, pattern: '^https?://'}
         version_id: {$ref: '#/components/schemas/OpaqueId'}
         version_number: {type: integer, minimum: 1}
         created_at: {type: string, format: date-time}

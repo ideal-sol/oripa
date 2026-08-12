@@ -27,6 +27,7 @@ final class AdminBannerManagementTest extends TestCase
         config([
             'cache.default' => 'array',
             'filesystems.default' => 'local',
+            'v2_identity.origins.user' => 'https://storefront.example.test',
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo',
@@ -63,15 +64,25 @@ final class AdminBannerManagementTest extends TestCase
             'banner-asset-'.Str::uuid7()
         );
         self::assertSame('image/png', $asset['mime_type']);
+        $expectedPublicUrl =
+            'https://storefront.example.test/api/v2/content/assets/'.$asset['id'];
         self::assertSame(
-            '/admin/api/v2/banner-management/assets/'.$asset['id'].'/content',
+            $expectedPublicUrl,
             $asset['public_url']
         );
+        self::assertStringNotContainsString('admin.', $asset['public_url']);
         $content = $service->bannerAssetContent($context, $asset['id']);
         self::assertSame('image/png', $content['mime_type']);
         self::assertNotSame('', $content['content']);
+        $publicResponse = $this->get('/api/v2/content/assets/'.$asset['id'])
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+        self::assertStringContainsString('public', $publicResponse->headers->get('Cache-Control'));
+        self::assertStringContainsString('max-age=31536000', $publicResponse->headers->get('Cache-Control'));
+        self::assertStringContainsString('immutable', $publicResponse->headers->get('Cache-Control'));
         self::assertDatabaseHas('catalog_presentation_assets', [
             'public_id' => $asset['id'],
+            'public_path' => '/api/v2/content/assets/'.$asset['id'],
             'is_public' => true,
         ]);
 
@@ -83,6 +94,7 @@ final class AdminBannerManagementTest extends TestCase
         ];
         $created = $service->createManagedBanner($context, $input, $createKey);
         self::assertSame('draft', $created['status']);
+        self::assertSame($expectedPublicUrl, $created['asset']['public_url']);
         self::assertSame('トップ', $created['category']['name']);
         self::assertTrue($service->createManagedBanner(
             $context,
@@ -94,6 +106,7 @@ final class AdminBannerManagementTest extends TestCase
 
         $filtered = $service->managedBanners($context, null, 20, $category['id']);
         self::assertCount(1, $filtered['items']);
+        self::assertSame($expectedPublicUrl, $filtered['items'][0]['asset']['public_url']);
         self::assertSame($created['id'], $filtered['items'][0]['id']);
 
         $updated = $service->updateManagedBanner($context, $created['id'], [

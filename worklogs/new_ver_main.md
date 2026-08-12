@@ -1,3 +1,10 @@
+# MIG-062F バナー公開URL修正
+
+- Base `f66209549dfc9c8fae4acaa51645710040694d1c`からIssue #237、Branch `fix/MIG-062F-banner-public-url`、Risk R3で開始した。
+- Banner Asset Public IDから`/api/v2/content/assets/{asset_id}`を生成し、Admin APIは`V2_PUBLIC_ORIGIN`を正本とする絶対Public URLを返す。Storage方式と既存Uploadは変更しない。
+- Admin一覧表示、画像表示、新規Tab、Copyは同じCanonical URLを使用する。Admin CSPはvalidated Public Origin 1件だけを許可し、Frontend文字列置換は削除した。
+- Task DB Backend対象、Admin Unit、OpenAPI／Generated Contract、Typecheck／Lint、Desktop／Mobile Browser対象検証がPASSした。Previewは最終Application HeadでAPI／Adminだけ更新予定で、DB／Migration／Nginx／V1は変更しない。
+
 # New Version Main Worklog
 
 このFileは、V1から新Version構造へ移行するMain Codexの作業記録です。

@@ -51,7 +51,9 @@ describe("Banner management", () => {
       "アップロード画像", "タイトル", "カテゴリ", "画像URL", "登録日", "編集", "削除",
     ]);
     expect(screen.getByText("メインバナー")).toBeVisible();
-    expect(screen.getByText("/admin/api/assets/banner.png")).toBeVisible();
+    expect(screen.getByText(
+      "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
+    )).toBeVisible();
 
     fireEvent.change(screen.getByLabelText("カテゴリ絞り込み"), {
       target: { value: category.id },
@@ -63,7 +65,7 @@ describe("Banner management", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "メインバナーの画像URLをコピー" }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      "http://localhost:3000/admin/api/assets/banner.png",
+      "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
     );
   });
 
@@ -110,7 +112,10 @@ describe("Banner management", () => {
 
 function banner(): AdminManagedBanner {
   return {
-    asset: { id: uuid("2"), public_url: "/admin/api/assets/banner.png" },
+    asset: {
+      id: uuid("2"),
+      public_url: `https://storefront.example.test/api/v2/content/assets/${uuid("2")}`,
+    },
     category,
     created_at: "2026-08-05T00:00:00Z",
     id: uuid("3"),

@@ -6,6 +6,7 @@ use App\Domain\ContentContact\Exceptions\V2ContentContactException;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 final class V2ContentReadService
 {
@@ -39,13 +40,13 @@ final class V2ContentReadService
                 'asset.checksum_sha256 as asset_checksum',
                 'asset.alt_text',
             ])
-            ->map(static fn (object $row): array => [
+            ->map(fn (object $row): array => [
                 'id' => $row->public_id,
                 'title' => $row->title,
                 'link_url' => $row->link_url,
                 'asset' => [
                     'id' => $row->asset_public_id,
-                    'path' => $row->asset_path,
+                    'path' => $this->assetPublicPath($row->asset_public_id),
                     'checksum_sha256' => $row->asset_checksum,
                     'alt_text' => $row->alt_text,
                 ],
@@ -58,6 +59,29 @@ final class V2ContentReadService
             ->all();
 
         return ['items' => $rows];
+    }
+
+    /** @return array{content: string, mime_type: string} */
+    public function assetContent(string $publicId): array
+    {
+        $asset = DB::table('catalog_presentation_assets')
+            ->where('public_id', $publicId)
+            ->where('media_type', 'image')
+            ->where('is_public', true)
+            ->whereNull('archived_at')
+            ->first(['storage_identifier', 'mime_type']);
+        if ($asset === null) {
+            throw $this->notFound();
+        }
+        $disk = Storage::disk(config('filesystems.default'));
+        if (! $disk->exists($asset->storage_identifier)) {
+            throw $this->notFound();
+        }
+
+        return [
+            'content' => $disk->get($asset->storage_identifier),
+            'mime_type' => $asset->mime_type,
+        ];
     }
 
     /** @return array{items: list<array<string, mixed>>, next_cursor: ?string} */
@@ -230,6 +254,11 @@ final class V2ContentReadService
             'checksum_sha256' => $row->asset_checksum,
             'alt_text' => $row->alt_text,
         ];
+    }
+
+    private function assetPublicPath(string $publicId): string
+    {
+        return '/api/v2/content/assets/'.$publicId;
     }
 
     private function limit(int $limit): int

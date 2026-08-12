@@ -140,10 +140,12 @@ final class ContentContactVerticalSliceTest extends TestCase
         }
 
         $read = app(V2ContentReadService::class);
+        $banners = $read->banners()['items'];
         self::assertSame(
             ['First', 'Later'],
-            array_column($read->banners()['items'], 'title')
+            array_column($banners, 'title')
         );
+        self::assertSame('/api/v2/content/assets/'.$asset, $banners[0]['asset']['path']);
         $firstPage = $read->notices(null, 1);
         self::assertCount(1, $firstPage['items']);
         self::assertNotNull($firstPage['next_cursor']);
@@ -586,6 +588,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             ->map(static fn ($route): string => $route->uri())
             ->all();
         self::assertContains('api/v2/content/banners', $uris);
+        self::assertContains('api/v2/content/assets/{assetId}', $uris);
         self::assertContains('api/v2/contact-inquiries', $uris);
         self::assertContains('admin/api/v2/content/banners', $uris);
         self::assertContains('admin/api/v2/contact-inquiries', $uris);

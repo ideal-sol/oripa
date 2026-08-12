@@ -1,0 +1,33 @@
+{
+  "task_id": "MIG-062F",
+  "risk": "R3",
+  "status": "implementation_validated",
+  "base_branch": "main",
+  "base_sha": "f66209549dfc9c8fae4acaa51645710040694d1c",
+  "task_policy_sha256": "4750435c5c1a19a1b825bb78dd668ad9d69305e66674aec2efb96a8e7b369503",
+  "issue": 237,
+  "pull_request": null,
+  "application_head": null,
+  "target": "admin.luxe-pack.biz",
+  "public_origin": "environment V2_PUBLIC_ORIGIN",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062F/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_image": null,
+    "admin_image": null,
+    "status": "pending",
+    "nginx_change": "NONE",
+    "database_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_14_TESTS_107_ASSERTIONS_WITH_TARGETED_RECHECK_3_TESTS_42_ASSERTIONS",
+    "admin_unit": "PASS",
+    "admin_browser_targeted": "PASS_2_TESTS",
+    "openapi_generated_contract": "PASS",
+    "admin_typecheck_lint_build": "PASS",
+    "compose_config": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
