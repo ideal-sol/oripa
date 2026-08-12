@@ -4,7 +4,7 @@
   "status": "implementation_verified",
   "base_branch": "main",
   "base_sha": "1f4c452dcfb9631530f7b1d3f400637165646e00",
-  "task_policy_sha256": "57c8c1c8497c972263f3e8555c990573691fe1995c7d7418e94671d925a1d426",
+  "task_policy_sha256": "207ff4561a3b8f63cccd93b8fa823774ee413b6bd5f1adc05f7b36729d686704",
   "issue": 247,
   "pull_request": 248,
   "application_head": "52de91b627f36dc51a19514a27edb612d226c598",

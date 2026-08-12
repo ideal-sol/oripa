@@ -150,7 +150,20 @@ final class V2DrawService
                     );
                 }
                 $context = $this->publishedContext($gacha, $state);
-                if ($adminCommand === null && ! in_array(
+                $qaSelection = $this->qaDraw->resolve(
+                    $user,
+                    (int) $gacha->id,
+                    (int) $context['version']->id,
+                    $drawCount,
+                    $requestId,
+                    $qaRetryItemIds,
+                    $adminCommand
+                );
+                if ($qaSelection['active']) {
+                    $qaAttempted = true;
+                    $qaRetryItemIds ??= $qaSelection['item_ids'];
+                }
+                if (! $qaSelection['active'] && $adminCommand === null && ! in_array(
                     $drawCount,
                     $this->allowedDrawCounts($context['version']->allowed_draw_counts ?? null),
                     true
@@ -177,19 +190,7 @@ final class V2DrawService
                 }
                 $totalCost = $this->totalCost((int) $context['version']->price_points, $drawCount);
                 $occurredAt = CarbonImmutable::now()->startOfSecond();
-                $qaSelection = $this->qaDraw->resolve(
-                    $user,
-                    (int) $gacha->id,
-                    (int) $context['version']->id,
-                    $drawCount,
-                    $requestId,
-                    $qaRetryItemIds,
-                    $adminCommand
-                );
-                if ($qaSelection['active']) {
-                    $qaAttempted = true;
-                    $qaRetryItemIds ??= $qaSelection['item_ids'];
-                } else {
+                if (! $qaSelection['active']) {
                     $this->eligibility->assertForDraw(
                         $user,
                         $gacha,
