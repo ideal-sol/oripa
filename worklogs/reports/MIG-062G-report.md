@@ -7,7 +7,7 @@
 - Base: `main@21f58399e8869a00249398dac3b06a74e1e9da97`
 - Branch: `feat/MIG-062G-gacha-catalog-display-contract`
 - Risk: R3
-- Task Policy SHA-256: `5688ffb755d08383215667e08b0030cd91d4eba83e6f2d1f18f694b1be53b045`（初版 `2389161c5871c8ddd26b12c7b7f39ac516fbc1fdc3ea1e42166090a75d90703c`）
+- Task Policy SHA-256: `6db64cdbd6c87aa2a9ab0aadb1d7af1c4993b83b35368a86b2a042d0c183739f`（初版 `2389161c5871c8ddd26b12c7b7f39ac516fbc1fdc3ea1e42166090a75d90703c`）
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Public Contract
