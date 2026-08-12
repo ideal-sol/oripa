@@ -159,7 +159,12 @@
         "x-rate-limit": "ip-5-per-hour-and-email-3-per-hour",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
-        "security": [],
+        "security": [
+          {},
+          {
+            "userSession": []
+          }
+        ],
         "parameters": [
           {
             "$ref": "#/components/parameters/XsrfToken"
@@ -255,12 +260,7 @@
         "x-rate-limit": "public-read",
         "x-cache-policy": "public-anonymous-private-authenticated",
         "x-stability": "alpha",
-        "security": [
-          {},
-          {
-            "userSession": []
-          }
-        ],
+        "security": [],
         "parameters": [
           {
             "$ref": "#/components/parameters/CatalogLimit"
