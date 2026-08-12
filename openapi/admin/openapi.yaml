@@ -5026,7 +5026,7 @@ components:
     AdminCatalogGachaCoreVersion:
       type: object
       additionalProperties: false
-      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, allowed_draw_counts, presentation_asset, publish_start_at, publish_end_at]
+      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, presentation_asset, publish_start_at, publish_end_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         version_number: {type: integer, minimum: 1}

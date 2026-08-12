@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5827c3322282e8e8ef19b1d0679714b2c9b468c13d9751450ecf655f675174a1
+// Contract SHA-256: 62d16a56bd7148e50f564f88474501f05e673f4b1e507f129969e27df2cacfba
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1063,7 +1063,7 @@ export interface AdminCatalogGachaCoreVersion {
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
-  allowed_draw_counts: AdminGachaAllowedDrawCount[];
+  allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;

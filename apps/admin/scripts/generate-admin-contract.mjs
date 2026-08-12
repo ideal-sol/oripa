@@ -1596,7 +1596,7 @@ export interface AdminCatalogGachaCoreVersion {
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
-  allowed_draw_counts: AdminGachaAllowedDrawCount[];
+  allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;

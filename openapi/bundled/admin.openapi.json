@@ -11672,7 +11672,6 @@
           "total_count",
           "daily_draw_limit",
           "audience_code",
-          "allowed_draw_counts",
           "presentation_asset",
           "publish_start_at",
           "publish_end_at"
