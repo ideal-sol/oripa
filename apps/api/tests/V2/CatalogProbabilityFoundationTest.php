@@ -61,6 +61,12 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'first_time_eligible_days'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'storage_identifier'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'checksum_sha256'));
+        self::assertSame(
+            'O',
+            DB::table('pg_trigger')
+                ->where('tgname', 'catalog_gachas_protect_draft_mutation')
+                ->value('tgenabled')
+        );
     }
 
     public function test_fixture_import_order_checksum_and_replay_are_deterministic(): void

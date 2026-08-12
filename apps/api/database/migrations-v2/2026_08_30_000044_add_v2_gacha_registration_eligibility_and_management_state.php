@@ -45,11 +45,14 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             UPDATE catalog_gachas AS g
             SET management_status = CASE
-                WHEN g.public_deactivated_at IS NOT NULL THEN 'unpublished'
-                WHEN g.sales_paused THEN 'sales_paused'
-                WHEN g.published_version_id IS NOT NULL THEN 'published'
-                ELSE 'draft'
-            END
+                    WHEN g.public_deactivated_at IS NOT NULL THEN 'unpublished'
+                    WHEN g.sales_paused THEN 'sales_paused'
+                    WHEN g.published_version_id IS NOT NULL THEN 'published'
+                    ELSE 'draft'
+                END,
+                revision = g.revision + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE g.archived_at IS NULL
             SQL);
     }
 
