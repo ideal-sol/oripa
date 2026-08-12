@@ -61,11 +61,19 @@ final class GachaDetailPresentationContractTest extends TestCase
         $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'coming_soon');
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.display.show_price_points', true);
 
         CarbonImmutable::setTestNow('2027-01-01T00:00:00Z');
         $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'ended');
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.display.show_price_points', false)
+            ->assertJsonPath('data.display.show_total_count', false)
+            ->assertJsonPath('data.display.show_drawn_count', false);
 
         CarbonImmutable::setTestNow('2026-07-29T00:00:00Z');
         DB::table('gacha_draw_states')->update([
@@ -76,6 +84,11 @@ final class GachaDetailPresentationContractTest extends TestCase
         $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'sold_out');
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.display.show_price_points', false)
+            ->assertJsonPath('data.display.show_total_count', false)
+            ->assertJsonPath('data.display.show_drawn_count', false);
     }
 
     public function test_anonymous_and_all_user_states_are_private_and_machine_readable(): void
@@ -154,6 +167,28 @@ final class GachaDetailPresentationContractTest extends TestCase
         ]);
         $this->getJson($this->presentationUrl())
             ->assertOk()->assertJsonPath('data.eligible', true);
+    }
+
+    public function test_catalog_keeps_authenticated_ineligible_gacha_private(): void
+    {
+        $this->import(audience: 'line_users');
+        $user = $this->user();
+        $this->authenticate($user);
+
+        $response = $this->getJson('/api/v2/gachas')
+            ->assertOk()
+            ->assertHeader('Vary', 'Cookie')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.presentation.user_state', 'authenticated')
+            ->assertJsonPath('data.0.presentation.eligible', false)
+            ->assertJsonPath(
+                'data.0.presentation.ineligible_reason',
+                'audience_not_eligible'
+            );
+
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        self::assertStringContainsString('private', $cacheControl);
+        self::assertStringContainsString('no-store', $cacheControl);
     }
 
     public function test_daily_limit_allowed_counts_and_jst_reset_match_draw_authority(): void

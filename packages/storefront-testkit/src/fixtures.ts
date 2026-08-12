@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.8",
+      storefront_client_version: "2.0.0-alpha.9",
       required_capabilities: [],
     },
     public: {
@@ -36,6 +36,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
       required_capabilities: [
         "auth.session.v2",
         "draw.browser-mutation.v2",
+        "gacha.catalog-display.v2",
         "gacha.presentation.v2",
         "prize.fulfillment-browser-mutation.v2",
         "user-prize.presentation.v2",
@@ -47,6 +48,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         enabled: [
           "auth.session.v2",
           "draw.browser-mutation.v2",
+          "gacha.catalog-display.v2",
           "gacha.presentation.v2",
           "prize.fulfillment-browser-mutation.v2",
           "user-prize.presentation.v2",
@@ -58,10 +60,11 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.8",
+  minimum_storefront_client_version: "2.0.0-alpha.9",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
+    "gacha.catalog-display.v2",
     "gacha.presentation.v2",
     "prize.fulfillment-browser-mutation.v2",
     "user-prize.presentation.v2",
@@ -100,7 +103,7 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
     ],
     presentation_asset: {
       id: "0198a001-0000-7000-8000-000000000005",
-      path: "/assets/fixture/catalog/gacha-main.txt",
+      path: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000005",
       checksum_sha256:
         "0605cbbe5fcd83f57adc97efe4eb39efc5639b28f6fc48e097dc4a9ba68d86c8",
       media_type: "image",
@@ -185,8 +188,114 @@ export const PUBLIC_GACHA_PRESENTATION_FIXTURE = Object.freeze({
       action: "draw",
       reason: null,
     },
+    display: {
+      show_price_points: true,
+      show_total_count: true,
+      show_drawn_count: true,
+    },
   },
 } as const satisfies PublicComponents["schemas"]["GachaPresentationResponse"]);
+
+const catalogFixture = {
+  ...PUBLIC_CATALOG_FIXTURE.data,
+  drawn_count: 5,
+};
+const presentationFixture = PUBLIC_GACHA_PRESENTATION_FIXTURE.data;
+
+export const PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES = Object.freeze({
+  on_sale: {
+    ...catalogFixture,
+    presentation: presentationFixture,
+  },
+  coming_soon: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      sale_state: "coming_soon",
+      eligible: false,
+      ineligible_reason: "sale_not_started",
+      allowed_draw_counts: [],
+      cta: {
+        state: "disabled",
+        action: "draw",
+        reason: "sale_not_started",
+      },
+    },
+  },
+  ended: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      sale_state: "ended",
+      eligible: false,
+      ineligible_reason: "sale_ended",
+      allowed_draw_counts: [],
+      cta: { state: "hidden", action: null, reason: "sale_ended" },
+      display: {
+        show_price_points: false,
+        show_total_count: false,
+        show_drawn_count: false,
+      },
+    },
+  },
+  sold_out: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      sale_state: "sold_out",
+      eligible: false,
+      ineligible_reason: "sold_out",
+      allowed_draw_counts: [],
+      cta: { state: "hidden", action: null, reason: "sold_out" },
+      display: {
+        show_price_points: false,
+        show_total_count: false,
+        show_drawn_count: false,
+      },
+    },
+  },
+  authenticated_eligible: {
+    ...catalogFixture,
+    presentation: presentationFixture,
+  },
+  authenticated_ineligible: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      eligible: false,
+      ineligible_reason: "audience_not_eligible",
+      allowed_draw_counts: [],
+      cta: {
+        state: "disabled",
+        action: "draw",
+        reason: "audience_not_eligible",
+      },
+    },
+  },
+  anonymous: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      user_state: "unauthenticated",
+      eligible: false,
+      ineligible_reason: "authentication_required",
+      allowed_draw_counts: [],
+      daily_limit: {
+        ...presentationFixture.daily_limit,
+        used: null,
+        remaining: null,
+      },
+      cta: {
+        state: "enabled",
+        action: "login",
+        reason: "authentication_required",
+      },
+    },
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["GachaSummary"]
+>);
 
 export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000099",

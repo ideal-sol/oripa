@@ -130,7 +130,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 公開期間内のGachaをCursor順で取得する */
+        /** Public対象Gachaを販売状態にかかわらずCursor順で取得する */
         get: operations["listGachas"];
         put?: never;
         post?: never;
@@ -819,6 +819,8 @@ export interface components {
         };
         /** @description 形式や並び順へ依存してはならない公開識別子。 */
         OpaqueId: string;
+        /** @description Canonicalな英数字11文字コード。既存Link互換のためUUIDv7も受理する。 */
+        GachaPublicId: string;
         /** @enum {string} */
         UserPrizeStatus: "stored" | "exchange_processing" | "converted" | "shipping_requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "expired" | "canceled";
         /** @enum {string} */
@@ -1015,17 +1017,19 @@ export interface components {
             data: components["schemas"]["GachaTag"][];
         };
         GachaSummary: {
-            id: components["schemas"]["OpaqueId"];
+            id: components["schemas"]["GachaPublicId"];
             slug: string;
             title: string;
             price_points: number;
             total_count: number;
             remaining_count: number;
+            drawn_count: number;
             publish_start_at: components["schemas"]["UtcDateTime"];
             publish_end_at: components["schemas"]["UtcDateTime"] | null;
             category: components["schemas"]["GachaCategory"];
             tags: components["schemas"]["GachaTag"][];
             presentation_asset: components["schemas"]["NullablePresentationAsset"];
+            presentation: components["schemas"]["GachaPresentationState"];
         };
         GachaSummaryCollection: {
             data: components["schemas"]["GachaSummary"][];
@@ -1090,7 +1094,7 @@ export interface components {
             minimum_guarantee: components["schemas"]["MinimumGuarantee"];
         };
         GachaDetail: {
-            id: components["schemas"]["OpaqueId"];
+            id: components["schemas"]["GachaPublicId"];
             slug: string;
             title: string;
             price_points: number;
@@ -1130,8 +1134,13 @@ export interface components {
             action: "login" | "draw" | null;
             reason: components["schemas"]["GachaPresentationReason"];
         };
+        GachaCatalogDisplay: {
+            show_price_points: boolean;
+            show_total_count: boolean;
+            show_drawn_count: boolean;
+        };
         GachaPresentationState: {
-            gacha_id: components["schemas"]["OpaqueId"];
+            gacha_id: components["schemas"]["GachaPublicId"];
             sale_state: components["schemas"]["GachaSaleState"];
             /** @enum {string} */
             user_state: "unauthenticated" | "authenticated";
@@ -1141,6 +1150,7 @@ export interface components {
             allowed_draw_counts: (1 | 5 | 10 | 100 | 1000)[];
             daily_limit: components["schemas"]["GachaDailyLimitState"];
             cta: components["schemas"]["GachaCtaState"];
+            display: components["schemas"]["GachaCatalogDisplay"];
         };
         GachaPresentationResponse: {
             data: components["schemas"]["GachaPresentationState"];
@@ -1644,7 +1654,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                gacha_id: components["schemas"]["OpaqueId"];
+                gacha_id: components["schemas"]["GachaPublicId"];
             };
             cookie?: never;
         };
@@ -1667,7 +1677,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                gacha_id: components["schemas"]["OpaqueId"];
+                gacha_id: components["schemas"]["GachaPublicId"];
             };
             cookie?: never;
         };

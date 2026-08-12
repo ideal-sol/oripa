@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.8",
+    "version": "2.0.0-alpha.9",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -255,12 +255,17 @@
     "/gachas": {
       "get": {
         "operationId": "listGachas",
-        "summary": "公開期間内のGachaをCursor順で取得する",
+        "summary": "Public対象Gachaを販売状態にかかわらずCursor順で取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "public-read",
-        "x-cache-policy": "public-60-seconds",
+        "x-cache-policy": "public-anonymous-private-authenticated",
         "x-stability": "alpha",
-        "security": [],
+        "security": [
+          {},
+          {
+            "userSession": []
+          }
+        ],
         "parameters": [
           {
             "$ref": "#/components/parameters/CatalogLimit"
@@ -345,7 +350,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/OpaqueId"
+              "$ref": "#/components/schemas/GachaPublicId"
             }
           }
         ],
@@ -386,7 +391,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/OpaqueId"
+              "$ref": "#/components/schemas/GachaPublicId"
             }
           }
         ],
@@ -2387,6 +2392,11 @@
         "minLength": 1,
         "description": "形式や並び順へ依存してはならない公開識別子。"
       },
+      "GachaPublicId": {
+        "type": "string",
+        "pattern": "^(?:[A-Za-z0-9]{11}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+        "description": "Canonicalな英数字11文字コード。既存Link互換のためUUIDv7も受理する。"
+      },
       "UserPrizeStatus": {
         "type": "string",
         "enum": [
@@ -3301,11 +3311,13 @@
           "publish_end_at",
           "category",
           "tags",
-          "presentation_asset"
+          "presentation_asset",
+          "drawn_count",
+          "presentation"
         ],
         "properties": {
           "id": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "$ref": "#/components/schemas/GachaPublicId"
           },
           "slug": {
             "type": "string",
@@ -3324,6 +3336,10 @@
             "minimum": 1
           },
           "remaining_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "drawn_count": {
             "type": "integer",
             "minimum": 0
           },
@@ -3351,6 +3367,9 @@
           },
           "presentation_asset": {
             "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/GachaPresentationState"
           }
         }
       },
@@ -3676,7 +3695,7 @@
         ],
         "properties": {
           "id": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "$ref": "#/components/schemas/GachaPublicId"
           },
           "slug": {
             "type": "string",
@@ -3867,6 +3886,26 @@
           }
         }
       },
+      "GachaCatalogDisplay": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "show_price_points",
+          "show_total_count",
+          "show_drawn_count"
+        ],
+        "properties": {
+          "show_price_points": {
+            "type": "boolean"
+          },
+          "show_total_count": {
+            "type": "boolean"
+          },
+          "show_drawn_count": {
+            "type": "boolean"
+          }
+        }
+      },
       "GachaPresentationState": {
         "type": "object",
         "additionalProperties": false,
@@ -3879,11 +3918,12 @@
           "ineligible_reason",
           "allowed_draw_counts",
           "daily_limit",
-          "cta"
+          "cta",
+          "display"
         ],
         "properties": {
           "gacha_id": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "$ref": "#/components/schemas/GachaPublicId"
           },
           "sale_state": {
             "$ref": "#/components/schemas/GachaSaleState"
@@ -3923,6 +3963,9 @@
           },
           "cta": {
             "$ref": "#/components/schemas/GachaCtaState"
+          },
+          "display": {
+            "$ref": "#/components/schemas/GachaCatalogDisplay"
           }
         }
       },

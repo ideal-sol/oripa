@@ -61,7 +61,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.8");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.9");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -925,18 +925,18 @@ test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () =
     category: "cards",
     tag: "featured",
   });
-  await catalog.getGacha("0198a001-0000-7000-8000-000000000011");
+  await catalog.getGacha("Ab3Def7Gh9J");
   await catalog.getGachaBySlug("fixture-catalog");
   await catalog.getGachaPresentation(
-    "0198a001-0000-7000-8000-000000000011",
+    "Ab3Def7Gh9J",
   );
   assert.deepEqual(paths, [
     "/gacha-categories",
     "/gacha-tags",
     "/gachas?limit=20&cursor=opaque-cursor&category=cards&tag=featured",
-    "/gachas/0198a001-0000-7000-8000-000000000011",
+    "/gachas/Ab3Def7Gh9J",
     "/gachas/by-slug/fixture-catalog",
-    "/gacha-presentations/0198a001-0000-7000-8000-000000000011",
+    "/gacha-presentations/Ab3Def7Gh9J",
   ]);
   assert.throws(
     () => catalog.listGachas({ limit: 101 }),

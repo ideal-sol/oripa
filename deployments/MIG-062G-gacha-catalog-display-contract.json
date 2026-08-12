@@ -1,0 +1,36 @@
+{
+  "task_id": "MIG-062G",
+  "risk": "R3",
+  "status": "implementation_in_progress",
+  "base_branch": "main",
+  "base_sha": "21f58399e8869a00249398dac3b06a74e1e9da97",
+  "task_policy_sha256": "2389161c5871c8ddd26b12c7b7f39ac516fbc1fdc3ea1e42166090a75d90703c",
+  "issue": 243,
+  "pull_request": null,
+  "application_head": null,
+  "target": "test.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062G/",
+  "artifact": {
+    "version": "2.0.0-alpha.9",
+    "directory": "/var/lib/oripa-v2-evidence/MIG-062G/artifacts/2.0.0-alpha.9/",
+    "status": "pending"
+  },
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "api_image": null,
+    "status": "pending",
+    "nginx_change": "NONE",
+    "database_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "backend_targeted": "PASS_30_TESTS_277_ASSERTIONS",
+    "openapi_generated_contract": "PASS",
+    "storefront_client": "PASS_24_TESTS",
+    "site_schema_test": "PENDING_FRESH_CI_INSTALL",
+    "storefront_testkit_test": "PENDING_FRESH_CI_INSTALL",
+    "policy_gate": "PASS"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

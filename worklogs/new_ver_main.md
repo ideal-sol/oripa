@@ -8239,3 +8239,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - OPS-004のPreview Image Build PipelineをGitHub-hosted x64 runner／`linux/amd64`へ最小修正する。
 - exact SHA、PR Head、Required Checks、Artifact digest／checksum、OCI revision、Image ID、Host architectureのFail Closed境界を維持する。
 - Production Host Build、Runtime Deploy、MIG-062F変更は実施しない。
+
+## MIG-062G Gacha Catalog Display Public Contract
+
+- Base `21f58399e8869a00249398dac3b06a74e1e9da97`からIssue #243、Branch `feat/MIG-062G-gacha-catalog-display-contract`、Risk R3で開始した。
+- Public対象Gachaを販売状態やUser EligibilityでCatalogから除外せず、MIG-061Yと同じBackend判定のSale State、Eligibility、理由、Allowed Draw Counts、JST日次制限、CTA、表示制御をCatalog Itemへ追加する。
+- Gacha AssetをCanonical Public Asset Pathへ修正し、Detail／Presentation RouteとOpenAPIを11文字Public Codeおよび既存UUID互換Resolverへ同期する。
+- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.9`へ同期し、既存Artifactを上書きせず新規Artifactを生成する。

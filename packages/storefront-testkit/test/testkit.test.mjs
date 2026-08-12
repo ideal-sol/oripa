@@ -43,6 +43,9 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
+import {
+  PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
+} from "@oripa/storefront-testkit/fixtures";
 
 test("Public Auth FixtureはCookie Session状態をCredentialなしで表現する", () => {
   assert.equal(PUBLIC_AUTH_FIXTURE.anonymous_session.authenticated, false);
@@ -516,6 +519,37 @@ test("Gacha Presentation FixtureはBackend判定済みCTAだけを公開する",
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_GACHA_PRESENTATION_FIXTURE),
     /user_id|internal_id|email|cookie|session|password/i,
+  );
+});
+
+test("Gacha Catalog Fixtureは販売状態とUser判定をBackend Presentationで表現する", () => {
+  assert.deepEqual(
+    Object.keys(PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES),
+    [
+      "on_sale",
+      "coming_soon",
+      "ended",
+      "sold_out",
+      "authenticated_eligible",
+      "authenticated_ineligible",
+      "anonymous",
+    ],
+  );
+  assert.equal(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.authenticated_ineligible.presentation
+      .ineligible_reason,
+    "audience_not_eligible",
+  );
+  for (const state of ["ended", "sold_out"]) {
+    const display =
+      PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES[state].presentation.display;
+    assert.equal(display.show_price_points, false);
+    assert.equal(display.show_total_count, false);
+    assert.equal(display.show_drawn_count, false);
+  }
+  assert.match(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.on_sale.presentation_asset.path,
+    /^\/api\/v2\/content\/assets\//,
   );
 });
 
