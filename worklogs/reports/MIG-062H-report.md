@@ -3,12 +3,13 @@
 ## Task
 
 - Issue: #245
-- PR: 作成後に確定
+- PR: #246
 - Base: `main@27a19604d87513fc9a66088588bd2697bfeadba5`
 - Branch: `feat/MIG-062H-gacha-registration-eligibility`
 - Risk: R4
 - Task Policy SHA-256: `1a7172163be4ff81acf48798ea46dd528e8007013c4dde86c4e5a60bb09c8cf9`（初版 `f71fe083ef546950ffbd7ee428bcdd743ce1e64987f52264c6727b228b73fb1a`。Admin Contract generator 1 PathをAtomic追加）
-- Application Head／Final Head／Squash Commit: Commit、Checks、Merge後に確定
+- Application Head: `0a2f7db58e8ccc886cb039401b4a69adb203ada6`
+- Final Head／Squash Commit: Closeout時に確定
 
 ## Schema／Eligibility
 
@@ -25,14 +26,17 @@
 
 ## Verification
 
-- Task DBでMigration fresh、rollback、reapply、Default、Check Constraintを確認した。
+- Task DBでMigration fresh、rollback、reapply、Default、Check Constraintを確認した。既存の通常／Archived Gachaを含むBackfillでも、非Archived行だけRevisionを1増加し、Archived行と保護Triggerを維持することを確認した。
 - Backend対象TestはMaster編集5件／34 assertions、予約公開変更5件／99 assertions、Presentation 8件／86 assertions、初回Draw境界2件／4 assertions、Catalog基盤13件／118 assertionsがPASSした。部分Test ContainerのRepository外Path検査だけWarningであり、Assertion失敗は0件。
 - Policy Unit 119件、Local Policy Gate、PHP構文、JSON構文がPASSした。
-- Admin Unit／Typecheck／Lint／Production Build、OpenAPI lint／bundle、Required ChecksはGitHub-hosted CIで実施する。Production Host Buildは行わない。
+- Admin Unit／Typecheck／Lint／Production Build、OpenAPI lint／bundle、Policy／Quality／Security／Integration／CI GateはGitHub-hosted CIでPASSした。Production Host Buildは行っていない。
 - 全SuiteはTask対象外のため実行しない。
 
 ## Preview／残課題
 
-- PreviewはRequired Checks後、GitHub-hosted amd64 Build Artifactを検証してAPI／AdminをHost Buildなしで更新し、Migration `000044`だけをSafety Guard後に適用する。
-- Preview結果、Image、Smokeは反映後にRepository外Evidenceと本Reportへ追記する。
+- Preview Image Build Workflow Run `31590083432`でApplication HeadのAPI／Admin `linux/amd64` Imageを生成した。外側Artifact digest、内部SHA-256、Image ID、Architecture、OCI revisionを検証し、HostではBuildせず`docker image load`した。
+- DB Target Safety Guardで`oripa_v2_mig061a`／`v2-persistent`を確認し、Migration `000044`だけを適用した。既存7 Versionは7日、管理状態はpublished 5件／draft 2件へ移行し、保護Triggerはenabledを維持した。
+- API／Adminだけを`--no-build --no-deps`で更新した。両Containerはhealthy、固定IP／Network／Restart Policyを維持した。
+- Password-only Login、Session、Gacha一覧／詳細、Master編集Route、Public Catalog、動的Sale State、Desktop／Mobile CSSをSmokeした。HTTP 500／502／504とCritical Errorは確認されなかった。
+- Nginx、V1、Storefront Repository、Payment／Point、既存Preview Dataは変更していない。
 - G4／G5はNOT COMPLETEを維持する。
