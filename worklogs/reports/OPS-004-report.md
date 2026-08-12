@@ -23,8 +23,9 @@
 
 ## Verification
 
-- Focused Unit、Policy Unit／Gate、Quality／Security Gate、Required Checks: Closeout時に追記する。
-- Artifact checksum改ざん、PR Head／外部PR、Workflow不一致、Host Architecture不一致の拒否を対象Testで確認する。
+- Focused Unit 11件、Policy Unit 116件、Local Policy／Quality Gate、Workflow YAML Parse、`git diff --check`がPASSした。
+- Artifact外側／内側checksum改ざん、PR Head／外部PR、Workflow／Required Checks不一致、Host Architecture不一致の拒否を対象Testで確認した。
+- 初回GitHub `policy-gate`はcheckout時のRunner CA検証失敗でSource取得前に停止した。実装Failureではなく、同一Head再実行では旧Failureがcheck履歴に残るため、Report更新後のFinal HeadでRequired Checksを再実行する。
 
 ## MIG-062F
 
