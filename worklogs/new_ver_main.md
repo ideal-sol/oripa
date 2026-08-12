@@ -8246,3 +8246,6 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public対象Gachaを販売状態やUser EligibilityでCatalogから除外せず、MIG-061Yと同じBackend判定のSale State、Eligibility、理由、Allowed Draw Counts、JST日次制限、CTA、表示制御をCatalog Itemへ追加する。
 - Gacha AssetをCanonical Public Asset Pathへ修正し、Detail／Presentation RouteとOpenAPIを11文字Public Codeおよび既存UUID互換Resolverへ同期する。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.9`へ同期し、既存Artifactを上書きせず新規Artifactを生成する。
+- Application Head `36220b5c08820741b4763363a7e86c18274b9688`のTargeted TestとRequired GatesがPASSし、alpha.9 Artifact 5件のSHA-256とWorkspace外Importを確認した。
+- GitHub-hosted amd64 Run `31575994537`の検証済みAPI ImageをHost Buildなしでloadし、Preview APIだけを`sha256:1b8b62fa...`へ更新した。既存5件のCatalog／State／Eligibility／表示Flag／11文字Route／Cacheを確認した。
+- QA作成時のCanonical upload元とchecksumが一致する既存Asset実体を復元し、Public Asset HTTP 200を確認した。Container local Asset storageの非永続性は別運用課題として残し、DB、Nginx、V1、Storefront Repositoryは変更していない。
