@@ -6,7 +6,7 @@
 - PR: #246
 - Base: `main@27a19604d87513fc9a66088588bd2697bfeadba5`
 - Branch: `feat/MIG-062H-gacha-registration-eligibility`
-- Risk: R4
+- Risk: R3
 - Task Policy SHA-256: `1a7172163be4ff81acf48798ea46dd528e8007013c4dde86c4e5a60bb09c8cf9`（初版 `f71fe083ef546950ffbd7ee428bcdd743ce1e64987f52264c6727b228b73fb1a`。Admin Contract generator 1 PathをAtomic追加）
 - Application Head: `0a2f7db58e8ccc886cb039401b4a69adb203ada6`
 - Final Head／Squash Commit: Closeout時に確定

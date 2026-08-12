@@ -1,6 +1,6 @@
 {
   "task_id": "MIG-062H",
-  "risk": "R4",
+  "risk": "R3",
   "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "27a19604d87513fc9a66088588bd2697bfeadba5",
