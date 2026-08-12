@@ -109,9 +109,7 @@ paths:
       x-rate-limit: ip-5-per-hour-and-email-3-per-hour
       x-cache-policy: no-store
       x-stability: alpha
-      security:
-        - {}
-        - userSession: []
+      security: []
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
       requestBody:
@@ -1964,8 +1962,6 @@ components:
         - category
         - tags
         - presentation_asset
-        - drawn_count
-        - presentation
       properties:
         id:
           $ref: '#/components/schemas/GachaPublicId'
@@ -2331,7 +2327,6 @@ components:
         - allowed_draw_counts
         - daily_limit
         - cta
-        - display
       properties:
         gacha_id:
           $ref: '#/components/schemas/GachaPublicId'

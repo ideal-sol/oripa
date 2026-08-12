@@ -20,6 +20,7 @@ import {
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_AUTH_FIXTURE,
   PUBLIC_CATALOG_FIXTURE,
+  PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
   PUBLIC_GACHA_PRESENTATION_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
@@ -43,9 +44,6 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
-import {
-  PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
-} from "@oripa/storefront-testkit/fixtures";
 
 test("Public Auth FixtureはCookie Session状態をCredentialなしで表現する", () => {
   assert.equal(PUBLIC_AUTH_FIXTURE.anonymous_session.authenticated, false);

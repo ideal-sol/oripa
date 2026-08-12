@@ -1023,13 +1023,13 @@ export interface components {
             price_points: number;
             total_count: number;
             remaining_count: number;
-            drawn_count: number;
+            drawn_count?: number;
             publish_start_at: components["schemas"]["UtcDateTime"];
             publish_end_at: components["schemas"]["UtcDateTime"] | null;
             category: components["schemas"]["GachaCategory"];
             tags: components["schemas"]["GachaTag"][];
             presentation_asset: components["schemas"]["NullablePresentationAsset"];
-            presentation: components["schemas"]["GachaPresentationState"];
+            presentation?: components["schemas"]["GachaPresentationState"];
         };
         GachaSummaryCollection: {
             data: components["schemas"]["GachaSummary"][];
@@ -1150,7 +1150,7 @@ export interface components {
             allowed_draw_counts: (1 | 5 | 10 | 100 | 1000)[];
             daily_limit: components["schemas"]["GachaDailyLimitState"];
             cta: components["schemas"]["GachaCtaState"];
-            display: components["schemas"]["GachaCatalogDisplay"];
+            display?: components["schemas"]["GachaCatalogDisplay"];
         };
         GachaPresentationResponse: {
             data: components["schemas"]["GachaPresentationState"];
