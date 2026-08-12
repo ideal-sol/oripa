@@ -11655,7 +11655,6 @@
           "total_count",
           "daily_draw_limit",
           "audience_code",
-          "first_time_eligible_days",
           "presentation_asset",
           "publish_start_at",
           "publish_end_at"

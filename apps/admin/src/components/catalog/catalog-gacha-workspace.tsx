@@ -766,7 +766,7 @@ function GachaDetail({
           <Detail label="1日規定回数" value={dailyLimitLabel(gacha.current_version?.daily_draw_limit)} />
           <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
           <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
-          {gacha.current_version?.audience_code === "first_time_users" ? <Detail label="初回ユーザー期間" value={`${gacha.current_version.first_time_eligible_days}日（24時間単位）`} /> : null}
+          {gacha.current_version?.audience_code === "first_time_users" ? <Detail label="初回ユーザー期間" value={`${gacha.current_version.first_time_eligible_days ?? 7}日（24時間単位）`} /> : null}
           <Detail label="開始日時" value={gacha.current_version?.publish_start_at ?? "未設定"} />
           <Detail label="終了日時" value={gacha.current_version?.publish_end_at ?? "無期限"} />
           <Detail label="説明" value={gacha.current_version?.description ?? "未設定"} />
