@@ -417,6 +417,9 @@ MIG_061R_V2_CATALOG_FILES = {
 MIG_061S_V2_CATALOG_FILES = {
     "apps/api/tests/V2/AdminRankEffectSettingsTest.php",
 }
+MIG_062H_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -465,6 +468,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_061L_V2_CATALOG_FILES,
     *MIG_061R_V2_CATALOG_FILES,
     *MIG_061S_V2_CATALOG_FILES,
+    *MIG_062H_V2_CATALOG_FILES,
 }
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
@@ -2245,6 +2249,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_28_000041_create_v2_user_tag_management.php",
         "2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
         "2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+        "2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3269,20 +3274,20 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         repository
         / "apps/api/app/Domain/Catalog/Services/V2ScheduledGachaPublishWorker.php"
     ).read_text(encoding="utf-8")
-    for required in (
-        "SELECT CURRENT_TIMESTAMP AS occurred_at",
-        "SKIP LOCKED",
-        "worker_max_attempts",
-        "activateClaimedGachaPublishSchedule",
-        "catalog.gacha.schedule.worker_claimed",
-        "catalog.gacha.schedule.publish_retry",
-        "catalog.gacha.schedule.publish_failed",
-    ):
+    for required in ("return 0;", "final class V2ScheduledGachaPublishWorker"):
         if required not in schedule_worker:
             raise PolicyFailure(
                 f"V2 Gacha scheduled publish worker missing {required}"
             )
-    for prohibited in ("forceDelete(", "tenant_id"):
+    for prohibited in (
+        "DB::",
+        "activateClaimedGachaPublishSchedule",
+        "->insert(",
+        "->update(",
+        "->delete(",
+        "forceDelete(",
+        "tenant_id",
+    ):
         if prohibited in schedule_worker:
             raise PolicyFailure(
                 f"V2 Gacha scheduled publish worker contains prohibited {prohibited}"
@@ -3778,6 +3783,23 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
     ):
         if prohibited in service:
             raise PolicyFailure(f"V2 Draw service contains prohibited {prohibited}")
+
+    eligibility = (
+        repository / "apps/api/app/Domain/Draw/Services/V2DrawEligibilityService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "first_time_eligible_days",
+        "created_at",
+        "addDays($eligibleDays)",
+        "greaterThanOrEqualTo($registeredAt)",
+        "lessThanOrEqualTo($registeredAt->addDays($eligibleDays))",
+    ):
+        if required not in eligibility:
+            raise PolicyFailure(f"V2 Draw eligibility service missing {required}")
+    if "DB::table('draw_requests')" in eligibility:
+        raise PolicyFailure(
+            "V2 Draw eligibility service derives first-time status from Draw history"
+        )
 
     bundle = load_json(repository, "openapi/bundled/public.openapi.json")
     operations = {

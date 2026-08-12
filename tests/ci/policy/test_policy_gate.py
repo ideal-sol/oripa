@@ -20,6 +20,14 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062h_gacha_eligibility_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
+        }
+        self.assertEqual(policy_gate.MIG_062H_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_062d_point_purchase_target_tag_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
@@ -791,6 +799,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
             "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
+            "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1011,6 +1020,23 @@ python3 scripts/db/v2_database.py smoke \\
             root = Path(temporary)
             paths = self.copy_v2_catalog_boundary(root)
             policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_v2_catalog_scheduled_worker_mutation_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            worker = (
+                root
+                / "apps/api/app/Domain/Catalog/Services/"
+                "V2ScheduledGachaPublishWorker.php"
+            )
+            worker.write_text(
+                worker.read_text(encoding="utf-8")
+                + "\n<?php DB::table('catalog_gachas')->update([]);\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited DB::"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
 
     def test_v2_catalog_tenant_id_fails(self):
         with tempfile.TemporaryDirectory() as temporary:

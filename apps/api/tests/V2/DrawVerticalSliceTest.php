@@ -119,40 +119,35 @@ final class DrawVerticalSliceTest extends TestCase
         );
     }
 
-    public function test_first_time_audience_uses_completed_normal_draws(): void
+    public function test_first_time_audience_uses_registration_age_not_draw_history(): void
     {
         [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
         self::assertSame(
             1,
             $this->draw($user, 1, 'audience-first-time-user-key')['executed_count']
         );
+        self::assertSame(
+            1,
+            $this->draw($user, 1, 'audience-draw-history-ignored-key')['executed_count']
+        );
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(7)->subSecond(),
+        ]);
         $this->expectDrawFailure(
-            fn () => $this->draw($user, 1, 'audience-used-user-key'),
+            fn () => $this->draw($user, 1, 'audience-registration-expired-key'),
             'GACHA_AUDIENCE_NOT_ELIGIBLE'
         );
     }
 
-    public function test_failed_draw_does_not_consume_first_time_audience(): void
+    public function test_first_time_audience_includes_exact_seven_day_boundary(): void
     {
-        [$user] = $this->fixture(
-            [5_000],
-            freePoints: 0,
-            audienceCode: 'first_time_users'
-        );
-        $this->expectDrawFailure(
-            fn () => $this->draw($user, 1, 'audience-failed-draw-key'),
-            'INSUFFICIENT_POINTS'
-        );
-        self::assertDatabaseCount('draw_requests', 0);
-        app(V2PointService::class)->grantFree(
-            $user->id,
-            100,
-            now()->addYear(),
-            'first-time-after-failure-points'
-        );
+        [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(7),
+        ]);
         self::assertSame(
             1,
-            $this->draw($user, 1, 'audience-after-failed-draw-key')['executed_count']
+            $this->draw($user, 1, 'audience-seven-day-boundary-key')['executed_count']
         );
     }
 

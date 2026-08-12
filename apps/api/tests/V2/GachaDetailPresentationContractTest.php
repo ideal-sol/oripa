@@ -120,7 +120,7 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.cta.action', 'draw');
     }
 
-    public function test_first_time_audience_reuses_completed_normal_draw_rules(): void
+    public function test_first_time_audience_uses_registration_window_and_ignores_draws(): void
     {
         $this->import(audience: 'first_time_users');
         $user = $this->user();
@@ -132,8 +132,48 @@ final class GachaDetailPresentationContractTest extends TestCase
         self::assertNotSame('', $drawId);
         $this->getJson($this->presentationUrl())
             ->assertOk()
+            ->assertJsonPath('data.eligible', true);
+
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(7)->subSecond(),
+        ]);
+        $user->refresh();
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
             ->assertJsonPath('data.eligible', false)
             ->assertJsonPath('data.ineligible_reason', 'audience_not_eligible');
+    }
+
+    public function test_first_time_audience_honors_arbitrary_thirty_day_window(): void
+    {
+        $this->import(audience: 'first_time_users', firstTimeDays: 30);
+        $user = $this->user();
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(30),
+        ]);
+        $user->refresh();
+        $this->authenticate($user);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()->assertJsonPath('data.eligible', true);
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDays(30)->subSecond(),
+        ]);
+        $user->refresh();
+        $this->getJson($this->presentationUrl())
+            ->assertOk()->assertJsonPath('data.eligible', false);
+    }
+
+    public function test_first_time_audience_expires_after_one_day_window(): void
+    {
+        $this->import(audience: 'first_time_users', firstTimeDays: 1);
+        $user = $this->user();
+        DB::table('users')->where('id', $user->id)->update([
+            'created_at' => now()->subDay()->subSecond(),
+        ]);
+        $user->refresh();
+        $this->authenticate($user);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()->assertJsonPath('data.eligible', false);
     }
 
     public function test_line_audience_requires_link_and_confirmed_friendship(): void
@@ -224,7 +264,8 @@ final class GachaDetailPresentationContractTest extends TestCase
 
     private function import(
         int $dailyLimit = 0,
-        string $audience = 'all_users'
+        string $audience = 'all_users',
+        int $firstTimeDays = 7
     ): void
     {
         $fixture = json_decode(
@@ -234,6 +275,7 @@ final class GachaDetailPresentationContractTest extends TestCase
         );
         $fixture['versions'][0]['daily_draw_limit'] = $dailyLimit;
         $fixture['versions'][0]['audience_code'] = $audience;
+        $fixture['versions'][0]['first_time_eligible_days'] = $firstTimeDays;
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $index = 0;
         $values = [5_000, 50_000, 150_000, 999_999];

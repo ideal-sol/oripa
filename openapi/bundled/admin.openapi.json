@@ -11655,6 +11655,7 @@
           "total_count",
           "daily_draw_limit",
           "audience_code",
+          "first_time_eligible_days",
           "presentation_asset",
           "publish_start_at",
           "publish_end_at"
@@ -11712,6 +11713,11 @@
               "first_time_users",
               "line_users"
             ]
+          },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 7
           },
           "presentation_asset": {
             "oneOf": [
@@ -11944,6 +11950,11 @@
               "line_users"
             ]
           },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 7
+          },
           "presentation_asset_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -12025,6 +12036,20 @@
               "all_users",
               "first_time_users",
               "line_users"
+            ]
+          },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "management_status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "sales_paused",
+              "unpublished"
             ]
           },
           "presentation_asset_id": {
@@ -12639,6 +12664,10 @@
               "first_time_users",
               "line_users"
             ]
+          },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1
           },
           "presentation_asset": {
             "oneOf": [

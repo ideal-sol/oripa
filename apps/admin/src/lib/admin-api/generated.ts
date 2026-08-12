@@ -1060,6 +1060,7 @@ export interface AdminCatalogGachaCoreVersion {
   total_count: number;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days: number;
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1177,6 +1178,7 @@ export interface AdminCatalogGachaCoreCreate {
   total_count: number;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
   presentation_asset_id: string;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1194,6 +1196,8 @@ export interface AdminCatalogGachaUpdate {
   total_count?: number;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
+  management_status?: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
   presentation_asset_id?: string;
   publish_start_at?: string;
   publish_end_at?: string | null;
@@ -1235,6 +1239,7 @@ export interface AdminCatalogGachaVersion {
   total_count: number;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days?: number;
   presentation_asset: AdminCatalogAssetReference | null;
   published_probability_version: {
     id: string;

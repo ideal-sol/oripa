@@ -5019,7 +5019,7 @@ components:
     AdminCatalogGachaCoreVersion:
       type: object
       additionalProperties: false
-      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, presentation_asset, publish_start_at, publish_end_at]
+      required: [id, version_number, status, title, description, notices, price_points, total_count, daily_draw_limit, audience_code, first_time_eligible_days, presentation_asset, publish_start_at, publish_end_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         version_number: {type: integer, minimum: 1}
@@ -5031,6 +5031,7 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        first_time_eligible_days: {type: integer, minimum: 1, default: 7}
         presentation_asset:
           oneOf:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
@@ -5098,6 +5099,7 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        first_time_eligible_days: {type: integer, minimum: 1, default: 7}
         presentation_asset_id: {$ref: '#/components/schemas/OpaqueId'}
         publish_start_at: {type: string, format: date-time}
         publish_end_at: {type: [string, 'null'], format: date-time}
@@ -5121,6 +5123,8 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        first_time_eligible_days: {type: integer, minimum: 1}
+        management_status: {type: string, enum: [draft, scheduled, published, sales_paused, unpublished]}
         presentation_asset_id: {$ref: '#/components/schemas/OpaqueId'}
         publish_start_at: {type: string, format: date-time}
         publish_end_at: {type: [string, 'null'], format: date-time}
@@ -5305,6 +5309,7 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        first_time_eligible_days: {type: integer, minimum: 1}
         presentation_asset:
           oneOf:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}

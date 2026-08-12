@@ -1,0 +1,32 @@
+{
+  "task_id": "MIG-062H",
+  "risk": "R4",
+  "status": "preview_pending",
+  "base_branch": "main",
+  "base_sha": "27a19604d87513fc9a66088588bd2697bfeadba5",
+  "task_policy_sha256": "956574d49238251cc0ccd4c21adeb7193c0584b61bb84c17e1edf33840e6581a",
+  "issue": 245,
+  "pull_request": null,
+  "application_head": null,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062H/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
+    "architecture": "linux/amd64",
+    "status": "pending",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "verification": {
+    "migration_fresh_rollback_reapply": "PASS",
+    "backend_targeted": "PASS",
+    "policy_unit": "PASS_119_TESTS",
+    "policy_gate": "PASS",
+    "required_checks": "PENDING",
+    "preview_smoke": "PENDING"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

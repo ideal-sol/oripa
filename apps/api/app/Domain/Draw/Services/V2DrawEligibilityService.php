@@ -28,12 +28,18 @@ final class V2DrawEligibilityService
         ?User $user,
         int $gachaId,
         string $audienceCode,
+        int $firstTimeEligibleDays,
         int $dailyLimit,
         CarbonImmutable $occurredAt
     ): array {
         $authenticated = $user instanceof User;
         $audienceEligible = $authenticated
-            && $this->isAudienceEligible($user->id, $audienceCode);
+            && $this->isAudienceEligible(
+                $user,
+                $audienceCode,
+                $firstTimeEligibleDays,
+                $occurredAt
+            );
         $used = $authenticated
             ? $this->dailyUsage($user->id, $gachaId, $occurredAt)
             : null;
@@ -73,7 +79,12 @@ final class V2DrawEligibilityService
             ->first();
         if (
             $lockedUser === null
-            || ! $this->isAudienceEligible($user->id, (string) $version->audience_code)
+            || ! $this->isAudienceEligible(
+                $lockedUser,
+                (string) $version->audience_code,
+                (int) $version->first_time_eligible_days,
+                $occurredAt
+            )
         ) {
             throw new V2DrawException(
                 'GACHA_AUDIENCE_NOT_ELIGIBLE',
@@ -104,18 +115,39 @@ final class V2DrawEligibilityService
         }
     }
 
-    private function isAudienceEligible(int $userId, string $audienceCode): bool
+    private function isAudienceEligible(
+        object $user,
+        string $audienceCode,
+        int $firstTimeEligibleDays,
+        CarbonImmutable $occurredAt
+    ): bool
     {
         return match ($audienceCode) {
             'all_users' => true,
-            'first_time_users' => ! DB::table('draw_requests')
-                ->where('user_id', $userId)
-                ->where('status', 'completed')
-                ->where('is_qa_draw', false)
-                ->exists(),
-            'line_users' => $this->isConfirmedLineFriend($userId),
+            'first_time_users' => $this->isWithinRegistrationWindow(
+                $user,
+                $firstTimeEligibleDays,
+                $occurredAt
+            ),
+            'line_users' => $this->isConfirmedLineFriend((int) $user->id),
             default => false,
         };
+    }
+
+    private function isWithinRegistrationWindow(
+        object $user,
+        int $eligibleDays,
+        CarbonImmutable $occurredAt
+    ): bool
+    {
+        if ($eligibleDays < 1 || ! isset($user->created_at)) {
+            return false;
+        }
+
+        $registeredAt = CarbonImmutable::parse((string) $user->created_at);
+
+        return $occurredAt->greaterThanOrEqualTo($registeredAt)
+            && $occurredAt->lessThanOrEqualTo($registeredAt->addDays($eligibleDays));
     }
 
     private function dailyUsage(

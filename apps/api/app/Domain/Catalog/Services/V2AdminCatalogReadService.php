@@ -1613,16 +1613,11 @@ final class V2AdminCatalogReadService
                 'code' => $tag->code,
                 'name' => $tag->display_name,
             ])->all();
-        $hasActiveSchedule = DB::table('catalog_gacha_publish_schedules')
-            ->where('gacha_id', $row->id)
-            ->whereIn('status', ['scheduled', 'processing'])
-            ->exists();
         $publicationStatus = match (true) {
-            $row->archived_at !== null,
-            $row->public_deactivated_at !== null && $publishedVersion === null => 'unpublished',
-            $publishedVersion !== null && (bool) ($row->sales_paused ?? false) => 'sales_paused',
-            $publishedVersion !== null => 'published',
-            $hasActiveSchedule => 'scheduled',
+            $row->archived_at !== null => 'unpublished',
+            in_array($row->management_status ?? null, [
+                'draft', 'scheduled', 'published', 'sales_paused', 'unpublished',
+            ], true) => $row->management_status,
             default => 'draft',
         };
 
@@ -1688,6 +1683,7 @@ final class V2AdminCatalogReadService
             'total_count' => (int) $row->total_count,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,
@@ -1761,6 +1757,7 @@ final class V2AdminCatalogReadService
             'total_count' => (int) $row->total_count,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
                 'media_type' => $asset->media_type,
