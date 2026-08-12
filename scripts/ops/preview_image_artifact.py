@@ -237,7 +237,16 @@ def docker_archive_metadata(archive: Path, expected_size: int) -> dict:
                     fail("docker_archive_manifest_invalid")
                 entry = docker_manifest[0]
                 config_name = entry.get("Config") if isinstance(entry, dict) else None
-                if not isinstance(config_name, str) or not re.fullmatch(r"[0-9a-f]{64}\.json", config_name):
+                config_match = (
+                    re.fullmatch(r"([0-9a-f]{64})\.json", config_name)
+                    if isinstance(config_name, str)
+                    else None
+                ) or (
+                    re.fullmatch(r"blobs/sha256/([0-9a-f]{64})", config_name)
+                    if isinstance(config_name, str)
+                    else None
+                )
+                if config_match is None:
                     fail("docker_archive_config_invalid")
                 config_stream = bundle.extractfile(bundle.getmember(config_name))
                 if config_stream is None:
@@ -246,7 +255,8 @@ def docker_archive_metadata(archive: Path, expected_size: int) -> dict:
         except (KeyError, tarfile.TarError, UnicodeError, json.JSONDecodeError):
             fail("docker_archive_invalid")
 
-    if hashlib.sha256(config_bytes).hexdigest() + ".json" != config_name:
+    config_digest = config_match.group(1)
+    if hashlib.sha256(config_bytes).hexdigest() != config_digest:
         fail("docker_archive_image_id_mismatch")
     config = json.loads(config_bytes.decode("utf-8"))
     labels = (config.get("config") or {}).get("Labels") or {}
@@ -256,7 +266,7 @@ def docker_archive_metadata(archive: Path, expected_size: int) -> dict:
     if not isinstance(tags, list) or len(tags) != 1 or not isinstance(tags[0], str):
         fail("docker_archive_tags_invalid")
     return {
-        "image_id": "sha256:" + config_name[:-5],
+        "image_id": "sha256:" + config_digest,
         "architecture": config.get("architecture"),
         "os": config.get("os"),
         "labels": labels,
