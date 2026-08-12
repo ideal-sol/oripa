@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5150d7052f0e7ab0ba4f581a0d423df77e7e98d50f782e05ebe25bcf9f5b4e7e
+// Contract SHA-256: 705ab56a11255ced2c26595869f4dc8f258f69ec4fe25e0e1ef00cd56408cc24
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1049,6 +1049,8 @@ export interface AdminCatalogGachaVersionSummary {
   title: string;
 }
 
+export type AdminGachaAllowedDrawCount = 1 | 5 | 10 | 100 | 1000;
+
 export interface AdminCatalogGachaCoreVersion {
   id: string;
   version_number: number;
@@ -1061,6 +1063,7 @@ export interface AdminCatalogGachaCoreVersion {
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
+  allowed_draw_counts: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1179,6 +1182,7 @@ export interface AdminCatalogGachaCoreCreate {
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
+  allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset_id: string;
   publish_start_at: string;
   publish_end_at: string | null;
@@ -1197,6 +1201,7 @@ export interface AdminCatalogGachaUpdate {
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
+  allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   management_status?: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
   presentation_asset_id?: string;
   publish_start_at?: string;
@@ -1240,6 +1245,7 @@ export interface AdminCatalogGachaVersion {
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
+  allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
   published_probability_version: {
     id: string;

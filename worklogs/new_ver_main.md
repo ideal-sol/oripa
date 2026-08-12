@@ -8257,3 +8257,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Master編集へ管理状態を接続し、予約公開はDB状態を書き換えるWorkerを使用せず、開始日時と既存販売条件から実効Sale Stateを都度評価する。
 - Admin共通Formへ条件付き日数入力を追加し、ガチャ詳細をDesktopで景品一覧相当のContent幅へ拡張する。
 - 2026-08-12 MIG-062H: `first_time_users`をDraw履歴から分離し、Gacha Versionの登録後日数（Default 7、24時間単位）をBackend正本とした。管理状態をDraft／予約公開／公開／販売停止／非公開として保存し、予約公開はScheduler更新なしで実効Sale Stateを時刻評価する。Migration `000044`、Admin登録／編集、詳細幅、対象TestとRequired Checksを完了し、検証済みamd64 ArtifactからPreview API／AdminをHost Buildなしで更新した。G4／G5はNOT COMPLETE。
+
+## MIG-062I ガチャごとのDraw Count設定
+
+- Base `1f4c452dcfb9631530f7b1d3f400637165646e00`からIssue #247、Branch `feat/MIG-062I-gacha-draw-count-configuration`、Risk R3で開始した。
+- Gacha Versionへ許可Draw Countを追加し、`1`必須、`5／10／100／1000`任意、既存Version Default `[1,5,10]`をDB制約付きで保存する。
+- Admin登録／編集へ共通Checkboxを接続し、Public PresentationとPublic Draw Transactionで同じPublished Version設定を正本として強制する。
+- Public Contractは既存Schemaで表現可能なため変更せず、Admin OpenAPI／Generated Clientだけを同期する。Storefront Artifact更新は行わない。

@@ -41,6 +41,7 @@ export interface GachaVersionDraft {
 }
 
 export interface GachaCoreDraft {
+  allowedDrawCounts: Array<1 | 5 | 10 | 100 | 1000>;
   audienceCode: "all_users" | "first_time_users" | "line_users";
   categoryId: string;
   dailyDrawLimit: number;
@@ -70,6 +71,7 @@ export function CatalogGachaCoreForm({
   onSubmit: (draft: GachaCoreDraft) => Promise<void>;
 }) {
   const initial = useMemo<GachaCoreDraft>(() => ({
+    allowedDrawCounts: current?.current_version?.allowed_draw_counts ?? [1, 5, 10],
     audienceCode: current?.current_version?.audience_code ?? "all_users",
     categoryId: current?.category.id ?? "",
     dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
@@ -145,6 +147,9 @@ export function CatalogGachaCoreForm({
     if (!Number.isSafeInteger(draft.firstTimeEligibleDays) || draft.firstTimeEligibleDays < 1) {
       nextErrors.firstTimeDays = "初回ユーザー日数は1以上の整数です。";
     }
+    if (!draft.allowedDrawCounts.includes(1)) {
+      nextErrors.drawCounts = "1回ガチャは必須です。";
+    }
     const startsAt = Date.parse(draft.publishStartAt);
     const endsAt = draft.publishEndAt ? Date.parse(draft.publishEndAt) : null;
     if (!Number.isFinite(startsAt)) nextErrors.start = "開始日時は必須です。";
@@ -200,6 +205,26 @@ export function CatalogGachaCoreForm({
           {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}><option value="draft">下書き</option><option value="scheduled">予約公開</option><option value="published">公開</option><option value="sales_paused">販売停止</option><option value="unpublished">非公開</option></select></label>}
         </div>
         <FieldError message={errors.price ?? errors.total ?? errors.daily} />
+        <fieldset className="catalog-choice-fieldset">
+          <legend>許可するDraw Count</legend>
+          {([1, 5, 10, 100, 1000] as const).map((count) => (
+            <label className="catalog-checkbox" key={count}>
+              <input
+                checked={draft.allowedDrawCounts.includes(count)}
+                disabled={count === 1}
+                onChange={(event) => setDraft({
+                  ...draft,
+                  allowedDrawCounts: event.target.checked
+                    ? ([...draft.allowedDrawCounts, count].sort((left, right) => left - right) as GachaCoreDraft["allowedDrawCounts"])
+                    : draft.allowedDrawCounts.filter((item) => item !== count),
+                })}
+                type="checkbox"
+              />
+              {count}回
+            </label>
+          ))}
+        </fieldset>
+        <FieldError message={errors.drawCounts} />
         <label>会員ランク<select value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
         {draft.audienceCode === "first_time_users" ? <><NumberField label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
         <div className="catalog-form-grid">

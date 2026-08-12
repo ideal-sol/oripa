@@ -42,7 +42,7 @@ final class GachaDetailPresentationContractTest extends TestCase
 
     public function test_public_detail_exposes_sale_state_without_user_state_in_public_cache(): void
     {
-        $this->import();
+        $this->import(allowedDrawCounts: [1, 5, 10, 100, 1000]);
 
         $onSale = $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()
@@ -93,7 +93,7 @@ final class GachaDetailPresentationContractTest extends TestCase
 
     public function test_anonymous_and_all_user_states_are_private_and_machine_readable(): void
     {
-        $this->import();
+        $this->import(allowedDrawCounts: [1, 5, 10, 100, 1000]);
 
         $anonymous = $this->getJson($this->presentationUrl())
             ->assertOk()
@@ -262,10 +262,46 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.allowed_draw_counts', [1, 5, 10]);
     }
 
+    public function test_gacha_counts_intersect_inventory_and_daily_limit(): void
+    {
+        $this->import(
+            dailyLimit: 100,
+            allowedDrawCounts: [1, 10, 100]
+        );
+        $user = $this->user();
+        $this->authenticate($user);
+
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.allowed_draw_counts', [1, 10, 100]);
+
+        $this->draw($user, 10);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.daily_limit.remaining', 90)
+            ->assertJsonPath('data.allowed_draw_counts', [1, 10]);
+
+        DB::table('gacha_draw_states')->update(['sold_count' => 999]);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.allowed_draw_counts', [1]);
+    }
+
+    public function test_single_count_configuration_is_preserved(): void
+    {
+        $this->import(allowedDrawCounts: [1]);
+        $this->authenticate($this->user());
+
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.allowed_draw_counts', [1]);
+    }
+
     private function import(
         int $dailyLimit = 0,
         string $audience = 'all_users',
-        int $firstTimeDays = 7
+        int $firstTimeDays = 7,
+        array $allowedDrawCounts = [1, 5, 10]
     ): void
     {
         $fixture = json_decode(
@@ -276,6 +312,7 @@ final class GachaDetailPresentationContractTest extends TestCase
         $fixture['versions'][0]['daily_draw_limit'] = $dailyLimit;
         $fixture['versions'][0]['audience_code'] = $audience;
         $fixture['versions'][0]['first_time_eligible_days'] = $firstTimeDays;
+        $fixture['versions'][0]['allowed_draw_counts'] = $allowedDrawCounts;
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $index = 0;
         $values = [5_000, 50_000, 150_000, 999_999];

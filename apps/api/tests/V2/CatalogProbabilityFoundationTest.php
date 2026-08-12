@@ -59,6 +59,7 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertTrue(Schema::hasColumn('catalog_gachas', 'management_status'));
         self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'category_id'));
         self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'first_time_eligible_days'));
+        self::assertTrue(Schema::hasColumn('catalog_gacha_versions', 'allowed_draw_counts'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'storage_identifier'));
         self::assertTrue(Schema::hasColumn('catalog_presentation_assets', 'checksum_sha256'));
         self::assertSame(
@@ -84,6 +85,15 @@ final class CatalogProbabilityFoundationTest extends TestCase
         self::assertSame($counts, $this->catalogCounts());
         self::assertSame(1, DB::table('catalog_import_runs')->count());
         self::assertSame(7, (int) DB::table('catalog_gacha_versions')->value('first_time_eligible_days'));
+        self::assertSame(
+            [1, 5, 10],
+            json_decode(
+                (string) DB::table('catalog_gacha_versions')->value('allowed_draw_counts'),
+                true,
+                8,
+                JSON_THROW_ON_ERROR
+            )
+        );
         self::assertSame(
             $fixture['assets'][0]['checksum_sha256'],
             DB::table('catalog_presentation_assets')

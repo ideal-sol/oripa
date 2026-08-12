@@ -207,10 +207,14 @@ final class V2CatalogReadService
         $allowedCounts = [];
         if ($reason === null) {
             $dailyRemaining = $evaluation['daily']['remaining'];
-            $configured = config('v2_draw.allowed_counts', []);
+            $platformSupported = config('v2_draw.allowed_counts', []);
+            $gachaConfigured = $this->allowedDrawCounts(
+                $row->allowed_draw_counts ?? null
+            );
             $allowedCounts = array_values(array_filter(
-                is_array($configured) ? $configured : [],
+                is_array($platformSupported) ? $platformSupported : [],
                 static fn (mixed $count): bool => is_int($count)
+                    && in_array($count, $gachaConfigured, true)
                     && $count <= $remainingCount
                     && ($dailyRemaining === null || $count <= $dailyRemaining)
             ));
@@ -317,6 +321,7 @@ final class V2CatalogReadService
             'gv.daily_draw_limit',
             'gv.audience_code',
             'gv.first_time_eligible_days',
+            'gv.allowed_draw_counts',
             'gv.publish_start_at',
             'gv.publish_end_at',
             'gv.published_probability_version_id',
@@ -735,6 +740,25 @@ final class V2CatalogReadService
     private function encodeCursor(string $publicId): string
     {
         return rtrim(strtr(base64_encode($publicId), '+/', '-_'), '=');
+    }
+
+    /** @return list<int> */
+    private function allowedDrawCounts(mixed $value): array
+    {
+        if ($value === null) {
+            return [1, 5, 10];
+        }
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            [1, 5, 10, 100, 1000],
+            static fn (int $count): bool => in_array($count, $value, true)
+        ));
     }
 
     private function decodeCursor(?string $cursor): ?string

@@ -241,6 +241,10 @@ final class V2CatalogFixtureImporter
                 'daily_draw_limit' => $version['daily_draw_limit'] ?? 0,
                 'audience_code' => $version['audience_code'] ?? 'all_users',
                 'first_time_eligible_days' => $version['first_time_eligible_days'] ?? 7,
+                'allowed_draw_counts' => json_encode(
+                    $version['allowed_draw_counts'] ?? [1, 5, 10],
+                    JSON_THROW_ON_ERROR
+                ),
                 'presentation_asset_id' => $this->id(
                     'catalog_presentation_assets',
                     'storage_identifier',
@@ -512,6 +516,9 @@ final class V2CatalogFixtureImporter
                 )
                 || ! is_int($version['first_time_eligible_days'] ?? 7)
                 || ($version['first_time_eligible_days'] ?? 7) < 1
+                || ! $this->validAllowedDrawCounts(
+                    $version['allowed_draw_counts'] ?? [1, 5, 10]
+                )
             ) {
                 throw new V2CatalogException(
                     'INVALID_CATALOG_FIXTURE',
@@ -550,6 +557,18 @@ final class V2CatalogFixtureImporter
                 }
             }
         }
+    }
+
+    private function validAllowedDrawCounts(mixed $value): bool
+    {
+        if (! is_array($value)) {
+            return false;
+        }
+
+        return $value === array_values(array_filter(
+            [1, 5, 10, 100, 1000],
+            static fn (int $count): bool => in_array($count, $value, true)
+        )) && in_array(1, $value, true);
     }
 
     private function id(string $table, string $column, string $value): int
