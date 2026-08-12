@@ -7,7 +7,7 @@
 - Base: `main@27a19604d87513fc9a66088588bd2697bfeadba5`
 - Branch: `feat/MIG-062H-gacha-registration-eligibility`
 - Risk: R4
-- Task Policy SHA-256: `956574d49238251cc0ccd4c21adeb7193c0584b61bb84c17e1edf33840e6581a`（初版 `f71fe083ef546950ffbd7ee428bcdd743ce1e64987f52264c6727b228b73fb1a`）
+- Task Policy SHA-256: `1a7172163be4ff81acf48798ea46dd528e8007013c4dde86c4e5a60bb09c8cf9`（初版 `f71fe083ef546950ffbd7ee428bcdd743ce1e64987f52264c6727b228b73fb1a`。Admin Contract generator 1 PathをAtomic追加）
 - Application Head／Final Head／Squash Commit: Commit、Checks、Merge後に確定
 
 ## Schema／Eligibility

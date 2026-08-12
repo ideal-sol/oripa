@@ -4,7 +4,7 @@
   "status": "preview_pending",
   "base_branch": "main",
   "base_sha": "27a19604d87513fc9a66088588bd2697bfeadba5",
-  "task_policy_sha256": "956574d49238251cc0ccd4c21adeb7193c0584b61bb84c17e1edf33840e6581a",
+  "task_policy_sha256": "1a7172163be4ff81acf48798ea46dd528e8007013c4dde86c4e5a60bb09c8cf9",
   "issue": 245,
   "pull_request": null,
   "application_head": null,
