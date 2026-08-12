@@ -20,6 +20,9 @@ SOURCE_URL = "https://github.com/ideal-sol/oripa"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 TASK_ID = re.compile(r"^[A-Z][A-Z0-9-]{2,31}$")
+ISO_DATETIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
 IMAGE_NAMES = ("api", "admin")
 ARCHIVE_NAMES = {
     "api": "oripa-v2-api-linux-arm64.docker.tar.zst",
@@ -112,6 +115,8 @@ def image_metadata(inspect: dict, source_sha: str) -> dict:
 
 def package_images(arguments: argparse.Namespace) -> dict:
     validate_identity(arguments.task_id, arguments.pr_number, arguments.source_sha)
+    if not ISO_DATETIME.fullmatch(arguments.created_at):
+        fail("created_at_invalid")
     output = arguments.output.resolve()
     if output.exists() and any(output.iterdir()):
         fail("output_directory_not_empty")
@@ -280,6 +285,9 @@ def verify_artifact(
         or manifest.get("platform") != "linux/arm64"
     ):
         fail("manifest_identity_mismatch")
+    created_at = manifest.get("created_at")
+    if not isinstance(created_at, str) or not ISO_DATETIME.fullmatch(created_at):
+        fail("manifest_created_at_invalid")
     images = manifest.get("images")
     if not isinstance(images, list) or [item.get("name") for item in images if isinstance(item, dict)] != list(IMAGE_NAMES):
         fail("manifest_images_invalid")
@@ -341,6 +349,8 @@ def verify_artifact(
             fail("oci_source_mismatch")
         if labels["org.opencontainers.image.version"] != f"preview-{task_id}":
             fail("oci_version_mismatch")
+        if labels["org.opencontainers.image.created"] != created_at:
+            fail("oci_created_mismatch")
         expected_title = "Oripa V2 API" if expected_name == "api" else "Oripa V2 Admin"
         if labels["org.opencontainers.image.title"] != expected_title:
             fail("oci_title_mismatch")

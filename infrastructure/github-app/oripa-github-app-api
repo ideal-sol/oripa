@@ -389,7 +389,7 @@ def safe_extract(source: Path, destination: Path) -> None:
     }
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
-        if {item.filename for item in files} != allowed:
+        if len(files) != len(allowed) or {item.filename for item in files} != allowed:
             fail("artifact_file_set_invalid")
         if sum(item.file_size for item in files) > MAX_ARTIFACT_BYTES:
             fail("artifact_unpacked_too_large")
