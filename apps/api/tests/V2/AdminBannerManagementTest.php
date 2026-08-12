@@ -58,10 +58,11 @@ final class AdminBannerManagementTest extends TestCase
             $categoryKey
         )['idempotent_replay']);
 
+        $assetKey = 'banner-asset-'.Str::uuid7();
         $asset = $service->uploadBannerAsset(
             $context,
             $this->imageInput('banner.png'),
-            'banner-asset-'.Str::uuid7()
+            $assetKey
         );
         self::assertSame('image/png', $asset['mime_type']);
         $expectedPublicUrl =
@@ -85,6 +86,21 @@ final class AdminBannerManagementTest extends TestCase
             'public_path' => '/api/v2/content/assets/'.$asset['id'],
             'is_public' => true,
         ]);
+        DB::table('idempotency_records')
+            ->where('resource_public_id', $asset['id'])
+            ->update(['response_data' => json_encode(['data' => [
+                'id' => $asset['id'],
+                'public_url' => '/admin/api/v2/banner-management/assets/'.$asset['id'].'/content',
+                'mime_type' => 'image/png',
+                'byte_size' => $asset['byte_size'],
+            ]], JSON_THROW_ON_ERROR)]);
+        $assetReplay = $service->uploadBannerAsset(
+            $context,
+            $this->imageInput('banner.png'),
+            $assetKey
+        );
+        self::assertSame($expectedPublicUrl, $assetReplay['public_url']);
+        self::assertTrue($assetReplay['idempotent_replay']);
 
         $createKey = 'banner-create-'.Str::uuid7();
         $input = [

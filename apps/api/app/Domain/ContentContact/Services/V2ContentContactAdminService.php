@@ -1761,7 +1761,17 @@ final class V2ContentContactAdminService
     private function bannerAssetPublicUrl(string $publicId): string
     {
         $origin = rtrim((string) config('v2_identity.origins.user'), '/');
-        if (filter_var($origin, FILTER_VALIDATE_URL) === false) {
+        $components = parse_url($origin);
+        if (filter_var($origin, FILTER_VALIDATE_URL) === false
+            || ! is_array($components)
+            || ! in_array($components['scheme'] ?? null, ['http', 'https'], true)
+            || ! isset($components['host'])
+            || isset($components['user'])
+            || isset($components['pass'])
+            || isset($components['query'])
+            || isset($components['fragment'])
+            || (($components['path'] ?? '') !== '')
+        ) {
             throw new \RuntimeException('V2 public origin is not configured.');
         }
 
@@ -1960,6 +1970,14 @@ final class V2ContentContactAdminService
         $data = $claim->record->response_data['data'] ?? null;
         if (! is_array($data)) {
             throw new \RuntimeException('Banner replay response is unavailable.');
+        }
+        if (isset($data['asset']) && is_array($data['asset'])
+            && isset($data['asset']['id']) && is_string($data['asset']['id'])) {
+            $data['asset']['public_url'] = $this->bannerAssetPublicUrl($data['asset']['id']);
+        }
+        if (array_key_exists('public_url', $data)
+            && isset($data['id']) && is_string($data['id'])) {
+            $data['public_url'] = $this->bannerAssetPublicUrl($data['id']);
         }
 
         return [...$data, 'idempotent_replay' => true];
