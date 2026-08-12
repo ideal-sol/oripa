@@ -8264,3 +8264,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gacha Versionへ許可Draw Countを追加し、`1`必須、`5／10／100／1000`任意、既存Version Default `[1,5,10]`をDB制約付きで保存する。
 - Admin登録／編集へ共通Checkboxを接続し、Public PresentationとPublic Draw Transactionで同じPublished Version設定を正本として強制する。
 - Public Contractは既存Schemaで表現可能なため変更せず、Admin OpenAPI／Generated Clientだけを同期する。Storefront Artifact更新は行わない。
+- Exact Head `73326e85cd67b83bf941602979b5ae651d9826a6`のRequired ChecksとGitHub-hosted amd64 Image BuildがPASSした。Checksum／OCI Revision／Architectureを検証後、Host BuildなしでPreview DBへMigration 000045だけを適用し、API／Adminだけを更新した。
+- PreviewでAdmin保存・再取得・復元、Public `allowed_draw_counts`、無効Countの直接Draw拒否と非Mutationを確認した。PostgreSQL／Redis／Nginx／V1は変更していない。

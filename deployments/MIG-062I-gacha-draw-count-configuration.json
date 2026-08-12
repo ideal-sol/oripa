@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-062I",
   "risk": "R3",
-  "status": "implementation_verified",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "1f4c452dcfb9631530f7b1d3f400637165646e00",
   "task_policy_sha256": "cff9e1c7add6643789f66788039533e27f45e491e37f7122e39a07f10bb115fd",
@@ -15,12 +15,19 @@
     "database": "oripa_v2_mig061a",
     "migration": "2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
     "architecture": "linux/amd64",
-    "workflow_run": null,
-    "artifact_digest": null,
-    "manifest_sha256": null,
-    "api_image": null,
-    "admin_image": null,
-    "status": "pending",
+    "source_head": "73326e85cd67b83bf941602979b5ae651d9826a6",
+    "workflow_run": 31604800009,
+    "artifact_digest": "17192a1cf8c18a6d0cdd72f7b324d449b636296f529c354d1c30a5691b09dba1",
+    "manifest_sha256": "b71540450b9d78f37a3f81772660867c798faf85f07290a8bc757a723288fe10",
+    "api_image": {
+      "tag": "oripa-v2-api:preview-MIG-062I-73326e85cd67",
+      "image_id": "sha256:e18c12bf7a92dde2d185603b2827c16db4a5be1addc2469f32f006ebe2814858"
+    },
+    "admin_image": {
+      "tag": "oripa-v2-admin:preview-MIG-062I-73326e85cd67",
+      "image_id": "sha256:c9af9b7d1f894abdfee265522f6bdafec70362e3f70fd473952fd8fc5f652ce5"
+    },
+    "status": "deployed_healthy",
     "nginx_change": "NONE",
     "v1_change": "NONE"
   },
@@ -29,9 +36,9 @@
     "backend_targeted": "PASS_46_TESTS",
     "admin_targeted": "PASS_6_TESTS",
     "policy_unit": "PASS_120_TESTS",
-    "policy_gate": "PENDING_FINAL_HEAD",
-    "required_checks": "PENDING",
-    "preview_smoke": "PENDING"
+    "policy_gate": "PASS_SOURCE_HEAD_73326E85",
+    "required_checks": "PASS_SOURCE_HEAD_73326E85_PENDING_FINAL_DOC_HEAD",
+    "preview_smoke": "PASS_ADMIN_SAVE_RESTORE_PUBLIC_INTERSECTION_DIRECT_DRAW_REJECTION"
   },
   "gate_g4": "NOT COMPLETE",
   "gate_g5": "NOT COMPLETE"
