@@ -4,10 +4,10 @@
   "status": "implementation_verified",
   "base_branch": "main",
   "base_sha": "1f4c452dcfb9631530f7b1d3f400637165646e00",
-  "task_policy_sha256": "207ff4561a3b8f63cccd93b8fa823774ee413b6bd5f1adc05f7b36729d686704",
+  "task_policy_sha256": "cff9e1c7add6643789f66788039533e27f45e491e37f7122e39a07f10bb115fd",
   "issue": 247,
   "pull_request": 248,
-  "application_head": "bcde94cf3ab7a3c9c8ea124215e0edba557e9158",
+  "application_head": null,
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062I/",
   "preview": {

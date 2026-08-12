@@ -364,6 +364,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = 100_000;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
+        $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         foreach ($fixture['gacha_prizes'] as &$relation) {
             $relation['initial_inventory'] = 100_000;
         }
