@@ -1819,7 +1819,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->assertJsonCount(0, 'data.blocking_reasons');
 
         Auth::forgetGuards();
-        $this->mutatingRequest(
+        $unpublished = $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
@@ -1913,7 +1913,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         );
 
         Auth::forgetGuards();
-        $unpublished = $this->mutatingRequest(
+        $this->mutatingRequest(
             $token,
             'POST',
             $root.'/unpublish',
