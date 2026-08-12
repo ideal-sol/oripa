@@ -555,6 +555,28 @@ jobs:
                     root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
                 )
 
+    def test_preview_image_pipeline_rejects_arm64_runner_regression(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = root / ".github/workflows/preview-image-build.yml"
+            workflow.write_text(
+                workflow.read_text().replace(
+                    "runs-on: ubuntu-24.04", "runs-on: ubuntu-24.04-arm"
+                )
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "GitHub-hosted x64 runner"
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 

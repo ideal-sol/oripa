@@ -25,6 +25,6 @@
 
 ## Verification
 
-- Focused workflow／artifact／wrapper／policy tests 129件、実Host check、Policy／Quality Gate、Workflow YAML Parse、Python Compile、`git diff --check`がPASSした。
+- Focused workflow／artifact／wrapper／policy tests 130件、実Host check、Policy／Quality Gate、Workflow YAML Parse、Python Compile、`git diff --check`がPASSした。
 - GitHub Required ChecksとFinal HeadのFresh self-review後にCloseoutする。
 - OPS-005ではImage Build／Artifact生成／Runtime Deployを実行しない。
