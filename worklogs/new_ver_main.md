@@ -8225,3 +8225,17 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Backend実在CodeだけのTyped Fulfillment Problem ContractをPublic OpenAPI／Generated Types／Storefront Client／Site Schema／Testkitへ同期した。Runtime、DB、Migration、Nginx、V1、Storefront Repositoryは変更しない。
 - Fresh reviewでalpha.7のAddress Idempotency ResponseへPIIが複製される問題を検出した。alpha.7は未採用のまま上書きせず、Idempotency RecordへPublic IDだけを保持する補正後のalpha.8を最終Artifactとして生成する。
 - Application Head `5c9053ca2434847032a51f8b4f09dd25c8ef8535`からalpha.8を新規生成し、Manifest／4配布物Checksum、Workspace外Frozen Install／ImportがPASSした。既存alpha.6と未採用alpha.7は不変である。
+
+## OPS-004 Non-Production Preview Image Build Pipeline
+
+- Base `f66209549dfc9c8fae4acaa51645710040694d1c`からIssue #239、Branch `ci/OPS-004-preview-image-build-pipeline`、Risk R4で開始した。
+- GitHub-hosted `ubuntu-24.04-arm`でExact PR HeadのAPI／Admin ImageをBuildし、zstd Docker archive、Manifest、Checksumを1日保持Artifactとして搬入するCanonical経路を追加する。
+- Host側はGitHub App wrapperで外側Digestと内側Checksum／Image metadataを検証し、ARM64 Hostで`docker image load`だけを許可する。Production Host Build、Registry、Secret、Cloud Resource、Runtime Deployは追加しない。
+- 現行Preview Hostは`x86_64`であり、ARM64 Image実行と互換しないためload前にFail Closedとする。MIG-062F PR #238／Head `8daba6e6ce547e81c90e767e8fcdfdb2b38b0e2b`は変更しない。
+
+# OPS-005 Preview Image Build Architecture Fix
+
+- Preview machineとDocker daemonをRead-onlyで再測定し、いずれも`x86_64`であることを確認した。
+- OPS-004のPreview Image Build PipelineをGitHub-hosted x64 runner／`linux/amd64`へ最小修正する。
+- exact SHA、PR Head、Required Checks、Artifact digest／checksum、OCI revision、Image ID、Host architectureのFail Closed境界を維持する。
+- Production Host Build、Runtime Deploy、MIG-062F変更は実施しない。
