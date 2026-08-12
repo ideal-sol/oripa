@@ -26,5 +26,6 @@
 ## Verification
 
 - Focused workflow／artifact／wrapper／policy tests 130件、実Host check、Policy／Quality Gate、Workflow YAML Parse、Python Compile、`git diff --check`がPASSした。
+- PR本文のTask metadata、Canonical headings、Changed files／Allowed paths完全一致をPolicy Gate実装で検証しPASSした。
 - GitHub Required ChecksとFinal HeadのFresh self-review後にCloseoutする。
 - OPS-005ではImage Build／Artifact生成／Runtime Deployを実行しない。
