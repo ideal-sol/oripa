@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: #255
-- PR: 初回Push後に作成
+- PR: #256
 - Base: `main@608d59a18215bf16109d7a9765c18f82940f6bde`
 - Branch: `feat/MIG-062M-qa-test-user-draw-integration`
 - Risk: R4
@@ -31,6 +31,7 @@
 - User詳細へテストユーザーON／OFF、無期限状態、理由、最終更新を追加した。既存`qa.draw.manage`、Fresh MFA、OCC、Idempotency、Auditを再利用する。
 - Gacha詳細へ複数Test Userの保証Prize設定、更新、解除、不整合表示を追加した。長いPublic IDを含むMobile formの横溢れを防止した。
 - Admin OpenAPI／Generated ClientへUser mode取得とGacha guarantee管理を同期した。
+- 既存Admin Contract互換のため旧`starts_at`／`ends_at`入力はdeprecated optionalとして受理して無視し、旧Mode Responseの非nullable `ends_at`には無期限を表す互換日時を返す。DB／DomainのCanonical `ends_at`は`null`のまま維持する。
 - Public Draw Response Shapeは通常Resultのまま変更なし。Public OpenAPI、Storefront Client、Site Schema、Testkit、Storefront Artifactは更新しない。
 
 ## Verification
@@ -39,6 +40,7 @@
 - Backend: 対象62 tests／594 assertions PASS。1000連、同時10 Request、負残高0、在庫超過0。
 - Admin: Unit 33 tests PASS、対象Browser 8 tests PASS、Typecheck／Lint／Production Build PASS。
 - Contract: Admin OpenAPI 209 operations bundle PASS、Generated check PASS、Public差分0。
+- Admin Contract compatibility: OpenAPI Breaking Check PASS、対象7 tests／80 assertions PASS。
 - Policy Unit 124 tests、Policy Gate、Quality Gate、PHP syntax、`git diff --check` PASS。
 
 ## Preview／Closeout
