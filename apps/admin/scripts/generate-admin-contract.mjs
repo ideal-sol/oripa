@@ -23,6 +23,7 @@ const operations = {
   getAdminSession: ["get", "/auth/session"],
   listAdminUsers: ["get", "/users"],
   getAdminUser: ["get", "/users/{user_id}"],
+  updateAdminUserState: ["put", "/users/{user_id}/state"],
   listAdminUserTags: ["get", "/user-tags"],
   createAdminUserTag: ["post", "/user-tags"],
   updateAdminUserTag: ["put", "/user-tags/{tag_id}"],
@@ -384,6 +385,8 @@ const requiredSchemas = [
   "AdminSession",
   "AdminUserCollection",
   "AdminUserDetailResponse",
+  "AdminUserStateUpdate",
+  "AdminUserStateMutationResult",
   "AdminUserTagCollection",
   "AdminUserTagMutationResult",
   "AdminUserTagSetResponse",
@@ -667,6 +670,7 @@ export interface AdminUserCollection {
 export interface AdminUserDetail extends AdminUserSummary {
   email: string;
   email_verified_at: string | null;
+  state_revision: number;
   tag_assignment_revision?: number;
   tags?: AdminUserTagAssignment[];
   updated_at: string;
@@ -674,6 +678,25 @@ export interface AdminUserDetail extends AdminUserSummary {
 
 export interface AdminUserDetailResponse {
   data: AdminUserDetail;
+  request_id: string;
+}
+
+export interface AdminUserStateUpdate {
+  status: "active" | "suspended" | "closed";
+  expected_revision: number;
+  reason: string;
+}
+
+export interface AdminUserStateMutation {
+  user_id: string;
+  status: "active" | "suspended" | "closed";
+  state_revision: number;
+  updated_at: string;
+}
+
+export interface AdminUserStateMutationResult {
+  data: AdminUserStateMutation;
+  idempotent_replay: boolean;
   request_id: string;
 }
 

@@ -133,6 +133,8 @@ import {
   type AdminSession,
   type AdminUserCollection,
   type AdminUserDetailResponse,
+  type AdminUserStateMutationResult,
+  type AdminUserStateUpdate,
   type AdminUserGachaHistoryCollection,
   type AdminUserTagAssignmentChange,
   type AdminUserTagCollection,
@@ -260,6 +262,24 @@ export class AdminApiClient {
       );
     }
     return this.request("GET", `/users/${encodeURIComponent(userId)}`, { signal });
+  }
+
+  updateAdminUserState(
+    userId: string,
+    input: AdminUserStateUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserStateMutationResult> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("PUT", `/users/${encodeURIComponent(userId)}/state`, {
+      body: input,
+      idempotencyKey,
+      signal,
+    });
   }
 
   listUserTags(

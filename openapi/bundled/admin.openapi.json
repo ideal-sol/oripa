@@ -8187,6 +8187,64 @@
         }
       }
     },
+    "/users/{user_id}/state": {
+      "put": {
+        "operationId": "updateAdminUserState",
+        "summary": "OwnerまたはAdminがUser状態を変更する",
+        "description": "既存V2 User状態遷移、Fresh Authentication、OCC、Idempotencyを適用する。",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserStateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新したUser状態。",
+            "headers": {
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStateMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/users/{user_id}/tags": {
       "get": {
         "operationId": "getAdminUserTags",
@@ -18143,6 +18201,7 @@
           "identity.line.manage",
           "user.tag.read",
           "user.tag.manage",
+          "user.state.manage",
           "point.ledger.read",
           "point.adjustment.request",
           "point.adjustment.free.approve",
@@ -18447,6 +18506,7 @@
             "required": [
               "email",
               "email_verified_at",
+              "state_revision",
               "updated_at"
             ],
             "properties": {
@@ -18460,6 +18520,10 @@
                   "null"
                 ],
                 "format": "date-time"
+              },
+              "state_revision": {
+                "type": "integer",
+                "minimum": 1
               },
               "tag_assignment_revision": {
                 "type": "integer",
@@ -18478,6 +18542,86 @@
             }
           }
         ]
+      },
+      "AdminUserStateUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "closed"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "AdminUserStateMutation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "status",
+          "state_revision",
+          "updated_at"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "closed"
+            ]
+          },
+          "state_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserStateMutationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUserStateMutation"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
       },
       "AdminUserTag": {
         "type": "object",

@@ -164,6 +164,7 @@ function userDetail(): AdminUserDetail {
     email_verified_at: "2026-08-10T00:00:00Z",
     id: uuid("1"),
     point_balance: { free_balance: 0, paid_balance: 0, total_balance: 0 },
+    state_revision: 1,
     status: "active",
     tag_assignment_revision: 3,
     tags: [{

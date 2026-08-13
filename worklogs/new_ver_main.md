@@ -8275,3 +8275,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Daily Limit、Eligibility、販売状態、設定外Countは既存どおりrequested countへ適用し、残口数以外の端数化は追加しない。
 - Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.10`へ同期し、既存Artifactは上書きしない。
 - Application Head `ed57eca709c9a49fc5bb5ffa9903a84573052077`から`2.0.0-alpha.10` ArtifactをRepository外へ新規生成し、Manifest／4配布物Checksum、Workspace外Clean Install／Importを確認した。
+## MIG-062K ユーザー状態変更
+
+- Base `3f4fe2167513310e4fc34296cfe2ffc18ccf5fc8`からIssue #251、PR #252、Branch `feat/MIG-062K-admin-user-state-management`、Risk R4で開始した。
+- 既存`V2UserState`を再利用し、手動遷移を`active -> suspended／closed`、`suspended -> active／closed`へ限定した。停止／退会時はUser SessionとRemember Deviceを同一Transactionで失効し、既存Auth Serviceも新規Loginを拒否する。
+- `user.state.manage`をOwner／Adminへ付与し、OperatorはRead-onlyとした。Admin User詳細へFresh Authentication、理由、Revision OCC、Idempotencyを備えた状態変更UIを追加した。
+- Migration `000047`は既存Userを`state_revision=1`で保持する。Task DB fresh／rollback／reapply、Backend対象19 tests／305 assertions、Admin対象Unit 35 tests、Typecheck、OpenAPI bundleがPASSした。

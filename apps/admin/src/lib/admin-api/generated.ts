@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: b3db97360351ca03031abfc62e0115946e79d5939268d77d0bcdc210c870e083
+// Contract SHA-256: 8a746ae29b9770252bf097416ddc690e6bcc3f8845270341cdde901cad77209e
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -11,6 +11,7 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.line.manage",
   "user.tag.read",
   "user.tag.manage",
+  "user.state.manage",
   "point.ledger.read",
   "point.adjustment.request",
   "point.adjustment.free.approve",
@@ -134,6 +135,7 @@ export interface AdminUserCollection {
 export interface AdminUserDetail extends AdminUserSummary {
   email: string;
   email_verified_at: string | null;
+  state_revision: number;
   tag_assignment_revision?: number;
   tags?: AdminUserTagAssignment[];
   updated_at: string;
@@ -141,6 +143,25 @@ export interface AdminUserDetail extends AdminUserSummary {
 
 export interface AdminUserDetailResponse {
   data: AdminUserDetail;
+  request_id: string;
+}
+
+export interface AdminUserStateUpdate {
+  status: "active" | "suspended" | "closed";
+  expected_revision: number;
+  reason: string;
+}
+
+export interface AdminUserStateMutation {
+  user_id: string;
+  status: "active" | "suspended" | "closed";
+  state_revision: number;
+  updated_at: string;
+}
+
+export interface AdminUserStateMutationResult {
+  data: AdminUserStateMutation;
+  idempotent_replay: boolean;
   request_id: string;
 }
 
