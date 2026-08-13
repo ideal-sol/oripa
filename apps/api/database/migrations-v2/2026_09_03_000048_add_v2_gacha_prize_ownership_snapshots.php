@@ -50,7 +50,9 @@ return new class extends Migration
         SQL);
         DB::statement(<<<'SQL'
             UPDATE catalog_prizes prize
-            SET gacha_id = owner.gacha_id
+            SET gacha_id = owner.gacha_id,
+                revision = prize.revision + 1,
+                updated_at = CURRENT_TIMESTAMP
             FROM (
                 SELECT relation.prize_id, MIN(version.gacha_id) AS gacha_id
                 FROM catalog_gacha_version_prizes relation
@@ -60,6 +62,10 @@ return new class extends Migration
             ) owner
             WHERE owner.prize_id = prize.id
         SQL);
+        DB::statement(
+            'ALTER TABLE catalog_gacha_version_prizes '.
+            'DISABLE TRIGGER catalog_gacha_version_prizes_protect_published'
+        );
         DB::statement(<<<'SQL'
             UPDATE catalog_gacha_version_prizes relation
             SET rank_id = prize.rank_id,
@@ -77,6 +83,10 @@ return new class extends Migration
             JOIN catalog_ranks rank ON rank.id = prize.rank_id
             WHERE prize.id = relation.prize_id
         SQL);
+        DB::statement(
+            'ALTER TABLE catalog_gacha_version_prizes '.
+            'ENABLE TRIGGER catalog_gacha_version_prizes_protect_published'
+        );
 
         DB::statement('ALTER TABLE catalog_prizes ALTER COLUMN gacha_id SET NOT NULL');
         foreach ([

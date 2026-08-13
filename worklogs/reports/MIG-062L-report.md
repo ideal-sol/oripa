@@ -21,6 +21,7 @@
 ## Migration／Backfill
 
 - Migration `000048`は既存Prizeの関連Versionから所有Gachaを一意に解決し、0件または複数Gachaへ解決される場合はFail Closedする。Version relationの既存値をSnapshotへBackfillする。
+- Preview適用前検証で既存Prize OCC TriggerとPublished child不変Triggerとの不一致を検出した。Prize所有者Backfillは`revision + 1`と`updated_at`を同時更新し、Published relationのSnapshot初期充填中だけ既存Canonical Migrationと同じ手順で該当Triggerを同一Transaction内で無効化・再有効化するよう補正した。IdentityとProbability参照は変更しない。失敗MigrationはTransaction Rollbackされ、Preview DBは変更されなかった。
 - Preview事前CharacterizationではCross-Gacha共有Prize 1件を検出した。人間承認後、関連がSynthetic／QAのみであることを確認し、通常Draw履歴を持つ`TEST 売り切れ`とMIG-062J Fixtureを保持したまま、参照のないSynthetic Gacha 5件だけを整合的に削除した。再確認結果は`Cross-Gacha共有Prize = 0`。
 - Production MigrationへSynthetic例外、Prize Public ID特例、破壊的分離処理は追加していない。
 
