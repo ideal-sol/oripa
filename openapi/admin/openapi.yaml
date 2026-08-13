@@ -6557,10 +6557,20 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+        starts_at:
+          type: [string, 'null']
+          format: date-time
+          deprecated: true
+          description: 後方互換用。無期限Modeでは入力値を使用しない。
+        ends_at:
+          allOf:
+            - $ref: '#/components/schemas/UtcDateTime'
+          deprecated: true
+          description: 後方互換用。無期限Modeでは入力値を使用しない。
     QaMode:
       type: object
       additionalProperties: false
-      required: [id, revision, is_enabled, is_active, reason, starts_at, ends_at, disabled_at, updated_at]
+      required: [id, is_enabled, is_active, reason, starts_at, ends_at, disabled_at]
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
@@ -6578,8 +6588,8 @@ components:
           type: [string, 'null']
           format: date-time
         ends_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/UtcDateTime'
+          description: 後方互換用。無期限Modeでは最大互換日時を返す。
         disabled_at:
           type: [string, 'null']
           format: date-time
@@ -6712,7 +6722,7 @@ components:
     QaExecutionSummary:
       type: object
       additionalProperties: false
-      required: [id, plan_id, assignment_id, guarantee_assignment_id, user_id, gacha_id, gacha_version_id, draw_request_id, executed_count, status, executed_at]
+      required: [id, user_id, gacha_id, draw_request_id, executed_count, executed_at]
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
@@ -6960,7 +6970,7 @@ components:
     QaTestUserSummary:
       type: object
       additionalProperties: false
-      required: [user_id, user_state, mode_id, revision, is_enabled, is_active, reason, starts_at, ends_at, updated_at]
+      required: [user_id, user_state, mode_id, revision, is_enabled, is_active, starts_at, ends_at]
       properties:
         user_id: {$ref: '#/components/schemas/OpaqueId'}
         user_state: {type: string}

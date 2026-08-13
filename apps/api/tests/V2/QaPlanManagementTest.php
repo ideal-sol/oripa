@@ -130,9 +130,15 @@ final class QaPlanManagementTest extends TestCase
             $context,
             $primary->public_id,
             'qa-mode-primary-key',
-            ['reason' => 'Release verification']
+            [
+                'reason' => 'Release verification',
+                'starts_at' => '2026-08-13T00:00:00Z',
+                'ends_at' => '2026-08-14T00:00:00Z',
+            ]
         );
         self::assertFalse($mode['idempotent_replay']);
+        self::assertNull(DB::table('qa_test_user_modes')
+            ->where('user_id', $primary->id)->value('ends_at'));
         $service->saveTestUser(
             $context,
             $secondary->public_id,
@@ -426,7 +432,14 @@ final class QaPlanManagementTest extends TestCase
     public function test_http_routes_require_admin_realm_and_owner_permission(): void
     {
         $user = $this->user();
-        $ownerToken = $this->sessionToken($this->admin(V2AdminRole::Owner));
+        $owner = $this->admin(V2AdminRole::Owner);
+        $ownerToken = $this->sessionToken($owner);
+        app(V2QaPlanManagementService::class)->saveTestUser(
+            $this->context($owner),
+            $user->public_id,
+            'qa-http-mode-compatibility',
+            ['reason' => 'HTTP compatibility verification']
+        );
         $response = $this->asAdmin($ownerToken)
             ->withServerVariables(['HTTPS' => 'on'])
             ->withHeaders([
@@ -446,7 +459,8 @@ final class QaPlanManagementTest extends TestCase
             ])
             ->getJson('/admin/api/v2/users/'.$user->public_id.'/qa-mode')
             ->assertOk()
-            ->assertJsonPath('user_id', $user->public_id);
+            ->assertJsonPath('user_id', $user->public_id)
+            ->assertJsonPath('mode.ends_at', '9999-12-31T23:59:59Z');
         self::assertStringContainsString('private', $modeResponse->headers->get('Cache-Control'));
         $guarantees = $this->asAdmin($ownerToken)
             ->withServerVariables(['HTTPS' => 'on'])

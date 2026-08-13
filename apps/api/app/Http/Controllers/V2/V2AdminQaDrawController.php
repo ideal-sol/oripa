@@ -26,7 +26,9 @@ final class V2AdminQaDrawController
     public function showMode(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, fn (): array =>
-            $this->service->mode($this->context($request), $userId));
+            $this->legacyModeEnvelope(
+                $this->service->mode($this->context($request), $userId)
+            ));
     }
 
     public function saveMode(Request $request, string $userId): JsonResponse
@@ -37,20 +39,37 @@ final class V2AdminQaDrawController
                 throw $this->invalid();
             }
 
-            return $this->service->saveMode(
+            return $this->legacyMode($this->service->saveMode(
                 $this->context($request),
                 $userId,
                 $reason
-            );
+            ));
         });
     }
 
     public function disableMode(Request $request, string $userId): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->disableMode(
-            $this->context($request),
-            $userId
+        return $this->handle($request, fn (): array => $this->legacyMode(
+            $this->service->disableMode($this->context($request), $userId)
         ));
+    }
+
+    /** @param array<string, mixed> $envelope */
+    private function legacyModeEnvelope(array $envelope): array
+    {
+        if (is_array($envelope['mode'] ?? null)) {
+            $envelope['mode'] = $this->legacyMode($envelope['mode']);
+        }
+
+        return $envelope;
+    }
+
+    /** @param array<string, mixed> $mode */
+    private function legacyMode(array $mode): array
+    {
+        $mode['ends_at'] ??= '9999-12-31T23:59:59Z';
+
+        return $mode;
     }
 
     public function plans(Request $request, string $userId): JsonResponse

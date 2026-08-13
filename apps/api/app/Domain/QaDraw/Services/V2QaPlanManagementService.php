@@ -334,7 +334,7 @@ final class V2QaPlanManagementService
         array $input
     ): array {
         $this->freshMfa->authorizeQa($context);
-        $this->assertKeys($input, ['revision', 'reason']);
+        $this->assertKeys($input, ['revision', 'reason', 'starts_at', 'ends_at']);
 
         return $this->mutate(
             $context,

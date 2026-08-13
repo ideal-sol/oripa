@@ -16310,6 +16310,24 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "deprecated": true,
+            "description": "後方互換用。無期限Modeでは入力値を使用しない。"
+          },
+          "ends_at": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UtcDateTime"
+              }
+            ],
+            "deprecated": true,
+            "description": "後方互換用。無期限Modeでは入力値を使用しない。"
           }
         }
       },
@@ -16318,14 +16336,12 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "revision",
           "is_enabled",
           "is_active",
           "reason",
           "starts_at",
           "ends_at",
-          "disabled_at",
-          "updated_at"
+          "disabled_at"
         ],
         "properties": {
           "id": {
@@ -16353,11 +16369,8 @@
             "format": "date-time"
           },
           "ends_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+            "$ref": "#/components/schemas/UtcDateTime",
+            "description": "後方互換用。無期限Modeでは最大互換日時を返す。"
           },
           "disabled_at": {
             "type": [
@@ -16621,15 +16634,10 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "plan_id",
-          "assignment_id",
-          "guarantee_assignment_id",
           "user_id",
           "gacha_id",
-          "gacha_version_id",
           "draw_request_id",
           "executed_count",
-          "status",
           "executed_at"
         ],
         "properties": {
@@ -17345,10 +17353,8 @@
           "revision",
           "is_enabled",
           "is_active",
-          "reason",
           "starts_at",
-          "ends_at",
-          "updated_at"
+          "ends_at"
         ],
         "properties": {
           "user_id": {
