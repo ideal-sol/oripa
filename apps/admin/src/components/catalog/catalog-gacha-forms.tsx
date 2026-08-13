@@ -181,9 +181,9 @@ export function CatalogGachaCoreForm({
   return (
     <section className="catalog-core-form-card" aria-labelledby="gacha-core-heading">
       <header>
-        <span className="eyebrow">Draft Gacha</span>
+        <span className="eyebrow">下書きガチャ</span>
         <h2 id="gacha-core-heading">{mode === "create" ? "ガチャ登録" : "ガチャ編集"}</h2>
-        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : "変更は編集Draftへ保存され、公開済みVersionには直接反映されません。"}</p>
+        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : "変更は編集中データへ保存され、公開済み内容には直接反映されません。"}</p>
       </header>
       <form className="catalog-mutation-form" onSubmit={submit}>
         <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
@@ -206,7 +206,7 @@ export function CatalogGachaCoreForm({
         </div>
         <FieldError message={errors.price ?? errors.total ?? errors.daily} />
         <fieldset className="catalog-choice-fieldset">
-          <legend>許可するDraw Count</legend>
+          <legend>許可する抽選回数</legend>
           {([1, 5, 10, 100, 1000] as const).map((count) => (
             <label className="catalog-checkbox" key={count}>
               <input
@@ -235,7 +235,7 @@ export function CatalogGachaCoreForm({
         <TextArea label="説明" onChange={(description) => setDraft({ ...draft, description })} value={draft.description ?? ""} />
         <TextArea label="注意事項" onChange={(notices) => setDraft({ ...draft, notices })} value={draft.notices ?? ""} />
         {errors.form ? <FormError message={errors.form} /> : null}
-        <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}{mode === "create" ? "下書きを登録" : "編集Draftへ保存"}</button></div>
+        <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}{mode === "create" ? "下書きを登録" : "編集内容を保存"}</button></div>
       </form>
     </section>
   );
@@ -383,7 +383,7 @@ export function CatalogGachaMasterForm({
   return (
     <DialogShell
       busy={submitting}
-      heading={mode === "create" ? "Gacha Master新規作成" : "Gacha Master編集"}
+      heading={mode === "create" ? "ガチャ基本情報を新規作成" : "ガチャ基本情報を編集"}
       headingRef={heading}
       onCancel={cancel}
     >
@@ -493,7 +493,7 @@ export function CatalogGachaVersionForm({
         setAssets(assetResponse.items.filter((item) => !item.is_archived));
         setPrizes(prizeResponse.items.filter((item) => !item.is_archived));
       })
-      .catch(() => setError("Prize／Assetの選択肢を取得できませんでした。"));
+      .catch(() => setError("景品／表示素材の選択肢を取得できませんでした。"));
     return () => controller.abort();
   }, []);
   useDirtyGuard(dirty);
@@ -502,7 +502,7 @@ export function CatalogGachaVersionForm({
     event.preventDefault();
     setError(null);
     if (!validVersionDraft(draft)) {
-      setError("必須項目、公開期間、Prizeの重複と数量を確認してください。");
+      setError("必須項目、公開期間、景品の重複と数量を確認してください。");
       return;
     }
     setSubmitting(true);
@@ -532,31 +532,31 @@ export function CatalogGachaVersionForm({
   return (
     <DialogShell
       busy={submitting}
-      heading={mode === "create" ? "Draft Version新規作成" : "Draft Version編集"}
+      heading={mode === "create" ? "下書きバージョンを新規作成" : "下書きバージョンを編集"}
       headingRef={heading}
       onCancel={cancel}
       wide
     >
       <form className="catalog-mutation-form" onSubmit={submit}>
         <TextField
-          label="Title"
+          label="タイトル"
           maxLength={191}
           onChange={(title) => setDraft({ ...draft, title })}
           value={draft.title}
         />
         <TextArea
-          label="Description"
+          label="説明"
           onChange={(description) => setDraft({ ...draft, description })}
           value={draft.description ?? ""}
         />
         <TextArea
-          label="Notice"
+          label="注意事項"
           onChange={(notices) => setDraft({ ...draft, notices })}
           value={draft.notices ?? ""}
         />
         <div className="catalog-form-grid">
           <NumberField
-            label="販売Point"
+            label="消費ポイント"
             min={1}
             onChange={(pricePoints) => setDraft({ ...draft, pricePoints })}
             value={draft.pricePoints}
@@ -569,7 +569,7 @@ export function CatalogGachaVersionForm({
           />
         </div>
         <label>
-          Presentation Asset
+            表示素材
           <select
             onChange={(event) =>
               setDraft({ ...draft, presentationAssetId: event.target.value || null })
@@ -601,7 +601,7 @@ export function CatalogGachaVersionForm({
         </div>
         <fieldset className="catalog-prize-fieldset">
           <div className="catalog-fieldset-heading">
-            <legend>Prize Relation</legend>
+            <legend>景品構成</legend>
             <button
               className="secondary-button"
               onClick={() =>
@@ -620,13 +620,13 @@ export function CatalogGachaVersionForm({
               type="button"
             >
               <Plus size={16} aria-hidden="true" />
-              Prize追加
+              景品追加
             </button>
           </div>
           {draft.prizes.map((item, index) => (
             <div className="catalog-prize-row" key={`${index}-${item.prizeId}`}>
               <label>
-                Prize
+                景品
                 <select
                   onChange={(event) => updatePrize(index, { prizeId: event.target.value })}
                   required
@@ -705,7 +705,7 @@ function DialogShell({
       >
         <header className="dialog-header">
           <div>
-            <span className="eyebrow">Gacha Draft Management</span>
+            <span className="eyebrow">ガチャ下書き管理</span>
             <h2 id="catalog-gacha-form-heading" ref={headingRef} tabIndex={-1}>
               {heading}
             </h2>

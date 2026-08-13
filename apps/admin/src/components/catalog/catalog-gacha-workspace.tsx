@@ -56,6 +56,7 @@ type ViewState =
   | {
       kind: "gacha";
       gacha: AdminCatalogGacha;
+      publishedVersion: AdminCatalogGachaVersion | null;
       versions: AdminCatalogGachaVersion[];
       versionsNextCursor: string | null;
     }
@@ -143,7 +144,7 @@ export function CatalogGachaWorkspace({
   const currentVersion = state.kind === "version" ? state.version : null;
   const title =
     state.kind === "version"
-      ? `${state.gacha.code} / Version ${state.version.version_number}`
+      ? `${state.gacha.code} / バージョン ${state.version.version_number}`
       : currentGacha?.current_version?.title ?? currentGacha?.code ?? "ガチャ管理";
 
   async function submitCore(draft: GachaCoreDraft) {
@@ -269,7 +270,9 @@ export function CatalogGachaWorkspace({
   }
 
   async function cloneVersion(version: AdminCatalogGachaVersion) {
-    if (!currentGacha || !window.confirm(`Version ${version.version_number}をDraft Cloneしますか。`)) {
+    if (!currentGacha || !window.confirm(
+      `バージョン ${version.version_number}から編集用データを作成しますか。`,
+    )) {
       return;
     }
     const fingerprint = JSON.stringify({
@@ -318,6 +321,7 @@ export function CatalogGachaWorkspace({
             : {
                 kind: "gacha",
                 gacha: result.data,
+                publishedVersion: state.kind === "gacha" ? state.publishedVersion : null,
                 versions: state.kind === "gacha" ? state.versions : [],
                 versionsNextCursor:
                   state.kind === "gacha" ? state.versionsNextCursor : null,
@@ -374,7 +378,7 @@ export function CatalogGachaWorkspace({
         <ProtectedAdminRoute permission="catalog.manage">
           <div className="workspace">
             <CatalogBreadcrumb detail="登録" section={section} />
-            <AdminPageHeader eyebrow="Catalog" title="ガチャ登録" description="Gacha Masterと初期Draft Versionを一度に作成します。" />
+            <AdminPageHeader eyebrow="ガチャ管理" title="ガチャ登録" description="基本情報と初期の下書きを一度に作成します。" />
             <CatalogGachaCoreForm onCancel={() => router.push("/catalog/gachas")} onSubmit={submitCore} />
           </div>
         </ProtectedAdminRoute>
@@ -387,10 +391,10 @@ export function CatalogGachaWorkspace({
       <AdminShell>
         <ProtectedAdminRoute permission="catalog.manage">
           <div className="workspace">
-            <CatalogBreadcrumb detail="Master編集" section={section} />
+            <CatalogBreadcrumb detail="基本情報を編集" section={section} />
             <AdminPageHeader
-              description="全基本項目を編集Draftへ保存します。公開済みVersionは変更しません。"
-              eyebrow="Catalog"
+              description="全基本項目を編集中データへ保存します。公開済み内容は変更しません。"
+              eyebrow="ガチャ管理"
               title="ガチャ編集"
             />
             {state.kind === "loading" ? <LoadingState /> : null}
@@ -441,10 +445,10 @@ export function CatalogGachaWorkspace({
           <AdminPageHeader
             description={
               state.kind === "version"
-                ? "Published Versionは参照専用です。Probabilityや公開操作は行いません。"
-                : "Gacha MasterとDraft Versionを管理します。"
+                ? "公開済みバージョンは参照専用です。抽選確率や公開操作は行いません。"
+                : "現在公開中の内容と編集中の内容を分けて確認できます。"
             }
-            eyebrow="Catalog"
+            eyebrow="ガチャ管理"
             title={title}
             action={
               canManage ? (
@@ -528,6 +532,7 @@ export function CatalogGachaWorkspace({
               canManage={canManage}
               canGoBack={versionCursorIndex > 0}
               gacha={state.gacha}
+              publishedVersion={state.publishedVersion}
               nextCursor={state.versionsNextCursor}
               onBack={() =>
                 setVersionCursorIndex((value) => Math.max(0, value - 1))
@@ -565,7 +570,7 @@ export function CatalogGachaWorkspace({
               name={
                 confirmMode === "archive-master"
                   ? currentGacha.code
-                  : `Version ${currentVersion?.version_number ?? ""}`
+                  : `バージョン ${currentVersion?.version_number ?? ""}`
               }
               onCancel={() => setConfirmMode(null)}
               onConfirm={confirmArchive}
@@ -610,11 +615,11 @@ function HeaderActions({
       <div className="catalog-header-actions">
         <Link className="secondary-button" href={`/gachas/${gachaIdentifier(currentGacha)}/edit`}>
           <Pencil size={16} aria-hidden="true" />
-          Master編集
+          基本情報を編集
         </Link>
         <button className="danger-button" onClick={onArchiveMaster} type="button">
           <Archive size={16} aria-hidden="true" />
-          Archive
+          アーカイブ
         </button>
       </div>
     );
@@ -626,17 +631,17 @@ function HeaderActions({
       {mutable ? (
         <button className="secondary-button" onClick={onEditVersion} type="button">
           <Pencil size={16} aria-hidden="true" />
-          Draft編集
+          下書きを編集
         </button>
       ) : null}
       <button className="secondary-button" disabled={disabled} onClick={onClone} type="button">
         <Copy size={16} aria-hidden="true" />
-        Clone
+        編集用データを作成
       </button>
       {mutable ? (
         <button className="danger-button" onClick={onDiscardVersion} type="button">
           <Archive size={16} aria-hidden="true" />
-          Discard
+          下書きを破棄
         </button>
       ) : null}
     </div>
@@ -731,6 +736,7 @@ function GachaDetail({
   onBack,
   onClone,
   onNext,
+  publishedVersion,
   versions,
 }: {
   canManage: boolean;
@@ -740,6 +746,7 @@ function GachaDetail({
   onBack: () => void;
   onClone: (version: AdminCatalogGachaVersion) => void;
   onNext: () => void;
+  publishedVersion: AdminCatalogGachaVersion | null;
   versions: AdminCatalogGachaVersion[];
 }) {
   const editableDraft = versions
@@ -758,7 +765,7 @@ function GachaDetail({
         </header>
         <PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} />
         <dl>
-          <Detail label="Public ID" value={gacha.public_code ?? "未発行"} />
+          <Detail label="公開ID" value={gacha.public_code ?? "未発行"} />
           <Detail label="ガチャタイトル" value={gacha.current_version?.title ?? "未設定"} />
           <Detail label="カテゴリ" value={gacha.category.name} />
           <Detail label="タグ" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
@@ -768,36 +775,54 @@ function GachaDetail({
           <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
           <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
           {gacha.current_version?.audience_code === "first_time_users" ? <Detail label="初回ユーザー期間" value={`${gacha.current_version.first_time_eligible_days ?? 7}日（24時間単位）`} /> : null}
-          <Detail label="許可Draw Count" value={(gacha.current_version?.allowed_draw_counts ?? [1, 5, 10]).join(" / ")} />
+          <Detail label="許可抽選回数" value={(gacha.current_version?.allowed_draw_counts ?? [1, 5, 10]).join(" / ")} />
           <Detail label="開始日時" value={gacha.current_version?.publish_start_at ?? "未設定"} />
           <Detail label="終了日時" value={gacha.current_version?.publish_end_at ?? "無期限"} />
           <Detail label="説明" value={gacha.current_version?.description ?? "未設定"} />
           <Detail label="注意事項" value={gacha.current_version?.notices ?? "未設定"} />
         </dl>
       </section>
-      <CatalogGachaRankPrizeManager
-        canManage={canManage}
-        gachaId={gachaIdentifier(gacha)}
-        version={editableDraft}
-      />
+      {publishedVersion ? (
+        <CatalogGachaRankPrizeManager
+          canManage={false}
+          gachaId={gachaIdentifier(gacha)}
+          heading="現在公開中の景品ラインナップ"
+          version={publishedVersion}
+          versionLabel={`公開済み バージョン ${publishedVersion.version_number}`}
+        />
+      ) : (
+        <section className="catalog-rank-prize-section">
+          <h2>現在公開中の景品ラインナップ</h2>
+          <p className="catalog-version-empty">現在公開中の内容はありません。</p>
+        </section>
+      )}
+      {editableDraft ? (
+        <CatalogGachaRankPrizeManager
+          canManage={canManage}
+          gachaId={gachaIdentifier(gacha)}
+          heading="編集中のランク／景品"
+          version={editableDraft}
+          versionLabel={`下書き バージョン ${editableDraft.version_number}`}
+        />
+      ) : null}
       <section className="catalog-version-section">
         <header>
           <div>
-            <span className="eyebrow">Versions</span>
-            <h2>Draft／Published Version</h2>
+            <span className="eyebrow">変更履歴</span>
+            <h2>バージョン履歴</h2>
           </div>
         </header>
         {versions.length === 0 ? (
-          <p className="catalog-version-empty">Versionはありません。</p>
+          <p className="catalog-version-empty">変更履歴はありません。</p>
         ) : (
           <div className="catalog-table-wrap">
             <table className="catalog-table">
               <thead>
                 <tr>
-                  <th>Version</th>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>販売Point／口数</th>
+                  <th>バージョン</th>
+                  <th>タイトル</th>
+                  <th>状態</th>
+                  <th>消費ポイント／口数</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -806,7 +831,7 @@ function GachaDetail({
                   <tr key={version.id}>
                     <td>v{version.version_number}</td>
                     <td>{version.title}</td>
-                    <td>{version.is_archived ? "archived" : version.status}</td>
+                    <td>{versionStatusLabel(version)}</td>
                     <td>
                       {version.price_points.toLocaleString()} /{" "}
                       {version.total_count.toLocaleString()}
@@ -822,7 +847,8 @@ function GachaDetail({
                         <button
                           className="icon-button"
                           onClick={() => onClone(version)}
-                          title="Draft Clone"
+                          aria-label={`バージョン ${version.version_number}から編集用データを作成`}
+                          title="編集用データを作成"
                           type="button"
                         >
                           <Copy size={16} aria-hidden="true" />
@@ -883,22 +909,22 @@ function VersionDetail({
     <div className="catalog-gacha-version-layout">
       <section className="catalog-detail catalog-gacha-detail">
         <dl>
-          <Detail label="Public ID" value={version.id} />
-          <Detail label="Version" value={String(version.version_number)} />
-          <Detail label="Status" value={version.is_archived ? "archived" : version.status} />
-          <Detail label="Title" value={version.title} />
-          <Detail label="Description" value={version.description ?? "未設定"} />
-          <Detail label="Notice" value={version.notices ?? "未設定"} />
-          <Detail label="販売Point" value={version.price_points.toLocaleString()} />
+          <Detail label="公開ID" value={version.id} />
+          <Detail label="バージョン" value={String(version.version_number)} />
+          <Detail label="状態" value={versionStatusLabel(version)} />
+          <Detail label="タイトル" value={version.title} />
+          <Detail label="説明" value={version.description ?? "未設定"} />
+          <Detail label="注意事項" value={version.notices ?? "未設定"} />
+          <Detail label="消費ポイント" value={version.price_points.toLocaleString()} />
           <Detail label="販売口数" value={version.total_count.toLocaleString()} />
           <Detail label="公開開始" value={version.publish_start_at} />
           <Detail label="公開終了" value={version.publish_end_at ?? "無期限"} />
           <Detail
-            label="Presentation Asset"
+            label="表示素材"
             value={version.presentation_asset?.alt_text ?? "未設定"}
           />
           <Detail
-            label="Probability"
+            label="抽選確率"
             value={
               version.published_probability_version
                 ? `v${version.published_probability_version.version_number}（選択済み）`
@@ -906,7 +932,7 @@ function VersionDetail({
             }
           />
           <Detail
-            label="Prize"
+            label="景品"
             value={version.prizes
               .map(
                 (item) =>
@@ -914,13 +940,13 @@ function VersionDetail({
               )
               .join(" / ")}
           />
-          <Detail label="Revision" value={String(version.revision)} />
+          <Detail label="リビジョン" value={String(version.revision)} />
         </dl>
         <Link
           className="secondary-button catalog-probability-link"
           href={`/catalog/gachas/${gachaId}/versions/${version.id}/probability-versions`}
         >
-          Probability Editor
+          抽選確率を編集
         </Link>
       </section>
       <GachaPublishPreflightPanel
@@ -980,9 +1006,17 @@ async function loadState(
     },
     signal,
   );
+  const publishedVersion = gacha.published_version
+    ? (await client.getCatalogGachaVersion(
+        gachaId,
+        gacha.published_version.id,
+        signal,
+      )).data
+    : null;
   return {
     kind: "gacha",
     gacha,
+    publishedVersion,
     versions: versions.items,
     versionsNextCursor: versions.next_cursor,
   };
@@ -1015,4 +1049,11 @@ export function isEditableGachaVersion(
   version: Pick<AdminCatalogGachaVersion, "status" | "is_archived">,
 ): boolean {
   return version.status === "draft" && !version.is_archived;
+}
+
+function versionStatusLabel(
+  version: Pick<AdminCatalogGachaVersion, "status" | "is_archived">,
+): string {
+  if (version.is_archived) return "アーカイブ";
+  return version.status === "published" ? "公開済み" : "下書き";
 }

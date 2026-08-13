@@ -1,0 +1,32 @@
+{
+  "task_id": "MIG-062L",
+  "risk": "R4",
+  "status": "preview_deployed",
+  "base_branch": "main",
+  "base_sha": "a505b36d0a812979a77fc4831bb632d03ad8b782",
+  "task_policy_sha256": "5b564357c977bc75cfdab5dee9cff491ebdb4b50efa4b164e9c5f68d17a5a8d8",
+  "issue": 253,
+  "pull_request": 254,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062L/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
+    "architecture": "linux/amd64",
+    "source_head": "37c099f69242143097fead94c6a8aefba45e5a76",
+    "workflow_run": 31683987379,
+    "artifact_sha256": "3b59cef600ea567a6ae8bd194b6d52a6e037ee38500e429d97841ec37b121074",
+    "manifest_sha256": "46cb084f6799775ca48d99b220a70c428509246b854ba3bb3183c8ec56e392e0",
+    "api_image_before": "sha256:9028c550a7995bf1d5fd690b8214586f359a0410d8e10c70e6cdeab769d5b380",
+    "api_image_after": "sha256:2be2f2246c71f182bb7c4ca499d83392c657e0777385086d747dea2efc0d6d62",
+    "admin_image_before": "sha256:d532923327163b9d17cc6941aeec0456914dda5efff91f62c481fb64f7f24cc8",
+    "admin_image_after": "sha256:b0b18e4de3f5eff2c7e4ecf4070d27c55e01b9ea8c95c195b1968dbc1666f4be",
+    "migration_count": 48,
+    "status": "healthy",
+    "nginx_change": "NONE",
+    "v1_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

@@ -75,9 +75,8 @@ final class AdminCatalogMutationTest extends TestCase
                 'POST',
                 '/admin/api/v2/catalog/prizes',
                 $this->prizeInput($role->value.'-prize', $asset['id'])
-            )->assertCreated()
-                ->assertJsonPath('data.presentation_asset.id', $asset['id'])
-                ->assertJsonPath('data.revision', 1);
+            )->assertConflict()
+                ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
         }
 
         $operator = $this->createAdminSession(V2AdminRole::Operator);
@@ -475,7 +474,7 @@ final class AdminCatalogMutationTest extends TestCase
         ]);
     }
 
-    public function test_prize_and_asset_create_update_archive_use_shared_mutation_boundary(): void
+    public function test_unscoped_prize_is_rejected_and_asset_mutations_remain_available(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         $asset = $this->mutatingRequest(
@@ -491,32 +490,14 @@ final class AdminCatalogMutationTest extends TestCase
             ->json('data');
 
         Auth::forgetGuards();
-        $prize = $this->mutatingRequest(
+        $this->mutatingRequest(
             $token,
             'POST',
             '/admin/api/v2/catalog/prizes',
             $this->prizeInput('created-prize', $asset['id']),
             'prize-create-key'
-        )->assertCreated()
-            ->assertJsonPath('data.presentation_asset.id', $asset['id'])
-            ->assertJsonPath('data.rank.id', '0198a001-0000-7000-8000-000000000004')
-            ->assertJsonPath('data.revision', 1)
-            ->json('data');
-
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $token,
-            'PUT',
-            '/admin/api/v2/catalog/prizes/'.$prize['id'],
-            [
-                ...array_diff_key($this->prizeInput('ignored', $asset['id']), ['code' => true]),
-                'expected_revision' => 1,
-                'name' => "Cafe\u{0301} Prize",
-            ],
-            'prize-update-key'
-        )->assertOk()
-            ->assertJsonPath('data.name', 'Café Prize')
-            ->assertJsonPath('data.revision', 2);
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -533,14 +514,6 @@ final class AdminCatalogMutationTest extends TestCase
         $this->mutatingRequest(
             $token,
             'POST',
-            '/admin/api/v2/catalog/prizes/'.$prize['id'].'/archive',
-            ['expected_revision' => 2],
-            'prize-archive-key'
-        )->assertOk()->assertJsonPath('data.is_archived', true);
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $token,
-            'POST',
             '/admin/api/v2/catalog/presentation-assets/'.$asset['id'].'/archive',
             ['expected_revision' => 2],
             'asset-archive-key'
@@ -550,30 +523,31 @@ final class AdminCatalogMutationTest extends TestCase
     public function test_published_prize_and_asset_mutation_is_rejected_without_side_effects(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Admin);
-        foreach ([
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/prizes/0198a001-0000-7000-8000-000000000009',
             [
-                '/admin/api/v2/catalog/prizes/0198a001-0000-7000-8000-000000000009',
-                [
-                    'expected_revision' => 1,
-                    'rank_id' => '0198a001-0000-7000-8000-000000000003',
-                    'presentation_asset_id' => '0198a001-0000-7000-8000-000000000007',
-                    'name' => 'Published Prize Changed',
-                    'description' => 'Rejected',
-                    'display_price' => 10000,
-                    'exchange_points' => 8000,
-                    'is_visible' => true,
-                ],
-            ],
-            [
-                '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000007',
-                ['expected_revision' => 1, 'alt_text' => 'Changed', 'is_public' => true],
-            ],
-        ] as [$uri, $payload]) {
-            Auth::forgetGuards();
-            $this->mutatingRequest($token, 'PUT', $uri, $payload)
-                ->assertConflict()
-                ->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
-        }
+                'expected_revision' => 1,
+                'rank_id' => '0198a001-0000-7000-8000-000000000003',
+                'presentation_asset_id' => '0198a001-0000-7000-8000-000000000007',
+                'name' => 'Published Prize Changed',
+                'description' => 'Rejected',
+                'display_price' => 10000,
+                'exchange_points' => 8000,
+                'is_visible' => true,
+            ]
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000007',
+            ['expected_revision' => 1, 'alt_text' => 'Changed', 'is_public' => true]
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
         self::assertDatabaseHas('catalog_prizes', [
             'public_id' => '0198a001-0000-7000-8000-000000000009',
             'display_name' => 'Fixture S景品',

@@ -12,6 +12,7 @@ final class CatalogPrize extends Model
     protected $fillable = [
         'public_id',
         'code',
+        'gacha_id',
         'rank_id',
         'presentation_asset_id',
         'display_name',

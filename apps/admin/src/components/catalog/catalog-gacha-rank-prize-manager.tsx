@@ -17,12 +17,17 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 export function CatalogGachaRankPrizeManager({
   canManage,
   gachaId,
+  heading = "ランク／景品管理",
+  versionLabel,
   version,
 }: {
   canManage: boolean;
   gachaId: string;
+  heading?: string;
+  versionLabel?: string;
   version: AdminCatalogGachaVersion | null;
 }) {
+  const headingId = useId();
   const client = useMemo(() => new AdminApiClient(), []);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -78,9 +83,9 @@ export function CatalogGachaRankPrizeManager({
 
   if (!version) {
     return (
-      <section className="catalog-rank-prize-section" aria-labelledby="rank-prize-title">
-        <h2 id="rank-prize-title">ランク／景品管理</h2>
-        <p className="catalog-version-empty">編集可能なDraft Versionがありません。</p>
+      <section className="catalog-rank-prize-section" aria-labelledby={headingId}>
+        <h2 id={headingId}>{heading}</h2>
+        <p className="catalog-version-empty">対象データはありません。</p>
       </section>
     );
   }
@@ -169,11 +174,11 @@ export function CatalogGachaRankPrizeManager({
   }
 
   return (
-    <section className="catalog-rank-prize-section" aria-labelledby="rank-prize-title">
+    <section className="catalog-rank-prize-section" aria-labelledby={headingId}>
       <header className="catalog-rank-prize-heading">
         <div>
-          <span className="eyebrow">Draft Version {version.version_number}</span>
-          <h2 id="rank-prize-title">ランク／景品管理</h2>
+          <span className="eyebrow">{versionLabel ?? `バージョン ${version.version_number}`}</span>
+          <h2 id={headingId}>{heading}</h2>
         </div>
         {canManage ? (
           <button className="secondary-button" onClick={() => setRankDialog(true)} type="button">

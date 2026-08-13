@@ -221,18 +221,19 @@ final class AdminGachaDraftManagementTest extends TestCase
             '/admin/api/v2/catalog/gachas',
             $this->gachaInput('draft-version-gacha')
         )->assertCreated()->json('data');
+        $ownedPrizeId = $this->createOwnedPrize($gacha['id']);
 
         Auth::forgetGuards();
         $draft = $this->mutatingRequest(
             $token,
             'POST',
             '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/versions',
-            $this->versionInput('Draft Version')
+            $this->versionInput('Draft Version', $ownedPrizeId)
         )->assertCreated()
             ->assertJsonPath('data.version_number', 1)
             ->assertJsonPath('data.status', 'draft')
             ->assertJsonPath('data.revision', 1)
-            ->assertJsonPath('data.prizes.0.prize.id', self::PRIZE_ID)
+            ->assertJsonPath('data.prizes.0.prize.id', $ownedPrizeId)
             ->json('data');
 
         Auth::forgetGuards();
@@ -259,7 +260,7 @@ final class AdminGachaDraftManagementTest extends TestCase
             'PUT',
             '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/versions/'.$clone['id'],
             [
-                ...$this->versionInput('Updated Draft'),
+                ...$this->versionInput('Updated Draft', $ownedPrizeId),
                 'expected_revision' => 1,
             ]
         )->assertOk()
@@ -282,7 +283,7 @@ final class AdminGachaDraftManagementTest extends TestCase
             'PUT',
             '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/versions/'.$clone['id'],
             [
-                ...$this->versionInput('Must Fail'),
+                ...$this->versionInput('Must Fail', $ownedPrizeId),
                 'expected_revision' => 3,
             ]
         )->assertConflict()->assertJsonPath('code', 'CATALOG_RESOURCE_ARCHIVED');
@@ -474,7 +475,7 @@ final class AdminGachaDraftManagementTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function versionInput(string $title): array
+    private function versionInput(string $title, string $prizeId = self::PRIZE_ID): array
     {
         return [
             'title' => $title,
@@ -485,18 +486,36 @@ final class AdminGachaDraftManagementTest extends TestCase
             'presentation_asset_id' => self::ASSET_ID,
             'publish_start_at' => '2026-08-01T00:00:00Z',
             'publish_end_at' => '2027-08-01T00:00:00Z',
-            'prizes' => [$this->prizeInput(10)],
+            'prizes' => [$this->prizeInput(10, $prizeId)],
         ];
     }
 
     /** @return array<string, mixed> */
-    private function prizeInput(int $sortOrder): array
+    private function prizeInput(int $sortOrder, string $prizeId = self::PRIZE_ID): array
     {
         return [
-            'prize_id' => self::PRIZE_ID,
+            'prize_id' => $prizeId,
             'initial_inventory' => 10,
             'sort_order' => $sortOrder,
         ];
+    }
+
+    private function createOwnedPrize(string $gachaPublicId): string
+    {
+        $source = DB::table('catalog_prizes')->where('public_id', self::PRIZE_ID)->firstOrFail();
+        $publicId = (string) Str::uuid7();
+        $values = (array) $source;
+        unset($values['id']);
+        $values['public_id'] = $publicId;
+        $values['code'] = 'owned-'.str_replace('-', '', $publicId);
+        $values['gacha_id'] = DB::table('catalog_gachas')
+            ->where('public_id', $gachaPublicId)->value('id');
+        $values['revision'] = 1;
+        $values['created_at'] = now()->startOfSecond();
+        $values['updated_at'] = now()->startOfSecond();
+        DB::table('catalog_prizes')->insert($values);
+
+        return $publicId;
     }
 
     private function mutatingRequest(

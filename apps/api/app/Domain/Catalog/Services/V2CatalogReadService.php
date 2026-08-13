@@ -511,20 +511,19 @@ final class V2CatalogReadService
     private function ranks(int $gachaVersionId): array
     {
         $rankRows = DB::table('catalog_gacha_version_prizes as gvp')
-            ->join('catalog_prizes as p', 'p.id', '=', 'gvp.prize_id')
-            ->join('catalog_ranks as r', 'r.id', '=', 'p.rank_id')
+            ->join('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
             ->where('gvp.gacha_version_id', $gachaVersionId)
-            ->where('p.is_visible', true)
+            ->where('gvp.is_visible', true)
             ->where('r.is_visible', true)
             ->select(
                 'r.id as rank_internal_id',
                 'r.public_id as rank_public_id',
-                'r.code as rank_code',
-                'r.display_name as rank_name',
-                'r.sort_order as rank_sort_order'
+                'gvp.rank_code',
+                'gvp.rank_display_name as rank_name',
+                'gvp.rank_sort_order'
             )
             ->distinct()
-            ->orderBy('r.sort_order')
+            ->orderBy('gvp.rank_sort_order')
             ->orderBy('r.public_id')
             ->get();
         $prizeRows = DB::table('catalog_gacha_version_prizes as gvp')
@@ -533,19 +532,19 @@ final class V2CatalogReadService
                 'catalog_presentation_assets as a',
                 'a.id',
                 '=',
-                'p.presentation_asset_id'
+                'gvp.presentation_asset_id'
             )
             ->where('gvp.gacha_version_id', $gachaVersionId)
-            ->where('p.is_visible', true)
+            ->where('gvp.is_visible', true)
             ->orderBy('gvp.sort_order')
             ->orderBy('p.public_id')
             ->get([
-                'p.rank_id',
+                'gvp.rank_id',
                 'p.public_id',
-                'p.display_name',
-                'p.description',
-                'p.display_price',
-                'p.exchange_points',
+                'gvp.display_name',
+                'gvp.description',
+                'gvp.display_price',
+                'gvp.exchange_points',
                 'a.public_id as asset_public_id',
                 'a.public_path as asset_public_path',
                 'a.checksum_sha256 as asset_checksum_sha256',
@@ -618,24 +617,23 @@ final class V2CatalogReadService
                 '=',
                 'pe.gacha_version_prize_id'
             )
-            ->join('catalog_prizes as p', 'p.id', '=', 'gvp.prize_id')
-            ->join('catalog_ranks as r', 'r.id', '=', 'p.rank_id')
+            ->join('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
             ->whereIn('pe.probability_stage_id', $stageIds)
             ->where('pe.result_type', 'prize')
             ->where('r.is_visible', true)
             ->groupBy(
                 'pe.probability_stage_id',
                 'r.public_id',
-                'r.code',
-                'r.display_name',
-                'r.sort_order'
+                'gvp.rank_code',
+                'gvp.rank_display_name',
+                'gvp.rank_sort_order'
             )
-            ->orderBy('r.sort_order')
+            ->orderBy('gvp.rank_sort_order')
             ->get([
                 'pe.probability_stage_id',
                 'r.public_id',
-                'r.code',
-                'r.display_name',
+                'gvp.rank_code as code',
+                'gvp.rank_display_name as display_name',
                 DB::raw('SUM(pe.probability_ppm)::bigint as total_ppm'),
             ])->groupBy('probability_stage_id');
         $pointBack = DB::table('catalog_probability_entries')
@@ -653,8 +651,7 @@ final class V2CatalogReadService
                 '=',
                 'mg.gacha_version_prize_id'
             )
-            ->leftJoin('catalog_prizes as p', 'p.id', '=', 'gvp.prize_id')
-            ->leftJoin('catalog_ranks as r', 'r.id', '=', 'p.rank_id')
+            ->leftJoin('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
             ->whereIn('mg.probability_stage_id', $stageIds)
             ->get([
                 'mg.probability_stage_id',
@@ -662,8 +659,8 @@ final class V2CatalogReadService
                 'mg.point_amount',
                 'mg.probability_ppm',
                 'r.public_id as rank_public_id',
-                'r.code as rank_code',
-                'r.display_name as rank_name',
+                'gvp.rank_code as rank_code',
+                'gvp.rank_display_name as rank_name',
             ])->keyBy('probability_stage_id');
         $nextDraw = $soldCount + 1;
 

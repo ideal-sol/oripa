@@ -240,27 +240,27 @@ final class V2QaDrawResolver
     {
         $row = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
                 '=',
-                'prize.presentation_asset_id'
+                'relation.presentation_asset_id'
             )
             ->where('relation.id', $item->gacha_version_prize_id)
             ->where('relation.gacha_version_id', $gachaVersionId)
-            ->where('prize.is_visible', true)
+            ->where('relation.is_visible', true)
             ->first([
                 'relation.id as relation_id',
                 'relation.sort_order as relation_sort_order',
                 'prize.public_id as prize_public_id',
-                'prize.display_name as prize_name',
-                'prize.exchange_points',
+                'relation.display_name as prize_name',
+                'relation.exchange_points',
                 'rank.id as rank_id',
                 'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
-                'rank.sort_order as rank_sort_order',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
+                'relation.rank_sort_order as rank_sort_order',
                 'asset.public_id as asset_public_id',
                 'asset.public_path as asset_path',
                 'asset.checksum_sha256 as asset_checksum',

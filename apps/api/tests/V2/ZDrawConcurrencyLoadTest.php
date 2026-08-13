@@ -465,10 +465,12 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         unset($relation);
         $baseGacha = $fixture['gachas'][0];
         $baseVersion = $fixture['versions'][0];
+        $basePrizes = $fixture['prizes'];
         $baseRelations = $fixture['gacha_prizes'];
         $baseProbability = $fixture['probability_versions'][0];
         $cloneRecordCount = 3
             + (count($baseGacha['tag_codes']) * 2)
+            + count($basePrizes)
             + count($baseRelations);
         foreach ($baseProbability['stages'] as $stage) {
             $cloneRecordCount += count($stage['entries']) + 2;
@@ -488,8 +490,17 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             $version['title'] = "Fixture Catalog Gacha {$number}";
             $fixture['versions'][] = $version;
 
+            $prizeCodes = [];
+            foreach ($basePrizes as $index => $prize) {
+                $sourceCode = $prize['code'];
+                $prize['public_id'] = $this->uuid($number, 100 + $index);
+                $prize['code'] = "{$sourceCode}-{$number}";
+                $prizeCodes[$sourceCode] = $prize['code'];
+                $fixture['prizes'][] = $prize;
+            }
             foreach ($baseRelations as $relation) {
                 $relation['gacha_code'] = $code;
+                $relation['prize_code'] = $prizeCodes[$relation['prize_code']];
                 $fixture['gacha_prizes'][] = $relation;
             }
             $probability = $baseProbability;
@@ -497,6 +508,16 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             $probability['gacha_code'] = $code;
             foreach ($probability['stages'] as $index => &$stage) {
                 $stage['public_id'] = $this->uuid($number, 14 + $index);
+                foreach ($stage['entries'] as &$entry) {
+                    if ($entry['result_type'] === 'prize') {
+                        $entry['prize_code'] = $prizeCodes[$entry['prize_code']];
+                    }
+                }
+                unset($entry);
+                if ($stage['minimum_guarantee']['result_type'] === 'prize') {
+                    $stage['minimum_guarantee']['prize_code'] =
+                        $prizeCodes[$stage['minimum_guarantee']['prize_code']];
+                }
             }
             unset($stage);
             $fixture['probability_versions'][] = $probability;
