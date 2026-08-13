@@ -209,6 +209,13 @@ MIG_062B_V2_IDENTITY_FILES = {
     "apps/api/database/migrations-v2/2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
     "apps/api/tests/V2/AdminUserTagManagementTest.php",
 }
+MIG_062K_V2_IDENTITY_FILES = {
+    "apps/api/app/Domain/Identity/Exceptions/V2AdminUserStateException.php",
+    "apps/api/app/Domain/Identity/Services/V2AdminUserStateService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminUserStateController.php",
+    "apps/api/database/migrations-v2/2026_09_02_000047_add_v2_user_state_revision.php",
+    "apps/api/tests/V2/AdminUserStateManagementTest.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -283,6 +290,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     *MIG_061W_V2_IDENTITY_FILES,
     *MIG_061X_V2_IDENTITY_FILES,
     *MIG_062B_V2_IDENTITY_FILES,
+    *MIG_062K_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -731,6 +739,10 @@ MIG_062B_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/users/admin-user-tag-management.tsx",
     "apps/admin/test/admin-user-tag-management.test.tsx",
 }
+MIG_062K_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/users/admin-user-state-management.tsx",
+    "apps/admin/test/admin-user-state-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -847,6 +859,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061T_ADMIN_SKELETON_FILES,
     *MIG_061V_ADMIN_SKELETON_FILES,
     *MIG_062B_ADMIN_SKELETON_FILES,
+    *MIG_062K_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2260,6 +2273,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
         "2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
         "2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
+        "2026_09_02_000047_add_v2_user_state_revision.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

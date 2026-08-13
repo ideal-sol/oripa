@@ -20,6 +20,28 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062k_user_state_paths_are_registered_exactly(self):
+        expected_identity = {
+            "apps/api/app/Domain/Identity/Exceptions/V2AdminUserStateException.php",
+            "apps/api/app/Domain/Identity/Services/V2AdminUserStateService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminUserStateController.php",
+            "apps/api/database/migrations-v2/2026_09_02_000047_add_v2_user_state_revision.php",
+            "apps/api/tests/V2/AdminUserStateManagementTest.php",
+        }
+        expected_admin = {
+            "apps/admin/src/components/users/admin-user-state-management.tsx",
+            "apps/admin/test/admin-user-state-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_062K_V2_IDENTITY_FILES, expected_identity)
+        self.assertTrue(expected_identity.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_062K_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_identity | expected_admin))
+
+        migration = (ROOT / "apps/api/database/migrations-v2/2026_09_02_000047_add_v2_user_state_revision.php").read_text(encoding="utf-8")
+        self.assertIn("users_state_revision_check", migration)
+        self.assertIn("state_revision >= 1", migration)
+
     def test_mig_062j_partial_draw_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",

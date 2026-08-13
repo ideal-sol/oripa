@@ -20,6 +20,7 @@ final class User extends Authenticatable
         'password_hash',
         'password_login_enabled',
         'state',
+        'state_revision',
     ];
 
     protected $hidden = [
@@ -39,6 +40,7 @@ final class User extends Authenticatable
             'email_verified_at' => 'immutable_datetime',
             'password_login_enabled' => 'boolean',
             'state' => V2UserState::class,
+            'state_revision' => 'integer',
         ];
     }
 

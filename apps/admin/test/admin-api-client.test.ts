@@ -148,6 +148,33 @@ describe("AdminApiClient", () => {
     expect(new Headers(mutation?.headers).get("X-XSRF-TOKEN")).toBe(csrf);
   });
 
+  it("updates User state with CSRF, OCC, and an explicit idempotency key", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      data: { user_id: userId, status: "suspended", state_revision: 2 },
+      idempotent_replay: false,
+    }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.updateAdminUserState(userId, {
+      status: "suspended",
+      expected_revision: 1,
+      reason: "Support review.",
+    }, "user-state-key");
+
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe(`/admin/api/v2/users/${userId}/state`);
+    expect(request?.method).toBe("PUT");
+    const headers = new Headers(request?.headers);
+    expect(headers.get("X-XSRF-TOKEN")).toBe(csrf);
+    expect(headers.get("Idempotency-Key")).toBe("user-state-key");
+    expect(JSON.parse(String(request?.body))).toEqual({
+      status: "suspended",
+      expected_revision: 1,
+      reason: "Support review.",
+    });
+  });
+
   it("sends point adjustments with CSRF and an explicit idempotency key", async () => {
     const userId = "01910191-0191-7191-8191-019101910191";
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({

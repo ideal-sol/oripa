@@ -691,6 +691,100 @@
   margin: 20px 0 0;
 }
 
+.admin-user-state-summary,
+.admin-user-state-impact {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 18px 0 0;
+}
+
+.admin-user-state-summary > div,
+.admin-user-state-impact > div {
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.admin-user-state-summary dt,
+.admin-user-state-impact dt {
+  color: #667085;
+  font-size: 12px;
+}
+
+.admin-user-state-summary dd,
+.admin-user-state-impact dd {
+  color: #101828;
+  font-weight: 600;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-state-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-user-state-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-user-state-form label > span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-user-state-form select,
+.admin-user-state-form textarea {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  font: inherit;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.admin-user-state-form textarea {
+  resize: vertical;
+}
+
+.admin-user-state-form select:focus-visible,
+.admin-user-state-form textarea:focus-visible {
+  border-color: #1570ef;
+  outline: 2px solid #84adff;
+  outline-offset: 1px;
+}
+
+.admin-user-state-error {
+  background: #fffbfa;
+  border: 1px solid #fecdca;
+  border-radius: 6px;
+  color: #b42318;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+@media (max-width: 760px) {
+  .admin-user-state-summary,
+  .admin-user-state-impact {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-user-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-user-section-heading > button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .admin-user-definition-grid > div {
   border-top: 1px solid #eaecf0;
   min-width: 0;

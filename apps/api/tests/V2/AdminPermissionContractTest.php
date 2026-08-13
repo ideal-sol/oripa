@@ -100,6 +100,9 @@ final class AdminPermissionContractTest extends TestCase
         self::assertContains(V2Permission::ManageUserTag->value, $owner);
         self::assertContains(V2Permission::ManageUserTag->value, $admin);
         self::assertNotContains(V2Permission::ManageUserTag->value, $operator);
+        self::assertContains(V2Permission::ManageUserState->value, $owner);
+        self::assertContains(V2Permission::ManageUserState->value, $admin);
+        self::assertNotContains(V2Permission::ManageUserState->value, $operator);
         self::assertContains(V2Permission::PublishCatalog->value, $owner);
         self::assertContains(V2Permission::PublishCatalog->value, $admin);
         self::assertNotContains(V2Permission::PublishCatalog->value, $operator);

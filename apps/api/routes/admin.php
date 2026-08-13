@@ -43,6 +43,7 @@ use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
 use App\Http\Controllers\V2\V2AdminUserController;
+use App\Http\Controllers\V2\V2AdminUserStateController;
 use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminUserTagController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
@@ -110,6 +111,8 @@ Route::prefix('v2')
             ->whereUuid('tagId')->name('v2.admin.user-tags.update');
         Route::get('/users/{userId}', [V2AdminUserController::class, 'show'])
             ->whereUuid('userId')->name('v2.admin.users.show');
+        Route::put('/users/{userId}/state', V2AdminUserStateController::class)
+            ->whereUuid('userId')->name('v2.admin.users.state.update');
         Route::get('/users/{userId}/tags', [V2AdminUserTagController::class, 'userTags'])
             ->whereUuid('userId')->name('v2.admin.users.tags.index');
         Route::post('/users/{userId}/tags/{tagId}', [V2AdminUserTagController::class, 'assign'])

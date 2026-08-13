@@ -45,6 +45,7 @@ final class IdentitySchemaTest extends TestCase
 
         self::assertTrue(Schema::hasColumn('users', 'password_hash'));
         self::assertTrue(Schema::hasColumn('users', 'display_name'));
+        self::assertTrue(Schema::hasColumn('users', 'state_revision'));
         self::assertFalse(Schema::hasColumn('users', 'password'));
         self::assertFalse(Schema::hasColumn('admins', 'remember_token'));
         self::assertFalse(Schema::hasColumn('admin_sessions', 'payload'));
@@ -184,6 +185,7 @@ final class IdentitySchemaTest extends TestCase
 
         self::assertContains('password_hash', (new User())->getHidden());
         self::assertContains('display_name', (new User())->getFillable());
+        self::assertContains('state_revision', (new User())->getFillable());
         self::assertContains('password_hash', (new Admin())->getHidden());
         self::assertContains('session_id_hash', (new UserSession())->getHidden());
         self::assertContains('session_id_hash', (new AdminSession())->getHidden());
@@ -206,6 +208,24 @@ final class IdentitySchemaTest extends TestCase
                 'テストユーザー',
                 DB::table('users')->where('id', $withName)->value('display_name')
             );
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    public function test_user_state_revision_defaults_to_one_and_rejects_non_positive_values(): void
+    {
+        DB::beginTransaction();
+        try {
+            $userId = $this->insertUser('state-revision@example.test', true, 'active');
+            self::assertSame(1, DB::table('users')->where('id', $userId)->value('state_revision'));
+
+            try {
+                DB::table('users')->where('id', $userId)->update(['state_revision' => 0]);
+                self::fail('A non-positive User state revision must be rejected.');
+            } catch (QueryException) {
+                self::assertTrue(true);
+            }
         } finally {
             DB::rollBack();
         }

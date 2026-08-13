@@ -64,6 +64,53 @@ test("mobile User tables remain inside a keyboard-scrollable region", async ({ p
   await expect(trigger).toBeFocused();
 });
 
+test("Admin changes User state and the detail refetches canonical state", async ({ page }) => {
+  await page.unroute(/\/admin\/api\/v2\/.*$/u);
+  let state = "active";
+  let revision = 1;
+  let mutationBody: Record<string, unknown> | null = null;
+  await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) return json(route, adminSession());
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, { permissions: ["user.state.manage"], request_id: uuid("9"), role: "admin" });
+    }
+    if (path.endsWith("/auth/reauthenticate")) {
+      return json(route, { admin: adminSession().admin, authenticated: true });
+    }
+    if (path.endsWith(`/users/${userId}/state`)) {
+      mutationBody = route.request().postDataJSON() as Record<string, unknown>;
+      state = "suspended";
+      revision = 2;
+      return json(route, {
+        data: { user_id: userId, status: state, state_revision: revision, updated_at: "2026-09-02T00:00:00Z" },
+        idempotent_replay: false,
+        request_id: uuid("8"),
+      });
+    }
+    if (path.endsWith(`/users/${userId}`)) {
+      return json(route, { data: userDetail(state, revision), request_id: uuid("9") });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto(`/users/${userId}`);
+  await page.getByRole("button", { name: "状態を変更" }).click();
+  await page.getByLabel("変更後の状態").selectOption("suspended");
+  await page.getByLabel("変更理由").fill("Preview support review.");
+  await page.getByRole("button", { name: "確認して変更" }).click();
+  await page.getByLabel("現在のパスワード").fill("not-persisted");
+  await page.getByRole("button", { name: "再認証" }).click();
+
+  await expect(page.getByRole("status")).toContainText("最新情報を再取得しました");
+  await expect(page.getByText("停止", { exact: true }).first()).toBeVisible();
+  expect(mutationBody).toEqual({
+    expected_revision: 1,
+    reason: "Preview support review.",
+    status: "suspended",
+  });
+});
+
 async function installApi(page: Page): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const url = new URL(route.request().url());
@@ -90,6 +137,7 @@ async function installApi(page: Page): Promise<void> {
           ...userSummary(),
           email: "user@example.test",
           email_verified_at: "2026-08-03T00:00:00Z",
+          state_revision: 1,
           updated_at: "2026-08-03T01:00:00Z",
         },
         request_id: uuid("9"),
@@ -100,6 +148,28 @@ async function installApi(page: Page): Promise<void> {
     }
     return route.fulfill({ status: 404 });
   });
+}
+
+function adminSession() {
+  return {
+    admin: { id: userId, mfa_verified: false, role: "admin", state: "active" },
+    authenticated: true,
+    mfa_required: false,
+    requires_mfa_enrollment: false,
+  };
+}
+
+function userDetail(state: string, stateRevision: number) {
+  return {
+    ...userSummary(),
+    email: "user@example.test",
+    email_verified_at: "2026-08-03T00:00:00Z",
+    state_revision: stateRevision,
+    status: state,
+    tag_assignment_revision: 1,
+    tags: [],
+    updated_at: "2026-09-02T00:00:00Z",
+  };
 }
 
 function userSummary() {

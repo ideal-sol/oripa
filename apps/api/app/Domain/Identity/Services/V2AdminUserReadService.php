@@ -71,6 +71,7 @@ final class V2AdminUserReadService
                 'users.email_display',
                 'users.email_verified_at',
                 'users.state',
+                'users.state_revision',
                 'users.created_at',
                 'users.updated_at',
                 'users.tag_assignment_revision',
@@ -95,6 +96,7 @@ final class V2AdminUserReadService
                     ? null
                     : $this->timestamp($row->email_verified_at),
                 'status' => (string) $row->state,
+                'state_revision' => (int) $row->state_revision,
                 'point_balance' => $this->pointBalance($row),
                 'tag_assignment_revision' => (int) $row->tag_assignment_revision,
                 'tags' => $this->userTags((int) $row->id),

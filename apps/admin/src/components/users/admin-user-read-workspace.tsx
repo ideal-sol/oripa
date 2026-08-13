@@ -7,6 +7,7 @@ import { type ReactNode, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
+import { AdminUserStateManagement } from "@/components/users/admin-user-state-management";
 import { AdminUserTagSection } from "@/components/users/admin-user-tag-management";
 import {
   type AdminUserReadMode,
@@ -165,6 +166,10 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
           <Definition label="更新日">{formatDateTime(user.updated_at)}</Definition>
         </dl>
       </section>
+      <AdminUserStateManagement
+        onRefresh={() => onRefresh("ユーザー状態を更新し、最新情報を再取得しました。")}
+        user={user}
+      />
       <section className="admin-user-summary" aria-labelledby="user-balance-heading">
         <div className="admin-user-section-heading">
           <div>
@@ -304,7 +309,7 @@ function statusLabel(value: string): string {
     active: "有効",
     anonymized: "匿名化済み",
     canceled: "取消",
-    closed: "閉鎖",
+    closed: "退会",
     converted: "ポイント交換済み",
     delivered: "配送完了",
     exchange_processing: "交換処理中",
