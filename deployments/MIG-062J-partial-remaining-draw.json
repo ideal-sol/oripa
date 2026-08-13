@@ -4,7 +4,7 @@
   "status": "verification_in_progress",
   "base_branch": "main",
   "base_sha": "38c10edcabed971cd5a18cfe43c3b95e87c2d1b9",
-  "task_policy_sha256": "72095b56fc0c6a90069fbbb789d158f3d7679c11c44fe07c60238c89c6402e1a",
+  "task_policy_sha256": "8fef3c6d77498facc58c3cb01d25b8177303b2d9125a67f905ca6da5e5747eae",
   "issue": 249,
   "pull_request": 250,
   "target": "test.luxe-pack.biz",

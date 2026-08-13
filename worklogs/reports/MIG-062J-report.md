@@ -7,7 +7,7 @@
 - Base: `main@38c10edcabed971cd5a18cfe43c3b95e87c2d1b9`
 - Branch: `feat/MIG-062J-partial-remaining-draw`
 - Risk: R4
-- Task Policy SHA-256: `72095b56fc0c6a90069fbbb789d158f3d7679c11c44fe07c60238c89c6402e1a`
+- Task Policy SHA-256: `8fef3c6d77498facc58c3cb01d25b8177303b2d9125a67f905ca6da5e5747eae`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Presentation／Contract
@@ -30,5 +30,6 @@
 - OpenAPI bundle/check、Generated Client同期、Storefront Client、Site Schema、TestkitのTypecheck／Lint／Build、Policy Unitを対象検証する。共有依存環境の欠損とGitHub CI結果は最終記録で区別する。
 - Quality Gateで検出した「数値Enumから全旧値を包含する整数Rangeへの拡張」を、OpenAPI Breaking Checkerで非Breakingと判定する対象補正を追加した。旧値を外すRangeおよび文字列Enum削除は引き続き拒否する。
 - Fresh Install環境のTestkit固定Export Surface検査へ、正式追加した`PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE`を登録した。
+- 独立したTestkit Export GateのRoot／Fixture Entry Pointにも同FixtureをExact登録した。
 - Previewは検証済みGitHub-hosted amd64 Imageだけを使用し、Host Buildは行わない。Migration `000046`のみをSafety Guard後に適用する。
 - 全Suite、Storefront Repository、V1、Nginx、Point／Payment仕様、Draw Algorithmは変更しない。G4／G5はNOT COMPLETEを維持する。
