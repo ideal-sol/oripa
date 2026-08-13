@@ -7864,6 +7864,147 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/qa-guarantees": {
+      "get": {
+        "operationId": "getQaGachaGuarantees",
+        "summary": "GachaのTest User保証設定と選択肢を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "owner-read",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GachaのTest User保証設定。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaGachaGuaranteeCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveQaGachaGuarantee",
+        "summary": "GachaへTest Userと保証景品を設定する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaGachaGuaranteeSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存したTest User保証設定。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/qa-guarantees/{user_id}/disable": {
+      "post": {
+        "operationId": "disableQaGachaGuarantee",
+        "summary": "GachaのTest User保証設定を解除する",
+        "x-idempotency": "required",
+        "x-rate-limit": "owner-mutation-10-per-10-minutes",
+        "x-fresh-mfa": "5-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QaRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "解除したTest User保証設定。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaManagementMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/shipping-requests": {
       "get": {
         "operationId": "listAdminShippingRequests",
@@ -16162,24 +16303,13 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "reason",
-          "ends_at"
+          "reason"
         ],
         "properties": {
           "reason": {
             "type": "string",
             "minLength": 1,
             "maxLength": 500
-          },
-          "starts_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "ends_at": {
-            "$ref": "#/components/schemas/UtcDateTime"
           }
         }
       },
@@ -16188,16 +16318,22 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "revision",
           "is_enabled",
           "is_active",
           "reason",
           "starts_at",
           "ends_at",
-          "disabled_at"
+          "disabled_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
           },
           "is_enabled": {
             "type": "boolean"
@@ -16217,7 +16353,11 @@
             "format": "date-time"
           },
           "ends_at": {
-            "$ref": "#/components/schemas/UtcDateTime"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "disabled_at": {
             "type": [
@@ -16225,6 +16365,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
           }
         }
       },
@@ -16478,10 +16621,15 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "plan_id",
+          "assignment_id",
+          "guarantee_assignment_id",
           "user_id",
           "gacha_id",
+          "gacha_version_id",
           "draw_request_id",
           "executed_count",
+          "status",
           "executed_at"
         ],
         "properties": {
@@ -16499,22 +16647,41 @@
           },
           "executed_count": {
             "type": "integer",
-            "enum": [
-              1,
-              5,
-              10,
-              100,
-              1000
-            ]
+            "minimum": 1,
+            "maximum": 1000
           },
           "executed_at": {
             "$ref": "#/components/schemas/UtcDateTime"
           },
           "plan_id": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "assignment_id": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guarantee_assignment_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "gacha_version_id": {
             "$ref": "#/components/schemas/OpaqueId"
@@ -16543,15 +16710,52 @@
                 "additionalProperties": false,
                 "required": [
                   "qa_mode_public_id",
+                  "qa_kind",
                   "qa_plan_public_id",
+                  "qa_guarantee_assignment_public_id",
+                  "guaranteed_prize_public_id",
                   "plan_item_public_ids"
                 ],
                 "properties": {
                   "qa_mode_public_id": {
                     "$ref": "#/components/schemas/OpaqueId"
                   },
+                  "qa_kind": {
+                    "type": "string",
+                    "enum": [
+                      "legacy_plan",
+                      "persistent_guarantee"
+                    ]
+                  },
                   "qa_plan_public_id": {
-                    "$ref": "#/components/schemas/OpaqueId"
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/OpaqueId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qa_guarantee_assignment_public_id": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/OpaqueId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "guaranteed_prize_public_id": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/OpaqueId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "plan_item_public_ids": {
                     "type": "array",
@@ -17141,8 +17345,10 @@
           "revision",
           "is_enabled",
           "is_active",
+          "reason",
           "starts_at",
-          "ends_at"
+          "ends_at",
+          "updated_at"
         ],
         "properties": {
           "user_id": {
@@ -17174,6 +17380,13 @@
           "is_active": {
             "type": "boolean"
           },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
           "starts_at": {
             "type": [
               "string",
@@ -17187,6 +17400,222 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "QaGachaGuaranteeUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "QaGachaGuaranteePrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "rank_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rank_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QaGachaGuaranteeAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "revision",
+          "status",
+          "user",
+          "prize",
+          "is_resolvable",
+          "issue_code",
+          "assigned_at",
+          "unassigned_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "assigned",
+              "unassigned"
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/QaGachaGuaranteeUser"
+          },
+          "prize": {
+            "$ref": "#/components/schemas/QaGachaGuaranteePrize"
+          },
+          "is_resolvable": {
+            "type": "boolean"
+          },
+          "issue_code": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PUBLISHED_PRIZE_UNAVAILABLE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assigned_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "unassigned_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "QaGachaGuaranteeUserOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QaGachaGuaranteePrizeOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "rank_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rank_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QaGachaGuaranteeCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_id",
+          "items",
+          "test_users",
+          "prizes"
+        ],
+        "properties": {
+          "gacha_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{11}$"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaGachaGuaranteeAssignment"
+            }
+          },
+          "test_users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaGachaGuaranteeUserOption"
+            }
+          },
+          "prizes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QaGachaGuaranteePrizeOption"
+            }
+          }
+        }
+      },
+      "QaGachaGuaranteeSave": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "prize_id"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
           }
         }
       },
@@ -17295,6 +17724,9 @@
               },
               {
                 "$ref": "#/components/schemas/QaTestUserSummary"
+              },
+              {
+                "$ref": "#/components/schemas/QaGachaGuaranteeAssignment"
               }
             ]
           },

@@ -538,6 +538,12 @@ V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
 }
+MIG_062M_V2_QA_DRAW_FILES = {
+    "apps/api/app/Models/V2/QaGachaGuaranteeAssignment.php",
+    "apps/api/database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
+    "apps/api/tests/V2/QaTestUserGuaranteeIntegrationTest.php",
+    "apps/api/tests/V2/ZQaTestUserGuaranteeConcurrencyTest.php",
+}
 V2_QA_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Identity/Contracts/V2AdminAuthorizationContext.php",
     "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php",
@@ -565,6 +571,7 @@ V2_QA_DRAW_REQUIRED_FILES = {
     "docs/operations/qa-draw/README.md",
     "openapi/admin/openapi.yaml",
     "openapi/bundled/admin.openapi.json",
+    *MIG_062M_V2_QA_DRAW_FILES,
 }
 V2_REPORTING_REQUIRED_FILES = {
     "apps/api/app/Console/Commands/V2/CreatePreviousDayPointSnapshot.php",
@@ -748,6 +755,12 @@ MIG_062K_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/users/admin-user-state-management.tsx",
     "apps/admin/test/admin-user-state-management.test.tsx",
 }
+MIG_062M_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/catalog/catalog-gacha-qa-guarantee-manager.tsx",
+    "apps/admin/src/components/users/admin-user-qa-test-mode.tsx",
+    "apps/admin/test/admin-user-qa-test-mode.test.tsx",
+    "apps/admin/test/catalog-gacha-qa-guarantee.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -865,6 +878,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_061V_ADMIN_SKELETON_FILES,
     *MIG_062B_ADMIN_SKELETON_FILES,
     *MIG_062K_ADMIN_SKELETON_FILES,
+    *MIG_062M_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2280,6 +2294,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
         "2026_09_02_000047_add_v2_user_state_revision.php",
         "2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
+        "2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3546,6 +3561,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/sales-pause": {"post"},
         "/catalog/gachas/{gacha_id}/sales-resume/preflight": {"post"},
         "/catalog/gachas/{gacha_id}/sales-resume": {"post"},
+        "/catalog/gachas/{gacha_id}/qa-guarantees": {"get", "put"},
+        "/catalog/gachas/{gacha_id}/qa-guarantees/{user_id}/disable": {"post"},
         "/catalog/gachas/{gacha_id}/unpublish-state": {"get"},
         "/catalog/gachas/{gacha_id}/unpublish/preflight": {"post"},
         "/catalog/gachas/{gacha_id}/unpublish": {"post"},
@@ -4218,6 +4235,9 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         "getQaTestUserMode",
         "saveQaTestUserMode",
         "disableQaTestUserMode",
+        "getQaGachaGuarantees",
+        "saveQaGachaGuarantee",
+        "disableQaGachaGuarantee",
         "listQaDrawPlans",
         "createQaDrawPlan",
         "getQaDrawPlan",
@@ -4238,7 +4258,7 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         if isinstance(operation, dict)
         and operation.get("x-fresh-mfa") == "5-minutes"
     )
-    if qa_fresh_count != 12:
+    if qa_fresh_count != 15:
         raise PolicyFailure("Every V2 Admin QA operation must require Fresh MFA")
     public_text = json.dumps(public_bundle, sort_keys=True)
     for prohibited in ("QaMode", "QaPlan", "QaExecution", "/qa-draw"):
@@ -4251,16 +4271,27 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         repository / "apps/api/tests/V2/QaDrawVerticalSliceTest.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "test_owner_only_mode_enforces_reason_window_and_logical_disable",
+        "test_owner_only_mode_is_indefinite_and_logically_disabled",
         "test_active_qa_draw_uses_ordered_items_real_domain_updates_and_compact_response",
         "test_qa_draw_supports_all_counts_and_replay_never_consumes_twice",
-        "test_active_invalid_qa_never_falls_back_and_fails_before_domain_changes",
+        "test_active_mode_without_gacha_assignment_uses_normal_draw",
         "test_expired_active_plan_fails_closed_and_is_completed_after_draw_rollback",
         "test_inventory_failure_rolls_back_plan_point_draw_and_execution",
         "test_qa_user_prize_remains_exchangeable_and_qa_execution_is_owner_readable",
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 QA Draw test missing {required}")
+    guarantee_tests = (
+        repository / "apps/api/tests/V2/QaTestUserGuaranteeIntegrationTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_one_guaranteed_result_and_normal_remainder_are_canonical",
+        "test_mode_is_indefinite_and_no_assignment_or_disabled_mode_draws_normally",
+        "test_inventory_failure_and_cross_gacha_assignment_fail_closed",
+        "test_partial_remaining_draw_keeps_one_guarantee_and_canonical_executed_count",
+    ):
+        if required not in guarantee_tests:
+            raise PolicyFailure(f"V2 QA guarantee test missing {required}")
     fresh_tests = (
         repository / "apps/api/tests/V2/AdminFreshMfaQaTest.php"
     ).read_text(encoding="utf-8")

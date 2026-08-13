@@ -130,7 +130,7 @@ final class QaDrawVerticalSliceTest extends TestCase
             ->where('status', 'completed')->where('is_qa_draw', false)->sum('executed_count'));
     }
 
-    public function test_owner_only_mode_enforces_reason_window_and_logical_disable(): void
+    public function test_owner_only_mode_is_indefinite_and_logically_disabled(): void
     {
         [$user, $owner] = $this->fixture();
         $service = app(V2QaDrawAdminService::class);
@@ -138,11 +138,10 @@ final class QaDrawVerticalSliceTest extends TestCase
         $mode = $service->saveMode(
             $ownerContext,
             $user->public_id,
-            'QA release verification',
-            null,
-            now()->addHours(24)->toIso8601String()
+            'QA release verification'
         );
         self::assertTrue($mode['is_active']);
+        self::assertNull($mode['ends_at']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.mode.enabled']);
 
         $admin = $this->admin(V2AdminRole::Admin);
@@ -154,19 +153,6 @@ final class QaDrawVerticalSliceTest extends TestCase
                 self::assertSame(403, $exception->status);
             }
         }
-        try {
-            $service->saveMode(
-                $ownerContext,
-                $user->public_id,
-                'Too long',
-                null,
-                now()->addHours(25)->toIso8601String()
-            );
-            self::fail('QA Mode longer than 24 hours must fail.');
-        } catch (V2QaDrawException $exception) {
-            self::assertSame('QA_CONFIGURATION_INVALID', $exception->errorCode);
-        }
-
         $disabled = $service->disableMode($ownerContext, $user->public_id);
         self::assertFalse($disabled['is_enabled']);
         self::assertNotNull($disabled['disabled_at']);
@@ -244,15 +230,13 @@ final class QaDrawVerticalSliceTest extends TestCase
         }
     }
 
-    public function test_inactive_mode_uses_normal_probability_without_qa_identification(): void
+    public function test_active_mode_without_gacha_assignment_uses_normal_draw(): void
     {
         [$user, $owner] = $this->fixture(randomValues: [150_000]);
         app(V2QaDrawAdminService::class)->saveMode(
             $this->adminContext($owner),
             $user->public_id,
-            'Future QA window',
-            now()->addHour()->toIso8601String(),
-            now()->addHours(2)->toIso8601String()
+            'No Gacha guarantee'
         );
         $response = $this->draw($user, 1, 'qa-inactive-normal-key-0001');
 
@@ -392,32 +376,28 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertSame($expected, DB::table('draw_results')->count());
     }
 
-    public function test_active_invalid_qa_never_falls_back_and_fails_before_domain_changes(): void
+    public function test_active_mode_without_plan_or_gacha_assignment_draws_normally(): void
     {
         [$user, $owner] = $this->fixture(randomValues: [999_999]);
         $this->enableMode($owner, $user);
         $wallet = (int) DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance');
         $pointRows = DB::table('point_ledger_entries')->count();
-        $auditRows = DB::table('audit_logs')->count();
 
-        try {
-            $this->draw($user, 1, 'qa-missing-plan-key-0001');
-            self::fail('Active QA Mode without a Plan must fail.');
-        } catch (V2DrawException $exception) {
-            self::assertSame('QA_CONFIGURATION_INVALID', $exception->errorCode);
-            self::assertSame(422, $exception->status);
-        }
-        self::assertDatabaseCount('draw_requests', 0);
-        self::assertDatabaseCount('draw_results', 0);
-        self::assertDatabaseCount('user_prizes', 0);
+        $response = $this->draw($user, 1, 'qa-missing-plan-key-0001');
+
+        self::assertSame(1, $response['executed_count']);
+        self::assertDatabaseHas('draw_requests', [
+            'public_id' => $response['id'],
+            'is_qa_draw' => false,
+        ]);
+        self::assertDatabaseCount('draw_results', 1);
+        self::assertDatabaseCount('user_prizes', 1);
         self::assertDatabaseCount('qa_draw_executions', 0);
-        self::assertSame(0, (int) DB::table('gacha_draw_states')->value('sold_count'));
-        self::assertSame($wallet, (int) DB::table('wallets')
+        self::assertSame(1, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($wallet - 100, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
-        self::assertSame($pointRows, DB::table('point_ledger_entries')->count());
-        self::assertGreaterThan($auditRows, DB::table('audit_logs')->count());
-        self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.draw.failed']);
+        self::assertGreaterThan($pointRows, DB::table('point_ledger_entries')->count());
     }
 
     public function test_expired_active_plan_fails_closed_and_is_completed_after_draw_rollback(): void
@@ -426,9 +406,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         app(V2QaDrawAdminService::class)->saveMode(
             $this->adminContext($owner),
             $user->public_id,
-            'Expiry transition verification',
-            null,
-            now()->addHours(4)->toIso8601String()
+            'Expiry transition verification'
         );
         $plan = $this->qaPlan($owner, $user, [
             $this->item(self::PRIZE_A_ID, 1, 1),
@@ -757,9 +735,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         return app(V2QaDrawAdminService::class)->saveMode(
             $this->adminContext($owner),
             $user->public_id,
-            'QA release verification',
-            null,
-            now()->addHours(2)->toIso8601String()
+            'QA release verification'
         );
     }
 

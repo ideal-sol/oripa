@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 8a746ae29b9770252bf097416ddc690e6bcc3f8845270341cdde901cad77209e
+// Contract SHA-256: 32a6c665f7eef6b06d511baf167d3cba9f2fb4606b1b73bdbffb6dcd83b3e6d3
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -691,8 +691,10 @@ export interface AdminQaTestUser {
   revision: number | null;
   is_enabled: boolean;
   is_active: boolean;
+  reason: string | null;
   starts_at: string | null;
   ends_at: string | null;
+  updated_at: string | null;
 }
 
 export interface AdminQaTestUserCollection {
@@ -703,8 +705,72 @@ export interface AdminQaTestUserCollection {
 export interface AdminQaTestUserSave {
   revision?: number;
   reason: string;
-  starts_at?: string | null;
-  ends_at: string;
+}
+
+export interface AdminQaTestUserMode {
+  id: string;
+  revision: number;
+  is_enabled: boolean;
+  is_active: boolean;
+  reason: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  disabled_at: string | null;
+  updated_at: string;
+}
+
+export interface AdminQaTestUserModeEnvelope {
+  user_id: string;
+  mode: AdminQaTestUserMode | null;
+}
+
+export interface AdminQaGachaGuaranteeUser {
+  id: string;
+  display_name: string | null;
+  state: string;
+}
+
+export interface AdminQaGachaGuaranteePrize {
+  id: string;
+  name: string;
+  rank_name: string | null;
+}
+
+export interface AdminQaGachaGuaranteeAssignment {
+  id: string;
+  revision: number;
+  status: "assigned" | "unassigned";
+  user: AdminQaGachaGuaranteeUser;
+  prize: AdminQaGachaGuaranteePrize;
+  is_resolvable: boolean;
+  issue_code: "PUBLISHED_PRIZE_UNAVAILABLE" | null;
+  assigned_at: string;
+  unassigned_at: string | null;
+  updated_at: string;
+}
+
+export interface AdminQaGachaGuaranteeUserOption {
+  id: string;
+  display_name: string | null;
+}
+
+export interface AdminQaGachaGuaranteePrizeOption {
+  id: string;
+  name: string;
+  rank_name: string | null;
+}
+
+export interface AdminQaGachaGuaranteeCollection {
+  gacha_id: string;
+  items: AdminQaGachaGuaranteeAssignment[];
+  test_users: AdminQaGachaGuaranteeUserOption[];
+  prizes: AdminQaGachaGuaranteePrizeOption[];
+}
+
+export interface AdminQaGachaGuaranteeSave {
+  revision?: number;
+  user_id: string;
+  prize_id: string;
 }
 
 export interface AdminQaPreflight {
@@ -748,13 +814,14 @@ export interface AdminQaExecutionPreflight extends AdminQaExecutionRequest {
 
 export interface AdminQaExecutionSummary {
   id: string;
-  plan_id: string;
-  assignment_id: string;
+  plan_id: string | null;
+  assignment_id: string | null;
+  guarantee_assignment_id: string | null;
   user_id: string;
   gacha_id: string;
   gacha_version_id: string;
   draw_request_id: string;
-  executed_count: AdminQaDrawCount;
+  executed_count: number;
   status: "completed";
   executed_at: string;
 }
@@ -780,7 +847,10 @@ export interface AdminQaExecutionDetail extends AdminQaExecutionSummary {
   failure_reason: null;
   metadata: {
     qa_mode_public_id: string;
-    qa_plan_public_id: string;
+    qa_kind: "legacy_plan" | "persistent_guarantee";
+    qa_plan_public_id: string | null;
+    qa_guarantee_assignment_public_id: string | null;
+    guaranteed_prize_public_id: string | null;
     plan_item_public_ids: string[];
   };
 }

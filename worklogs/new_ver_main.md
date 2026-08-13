@@ -8290,3 +8290,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Admin Gacha詳細で現在公開中、編集中、変更履歴を区別し、現在公開中の景品ラインナップを主画面から確認可能にする。今回触るGacha管理画面の主要表示を日本語へ整理する。
 - Application Head `37c099f69242143097fead94c6a8aefba45e5a76`のRequired ChecksとGitHub-hosted amd64 Preview Image BuildがPASSした。Host BuildなしでMigration `000048`のみをPreview DBへ適用し、API／Adminだけを更新した。
 - Previewで公開中景品、編集中Draft、変更履歴、編集保存後のPublished Snapshot不変、Public Catalog／Detail／Presentation 200、Desktop／Mobileを確認した。Nginx、V1、Storefront、Point、Paymentは変更していない。
+
+## MIG-062M QAテストユーザー抽選UI統合
+
+- Base `608d59a18215bf16109d7a9765c18f82940f6bde`からIssue #255、Branch `feat/MIG-062M-qa-test-user-draw-integration`、Risk R4で開始した。
+- 既存`qa_test_user_modes`を無期限の手動ON／OFFへ変更し、User詳細へ統合した。既存期限切れModeはMigrationでdisabledへ移し、意図しない再有効化を防ぐ。
+- `User x Gacha x stable Prize`のPersistent guaranteeを追加し、Gacha詳細から複数Test Userを管理する。Cross-Gacha Prize、旧QA Plan競合、Published Prize解決不能はFail Closedする。
+- 通常`V2DrawService`内で先頭1件だけを保証し、残りを通常抽選する。Point／Inventory／User Prize／履歴／Replay／ConcurrencyとMIG-062J Partial Remainingを維持する。
+- Public contractは変更せず、Admin OpenAPI／Generated Clientだけを同期した。Migration `000049`、Backend対象62 tests、Admin Unit／Browser、Typecheck／Lint／Build、Policy／Quality GateがPASSした。

@@ -120,6 +120,9 @@ import {
   type AdminManagedBannerMutationResult,
   type AdminManagedBannerUpdate,
   type AdminQaMutationResult,
+  type AdminQaGachaGuaranteeAssignment,
+  type AdminQaGachaGuaranteeCollection,
+  type AdminQaGachaGuaranteeSave,
   type AdminQaPlanCollection,
   type AdminQaPlanCreate,
   type AdminQaPlanDetail,
@@ -127,6 +130,7 @@ import {
   type AdminQaPreflight,
   type AdminQaTestUser,
   type AdminQaTestUserCollection,
+  type AdminQaTestUserModeEnvelope,
   type AdminQaTestUserSave,
   type AdminReauthenticationRequest,
   type AdminReauthenticationResponse,
@@ -2110,6 +2114,18 @@ export class AdminApiClient {
     return this.qaList<AdminQaTestUserCollection>("/qa/test-users", query, signal);
   }
 
+  getQaTestUserMode(
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaTestUserModeEnvelope> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("GET", `/users/${userId}/qa-mode`, { signal });
+  }
+
   searchQaTestUserCandidates(
     query: AdminQaQuery,
     signal?: AbortSignal,
@@ -2148,6 +2164,59 @@ export class AdminApiClient {
       { revision },
       idempotencyKey,
       signal,
+    );
+  }
+
+  getQaGachaGuarantees(
+    gachaId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaGachaGuaranteeCollection> {
+    if (!isGachaIdentifier(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("GET", `/catalog/gachas/${gachaId}/qa-guarantees`, { signal });
+  }
+
+  saveQaGachaGuarantee(
+    gachaId: string,
+    body: AdminQaGachaGuaranteeSave,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaGachaGuaranteeAssignment>> {
+    if (!isGachaIdentifier(gachaId) || !isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request("PUT", `/catalog/gachas/${gachaId}/qa-guarantees`, {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  disableQaGachaGuarantee(
+    gachaId: string,
+    userId: string,
+    revision: number,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminQaMutationResult<AdminQaGachaGuaranteeAssignment>> {
+    if (
+      !isGachaIdentifier(gachaId) ||
+      !isOpaqueId(userId) ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "QA_CONFIGURATION_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/catalog/gachas/${gachaId}/qa-guarantees/${userId}/disable`,
+      { body: { revision }, idempotencyKey, signal },
     );
   }
 

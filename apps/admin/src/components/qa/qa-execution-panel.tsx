@@ -281,9 +281,12 @@ function ExecutionResult({
         </div>
       </div>
       <dl className="qa-definition-grid">
-        <Definition label="Plan" value={detail.plan_id} />
+        <Definition label="Plan" value={detail.plan_id ?? "持続保証設定"} />
         <Definition label="Test User" value={detail.user_id} />
-        <Definition label="Assignment" value={detail.assignment_id} />
+        <Definition
+          label="Assignment"
+          value={detail.assignment_id ?? detail.guarantee_assignment_id ?? "なし"}
+        />
         <Definition label="Gacha Version" value={detail.gacha_version_id} />
         <Definition label="Draw Request" value={detail.draw_request_id} />
         <Definition label="実行回数" value={`${detail.executed_count}回`} />

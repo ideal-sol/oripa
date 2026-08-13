@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import type { AdminQaGachaGuaranteeAssignment } from "../src/lib/admin-api/generated";
+
 const gachaCode = "A7k9P2x4Qm8";
 const gachaUuid = uuid("1");
 const versionId = uuid("2");
@@ -9,6 +11,8 @@ const assetId = uuid("5");
 const uploadedAssetId = uuid("6");
 const rankId = uuid("7");
 const prizeId = uuid("8");
+const testUserId = uuid("0");
+const assignmentId = "01910191-0191-7191-8191-019101910190";
 const csrf = "a".repeat(64);
 
 test.beforeEach(async ({ page }) => {
@@ -68,7 +72,60 @@ test("mobile master edit remains usable without horizontal overflow", async ({ p
     .toBe(true);
 });
 
-async function installApi(page: Page): Promise<void> {
+test("Owner adds and removes a guaranteed Prize for a Test User", async ({ page }) => {
+  let assignment: AdminQaGachaGuaranteeAssignment | null = null;
+  let saveBody: Record<string, unknown> | null = null;
+  await page.unroute(/\/admin\/api\/v2\/.*$/u);
+  await installApi(page, {
+    onQaRequest: async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (path.endsWith(`/catalog/gachas/${gachaCode}/qa-guarantees`) && request.method() === "GET") {
+        return json(route, qaCollection(assignment));
+      }
+      if (path.endsWith(`/catalog/gachas/${gachaCode}/qa-guarantees`) && request.method() === "PUT") {
+        saveBody = request.postDataJSON() as Record<string, unknown>;
+        assignment = qaAssignment();
+        return json(route, { data: assignment, idempotent_replay: false, request_id: uuid("9") });
+      }
+      if (path.endsWith(`/catalog/gachas/${gachaCode}/qa-guarantees/${testUserId}/disable`)) {
+        assignment = { ...qaAssignment(), status: "unassigned", unassigned_at: "2026-09-04T00:05:00Z" };
+        return json(route, { data: assignment, idempotent_replay: false, request_id: uuid("9") });
+      }
+      return route.fulfill({ status: 404 });
+    },
+  });
+
+  await page.goto(`/catalog/gachas/${gachaCode}`);
+  await expect(page.getByRole("heading", { name: "テストユーザー設定" })).toBeVisible();
+  await page.getByRole("combobox", { name: "テストユーザー", exact: true }).selectOption(testUserId);
+  await page.getByRole("combobox", { name: "保証する景品", exact: true }).selectOption(prizeId);
+  await page.getByRole("button", { name: "追加・更新" }).click();
+  await completeFreshMfa(page);
+
+  const assignmentRow = page.getByRole("row", { name: /QAテストユーザー.*S 景品S.*利用可能/u });
+  await expect(assignmentRow).toBeVisible();
+  expect(saveBody).toEqual({ prize_id: prizeId, user_id: testUserId });
+
+  await page.getByRole("button", { name: "QAテストユーザーの設定を解除" }).click();
+  await completeFreshMfa(page);
+  await expect(page.getByText("設定済みのテストユーザーはありません。")).toBeVisible();
+});
+
+test("mobile Test User settings remain within the gacha detail width", async ({ page }) => {
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto(`/catalog/gachas/${gachaCode}`);
+  await expect(page.getByRole("heading", { name: "テストユーザー設定" })).toBeVisible();
+  const qaSection = page.getByRole("region", { name: "テストユーザー設定" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
+  expect((await qaSection.boundingBox())?.width).toBeLessThanOrEqual(362);
+});
+
+async function installApi(
+  page: Page,
+  options: { onQaRequest?: (route: Route) => Promise<void> } = {},
+): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -82,10 +139,20 @@ async function installApi(page: Page): Promise<void> {
     }
     if (path.endsWith("/auth/permissions")) {
       return json(route, {
-        permissions: ["catalog.read", "catalog.manage"],
+        permissions: ["catalog.read", "catalog.manage", "qa.draw.manage"],
         request_id: uuid("9"),
         role: "owner",
       });
+    }
+    if (path.endsWith("/auth/reauthenticate")) {
+      return json(route, {
+        admin: { id: uuid("9"), mfa_verified: true, role: "owner", state: "active" },
+        authenticated: true,
+      });
+    }
+    if (path.includes("/qa-guarantees")) {
+      if (options.onQaRequest) return options.onQaRequest(route);
+      return json(route, qaCollection(null));
     }
     if (path.endsWith(`/catalog/presentation-assets/${assetId}/content`)) {
       return route.fulfill({
@@ -143,6 +210,40 @@ async function installApi(page: Page): Promise<void> {
     }
     return route.fulfill({ status: 404 });
   });
+}
+
+async function completeFreshMfa(page: Page): Promise<void> {
+  const password = page.getByLabel("現在のパスワード");
+  if (await password.isVisible()) {
+    await password.fill("not-persisted");
+  } else {
+    await page.getByLabel("認証アプリの6桁コード").fill("123456");
+  }
+  await page.getByRole("button", { name: "再認証", exact: true }).click();
+}
+
+function qaCollection(assignment: AdminQaGachaGuaranteeAssignment | null) {
+  return {
+    gacha_id: gachaCode,
+    items: assignment ? [assignment] : [],
+    prizes: [{ id: prizeId, name: "景品S", rank_name: "S" }],
+    test_users: [{ display_name: "QAテストユーザー", id: testUserId }],
+  };
+}
+
+function qaAssignment(): AdminQaGachaGuaranteeAssignment {
+  return {
+    assigned_at: "2026-09-04T00:00:00Z",
+    id: assignmentId,
+    is_resolvable: true,
+    issue_code: null,
+    prize: { id: prizeId, name: "景品S", rank_name: "S" },
+    revision: 1,
+    status: "assigned",
+    unassigned_at: null,
+    updated_at: "2026-09-04T00:00:00Z",
+    user: { display_name: "QAテストユーザー", id: testUserId, state: "active" },
+  };
 }
 
 function gacha() {

@@ -175,6 +175,42 @@ describe("AdminApiClient", () => {
     });
   });
 
+  it("uses typed QA test mode and Gacha guarantee endpoints", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const prizeId = "01910191-0191-7191-8191-019101910192";
+    const gachaId = "A7k9P2x4Qm8";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ mode: null, user_id: userId }))
+      .mockResolvedValueOnce(jsonResponse({ gacha_id: gachaId, items: [], prizes: [], test_users: [] }))
+      .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }))
+      .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.getQaTestUserMode(userId);
+    await client.getQaGachaGuarantees(gachaId);
+    await client.saveQaGachaGuarantee(
+      gachaId,
+      { prize_id: prizeId, user_id: userId },
+      "qa-guarantee-save-key",
+    );
+    await client.disableQaGachaGuarantee(
+      gachaId,
+      userId,
+      3,
+      "qa-guarantee-disable-key",
+    );
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      `/admin/api/v2/users/${userId}/qa-mode`,
+      `/admin/api/v2/catalog/gachas/${gachaId}/qa-guarantees`,
+      `/admin/api/v2/catalog/gachas/${gachaId}/qa-guarantees`,
+      `/admin/api/v2/catalog/gachas/${gachaId}/qa-guarantees/${userId}/disable`,
+    ]);
+    expect(new Headers(fetcher.mock.calls[2][1]?.headers).get("Idempotency-Key"))
+      .toBe("qa-guarantee-save-key");
+    expect(new Headers(fetcher.mock.calls[3][1]?.headers).get("X-XSRF-TOKEN")).toBe(csrf);
+  });
+
   it("sends point adjustments with CSRF and an explicit idempotency key", async () => {
     const userId = "01910191-0191-7191-8191-019101910191";
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({

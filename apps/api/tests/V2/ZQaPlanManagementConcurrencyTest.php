@@ -50,9 +50,7 @@ final class ZQaPlanManagementConcurrencyTest extends TestCase
         app(V2QaDrawAdminService::class)->saveMode(
             $context,
             $candidate,
-            'Concurrent assignment',
-            null,
-            now()->addHours(2)->toIso8601String()
+            'Concurrent assignment'
         );
 
         $results = $this->concurrent(
@@ -114,9 +112,7 @@ final class ZQaPlanManagementConcurrencyTest extends TestCase
         $admin->saveMode(
             $context,
             $user,
-            'Concurrent owner',
-            null,
-            now()->addHours(2)->toIso8601String()
+            'Concurrent owner'
         );
 
         return [
