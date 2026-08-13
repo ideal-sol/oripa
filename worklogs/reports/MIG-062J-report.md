@@ -3,11 +3,11 @@
 ## Task
 
 - Issue: #249
-- PR: 作成時に確定
+- PR: #250
 - Base: `main@38c10edcabed971cd5a18cfe43c3b95e87c2d1b9`
 - Branch: `feat/MIG-062J-partial-remaining-draw`
 - Risk: R4
-- Task Policy SHA-256: `29f4beb02e49d2076c81e582c58c7452c348a12fd94171474e6dfae0d67e00a1`
+- Task Policy SHA-256: `72095b56fc0c6a90069fbbb789d158f3d7679c11c44fe07c60238c89c6402e1a`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Presentation／Contract
@@ -28,5 +28,6 @@
 - Migration `000046`はcompleted Draw Requestへ`0 < executed_count <= requested_count`を許可し、rollbackで既存の完全一致Constraintへ戻す。Task DBのfresh／rollback／reapplyはPASSした。
 - Backend対象はDraw 19 tests／178 assertions、Presentation 11 tests／97 assertions、Concurrency 1 test／11 assertionsがPASSした。
 - OpenAPI bundle/check、Generated Client同期、Storefront Client、Site Schema、TestkitのTypecheck／Lint／Build、Policy Unitを対象検証する。共有依存環境の欠損とGitHub CI結果は最終記録で区別する。
+- Quality Gateで検出した「数値Enumから全旧値を包含する整数Rangeへの拡張」を、OpenAPI Breaking Checkerで非Breakingと判定する対象補正を追加した。旧値を外すRangeおよび文字列Enum削除は引き続き拒否する。
 - Previewは検証済みGitHub-hosted amd64 Imageだけを使用し、Host Buildは行わない。Migration `000046`のみをSafety Guard後に適用する。
 - 全Suite、Storefront Repository、V1、Nginx、Point／Payment仕様、Draw Algorithmは変更しない。G4／G5はNOT COMPLETEを維持する。

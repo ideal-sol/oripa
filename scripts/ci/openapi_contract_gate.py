@@ -208,9 +208,38 @@ def compare_schema(previous: Any, current: Any, location: str) -> list[str]:
             )
     previous_enum = set(previous.get("enum", []))
     current_enum = set(current.get("enum", []))
-    for value in sorted(previous_enum - current_enum, key=str):
-        findings.append(f"{location}: enum value removed: {value}")
+    removed_enum = previous_enum - current_enum
+    if removed_enum and not numeric_range_covers_enum(previous_enum, current):
+        for value in sorted(removed_enum, key=str):
+            findings.append(f"{location}: enum value removed: {value}")
     return findings
+
+
+def numeric_range_covers_enum(previous_enum: set[Any], current: dict[str, Any]) -> bool:
+    if not previous_enum or current.get("type") not in {"integer", "number"}:
+        return False
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in previous_enum):
+        return False
+    if any(keyword in current for keyword in ("const", "not", "allOf", "anyOf", "oneOf")):
+        return False
+
+    minimum = current.get("minimum")
+    maximum = current.get("maximum")
+    exclusive_minimum = current.get("exclusiveMinimum")
+    exclusive_maximum = current.get("exclusiveMaximum")
+    multiple_of = current.get("multipleOf")
+    for value in previous_enum:
+        if minimum is not None and value < minimum:
+            return False
+        if maximum is not None and value > maximum:
+            return False
+        if exclusive_minimum is not None and value <= exclusive_minimum:
+            return False
+        if exclusive_maximum is not None and value >= exclusive_maximum:
+            return False
+        if multiple_of is not None and value % multiple_of != 0:
+            return False
+    return True
 
 
 def breaking_changes(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
