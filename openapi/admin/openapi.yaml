@@ -3541,6 +3541,62 @@ paths:
                 $ref: '#/components/schemas/AdminShippingRequestDetail'
         default:
           $ref: '#/components/responses/Problem'
+  /user-prizes:
+    get:
+      operationId: listAdminUserPrizes
+      summary: 全Userの保有景品を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - name: user
+          in: query
+          schema: {type: string, maxLength: 191}
+          description: User公開IDまたは表示名。
+        - name: prize_name
+          in: query
+          schema: {type: string, maxLength: 191}
+        - name: gacha
+          in: query
+          schema: {type: string, maxLength: 191}
+          description: Gacha公開IDまたはタイトル。
+        - name: status
+          in: query
+          schema: {$ref: '#/components/schemas/AdminUserPrizeStatus'}
+      responses:
+        '200':
+          description: Stable Sortされた保有景品一覧。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserPrizeCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /user-prizes/{user_prize_id}:
+    get:
+      operationId: getAdminUserPrize
+      summary: 保有景品の取得元とFulfillment詳細を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - name: user_prize_id
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/OpaqueId'}
+      responses:
+        '200':
+          description: Snapshotと現在Fulfillment状態を含む保有景品詳細。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserPrizeDetailResponse'}
+        default: {$ref: '#/components/responses/Problem'}
   /users:
     get:
       operationId: listAdminUsers
@@ -7197,6 +7253,152 @@ components:
             $ref: '#/components/schemas/AdminShippingRequestSummary'
         next_cursor:
           type: [string, 'null']
+    AdminUserPrizeStatus:
+      type: string
+      enum: [stored, exchange_processing, converted, shipping_requested, packing, shipped, delivered, hold, return_requested, returned, expired, canceled]
+    AdminUserPrizeUser:
+      type: object
+      additionalProperties: false
+      required: [id, display_name]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        display_name: {type: [string, 'null'], maxLength: 191}
+    AdminUserPrizeRank:
+      type: object
+      additionalProperties: false
+      required: [id, code, name]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        code: {type: string, maxLength: 32}
+        name: {type: string, maxLength: 128}
+    AdminUserPrizePresentation:
+      type: object
+      additionalProperties: false
+      required: [id, name, image, rank]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        name: {type: string, minLength: 1, maxLength: 191}
+        image:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
+            - {type: 'null'}
+        rank: {$ref: '#/components/schemas/AdminUserPrizeRank'}
+    AdminUserPrizeGacha:
+      type: object
+      additionalProperties: false
+      required: [id, version_id, title]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        version_id: {$ref: '#/components/schemas/OpaqueId'}
+        title: {type: string, minLength: 1, maxLength: 191}
+    AdminUserPrizeActionState:
+      type: object
+      additionalProperties: false
+      required: [allowed, unavailable_reason]
+      properties:
+        allowed: {type: boolean}
+        unavailable_reason:
+          type: [string, 'null']
+          enum: [payment_hold, status_not_actionable, storage_expired, exchange_points_unavailable, null]
+    AdminUserPrizeAllowedActions:
+      type: object
+      additionalProperties: false
+      required: [shipping, point_exchange, selection]
+      properties:
+        shipping: {$ref: '#/components/schemas/AdminUserPrizeActionState'}
+        point_exchange: {$ref: '#/components/schemas/AdminUserPrizeActionState'}
+        selection: {$ref: '#/components/schemas/AdminUserPrizeActionState'}
+    AdminUserPrizeFulfillmentSummary:
+      type: object
+      additionalProperties: false
+      required: [shipping_status, point_exchange_status]
+      properties:
+        shipping_status:
+          type: [string, 'null']
+          enum: [requested, packing, shipped, delivered, hold, return_requested, returned, canceled, null]
+        point_exchange_status:
+          type: [string, 'null']
+          enum: [processing, completed, null]
+    AdminUserPrizeSummary:
+      type: object
+      additionalProperties: false
+      required: [id, user, prize, gacha, status, fulfillment, exchange_points, exchanged_points, acquired_at, storage_expires_at, terminal_at, status_updated_at, allowed_actions]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        user: {$ref: '#/components/schemas/AdminUserPrizeUser'}
+        prize: {$ref: '#/components/schemas/AdminUserPrizePresentation'}
+        gacha: {$ref: '#/components/schemas/AdminUserPrizeGacha'}
+        status: {$ref: '#/components/schemas/AdminUserPrizeStatus'}
+        fulfillment: {$ref: '#/components/schemas/AdminUserPrizeFulfillmentSummary'}
+        exchange_points: {type: integer, minimum: 0}
+        exchanged_points: {type: [integer, 'null'], minimum: 0}
+        acquired_at: {$ref: '#/components/schemas/UtcDateTime'}
+        storage_expires_at: {$ref: '#/components/schemas/UtcDateTime'}
+        terminal_at: {type: [string, 'null'], format: date-time}
+        status_updated_at: {$ref: '#/components/schemas/UtcDateTime'}
+        allowed_actions: {$ref: '#/components/schemas/AdminUserPrizeAllowedActions'}
+    AdminUserPrizeCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, request_id]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminUserPrizeSummary'}}
+        next_cursor: {type: [string, 'null']}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminUserPrizeDraw:
+      type: object
+      additionalProperties: false
+      required: [request_id, result_id, requested_count, executed_count, consumed_points, completed_at]
+      properties:
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+        result_id: {$ref: '#/components/schemas/OpaqueId'}
+        requested_count: {type: integer, minimum: 1, maximum: 1000}
+        executed_count: {type: integer, minimum: 1, maximum: 1000}
+        consumed_points: {type: integer, minimum: 0}
+        completed_at: {$ref: '#/components/schemas/UtcDateTime'}
+    AdminUserPrizeStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [from_status, to_status, reason_code, occurred_at]
+      properties:
+        from_status: {type: [string, 'null']}
+        to_status: {$ref: '#/components/schemas/AdminUserPrizeStatus'}
+        reason_code: {type: string, maxLength: 64}
+        occurred_at: {$ref: '#/components/schemas/UtcDateTime'}
+    AdminUserPrizePointExchange:
+      type: object
+      additionalProperties: false
+      required: [id, status, exchange_points, completed_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        status: {type: string, enum: [processing, completed]}
+        exchange_points: {type: integer, minimum: 0}
+        completed_at: {type: [string, 'null'], format: date-time}
+    AdminUserPrizeDetail:
+      allOf:
+        - {$ref: '#/components/schemas/AdminUserPrizeSummary'}
+        - type: object
+          required: [draw, status_history, shipping, point_exchange]
+          properties:
+            draw: {$ref: '#/components/schemas/AdminUserPrizeDraw'}
+            status_history:
+              type: array
+              items: {$ref: '#/components/schemas/AdminUserPrizeStatusHistory'}
+            shipping:
+              oneOf:
+                - {$ref: '#/components/schemas/AdminShippingRequestDetail'}
+                - {type: 'null'}
+            point_exchange:
+              oneOf:
+                - {$ref: '#/components/schemas/AdminUserPrizePointExchange'}
+                - {type: 'null'}
+    AdminUserPrizeDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminUserPrizeDetail'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
     SemanticVersion:
       $ref: ../components/common.yaml#/schemas/SemanticVersion
     UtcDateTime:

@@ -42,6 +42,7 @@ use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
 use App\Http\Controllers\V2\V2AdminShippingController;
+use App\Http\Controllers\V2\V2AdminUserPrizeController;
 use App\Http\Controllers\V2\V2AdminUserController;
 use App\Http\Controllers\V2\V2AdminUserStateController;
 use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
@@ -437,6 +438,11 @@ Route::prefix('v2')
         Route::put('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'update'])
             ->whereUuid('shippingRequestId')
             ->name('v2.admin.shipping-requests.update');
+        Route::get('/user-prizes', [V2AdminUserPrizeController::class, 'index'])
+            ->name('v2.admin.user-prizes.index');
+        Route::get('/user-prizes/{userPrizeId}', [V2AdminUserPrizeController::class, 'show'])
+            ->whereUuid('userPrizeId')
+            ->name('v2.admin.user-prizes.show');
         Route::get('/reports/sales/monthly', [V2AdminReportingController::class, 'monthlySales'])
             ->name('v2.admin.reporting.sales.monthly');
         Route::get('/reports/dashboard/sales/monthly', [V2AdminReportingController::class, 'dashboardMonthlySales'])

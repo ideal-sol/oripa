@@ -109,6 +109,34 @@ describe("AdminApiClient", () => {
     }
   });
 
+  it("reads global User Prize list and detail with typed filters and public IDs", async () => {
+    const userPrizeId = "01910191-0191-7191-8191-019101910195";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: { id: userPrizeId } }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listAdminUserPrizes({
+      cursor: "djE6MTA=",
+      gacha: "TESTGACHA01",
+      limit: 20,
+      prize_name: "Prize A",
+      status: "stored",
+      user: "Test User",
+    });
+    await client.getAdminUserPrize(userPrizeId);
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/user-prizes?limit=20&cursor=djE6MTA%3D&user=Test+User&prize_name=Prize+A&gacha=TESTGACHA01&status=stored",
+      `/admin/api/v2/user-prizes/${userPrizeId}`,
+    ]);
+    for (const [, request] of fetcher.mock.calls) {
+      expect(request?.credentials).toBe("include");
+      expect(request?.cache).toBe("no-store");
+      expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBeNull();
+    }
+  });
+
   it("rejects internal or malformed User identifiers before transport", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const client = new AdminApiClient(fetcher, () => csrf);

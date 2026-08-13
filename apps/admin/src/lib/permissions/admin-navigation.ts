@@ -12,6 +12,7 @@ export type AdminRouteId =
   | "tags"
   | "gachas-history"
   | "shipping"
+  | "user-prizes"
   | "purchase-plans"
   | "purchase-plans-create"
   | "announcements"
@@ -92,6 +93,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("tags", "タグ", "/catalog/tags", "catalog.read", "catalog"),
   route("gachas-history", "履歴", "/catalog/gachas/history", "reporting.financial.read", "reports", "scaffold"),
   route("shipping", "一覧", "/shipping", "shipping.request.manage", "shipping"),
+  route("user-prizes", "保有景品", "/user-prizes", "shipping.request.manage", "prize"),
   route("purchase-plans", "一覧", "/purchase-plans", "payment.plan.read", "purchase", "available"),
   route("purchase-plans-create", "登録", "/purchase-plans/new", "payment.plan.manage", "purchase", "available"),
   route("announcements", "一覧", "/announcements", "content.read", "announcements", "scaffold"),
@@ -127,6 +129,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "gachas-history",
   ]),
   group("shipping", "配送", "shipping", ["shipping"]),
+  navigationItem("user-prizes"),
   group("purchase", "ポイント購入", "purchase", [
     "purchase-plans",
     "purchase-plans-create",

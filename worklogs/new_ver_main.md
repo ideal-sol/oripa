@@ -8298,3 +8298,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `User x Gacha x stable Prize`のPersistent guaranteeを追加し、Gacha詳細から複数Test Userを管理する。Cross-Gacha Prize、旧QA Plan競合、Published Prize解決不能はFail Closedする。
 - 通常`V2DrawService`内で先頭1件だけを保証し、残りを通常抽選する。Point／Inventory／User Prize／履歴／Replay／ConcurrencyとMIG-062J Partial Remainingを維持する。
 - Public contractは変更せず、Admin OpenAPI／Generated Clientだけを同期した。Migration `000049`、Backend対象62 tests、Admin Unit／Browser、Typecheck／Lint／Build、Policy／Quality GateがPASSした。
+
+## MIG-062N 管理者向け保有景品一覧／詳細
+
+- Base `51209de02bff0e00078777c094147e568f403ff5`からIssue #257、Branch `feat/MIG-062N-admin-user-prize-management`、Risk R3で開始した。
+- 全User Prizeを取得時Snapshot、User、Canonical Gacha、Draw、Shipping、Point Exchangeと結合するAdmin Read Modelを追加した。
+- 一覧はUser／景品名／Gacha／状態FilterとOpaque Cursorを備え、詳細はDraw、Allowed Actions、配送先、Point交換、状態履歴を表示する。
+- Allowed Actionsと権限は既存Prize Fulfillment Domainおよび`shipping.request.manage`を再利用し、Admin MutationやPublic／Storefront Contract変更を追加しない。

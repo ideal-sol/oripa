@@ -20,6 +20,26 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062n_admin_user_prize_paths_are_registered_exactly(self):
+        expected_backend = {
+            "apps/api/app/Domain/PrizeShipping/Services/V2AdminUserPrizeReadService.php",
+            "apps/api/app/Http/Controllers/V2/V2AdminUserPrizeController.php",
+            "apps/api/tests/V2/AdminUserPrizeReadTest.php",
+        }
+        expected_admin = {
+            "apps/admin/e2e/admin-user-prize-management.spec.ts",
+            "apps/admin/src/app/user-prizes/[userPrizeId]/page.tsx",
+            "apps/admin/src/app/user-prizes/page.tsx",
+            "apps/admin/src/components/user-prizes/admin-user-prize-detail.tsx",
+            "apps/admin/src/components/user-prizes/admin-user-prize-list.tsx",
+            "apps/admin/test/admin-user-prize-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_062N_V2_PRIZE_SHIPPING_FILES, expected_backend)
+        self.assertTrue(expected_backend.issubset(policy_gate.V2_PRIZE_SHIPPING_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_062N_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_backend | expected_admin))
+
     def test_mig_062m_qa_integration_paths_are_registered_exactly(self):
         expected_backend = {
             "apps/api/app/Models/V2/QaGachaGuaranteeAssignment.php",

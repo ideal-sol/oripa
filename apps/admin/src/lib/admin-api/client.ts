@@ -140,6 +140,9 @@ import {
   type AdminUserStateMutationResult,
   type AdminUserStateUpdate,
   type AdminUserGachaHistoryCollection,
+  type AdminUserPrizeCollection,
+  type AdminUserPrizeDetailResponse,
+  type AdminUserPrizeStatus,
   type AdminUserTagAssignmentChange,
   type AdminUserTagCollection,
   type AdminUserTagInput,
@@ -201,6 +204,15 @@ export interface AdminContactQuery {
 export interface AdminBannerQuery {
   category_id?: string;
   cursor?: string;
+}
+
+export interface AdminUserPrizeQuery {
+  cursor?: string;
+  gacha?: string;
+  limit?: number;
+  prize_name?: string;
+  status?: AdminUserPrizeStatus;
+  user?: string;
 }
 
 export type AdminCatalogResource =
@@ -266,6 +278,32 @@ export class AdminApiClient {
       );
     }
     return this.request("GET", `/users/${encodeURIComponent(userId)}`, { signal });
+  }
+
+  listAdminUserPrizes(
+    query: AdminUserPrizeQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminUserPrizeCollection> {
+    const parameters = new URLSearchParams({ limit: String(query.limit ?? 20) });
+    for (const key of ["cursor", "user", "prize_name", "gacha", "status"] as const) {
+      const value = query[key];
+      if (value) parameters.set(key, String(value));
+    }
+    return this.request("GET", `/user-prizes?${parameters.toString()}`, { signal });
+  }
+
+  getAdminUserPrize(
+    userPrizeId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserPrizeDetailResponse> {
+    if (!isOpaqueId(userPrizeId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_PRIZE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request("GET", `/user-prizes/${encodeURIComponent(userPrizeId)}`, {
+      signal,
+    });
   }
 
   updateAdminUserState(
@@ -2559,6 +2597,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | `/user-prizes${string}`
       | `/user-tags${string}`
       | `/users${string}`,
     options: RequestOptions = {},
@@ -2576,6 +2615,9 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        path !== "/user-prizes" &&
+        !path.startsWith("/user-prizes?") &&
+        !path.startsWith("/user-prizes/") &&
         path !== "/user-tags" &&
         !path.startsWith("/user-tags?") &&
         !path.startsWith("/user-tags/") &&

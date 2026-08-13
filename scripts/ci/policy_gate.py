@@ -517,6 +517,11 @@ V2_DRAW_REQUIRED_FILES = {
     "packages/storefront-testkit/src/generated/public-contract.ts",
     *MIG_062J_V2_DRAW_FILES,
 }
+MIG_062N_V2_PRIZE_SHIPPING_FILES = {
+    "apps/api/app/Domain/PrizeShipping/Services/V2AdminUserPrizeReadService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminUserPrizeController.php",
+    "apps/api/tests/V2/AdminUserPrizeReadTest.php",
+}
 V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "apps/api/app/Domain/PrizeShipping/Exceptions/V2PrizeShippingException.php",
     "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php",
@@ -537,6 +542,7 @@ V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "packages/storefront-client/src/prize-shipping.ts",
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
+    *MIG_062N_V2_PRIZE_SHIPPING_FILES,
 }
 MIG_062M_V2_QA_DRAW_FILES = {
     "apps/api/app/Models/V2/QaGachaGuaranteeAssignment.php",
@@ -761,6 +767,14 @@ MIG_062M_ADMIN_SKELETON_FILES = {
     "apps/admin/test/admin-user-qa-test-mode.test.tsx",
     "apps/admin/test/catalog-gacha-qa-guarantee.test.tsx",
 }
+MIG_062N_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-user-prize-management.spec.ts",
+    "apps/admin/src/app/user-prizes/[userPrizeId]/page.tsx",
+    "apps/admin/src/app/user-prizes/page.tsx",
+    "apps/admin/src/components/user-prizes/admin-user-prize-detail.tsx",
+    "apps/admin/src/components/user-prizes/admin-user-prize-list.tsx",
+    "apps/admin/test/admin-user-prize-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -879,6 +893,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062B_ADMIN_SKELETON_FILES,
     *MIG_062K_ADMIN_SKELETON_FILES,
     *MIG_062M_ADMIN_SKELETON_FILES,
+    *MIG_062N_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
