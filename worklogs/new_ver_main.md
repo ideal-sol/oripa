@@ -8274,3 +8274,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `requested_count`は設定Countを保持し、Point消費、Result、Prize、Point Back、Inventory、`sold_count`、履歴はすべて`executed_count`へ整合させる。Idempotency Replayは初回Responseを固定して再実行しない。
 - Daily Limit、Eligibility、販売状態、設定外Countは既存どおりrequested countへ適用し、残口数以外の端数化は追加しない。
 - Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.10`へ同期し、既存Artifactは上書きしない。
+- Application Head `ed57eca709c9a49fc5bb5ffa9903a84573052077`から`2.0.0-alpha.10` ArtifactをRepository外へ新規生成し、Manifest／4配布物Checksum、Workspace外Clean Install／Importを確認した。
