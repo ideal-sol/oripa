@@ -7,7 +7,7 @@
 - Base: `main@a505b36d0a812979a77fc4831bb632d03ad8b782`
 - Branch: `feat/MIG-062L-gacha-prize-ownership`
 - Risk: R4
-- Task Policy SHA-256: `a36c7629e2690c4fc7f38f791ce7d3fa84b24d21fa300b6d9aa2e35f4b210b42`
+- Task Policy SHA-256: `5b564357c977bc75cfdab5dee9cff491ebdb4b50efa4b164e9c5f68d17a5a8d8`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Ownership／Snapshot
@@ -32,6 +32,7 @@
 ## Verification／Preview
 
 - Task DB Migration fresh／rollback／reapply、Prize ownership、Cross-Gacha拒否、同一Gacha再利用、Published Snapshot不変、Probability／Draw／QA／Reportingの対象Backend TestはPASSした。
+- Required Integrationで検出した既存Concurrency FixtureのCross-Gacha Prize共有を、別Gachaごとの別Prize IDへ補正した。Production ImporterのFail Closed条件は維持する。
 - Admin Unit、Typecheck、Lint、Production Build、Desktop／Mobile対象Browser Test、Policy Unit／Policy Gate／Quality Gate、`git diff --check`はPASSした。
 - Preview Image／Migration／Smoke、Required Checks、CodeQL／Dependency Review、Fresh Self-reviewはCloseout時に確定する。
 
