@@ -111,6 +111,95 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         self::assertSame(1, DB::table('draw_requests')->where('status', 'completed')->count());
     }
 
+    public function test_concurrent_requests_use_locked_remaining_count_for_partial_execution(): void
+    {
+        if (getenv('V2_DRAW_PARTIAL_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('MIG-062Jの明示的Concurrency検証で実行する。');
+        }
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for partial Draw concurrency verification.');
+        }
+        config([
+            'cache.default' => 'array',
+            'v2_audit.active_hmac_key_version' => 'v1',
+            'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('j', 32)),
+            'v2_audit.business_timezone' => 'Asia/Tokyo',
+        ]);
+
+        $gachaId = $this->importGachas(1, totalCount: 1_000, soldCount: 850)[0];
+        $user = User::query()->create([
+            'email_display' => 'partial-concurrency-'.Str::uuid().'@example.test',
+            'email_normalized' => 'partial-concurrency-'.Str::uuid().'@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            100_000,
+            now()->addYear(),
+            'partial-concurrency-points'
+        );
+
+        $directory = sys_get_temp_dir().'/mig062j-concurrency-'.getmypid();
+        mkdir($directory, 0700, true);
+        $startAt = microtime(true) + 0.5;
+        $children = [];
+        foreach ([0, 1] as $index) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                self::fail('Concurrency worker could not be created.');
+            }
+            if ($pid === 0) {
+                while (microtime(true) < $startAt) {
+                    usleep(1_000);
+                }
+                DB::disconnect();
+                DB::reconnect();
+                $response = app(V2DrawService::class)->create(
+                    User::query()->findOrFail($user->id),
+                    $gachaId,
+                    100,
+                    "partial-concurrent-{$index}",
+                    (string) Str::uuid7()
+                );
+                file_put_contents(
+                    "{$directory}/{$index}.json",
+                    json_encode([
+                        'requested' => $response['requested_count'],
+                        'executed' => $response['executed_count'],
+                    ], JSON_THROW_ON_ERROR),
+                    LOCK_EX
+                );
+                exit(0);
+            }
+            $children[] = $pid;
+        }
+        DB::disconnect();
+        DB::reconnect();
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            self::assertTrue(pcntl_wifexited($status));
+            self::assertSame(0, pcntl_wexitstatus($status));
+        }
+
+        $responses = [];
+        foreach ([0, 1] as $index) {
+            $path = "{$directory}/{$index}.json";
+            $responses[] = json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+            unlink($path);
+        }
+        rmdir($directory);
+
+        self::assertSame([100, 100], array_column($responses, 'requested'));
+        $executed = array_column($responses, 'executed');
+        sort($executed);
+        self::assertSame([50, 100], $executed);
+        self::assertSame(150, DB::table('draw_results')->count());
+        self::assertSame(1_000, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame('sold_out', DB::table('gacha_draw_states')->value('status'));
+    }
+
     public function test_same_and_separate_gacha_load_meets_merge_thresholds(): void
     {
         if (getenv('V2_DRAW_LOAD_TEST') !== '1') {
@@ -354,19 +443,24 @@ final class ZDrawConcurrencyLoadTest extends TestCase
     /**
      * @return list<string>
      */
-    private function importGachas(int $count, int $dailyDrawLimit = 0): array
+    private function importGachas(
+        int $count,
+        int $dailyDrawLimit = 0,
+        int $totalCount = 100_000,
+        int $soldCount = 0
+    ): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
             true,
             flags: JSON_THROW_ON_ERROR
         );
-        $fixture['gachas'][0]['sold_count'] = 0;
-        $fixture['versions'][0]['total_count'] = 100_000;
+        $fixture['gachas'][0]['sold_count'] = $soldCount;
+        $fixture['versions'][0]['total_count'] = $totalCount;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = 100_000;
+            $relation['initial_inventory'] = $totalCount;
         }
         unset($relation);
         $baseGacha = $fixture['gachas'][0];

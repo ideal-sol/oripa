@@ -115,7 +115,7 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.audience', 'all_users')
             ->assertJsonPath('data.eligible', true)
             ->assertJsonPath('data.ineligible_reason', null)
-            ->assertJsonPath('data.allowed_draw_counts', [1, 5, 10, 100])
+            ->assertJsonPath('data.allowed_draw_counts', [1, 5, 10, 100, 1000])
             ->assertJsonPath('data.daily_limit.unlimited', true)
             ->assertJsonPath('data.cta.action', 'draw');
     }
@@ -262,7 +262,7 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.allowed_draw_counts', [1, 5, 10]);
     }
 
-    public function test_gacha_counts_intersect_inventory_and_daily_limit(): void
+    public function test_gacha_counts_intersect_daily_limit_but_not_remaining_count(): void
     {
         $this->import(
             dailyLimit: 100,
@@ -284,7 +284,18 @@ final class GachaDetailPresentationContractTest extends TestCase
         DB::table('gacha_draw_states')->update(['sold_count' => 999]);
         $this->getJson($this->presentationUrl())
             ->assertOk()
-            ->assertJsonPath('data.allowed_draw_counts', [1]);
+            ->assertJsonPath('data.allowed_draw_counts', [1, 10]);
+    }
+
+    public function test_configured_bulk_count_remains_allowed_when_only_remaining_is_lower(): void
+    {
+        $this->import(allowedDrawCounts: [1, 100, 1000]);
+        $this->authenticate($this->user());
+        DB::table('gacha_draw_states')->update(['sold_count' => 100]);
+
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.allowed_draw_counts', [1, 100, 1000]);
     }
 
     public function test_single_count_configuration_is_preserved(): void

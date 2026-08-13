@@ -181,14 +181,28 @@ final class V2DrawService
                         'The requested Gacha is not selling.'
                     );
                 }
-                if ($state->sold_count + $drawCount > $state->total_count) {
+                $remainingCount = max(0, $state->total_count - $state->sold_count);
+                if ($remainingCount === 0) {
                     throw new V2DrawException(
                         'DRAW_COUNT_INSUFFICIENT',
                         409,
                         'The Gacha does not have enough remaining draw count.'
                     );
                 }
-                $totalCost = $this->totalCost((int) $context['version']->price_points, $drawCount);
+                $executedCount = $qaSelection['active']
+                    ? $drawCount
+                    : min($drawCount, $remainingCount);
+                if ($qaSelection['active'] && $executedCount > $remainingCount) {
+                    throw new V2DrawException(
+                        'DRAW_COUNT_INSUFFICIENT',
+                        409,
+                        'The Gacha does not have enough remaining draw count.'
+                    );
+                }
+                $totalCost = $this->totalCost(
+                    (int) $context['version']->price_points,
+                    $executedCount
+                );
                 $occurredAt = CarbonImmutable::now()->startOfSecond();
                 if (! $qaSelection['active']) {
                     $this->eligibility->assertForDraw(
@@ -261,7 +275,7 @@ final class V2DrawService
                         $state,
                         $probability,
                         $inventories,
-                        $randomValues,
+                        array_slice($randomValues, 0, $executedCount),
                         (int) $context['version']->price_points,
                         $occurredAt,
                         $qaSelection
@@ -270,13 +284,13 @@ final class V2DrawService
                         $state,
                         $probability,
                         $inventories,
-                        $randomValues,
+                        array_slice($randomValues, 0, $executedCount),
                         (int) $context['version']->price_points,
                         $occurredAt
                     );
                 $this->persistInventory($inventories, $outcomes['inventory_won'], $occurredAt);
                 $state->forceFill([
-                    'sold_count' => $state->sold_count + $drawCount,
+                    'sold_count' => $state->sold_count + $executedCount,
                     'lock_version' => $state->lock_version + 1,
                 ]);
                 if ($state->sold_count === $state->total_count) {
@@ -351,7 +365,7 @@ final class V2DrawService
                     $occurredAt
                 );
                 $drawRequest->forceFill([
-                    'executed_count' => $drawCount,
+                    'executed_count' => $executedCount,
                     'consumed_paid_points' => $pointConsumption['paid'],
                     'consumed_free_points' => $pointConsumption['free'],
                     'wallet_paid_after' => $pointConsumption['wallet_paid_after'],
@@ -409,6 +423,7 @@ final class V2DrawService
                         'draw_request_public_id' => $drawRequest->public_id,
                         'gacha_public_id' => $gachaPublicId,
                         'requested_count' => $drawCount,
+                        'executed_count' => $executedCount,
                         'point_cost_total' => $totalCost,
                         'is_qa_draw' => $qaSelection['active'],
                     ],
@@ -1372,7 +1387,7 @@ final class V2DrawService
             'id' => $request->public_id,
             'gacha_id' => $gachaPublicId,
             'status' => 'completed',
-            'requested_count' => count($rows),
+            'requested_count' => (int) $request->requested_count,
             'executed_count' => count($rows),
             'point_cost_total' => (int) $request->point_cost_total,
             'point_consumption' => [
@@ -1451,6 +1466,7 @@ final class V2DrawService
             ...$base,
             'metadata' => [
                 'requested_count' => $request->requested_count,
+                'executed_count' => count($outcomes['rows']),
                 'point_cost_total' => $request->point_cost_total,
             ],
         ]);

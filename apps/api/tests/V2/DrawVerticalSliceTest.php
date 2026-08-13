@@ -303,7 +303,60 @@ final class DrawVerticalSliceTest extends TestCase
         );
     }
 
-    public function test_point_draw_count_inventory_and_publication_fail_before_history(): void
+    public function test_remaining_count_is_executed_atomically_and_replayed_canonically(): void
+    {
+        [$user] = $this->fixture(
+            [150_000],
+            totalCount: 1_000,
+            allowedDrawCounts: [1, 100, 1000]
+        );
+        DB::table('gacha_draw_states')->update(['sold_count' => 100]);
+
+        $first = $this->draw($user, 1000, 'partial-remaining-draw-key');
+        $replay = $this->draw($user, 1000, 'partial-remaining-draw-key');
+
+        self::assertSame(1000, $first['requested_count']);
+        self::assertSame(900, $first['executed_count']);
+        self::assertSame(90_000, $first['point_cost_total']);
+        self::assertFalse($first['idempotent_replay']);
+        self::assertTrue($replay['idempotent_replay']);
+        self::assertSame(1000, $replay['requested_count']);
+        self::assertSame(900, $replay['executed_count']);
+        self::assertSame($first['id'], $replay['id']);
+        self::assertSame(900, DB::table('draw_results')->count());
+        self::assertSame(
+            900,
+            DB::table('draw_requests')->where('status', 'completed')->sum('executed_count')
+        );
+        self::assertSame(1, DB::table('draw_requests')->count());
+        self::assertSame(1_000, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame('sold_out', DB::table('gacha_draw_states')->value('status'));
+        self::assertSame(
+            900,
+            DB::table('draw_results')->where('result_type', 'prize')->count()
+                + DB::table('draw_results')->where('result_type', 'point_back')->count()
+        );
+    }
+
+    public function test_daily_limit_does_not_trigger_partial_execution(): void
+    {
+        [$user] = $this->fixture(
+            [150_000],
+            totalCount: 1_000,
+            dailyDrawLimit: 900,
+            allowedDrawCounts: [1, 100, 1000]
+        );
+        DB::table('gacha_draw_states')->update(['sold_count' => 100]);
+
+        $this->expectDrawFailure(
+            fn () => $this->draw($user, 1000, 'daily-limit-no-partial-key'),
+            'DAILY_DRAW_LIMIT_EXCEEDED'
+        );
+        self::assertSame(0, DB::table('draw_requests')->count());
+        self::assertSame(100, (int) DB::table('gacha_draw_states')->value('sold_count'));
+    }
+
+    public function test_point_sold_out_and_publication_fail_before_history(): void
     {
         [$user] = $this->fixture([5_000], freePoints: 99);
         $this->expectDrawFailure(
@@ -318,12 +371,20 @@ final class DrawVerticalSliceTest extends TestCase
             now()->addYear(),
             'top-up-for-negative-cases'
         );
-        DB::table('gacha_draw_states')->update(['sold_count' => 4_999]);
+        DB::table('gacha_draw_states')->update([
+            'sold_count' => 5_000,
+            'status' => 'sold_out',
+            'sold_out_at' => now(),
+        ]);
         $this->expectDrawFailure(
             fn () => $this->draw($user, 5, 'insufficient-count-key-0001'),
-            'DRAW_COUNT_INSUFFICIENT'
+            'GACHA_NOT_DRAWABLE'
         );
-        DB::table('gacha_draw_states')->update(['sold_count' => 0, 'status' => 'paused']);
+        DB::table('gacha_draw_states')->update([
+            'sold_count' => 0,
+            'status' => 'paused',
+            'sold_out_at' => null,
+        ]);
         $this->expectDrawFailure(
             fn () => $this->draw($user, 1, 'paused-draw-key-0001'),
             'GACHA_NOT_DRAWABLE'

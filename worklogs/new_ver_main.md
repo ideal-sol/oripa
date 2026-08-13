@@ -8266,3 +8266,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public Contractは既存Schemaで表現可能なため変更せず、Admin OpenAPI／Generated Clientだけを同期する。Storefront Artifact更新は行わない。
 - Exact Head `73326e85cd67b83bf941602979b5ae651d9826a6`のRequired ChecksとGitHub-hosted amd64 Image BuildがPASSした。Checksum／OCI Revision／Architectureを検証後、Host BuildなしでPreview DBへMigration 000045だけを適用し、API／Adminだけを更新した。
 - PreviewでAdmin保存・再取得・復元、Public `allowed_draw_counts`、無効Countの直接Draw拒否と非Mutationを確認した。PostgreSQL／Redis／Nginx／V1は変更していない。
+
+## MIG-062J 残口数未満時の端数Draw対応
+
+- Base `38c10edcabed971cd5a18cfe43c3b95e87c2d1b9`からIssue #249、Branch `feat/MIG-062J-partial-remaining-draw`、Risk R4で開始した。
+- Gacha設定CountはPresentationから残口数だけを理由に除外せず、Public Draw TransactionがGacha Lock後のCanonical remainingから`executed_count`を確定する。
+- `requested_count`は設定Countを保持し、Point消費、Result、Prize、Point Back、Inventory、`sold_count`、履歴はすべて`executed_count`へ整合させる。Idempotency Replayは初回Responseを固定して再実行しない。
+- Daily Limit、Eligibility、販売状態、設定外Countは既存どおりrequested countへ適用し、残口数以外の端数化は追加しない。
+- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.10`へ同期し、既存Artifactは上書きしない。

@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.9",
+    "version": "2.0.0-alpha.10",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -12261,13 +12261,8 @@
           },
           "executed_count": {
             "type": "integer",
-            "enum": [
-              1,
-              5,
-              10,
-              100,
-              1000
-            ]
+            "minimum": 1,
+            "maximum": 1000
           },
           "status_summary": {
             "type": "array",
@@ -12446,13 +12441,8 @@
           },
           "executed_count": {
             "type": "integer",
-            "enum": [
-              1,
-              5,
-              10,
-              100,
-              1000
-            ]
+            "minimum": 1,
+            "maximum": 1000
           },
           "consumed_points": {
             "type": "integer",

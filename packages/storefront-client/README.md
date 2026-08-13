@@ -35,7 +35,7 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.9`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.10`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -52,6 +52,10 @@ Browser Draw Facadeの`createBrowserStorefrontDrawClient`は、CanonicalなSessi
 初期化とCSRF Cookie／Header処理を内部化する。Callerは`Idempotency-Key`だけを明示し、
 同じRetryへ同じKeyを渡す。Draw拒否は`isDrawProblemError`でGenerated codeを判別し、
 未知のProblem codeは汎用`ApiProblemError`として扱う。
+
+Drawの`requested_count`はGachaで設定されたCountを保持し、残口数だけが不足する場合は
+BackendがLock後の残口数を`executed_count`として確定する。Storefrontは残口数から実行数を
+再計算せず、成功ResponseとResult取得で端数を扱う。
 
 Browser Fulfillment Facadeの`createBrowserStorefrontPrizeShippingClient`も同じ
 CSRF境界を使い、景品交換、配送依頼、配送先作成ではCallerが明示した同一
