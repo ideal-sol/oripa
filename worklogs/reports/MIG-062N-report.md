@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: #257
-- PR: Closeout時に記録
+- PR: #258
 - Base: `main@51209de02bff0e00078777c094147e568f403ff5`
 - Branch: `feat/MIG-062N-admin-user-prize-management`
 - Risk: R3
