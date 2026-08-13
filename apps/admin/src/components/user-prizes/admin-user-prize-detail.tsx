@@ -30,8 +30,6 @@ export function AdminUserPrizeDetail({ userPrizeId }: { userPrizeId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
     client.getAdminUserPrize(userPrizeId, controller.signal)
       .then((response) => setData(response.data))
       .catch((reason: unknown) => {
@@ -60,7 +58,11 @@ export function AdminUserPrizeDetail({ userPrizeId }: { userPrizeId: string }) {
           <h1>保有景品を表示できません</h1>
           <p>{error ?? "対象データが見つかりません。"}</p>
           <div className="module-state-actions">
-            <button className="secondary-button" onClick={() => setReload((value) => value + 1)} type="button">
+            <button className="secondary-button" onClick={() => {
+              setLoading(true);
+              setError(null);
+              setReload((value) => value + 1);
+            }} type="button">
               <RefreshCw aria-hidden="true" size={16} />再取得
             </button>
             <Link className="secondary-button" href="/user-prizes">一覧へ戻る</Link>

@@ -62,8 +62,6 @@ export function AdminUserPrizeList() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
     const query: AdminUserPrizeQuery = {
       cursor,
       gacha: filters.gacha || undefined,
@@ -88,6 +86,7 @@ export function AdminUserPrizeList() {
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    beginLoad();
     setCursor(undefined);
     setCursorStack([]);
     setFilters({
@@ -96,13 +95,21 @@ export function AdminUserPrizeList() {
       status: draft.status,
       user: draft.user.trim(),
     });
+    setReload((value) => value + 1);
   }
 
   function resetFilters() {
+    beginLoad();
     setDraft(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
     setCursor(undefined);
     setCursorStack([]);
+    setReload((value) => value + 1);
+  }
+
+  function beginLoad() {
+    setLoading(true);
+    setError(null);
   }
 
   return (
@@ -166,7 +173,7 @@ export function AdminUserPrizeList() {
         <section className="module-state is-error" role="alert">
           <h2>保有景品を取得できませんでした</h2>
           <p>{error}</p>
-          <button className="secondary-button" onClick={() => setReload((value) => value + 1)} type="button">
+          <button className="secondary-button" onClick={() => { beginLoad(); setReload((value) => value + 1); }} type="button">
             <RefreshCw aria-hidden="true" size={16} />再取得
           </button>
         </section>
@@ -206,6 +213,7 @@ export function AdminUserPrizeList() {
               className="secondary-button"
               disabled={cursorStack.length === 0}
               onClick={() => {
+                beginLoad();
                 const previous = [...cursorStack];
                 setCursor(previous.pop());
                 setCursorStack(previous);
@@ -218,6 +226,7 @@ export function AdminUserPrizeList() {
               className="secondary-button"
               disabled={!nextCursor}
               onClick={() => {
+                beginLoad();
                 setCursorStack((current) => [...current, cursor]);
                 setCursor(nextCursor ?? undefined);
               }}
