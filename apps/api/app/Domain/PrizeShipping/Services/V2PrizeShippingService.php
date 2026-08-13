@@ -143,7 +143,7 @@ final class V2PrizeShippingService
             $this->assertNoActiveHold($prizes->pluck('id')->map(fn ($id): int => (int) $id)->all());
             $now = CarbonImmutable::parse(now())->startOfSecond();
             foreach ($prizes as $prize) {
-                if (! $this->prizeActions($prize, $now, false)['point_exchange']['allowed']) {
+                if (! $this->prizeAllowedActions($prize, $now, false)['point_exchange']['allowed']) {
                     throw new V2PrizeShippingException(
                         'PRIZE_NOT_EXCHANGEABLE',
                         409,
@@ -459,7 +459,7 @@ final class V2PrizeShippingService
             $this->assertNoActiveHold($prizes->pluck('id')->map(fn ($id): int => (int) $id)->all());
             $now = CarbonImmutable::parse(now())->startOfSecond();
             foreach ($prizes as $prize) {
-                if (! $this->prizeActions($prize, $now, false)['shipping']['allowed']) {
+                if (! $this->prizeAllowedActions($prize, $now, false)['shipping']['allowed']) {
                     throw new V2PrizeShippingException(
                         'PRIZE_NOT_SHIPPABLE',
                         409,
@@ -764,7 +764,7 @@ final class V2PrizeShippingService
                 'The User Prize presentation is unavailable.'
             );
         }
-        $actions = $this->prizeActions(
+        $actions = $this->prizeAllowedActions(
             $row,
             $now,
             $row->active_payment_hold_prize_id !== null
@@ -795,8 +795,8 @@ final class V2PrizeShippingService
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function prizeActions(
+    /** @return array<string, array{allowed: bool, unavailable_reason: string|null}> */
+    public function prizeAllowedActions(
         object $prize,
         CarbonImmutable $now,
         bool $hasActivePaymentHold

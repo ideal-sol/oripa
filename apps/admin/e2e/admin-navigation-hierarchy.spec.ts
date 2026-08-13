@@ -74,6 +74,10 @@ test("Owner navigates the approved hierarchy and every route returns 200", async
   await expect(navigation.getByRole("link", { name: "景品管理" })).toHaveCount(0);
   await expect(navigation.getByRole("link", { name: "QA管理" })).toHaveCount(0);
   await expect(navigation.getByRole("link", { name: "管理者認証" })).toHaveCount(0);
+  await expect(navigation.getByRole("link", { name: "保有景品" })).toHaveAttribute(
+    "href",
+    "/user-prizes",
+  );
 
   for (const [groupName, paths] of groups) {
     const button = navigation.getByRole("button", { name: groupName, exact: true });
@@ -256,6 +260,9 @@ async function installPreviewApi(page: Page): Promise<void> {
     }
     if (path.endsWith("/users")) {
       return json(route, { items: [], next_cursor: null });
+    }
+    if (path.endsWith("/user-prizes")) {
+      return json(route, { items: [], next_cursor: null, request_id: "01910191-0191-7191-8191-019101910193" });
     }
     if (/\/catalog\/(gachas|categories|tags|presentation-assets)$/u.test(path)) {
       return json(route, { items: [], next_cursor: null });

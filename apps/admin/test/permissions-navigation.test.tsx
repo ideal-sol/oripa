@@ -59,6 +59,10 @@ describe("Admin permission navigation", () => {
     expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeVisible();
     expect(screen.getByRole("button", { name: "ガチャ" })).toBeVisible();
     expect(screen.getByRole("button", { name: "配送" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "保有景品" })).toHaveAttribute(
+      "href",
+      "/user-prizes",
+    );
     expect(screen.getByRole("button", { name: "お知らせ" })).toBeVisible();
     expect(screen.getByRole("button", { name: "お問い合わせ" })).toBeVisible();
     expect(screen.getByRole("button", { name: "ユーザー" })).toBeVisible();

@@ -62,6 +62,7 @@ describe("Admin sidebar hierarchy", () => {
       expect.stringContaining("ユーザー"),
       expect.stringContaining("ガチャ"),
       expect.stringContaining("配送"),
+      "保有景品",
       expect.stringContaining("ポイント購入"),
       expect.stringContaining("お知らせ"),
       expect.stringContaining("バナー"),

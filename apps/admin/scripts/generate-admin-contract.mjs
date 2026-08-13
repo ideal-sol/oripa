@@ -23,6 +23,8 @@ const operations = {
   getAdminSession: ["get", "/auth/session"],
   listAdminUsers: ["get", "/users"],
   getAdminUser: ["get", "/users/{user_id}"],
+  listAdminUserPrizes: ["get", "/user-prizes"],
+  getAdminUserPrize: ["get", "/user-prizes/{user_prize_id}"],
   updateAdminUserState: ["put", "/users/{user_id}/state"],
   listAdminUserTags: ["get", "/user-tags"],
   createAdminUserTag: ["post", "/user-tags"],
@@ -399,6 +401,9 @@ const requiredSchemas = [
   "AdminUserTagSetResponse",
   "AdminUserTagSetMutationResult",
   "AdminUserGachaHistoryCollection",
+  "AdminUserPrizeCollection",
+  "AdminUserPrizeDetailResponse",
+  "AdminUserPrizeStatus",
   "AdminPointAdjustmentRequest",
   "AdminPointAdjustmentMutationResult",
   "RecoveryCodes",
@@ -792,6 +797,117 @@ export interface AdminUserGachaHistoryCollection {
   user_id: string;
   items: AdminUserGachaHistoryItem[];
   next_cursor: string | null;
+  request_id: string;
+}
+
+export type AdminUserPrizeStatus =
+  | "stored"
+  | "exchange_processing"
+  | "converted"
+  | "shipping_requested"
+  | "packing"
+  | "shipped"
+  | "delivered"
+  | "hold"
+  | "return_requested"
+  | "returned"
+  | "expired"
+  | "canceled";
+
+export interface AdminUserPrizeActionState {
+  allowed: boolean;
+  unavailable_reason:
+    | "payment_hold"
+    | "status_not_actionable"
+    | "storage_expired"
+    | "exchange_points_unavailable"
+    | null;
+}
+
+export interface AdminUserPrizeSummary {
+  id: string;
+  user: { id: string; display_name: string | null };
+  prize: {
+    id: string;
+    name: string;
+    image: AdminCatalogAssetReference | null;
+    rank: { id: string; code: string; name: string };
+  };
+  gacha: { id: string; version_id: string; title: string };
+  status: AdminUserPrizeStatus;
+  fulfillment: {
+    shipping_status: string | null;
+    point_exchange_status: "processing" | "completed" | null;
+  };
+  exchange_points: number;
+  exchanged_points: number | null;
+  acquired_at: string;
+  storage_expires_at: string;
+  terminal_at: string | null;
+  status_updated_at: string;
+  allowed_actions: {
+    shipping: AdminUserPrizeActionState;
+    point_exchange: AdminUserPrizeActionState;
+    selection: AdminUserPrizeActionState;
+  };
+}
+
+export interface AdminUserPrizeCollection {
+  items: AdminUserPrizeSummary[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserPrizeDetail extends AdminUserPrizeSummary {
+  draw: {
+    request_id: string;
+    result_id: string;
+    requested_count: number;
+    executed_count: number;
+    consumed_points: number;
+    completed_at: string;
+  };
+  status_history: Array<{
+    from_status: string | null;
+    to_status: AdminUserPrizeStatus;
+    reason_code: string;
+    occurred_at: string;
+  }>;
+  shipping: {
+    id: string;
+    status: string;
+    prize_count: number;
+    requested_at: string;
+    shipped_at: string | null;
+    carrier_code: string | null;
+    prize_ids: string[];
+    tracking_number: string | null;
+    shipping_address: {
+      recipient_name: string;
+      postal_code: string;
+      prefecture: string;
+      city: string;
+      street: string;
+      building: string | null;
+      phone_number: string;
+    };
+    status_history: Array<{
+      from_status: string | null;
+      to_status: string;
+      reason_code: string;
+      occurred_at: string;
+    }>;
+  } | null;
+  point_exchange: {
+    id: string;
+    status: "processing" | "completed";
+    exchange_points: number;
+    completed_at: string | null;
+  } | null;
+}
+
+export interface AdminUserPrizeDetailResponse {
+  data: AdminUserPrizeDetail;
   request_id: string;
 }
 
