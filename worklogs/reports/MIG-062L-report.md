@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: #253
-- PR: Closeout時に確定
+- PR: #254
 - Base: `main@a505b36d0a812979a77fc4831bb632d03ad8b782`
 - Branch: `feat/MIG-062L-gacha-prize-ownership`
 - Risk: R4
