@@ -180,26 +180,6 @@ final class V2CatalogFixtureImporter
             ]);
             $count++;
         }
-        foreach ($manifest['prizes'] as $prize) {
-            DB::table('catalog_prizes')->insert([
-                'public_id' => $prize['public_id'],
-                'code' => $prize['code'],
-                'rank_id' => $this->id('catalog_ranks', 'code', $prize['rank_code']),
-                'presentation_asset_id' => $this->id(
-                    'catalog_presentation_assets',
-                    'storage_identifier',
-                    $prize['asset_storage_identifier']
-                ),
-                'display_name' => $prize['name'],
-                'description' => $prize['description'] ?? null,
-                'display_price' => $prize['display_price'],
-                'exchange_points' => $prize['exchange_points'],
-                'is_visible' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-            $count++;
-        }
         foreach ($manifest['gachas'] as $gacha) {
             $gachaId = DB::table('catalog_gachas')->insertGetId([
                 'public_id' => $gacha['public_id'],
@@ -224,6 +204,31 @@ final class V2CatalogFixtureImporter
                 ]);
                 $count++;
             }
+        }
+        foreach ($manifest['prizes'] as $prize) {
+            DB::table('catalog_prizes')->insert([
+                'public_id' => $prize['public_id'],
+                'code' => $prize['code'],
+                'gacha_id' => $this->id(
+                    'catalog_gachas',
+                    'code',
+                    $this->fixturePrizeGachaCode($manifest, $prize['code'])
+                ),
+                'rank_id' => $this->id('catalog_ranks', 'code', $prize['rank_code']),
+                'presentation_asset_id' => $this->id(
+                    'catalog_presentation_assets',
+                    'storage_identifier',
+                    $prize['asset_storage_identifier']
+                ),
+                'display_name' => $prize['name'],
+                'description' => $prize['description'] ?? null,
+                'display_price' => $prize['display_price'],
+                'exchange_points' => $prize['exchange_points'],
+                'is_visible' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $count++;
         }
         foreach ($manifest['versions'] as $version) {
             DB::table('catalog_gacha_versions')->insert([
@@ -270,12 +275,41 @@ final class V2CatalogFixtureImporter
             }
         }
         foreach ($manifest['gacha_prizes'] as $relation) {
+            $prize = DB::table('catalog_prizes')
+                ->where('code', $relation['prize_code'])
+                ->first();
+            if ($prize === null) {
+                throw new V2CatalogException(
+                    'CATALOG_IMPORT_REFERENCE_MISSING',
+                    422,
+                    'A Catalog fixture Prize reference is missing.'
+                );
+            }
+            $rank = DB::table('catalog_ranks')->where('id', $prize->rank_id)->first();
+            if ($rank === null) {
+                throw new V2CatalogException(
+                    'CATALOG_IMPORT_REFERENCE_MISSING',
+                    422,
+                    'A Catalog fixture Rank reference is missing.'
+                );
+            }
             DB::table('catalog_gacha_version_prizes')->insert([
                 'gacha_version_id' => $this->gachaVersionId(
                     $relation['gacha_code'],
                     $relation['gacha_version_number']
                 ),
-                'prize_id' => $this->id('catalog_prizes', 'code', $relation['prize_code']),
+                'prize_id' => $prize->id,
+                'rank_id' => $prize->rank_id,
+                'rank_code' => $rank->code,
+                'rank_display_name' => $rank->display_name,
+                'rank_sort_order' => $rank->sort_order,
+                'presentation_asset_id' => $prize->presentation_asset_id,
+                'display_name' => $prize->display_name,
+                'description' => $prize->description,
+                'display_price' => $prize->display_price,
+                'exchange_points' => $prize->exchange_points,
+                'cost_price' => $prize->cost_price,
+                'is_visible' => $prize->is_visible,
                 'initial_inventory' => $relation['initial_inventory'],
                 'sort_order' => $relation['sort_order'],
                 'created_at' => $now,
@@ -569,6 +603,25 @@ final class V2CatalogFixtureImporter
             [1, 5, 10, 100, 1000],
             static fn (int $count): bool => in_array($count, $value, true)
         )) && in_array(1, $value, true);
+    }
+
+    /** @param array<string, mixed> $manifest */
+    private function fixturePrizeGachaCode(array $manifest, string $prizeCode): string
+    {
+        $gachaCodes = collect($manifest['gacha_prizes'])
+            ->where('prize_code', $prizeCode)
+            ->pluck('gacha_code')
+            ->unique()
+            ->values();
+        if ($gachaCodes->count() !== 1) {
+            throw new V2CatalogException(
+                'INVALID_CATALOG_FIXTURE',
+                422,
+                'Each Catalog fixture Prize must belong to exactly one Gacha.'
+            );
+        }
+
+        return (string) $gachaCodes->first();
     }
 
     private function id(string $table, string $column, string $value): int

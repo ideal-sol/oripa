@@ -62,8 +62,19 @@ describe("Gacha Rank and Prize manager", () => {
   });
 
   it("keeps mutations hidden for read-only users", async () => {
-    render(<CatalogGachaRankPrizeManager canManage={false} gachaId={GACHA_ID} version={version} />);
+    render(
+      <CatalogGachaRankPrizeManager
+        canManage={false}
+        gachaId={GACHA_ID}
+        heading="現在公開中の景品ラインナップ"
+        version={version}
+        versionLabel="公開済み バージョン 1"
+      />,
+    );
     await screen.findByText("SS景品");
+    expect(screen.getByRole("heading", { name: "現在公開中の景品ラインナップ" }))
+      .toBeVisible();
+    expect(screen.getByText("公開済み バージョン 1")).toBeVisible();
     expect(screen.queryByRole("button", { name: "ランク設定" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新規景品登録" })).not.toBeInTheDocument();
   });

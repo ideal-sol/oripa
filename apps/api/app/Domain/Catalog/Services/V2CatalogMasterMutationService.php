@@ -889,7 +889,10 @@ final class V2CatalogMasterMutationService
                     $payload['expected_revision']
                 );
                 $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
-                $prizes = $this->resolveGachaPrizes($payload['prizes']);
+                $prizes = $this->resolveGachaPrizes(
+                    $payload['prizes'],
+                    (int) $gacha->id
+                );
                 DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
                     'title' => $payload['title'],
                     'description' => $payload['description'],
@@ -1065,6 +1068,13 @@ final class V2CatalogMasterMutationService
                     'revision' => (int) $rank->revision + 1,
                     'updated_at' => now()->startOfSecond(),
                 ]);
+                DB::table('catalog_gacha_version_prizes')
+                    ->where('gacha_version_id', $version->id)
+                    ->where('rank_id', $rank->id)
+                    ->update([
+                        'rank_display_name' => $payload['name'],
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
                 $this->replaceRankAssets(
                     (int) $rank->id,
                     $payload['image_asset_id'],
@@ -1115,6 +1125,7 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_prizes')->insert([
                     'public_id' => $publicId,
                     'code' => $code,
+                    'gacha_id' => $version->gacha_id,
                     'rank_id' => $rank->id,
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
@@ -1135,6 +1146,17 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_gacha_version_prizes')->insert([
                     'gacha_version_id' => $version->id,
                     'prize_id' => $prize->id,
+                    'rank_id' => $rank->id,
+                    'rank_code' => $rank->code,
+                    'rank_display_name' => $rank->display_name,
+                    'rank_sort_order' => $rank->sort_order,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'description' => null,
+                    'display_price' => 0,
+                    'exchange_points' => $payload['exchange_points'],
+                    'cost_price' => $payload['cost_price'],
+                    'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
                     'sort_order' => $sortOrder,
                     'created_at' => $now,
@@ -1206,7 +1228,6 @@ final class V2CatalogMasterMutationService
                         'Total inventory cannot be lower than confirmed inventory usage.'
                     );
                 }
-                $this->assertNoPublishedReference('catalog_prizes', (int) $prize->id);
                 DB::table('catalog_prizes')->where('id', $prize->id)->update([
                     'rank_id' => $rank->id,
                     'presentation_asset_id' => $asset?->id,
@@ -1218,6 +1239,15 @@ final class V2CatalogMasterMutationService
                     'updated_at' => now()->startOfSecond(),
                 ]);
                 DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->update([
+                    'rank_id' => $rank->id,
+                    'rank_code' => $rank->code,
+                    'rank_display_name' => $rank->display_name,
+                    'rank_sort_order' => $rank->sort_order,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'exchange_points' => $payload['exchange_points'],
+                    'cost_price' => $payload['cost_price'],
+                    'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
                     'updated_at' => now()->startOfSecond(),
                 ]);
@@ -2517,45 +2547,12 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
-        $admin = $this->authorize($context, 'create', 'prize');
-        $this->rateLimit($context, $admin, 'create', 'prize');
-        $payload = $this->validatePrizeCreate($input);
+        $this->authorize($context, 'create', 'prize');
 
-        return $this->execute(
-            $context,
-            $admin,
-            'prize',
-            'create',
-            $idempotencyKey,
-            $payload,
-            201,
-            function () use ($payload): object {
-                $now = now()->startOfSecond();
-                $rank = $this->resolveReference(
-                    'catalog_ranks',
-                    $payload['rank_id'],
-                    'is_visible'
-                );
-                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
-                $publicId = (string) Str::uuid7();
-                DB::table('catalog_prizes')->insert([
-                    'public_id' => $publicId,
-                    'code' => $payload['code'],
-                    'rank_id' => $rank->id,
-                    'presentation_asset_id' => $asset?->id,
-                    'display_name' => $payload['name'],
-                    'description' => $payload['description'],
-                    'display_price' => $payload['display_price'],
-                    'exchange_points' => $payload['exchange_points'],
-                    'is_visible' => $payload['is_visible'],
-                    'revision' => 1,
-                    'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-
-                return $this->find('catalog_prizes', $publicId, true);
-            }
+        throw new V2CatalogException(
+            'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED',
+            409,
+            'Prizes must be created from an editable Gacha.'
         );
     }
 
@@ -2566,54 +2563,12 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
-        $admin = $this->authorize($context, 'update', 'prize');
-        $this->rateLimit($context, $admin, 'update', 'prize');
-        if (array_key_exists('code', $input)) {
-            throw new V2CatalogException(
-                'CATALOG_CODE_IMMUTABLE',
-                409,
-                'Catalog master codes cannot be changed.'
-            );
-        }
-        $payload = $this->validatePrizeUpdate($input);
+        $this->authorize($context, 'update', 'prize');
 
-        return $this->execute(
-            $context,
-            $admin,
-            'prize',
-            'update',
-            $idempotencyKey,
-            ['id' => $publicId, ...$payload],
-            200,
-            function () use ($publicId, $payload): object {
-                $row = $this->find('catalog_prizes', $publicId, true);
-                $this->assertMutable($row, $payload['expected_revision']);
-                $rank = $this->resolveReference(
-                    'catalog_ranks',
-                    $payload['rank_id'],
-                    'is_visible'
-                );
-                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
-                $changes = [
-                    'rank_id' => $rank->id,
-                    'presentation_asset_id' => $asset?->id,
-                    'display_name' => $payload['name'],
-                    'description' => $payload['description'],
-                    'display_price' => $payload['display_price'],
-                    'exchange_points' => $payload['exchange_points'],
-                    'is_visible' => $payload['is_visible'],
-                ];
-                if ($this->changesPublishedPresentation($row, $changes)) {
-                    $this->assertNoPublishedReference('catalog_prizes', (int) $row->id);
-                }
-                DB::table('catalog_prizes')->where('id', $row->id)->update([
-                    ...$changes,
-                    'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
-                ]);
-
-                return $this->find('catalog_prizes', $publicId, false);
-            }
+        throw new V2CatalogException(
+            'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED',
+            409,
+            'Prizes must be updated through an editable Gacha.'
         );
     }
 
@@ -4413,10 +4368,9 @@ final class V2CatalogMasterMutationService
                 ->join('catalog_gachas as g', 'g.id', '=', 'gt.gacha_id')
                 ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'g.published_version_id')
                 ->where('gt.tag_id', $id),
-            'catalog_ranks' => DB::table('catalog_prizes as p')
-                ->join('catalog_gacha_version_prizes as gvp', 'gvp.prize_id', '=', 'p.id')
+            'catalog_ranks' => DB::table('catalog_gacha_version_prizes as gvp')
                 ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'gvp.gacha_version_id')
-                ->where('p.rank_id', $id),
+                ->where('gvp.rank_id', $id),
             'catalog_prizes' => DB::table('catalog_gacha_version_prizes as gvp')
                 ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'gvp.gacha_version_id')
                 ->where('gvp.prize_id', $id),
@@ -4425,24 +4379,17 @@ final class V2CatalogMasterMutationService
                     ->select('direct.id as gacha_version_id')
                     ->where('direct.presentation_asset_id', $id)
                     ->union(
-                        DB::table('catalog_prizes as p')
-                            ->join(
-                                'catalog_gacha_version_prizes as prize_relation',
-                                'prize_relation.prize_id',
-                                '=',
-                                'p.id'
-                            )
+                        DB::table('catalog_gacha_version_prizes as prize_relation')
                             ->select('prize_relation.gacha_version_id')
-                            ->where('p.presentation_asset_id', $id)
+                            ->where('prize_relation.presentation_asset_id', $id)
                     )
                     ->union(
                         DB::table('catalog_rank_assets as ra')
-                            ->join('catalog_prizes as rp', 'rp.rank_id', '=', 'ra.rank_id')
                             ->join(
                                 'catalog_gacha_version_prizes as rank_relation',
-                                'rank_relation.prize_id',
+                                'rank_relation.rank_id',
                                 '=',
-                                'rp.id'
+                                'ra.rank_id'
                             )
                             ->select('rank_relation.gacha_version_id')
                             ->where('ra.presentation_asset_id', $id)
@@ -4586,9 +4533,13 @@ final class V2CatalogMasterMutationService
 
     /**
      * @param list<array{prize_id: string, initial_inventory: int, sort_order: int}> $prizes
-     * @return list<array{prize_id: int, initial_inventory: int, sort_order: int}>
+     * @return list<array<string, int|string|bool|null>>
      */
-    private function resolveGachaPrizes(array $prizes): array
+    private function resolveGachaPrizes(
+        array $prizes,
+        int $gachaId,
+        ?int $snapshotSourceVersionId = null
+    ): array
     {
         $resolved = $this->resolveReferences(
             'catalog_prizes',
@@ -4600,9 +4551,54 @@ final class V2CatalogMasterMutationService
             $prizesByPublicId[$prize->public_id] = $prize;
         }
 
-        return array_map(function (array $relation) use ($prizesByPublicId): array {
+        $sourceSnapshots = $snapshotSourceVersionId === null
+            ? collect()
+            : DB::table('catalog_gacha_version_prizes')
+                ->where('gacha_version_id', $snapshotSourceVersionId)
+                ->get()
+                ->keyBy('prize_id');
+        $rankIds = collect($resolved)->pluck('rank_id')
+            ->merge($sourceSnapshots->pluck('rank_id'))
+            ->unique()
+            ->values();
+        $ranksById = DB::table('catalog_ranks')
+            ->whereIn('id', $rankIds)
+            ->get()
+            ->keyBy('id');
+
+        return array_map(function (array $relation) use (
+            $gachaId,
+            $prizesByPublicId,
+            $sourceSnapshots,
+            $ranksById
+        ): array {
+            $prize = $prizesByPublicId[$relation['prize_id']];
+            if ((int) $prize->gacha_id !== $gachaId) {
+                throw new V2CatalogException(
+                    'CATALOG_CROSS_GACHA_PRIZE_ASSOCIATION',
+                    409,
+                    'A Prize can only be associated with its owning Gacha.'
+                );
+            }
+            $snapshot = $sourceSnapshots->get($prize->id) ?? $prize;
+            $rank = $ranksById->get($snapshot->rank_id);
+            if ($rank === null) {
+                throw $this->notFound();
+            }
+
             return [
-                'prize_id' => (int) $prizesByPublicId[$relation['prize_id']]->id,
+                'prize_id' => (int) $prize->id,
+                'rank_id' => (int) $snapshot->rank_id,
+                'rank_code' => $snapshot->rank_code ?? $rank->code,
+                'rank_display_name' => $snapshot->rank_display_name ?? $rank->display_name,
+                'rank_sort_order' => (int) ($snapshot->rank_sort_order ?? $rank->sort_order),
+                'presentation_asset_id' => $snapshot->presentation_asset_id,
+                'display_name' => $snapshot->display_name,
+                'description' => $snapshot->description,
+                'display_price' => (int) $snapshot->display_price,
+                'exchange_points' => (int) $snapshot->exchange_points,
+                'cost_price' => (int) $snapshot->cost_price,
+                'is_visible' => (bool) $snapshot->is_visible,
                 'initial_inventory' => $relation['initial_inventory'],
                 'sort_order' => $relation['sort_order'],
             ];
@@ -4610,7 +4606,7 @@ final class V2CatalogMasterMutationService
     }
 
     /**
-     * @param list<array{prize_id: int, initial_inventory: int, sort_order: int}> $prizes
+     * @param list<array<string, int|string|bool|null>> $prizes
      */
     private function replaceGachaVersionPrizes(int $versionId, array $prizes): void
     {
@@ -4628,10 +4624,9 @@ final class V2CatalogMasterMutationService
             $prizes
         ));
         $rankIds = DB::table('catalog_gacha_version_prizes as relation')
-            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->where('relation.gacha_version_id', $versionId)
             ->orderBy('relation.sort_order')
-            ->pluck('prize.rank_id')
+            ->pluck('relation.rank_id')
             ->unique()
             ->values();
         $existingRankIds = DB::table('catalog_gacha_version_ranks')
@@ -4783,7 +4778,11 @@ final class V2CatalogMasterMutationService
         ?int $clonedFromVersionId
     ): object {
         $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
-        $prizes = $this->resolveGachaPrizes($payload['prizes']);
+        $prizes = $this->resolveGachaPrizes(
+            $payload['prizes'],
+            (int) $gacha->id,
+            $clonedFromVersionId
+        );
         $category = isset($payload['category_id'])
             ? $this->resolveReference('catalog_categories', $payload['category_id'], 'is_visible')
             : DB::table('catalog_categories')->where('id', $gacha->category_id)->firstOrFail();
@@ -4953,7 +4952,7 @@ final class V2CatalogMasterMutationService
         $relations = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->where('relation.gacha_version_id', $gachaVersionId)
-            ->where('prize.is_visible', true)
+            ->where('relation.is_visible', true)
             ->whereNull('prize.archived_at')
             ->get([
                 'relation.id',
@@ -5388,20 +5387,20 @@ final class V2CatalogMasterMutationService
 
         $prizeRelations = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
                 '=',
-                'prize.presentation_asset_id'
+                'relation.presentation_asset_id'
             )
             ->where('relation.gacha_version_id', $version->id)
             ->get([
-                'prize.is_visible as prize_is_visible',
+                'relation.is_visible as prize_is_visible',
                 'prize.archived_at as prize_archived_at',
                 'rank.is_visible as rank_is_visible',
                 'rank.archived_at as rank_archived_at',
-                'prize.presentation_asset_id',
+                'relation.presentation_asset_id',
                 'asset.is_public as asset_is_public',
                 'asset.archived_at as asset_archived_at',
             ]);
@@ -6693,17 +6692,17 @@ final class V2CatalogMasterMutationService
                 ->firstOrFail();
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->where('relation.gacha_version_id', $row->id)
             ->orderBy('relation.sort_order')
             ->orderBy('relation.id')
             ->get([
                 'prize.public_id as prize_id',
                 'prize.code as prize_code',
-                'prize.display_name as prize_name',
+                'relation.display_name as prize_name',
                 'rank.public_id as rank_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
                 'relation.initial_inventory',
                 'relation.sort_order',
             ])->map(fn (object $relation): array => [
@@ -6779,16 +6778,16 @@ final class V2CatalogMasterMutationService
         $structure = $this->probabilityStructure((int) $row->id);
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->where('relation.gacha_version_id', $row->gacha_version_id)
             ->get([
                 'prize.public_id',
                 'prize.code',
-                'prize.display_name',
+                'relation.display_name as display_name',
                 'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
-                'rank.sort_order as rank_sort_order',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
+                'relation.rank_sort_order as rank_sort_order',
             ])->keyBy('public_id');
         $target = static function (array $value) use ($prizes): array {
             $prize = $value['prize_public_id'] === null

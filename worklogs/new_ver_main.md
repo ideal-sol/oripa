@@ -8281,3 +8281,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 既存`V2UserState`を再利用し、手動遷移を`active -> suspended／closed`、`suspended -> active／closed`へ限定した。停止／退会時はUser SessionとRemember Deviceを同一Transactionで失効し、既存Auth Serviceも新規Loginを拒否する。
 - `user.state.manage`をOwner／Adminへ付与し、OperatorはRead-onlyとした。Admin User詳細へFresh Authentication、理由、Revision OCC、Idempotencyを備えた状態変更UIを追加した。
 - Migration `000047`は既存Userを`state_revision=1`で保持する。Task DB fresh／rollback／reapply、Backend対象19 tests／305 assertions、Admin対象Unit 35 tests、Typecheck、OpenAPI bundleがPASSした。
+
+## MIG-062L ガチャ管理構造整理／景品所有関係修正
+
+- Base `a505b36d0a812979a77fc4831bb632d03ad8b782`からIssue #253、Branch `feat/MIG-062L-gacha-prize-ownership`、Risk R4で開始した。
+- Prizeを1つのGachaへ所有させ、同一Gacha内では安定したPrize IDを複数Versionから参照する。Version relationへ表示Snapshotを保持し、Published／Historical表示とProbability参照を後続Draft編集から保護する。
+- Previewで検出したCross-Gacha共有PrizeはSynthetic／QA関連だけであることを確認し、人間承認の範囲で参照のないSynthetic Gacha 5件を削除した。通常Draw履歴を持つFixtureを保持し、再確認結果を0件とした。
+- Admin Gacha詳細で現在公開中、編集中、変更履歴を区別し、現在公開中の景品ラインナップを主画面から確認可能にする。今回触るGacha管理画面の主要表示を日本語へ整理する。

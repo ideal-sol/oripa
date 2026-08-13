@@ -492,15 +492,26 @@ final class V2ReportingService
             ->join('draw_requests as request', 'request.id', '=', 'result.draw_request_id')
             ->join('gacha_draw_states as state', 'state.id', '=', 'request.gacha_draw_state_id')
             ->join('catalog_gachas as gacha', 'gacha.id', '=', 'state.gacha_id')
+            ->leftJoin(
+                'catalog_gacha_version_prizes as version_prize',
+                'version_prize.id',
+                '=',
+                'result.gacha_version_prize_id'
+            )
             ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'result.rank_id')
             ->whereNotNull('result.rank_id')
             ->where('result.occurred_at', '>=', $period->utcStart()->toIso8601String())
             ->where('result.occurred_at', '<', $period->utcEnd()->toIso8601String())
-            ->groupBy('gacha.public_id', 'rank.public_id', 'rank.code', 'rank.display_name')
+            ->groupBy(
+                'gacha.public_id',
+                'rank.public_id',
+                'version_prize.rank_code',
+                'version_prize.rank_display_name'
+            )
             ->orderBy('gacha.public_id')
-            ->orderBy('rank.code')
+            ->orderBy('version_prize.rank_code')
             ->selectRaw(
-                'gacha.public_id AS gacha_public_id, rank.public_id AS rank_public_id, rank.code AS rank_code, rank.display_name AS rank_name, COUNT(*) AS result_count'
+                'gacha.public_id AS gacha_public_id, rank.public_id AS rank_public_id, version_prize.rank_code AS rank_code, version_prize.rank_display_name AS rank_name, COUNT(*) AS result_count'
             );
         $this->applyQaFilter($rankResults, 'request.is_qa_draw', $qaFilter);
         $prizeResults = DB::table('draw_results as result')
@@ -517,11 +528,11 @@ final class V2ReportingService
             ->where('result.result_type', 'prize')
             ->where('result.occurred_at', '>=', $period->utcStart()->toIso8601String())
             ->where('result.occurred_at', '<', $period->utcEnd()->toIso8601String())
-            ->groupBy('gacha.public_id', 'prize.public_id', 'prize.display_name')
+            ->groupBy('gacha.public_id', 'prize.public_id', 'version_prize.display_name')
             ->orderBy('gacha.public_id')
             ->orderBy('prize.public_id')
             ->selectRaw(
-                'gacha.public_id AS gacha_public_id, prize.public_id AS prize_public_id, prize.display_name AS prize_name, COUNT(*) AS result_count'
+                'gacha.public_id AS gacha_public_id, prize.public_id AS prize_public_id, version_prize.display_name AS prize_name, COUNT(*) AS result_count'
             );
         $this->applyQaFilter($prizeResults, 'request.is_qa_draw', $qaFilter);
         $this->auditView($admin, $context, 'gachas_monthly', $period->value, $qaFilter);
@@ -634,9 +645,9 @@ final class V2ReportingService
                 'result.draw_sequence_number',
                 'result.result_type',
                 'rank.public_id as rank_public_id',
-                'rank.display_name as rank_name',
+                'version_prize.rank_display_name as rank_name',
                 'prize.public_id as prize_public_id',
-                'prize.display_name as prize_name',
+                'version_prize.display_name as prize_name',
                 'result.consumed_points',
                 'result.point_back_amount',
                 'result.is_qa_draw',

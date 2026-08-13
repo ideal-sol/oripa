@@ -32,7 +32,7 @@ test("canonical gacha edit uploads a file without banner dependencies", async ({
   await expect(page.getByText(gachaUuid, { exact: true })).toHaveCount(0);
   await expect(page.getByRole("columnheader", { name: "ID", exact: true })).toHaveCount(0);
 
-  await page.getByRole("link", { name: "Master編集" }).click();
+  await page.getByRole("link", { name: "基本情報を編集" }).click();
   await expect(page).toHaveURL(`/gachas/${gachaCode}/edit`);
   await expect(page.getByRole("heading", { level: 1, name: "ガチャ編集" })).toBeVisible();
   await expect(page.getByLabel("ガチャタイトル")).toHaveValue("編集対象ガチャ");
@@ -50,7 +50,7 @@ test("canonical gacha edit uploads a file without banner dependencies", async ({
   await expect(page.getByRole("img", { name: "選択したサムネイルのPreview" }))
     .toBeVisible();
   await page.getByLabel("ガチャタイトル").fill("更新後ガチャ");
-  await page.getByRole("button", { name: "編集Draftへ保存" }).click();
+  await page.getByRole("button", { name: "編集内容を保存" }).click();
   await expect(page).toHaveURL(`/catalog/gachas/${gachaCode}`);
 
   expect(requests.some((path) => path.endsWith("/catalog/gacha-thumbnails"))).toBe(true);

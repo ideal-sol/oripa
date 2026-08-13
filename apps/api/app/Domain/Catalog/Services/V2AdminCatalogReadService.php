@@ -500,12 +500,12 @@ final class V2AdminCatalogReadService
         [, $version] = $this->gachaVersionParent($gachaPublicId, $versionPublicId);
         $rows = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
                 '=',
-                'prize.presentation_asset_id'
+                'relation.presentation_asset_id'
             )
             ->leftJoin(
                 'prize_inventories as inventory',
@@ -519,20 +519,20 @@ final class V2AdminCatalogReadService
             ->get([
                 'prize.public_id',
                 'prize.code',
-                'prize.display_name',
-                'prize.description',
-                'prize.display_price',
-                'prize.exchange_points',
-                'prize.cost_price',
-                'prize.is_visible',
+                'relation.display_name',
+                'relation.description',
+                'relation.display_price',
+                'relation.exchange_points',
+                'relation.cost_price',
+                'relation.is_visible',
                 'prize.revision',
                 'prize.archived_at',
                 'prize.created_at',
                 'prize.updated_at',
                 'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
-                'rank.sort_order as rank_sort_order',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
+                'relation.rank_sort_order as rank_sort_order',
                 'asset.public_id as asset_public_id',
                 'asset.public_path as asset_public_path',
                 'asset.media_type as asset_media_type',
@@ -1721,17 +1721,17 @@ final class V2AdminCatalogReadService
                 ->firstOrFail();
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->where('relation.gacha_version_id', $row->id)
             ->orderBy('relation.sort_order')
             ->orderBy('relation.id')
             ->get([
                 'prize.public_id as prize_id',
                 'prize.code as prize_code',
-                'prize.display_name as prize_name',
+                'relation.display_name as prize_name',
                 'rank.public_id as rank_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
                 'relation.initial_inventory',
                 'relation.sort_order',
             ])->map(fn (object $relation): array => [

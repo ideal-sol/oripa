@@ -152,7 +152,7 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("状態"), {
       target: { value: "scheduled" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "編集Draftへ保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
 
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({
@@ -175,16 +175,16 @@ describe("Admin Gacha Draft management", () => {
       />,
     );
     await screen.findByRole("option", { name: "S / Prize S" });
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText("タイトル"), {
       target: { value: "Draft Version" },
     });
-    fireEvent.change(screen.getByLabelText("販売Point"), {
+    fireEvent.change(screen.getByLabelText("消費ポイント"), {
       target: { value: "100" },
     });
     fireEvent.change(screen.getByLabelText("販売口数"), {
       target: { value: "1000" },
     });
-    fireEvent.change(screen.getByLabelText("Presentation Asset"), {
+    fireEvent.change(screen.getByLabelText("表示素材"), {
       target: { value: ASSET_ID },
     });
     fireEvent.change(screen.getByLabelText("公開開始"), {
@@ -193,7 +193,7 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("公開終了"), {
       target: { value: "2027-08-01T09:00" },
     });
-    fireEvent.change(screen.getByLabelText("Prize"), {
+    fireEvent.change(screen.getByLabelText("景品"), {
       target: { value: PRIZE_ID },
     });
     fireEvent.change(screen.getByLabelText("初期在庫"), {

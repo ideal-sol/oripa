@@ -431,6 +431,10 @@ MIG_062H_V2_CATALOG_FILES = {
 MIG_062I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
 }
+MIG_062L_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
+    "apps/api/tests/V2/AdminGachaPrizeOwnershipTest.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -481,6 +485,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_061S_V2_CATALOG_FILES,
     *MIG_062H_V2_CATALOG_FILES,
     *MIG_062I_V2_CATALOG_FILES,
+    *MIG_062L_V2_CATALOG_FILES,
 }
 MIG_062J_V2_DRAW_FILES = {
     "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
@@ -2274,6 +2279,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
         "2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
         "2026_09_02_000047_add_v2_user_state_revision.php",
+        "2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

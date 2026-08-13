@@ -20,6 +20,31 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062l_gacha_prize_ownership_paths_are_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
+            "apps/api/tests/V2/AdminGachaPrizeOwnershipTest.php",
+        }
+        self.assertEqual(policy_gate.MIG_062L_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(
+            path for path in expected if path.endswith(".php") and "migrations-v2" in path
+        )).read_text(encoding="utf-8")
+        self.assertIn("gacha_id", migration)
+        self.assertIn("Cross-Gacha Prize association is not allowed", migration)
+        self.assertIn("display_name", migration)
+        self.assertIn("rank_display_name", migration)
+
+        policy_source = (ROOT / "scripts/ci/policy_gate.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '"2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php"',
+            policy_source,
+        )
+
     def test_mig_062k_user_state_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2AdminUserStateException.php",
@@ -855,6 +880,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
             "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
             "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
+            "apps/api/database/migrations-v2/2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

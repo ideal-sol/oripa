@@ -654,7 +654,7 @@ final class V2QaPlanManagementService
             ->where('item.qa_draw_plan_id', $planId)
             ->where(function ($query): void {
                 $query->whereNull('version_prize.id')
-                    ->orWhere('prize.is_visible', false)
+                    ->orWhere('version_prize.is_visible', false)
                     ->orWhereNotNull('prize.archived_at');
             })
             ->exists();

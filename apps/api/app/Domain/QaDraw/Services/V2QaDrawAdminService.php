@@ -600,7 +600,7 @@ final class V2QaDrawAdminService
                 ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
                 ->where('relation.gacha_version_id', $gacha->published_version_id)
                 ->where('prize.public_id', $prizeId)
-                ->where('prize.is_visible', true)
+                ->where('relation.is_visible', true)
                 ->first(['relation.id']);
             if ($relation === null) {
                 throw $this->invalid('QA Plan Prize does not belong to the Published Gacha.');
