@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: #251
-- PR: Closeout時に確定
+- PR: #252
 - Base: `main@3f4fe2167513310e4fc34296cfe2ffc18ccf5fc8`
 - Branch: `feat/MIG-062K-admin-user-state-management`
 - Risk: R4

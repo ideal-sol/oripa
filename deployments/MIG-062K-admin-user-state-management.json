@@ -4,9 +4,9 @@
   "status": "verification_in_progress",
   "base_branch": "main",
   "base_sha": "3f4fe2167513310e4fc34296cfe2ffc18ccf5fc8",
-  "task_policy_sha256": "ff56736182a5c5031305064b3897a48ec5475eb166b9c85037c9fa4e16df942b",
+  "task_policy_sha256": "66854b822074617873333ee7ae0a423df2751b1c59fe9e70c606a6b976f8eb19",
   "issue": 251,
-  "pull_request": null,
+  "pull_request": 252,
   "target": "admin.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062K/",
   "preview": {
