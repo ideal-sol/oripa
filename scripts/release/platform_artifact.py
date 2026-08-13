@@ -20,10 +20,10 @@ import tempfile
 from typing import Iterable
 
 
-PLATFORM_VERSION = "2.0.0-alpha.9"
+PLATFORM_VERSION = "2.0.0-alpha.10"
 COMPATIBILITY_FAMILY = 2
 CHANNEL = "alpha"
-RELEASE_TAG = "platform-v2.0.0-alpha.9"
+RELEASE_TAG = "platform-v2.0.0-alpha.10"
 SOURCE_URL = "https://github.com/ideal-sol/oripa"
 PRODUCTION_ALLOWED = False
 DATA_RETENTION_GUARANTEED = False

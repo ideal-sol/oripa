@@ -26,6 +26,7 @@ import {
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
+  PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
@@ -62,6 +63,21 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
   assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("端数Draw Fixtureは要求数と実行数を分離してReplayを固定する", () => {
+  assert.deepEqual(
+    PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE.presentation.allowed_draw_counts,
+    [1, 100, 1000],
+  );
+  assert.equal(PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE.request.requested_count, 1000);
+  assert.equal(PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE.response.executed_count, 900);
+  assert.equal(PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE.final_sale_state, "sold_out");
+  assert.deepEqual(PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE.replay, {
+    requested_count: 1000,
+    executed_count: 900,
+    idempotent_replay: true,
+  });
 });
 
 test("Draw Problem FixtureはGenerated Codeと型付きAssertionを同期する", () => {
@@ -599,6 +615,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
+    "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",

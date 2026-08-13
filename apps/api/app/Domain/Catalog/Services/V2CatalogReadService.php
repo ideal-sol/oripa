@@ -215,7 +215,6 @@ final class V2CatalogReadService
                 is_array($platformSupported) ? $platformSupported : [],
                 static fn (mixed $count): bool => is_int($count)
                     && in_array($count, $gachaConfigured, true)
-                    && $count <= $remainingCount
                     && ($dailyRemaining === null || $count <= $dailyRemaining)
             ));
             if ($allowedCounts === []) {

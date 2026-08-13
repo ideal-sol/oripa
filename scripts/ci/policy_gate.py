@@ -474,6 +474,9 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_062H_V2_CATALOG_FILES,
     *MIG_062I_V2_CATALOG_FILES,
 }
+MIG_062J_V2_DRAW_FILES = {
+    "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
+}
 V2_DRAW_REQUIRED_FILES = {
     "apps/api/app/Domain/Draw/Exceptions/V2DrawException.php",
     "apps/api/app/Domain/Draw/Services/V2CryptographicRandomSource.php",
@@ -499,6 +502,7 @@ V2_DRAW_REQUIRED_FILES = {
     "packages/storefront-client/src/generated/public.ts",
     "packages/storefront-testkit/src/fixtures.ts",
     "packages/storefront-testkit/src/generated/public-contract.ts",
+    *MIG_062J_V2_DRAW_FILES,
 }
 V2_PRIZE_SHIPPING_REQUIRED_FILES = {
     "apps/api/app/Domain/PrizeShipping/Exceptions/V2PrizeShippingException.php",
@@ -889,8 +893,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.9",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.9",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.10",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.10",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1265,7 +1269,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
-    if package.get("version") != "2.0.0-alpha.9":
+    if package.get("version") != "2.0.0-alpha.10":
         raise PolicyFailure("package.json: V2 workspace version is invalid")
     if package.get("private") is not True:
         raise PolicyFailure("package.json: root workspace must be private")
@@ -1387,7 +1391,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     package = load_json(repository, "apps/admin/package.json")
     if (
         package.get("name") != "@oripa/admin"
-        or package.get("version") != "2.0.0-alpha.9"
+        or package.get("version") != "2.0.0-alpha.10"
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
@@ -1638,7 +1642,7 @@ def validate_package_skeletons(repository: Path) -> None:
         package = load_json(repository, relative)
         if (
             package.get("name") != expected_name
-            or package.get("version") != "2.0.0-alpha.9"
+            or package.get("version") != "2.0.0-alpha.10"
             or package.get("private") is not True
         ):
             raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
@@ -1682,7 +1686,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.9",
+        "version": "2.0.0-alpha.10",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1723,7 +1727,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.9",
+        "minimumPublicApiContract": "2.0.0-alpha.10",
         "requiredCapabilities": [
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
@@ -1819,7 +1823,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.9",
+        "version": "2.0.0-alpha.10",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1937,7 +1941,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.9",
+        "version": "2.0.0-alpha.10",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1978,8 +1982,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.9",
-        "siteSchemaVersion": "2.0.0-alpha.9",
+        "storefrontClientVersion": "2.0.0-alpha.10",
+        "siteSchemaVersion": "2.0.0-alpha.10",
         "publicApiOperationCount": 48,
     }:
         raise PolicyFailure(
@@ -2255,6 +2259,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
         "2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
         "2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
+        "2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4820,9 +4825,9 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     required_statements = {
-        'PLATFORM_VERSION = "2.0.0-alpha.9"',
+        'PLATFORM_VERSION = "2.0.0-alpha.10"',
         'CHANNEL = "alpha"',
-        'RELEASE_TAG = "platform-v2.0.0-alpha.9"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.10"',
         "PRODUCTION_ALLOWED = False",
         "DATA_RETENTION_GUARANTEED = False",
         "pnpm",

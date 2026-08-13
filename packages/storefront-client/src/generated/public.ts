@@ -1212,8 +1212,7 @@ export interface components {
             status: "completed";
             /** @enum {integer} */
             requested_count: 1 | 5 | 10 | 100 | 1000;
-            /** @enum {integer} */
-            executed_count: 1 | 5 | 10 | 100 | 1000;
+            executed_count: number;
             point_cost_total: number;
             point_consumption: components["schemas"]["PointConsumption"];
             wallet_after: components["schemas"]["WalletBalance"];

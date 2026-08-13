@@ -22,6 +22,38 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_numeric_enum_widened_to_covering_range_passes(self):
+        previous = {"type": "integer", "enum": [1, 5, 10, 100, 1000]}
+        current = {"type": "integer", "minimum": 1, "maximum": 1000}
+
+        self.assertEqual(
+            [],
+            openapi_contract_gate.compare_schema(previous, current, "draw.executed_count"),
+        )
+
+    def test_numeric_enum_widened_to_non_covering_range_fails(self):
+        previous = {"type": "integer", "enum": [1, 5, 10, 100, 1000]}
+        current = {"type": "integer", "minimum": 2, "maximum": 999}
+
+        findings = openapi_contract_gate.compare_schema(
+            previous,
+            current,
+            "draw.executed_count",
+        )
+
+        self.assertIn("draw.executed_count: enum value removed: 1", findings)
+        self.assertIn("draw.executed_count: enum value removed: 1000", findings)
+
+    def test_string_enum_removal_still_fails(self):
+        findings = openapi_contract_gate.compare_schema(
+            {"type": "string", "enum": ["active", "ended"]},
+            {"type": "string"},
+            "gacha.state",
+        )
+
+        self.assertIn("gacha.state: enum value removed: active", findings)
+        self.assertIn("gacha.state: enum value removed: ended", findings)
+
     def test_additive_change_passes(self):
         self.assertEqual(
             [],

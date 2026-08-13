@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.9
+  version: 2.0.0-alpha.10
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -2528,7 +2528,8 @@ components:
           enum: [1, 5, 10, 100, 1000]
         executed_count:
           type: integer
-          enum: [1, 5, 10, 100, 1000]
+          minimum: 1
+          maximum: 1000
         point_cost_total:
           type: integer
           minimum: 1

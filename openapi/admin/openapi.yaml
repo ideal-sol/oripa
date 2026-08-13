@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.9
+  version: 2.0.0-alpha.10
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -5188,7 +5188,7 @@ components:
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         user: {$ref: '#/components/schemas/AdminGachaUsageHistoryUser'}
-        executed_count: {type: integer, enum: [1, 5, 10, 100, 1000]}
+        executed_count: {type: integer, minimum: 1, maximum: 1000}
         status_summary:
           type: array
           items: {$ref: '#/components/schemas/AdminGachaUsageHistoryStatusCount'}
@@ -5242,7 +5242,7 @@ components:
         id: {$ref: '#/components/schemas/OpaqueId'}
         gacha: {$ref: '#/components/schemas/AdminGachaUsageHistoryGacha'}
         user: {$ref: '#/components/schemas/AdminGachaUsageHistoryUser'}
-        executed_count: {type: integer, enum: [1, 5, 10, 100, 1000]}
+        executed_count: {type: integer, minimum: 1, maximum: 1000}
         consumed_points: {type: integer, minimum: 1}
         used_at: {type: string, format: date-time}
         status_summary:

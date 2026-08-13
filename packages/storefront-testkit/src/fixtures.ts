@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.9",
+      storefront_client_version: "2.0.0-alpha.10",
       required_capabilities: [],
     },
     public: {
@@ -60,7 +60,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.9",
+  minimum_storefront_client_version: "2.0.0-alpha.10",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -350,6 +350,28 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   processing_duration_ms: 583,
   created_at: "2026-07-27T00:00:00Z",
 } as const satisfies PublicComponents["schemas"]["DrawResponse"]);
+
+export const PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE = Object.freeze({
+  presentation: {
+    ...PUBLIC_GACHA_PRESENTATION_FIXTURE.data,
+    allowed_draw_counts: [1, 100, 1000],
+  },
+  request: {
+    requested_count: 1000,
+  },
+  response: {
+    ...PUBLIC_DRAW_FIXTURE,
+    requested_count: 1000,
+    executed_count: 900,
+    point_cost_total: 90000,
+  },
+  final_sale_state: "sold_out",
+  replay: {
+    requested_count: 1000,
+    executed_count: 900,
+    idempotent_replay: true,
+  },
+} as const);
 
 export const PUBLIC_DRAW_PROBLEM_FIXTURES = Object.freeze([
   {

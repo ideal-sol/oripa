@@ -20,6 +20,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062j_partial_draw_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
+        }
+        self.assertEqual(policy_gate.MIG_062J_V2_DRAW_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_DRAW_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("executed_count > 0 AND executed_count <= requested_count", migration)
+        self.assertIn("executed_count = requested_count", migration)
+
+        policy_source = (ROOT / "scripts/ci/policy_gate.py").read_text(encoding="utf-8")
+        self.assertIn(
+            '"2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php"',
+            policy_source,
+        )
+
     def test_mig_062i_gacha_draw_count_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
@@ -814,6 +832,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
             "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
             "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
+            "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1512,7 +1531,7 @@ This is a non-Production Skeleton and contains no application implementation.
             json.dumps(
                 {
                     "name": "@oripa/platform-workspace",
-                    "version": "2.0.0-alpha.9",
+                    "version": "2.0.0-alpha.10",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -1572,7 +1591,7 @@ packages:
                 json.dumps(
                     {
                         "name": name,
-                        "version": "2.0.0-alpha.9",
+                        "version": "2.0.0-alpha.10",
                         "private": True,
                         "description": "Fixture Skeleton",
                         "license": "UNLICENSED",
@@ -1584,7 +1603,7 @@ packages:
             json.dumps(
                 {
                     "name": "@oripa/site-schema",
-                    "version": "2.0.0-alpha.9",
+                    "version": "2.0.0-alpha.10",
                     "private": True,
                     "description": "Fixture Alpha",
                     "license": "UNLICENSED",
@@ -1724,7 +1743,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.9",
+                    "version": "2.0.0-alpha.10",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -1762,7 +1781,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.9",
+                        "minimumPublicApiContract": "2.0.0-alpha.10",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
