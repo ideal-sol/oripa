@@ -8288,3 +8288,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Prizeを1つのGachaへ所有させ、同一Gacha内では安定したPrize IDを複数Versionから参照する。Version relationへ表示Snapshotを保持し、Published／Historical表示とProbability参照を後続Draft編集から保護する。
 - Previewで検出したCross-Gacha共有PrizeはSynthetic／QA関連だけであることを確認し、人間承認の範囲で参照のないSynthetic Gacha 5件を削除した。通常Draw履歴を持つFixtureを保持し、再確認結果を0件とした。
 - Admin Gacha詳細で現在公開中、編集中、変更履歴を区別し、現在公開中の景品ラインナップを主画面から確認可能にする。今回触るGacha管理画面の主要表示を日本語へ整理する。
+- Application Head `37c099f69242143097fead94c6a8aefba45e5a76`のRequired ChecksとGitHub-hosted amd64 Preview Image BuildがPASSした。Host BuildなしでMigration `000048`のみをPreview DBへ適用し、API／Adminだけを更新した。
+- Previewで公開中景品、編集中Draft、変更履歴、編集保存後のPublished Snapshot不変、Public Catalog／Detail／Presentation 200、Desktop／Mobileを確認した。Nginx、V1、Storefront、Point、Paymentは変更していない。

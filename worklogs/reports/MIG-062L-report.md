@@ -9,6 +9,7 @@
 - Risk: R4
 - Task Policy SHA-256: `5b564357c977bc75cfdab5dee9cff491ebdb4b50efa4b164e9c5f68d17a5a8d8`
 - Policy補正: Required Integrationで実在するConcurrency Fixture Testを対象検証へ追加するため、`apps/api/tests/V2/ZDrawConcurrencyLoadTest.php`だけをAllowed Pathsへ追加した。旧SHAは`a36c7629e2690c4fc7f38f791ce7d3fa84b24d21fa300b6d9aa2e35f4b210b42`。
+- Preview Application Head: `37c099f69242143097fead94c6a8aefba45e5a76`
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Ownership／Snapshot
@@ -36,9 +37,11 @@
 - Task DB Migration fresh／rollback／reapply、Prize ownership、Cross-Gacha拒否、同一Gacha再利用、Published Snapshot不変、Probability／Draw／QA／Reportingの対象Backend TestはPASSした。
 - Required Integrationで検出した既存Concurrency FixtureのCross-Gacha Prize共有を、別Gachaごとの別Prize IDへ補正した。Production ImporterのFail Closed条件は維持する。
 - Admin Unit、Typecheck、Lint、Production Build、Desktop／Mobile対象Browser Test、Policy Unit／Policy Gate／Quality Gate、`git diff --check`はPASSした。
-- Preview Image／Migration／Smoke、Required Checks、CodeQL／Dependency Review、Fresh Self-reviewはCloseout時に確定する。
+- Application Head `37c099f69242143097fead94c6a8aefba45e5a76`でRequired Checks、CodeQL、Dependency Reviewは全件PASSした。GitHub-hosted amd64 Run `31683987379`のArtifact Digest／Manifest／Image ID／OCI Revisionを検証し、Host BuildなしでAPI／Admin Imageをloadした。
+- DB Target Safetyで`oripa_v2_mig061a`、Migration 47、Cross-Gacha共有0、Orphan0を再確認後、`000048`だけを適用した。適用後はMigration 48、Ownership／Snapshot未設定0、全Guard enabled。
+- Preview API／Adminは`--no-build --no-deps`で更新しhealthy。`TEST MIG-062J Partial Draw`の主画面で公開中の`TEST MIG-062J Fixture S景品`、編集中Draft、変更履歴を分離表示し、編集保存後も公開中Snapshotが不変であることを確認した。Public Catalog／Detail／Presentationは200、Desktop／Mobile横溢れなし、Page Errorと0、500／502／504は0。
 
 ## Remaining
 
-- Previewでは既存`TEST MIG-062J Partial Draw`の公開中景品`TEST MIG-062J Fixture S景品`をGacha詳細の主画面で確認する。
-- Preview反映、Required Checks、Fresh Self-review、Squash Merge、Issue Close、Task Resource Cleanupを実施する。
+- 既存MIG-062J Syntheticが参照する`/assets/fixture/mig062j/*.txt`は実体がなく404となる。新しいFixtureは作らないという人間決定に従い、ApplicationのCritical Errorとは分離した既知Synthetic Asset課題として残す。
+- Fresh Self-review、Squash Merge、Issue Close、Task Resource Cleanupを実施する。
