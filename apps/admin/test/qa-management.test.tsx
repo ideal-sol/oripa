@@ -75,12 +75,14 @@ const detail: AdminQaPlanDetail = {
   reason: "Release verification",
 };
 const user: AdminQaTestUser = {
-  ends_at: "2026-08-01T02:00:00Z",
+  ends_at: null,
   is_active: true,
   is_enabled: true,
   mode_id: "01910191-0191-7191-8191-019101910197",
+  reason: "Release verification",
   revision: 1,
   starts_at: null,
+  updated_at: "2026-08-01T00:00:00Z",
   user_id: USER_ID,
   user_state: "active",
 };
@@ -221,9 +223,6 @@ describe("QA Plan management", () => {
     fireEvent.change(screen.getByLabelText("Reason"), {
       target: { value: "Release verification" },
     });
-    fireEvent.change(screen.getByLabelText("終了日時（Asia/Tokyo）"), {
-      target: { value: "2026-08-01T10:00" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "有効化" }));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Fresh MFA");
@@ -253,9 +252,13 @@ function executionDetail(): AdminQaExecutionDetail {
     inventory_prize_delta_total: 10,
     metadata: {
       plan_item_public_ids: [detail.items[0].id],
+      guaranteed_prize_public_id: null,
+      qa_guarantee_assignment_public_id: null,
+      qa_kind: "legacy_plan",
       qa_mode_public_id: user.mode_id!,
       qa_plan_public_id: PLAN_ID,
     },
+    guarantee_assignment_id: null,
     plan_id: PLAN_ID,
     point_back_total: 0,
     point_cost_total: 1000,

@@ -423,6 +423,12 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.qa-management.test-users.save');
         Route::post('/qa/test-users/{userId}/disable', [V2AdminQaDrawController::class, 'disableManagementTestUser'])
             ->whereUuid('userId')->name('v2.admin.qa-management.test-users.disable');
+        Route::get('/catalog/gachas/{gachaId}/qa-guarantees', [V2AdminQaDrawController::class, 'gachaGuarantees'])
+            ->name('v2.admin.qa-management.gacha-guarantees.index');
+        Route::put('/catalog/gachas/{gachaId}/qa-guarantees', [V2AdminQaDrawController::class, 'saveGachaGuarantee'])
+            ->name('v2.admin.qa-management.gacha-guarantees.save');
+        Route::post('/catalog/gachas/{gachaId}/qa-guarantees/{userId}/disable', [V2AdminQaDrawController::class, 'disableGachaGuarantee'])
+            ->whereUuid('userId')->name('v2.admin.qa-management.gacha-guarantees.disable');
         Route::get('/shipping-requests', [V2AdminShippingController::class, 'index'])
             ->name('v2.admin.shipping-requests.index');
         Route::get('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'show'])

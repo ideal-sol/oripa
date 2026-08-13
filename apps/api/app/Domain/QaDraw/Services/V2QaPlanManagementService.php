@@ -12,6 +12,7 @@ use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Models\V2\Admin;
 use App\Models\V2\QaDrawPlan;
 use App\Models\V2\QaDrawPlanAssignment;
+use App\Models\V2\QaGachaGuaranteeAssignment;
 use App\Models\V2\QaTestUserMode;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
@@ -104,10 +105,12 @@ final class V2QaPlanManagementService
                 'user.state',
                 'mode.public_id as mode_public_id',
                 'mode.is_enabled',
+                'mode.reason',
                 'mode.starts_at',
                 'mode.ends_at',
                 'mode.disabled_at',
                 'mode.revision',
+                'mode.updated_at',
             ])
             ->whereNotNull('mode.id')
             ->orderByDesc('user.id');
@@ -139,10 +142,12 @@ final class V2QaPlanManagementService
                 'user.state',
                 'mode.public_id as mode_public_id',
                 'mode.is_enabled',
+                'mode.reason',
                 'mode.starts_at',
                 'mode.ends_at',
                 'mode.disabled_at',
                 'mode.revision',
+                'mode.updated_at',
             ])
             ->where('user.state', 'active')
             ->orderByDesc('user.id');
@@ -266,7 +271,11 @@ final class V2QaPlanManagementService
             'plan.'.$action,
             ['plan_id' => $planId, ...$input],
             function () use ($context, $planId, $input, $action): array {
-                $this->assertRevision($this->planRow($planId, true), $input);
+                $plan = $this->planRow($planId, true);
+                $this->assertRevision($plan, $input);
+                if ($action === 'enable') {
+                    $this->assertPlanHasNoPersistentGuarantee((int) $plan->id);
+                }
 
                 $updated = $action === 'enable'
                     ? $this->qa->activatePlan($context, $planId)
@@ -347,9 +356,7 @@ final class V2QaPlanManagementService
                 $this->qa->saveMode(
                     $context,
                     $userId,
-                    $this->requiredString($input, 'reason'),
-                    $this->nullableString($input, 'starts_at'),
-                    $this->requiredString($input, 'ends_at')
+                    $this->requiredString($input, 'reason')
                 );
 
                 return $this->testUserByPublicId($userId);
@@ -395,6 +402,160 @@ final class V2QaPlanManagementService
     }
 
     /** @return array<string, mixed> */
+    public function gachaGuarantees(
+        V2AdminAuthorizationContext $context,
+        string $gachaId
+    ): array {
+        $this->freshMfa->authorizeQa($context);
+        $gacha = $this->gachaRow($gachaId);
+
+        return [
+            'gacha_id' => $gacha->public_code ?? $gacha->public_id,
+            'items' => $this->guaranteeAssignments((int) $gacha->id),
+            'test_users' => $this->activeTestUserOptions(),
+            'prizes' => $this->publishedPrizeOptions($gacha),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function saveGachaGuarantee(
+        V2AdminAuthorizationContext $context,
+        string $gachaId,
+        string $key,
+        array $input
+    ): array {
+        $this->freshMfa->authorizeQa($context);
+        $this->assertKeys($input, ['revision', 'user_id', 'prize_id']);
+
+        return $this->mutate(
+            $context,
+            $key,
+            'guarantee.save',
+            ['gacha_id' => $gachaId, ...$input],
+            function () use ($context, $gachaId, $input): array {
+                $admin = $this->freshMfa->authorizeQa($context, true);
+                $gacha = $this->gachaRow($gachaId, true);
+                $userId = $this->requiredString($input, 'user_id');
+                $prizeId = $this->requiredString($input, 'prize_id');
+                $user = User::query()
+                    ->where('public_id', $userId)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $user instanceof User || $user->state->value !== 'active') {
+                    throw $this->invalid('Only active Users can receive a QA guarantee.');
+                }
+                $mode = QaTestUserMode::query()
+                    ->where('user_id', $user->id)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $mode instanceof QaTestUserMode || ! $this->modeActive($mode)) {
+                    throw $this->invalid('QA guarantee requires an active Test User Mode.');
+                }
+                if ($this->activeLegacyPlanExists((int) $user->id, (int) $gacha->id)) {
+                    throw new V2QaDrawException(
+                        'QA_ACTIVE_PLAN_CONFLICT',
+                        409,
+                        'A legacy active QA Plan already exists for this User and Gacha.'
+                    );
+                }
+                $prize = $this->publishedPrize($gacha, $prizeId);
+                $assignment = QaGachaGuaranteeAssignment::query()
+                    ->where('user_id', $user->id)
+                    ->where('gacha_id', $gacha->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($assignment instanceof QaGachaGuaranteeAssignment) {
+                    $this->assertRevision($assignment, $input);
+                } elseif (array_key_exists('revision', $input)) {
+                    throw $this->conflict();
+                }
+                $now = now()->startOfSecond();
+                $assignment ??= new QaGachaGuaranteeAssignment();
+                $assignment->forceFill([
+                    'user_id' => $user->id,
+                    'gacha_id' => $gacha->id,
+                    'prize_id' => $prize->id,
+                    'status' => 'assigned',
+                    'revision' => $assignment->exists ? (int) $assignment->revision + 1 : 1,
+                    'assigned_at' => $now,
+                    'assigned_by_admin_id' => $admin->id,
+                    'unassigned_at' => null,
+                    'unassigned_by_admin_id' => null,
+                ])->save();
+                $this->audit(
+                    $context,
+                    $admin,
+                    'qa.guarantee.saved',
+                    $assignment->public_id,
+                    [
+                        'user_public_id' => $user->public_id,
+                        'gacha_public_id' => $gacha->public_code ?? $gacha->public_id,
+                        'prize_public_id' => $prizeId,
+                    ]
+                );
+
+                return $this->guaranteeAssignment((int) $assignment->id);
+            }
+        );
+    }
+
+    /** @return array<string, mixed> */
+    public function disableGachaGuarantee(
+        V2AdminAuthorizationContext $context,
+        string $gachaId,
+        string $userId,
+        string $key,
+        array $input
+    ): array {
+        $this->freshMfa->authorizeQa($context);
+        $this->assertKeys($input, ['revision']);
+
+        return $this->mutate(
+            $context,
+            $key,
+            'guarantee.disable',
+            ['gacha_id' => $gachaId, 'user_id' => $userId, ...$input],
+            function () use ($context, $gachaId, $userId, $input): array {
+                $admin = $this->freshMfa->authorizeQa($context, true);
+                $gacha = $this->gachaRow($gachaId, true);
+                $assignment = QaGachaGuaranteeAssignment::query()
+                    ->join('users as user', 'user.id', '=', 'qa_gacha_guarantee_assignments.user_id')
+                    ->where('qa_gacha_guarantee_assignments.gacha_id', $gacha->id)
+                    ->where('user.public_id', $userId)
+                    ->where('qa_gacha_guarantee_assignments.status', 'assigned')
+                    ->lockForUpdate()
+                    ->first(['qa_gacha_guarantee_assignments.*']);
+                if (! $assignment instanceof QaGachaGuaranteeAssignment) {
+                    throw new V2QaDrawException(
+                        'QA_ASSIGNMENT_NOT_FOUND',
+                        404,
+                        'The QA Gacha guarantee assignment was not found.'
+                    );
+                }
+                $this->assertRevision($assignment, $input);
+                $assignment->forceFill([
+                    'status' => 'unassigned',
+                    'revision' => (int) $assignment->revision + 1,
+                    'unassigned_at' => now()->startOfSecond(),
+                    'unassigned_by_admin_id' => $admin->id,
+                ])->save();
+                $this->audit(
+                    $context,
+                    $admin,
+                    'qa.guarantee.disabled',
+                    $assignment->public_id,
+                    [
+                        'user_public_id' => $userId,
+                        'gacha_public_id' => $gacha->public_code ?? $gacha->public_id,
+                    ]
+                );
+
+                return $this->guaranteeAssignment((int) $assignment->id);
+            }
+        );
+    }
+
+    /** @return array<string, mixed> */
     public function assign(
         V2AdminAuthorizationContext $context,
         string $planId,
@@ -426,6 +587,7 @@ final class V2QaPlanManagementService
                 if (! $mode instanceof QaTestUserMode || ! $this->modeActive($mode)) {
                     throw $this->invalid('Assignment requires an active QA Test User Mode.');
                 }
+                $this->assertNoPersistentGuarantee((int) $user->id, (int) $plan->gacha_id);
                 $this->assertNoActivePlanConflict((int) $user->id, (int) $plan->gacha_id, (int) $plan->id);
                 $assignment = QaDrawPlanAssignment::query()
                     ->where('qa_draw_plan_id', $plan->id)
@@ -579,7 +741,6 @@ final class V2QaPlanManagementService
             ->where('user.state', 'active')
             ->where('mode.is_enabled', true)
             ->whereNull('mode.disabled_at')
-            ->where('mode.ends_at', '>', now())
             ->count();
         if ($assignedCount < 1) {
             $codes[] = 'TEST_USER_UNAVAILABLE';
@@ -721,9 +882,14 @@ final class V2QaPlanManagementService
                 if (! is_string($target) || ! Str::isUuid($target)) {
                     throw new \RuntimeException('QA management target is unavailable.');
                 }
+                $targetType = str_starts_with($action, 'test_user.')
+                    ? 'qa_test_user'
+                    : (str_starts_with($action, 'guarantee.')
+                        ? 'qa_gacha_guarantee_assignment'
+                        : 'qa_draw_plan');
                 $this->outbox->enqueue(
                     'qa.plan.change',
-                    str_starts_with($action, 'test_user.') ? 'qa_test_user' : 'qa_draw_plan',
+                    $targetType,
                     $target,
                     'qa.'.str_replace('_', '.', $action),
                     ['target_public_id' => $target, 'action' => $action],
@@ -731,7 +897,7 @@ final class V2QaPlanManagementService
                 );
                 $this->idempotency->complete(
                     $claim->record,
-                    str_starts_with($action, 'test_user.') ? 'qa_test_user' : 'qa_draw_plan',
+                    $targetType,
                     $target,
                     ['data' => $data]
                 );
@@ -776,6 +942,43 @@ final class V2QaPlanManagementService
                 'QA_ACTIVE_PLAN_CONFLICT',
                 409,
                 'Only one active QA Plan is allowed for the User and Gacha.'
+            );
+        }
+    }
+
+    private function assertNoPersistentGuarantee(int $userId, int $gachaId): void
+    {
+        if (DB::table('qa_gacha_guarantee_assignments')
+            ->where('user_id', $userId)
+            ->where('gacha_id', $gachaId)
+            ->where('status', 'assigned')
+            ->lockForUpdate()
+            ->exists()) {
+            throw new V2QaDrawException(
+                'QA_ACTIVE_PLAN_CONFLICT',
+                409,
+                'A persistent QA guarantee already exists for this User and Gacha.'
+            );
+        }
+    }
+
+    private function assertPlanHasNoPersistentGuarantee(int $planId): void
+    {
+        if (DB::table('qa_draw_plan_assignments as assignment')
+            ->join('qa_draw_plans as plan', 'plan.id', '=', 'assignment.qa_draw_plan_id')
+            ->join('qa_gacha_guarantee_assignments as guarantee', function ($join): void {
+                $join->on('guarantee.user_id', '=', 'assignment.user_id')
+                    ->on('guarantee.gacha_id', '=', 'plan.gacha_id');
+            })
+            ->where('assignment.qa_draw_plan_id', $planId)
+            ->where('assignment.status', 'assigned')
+            ->where('guarantee.status', 'assigned')
+            ->lockForUpdate()
+            ->exists()) {
+            throw new V2QaDrawException(
+                'QA_ACTIVE_PLAN_CONFLICT',
+                409,
+                'A persistent QA guarantee conflicts with this QA Plan.'
             );
         }
     }
@@ -875,7 +1078,6 @@ final class V2QaPlanManagementService
     /** @return array<string, mixed> */
     private function testUserResource(object $row): array
     {
-        $now = CarbonImmutable::now();
         $ends = $row->ends_at === null ? null : CarbonImmutable::parse($row->ends_at);
         $starts = $row->starts_at === null ? null : CarbonImmutable::parse($row->starts_at);
 
@@ -887,12 +1089,13 @@ final class V2QaPlanManagementService
             'is_enabled' => (bool) ($row->is_enabled ?? false),
             'is_active' => $row->mode_public_id !== null
                 && (bool) $row->is_enabled
-                && $row->disabled_at === null
-                && ($starts === null || ! $starts->greaterThan($now))
-                && $ends !== null
-                && $ends->greaterThan($now),
+                && $row->disabled_at === null,
+            'reason' => $row->reason,
             'starts_at' => $starts?->utc()->toIso8601String(),
             'ends_at' => $ends?->utc()->toIso8601String(),
+            'updated_at' => $row->updated_at === null
+                ? null
+                : CarbonImmutable::parse($row->updated_at)->utc()->toIso8601String(),
         ];
     }
 
@@ -908,10 +1111,12 @@ final class V2QaPlanManagementService
                 'user.state',
                 'mode.public_id as mode_public_id',
                 'mode.is_enabled',
+                'mode.reason',
                 'mode.starts_at',
                 'mode.ends_at',
                 'mode.disabled_at',
                 'mode.revision',
+                'mode.updated_at',
             ]);
         if ($row === null) {
             throw new V2QaDrawException('QA_USER_NOT_FOUND', 404, 'The User was not found.');
@@ -922,12 +1127,273 @@ final class V2QaPlanManagementService
 
     private function modeActive(QaTestUserMode $mode): bool
     {
-        $now = CarbonImmutable::now();
-
         return $mode->is_enabled
-            && $mode->disabled_at === null
-            && ($mode->starts_at === null || ! $mode->starts_at->greaterThan($now))
-            && $mode->ends_at->greaterThan($now);
+            && $mode->disabled_at === null;
+    }
+
+    private function gachaRow(string $identifier, bool $lock = false): object
+    {
+        $isCode = preg_match('/\A[A-Za-z0-9]{11}\z/', $identifier) === 1;
+        if (! $isCode && ! Str::isUuid($identifier)) {
+            throw new V2QaDrawException(
+                'QA_GACHA_NOT_FOUND',
+                404,
+                'The Gacha was not found.'
+            );
+        }
+        $query = DB::table('catalog_gachas')->where(
+            $isCode ? 'public_code' : 'public_id',
+            $identifier
+        );
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        $gacha = $query->first();
+        if ($gacha === null) {
+            throw new V2QaDrawException(
+                'QA_GACHA_NOT_FOUND',
+                404,
+                'The Gacha was not found.'
+            );
+        }
+
+        return $gacha;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function guaranteeAssignments(int $gachaId): array
+    {
+        return DB::table('qa_gacha_guarantee_assignments as assignment')
+            ->join('users as user', 'user.id', '=', 'assignment.user_id')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'assignment.prize_id')
+            ->where('assignment.gacha_id', $gachaId)
+            ->orderByDesc('assignment.status')
+            ->orderBy('assignment.id')
+            ->get([
+                'assignment.id as internal_id',
+                'assignment.public_id',
+                'assignment.revision',
+                'assignment.status',
+                'assignment.assigned_at',
+                'assignment.unassigned_at',
+                'assignment.updated_at',
+                'user.public_id as user_public_id',
+                'user.display_name as user_display_name',
+                'user.state as user_state',
+                'prize.public_id as prize_public_id',
+            ])
+            ->map(fn (object $row): array => $this->guaranteeResource($row, $gachaId))
+            ->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function guaranteeAssignment(int $assignmentId): array
+    {
+        $row = DB::table('qa_gacha_guarantee_assignments as assignment')
+            ->join('users as user', 'user.id', '=', 'assignment.user_id')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'assignment.prize_id')
+            ->where('assignment.id', $assignmentId)
+            ->first([
+                'assignment.id as internal_id',
+                'assignment.public_id',
+                'assignment.gacha_id',
+                'assignment.revision',
+                'assignment.status',
+                'assignment.assigned_at',
+                'assignment.unassigned_at',
+                'assignment.updated_at',
+                'user.public_id as user_public_id',
+                'user.display_name as user_display_name',
+                'user.state as user_state',
+                'prize.public_id as prize_public_id',
+            ]);
+        if ($row === null) {
+            throw new \RuntimeException('QA Gacha guarantee assignment disappeared.');
+        }
+
+        return $this->guaranteeResource($row, (int) $row->gacha_id);
+    }
+
+    /** @return array<string, mixed> */
+    private function guaranteeResource(object $row, int $gachaId): array
+    {
+        $gacha = DB::table('catalog_gachas')->where('id', $gachaId)->first([
+            'published_version_id',
+            'active_draw_state_id',
+        ]);
+        $relation = $gacha?->published_version_id === null
+            ? null
+            : DB::table('catalog_gacha_version_prizes as relation')
+                ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+                ->where('relation.gacha_version_id', $gacha->published_version_id)
+                ->where('prize.public_id', $row->prize_public_id)
+                ->where('relation.is_visible', true)
+                ->first([
+                    'relation.id',
+                    'relation.display_name',
+                    'relation.rank_display_name',
+                    'relation.presentation_asset_id',
+                ]);
+        $available = $row->status === 'assigned'
+            && $row->user_state === 'active'
+            && $relation !== null
+            && $gacha?->active_draw_state_id !== null
+            && DB::table('prize_inventories')
+                ->where('gacha_draw_state_id', $gacha->active_draw_state_id)
+                ->where('gacha_version_prize_id', $relation->id)
+                ->whereColumn('won_count', '<', 'initial_quantity')
+                ->exists();
+
+        return [
+            'id' => $row->public_id,
+            'revision' => (int) $row->revision,
+            'status' => $row->status,
+            'user' => [
+                'id' => $row->user_public_id,
+                'display_name' => $row->user_display_name,
+                'state' => $row->user_state,
+            ],
+            'prize' => [
+                'id' => $row->prize_public_id,
+                'name' => $relation?->display_name ?? '公開中の景品から削除済み',
+                'rank_name' => $relation?->rank_display_name,
+            ],
+            'is_resolvable' => $available,
+            'issue_code' => $available ? null : 'PUBLISHED_PRIZE_UNAVAILABLE',
+            'assigned_at' => CarbonImmutable::parse($row->assigned_at)
+                ->utc()->toIso8601String(),
+            'unassigned_at' => $row->unassigned_at === null
+                ? null
+                : CarbonImmutable::parse($row->unassigned_at)->utc()->toIso8601String(),
+            'updated_at' => CarbonImmutable::parse($row->updated_at)
+                ->utc()->toIso8601String(),
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function activeTestUserOptions(): array
+    {
+        return DB::table('users as user')
+            ->join('qa_test_user_modes as mode', 'mode.user_id', '=', 'user.id')
+            ->where('user.state', 'active')
+            ->where('mode.is_enabled', true)
+            ->whereNull('mode.disabled_at')
+            ->orderByDesc('user.id')
+            ->limit(100)
+            ->get([
+                'user.public_id',
+                'user.display_name',
+            ])
+            ->map(static fn (object $row): array => [
+                'id' => $row->public_id,
+                'display_name' => $row->display_name,
+            ])
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function publishedPrizeOptions(object $gacha): array
+    {
+        if ($gacha->published_version_id === null || $gacha->active_draw_state_id === null) {
+            return [];
+        }
+        $probabilityId = DB::table('catalog_gacha_versions')
+            ->where('id', $gacha->published_version_id)
+            ->value('published_probability_version_id');
+        if ($probabilityId === null) {
+            return [];
+        }
+
+        return DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('prize_inventories as inventory', function ($join) use ($gacha): void {
+                $join->on('inventory.gacha_version_prize_id', '=', 'relation.id')
+                    ->where('inventory.gacha_draw_state_id', '=', $gacha->active_draw_state_id);
+            })
+            ->where('relation.gacha_version_id', $gacha->published_version_id)
+            ->where('relation.is_visible', true)
+            ->whereNull('prize.archived_at')
+            ->whereColumn('inventory.won_count', '<', 'inventory.initial_quantity')
+            ->where(function ($query) use ($probabilityId): void {
+                $query->whereExists(function ($entry) use ($probabilityId): void {
+                    $entry->selectRaw('1')
+                        ->from('catalog_probability_entries as probability_entry')
+                        ->join(
+                            'catalog_probability_stages as probability_stage',
+                            'probability_stage.id',
+                            '=',
+                            'probability_entry.probability_stage_id'
+                        )
+                        ->whereColumn(
+                            'probability_entry.gacha_version_prize_id',
+                            'relation.id'
+                        )
+                        ->where('probability_stage.probability_version_id', $probabilityId)
+                        ->where('probability_entry.probability_ppm', '>', 0);
+                })->orWhereExists(function ($guarantee) use ($probabilityId): void {
+                    $guarantee->selectRaw('1')
+                        ->from('catalog_minimum_guarantees as minimum_guarantee')
+                        ->join(
+                            'catalog_probability_stages as probability_stage',
+                            'probability_stage.id',
+                            '=',
+                            'minimum_guarantee.probability_stage_id'
+                        )
+                        ->whereColumn(
+                            'minimum_guarantee.gacha_version_prize_id',
+                            'relation.id'
+                        )
+                        ->where('probability_stage.probability_version_id', $probabilityId)
+                        ->where('minimum_guarantee.probability_ppm', '>', 0);
+                });
+            })
+            ->orderBy('relation.rank_sort_order')
+            ->orderBy('relation.sort_order')
+            ->get([
+                'prize.public_id',
+                'relation.display_name',
+                'relation.rank_display_name',
+            ])
+            ->map(static fn (object $row): array => [
+                'id' => $row->public_id,
+                'name' => $row->display_name,
+                'rank_name' => $row->rank_display_name,
+            ])
+            ->all();
+    }
+
+    private function publishedPrize(object $gacha, string $publicId): object
+    {
+        if (! Str::isUuid($publicId)) {
+            throw $this->invalid('QA guarantee Prize is invalid.');
+        }
+        $match = collect($this->publishedPrizeOptions($gacha))
+            ->firstWhere('id', $publicId);
+        if (! is_array($match)) {
+            throw $this->invalid('QA guarantee Prize is not drawable in the Published Gacha.');
+        }
+        $prize = DB::table('catalog_prizes')
+            ->where('public_id', $publicId)
+            ->where('gacha_id', $gacha->id)
+            ->first(['id', 'public_id']);
+        if ($prize === null) {
+            throw $this->invalid('QA guarantee Prize ownership is invalid.');
+        }
+
+        return $prize;
+    }
+
+    private function activeLegacyPlanExists(int $userId, int $gachaId): bool
+    {
+        return DB::table('qa_draw_plan_assignments as assignment')
+            ->join('qa_draw_plans as plan', 'plan.id', '=', 'assignment.qa_draw_plan_id')
+            ->where('assignment.user_id', $userId)
+            ->where('assignment.status', 'assigned')
+            ->where('plan.gacha_id', $gachaId)
+            ->where('plan.status', 'active')
+            ->whereNull('plan.archived_at')
+            ->lockForUpdate()
+            ->exists();
     }
 
     private function requiredString(array $input, string $key): string
@@ -1008,6 +1474,11 @@ final class V2QaPlanManagementService
         string $targetPublicId,
         array $metadata = []
     ): void {
+        $targetType = str_starts_with($action, 'qa.guarantee.')
+            ? 'qa_gacha_guarantee_assignment'
+            : (str_starts_with($action, 'qa.mode.')
+                ? 'qa_test_user_mode'
+                : 'qa_draw_plan');
         $this->audit->record($action, [
             'request_id' => $context->requestId,
             'actor_type' => 'admin',
@@ -1015,7 +1486,7 @@ final class V2QaPlanManagementService
             'actor_role' => $admin->role->value,
             'auth_realm' => 'admin',
             'session_correlation_hash' => $context->sessionCorrelationHash,
-            'target_type' => 'qa_draw_plan',
+            'target_type' => $targetType,
             'target_public_id' => $targetPublicId,
             'metadata' => $metadata,
         ]);

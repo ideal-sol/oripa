@@ -141,6 +141,97 @@
   }
 }
 
+.admin-user-qa-mode,
+.catalog-gacha-qa-guarantees {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.admin-user-qa-status {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+
+.admin-user-qa-status.is-on { background: #ecfdf3; color: #067647; }
+.admin-user-qa-status.is-off { background: #f2f4f7; color: #475467; }
+
+.admin-user-qa-form,
+.catalog-gacha-qa-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.catalog-gacha-qa-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  min-width: 0;
+}
+
+.admin-user-qa-form label,
+.catalog-gacha-qa-form label {
+  color: #344054;
+  display: grid;
+  font-size: 14px;
+  gap: 7px;
+  min-width: 0;
+}
+
+.admin-user-qa-form textarea,
+.catalog-gacha-qa-form select {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  min-height: 42px;
+  min-width: 0;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.admin-user-qa-form textarea:focus,
+.catalog-gacha-qa-form select:focus {
+  border-color: #175cd3;
+  outline: 3px solid #d1e9ff;
+}
+
+.admin-user-qa-actions,
+.admin-user-qa-error,
+.catalog-gacha-qa-error {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-user-qa-error,
+.catalog-gacha-qa-error {
+  background: #fff4ed;
+  border: 1px solid #ffddb5;
+  color: #b42318;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.admin-user-qa-error p,
+.catalog-gacha-qa-error p,
+.catalog-gacha-qa-note,
+.admin-user-qa-note { margin: 0; }
+
+.catalog-gacha-qa-guarantees code { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .admin-user-qa-form,
+  .catalog-gacha-qa-form { grid-template-columns: 1fr; }
+
+  .admin-user-qa-actions,
+  .admin-user-qa-actions button,
+  .catalog-gacha-qa-form button { width: 100%; }
+}
+
 .user-tag-workspace {
   display: grid;
   gap: 20px;

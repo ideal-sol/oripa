@@ -240,11 +240,17 @@ final class V2QaExecutionManagementService
     private function executionQuery()
     {
         return DB::table('qa_draw_executions as execution')
-            ->join('qa_draw_plans as plan', 'plan.id', '=', 'execution.qa_draw_plan_id')
-            ->join('qa_draw_plan_assignments as assignment', function ($join): void {
+            ->leftJoin('qa_draw_plans as plan', 'plan.id', '=', 'execution.qa_draw_plan_id')
+            ->leftJoin('qa_draw_plan_assignments as assignment', function ($join): void {
                 $join->on('assignment.qa_draw_plan_id', '=', 'plan.id')
                     ->on('assignment.user_id', '=', 'execution.user_id');
             })
+            ->leftJoin(
+                'qa_gacha_guarantee_assignments as guarantee',
+                'guarantee.id',
+                '=',
+                'execution.qa_gacha_guarantee_assignment_id'
+            )
             ->join('users as user', 'user.id', '=', 'execution.user_id')
             ->join('catalog_gachas as gacha', 'gacha.id', '=', 'execution.gacha_id')
             ->join('draw_requests as request', 'request.id', '=', 'execution.draw_request_id')
@@ -262,6 +268,7 @@ final class V2QaExecutionManagementService
                 'execution.metadata_redacted',
                 'plan.public_id as plan_public_id',
                 'assignment.public_id as assignment_public_id',
+                'guarantee.public_id as guarantee_assignment_public_id',
                 'user.public_id as user_public_id',
                 'gacha.public_id as gacha_public_id',
                 'version.public_id as gacha_version_public_id',
@@ -284,6 +291,7 @@ final class V2QaExecutionManagementService
             'id' => $row->public_id,
             'plan_id' => $row->plan_public_id,
             'assignment_id' => $row->assignment_public_id,
+            'guarantee_assignment_id' => $row->guarantee_assignment_public_id,
             'user_id' => $row->user_public_id,
             'gacha_id' => $row->gacha_public_id,
             'gacha_version_id' => $row->gacha_version_public_id,

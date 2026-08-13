@@ -120,6 +120,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.qa_draw_plan_assignments",
     "public.qa_draw_plan_items",
     "public.qa_draw_plans",
+    "public.qa_gacha_guarantee_assignments",
     "public.qa_test_user_modes",
     "public.referral_point_settings",
     "public.shipping_addresses",

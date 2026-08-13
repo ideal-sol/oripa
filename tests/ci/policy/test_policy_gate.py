@@ -20,6 +20,30 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_062m_qa_integration_paths_are_registered_exactly(self):
+        expected_backend = {
+            "apps/api/app/Models/V2/QaGachaGuaranteeAssignment.php",
+            "apps/api/database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
+            "apps/api/tests/V2/QaTestUserGuaranteeIntegrationTest.php",
+            "apps/api/tests/V2/ZQaTestUserGuaranteeConcurrencyTest.php",
+        }
+        expected_admin = {
+            "apps/admin/src/components/catalog/catalog-gacha-qa-guarantee-manager.tsx",
+            "apps/admin/src/components/users/admin-user-qa-test-mode.tsx",
+            "apps/admin/test/admin-user-qa-test-mode.test.tsx",
+            "apps/admin/test/catalog-gacha-qa-guarantee.test.tsx",
+        }
+        self.assertEqual(policy_gate.MIG_062M_V2_QA_DRAW_FILES, expected_backend)
+        self.assertTrue(expected_backend.issubset(policy_gate.V2_QA_DRAW_REQUIRED_FILES))
+        self.assertEqual(policy_gate.MIG_062M_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_backend | expected_admin))
+
+        migration = (ROOT / "apps/api/database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php").read_text(encoding="utf-8")
+        self.assertIn("qa_gacha_guarantee_assignments", migration)
+        self.assertIn("Cross-Gacha QA Prize assignment is not allowed", migration)
+        self.assertIn("ALTER COLUMN ends_at DROP NOT NULL", migration)
+
     def test_mig_062l_gacha_prize_ownership_paths_are_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
@@ -868,6 +892,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_14_000027_add_v2_gacha_sales_pause.php",
             "apps/api/database/migrations-v2/2026_08_15_000028_add_v2_gacha_public_deactivation.php",
             "apps/api/database/migrations-v2/2026_08_16_000029_add_v2_qa_plan_management.php",
+            "apps/api/database/migrations-v2/2026_08_18_000031_add_display_name_to_v2_users.php",
             "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
             "apps/api/database/migrations-v2/2026_08_20_000033_add_v2_gacha_rank_prize_management.php",
             "apps/api/database/migrations-v2/2026_08_21_000034_add_v2_banner_management.php",
@@ -876,11 +901,16 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
             "apps/api/database/migrations-v2/2026_08_25_000038_add_v2_point_purchase_management.php",
             "apps/api/database/migrations-v2/2026_08_26_000039_add_v2_line_settings_management.php",
+            "apps/api/database/migrations-v2/2026_08_27_000040_update_v2_session_timeout_constraints.php",
+            "apps/api/database/migrations-v2/2026_08_28_000041_create_v2_user_tag_management.php",
+            "apps/api/database/migrations-v2/2026_08_28_000042_normalize_v2_user_tag_check_constraint.php",
             "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
             "apps/api/database/migrations-v2/2026_08_30_000044_add_v2_gacha_registration_eligibility_and_management_state.php",
             "apps/api/database/migrations-v2/2026_08_31_000045_add_v2_gacha_allowed_draw_counts.php",
             "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
+            "apps/api/database/migrations-v2/2026_09_02_000047_add_v2_user_state_revision.php",
             "apps/api/database/migrations-v2/2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
+            "apps/api/database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

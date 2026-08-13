@@ -42,9 +42,7 @@ final class V2QaDrawAdminService
     public function saveMode(
         V2AdminAuthorizationContext $context,
         string $userPublicId,
-        string $reason,
-        ?string $startsAt,
-        string $endsAt
+        string $reason
     ): array {
         $admin = $this->freshMfa->authorizeQa($context, true);
         $user = $this->user($userPublicId);
@@ -52,14 +50,11 @@ final class V2QaDrawAdminService
             throw $this->invalid('QA Mode requires an active User.');
         }
         $reason = $this->text($reason, 500, 'QA Mode reason');
-        [$starts, $ends] = $this->modeWindow($startsAt, $endsAt);
 
         return DB::transaction(function () use (
             $admin,
             $user,
             $reason,
-            $starts,
-            $ends,
             $context
         ): array {
             $mode = QaTestUserMode::query()
@@ -74,8 +69,8 @@ final class V2QaDrawAdminService
                 'user_id' => $user->id,
                 'is_enabled' => true,
                 'reason' => $reason,
-                'starts_at' => $starts,
-                'ends_at' => $ends,
+                'starts_at' => now()->startOfSecond(),
+                'ends_at' => null,
                 'enabled_by_admin_id' => $admin->id,
                 'disabled_at' => null,
                 'disabled_by_admin_id' => null,
@@ -83,8 +78,7 @@ final class V2QaDrawAdminService
             ])->save();
             $this->adminAudit($action, $admin, $context, $mode->public_id, [
                 'user_public_id' => $user->public_id,
-                'starts_at' => $starts?->utc()->toIso8601String(),
-                'ends_at' => $ends->utc()->toIso8601String(),
+                'activation' => 'immediate_until_manually_disabled',
             ]);
 
             return $this->modeResource($mode->refresh());
@@ -187,6 +181,18 @@ final class V2QaDrawAdminService
             $validatedItems,
             $context
         ): array {
+            if (DB::table('qa_gacha_guarantee_assignments')
+                ->where('user_id', $user->id)
+                ->where('gacha_id', $gacha->id)
+                ->where('status', 'assigned')
+                ->lockForUpdate()
+                ->exists()) {
+                throw new V2QaDrawException(
+                    'QA_ACTIVE_PLAN_CONFLICT',
+                    409,
+                    'A persistent QA guarantee already exists for this User and Gacha.'
+                );
+            }
             $this->completeStaleActivePlans(
                 $user->id,
                 (int) $gacha->id,
@@ -689,24 +695,6 @@ final class V2QaDrawAdminService
         return $plan;
     }
 
-    /** @return array{?CarbonImmutable, CarbonImmutable} */
-    private function modeWindow(?string $startsAt, string $endsAt): array
-    {
-        $starts = $startsAt === null ? null : $this->date($startsAt);
-        $ends = $this->date($endsAt);
-        $base = $starts ?? CarbonImmutable::now()->startOfSecond();
-        if (
-            ! $ends->greaterThan($base)
-            || $ends->greaterThan($base->addHours(
-                (int) config('v2_qa_draw.maximum_mode_hours', 24)
-            ))
-        ) {
-            throw $this->invalid('QA Mode duration must be greater than zero and at most 24 hours.');
-        }
-
-        return [$starts, $ends];
-    }
-
     /** @return array{?CarbonImmutable, ?CarbonImmutable} */
     private function planWindow(?string $startsAt, ?string $endsAt): array
     {
@@ -755,20 +743,17 @@ final class V2QaDrawAdminService
     /** @return array<string, mixed> */
     private function modeResource(QaTestUserMode $mode): array
     {
-        $now = CarbonImmutable::now();
-
         return [
             'id' => $mode->public_id,
             'revision' => (int) $mode->revision,
             'is_enabled' => (bool) $mode->is_enabled,
             'is_active' => $mode->is_enabled
-                && $mode->disabled_at === null
-                && ($mode->starts_at === null || ! $mode->starts_at->greaterThan($now))
-                && $mode->ends_at->greaterThan($now),
+                && $mode->disabled_at === null,
             'reason' => $mode->reason,
             'starts_at' => $mode->starts_at?->utc()->toIso8601String(),
-            'ends_at' => $mode->ends_at->utc()->toIso8601String(),
+            'ends_at' => $mode->ends_at?->utc()->toIso8601String(),
             'disabled_at' => $mode->disabled_at?->utc()->toIso8601String(),
+            'updated_at' => $mode->updated_at?->utc()->toIso8601String(),
         ];
     }
 

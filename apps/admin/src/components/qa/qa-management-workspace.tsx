@@ -859,7 +859,7 @@ function QaTestUsersPanel({
 
   async function save(
     user: AdminQaTestUser,
-    input: { reason: string; starts_at: string | null; ends_at: string },
+    input: { reason: string },
   ) {
     await runMutation(async () => {
       const result = await client.saveQaTestUser(
@@ -956,19 +956,17 @@ function QaTestUserForm({
 }: {
   busy: boolean;
   onDisable: () => void;
-  onSave: (input: { reason: string; starts_at: string | null; ends_at: string }) => Promise<void>;
+  onSave: (input: { reason: string }) => Promise<void>;
   user: AdminQaTestUser;
 }) {
-  const [reason, setReason] = useState("");
-  const [startsAt, setStartsAt] = useState<string | null>(user.starts_at);
-  const [endsAt, setEndsAt] = useState<string>(user.ends_at ?? "");
+  const [reason, setReason] = useState(user.reason ?? "");
 
   return (
     <form
       className="qa-form qa-user-form"
       onSubmit={async (event) => {
         event.preventDefault();
-        await onSave({ ends_at: endsAt, reason, starts_at: startsAt });
+        await onSave({ reason });
       }}
     >
       <header>
@@ -983,21 +981,14 @@ function QaTestUserForm({
         required
         value={reason}
       />
-      <QaDateInput label="開始日時（Asia/Tokyo）" onChange={setStartsAt} value={startsAt} />
-      <QaDateInput
-        label="終了日時（Asia/Tokyo）"
-        onChange={(value) => setEndsAt(value ?? "")}
-        required
-        value={endsAt}
-      />
-      <p className="qa-form-note">有効期間は最大24時間です。</p>
+      <p className="qa-form-note">有効化すると、管理者が無効化するまで継続します。</p>
       <div className="qa-actions">
         {user.mode_id && user.is_enabled ? (
           <button className="danger-button" disabled={busy} onClick={onDisable} type="button">
             無効化
           </button>
         ) : null}
-        <button className="primary-button" disabled={busy || !reason || !endsAt} type="submit">
+        <button className="primary-button" disabled={busy || !reason} type="submit">
           {user.mode_id ? "更新" : "有効化"}
         </button>
       </div>

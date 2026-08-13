@@ -26,34 +26,50 @@ final class V2AdminQaDrawController
     public function showMode(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, fn (): array =>
-            $this->service->mode($this->context($request), $userId));
+            $this->legacyModeEnvelope(
+                $this->service->mode($this->context($request), $userId)
+            ));
     }
 
     public function saveMode(Request $request, string $userId): JsonResponse
     {
         return $this->handle($request, function () use ($request, $userId): array {
             $reason = $request->input('reason');
-            $endsAt = $request->input('ends_at');
-            if (! is_string($reason) || ! is_string($endsAt)) {
+            if (! is_string($reason)) {
                 throw $this->invalid();
             }
 
-            return $this->service->saveMode(
+            return $this->legacyMode($this->service->saveMode(
                 $this->context($request),
                 $userId,
-                $reason,
-                is_string($request->input('starts_at')) ? $request->input('starts_at') : null,
-                $endsAt
-            );
+                $reason
+            ));
         });
     }
 
     public function disableMode(Request $request, string $userId): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->disableMode(
-            $this->context($request),
-            $userId
+        return $this->handle($request, fn (): array => $this->legacyMode(
+            $this->service->disableMode($this->context($request), $userId)
         ));
+    }
+
+    /** @param array<string, mixed> $envelope */
+    private function legacyModeEnvelope(array $envelope): array
+    {
+        if (is_array($envelope['mode'] ?? null)) {
+            $envelope['mode'] = $this->legacyMode($envelope['mode']);
+        }
+
+        return $envelope;
+    }
+
+    /** @param array<string, mixed> $mode */
+    private function legacyMode(array $mode): array
+    {
+        $mode['ends_at'] ??= '9999-12-31T23:59:59Z';
+
+        return $mode;
     }
 
     public function plans(Request $request, string $userId): JsonResponse
@@ -312,6 +328,38 @@ final class V2AdminQaDrawController
         ));
     }
 
+    public function gachaGuarantees(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->management->gachaGuarantees(
+            $this->context($request),
+            $gachaId
+        ));
+    }
+
+    public function saveGachaGuarantee(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->management->saveGachaGuarantee(
+            $this->context($request),
+            $gachaId,
+            $this->idempotencyKey($request),
+            $this->objectInput($request)
+        ));
+    }
+
+    public function disableGachaGuarantee(
+        Request $request,
+        string $gachaId,
+        string $userId
+    ): JsonResponse {
+        return $this->handle($request, fn (): array => $this->management->disableGachaGuarantee(
+            $this->context($request),
+            $gachaId,
+            $userId,
+            $this->idempotencyKey($request),
+            $this->objectInput($request)
+        ));
+    }
+
     private function context(Request $request): V2AdminAuthorizationContext
     {
         return $this->freshMfa->context($request, $this->requestId($request));
@@ -322,7 +370,7 @@ final class V2AdminQaDrawController
         $requestId = $this->requestId($request);
         try {
             return response()->json($callback(), 200, [
-                'Cache-Control' => 'no-store',
+                'Cache-Control' => 'private, no-store',
                 'X-Request-Id' => $requestId,
                 'X-Oripa-Api-Version' => '2',
             ]);
@@ -336,7 +384,7 @@ final class V2AdminQaDrawController
                 'retryable' => $exception->retryable,
             ], $exception->status, [
                 'Content-Type' => 'application/problem+json',
-                'Cache-Control' => 'no-store',
+                'Cache-Control' => 'private, no-store',
                 'X-Request-Id' => $requestId,
                 'X-Oripa-Api-Version' => '2',
             ]);

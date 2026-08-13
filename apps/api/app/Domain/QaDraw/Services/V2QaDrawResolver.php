@@ -4,17 +4,17 @@ namespace App\Domain\QaDraw\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
+use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
 use App\Models\V2\DrawRequest;
 use App\Models\V2\QaDrawExecution;
 use App\Models\V2\QaDrawPlan;
 use App\Models\V2\QaDrawPlanItem;
+use App\Models\V2\QaGachaGuaranteeAssignment;
 use App\Models\V2\QaTestUserMode;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
 
 final class V2QaDrawResolver
 {
@@ -28,6 +28,8 @@ final class V2QaDrawResolver
      *   active: bool,
      *   mode: ?QaTestUserMode,
      *   plan: ?QaDrawPlan,
+     *   assignment: ?QaGachaGuaranteeAssignment,
+     *   kind: ?string,
      *   items: list<array<string, mixed>>,
      *   item_ids: list<int>
      * }
@@ -52,6 +54,15 @@ final class V2QaDrawResolver
             throw $this->configuration('QA Mode cannot bypass User account restrictions.');
         }
 
+        $guarantee = $adminCommand === null
+            ? QaGachaGuaranteeAssignment::query()
+                ->where('user_id', $user->id)
+                ->where('gacha_id', $gachaId)
+                ->where('status', 'assigned')
+                ->lockForUpdate()
+                ->first()
+            : null;
+
         $plan = QaDrawPlan::query()
             ->join(
                 'qa_draw_plan_assignments as assignment',
@@ -72,8 +83,37 @@ final class V2QaDrawResolver
             })
             ->lockForUpdate()
             ->first(['qa_draw_plans.*']);
+        if ($guarantee instanceof QaGachaGuaranteeAssignment && $plan instanceof QaDrawPlan) {
+            throw $this->configuration(
+                'A persistent QA guarantee and legacy active QA Plan cannot overlap.'
+            );
+        }
+        if ($guarantee instanceof QaGachaGuaranteeAssignment) {
+            $item = $this->validatedGuarantee($guarantee, $gachaVersionId);
+            $selectionKeys = [(int) $guarantee->id, (int) $item['relation_id']];
+            if ($expectedItemIds !== null && $selectionKeys !== $expectedItemIds) {
+                throw new V2QaDrawException(
+                    'QA_RETRY_SELECTION_CONFLICT',
+                    409,
+                    'The QA guarantee changed during a database retry.'
+                );
+            }
+
+            return [
+                'active' => true,
+                'kind' => 'persistent_guarantee',
+                'mode' => $mode,
+                'plan' => null,
+                'assignment' => $guarantee,
+                'items' => [$item],
+                'item_ids' => $selectionKeys,
+            ];
+        }
         if (! $plan instanceof QaDrawPlan) {
-            throw $this->configuration('Active QA Mode requires an active QA Draw Plan.');
+            if ($adminCommand !== null) {
+                throw $this->configuration('The requested active QA Draw Plan is unavailable.');
+            }
+            return $this->inactive();
         }
         if (
             ($plan->starts_at !== null && $plan->starts_at->isFuture())
@@ -114,8 +154,10 @@ final class V2QaDrawResolver
 
         return [
             'active' => true,
+            'kind' => 'legacy_plan',
             'mode' => $mode,
             'plan' => $plan,
+            'assignment' => null,
             'items' => $selected,
             'item_ids' => $itemIds,
         ];
@@ -154,33 +196,40 @@ final class V2QaDrawResolver
         User $user,
         int $gachaId,
         CarbonImmutable $occurredAt,
-        string $requestId
+        string $requestId,
+        int $executedCount
     ): QaDrawExecution {
         if (
             ! $selection['active']
             || ! $selection['mode'] instanceof QaTestUserMode
-            || ! $selection['plan'] instanceof QaDrawPlan
         ) {
             throw new \LogicException('Inactive QA selection cannot be consumed.');
         }
-        $increments = array_count_values($selection['item_ids']);
-        foreach ($increments as $itemId => $count) {
-            $updated = DB::table('qa_draw_plan_items')
-                ->where('id', $itemId)
-                ->whereColumn('consumed_count', '<=', DB::raw('quantity - '.(int) $count))
-                ->update([
-                    'consumed_count' => DB::raw('consumed_count + '.(int) $count),
-                    'updated_at' => $occurredAt,
-                ]);
-            if ($updated !== 1) {
-                throw $this->configuration('QA Draw Plan Item consumption conflicted.');
+        if ($selection['kind'] === 'legacy_plan') {
+            if (! $selection['plan'] instanceof QaDrawPlan) {
+                throw new \LogicException('Legacy QA selection requires a Plan.');
             }
-        }
-        $remaining = (int) DB::table('qa_draw_plan_items')
-            ->where('qa_draw_plan_id', $selection['plan']->id)
-            ->sum(DB::raw('quantity - consumed_count'));
-        if ($remaining === 0) {
-            $this->complete($selection['plan'], $requestId, 'consumed');
+            $increments = array_count_values($selection['item_ids']);
+            foreach ($increments as $itemId => $count) {
+                $updated = DB::table('qa_draw_plan_items')
+                    ->where('id', $itemId)
+                    ->whereColumn('consumed_count', '<=', DB::raw('quantity - '.(int) $count))
+                    ->update([
+                        'consumed_count' => DB::raw('consumed_count + '.(int) $count),
+                        'updated_at' => $occurredAt,
+                    ]);
+                if ($updated !== 1) {
+                    throw $this->configuration('QA Draw Plan Item consumption conflicted.');
+                }
+            }
+            $remaining = (int) DB::table('qa_draw_plan_items')
+                ->where('qa_draw_plan_id', $selection['plan']->id)
+                ->sum(DB::raw('quantity - consumed_count'));
+            if ($remaining === 0) {
+                $this->complete($selection['plan'], $requestId, 'consumed');
+            }
+        } elseif (! $selection['assignment'] instanceof QaGachaGuaranteeAssignment) {
+            throw new \LogicException('Persistent QA selection requires an Assignment.');
         }
 
         $execution = new QaDrawExecution();
@@ -189,16 +238,24 @@ final class V2QaDrawResolver
             'user_id' => $user->id,
             'gacha_id' => $gachaId,
             'qa_test_user_mode_id' => $selection['mode']->id,
-            'qa_draw_plan_id' => $selection['plan']->id,
-            'executed_count' => $drawRequest->requested_count,
+            'qa_draw_plan_id' => $selection['plan']?->id,
+            'qa_gacha_guarantee_assignment_id' => $selection['assignment']?->id,
+            'executed_count' => $executedCount,
             'executed_at' => $occurredAt,
             'metadata_redacted' => [
                 'qa_mode_public_id' => $selection['mode']->public_id,
-                'qa_plan_public_id' => $selection['plan']->public_id,
-                'plan_item_public_ids' => array_values(array_unique(array_map(
-                    static fn (array $item): string => $item['item_public_id'],
-                    $selection['items']
-                ))),
+                'qa_kind' => $selection['kind'],
+                'qa_plan_public_id' => $selection['plan']?->public_id,
+                'qa_guarantee_assignment_public_id' => $selection['assignment']?->public_id,
+                'guaranteed_prize_public_id' => $selection['kind'] === 'persistent_guarantee'
+                    ? $selection['items'][0]['prize']['prize_public_id']
+                    : null,
+                'plan_item_public_ids' => $selection['kind'] === 'legacy_plan'
+                    ? array_values(array_unique(array_map(
+                        static fn (array $item): string => $item['item_public_id'],
+                        $selection['items']
+                    )))
+                    : [],
             ],
             'created_at' => $occurredAt,
         ])->save();
@@ -303,6 +360,79 @@ final class V2QaDrawResolver
         ];
     }
 
+    /** @return array<string, mixed> */
+    private function validatedGuarantee(
+        QaGachaGuaranteeAssignment $assignment,
+        int $gachaVersionId
+    ): array {
+        $row = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin(
+                'catalog_presentation_assets as asset',
+                'asset.id',
+                '=',
+                'relation.presentation_asset_id'
+            )
+            ->where('relation.gacha_version_id', $gachaVersionId)
+            ->where('relation.prize_id', $assignment->prize_id)
+            ->where('prize.gacha_id', $assignment->gacha_id)
+            ->where('relation.is_visible', true)
+            ->whereNull('prize.archived_at')
+            ->first([
+                'relation.id as relation_id',
+                'relation.sort_order as relation_sort_order',
+                'prize.public_id as prize_public_id',
+                'relation.display_name as prize_name',
+                'relation.exchange_points',
+                'rank.id as rank_id',
+                'rank.public_id as rank_public_id',
+                'relation.rank_code as rank_code',
+                'relation.rank_display_name as rank_name',
+                'relation.rank_sort_order as rank_sort_order',
+                'asset.public_id as asset_public_id',
+                'asset.public_path as asset_path',
+                'asset.checksum_sha256 as asset_checksum',
+                'asset.media_type as asset_media_type',
+                'asset.mime_type as asset_mime_type',
+                'asset.alt_text as asset_alt_text',
+            ]);
+        if ($row === null) {
+            throw $this->configuration(
+                'The guaranteed Prize is unavailable in the Canonical Published Version.'
+            );
+        }
+
+        return [
+            'item_id' => null,
+            'item_public_id' => null,
+            'guarantee_assignment_id' => (int) $assignment->id,
+            'relation_id' => (int) $row->relation_id,
+            'fixed_image' => null,
+            'fixed_video' => null,
+            'prize' => [
+                'relation_id' => (int) $row->relation_id,
+                'relation_sort_order' => (int) $row->relation_sort_order,
+                'prize_public_id' => $row->prize_public_id,
+                'prize_name' => $row->prize_name,
+                'exchange_points' => (int) $row->exchange_points,
+                'rank_id' => (int) $row->rank_id,
+                'rank_public_id' => $row->rank_public_id,
+                'rank_code' => $row->rank_code,
+                'rank_name' => $row->rank_name,
+                'rank_sort_order' => (int) $row->rank_sort_order,
+                'asset' => $row->asset_public_id === null ? null : [
+                    'id' => $row->asset_public_id,
+                    'path' => $row->asset_path,
+                    'checksum_sha256' => $row->asset_checksum,
+                    'media_type' => $row->asset_media_type,
+                    'mime_type' => $row->asset_mime_type,
+                    'alt_text' => $row->asset_alt_text,
+                ],
+            ],
+        ];
+    }
+
     /** @return array<string, mixed>|null */
     private function asset(?int $id, string $expectedType): ?array
     {
@@ -354,12 +484,8 @@ final class V2QaDrawResolver
 
     private function modeActive(QaTestUserMode $mode): bool
     {
-        $now = CarbonImmutable::now();
-
         return $mode->is_enabled
-            && $mode->disabled_at === null
-            && ($mode->starts_at === null || ! $mode->starts_at->greaterThan($now))
-            && $mode->ends_at->greaterThan($now);
+            && $mode->disabled_at === null;
     }
 
     /** @return array<string, mixed> */
@@ -367,8 +493,10 @@ final class V2QaDrawResolver
     {
         return [
             'active' => false,
+            'kind' => null,
             'mode' => null,
             'plan' => null,
+            'assignment' => null,
             'items' => [],
             'item_ids' => [],
         ];

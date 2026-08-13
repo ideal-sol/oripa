@@ -1,8 +1,16 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const userId = "01910191-0191-7191-8191-019101910191";
+const csrf = "b".repeat(64);
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript((token) => {
+    Object.defineProperty(Document.prototype, "cookie", {
+      configurable: true,
+      get: () => `__Host-oripa_admin_xsrf=${token}`,
+      set: () => undefined,
+    });
+  }, csrf);
   await installApi(page);
 });
 
@@ -38,6 +46,7 @@ test("Operator reads User list, detail, and acquired-prize history", async ({ pa
   await expect(page.getByRole("heading", { name: "基本情報" })).toBeVisible();
   await expect(page.getByText("user@example.test")).toBeVisible();
   await expect(page.getByText("ユーザー保有景品")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "テストユーザー" })).toHaveCount(0);
   await page.getByRole("link", { name: "ガチャ履歴を表示" }).click();
   await expect(page).toHaveURL(new RegExp(`/users/${userId}/gacha-history$`, "u"));
   await expect(page.getByRole("heading", { name: "ユーザーガチャ履歴" })).toBeVisible();
@@ -100,15 +109,57 @@ test("Admin changes User state and the detail refetches canonical state", async 
   await page.getByLabel("変更理由").fill("Preview support review.");
   await page.getByRole("button", { name: "確認して変更" }).click();
   await page.getByLabel("現在のパスワード").fill("not-persisted");
-  await page.getByRole("button", { name: "再認証" }).click();
+  await page.getByRole("button", { name: "再認証", exact: true }).click();
 
-  await expect(page.getByRole("status")).toContainText("最新情報を再取得しました");
-  await expect(page.getByText("停止", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".admin-user-state-summary").getByText("停止", { exact: true }))
+    .toBeVisible();
   expect(mutationBody).toEqual({
     expected_revision: 1,
     reason: "Preview support review.",
     status: "suspended",
   });
+});
+
+test("Owner enables an indefinite Test User from User detail", async ({ page }) => {
+  await page.unroute(/\/admin\/api\/v2\/.*$/u);
+  let mode: ReturnType<typeof qaMode> | null = null;
+  let mutationBody: Record<string, unknown> | null = null;
+  await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/auth/session")) return json(route, ownerSession());
+    if (path.endsWith("/auth/permissions")) {
+      return json(route, { permissions: ["qa.draw.manage"], request_id: uuid("9"), role: "owner" });
+    }
+    if (path.endsWith("/auth/reauthenticate")) {
+      return json(route, { admin: ownerSession().admin, authenticated: true });
+    }
+    if (path.endsWith(`/users/${userId}/qa-mode`)) {
+      return json(route, { mode, user_id: userId });
+    }
+    if (path.endsWith(`/qa/test-users/${userId}`) && request.method() === "PUT") {
+      mutationBody = request.postDataJSON() as Record<string, unknown>;
+      mode = qaMode();
+      return json(route, { data: mode, idempotent_replay: false, request_id: uuid("8") });
+    }
+    if (path.endsWith(`/users/${userId}`)) {
+      return json(route, { data: userDetail("active", 1), request_id: uuid("9") });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto(`/users/${userId}`);
+  await expect(page.getByRole("heading", { name: "テストユーザー" })).toBeVisible();
+  await expect(page.locator(".admin-user-qa-status")).toHaveText("OFF");
+  await page.getByLabel("設定理由").fill("演出確認用のPreview QA User");
+  await page.getByRole("button", { name: "ONにする" }).click();
+  await page.getByLabel("認証アプリの6桁コード").fill("123456");
+  await page.getByRole("button", { name: "再認証", exact: true }).click();
+
+  await expect(page.getByText("ON（無期限）", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "テストユーザー" }).getByRole("status"))
+    .toContainText("手動でOFFにするまで有効");
+  expect(mutationBody).toEqual({ reason: "演出確認用のPreview QA User" });
 });
 
 async function installApi(page: Page): Promise<void> {
@@ -156,6 +207,29 @@ function adminSession() {
     authenticated: true,
     mfa_required: false,
     requires_mfa_enrollment: false,
+  };
+}
+
+function ownerSession() {
+  return {
+    admin: { id: userId, mfa_verified: true, role: "owner", state: "active" },
+    authenticated: true,
+    mfa_required: true,
+    requires_mfa_enrollment: false,
+  };
+}
+
+function qaMode() {
+  return {
+    disabled_at: null,
+    ends_at: null,
+    id: uuid("8"),
+    is_active: true,
+    is_enabled: true,
+    reason: "演出確認用のPreview QA User",
+    revision: 1,
+    starts_at: null,
+    updated_at: "2026-09-04T00:00:00Z",
   };
 }
 

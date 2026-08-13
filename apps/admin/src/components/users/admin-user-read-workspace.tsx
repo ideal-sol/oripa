@@ -7,6 +7,7 @@ import { type ReactNode, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
+import { AdminUserQaTestMode } from "@/components/users/admin-user-qa-test-mode";
 import { AdminUserStateManagement } from "@/components/users/admin-user-state-management";
 import { AdminUserTagSection } from "@/components/users/admin-user-tag-management";
 import {
@@ -170,6 +171,7 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
         onRefresh={() => onRefresh("ユーザー状態を更新し、最新情報を再取得しました。")}
         user={user}
       />
+      <AdminUserQaTestMode user={user} />
       <section className="admin-user-summary" aria-labelledby="user-balance-heading">
         <div className="admin-user-section-heading">
           <div>

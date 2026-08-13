@@ -304,6 +304,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "public.qa_draw_plan_assignments",
             "public.qa_draw_plan_items",
             "public.qa_draw_executions",
+            "public.qa_gacha_guarantee_assignments",
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
         source = MODULE_PATH.read_text(encoding="utf-8")

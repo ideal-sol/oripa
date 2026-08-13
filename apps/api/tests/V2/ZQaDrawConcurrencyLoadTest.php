@@ -277,9 +277,7 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
         $service->saveMode(
             $context,
             $user->public_id,
-            'QA load verification',
-            null,
-            now()->addHours(2)->toIso8601String()
+            'QA load verification'
         );
         $service->createPlan(
             $context,

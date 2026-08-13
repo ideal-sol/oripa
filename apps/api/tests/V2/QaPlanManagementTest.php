@@ -27,6 +27,7 @@ use Tests\TestCase;
 final class QaPlanManagementTest extends TestCase
 {
     private const GACHA_ID = '0198a001-0000-7000-8000-000000000011';
+    private const PRIZE_S_ID = '0198a001-0000-7000-8000-000000000009';
     private const PRIZE_ID = '0198a001-0000-7000-8000-000000000010';
 
     protected function setUp(): void
@@ -63,6 +64,10 @@ final class QaPlanManagementTest extends TestCase
         self::assertTrue(Schema::hasColumn('qa_draw_plans', 'revision'));
         self::assertTrue(Schema::hasColumn('qa_draw_plans', 'archived_at'));
         self::assertTrue(Schema::hasColumn('qa_test_user_modes', 'revision'));
+        self::assertTrue(Schema::hasTable('qa_gacha_guarantee_assignments'));
+        self::assertTrue(Schema::hasColumn('draw_requests', 'qa_gacha_guarantee_assignment_id'));
+        self::assertTrue(Schema::hasColumn('draw_results', 'qa_gacha_guarantee_assignment_id'));
+        self::assertTrue(Schema::hasColumn('qa_draw_executions', 'qa_gacha_guarantee_assignment_id'));
         self::assertFalse(Schema::hasColumn('qa_draw_plan_assignments', 'tenant_id'));
 
         [$owner, $user] = [$this->admin(V2AdminRole::Owner), $this->user()];
@@ -127,20 +132,18 @@ final class QaPlanManagementTest extends TestCase
             'qa-mode-primary-key',
             [
                 'reason' => 'Release verification',
-                'starts_at' => null,
-                'ends_at' => now()->addHours(2)->toIso8601String(),
+                'starts_at' => '2026-08-13T00:00:00Z',
+                'ends_at' => '2026-08-14T00:00:00Z',
             ]
         );
         self::assertFalse($mode['idempotent_replay']);
+        self::assertNull(DB::table('qa_test_user_modes')
+            ->where('user_id', $primary->id)->value('ends_at'));
         $service->saveTestUser(
             $context,
             $secondary->public_id,
             'qa-mode-secondary-key',
-            [
-                'reason' => 'Concurrent verification',
-                'starts_at' => null,
-                'ends_at' => now()->addHours(2)->toIso8601String(),
-            ]
+            ['reason' => 'Concurrent verification']
         );
         $request = [
             'user_id' => $primary->public_id,
@@ -220,9 +223,7 @@ final class QaPlanManagementTest extends TestCase
         app(V2QaDrawAdminService::class)->saveMode(
             $context,
             $user->public_id,
-            'QA assignment',
-            null,
-            now()->addHours(2)->toIso8601String()
+            'QA assignment'
         );
         $plan = $this->legacyPlan($owner, $user);
 
@@ -264,7 +265,6 @@ final class QaPlanManagementTest extends TestCase
                 'qa-closed-user-key',
                 [
                     'reason' => 'Invalid',
-                    'ends_at' => now()->addHour()->toIso8601String(),
                 ]
             );
             self::fail('Closed User cannot enter QA mode.');
@@ -303,9 +303,143 @@ final class QaPlanManagementTest extends TestCase
         ));
     }
 
+    public function test_owner_manages_multiple_persistent_gacha_guarantees_with_occ_and_replay(): void
+    {
+        $owner = $this->admin(V2AdminRole::Owner);
+        $context = $this->context($owner);
+        $service = app(V2QaPlanManagementService::class);
+        $first = $this->user();
+        $second = $this->user();
+        foreach ([$first, $second] as $index => $user) {
+            $service->saveTestUser(
+                $context,
+                $user->public_id,
+                'qa-persistent-mode-'.$index,
+                ['reason' => 'Persistent Gacha guarantee']
+            );
+        }
+
+        $firstSaved = $service->saveGachaGuarantee(
+            $context,
+            self::GACHA_ID,
+            'qa-persistent-first',
+            ['user_id' => $first->public_id, 'prize_id' => self::PRIZE_ID]
+        );
+        $firstReplay = $service->saveGachaGuarantee(
+            $context,
+            self::GACHA_ID,
+            'qa-persistent-first',
+            ['user_id' => $first->public_id, 'prize_id' => self::PRIZE_ID]
+        );
+        $service->saveGachaGuarantee(
+            $context,
+            self::GACHA_ID,
+            'qa-persistent-second',
+            ['user_id' => $second->public_id, 'prize_id' => self::PRIZE_S_ID]
+        );
+
+        self::assertFalse($firstSaved['idempotent_replay']);
+        self::assertTrue($firstReplay['idempotent_replay']);
+        self::assertSame($firstSaved['data']['id'], $firstReplay['data']['id']);
+        $collection = $service->gachaGuarantees($context, self::GACHA_ID);
+        self::assertCount(2, $collection['items']);
+        self::assertCount(2, $collection['test_users']);
+        self::assertCount(2, $collection['prizes']);
+
+        $updated = $service->saveGachaGuarantee(
+            $context,
+            self::GACHA_ID,
+            'qa-persistent-first-update',
+            [
+                'revision' => $firstSaved['data']['revision'],
+                'user_id' => $first->public_id,
+                'prize_id' => self::PRIZE_S_ID,
+            ]
+        );
+        self::assertSame(2, $updated['data']['revision']);
+        self::assertSame(self::PRIZE_S_ID, $updated['data']['prize']['id']);
+        self::assertDatabaseCount('qa_gacha_guarantee_assignments', 2);
+        self::assertDatabaseHas('audit_logs', ['action_code' => 'qa.guarantee.saved']);
+        self::assertDatabaseHas('outbox_messages', [
+            'aggregate_type' => 'qa_gacha_guarantee_assignment',
+        ]);
+
+        try {
+            $service->saveGachaGuarantee(
+                $context,
+                self::GACHA_ID,
+                'qa-persistent-first-stale',
+                [
+                    'revision' => 1,
+                    'user_id' => $first->public_id,
+                    'prize_id' => self::PRIZE_ID,
+                ]
+            );
+            self::fail('A stale QA Gacha guarantee revision must conflict.');
+        } catch (V2QaDrawException $exception) {
+            self::assertSame('QA_REVISION_CONFLICT', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+        }
+
+        $legacyUser = $this->user();
+        $service->saveTestUser(
+            $context,
+            $legacyUser->public_id,
+            'qa-legacy-mode',
+            ['reason' => 'Legacy plan conflict']
+        );
+        $this->legacyPlan($owner, $legacyUser);
+        try {
+            $service->saveGachaGuarantee(
+                $context,
+                self::GACHA_ID,
+                'qa-persistent-legacy-conflict',
+                ['user_id' => $legacyUser->public_id, 'prize_id' => self::PRIZE_ID]
+            );
+            self::fail('A legacy active Plan and persistent guarantee must not coexist.');
+        } catch (V2QaDrawException $exception) {
+            self::assertSame('QA_ACTIVE_PLAN_CONFLICT', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+        }
+
+        $planAdmin = $this->admin(V2AdminRole::Owner);
+        $planContext = $this->context($planAdmin);
+        $planOwner = $this->user();
+        $service->saveTestUser(
+            $planContext,
+            $planOwner->public_id,
+            'qa-plan-owner-mode',
+            ['reason' => 'Plan assignment target']
+        );
+        $plan = $this->legacyPlan($planAdmin, $planOwner);
+        try {
+            $service->assign(
+                $planContext,
+                $plan['id'],
+                'qa-plan-persistent-assignment-conflict',
+                [
+                    'revision' => $plan['revision'],
+                    'user_id' => $first->public_id,
+                ]
+            );
+            self::fail('A User with a persistent guarantee cannot join an active legacy Plan.');
+        } catch (V2QaDrawException $exception) {
+            self::assertSame('QA_ACTIVE_PLAN_CONFLICT', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+        }
+    }
+
     public function test_http_routes_require_admin_realm_and_owner_permission(): void
     {
-        $ownerToken = $this->sessionToken($this->admin(V2AdminRole::Owner));
+        $user = $this->user();
+        $owner = $this->admin(V2AdminRole::Owner);
+        $ownerToken = $this->sessionToken($owner);
+        app(V2QaPlanManagementService::class)->saveTestUser(
+            $this->context($owner),
+            $user->public_id,
+            'qa-http-mode-compatibility',
+            ['reason' => 'HTTP compatibility verification']
+        );
         $response = $this->asAdmin($ownerToken)
             ->withServerVariables(['HTTPS' => 'on'])
             ->withHeaders([
@@ -317,6 +451,28 @@ final class QaPlanManagementTest extends TestCase
             ->assertJsonStructure(['items', 'next_cursor']);
         self::assertStringContainsString('private', $response->headers->get('Cache-Control'));
         self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $modeResponse = $this->asAdmin($ownerToken)
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://admin.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+            ])
+            ->getJson('/admin/api/v2/users/'.$user->public_id.'/qa-mode')
+            ->assertOk()
+            ->assertJsonPath('user_id', $user->public_id)
+            ->assertJsonPath('mode.ends_at', '9999-12-31T23:59:59Z');
+        self::assertStringContainsString('private', $modeResponse->headers->get('Cache-Control'));
+        $guarantees = $this->asAdmin($ownerToken)
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://admin.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+            ])
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID.'/qa-guarantees')
+            ->assertOk()
+            ->assertJsonStructure(['gacha_id', 'items', 'test_users', 'prizes']);
+        self::assertStringContainsString('private', $guarantees->headers->get('Cache-Control'));
+        self::assertStringContainsString('no-store', $guarantees->headers->get('Cache-Control'));
 
         $adminToken = $this->sessionToken($this->admin(V2AdminRole::Admin));
         $this->asAdmin($adminToken)
@@ -333,6 +489,8 @@ final class QaPlanManagementTest extends TestCase
     public function test_http_route_rejects_unauthenticated_requests(): void
     {
         $this->getJson('/admin/api/v2/qa/plans')->assertUnauthorized();
+        $this->getJson('/admin/api/v2/catalog/gachas/'.self::GACHA_ID.'/qa-guarantees')
+            ->assertUnauthorized();
     }
 
     private function legacyPlan(Admin $owner, User $user): array
@@ -392,8 +550,8 @@ final class QaPlanManagementTest extends TestCase
             'requires_mfa_enrollment' => false,
             'created_at' => now(),
             'last_activity_at' => now(),
-            'idle_expires_at' => now()->addMinutes(15),
-            'absolute_expires_at' => now()->addHours(8),
+            'idle_expires_at' => now()->addHours(6),
+            'absolute_expires_at' => now()->addHours(12),
             'revoked_at' => null,
         ]);
 
@@ -418,8 +576,8 @@ final class QaPlanManagementTest extends TestCase
             'requires_mfa_enrollment' => false,
             'created_at' => $created,
             'last_activity_at' => now(),
-            'idle_expires_at' => now()->addMinutes(15),
-            'absolute_expires_at' => $created->copy()->addHours(8),
+            'idle_expires_at' => now()->addHours(6),
+            'absolute_expires_at' => $created->copy()->addHours(12),
         ]);
 
         return $token;

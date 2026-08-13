@@ -26,6 +26,7 @@ import {
 } from "@/components/catalog/catalog-gacha-forms";
 import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
 import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
+import { CatalogGachaQaGuaranteeManager } from "@/components/catalog/catalog-gacha-qa-guarantee-manager";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -796,6 +797,7 @@ function GachaDetail({
           <p className="catalog-version-empty">現在公開中の内容はありません。</p>
         </section>
       )}
+      <CatalogGachaQaGuaranteeManager gachaId={gachaIdentifier(gacha)} />
       {editableDraft ? (
         <CatalogGachaRankPrizeManager
           canManage={canManage}

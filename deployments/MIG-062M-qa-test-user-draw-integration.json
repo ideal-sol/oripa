@@ -1,0 +1,26 @@
+{
+  "task_id": "MIG-062M",
+  "risk": "R4",
+  "status": "local_validated",
+  "base_branch": "main",
+  "base_sha": "608d59a18215bf16109d7a9765c18f82940f6bde",
+  "task_policy_sha256": "fabfc8911c1392e88b05b0801827edd16fa16356ef7604f9e76c6073c59b71c8",
+  "issue": 255,
+  "pull_request": 256,
+  "target": "admin.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062M/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
+    "architecture": "linux/amd64",
+    "build_on_host": false,
+    "update_services": ["api", "admin"],
+    "migration_mode": "single_migration_only",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
