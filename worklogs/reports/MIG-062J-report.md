@@ -29,5 +29,6 @@
 - Backend対象はDraw 19 tests／178 assertions、Presentation 11 tests／97 assertions、Concurrency 1 test／11 assertionsがPASSした。
 - OpenAPI bundle/check、Generated Client同期、Storefront Client、Site Schema、TestkitのTypecheck／Lint／Build、Policy Unitを対象検証する。共有依存環境の欠損とGitHub CI結果は最終記録で区別する。
 - Quality Gateで検出した「数値Enumから全旧値を包含する整数Rangeへの拡張」を、OpenAPI Breaking Checkerで非Breakingと判定する対象補正を追加した。旧値を外すRangeおよび文字列Enum削除は引き続き拒否する。
+- Fresh Install環境のTestkit固定Export Surface検査へ、正式追加した`PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE`を登録した。
 - Previewは検証済みGitHub-hosted amd64 Imageだけを使用し、Host Buildは行わない。Migration `000046`のみをSafety Guard後に適用する。
 - 全Suite、Storefront Repository、V1、Nginx、Point／Payment仕様、Draw Algorithmは変更しない。G4／G5はNOT COMPLETEを維持する。
