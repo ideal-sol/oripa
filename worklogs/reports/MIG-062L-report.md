@@ -8,6 +8,7 @@
 - Branch: `feat/MIG-062L-gacha-prize-ownership`
 - Risk: R4
 - Task Policy SHA-256: `5b564357c977bc75cfdab5dee9cff491ebdb4b50efa4b164e9c5f68d17a5a8d8`
+- Policy補正: Required Integrationで実在するConcurrency Fixture Testを対象検証へ追加するため、`apps/api/tests/V2/ZDrawConcurrencyLoadTest.php`だけをAllowed Pathsへ追加した。旧SHAは`a36c7629e2690c4fc7f38f791ce7d3fa84b24d21fa300b6d9aa2e35f4b210b42`。
 - Final Head／Squash Commit: Closeout時に確定
 
 ## Ownership／Snapshot
