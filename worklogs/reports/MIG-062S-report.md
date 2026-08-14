@@ -24,11 +24,80 @@
 
 ### Allowed paths
 
-- V2 Laravel Gacha／Catalog／QA、Admin API／Admin UI、PostgreSQL Migration、DB schema inventory guard、OpenAPI／generated artifact、targeted tests、Task deployment／worklog／policy fixture。
+- `apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php`
+- `apps/api/app/Domain/Draw/Services/V2DrawService.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaExecutionManagementService.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaPlanManagementService.php`
+- `apps/api/app/Http/Controllers/V2/V2AdminCatalogController.php`
+- `apps/api/app/Models/V2/PrizeInventory.php`
+- `apps/api/app/Models/V2/PrizeInventoryAdjustment.php`
+- `apps/api/database/migrations-v2/2026_09_08_000053_operational_gacha_inventory.php`
+- `apps/api/routes/admin.php`
+- `apps/api/tests/V2/**`
+- `apps/admin/e2e/admin-gacha-lifecycle.spec.ts`
+- `apps/admin/e2e/admin-gacha-master-edit.spec.ts`
+- `apps/admin/scripts/generate-admin-contract.mjs`
+- `apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx`
+- `apps/admin/src/lib/admin-api/client.ts`
+- `apps/admin/src/lib/admin-api/generated.ts`
+- `apps/admin/test/catalog-gacha-lifecycle.test.tsx`
+- `apps/admin/test/catalog-gacha-profit-simulation.test.tsx`
+- `apps/admin/test/catalog-gacha-rank-prize.test.tsx`
+- `deployments/MIG-062S-operational-gacha-inventory.json`
+- `openapi/admin/openapi.yaml`
+- `openapi/bundled/admin.openapi.json`
+- `scripts/ci/policy_gate.py`
+- `scripts/db/v2_database.py`
+- `tests/db/test_v2_database.py`
+- `tests/ci/policy/test_policy_gate.py`
+- `worklogs/new_ver_main.md`
+- `worklogs/reports/MIG-062S-report.md`
 
 ### Changed files
 
-- Operational Inventory schema／mutation／audit、Draw integration、Public aggregate count、Admin inventory form／contract、targeted tests、Task recordsを変更した。
+- `apps/admin/e2e/admin-gacha-master-edit.spec.ts`
+- `apps/admin/scripts/generate-admin-contract.mjs`
+- `apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx`
+- `apps/admin/src/lib/admin-api/generated.ts`
+- `apps/admin/test/catalog-gacha-rank-prize.test.tsx`
+- `apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php`
+- `apps/api/app/Domain/Catalog/Services/V2CatalogReadService.php`
+- `apps/api/app/Domain/Draw/Services/V2DrawService.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaDrawResolver.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaExecutionManagementService.php`
+- `apps/api/app/Domain/QaDraw/Services/V2QaPlanManagementService.php`
+- `apps/api/app/Models/V2/PrizeInventory.php`
+- `apps/api/app/Models/V2/PrizeInventoryAdjustment.php`
+- `apps/api/database/migrations-v2/2026_09_08_000053_operational_gacha_inventory.php`
+- `apps/api/tests/V2/AdminGachaPublishPreflightTest.php`
+- `apps/api/tests/V2/AdminGachaRankPrizeManagementTest.php`
+- `apps/api/tests/V2/AdminUserPrizeReadTest.php`
+- `apps/api/tests/V2/CatalogProbabilityFoundationTest.php`
+- `apps/api/tests/V2/DrawVerticalSliceTest.php`
+- `apps/api/tests/V2/GachaDetailPresentationContractTest.php`
+- `apps/api/tests/V2/GachaLifecyclePresentationTest.php`
+- `apps/api/tests/V2/PrizeShippingVerticalSliceTest.php`
+- `apps/api/tests/V2/QaDrawVerticalSliceTest.php`
+- `apps/api/tests/V2/QaTestUserGuaranteeIntegrationTest.php`
+- `apps/api/tests/V2/ZAdminGachaProbabilitySelectionConcurrencyTest.php`
+- `apps/api/tests/V2/ZDrawConcurrencyLoadTest.php`
+- `apps/api/tests/V2/ZQaDrawConcurrencyLoadTest.php`
+- `apps/api/tests/V2/ZQaTestUserGuaranteeConcurrencyTest.php`
+- `deployments/MIG-062S-operational-gacha-inventory.json`
+- `openapi/admin/openapi.yaml`
+- `openapi/bundled/admin.openapi.json`
+- `scripts/ci/policy_gate.py`
+- `scripts/db/v2_database.py`
+- `tests/ci/policy/test_policy_gate.py`
+- `tests/db/test_v2_database.py`
+- `worklogs/new_ver_main.md`
+- `worklogs/reports/MIG-062S-report.md`
 
 ### Explicitly not changed
 
