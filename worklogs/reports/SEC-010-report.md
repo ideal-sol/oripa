@@ -9,4 +9,7 @@
 - Scope: Root override、Root／Legacy Lockfile、中央Pin Assertion、Task記録のみ
 - Baseline: 追加・延長・無視なし
 - Runtime／Preview: 非変更
-- 検証: Root／Legacy Audit、Frozen Install、Security Unit／Gate、Policy Unit／Gate、Required Checks
+- Policy SHA-256: `eefcceed23230cc3a580fad4c1dae66b192f94b99f4c3ac3d2835cdd1e2920f8`
+- Local Audit: Composer 0、Root pnpm 0、Legacy pnpm 0
+- Local Gate: Frozen Install、Security Unit 10、Policy Unit 125、Security Gate、Policy Gate、`git diff --check` PASS
+- Required Checks: Final Headで実行
