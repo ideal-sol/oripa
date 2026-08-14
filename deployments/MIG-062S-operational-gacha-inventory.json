@@ -9,6 +9,11 @@
   "target": "admin.luxe-pack.biz",
   "public_target": "test.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062S/",
+  "evidence": {
+    "characterization": "preview-characterization.json",
+    "preview_smoke": "preview-smoke-result.json",
+    "preview_exceptions": "preview-exceptions.json"
+  },
   "preview": {
     "compose_project": "mig061a-v2-preview",
     "database": "oripa_v2_mig061a",
