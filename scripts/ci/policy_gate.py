@@ -775,6 +775,10 @@ MIG_062N_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/user-prizes/admin-user-prize-list.tsx",
     "apps/admin/test/admin-user-prize-management.test.tsx",
 }
+MIG_062Q_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-lifecycle.spec.ts",
+    "apps/admin/test/catalog-gacha-lifecycle.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -894,6 +898,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062K_ADMIN_SKELETON_FILES,
     *MIG_062M_ADMIN_SKELETON_FILES,
     *MIG_062N_ADMIN_SKELETON_FILES,
+    *MIG_062Q_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
