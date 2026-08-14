@@ -46,6 +46,7 @@
 - Backend targeted: Lifecycle 4 tests／106 assertions、関連Catalog 37 tests／478 assertions、MIG-062J／MIG-062M回帰 27 tests／270 assertions、公開競合 1 test／12 assertions、Migration Backfill 2 tests／4 assertionsがPASSした。既知のFixture path warning以外の失敗はない。
 - Admin targeted: Lifecycle UI Unitを含む17 tests、Typecheck、LintがPASSした。Desktop／Mobile BrowserとProduction BuildはGitHub-hosted Required ChecksおよびPreview Smokeを正本とする。
 - Contract: Admin／Public OpenAPI lint／bundle、Generated Client、Storefront Client 24 tests、Site Schema 10 tests、Testkit 30 tests、Policy Gate／Unit 125 tests、`git diff --check`がPASSした。Version更新後のPackage buildはProduction Host Build禁止に従いローカルでは行わず、CI／Artifact生成で確認する。
+- Preview Image Build Workflow拡張後にPipeline／Policy対象139 tests、Workflow YAML、Policy Gate、`git diff --check`がPASSした。PostgreSQL 17.11のMigration／Backup Restoreを含むRequired Integration Gateも補正後HeadでPASSした。
 - 全Suite、Production Host Build、Storefront Repository、V1、Nginx、Point／Payment、Operational Inventory、Persistent QA制約は対象外である。
 - Artifact、Required Checks、Preview Image／Migration／Smoke、Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
 - G4／G5はNOT COMPLETEを維持する。

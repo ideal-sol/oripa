@@ -8341,3 +8341,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 終端の非公開後もAdmin詳細は最後のPublished Snapshot＋Current Presentationを表示するが、Current Published Pointerは復元せず再公開を拒否する。
 - PostgreSQL 17.11のBackup／Restore Gateで、単一Open Draw State Partial Unique Indexの同義なpredicate表現差を検出した。Migration SQLをPostgreSQLの安定したCanonical表現へ限定修正し、fresh／rollback／reapplyとschema round-trip一致を再確認した。
 - Public Contract ArtifactはProduction Host Buildを避け、既存Preview Image Build Workflowを最小拡張し、Exact PR Head／Required Checksを検証した同一GitHub-hosted Jobで生成・検証する。新Secret／Registry／Cloud Resourceは追加しない。
+- PostgreSQL 17.11でMigrationのschema round-tripを再現し、Partial Unique Index predicateをdump／restoreで同形になるSQLへ補正した後、Required Integration Gateのmigration／backup restore smokeがPASSした。
