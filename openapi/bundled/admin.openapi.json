@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.13",
+    "version": "2.0.0-alpha.14",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -15711,8 +15711,7 @@
         "additionalProperties": false,
         "required": [
           "category_id",
-          "title",
-          "show_on_top"
+          "title"
         ],
         "properties": {
           "category_id": {
@@ -15773,8 +15772,6 @@
           "id",
           "title",
           "status",
-          "show_on_top",
-          "link_url",
           "category",
           "asset",
           "version_id",

@@ -8325,5 +8325,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Base `9dd56e758872286abfdd05cadc7ce0c62e14e0a3`からIssue #263、Branch `feat/MIG-062P-banner-top-presentation-contract`、Risk R3で開始した。
 - Banner VersionへDefault OFFのTop表示Flagとクリック先URLを接続し、Admin登録／編集／一覧から管理可能にする。OFFではStorefront用URLを保持しない。
 - 既存Public Banner一覧をTop ONかつ現在公開中のCanonical一覧とし、Public Asset URLとクリック先URLを明示する。固定Categoryや位置による推測は行わない。
-- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.13`へ同期し、既存Artifactと未採用`alpha.12`は上書きしない。
+- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.14`へ同期し、既存Artifactと未採用`alpha.12`／`alpha.13`は上書きしない。
 - Migration fresh／rollback／reapply、Backend 14 tests／136 assertions、Admin Unit 3 tests、Desktop／Mobile Browser 2 tests、Client 24 tests、Site Schema 10 tests、Testkit 30 tests、OpenAPI／Policy GateがPASSした。

@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.13
+  version: 2.0.0-alpha.14
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -6380,7 +6380,7 @@ components:
     AdminManagedBannerInput:
       type: object
       additionalProperties: false
-      required: [category_id, title, show_on_top]
+      required: [category_id, title]
       properties:
         category_id: {$ref: '#/components/schemas/OpaqueId'}
         title: {type: string, minLength: 1, maxLength: 191}
@@ -6403,7 +6403,7 @@ components:
     AdminManagedBanner:
       type: object
       additionalProperties: false
-      required: [id, title, status, show_on_top, link_url, category, asset, version_id, version_number, created_at, updated_at]
+      required: [id, title, status, category, asset, version_id, version_number, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         title: {type: string}
