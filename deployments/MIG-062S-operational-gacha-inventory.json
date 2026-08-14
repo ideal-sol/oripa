@@ -4,7 +4,7 @@
   "status": "pending_preview_deployment",
   "base_branch": "main",
   "base_sha": "2daef365fa1b5a845857b93e64651114700dc22e",
-  "task_policy_sha256": "fbf7dfde9ebc275333b669341887d3ddde8627d09e0164fadb7b2031f6c26c90",
+  "task_policy_sha256": "1f0791271f20892f65ec3163bf7329f66dc7b03869498bb36049734b96a29dea",
   "issue": 268,
   "target": "admin.luxe-pack.biz",
   "public_target": "test.luxe-pack.biz",

@@ -7,7 +7,7 @@
 - Base: `main@2daef365fa1b5a845857b93e64651114700dc22e`
 - Branch: `feat/MIG-062S-operational-gacha-inventory`
 - Risk: R4
-- Task Policy SHA-256: `fbf7dfde9ebc275333b669341887d3ddde8627d09e0164fadb7b2031f6c26c90`
+- Task Policy SHA-256: initial `fbf7dfde9ebc275333b669341887d3ddde8627d09e0164fadb7b2031f6c26c90`; current `1f0791271f20892f65ec3163bf7329f66dc7b03869498bb36049734b96a29dea`
 - Final Head／PR／Squash Commit: Closeout時に確定
 
 ## Summary
@@ -24,7 +24,7 @@
 
 ### Allowed paths
 
-- V2 Laravel Gacha／Catalog／QA、Admin API／Admin UI、PostgreSQL Migration、OpenAPI／generated artifact、targeted tests、Task deployment／worklog／policy fixture。
+- V2 Laravel Gacha／Catalog／QA、Admin API／Admin UI、PostgreSQL Migration、DB schema inventory guard、OpenAPI／generated artifact、targeted tests、Task deployment／worklog／policy fixture。
 
 ### Changed files
 
@@ -73,6 +73,7 @@
 - Backend targeted: Admin Inventory、Publish／Pause／Resume、Draw、Partial Remaining、Catalog／Detail、MIG-062Q Lifecycle、MIG-062L Snapshot、MIG-062M QA Guarantee、QA Draw、Migration BackfillがPASSした。PHP 8.4の既知Fixture path warning以外の失敗はない。
 - Concurrency: 同一InventoryへDrawとAdmin Adjustmentを同時実行し、確定は一方だけ、`available=0`、`awarded + withdrawn = total`、`sold_count = awarded`、Adjustment件数=`withdrawn`を確認した。Oversell／Lost Updateは0件だった。
 - Admin targeted: Rank／PrizeおよびLifecycle UI 7 tests、Generated Contract check、TypecheckがPASSした。OpenAPI Admin 212／Public 49／Webhook 1 operationのlint／bundle check、Policy Unit、`git diff --check`がPASSした。
+- Required Integration Gateが新規Adjustment TableのV2 schema inventory未登録をFail Closedで検出した。Task Policyへ`scripts/db/v2_database.py`と`tests/db/test_v2_database.py`だけをAtomic追加し、`prize_inventory_adjustments`をCanonical inventoryへ登録、DB Guard Unit 34 testsとPolicy Gateを再実行してPASSした。
 - 全Suite、Production Host Build、残在庫Weighted Selection、Production Draw再設計、Persistent QA制約、Storefront Repository、V1、Nginx、Point、Paymentは対象外である。
 - Preview Image、Required Checks、CodeQL／Dependency Review、Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
 - G4／G5はNOT COMPLETEを維持する。

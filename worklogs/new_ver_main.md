@@ -8350,3 +8350,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `sold_count`はDraw State、`remaining_count`はavailable合計、`total_count`はtotal合計を正本とし、Pause時も実残数を返す。Inventory調整はVersion、Draw State、`sold_count`、過去Draw、User Prizeを変更しない。
 - Migrationは既存Preview DataをFail Closed Characterization後にBackfillする。Draw、Partial Remaining、Catalog／Detail、MIG-062Q／062J／062L／062M回帰、同時Draw／AdjustmentのOversell／Lost Update防止をTargeted Testで確認した。
 - Public Contract ShapeとStorefront Artifactは変更せず、Admin OpenAPI／Generated Clientだけを同期する。Preview、Required Checks、Fresh Self-review、Merge／CleanupはCloseout時に確定する。
+- 初回Required Integration Gateが新規`prize_inventory_adjustments` TableのV2 schema inventory未登録を検出したため、Task PolicyへDB Guard本体／Unitの2 PathだけをAtomic追加し、Schema inventoryと明示回帰Testを同期した。

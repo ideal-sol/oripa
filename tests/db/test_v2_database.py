@@ -205,6 +205,17 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
 
+    def test_operational_inventory_schema_inventory_is_explicit(self):
+        for table in (
+            "public.prize_inventories",
+            "public.prize_inventory_adjustments",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+
     def test_referral_point_schema_inventory_is_explicit(self):
         for table in (
             "public.referral_point_settings",
