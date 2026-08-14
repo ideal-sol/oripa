@@ -8372,4 +8372,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回Integration Gateで既存published Point Planを持つ共有fixture DB上の新規test順序依存を検出した。Test transaction内で既存latest publishedへshadow draft versionを追加して対象Contract fixtureだけを分離し、既存Plan投入状態でも4 tests／54 assertionsがPASSした。Runtime挙動は変更していない。
 - 修正後Headでは全実処理がPASSしたが、PRイベントPolicy GateがPR本文の必須見出し不足だけを検出した。PR本文を`Task`／`Specification sources`／`Verification performed`／`Verification not performed`へ補正し、fresh headで再検証する。
 - PR本文Gateの残件`Summary`見出しを追加し、必須5見出しを揃えた最終docs-only headでfresh checksを実行する。
+- PR本文へPolicy parserが要求する`Task ID`／`Risk`／event Base SHA、39件の`Changed files`、同一境界の`Allowed paths`を追加し、ローカルPR body validationがPASSした。失敗履歴のないfresh headでRequired Checksを再実行する。
 - Migration、Point購入Mutation、Payment Provider／Session、Point付与／Ledger、Webhook、Refund、Purchase Lifecycleは変更していない。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはPR exact headで実施する。
