@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.11
+  version: 2.0.0-alpha.14
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -15,7 +15,7 @@ paths:
   /content/banners:
     get:
       operationId: listContentBanners
-      summary: 公開期間内のBannerを表示順で取得する
+      summary: 公開期間内かつトップ表示対象のBannerを表示順で取得する
       x-idempotency: safe
       x-rate-limit: public-read
       x-cache-policy: public-60-seconds
@@ -23,7 +23,7 @@ paths:
       security: []
       responses:
         '200':
-          description: 公開Banner一覧。
+          description: Storefrontトップ表示用の公開Banner一覧。
           content:
             application/json:
               schema:
@@ -1314,6 +1314,9 @@ components:
         title:
           type: string
           maxLength: 191
+        image_url:
+          type: string
+          pattern: '^/'
         link_url:
           type: [string, 'null']
           maxLength: 2048

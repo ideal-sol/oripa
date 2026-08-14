@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7a9d7ee5ca17db5961064643e716e468a335339817e1de5f00e80ef58475056f
+// Contract SHA-256: d80890ace4584ca14c7ff09d65f1e0c06fe82bcf0a99fa0fc2bb99e99433f857
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1884,6 +1884,8 @@ export interface AdminManagedBannerInput {
   category_id: string;
   title: string;
   asset_id?: string | null;
+  show_on_top: boolean;
+  link_url?: string | null;
 }
 
 export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
@@ -1896,6 +1898,8 @@ export interface AdminManagedBanner {
   id: string;
   title: string;
   status: "draft" | "published";
+  show_on_top: boolean;
+  link_url: string | null;
   category: AdminBannerCategory;
   asset: { id: string; public_url: string };
   version_id: string;

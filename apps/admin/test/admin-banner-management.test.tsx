@@ -48,8 +48,9 @@ describe("Banner management", () => {
     expect(await screen.findByRole("heading", { name: "バナー管理" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "バナー登録" })).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "アップロード画像", "タイトル", "カテゴリ", "画像URL", "登録日", "編集", "削除",
+      "アップロード画像", "タイトル", "カテゴリ", "トップ表示", "画像URL", "登録日", "編集", "削除",
     ]);
+    expect(screen.getByText("/gachas")).toBeVisible();
     expect(screen.getByText("メインバナー")).toBeVisible();
     expect(screen.getByText(
       "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
@@ -98,9 +99,14 @@ describe("Banner management", () => {
     fireEvent.click(screen.getByRole("button", { name: "メインバナーを編集" }));
     const edit = screen.getByRole("dialog", { name: "バナー編集" });
     expect(within(edit).getByLabelText("タイトル")).toHaveValue("メインバナー");
+    expect(within(edit).getByLabelText("トップに表示")).toBeChecked();
+    expect(within(edit).getByLabelText("クリック先URL")).toHaveValue("/gachas");
     fireEvent.change(within(edit).getByLabelText("タイトル"), { target: { value: "更新バナー" } });
+    fireEvent.click(within(edit).getByLabelText("トップに表示"));
+    expect(within(edit).queryByLabelText("クリック先URL")).not.toBeInTheDocument();
     fireEvent.click(within(edit).getByRole("button", { name: "更新" }));
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0]?.[1]).toMatchObject({ link_url: null, show_on_top: false });
 
     fireEvent.click(await screen.findByRole("button", { name: "メインバナーを削除" }));
     const deletion = screen.getByRole("dialog", { name: "バナー削除" });
@@ -119,6 +125,8 @@ function banner(): AdminManagedBanner {
     category,
     created_at: "2026-08-05T00:00:00Z",
     id: uuid("3"),
+    link_url: "/gachas",
+    show_on_top: true,
     status: "draft",
     title: "メインバナー",
     updated_at: "2026-08-05T00:00:00Z",

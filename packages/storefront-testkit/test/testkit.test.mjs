@@ -26,6 +26,7 @@ import {
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_FOOTER_PAGES_FIXTURE,
+  PUBLIC_TOP_BANNERS_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
@@ -144,11 +145,22 @@ test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開
 
 test("Content Fixtureは公開AssetとSanitize済み本文だけを含む", () => {
   assert.equal(PUBLIC_CONTENT_FIXTURE.banner.link_url, "/gachas");
+  assert.match(PUBLIC_CONTENT_FIXTURE.banner.image_url, /^\/api\/v2\/content\/assets\//u);
   assert.equal(PUBLIC_CONTENT_FIXTURE.notice.is_important, false);
   const serialized = JSON.stringify(PUBLIC_CONTENT_FIXTURE);
   assert.doesNotMatch(
     serialized,
     /storage_identifier|internal_id|cost_price|individual_ppm|script|secret/i,
+  );
+});
+
+test("Top Banner Fixtureは公開中かつTop ONだけを一覧へ含める", () => {
+  assert.equal(PUBLIC_TOP_BANNERS_FIXTURE.response.items.length, 1);
+  assert.equal(PUBLIC_TOP_BANNERS_FIXTURE.response.items[0].link_url, "/gachas");
+  assert.equal(PUBLIC_TOP_BANNERS_FIXTURE.excluded.top_off.title, "トップ非表示");
+  assert.equal(
+    PUBLIC_TOP_BANNERS_FIXTURE.excluded.outside_publication_period.title,
+    "公開期間外",
   );
 });
 
@@ -631,6 +643,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
+    "PUBLIC_TOP_BANNERS_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",
     "TestkitAssertionError",
     "TestkitNetworkError",

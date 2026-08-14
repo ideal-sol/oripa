@@ -87,6 +87,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             'code' => 'hero-later',
             'title' => 'Later',
             'link_url' => '/gachas',
+            'show_on_top' => true,
             'sort_order' => 20,
             'asset_id' => $asset,
             'publish_start_at' => now()->subMinute()->toIso8601String(),
@@ -95,9 +96,28 @@ final class ContentContactVerticalSliceTest extends TestCase
             'code' => 'hero-first',
             'title' => 'First',
             'link_url' => 'https://example.test/notices',
+            'show_on_top' => true,
             'sort_order' => 10,
             'asset_id' => $asset,
             'publish_start_at' => now()->subMinute()->toIso8601String(),
+        ]);
+        $topOff = $service->createContent($context, 'banner', [
+            'code' => 'hero-top-off',
+            'title' => 'Top Off',
+            'link_url' => '/hidden',
+            'show_on_top' => false,
+            'sort_order' => 5,
+            'asset_id' => $asset,
+            'publish_start_at' => now()->subMinute()->toIso8601String(),
+        ]);
+        $futureTop = $service->createContent($context, 'banner', [
+            'code' => 'hero-future',
+            'title' => 'Future Top',
+            'link_url' => '/future',
+            'show_on_top' => true,
+            'sort_order' => 1,
+            'asset_id' => $asset,
+            'publish_start_at' => now()->addMinute()->toIso8601String(),
         ]);
         $service->publish(
             $context,
@@ -111,6 +131,14 @@ final class ContentContactVerticalSliceTest extends TestCase
             $first['id'],
             $first['versions'][0]['id']
         );
+        foreach ([$topOff, $futureTop] as $excludedBanner) {
+            $service->publish(
+                $context,
+                'banner',
+                $excludedBanner['id'],
+                $excludedBanner['versions'][0]['id']
+            );
+        }
 
         $noticeIds = [];
         foreach ([
@@ -146,6 +174,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             array_column($banners, 'title')
         );
         self::assertSame('/api/v2/content/assets/'.$asset, $banners[0]['asset']['path']);
+        self::assertSame('/api/v2/content/assets/'.$asset, $banners[0]['image_url']);
         $firstPage = $read->notices(null, 1);
         self::assertCount(1, $firstPage['items']);
         self::assertNotNull($firstPage['next_cursor']);

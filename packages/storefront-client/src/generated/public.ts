@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 公開期間内のBannerを表示順で取得する */
+        /** 公開期間内かつトップ表示対象のBannerを表示順で取得する */
         get: operations["listContentBanners"];
         put?: never;
         post?: never;
@@ -770,6 +770,7 @@ export interface components {
         ContentBanner: {
             id: components["schemas"]["OpaqueId"];
             title: string;
+            image_url?: string;
             link_url: string | null;
             asset: components["schemas"]["ContentAsset"];
             publish_start_at: components["schemas"]["UtcDateTime"];
@@ -1472,7 +1473,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 公開Banner一覧。 */
+            /** @description Storefrontトップ表示用の公開Banner一覧。 */
             200: {
                 headers: {
                     [name: string]: unknown;

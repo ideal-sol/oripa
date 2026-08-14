@@ -245,13 +245,13 @@ final class ZContentContactPerformanceTest extends TestCase
             <<<'SQL'
                 INSERT INTO content_versions (
                     public_id, banner_id, version_number, status, title,
-                    link_url, sort_order, is_important, publish_start_at,
+                    link_url, show_on_top, sort_order, is_important, publish_start_at,
                     content_checksum, created_by_admin_id, published_by_admin_id,
                     published_at, created_at, updated_at
                 )
                 SELECT
                     ('00000000-0000-7000-8300-' || lpad(to_hex(id), 12, '0'))::uuid,
-                    id, 1, 'draft', code, '/', id, false, now() - interval '1 day',
+                    id, 1, 'draft', code, '/', true, id, false, now() - interval '1 day',
                     repeat('b', 64), ?, NULL, NULL, now(), now()
                 FROM content_banners
                 WHERE code LIKE 'banner-%'

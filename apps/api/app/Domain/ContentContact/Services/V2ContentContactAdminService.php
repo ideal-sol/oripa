@@ -456,6 +456,8 @@ final class V2ContentContactAdminService
                 'version.public_id as version_public_id',
                 'version.version_number',
                 'version.title',
+                'version.show_on_top',
+                'version.link_url',
                 'category.public_id as category_public_id',
                 'category.name as category_name',
                 'asset.public_id as asset_public_id',
@@ -540,6 +542,7 @@ final class V2ContentContactAdminService
             $this->auditContent('content.banner_created', $context, 'banner', $publicId, [
                 'version_public_id' => $version['id'],
                 'category_public_id' => $payload['category_id'],
+                'show_on_top' => $payload['show_on_top'],
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result, 201);
@@ -611,6 +614,7 @@ final class V2ContentContactAdminService
             $this->auditContent('content.banner_updated', $context, 'banner', $publicId, [
                 'version_public_id' => $version['id'],
                 'category_public_id' => $payload['category_id'],
+                'show_on_top' => $payload['show_on_top'],
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result);
@@ -1508,6 +1512,7 @@ final class V2ContentContactAdminService
         $link = $type === 'banner'
             ? $this->safeLink($input['link_url'] ?? null)
             : null;
+        $showOnTop = $type === 'banner' && ($input['show_on_top'] ?? false) === true;
         $sortOrder = $this->integer($input['sort_order'] ?? 0, 0, 1_000_000);
         $important = $type === 'notice' && ($input['is_important'] ?? false) === true;
         $start = $this->date($input['publish_start_at'] ?? null);
@@ -1522,6 +1527,7 @@ final class V2ContentContactAdminService
             'summary' => $summary,
             'body_html' => $body,
             'link_url' => $link,
+            'show_on_top' => $showOnTop,
             'sort_order' => $sortOrder,
             'is_important' => $important,
             'publish_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z'),
@@ -1541,6 +1547,7 @@ final class V2ContentContactAdminService
             'summary' => $summary,
             'body_html' => $body,
             'link_url' => $link,
+            'show_on_top' => $showOnTop,
             'sort_order' => $sortOrder,
             'is_important' => $important,
             'publish_start_at' => $start,
@@ -1584,7 +1591,19 @@ final class V2ContentContactAdminService
         $required = $assetRequired
             ? ['category_id', 'title', 'asset_id']
             : ['category_id', 'title'];
-        $this->assertFields($input, ['category_id', 'title', 'asset_id'], $required);
+        $this->assertFields(
+            $input,
+            ['category_id', 'title', 'asset_id', 'show_on_top', 'link_url'],
+            $required
+        );
+        $showOnTop = $input['show_on_top'] ?? false;
+        if (! is_bool($showOnTop)) {
+            throw $this->invalid('BANNER_TOP_VISIBILITY_INVALID');
+        }
+        $linkUrl = $showOnTop ? $this->safeLink($input['link_url'] ?? null) : null;
+        if ($showOnTop && $linkUrl === null) {
+            throw $this->invalid('BANNER_TOP_LINK_REQUIRED');
+        }
 
         return [
             'category_id' => $this->uuid($input['category_id'], 'BANNER_CATEGORY_INVALID'),
@@ -1592,6 +1611,8 @@ final class V2ContentContactAdminService
             'asset_id' => array_key_exists('asset_id', $input) && $input['asset_id'] !== null
                 ? $this->uuid($input['asset_id'], 'BANNER_ASSET_INVALID')
                 : null,
+            'show_on_top' => $showOnTop,
+            'link_url' => $linkUrl,
         ];
     }
 
@@ -1744,7 +1765,8 @@ final class V2ContentContactAdminService
             'title' => $payload['title'],
             'category_id' => $payload['category_id'],
             'asset_id' => $payload['asset_id'],
-            'link_url' => null,
+            'link_url' => $payload['link_url'],
+            'show_on_top' => $payload['show_on_top'],
             'sort_order' => 0,
             'publish_start_at' => now()->startOfSecond()->toIso8601String(),
             'publish_end_at' => null,
@@ -1781,6 +1803,8 @@ final class V2ContentContactAdminService
                 'version.public_id as version_public_id',
                 'version.version_number',
                 'version.title',
+                'version.show_on_top',
+                'version.link_url',
                 'category.public_id as category_public_id',
                 'category.name as category_name',
                 'asset.public_id as asset_public_id',
@@ -1799,6 +1823,8 @@ final class V2ContentContactAdminService
             'id' => $row->public_id,
             'title' => $row->title,
             'status' => $row->status,
+            'show_on_top' => (bool) $row->show_on_top,
+            'link_url' => $row->link_url,
             'category' => [
                 'id' => $row->category_public_id,
                 'name' => $row->category_name,
@@ -2294,11 +2320,23 @@ final class V2ContentContactAdminService
             return null;
         }
         $link = $this->string($value, 1, 2048);
-        if (str_starts_with($link, '/') && ! str_starts_with($link, '//')) {
+        if (
+            str_starts_with($link, '/')
+            && ! str_starts_with($link, '//')
+            && ! str_contains($link, '\\')
+            && preg_match('/[\x00-\x1F\x7F]/', $link) !== 1
+        ) {
             return $link;
         }
-        $scheme = parse_url($link, PHP_URL_SCHEME);
-        if (! is_string($scheme) || ! in_array(strtolower($scheme), ['http', 'https'], true)) {
+        $parts = parse_url($link);
+        if (
+            filter_var($link, FILTER_VALIDATE_URL) === false
+            || ! is_array($parts)
+            || ! in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || ! isset($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+        ) {
             throw $this->invalid('CONTENT_LINK_INVALID');
         }
 

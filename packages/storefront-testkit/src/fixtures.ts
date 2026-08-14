@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.11",
+      storefront_client_version: "2.0.0-alpha.14",
       required_capabilities: [],
     },
     public: {
@@ -60,7 +60,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.11",
+  minimum_storefront_client_version: "2.0.0-alpha.14",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -105,6 +105,37 @@ export const PUBLIC_FOOTER_PAGES_FIXTURE = Object.freeze({
   excluded: {
     footer_off: PublicComponents["schemas"]["ContentFooterPage"];
     outside_publication_period: PublicComponents["schemas"]["ContentFooterPage"];
+  };
+});
+
+export const PUBLIC_TOP_BANNERS_FIXTURE = Object.freeze({
+  response: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000311",
+        title: "トップ表示バナー",
+        image_url: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000312",
+        link_url: "/gachas",
+        asset: {
+          id: "0198a001-0000-7000-8000-000000000312",
+          path: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000312",
+          checksum_sha256: "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7c4f0f8d160d2d0",
+          alt_text: "トップ表示バナー",
+        },
+        publish_start_at: "2026-07-28T00:00:00Z",
+        publish_end_at: null,
+      },
+    ],
+  },
+  excluded: {
+    top_off: { id: "0198a001-0000-7000-8000-000000000313", title: "トップ非表示" },
+    outside_publication_period: { id: "0198a001-0000-7000-8000-000000000314", title: "公開期間外" },
+  },
+} as const satisfies {
+  response: PublicComponents["schemas"]["ContentBannerCollection"];
+  excluded: {
+    top_off: { id: string; title: string };
+    outside_publication_period: { id: string; title: string };
   };
 });
 
@@ -505,6 +536,7 @@ export const PUBLIC_CONTENT_FIXTURE = Object.freeze({
   banner: {
     id: "0198a001-0000-7000-8000-000000000201",
     title: "Fixture Banner",
+    image_url: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000202",
     link_url: "/gachas",
     asset: {
       id: "0198a001-0000-7000-8000-000000000202",
