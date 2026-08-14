@@ -770,8 +770,8 @@ export interface components {
         ContentBanner: {
             id: components["schemas"]["OpaqueId"];
             title: string;
-            image_url: string;
-            link_url: string;
+            image_url?: string;
+            link_url: string | null;
             asset: components["schemas"]["ContentAsset"];
             publish_start_at: components["schemas"]["UtcDateTime"];
             /** Format: date-time */

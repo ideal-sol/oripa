@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.12
+  version: 2.0.0-alpha.13
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1307,7 +1307,7 @@ components:
     ContentBanner:
       type: object
       additionalProperties: false
-      required: [id, title, image_url, link_url, asset, publish_start_at, publish_end_at]
+      required: [id, title, link_url, asset, publish_start_at, publish_end_at]
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
@@ -1318,8 +1318,7 @@ components:
           type: string
           pattern: '^/'
         link_url:
-          type: string
-          minLength: 1
+          type: [string, 'null']
           maxLength: 2048
         asset:
           $ref: '#/components/schemas/ContentAsset'

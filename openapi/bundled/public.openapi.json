@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.12",
+    "version": "2.0.0-alpha.13",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2095,7 +2095,6 @@
         "required": [
           "id",
           "title",
-          "image_url",
           "link_url",
           "asset",
           "publish_start_at",
@@ -2114,8 +2113,10 @@
             "pattern": "^/"
           },
           "link_url": {
-            "type": "string",
-            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ],
             "maxLength": 2048
           },
           "asset": {

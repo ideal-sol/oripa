@@ -7,5 +7,5 @@ export const PUBLIC_CONTRACT_FIXTURE = {
   openapi: "3.1.1",
   operation_count: 49,
   operation_ids: ["completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentFooterPages","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"],
-  bundle_sha256: "275b37cce40f22d56e8fd043cd4a30e42b7dc10063359a716631e58ee67f39c8",
+  bundle_sha256: "c9ec69d9932ff1190658d827853ee71d3ce977e4c285a6a6afecd01cdbaf7982",
 } as const;

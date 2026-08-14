@@ -20,7 +20,8 @@
 - 既存`GET /api/v2/content/banners`をStorefrontトップ表示用のCanonical一覧とし、Top ONかつ現在公開中でPublic Image Assetと安全なURLを持つBannerだけを返す。
 - Responseは`id`、`title`、`image_url`、`link_url`と既存`asset`／公開期間を返す。Category名や固定位置をStorefrontへ推測させない。
 - Anonymous read-only情報だけの既存Public Cache境界を維持する。Admin APIは`private, no-store`、Errorは既存RFC 9457を再利用する。
-- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.12`へ同期する。旧Artifact `2.0.0-alpha.11`は上書きしない。
+- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.13`へ同期する。旧Artifact `2.0.0-alpha.11`と未採用`2.0.0-alpha.12`は上書きしない。
+- Public RuntimeはTop対象で`image_url`と非NULL `link_url`を常に返す一方、既存`ContentBanner`利用者との互換性維持のためOpenAPIの`image_url`はoptional追加、`link_url`はnullableを維持する。
 - Artifact filename／SHA-256／Source CommitはRepository外EvidenceのManifestを正本とする。
 
 ## Verification

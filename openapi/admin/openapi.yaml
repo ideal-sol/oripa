@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.12
+  version: 2.0.0-alpha.13
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
