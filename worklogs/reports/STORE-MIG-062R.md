@@ -9,7 +9,7 @@
 - Branch: `feat/MIG-062R-point-product-read-eligibility`
 - Worktree: `/var/www/oripa-worktrees/MIG-062R`
 - Risk: `R3`
-- Task Policy SHA-256: initial `116e2d5d9f5a0c8bf2b2ae603b3e6dce2ff000498ffbd141f82a1fd674fec6a1`; Phase B `1f7e8a12bc51f8a07619186e8ff694876396eb3093d5fc4088c3f4e885644751`
+- Task Policy SHA-256: initial `116e2d5d9f5a0c8bf2b2ae603b3e6dce2ff000498ffbd141f82a1fd674fec6a1`; Phase B package sync `1f7e8a12bc51f8a07619186e8ff694876396eb3093d5fc4088c3f4e885644751`; push boundary `a57c90ebc74707b11dcfd56672fe40e39cdc3b968bcf7f9f54c50d5d6bd44c5f`
 
 ## Existing Domain Audit
 
@@ -43,6 +43,7 @@
 - MIG-062QとMIG-062S merge後の`origin/main@e305a76a9a2dbd88e019ceecb7153514906a38d0`へrebaseした。
 - Generated Public Contract競合は、最新mainのPublic OpenAPIを正本にbundle、Storefront types、Testkit contractを再生成して解消した。MIG-062Q生成物をPhase A生成物で上書きしていない。
 - Point Domain、`point_purchase_plans`、`payments`、Migration setにMIG-062Q／MIG-062Sとの直接Conflictはない。
+- GitHub App wrapperはPhase A Baseからのcumulative diffを検証するため、Task Policyへmerge済みMIG-062Q／MIG-062Sの継承Pathだけをexact追加した。MIG-062R commitは当該Pathを変更せず、最新mainの祖先として取り込むだけである。
 - Package／3 API Contract／release metadataを既存Versionを上書きしない`2.0.0-alpha.17`へ同期した。
 - Public 50／Admin 212／Webhook 1 operations。Migration setは既存53件のままで、新規Migrationはない。
 

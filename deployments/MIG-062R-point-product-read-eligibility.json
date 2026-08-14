@@ -4,7 +4,7 @@
   "status": "pending_preview_deployment",
   "base_branch": "main",
   "base_sha": "e305a76a9a2dbd88e019ceecb7153514906a38d0",
-  "task_policy_sha256": "1f7e8a12bc51f8a07619186e8ff694876396eb3093d5fc4088c3f4e885644751",
+  "task_policy_sha256": "a57c90ebc74707b11dcfd56672fe40e39cdc3b968bcf7f9f54c50d5d6bd44c5f",
   "issue": 267,
   "target": "test.luxe-pack.biz",
   "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062R/",
