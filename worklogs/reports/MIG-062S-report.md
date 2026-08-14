@@ -74,6 +74,7 @@
 - Concurrency: 同一InventoryへDrawとAdmin Adjustmentを同時実行し、確定は一方だけ、`available=0`、`awarded + withdrawn = total`、`sold_count = awarded`、Adjustment件数=`withdrawn`を確認した。Oversell／Lost Updateは0件だった。
 - Admin targeted: Rank／PrizeおよびLifecycle UI 7 tests、Generated Contract check、TypecheckがPASSした。OpenAPI Admin 212／Public 49／Webhook 1 operationのlint／bundle check、Policy Unit、`git diff --check`がPASSした。
 - Required Integration Gateが新規Adjustment TableのV2 schema inventory未登録をFail Closedで検出した。Task Policyへ`scripts/db/v2_database.py`と`tests/db/test_v2_database.py`だけをAtomic追加し、`prize_inventory_adjustments`をCanonical inventoryへ登録、DB Guard Unit 34 testsとPolicy Gateを再実行してPASSした。
+- 初回Preview Image Buildはexact PR HeadのImage生成自体はPASSしたが、Workflow control refをTask BranchでdispatchしたためArtifact read wrapperがtrusted `main` control ref条件でFail Closedした。未検証Artifactは使用せず、control refを`main`へ固定して再dispatchする。
 - 全Suite、Production Host Build、残在庫Weighted Selection、Production Draw再設計、Persistent QA制約、Storefront Repository、V1、Nginx、Point、Paymentは対象外である。
 - Preview Image、Required Checks、CodeQL／Dependency Review、Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
 - G4／G5はNOT COMPLETEを維持する。
