@@ -75,11 +75,16 @@
 - Admin targeted: Rank／PrizeおよびLifecycle UI 7 tests、Generated Contract check、TypecheckがPASSした。OpenAPI Admin 212／Public 49／Webhook 1 operationのlint／bundle check、Policy Unit、`git diff --check`がPASSした。
 - Required Integration Gateが新規Adjustment TableのV2 schema inventory未登録をFail Closedで検出した。Task Policyへ`scripts/db/v2_database.py`と`tests/db/test_v2_database.py`だけをAtomic追加し、`prize_inventory_adjustments`をCanonical inventoryへ登録、DB Guard Unit 34 testsとPolicy Gateを再実行してPASSした。
 - 初回Preview Image Buildはexact PR HeadのImage生成自体はPASSしたが、Workflow control refをTask BranchでdispatchしたためArtifact read wrapperがtrusted `main` control ref条件でFail Closedした。未検証Artifactは使用せず、control refを`main`へ固定して再dispatchする。
+- GitHub-hosted `linux/amd64` Pipelineでexact Head Imageを生成し、外側Artifact digest、内側Checksum、OCI Revision、Architectureを検証した。Production Host Buildは行わず、Preview DB Guard前後PASS後にMigration `000053`だけを適用し、API／AdminだけをhealthyなTask Imageへ更新した。
+- Previewのactive MIG-062J DataでDesktop／Mobileの在庫表示、現在個数＋1、総在庫＋2、全在庫0の`sold_out`、元数量への復元、同一Draw State、`sold_count`不変、Public `remaining_count`／`total_count`、景品単位Inventory Field非公開を確認した。Page ErrorとHTTP 500／502／504は0件だった。
+- 既存QA UserのDraw APIは`INVALID_DRAW_REQUEST`、全Synthetic QA Probabilityは既存Snapshot不整合によりResume Preflight不可だった。Fixture／Persistent QA制約は修正・迂回せず、DrawはTargeted／Concurrency Testを正本とし、Pause中の実残数はRead-onlyで`remaining=12`／`total=18`を確認した。既存Fixture Asset 3 Pathの404によるConsole Error 10件を例外記録した。
+- 期限切れQA Dataで最初のPause Smokeを行ったため、Inventoryと公開終了日時は元値へ復元したが、既存Probability制約がCanonical Resumeを拒否し、当該Synthetic GachaのAdmin管理状態だけは`sales_paused`を維持する。Public実効状態、在庫、Draw State、`sold_count`、Draw Result、User Prizeは元値と同じであり、禁止された制約迂回は行わなかった。
 - 全Suite、Production Host Build、残在庫Weighted Selection、Production Draw再設計、Persistent QA制約、Storefront Repository、V1、Nginx、Point、Paymentは対象外である。
-- Preview Image、Required Checks、CodeQL／Dependency Review、Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
+- Required 5 Checks、CodeQL、Dependency ReviewはPreview対象HeadでPASSした。Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
 - G4／G5はNOT COMPLETEを維持する。
 
 ## Verification not performed
 
 - Repository全SuiteとProduction Host BuildはTask指示に従い実行していない。
-- Preview、exact-head Required Checks、Fresh Self-review、Merge／CleanupはCloseout工程で実施する。
+- 既存QA Data制約によりPreview Draw成功とPause後Resumeは実行していない。対象Backend／Concurrency Testと安全に実行できたAPI／Browser SmokeをEvidenceとし、例外を明示した。
+- 最終docs-only Headのexact-head Required Checks／Artifact再固定、Fresh Self-review、Merge／CleanupはCloseout工程で実施する。

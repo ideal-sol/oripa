@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-062S",
   "risk": "R4",
-  "status": "pending_preview_deployment",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "2daef365fa1b5a845857b93e64651114700dc22e",
   "task_policy_sha256": "1f0791271f20892f65ec3163bf7329f66dc7b03869498bb36049734b96a29dea",
@@ -17,10 +17,10 @@
     "build_on_host": false,
     "update_services": ["api", "admin"],
     "migration_mode": "single_forward_migration",
-    "migration_applied": false,
-    "db_target_safety_guard": "PENDING",
-    "image_artifact_verification": "PENDING",
-    "runtime_smoke": "PENDING",
+    "migration_applied": true,
+    "db_target_safety_guard": "PASS",
+    "image_artifact_verification": "PASS",
+    "runtime_smoke": "PASS_WITH_FIXTURE_EXCEPTIONS",
     "nginx_change": "NONE",
     "v1_change": "NONE",
     "storefront_repository_change": "NONE"
