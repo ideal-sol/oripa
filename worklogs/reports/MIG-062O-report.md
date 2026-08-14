@@ -7,7 +7,7 @@
 - Base: `main@3b8445f1cf8f858fb46c0afe9e366faaf5e78f5e`
 - Branch: `feat/MIG-062O-static-page-footer-contract`
 - Risk: R3
-- Task Policy SHA-256: `cd736b315caeeb6980f1e3957c32ca29bbfcc5979fc13aab11d232bcf356e54b`
+- Task Policy SHA-256: `8eafb026475a05fa09b06b4485e5595d9d83936b56be601faf41ca4bbc5bb0bb`
 
 ## Page Schema／Admin
 
@@ -33,6 +33,7 @@
 - Contract: Public 49／Admin 212／Webhook 1 operations、OpenAPI lint／bundle／Breaking Check、Generated同期 PASS。
 - Admin Responseの新規`show_in_footer`／`footer_sort_order`はRuntimeで常に返す一方、OpenAPIでは後方互換なoptional追加とし、既存ClientへのBreaking Changeを回避した。
 - Storefront Client 24 tests、Site Schema 10 tests、Testkit 29 tests、Policy Unit 125 tests PASS。
+- Required Integration Gateで既存MIG-062M Migration testの`--step 1`前提が新規`000050`追加で崩れることを検出した。対象`000049`をexact pathでrollback／reapplyし、fixture時刻をDB `CURRENT_TIMESTAMP`基準へ固定した。Migration／QA Domain／Runtime仕様は変更しない。
 - 全V2 Suite、全Admin E2E、Storefront Repository TestはScope外のため実行しない。
 
 ## Preview／Closeout

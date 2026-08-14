@@ -8318,3 +8318,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Admin登録／編集へFooter ON/OFF、表示順、Sanitize済みPreviewを追加し、Public APIは現在公開中かつFooter ONの`id`／`slug`／`title`だけを返す。
 - Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.11`へ同期し、既存Artifactは上書きしない。
 - Migration fresh／rollback／reapply、Backend 5 tests／44 assertions、Admin Unit 4 tests、Desktop／Mobile Browser 2 tests、Client 24 tests、Site Schema 10 tests、Testkit 29 tests、OpenAPI／Policy UnitがPASSした。
+- Required Integration Gateで検出した既存MIG-062M Migration testの`--step 1`順序依存を、`000049` exact pathとDB時刻fixtureへ限定補正した。RuntimeとMigration仕様は不変。
