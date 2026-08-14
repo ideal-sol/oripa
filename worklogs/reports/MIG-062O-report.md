@@ -23,6 +23,7 @@
 - Anonymous read-only情報のみで既存Public Cache境界を使用する。Errorは既存RFC 9457、Admin APIは`private, no-store`を維持する。
 - Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.11`へ同期する。旧Artifact `2.0.0-alpha.10`は上書きしない。
 - Artifact filename／SHA-256／Source CommitはRepository外EvidenceのManifestを正本とする。
+- `2.0.0-alpha.11`配布物SHA-256: Client `56112482af70ff352b5661ac160ffb00225c8a218c16d7ebc472ffc3aac4aa1b`、Testkit `82d8e41831a214d788f2a612e34dd88ca5e206ef477e6336d00b539267ba6e79`、Site Schema `9e0eaaafb4fe51fd9650cf274674f5cd557499453d574958be4f2af9f4b53e79`、Public OpenAPI `cb00709ad49fb11dd802530d41ac056845730dd3b96ff3613ec36feae1379816`。
 
 ## Verification
 
