@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.16",
+    "version": "2.0.0-alpha.17",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -219,6 +219,37 @@
           },
           "429": {
             "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/point-products": {
+      "get": {
+        "operationId": "listPointProducts",
+        "summary": "公開Point商品をCanonical表示順とCurrent User購入可否付きで取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "public-anonymous-private-authenticated",
+        "x-stability": "alpha",
+        "security": [
+          {},
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "公開Point商品一覧。配列順がBackend-authoritativeな表示順となる。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointProductCollection"
+                }
+              }
+            }
           },
           "default": {
             "$ref": "#/components/responses/Problem"
@@ -3200,6 +3231,204 @@
             "$ref": "#/components/schemas/ProblemDetails"
           }
         ]
+      },
+      "PointProductAudienceCode": {
+        "type": "string",
+        "enum": [
+          "all_users",
+          "first_purchase_users"
+        ]
+      },
+      "PointProductAudience": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "label"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/PointProductAudienceCode"
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "すべてのユーザー",
+              "初回ユーザー"
+            ]
+          }
+        }
+      },
+      "PointProductPrice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "currency": {
+            "type": "string",
+            "const": "JPY"
+          }
+        }
+      },
+      "PointProductGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paid_points",
+          "bonus_points",
+          "total_points"
+        ],
+        "properties": {
+          "paid_points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bonus_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_points": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "PointProductSaleState": {
+        "type": "string",
+        "enum": [
+          "coming_soon",
+          "available",
+          "ended"
+        ]
+      },
+      "PointProductUserState": {
+        "type": "string",
+        "enum": [
+          "unauthenticated",
+          "authenticated"
+        ]
+      },
+      "PointProductIneligibleReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "sale_not_started",
+          "sale_ended",
+          "authentication_required",
+          "audience_not_eligible",
+          "first_purchase_required",
+          null
+        ]
+      },
+      "PointProductCta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "login",
+              "purchase",
+              null
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/PointProductIneligibleReason"
+          }
+        }
+      },
+      "PointProduct": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "price",
+          "grant",
+          "audience",
+          "sale_state",
+          "is_available",
+          "user_state",
+          "eligible",
+          "ineligible_reason",
+          "cta"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "price": {
+            "$ref": "#/components/schemas/PointProductPrice"
+          },
+          "grant": {
+            "$ref": "#/components/schemas/PointProductGrant"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/PointProductAudience"
+          },
+          "sale_state": {
+            "$ref": "#/components/schemas/PointProductSaleState"
+          },
+          "is_available": {
+            "type": "boolean"
+          },
+          "user_state": {
+            "$ref": "#/components/schemas/PointProductUserState"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "ineligible_reason": {
+            "$ref": "#/components/schemas/PointProductIneligibleReason"
+          },
+          "cta": {
+            "$ref": "#/components/schemas/PointProductCta"
+          }
+        }
+      },
+      "PointProductCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PointProduct"
+            }
+          }
+        }
       },
       "CursorPageMeta": {
         "type": "object",

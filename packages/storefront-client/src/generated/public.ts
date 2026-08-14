@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/point-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 公開Point商品をCanonical表示順とCurrent User購入可否付きで取得する */
+        get: operations["listPointProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gacha-categories": {
         parameters: {
             query?: never;
@@ -1010,6 +1027,52 @@ export interface components {
         };
         /** @description 景品交換・配送・配送先Mutationで実在する既知Code、または未知のProblem Details。 */
         FulfillmentProblemResponse: components["schemas"]["FulfillmentProblemDetails"] | components["schemas"]["ProblemDetails"];
+        /** @enum {string} */
+        PointProductAudienceCode: "all_users" | "first_purchase_users";
+        PointProductAudience: {
+            code: components["schemas"]["PointProductAudienceCode"];
+            /** @enum {string} */
+            label: "すべてのユーザー" | "初回ユーザー";
+        };
+        PointProductPrice: {
+            amount: number;
+            /** @constant */
+            currency: "JPY";
+        };
+        PointProductGrant: {
+            paid_points: number;
+            bonus_points: number;
+            total_points: number;
+        };
+        /** @enum {string} */
+        PointProductSaleState: "coming_soon" | "available" | "ended";
+        /** @enum {string} */
+        PointProductUserState: "unauthenticated" | "authenticated";
+        /** @enum {string|null} */
+        PointProductIneligibleReason: "sale_not_started" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "first_purchase_required" | null;
+        PointProductCta: {
+            /** @enum {string} */
+            state: "enabled" | "disabled";
+            /** @enum {string|null} */
+            action: "login" | "purchase" | null;
+            reason: components["schemas"]["PointProductIneligibleReason"];
+        };
+        PointProduct: {
+            id: components["schemas"]["OpaqueId"];
+            title: string;
+            price: components["schemas"]["PointProductPrice"];
+            grant: components["schemas"]["PointProductGrant"];
+            audience: components["schemas"]["PointProductAudience"];
+            sale_state: components["schemas"]["PointProductSaleState"];
+            is_available: boolean;
+            user_state: components["schemas"]["PointProductUserState"];
+            eligible: boolean;
+            ineligible_reason: components["schemas"]["PointProductIneligibleReason"];
+            cta: components["schemas"]["PointProductCta"];
+        };
+        PointProductCollection: {
+            data: components["schemas"]["PointProduct"][];
+        };
         CursorPageMeta: {
             page_size: number;
             has_more: boolean;
@@ -1601,6 +1664,27 @@ export interface operations {
                 };
             };
             429: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listPointProducts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開Point商品一覧。配列順がBackend-authoritativeな表示順となる。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointProductCollection"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

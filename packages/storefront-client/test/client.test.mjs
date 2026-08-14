@@ -20,6 +20,7 @@ import {
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
+  createStorefrontPointProductClient,
   createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
 
@@ -61,7 +62,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.16");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.17");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -425,6 +426,7 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listPointProducts",
     "getGacha",
     "getGachaBySlug",
     "getGachaPresentation",
@@ -945,4 +947,20 @@ test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () =
     () => catalog.listGachas({ limit: 101 }),
     /limit must be an integer/,
   );
+});
+
+test("Point Product FacadeはCanonical一覧Pathだけを呼ぶ", async () => {
+  const paths = [];
+  const products = createStorefrontPointProductClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: { data: [] },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+
+  await products.listPointProducts();
+  assert.deepEqual(paths, ["/point-products"]);
 });

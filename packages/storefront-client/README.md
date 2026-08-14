@@ -35,7 +35,7 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.16`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.17`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -44,6 +44,10 @@ Static Pageの`id`／`slug`／`title`だけを返す。本文は`getStaticPage`�
 
 Content Facadeの`listBanners`は、Backendが公開期間と「トップに表示」を判定した
 BannerのCanonical画像URLとクリック先URLを返す。
+
+Point Product Facadeの`listPointProducts`は、Backendが販売期間、Audience、Current Userの
+成功済みPoint購入履歴を評価した商品順序、Eligibility、CTA Presentationを返す。購入Mutationは
+提供せず、Storefront側で初回ユーザー判定を再実装しない。
 
 Catalog Facadeの`listGachas`はPublic対象を販売状態やEligibilityで除外せず、Backend判定済み
 Sale State、Eligibility、CTA、項目表示可否を返す。匿名Responseだけをpublic cache対象とし、

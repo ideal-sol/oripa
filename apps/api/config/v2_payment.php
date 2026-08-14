@@ -9,4 +9,5 @@ return [
     'provider_call_in_transaction' => false,
     'refund_mode' => 'single_full_unused',
     'chargeback_reversal' => 'manual_review',
+    'point_product_collection_cache_control' => 'public, max-age=60, stale-while-revalidate=300',
 ];

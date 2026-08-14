@@ -29,6 +29,7 @@ import {
   PUBLIC_TOP_BANNERS_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
+  PUBLIC_POINT_PRODUCT_FIXTURES,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
@@ -161,6 +162,31 @@ test("Top Banner Fixtureは公開中かつTop ONだけを一覧へ含める", ()
   assert.equal(
     PUBLIC_TOP_BANNERS_FIXTURE.excluded.outside_publication_period.title,
     "公開期間外",
+  );
+});
+
+test("Point Product Fixtureは順序、Eligibility、CTAをBackend判定済みで表す", () => {
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.anonymous.data.length, 2);
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.anonymous_empty.data.length, 0);
+  assert.equal(
+    PUBLIC_POINT_PRODUCT_FIXTURES.anonymous.data[0].cta.action,
+    "login",
+  );
+  assert.deepEqual(
+    PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_eligible.data.map(
+      (product) => product.audience.code,
+    ),
+    ["all_users", "first_purchase_users"],
+  );
+  assert.equal(
+    PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_after_first_purchase.data[1]
+      .ineligible_reason,
+    "first_purchase_required",
+  );
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.unavailable.data[0].is_available, false);
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_POINT_PRODUCT_FIXTURES),
+    /point_purchase_plan_id|target_user_tag_id|provider_code|internal_id|secret/i,
   );
 });
 
@@ -461,9 +487,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつFooter Pageを含むOperation 49件である", () => {
+test("Public OpenAPIは3.1.1かつPoint Productを含むOperation 50件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 49);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 50);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -492,6 +518,7 @@ test("Public OpenAPIは3.1.1かつFooter Pageを含むOperation 49件である",
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listPointProducts",
     "listShippingAddresses",
     "listShippingRequests",
     "listUserPrizes",
@@ -650,6 +677,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
+    "PUBLIC_POINT_PRODUCT_FIXTURES",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
     "PUBLIC_TOP_BANNERS_FIXTURE",

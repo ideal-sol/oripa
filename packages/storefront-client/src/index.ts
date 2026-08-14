@@ -18,6 +18,9 @@ export {
   createStorefrontCatalogClient,
 } from "./catalog.js";
 export {
+  createStorefrontPointProductClient,
+} from "./point-products.js";
+export {
   createStorefrontDrawClient,
 } from "./draw.js";
 export {
@@ -35,6 +38,9 @@ export type {
   GachaListQuery,
   StorefrontCatalogClient,
 } from "./catalog.js";
+export type {
+  StorefrontPointProductClient,
+} from "./point-products.js";
 export type {
   BrowserCreateDrawOptions,
   BrowserStorefrontDrawClient,

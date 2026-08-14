@@ -29,6 +29,7 @@ use App\Http\Controllers\V2\V2CatalogController;
 use App\Http\Controllers\V2\V2DrawController;
 use App\Http\Controllers\V2\V2PrizeShippingController;
 use App\Http\Controllers\V2\V2ContentContactController;
+use App\Http\Controllers\V2\V2PointProductController;
 
 Route::prefix('v2')->group(function (): void {
     Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
@@ -48,6 +49,9 @@ Route::prefix('v2')->group(function (): void {
         ->name('v2.public.catalog.categories');
     Route::get('/gacha-tags', [V2CatalogController::class, 'tags'])
         ->name('v2.public.catalog.tags');
+    Route::get('/point-products', [V2PointProductController::class, 'index'])
+        ->middleware('v2.browser:user')
+        ->name('v2.public.point-products.index');
     Route::get('/gachas', [V2CatalogController::class, 'index'])
         ->middleware('v2.browser:user')
         ->name('v2.public.catalog.gachas');

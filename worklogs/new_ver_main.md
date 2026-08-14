@@ -8353,3 +8353,24 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回Required Integration Gateが新規`prize_inventory_adjustments` TableのV2 schema inventory未登録を検出したため、Task PolicyへDB Guard本体／Unitの2 PathだけをAtomic追加し、Schema inventoryと明示回帰Testを同期した。
 - 初回Preview Image BuildはTask BranchをWorkflow control refにしていたためread wrapperがFail Closedした。Artifactは使用せず、control refをtrusted `main`、checkout対象をexact PR Headに分離して再実行する。
 - GitHub-hosted amd64 ArtifactをChecksum／OCI Revisionまで検証し、Host BuildなしでMigration `000053`とAPI／AdminだけをPreviewへ反映した。Inventory編集、sold-out／復元、Public count、paused実残数、Desktop／Mobile、500系0を確認し、既存Synthetic QAのDraw 422／Resume Preflight制約とFixture Asset 404はDataを修正せず例外記録した。
+## MIG-062R Point Product Read／Eligibility Contract Phase A
+
+- Base `25fa06d40a169b43ee677d1fe84d0cf8f3ae7715`からIssue #267、Branch `feat/MIG-062R-point-product-read-eligibility`、Risk R3で開始した。
+- 既存`point_purchase_plans`、Admin設定、`V2PointPurchaseEligibilityService`、`payments.status = succeeded`を再利用し、MigrationなしでPoint Product一覧とCurrent User eligibilityを追加した。
+- `GET /api/v2/point-products`はJPY価格、paid／bonus Point、Audience、販売状態、eligibility、reason、CTAをBackend-authoritativeな順序で返す。AnonymousはPublic 60秒Cache、Authenticatedは`private, no-store`とし、双方`Vary: Cookie`を返す。
+- Public OpenAPI、Repository-local bundle、Generated Storefront types、薄いClient facade、Testkit fixtureを同期した。Site Schema形状とProduction package versionは変更していない。
+- Backend Targeted 4 tests／54 assertions、PHP syntax、Public OpenAPI 50／Admin 212／Webhook 1 operations、Storefront Client 25 tests、Testkit 31 tests／export／network boundary、`git diff --check`がPASSした。
+- Local Policy GateはTestkit package metadataと`policy_gate.py`のPublic 49 operations固定値でFAILした。MIG-062Qと同Path競合するためPhase Aでは変更せずPhase B最終同期へ留保した。
+- Phase A差分は専用Worktreeでstaged済みだが、Local `git commit`は実行環境のCommand Policyにより拒否され、push／Draft PRは未実施となった。
+- MIG-062QとのPublic OpenAPI／Generated Contract競合が残るためintegration-waitとし、Artifact、Preview、Runtime、Merge／Closeoutは実施しない。
+
+## MIG-062R Point Product Read／Eligibility Contract Phase B
+
+- MIG-062Q／MIG-062S merge後の`main@e305a76a9a2dbd88e019ceecb7153514906a38d0`へ追従し、Public OpenAPI／Generated Contract競合を最新main正本からの再生成で解消した。Point DomainとMigration setへの直接競合はない。
+- Public／Admin／Webhook ContractとPlatform／Storefront Client／Site Schema／Testkitを既存Versionを上書きしない`2.0.0-alpha.17`へ同期した。Public 50／Admin 212／Webhook 1 operations、Migration 53件である。
+- Latest-main Backend Targeted 4 tests／54 assertions、OpenAPI、Storefront Client 25 tests、Site Schema 10 tests、Testkit 31 tests、Admin 156 tests、Policy Unit 125 tests、Local Policy Gate、Release foundation／validationがPASSした。
+- 初回Integration Gateで既存published Point Planを持つ共有fixture DB上の新規test順序依存を検出した。Test transaction内で既存latest publishedへshadow draft versionを追加して対象Contract fixtureだけを分離し、既存Plan投入状態でも4 tests／54 assertionsがPASSした。Runtime挙動は変更していない。
+- 修正後Headでは全実処理がPASSしたが、PRイベントPolicy GateがPR本文の必須見出し不足だけを検出した。PR本文を`Task`／`Specification sources`／`Verification performed`／`Verification not performed`へ補正し、fresh headで再検証する。
+- PR本文Gateの残件`Summary`見出しを追加し、必須5見出しを揃えた最終docs-only headでfresh checksを実行する。
+- PR本文へPolicy parserが要求する`Task ID`／`Risk`／event Base SHA、39件の`Changed files`、同一境界の`Allowed paths`を追加し、ローカルPR body validationがPASSした。失敗履歴のないfresh headでRequired Checksを再実行する。
+- Migration、Point購入Mutation、Payment Provider／Session、Point付与／Ledger、Webhook、Refund、Purchase Lifecycleは変更していない。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはPR exact headで実施する。

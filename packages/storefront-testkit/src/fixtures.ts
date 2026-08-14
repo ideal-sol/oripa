@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.16",
+      storefront_client_version: "2.0.0-alpha.17",
       required_capabilities: [],
     },
     public: {
@@ -60,7 +60,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.16",
+  minimum_storefront_client_version: "2.0.0-alpha.17",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -138,6 +138,101 @@ export const PUBLIC_TOP_BANNERS_FIXTURE = Object.freeze({
     outside_publication_period: { id: string; title: string };
   };
 });
+
+const allUsersPointProduct = {
+  id: "0198a001-0000-7000-8000-000000000321",
+  title: "スタンダード1000ポイント",
+  price: { amount: 1000, currency: "JPY" },
+  grant: { paid_points: 1000, bonus_points: 100, total_points: 1100 },
+  audience: { code: "all_users", label: "すべてのユーザー" },
+  sale_state: "available",
+  is_available: true,
+  user_state: "authenticated",
+  eligible: true,
+  ineligible_reason: null,
+  cta: { state: "enabled", action: "purchase", reason: null },
+} as const satisfies PublicComponents["schemas"]["PointProduct"];
+
+const firstPurchasePointProduct = {
+  id: "0198a001-0000-7000-8000-000000000322",
+  title: "初回限定1000ポイント",
+  price: { amount: 1000, currency: "JPY" },
+  grant: { paid_points: 1000, bonus_points: 500, total_points: 1500 },
+  audience: { code: "first_purchase_users", label: "初回ユーザー" },
+  sale_state: "available",
+  is_available: true,
+  user_state: "authenticated",
+  eligible: true,
+  ineligible_reason: null,
+  cta: { state: "enabled", action: "purchase", reason: null },
+} as const satisfies PublicComponents["schemas"]["PointProduct"];
+
+export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
+  anonymous: {
+    data: [
+      {
+        ...allUsersPointProduct,
+        user_state: "unauthenticated",
+        eligible: false,
+        ineligible_reason: "authentication_required",
+        cta: {
+          state: "enabled",
+          action: "login",
+          reason: "authentication_required",
+        },
+      },
+      {
+        ...firstPurchasePointProduct,
+        user_state: "unauthenticated",
+        eligible: false,
+        ineligible_reason: "authentication_required",
+        cta: {
+          state: "enabled",
+          action: "login",
+          reason: "authentication_required",
+        },
+      },
+    ],
+  },
+  anonymous_empty: { data: [] },
+  authenticated_eligible: {
+    data: [allUsersPointProduct, firstPurchasePointProduct],
+  },
+  authenticated_after_first_purchase: {
+    data: [
+      allUsersPointProduct,
+      {
+        ...firstPurchasePointProduct,
+        eligible: false,
+        ineligible_reason: "first_purchase_required",
+        cta: {
+          state: "disabled",
+          action: "purchase",
+          reason: "first_purchase_required",
+        },
+      },
+    ],
+  },
+  unavailable: {
+    data: [
+      {
+        ...allUsersPointProduct,
+        sale_state: "ended",
+        is_available: false,
+        eligible: false,
+        ineligible_reason: "sale_ended",
+        cta: {
+          state: "disabled",
+          action: "purchase",
+          reason: "sale_ended",
+        },
+      },
+    ],
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PointProductCollection"]
+>);
 
 export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
   data: {

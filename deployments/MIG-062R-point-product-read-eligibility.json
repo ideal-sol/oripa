@@ -1,0 +1,29 @@
+{
+  "task_id": "MIG-062R",
+  "risk": "R3",
+  "status": "pending_preview_deployment",
+  "base_branch": "main",
+  "base_sha": "e305a76a9a2dbd88e019ceecb7153514906a38d0",
+  "task_policy_sha256": "a57c90ebc74707b11dcfd56672fe40e39cdc3b968bcf7f9f54c50d5d6bd44c5f",
+  "issue": 267,
+  "target": "test.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062R/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": null,
+    "architecture": "linux/amd64",
+    "build_on_host": false,
+    "update_services": ["api"],
+    "migration_mode": "none",
+    "migration_applied": false,
+    "db_target_safety_guard": "PENDING",
+    "image_artifact_verification": "PENDING",
+    "runtime_smoke": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_repository_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}
