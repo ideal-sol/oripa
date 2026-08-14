@@ -54,6 +54,7 @@
 - Storefront Client generated check／typecheck／lint／build／25 tests: PASS。
 - Site Schema generated check／typecheck／lint／build／10 tests: PASS。Schema shape差分なし。
 - Storefront Testkit generated check／typecheck／lint／build／31 tests／exports／network boundary: PASS。
+- Admin generated contract check／typecheck／lint／156 tests: PASS。alpha.17 Admin OpenAPI bundle checksumへGenerated Admin type headerを同期した。
 - Policy Gate unit 125 testsとLocal Policy Gate: PASS。
 - Release foundation 10 testsと`release:validate`: PASS。
 - Release validationは`2.0.0-alpha.17`、Public／Admin／Webhook contract version一致、Migration 53件を確認した。
