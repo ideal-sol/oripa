@@ -30,7 +30,7 @@
 - 初回公開につき原則1 Draw Stateとし、販売停止、再開、公開後表示編集で追加しない。既存Stateは削除せず、`closed`、`closed_at`、`close_reason`で履歴化し、Partial Unique Indexで1 Gachaあたり`selling／paused`のOpen Stateを最大1件にする。
 - 実Draw成功数の正本は`gacha_draw_states.sold_count`である。Pause／Resume、Presentation編集、Point交換では変更せず、`catalog_gachas.sold_count`を判定正本にしない。
 - Public Sale Stateへ`paused`を追加した。停止中もPublic一覧／詳細へ実残数と通常表示情報を返し、CTA disabled、reason `sales_paused`、`allowed_draw_counts=[]`とする。非公開だけをPublic対象外とする。
-- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.15`へ同期する。旧Artifactは上書きしない。Strict Client採用前のShared Storefrontで`paused`を生成しないよう、Previewの停止Smokeは直接APIで行い元状態へ戻す。
+- Public OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.16`へ同期する。旧Artifactは上書きしない。Final Head確定前に生成した未採用`alpha.15`候補も差し替えず保持し、配布対象にしない。Strict Client採用前のShared Storefrontで`paused`を生成しないよう、Previewの停止Smokeは直接APIで行い元状態へ戻す。
 
 ## Migration／Characterization
 

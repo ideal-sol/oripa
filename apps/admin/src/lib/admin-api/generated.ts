@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: d4860f3a71fc90cc7b52271fab398452d6e4c662fc99551fdc9380414f38ef9c
+// Contract SHA-256: 9e28ab6ef03dff350ad797d0489693d14919930264c73437ab8a91e29b31d145
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;

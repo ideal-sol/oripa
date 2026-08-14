@@ -93,14 +93,21 @@ export function CatalogGachaCoreForm({
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   const postPublished = mode === "edit" && current?.first_published_at != null;
   const scheduled = current?.publication_status === "scheduled";
   const scheduledStartReached = scheduled
-    && Date.parse(current?.current_version?.publish_start_at ?? "") <= Date.now();
+    && currentTime !== null
+    && Date.parse(current?.current_version?.publish_start_at ?? "") <= currentTime;
   const dirty = draft.thumbnailFile !== null || JSON.stringify({
     ...draft,
     thumbnailFile: null,
   }) !== JSON.stringify(initial);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, [current?.id, current?.current_version?.publish_start_at]);
 
   useEffect(() => {
     const controller = new AbortController();

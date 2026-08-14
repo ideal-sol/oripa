@@ -110,6 +110,7 @@ export function GachaPublishPreflightPanel({
   const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   const pendingAction = useRef<PendingAction>(null);
   const pendingMutation = useRef<{ fingerprint: string; key: string } | null>(
     null,
@@ -118,8 +119,17 @@ export function GachaPublishPreflightPanel({
   const currentId = version.published_probability_version?.id ?? "";
   const selectionDirty = selectedId !== currentId;
   const dirty = selectionDirty || scheduledFor !== "";
+  const scheduleCanBeCancelled = schedule !== null
+    && currentTime !== null
+    && ["scheduled", "completed"].includes(schedule.status)
+    && Date.parse(schedule.scheduled_for) > currentTime;
   const hasActiveSchedule =
     schedule?.status === "scheduled" || schedule?.status === "processing";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, [schedule?.id, schedule?.scheduled_for]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -432,8 +442,7 @@ export function GachaPublishPreflightPanel({
   async function cancelSchedule() {
     if (
       !schedule
-      || !["scheduled", "completed"].includes(schedule.status)
-      || Date.parse(schedule.scheduled_for) <= Date.now()
+      || !scheduleCanBeCancelled
       || !canPublish
     ) return;
     const body = {
@@ -1116,7 +1125,7 @@ export function GachaPublishPreflightPanel({
             <dt>結果</dt>
             <dd>{schedule.failure_code ?? schedule.completed_at ?? "処理待ち"}</dd>
           </div>
-          {canPublish && ["scheduled", "completed"].includes(schedule.status) && Date.parse(schedule.scheduled_for) > Date.now() ? (
+          {canPublish && scheduleCanBeCancelled ? (
             <div>
               <dt>操作</dt>
               <dd>
