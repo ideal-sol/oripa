@@ -8370,4 +8370,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public／Admin／Webhook ContractとPlatform／Storefront Client／Site Schema／Testkitを既存Versionを上書きしない`2.0.0-alpha.17`へ同期した。Public 50／Admin 212／Webhook 1 operations、Migration 53件である。
 - Latest-main Backend Targeted 4 tests／54 assertions、OpenAPI、Storefront Client 25 tests、Site Schema 10 tests、Testkit 31 tests、Admin 156 tests、Policy Unit 125 tests、Local Policy Gate、Release foundation／validationがPASSした。
 - 初回Integration Gateで既存published Point Planを持つ共有fixture DB上の新規test順序依存を検出した。Test transaction内で既存latest publishedへshadow draft versionを追加して対象Contract fixtureだけを分離し、既存Plan投入状態でも4 tests／54 assertionsがPASSした。Runtime挙動は変更していない。
+- 修正後Headでは全実処理がPASSしたが、PRイベントPolicy GateがPR本文の必須見出し不足だけを検出した。PR本文を`Task`／`Specification sources`／`Verification performed`／`Verification not performed`へ補正し、fresh headで再検証する。
 - Migration、Point購入Mutation、Payment Provider／Session、Point付与／Ledger、Webhook、Refund、Purchase Lifecycleは変更していない。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはPR exact headで実施する。

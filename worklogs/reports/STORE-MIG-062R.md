@@ -58,6 +58,7 @@
 - Policy Gate unit 125 testsとLocal Policy Gate: PASS。
 - Release foundation 10 testsと`release:validate`: PASS。
 - Release validationは`2.0.0-alpha.17`、Public／Admin／Webhook contract version一致、Migration 53件を確認した。
+- PR #270の`04e75467dbb3006b98db9519d67f84ff8bdbb108`ではPolicy／Quality／Security／Integration／CI、CodeQL、Dependency Reviewの実処理がPASSした。PRイベントPolicy GateだけがPR本文の必須見出し不足でFAILしたため、本文をGovernance形式へ補正し、新headでfresh checksを実行する。
 - Required GitHub Checks、CodeQL、Dependency Review、exact-head Fresh Self-review、PreviewはPR final head確定後に記録する。
 
 ## Artifact
