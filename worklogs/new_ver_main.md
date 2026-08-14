@@ -8328,3 +8328,5 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.14`へ同期し、既存Artifactと未採用`alpha.12`／`alpha.13`は上書きしない。
 - Migration fresh／rollback／reapply、Backend 14 tests／136 assertions、Admin Unit 3 tests、Desktop／Mobile Browser 2 tests、Client 24 tests、Site Schema 10 tests、Testkit 30 tests、OpenAPI／Policy GateがPASSした。
 - Required Integration Gateで検出した既存Banner性能FixtureだけをTop表示Contractへ追従し、性能閾値と件数Assertionは維持した。
+- Artifact `2.0.0-alpha.14`を発行し、Manifest／SHA256SUMSとWorkspace外Clean Installを検証した。
+- GitHub-hosted amd64 Pipelineの検証済みAPI／Admin ImageをHost BuildなしでPreviewへ反映し、Safety Guard後にMigration `000051`だけを適用した。Top ON／OFF、Public Asset／Link URL、Desktop／Mobile、Console／HTTP ErrorをSmokeし、Nginx／V1／Storefrontを変更していない。

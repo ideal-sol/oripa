@@ -38,8 +38,11 @@
 
 ## Preview／Closeout
 
-- Required Checks成功後、exact PR HeadのGitHub-hosted amd64 API／Admin Imageを検証し、Host Buildなしでloadする。
-- DB Target Safety Guard後にMigration `000051`だけを適用し、Top ON公開BannerとTop OFF／期間外BannerのPublic Filter、Admin保存、URL、Desktop／Mobile、Console／HTTP 500／502／504をSmokeする。
+- Artifact `2.0.0-alpha.14`をRepository外Evidenceへ発行し、Manifestと`SHA256SUMS`を検証した。Manifest SHA-256は`fc19acb126c5bc9a822b2de40ccccd365da24ceb0270cbe0f665de716bc6e475`、Clientは`d76d1e03d0772e82d24b37a65b94e1550bd53a809f16fc3e60d1377fc3a284dd`、Testkitは`4ac29fbc037ec711056ff58353e20a08726c7edcff4769fd84aa4f44cfac3176`、Site Schemaは`4b4539bdc199c0ef03e6cdf180f1d6c62e80b8827a92f64812b212b868e6a8bc`、Public OpenAPIは`cc50dbae2f0d55deca43afca7dd3457074a1edf9ae275c46f58f782b1790b393`。
+- GitHub-hosted amd64 PipelineでAPI／Admin ImageをBuildし、Artifact外側Digest、内部SHA-256、Image ID、`linux/amd64`、OCI revisionを検証した。HostではBuildせず、検証済みImageだけをloadし、`--no-build --no-deps`でAPI／Adminを更新した。
+- DB Target Safety Guard前後PASS後、Preview DBへMigration `000051`だけを適用した。最新Migration、`show_on_top`列、Banner限定Check Constraintを確認し、既存Dataを維持した。
+- Synthetic Banner 1件でAdmin登録／編集、Top OFF除外、Top ON公開一覧、`/gachas`へのクリック先、Canonical Public Asset URL、Desktop／Mobileを確認した。Public Assetは200、Console／Page ErrorとHTTP 500／502／504は0件だった。
+- Runtime更新時の初回SmokeでDB Guard専用envがRuntimeへ渡されたことを検知し、同一検証済みImageをCanonical Preview envで即時再作成した。最終状態ではHost／Origin／固定IP／Port／Restart Policyを維持し、Admin Login、API Health、Public Banner、V1 URLはいずれも正常だった。
 - Nginx、V1、Storefront Repository、Page、Notice、Payment、Point、Drawは変更しない。
 - Final Head、PR、Squash Commit、Artifact SHA-256、Preview Image／Smoke、Required Checks、Fresh Self-review、CleanupはCloseout Evidenceを正本とする。
 - G4／G5はNOT COMPLETEを維持する。

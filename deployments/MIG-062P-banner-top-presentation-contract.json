@@ -1,7 +1,7 @@
 {
   "task_id": "MIG-062P",
   "risk": "R3",
-  "status": "local_validated",
+  "status": "preview_deployed",
   "base_branch": "main",
   "base_sha": "9dd56e758872286abfdd05cadc7ce0c62e14e0a3",
   "task_policy_sha256": "39716ca12ec238a004638172d640bfdde24ad95595e3dac0ca1d39869c82c730",
@@ -17,6 +17,10 @@
     "build_on_host": false,
     "update_services": ["api", "admin"],
     "migration_mode": "single_forward_migration",
+    "migration_applied": true,
+    "db_target_safety_guard": "PASS",
+    "image_artifact_verification": "PASS",
+    "runtime_smoke": "PASS",
     "nginx_change": "NONE",
     "v1_change": "NONE",
     "storefront_repository_change": "NONE"
