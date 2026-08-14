@@ -18,6 +18,7 @@ final class PointProductReadContractTest extends TestCase
         parent::setUp();
         DB::beginTransaction();
         CarbonImmutable::setTestNow('2026-08-14T00:00:00Z');
+        $this->hideExistingPublishedPlans();
     }
 
     protected function tearDown(): void
@@ -177,6 +178,43 @@ final class PointProductReadContractTest extends TestCase
         ]);
 
         return DB::table('point_purchase_plans')->find($id);
+    }
+
+    private function hideExistingPublishedPlans(): void
+    {
+        $latest = DB::table('point_purchase_plans')
+            ->selectRaw('code, MAX(version_no) AS version_no')
+            ->groupBy('code');
+        $plans = DB::table('point_purchase_plans as plan')
+            ->joinSub($latest, 'latest', fn ($join) => $join
+                ->on('latest.code', '=', 'plan.code')
+                ->on('latest.version_no', '=', 'plan.version_no'))
+            ->where('plan.status', 'published')
+            ->get(['plan.*']);
+
+        foreach ($plans as $plan) {
+            DB::table('point_purchase_plans')->insert([
+                'public_id' => (string) Str::uuid7(),
+                'code' => $plan->code,
+                'version_no' => (int) $plan->version_no + 1,
+                'name' => $plan->name,
+                'amount' => $plan->amount,
+                'paid_point_amount' => $plan->paid_point_amount,
+                'free_point_amount' => $plan->free_point_amount,
+                'currency' => $plan->currency,
+                'status' => 'draft',
+                'sort_order' => $plan->sort_order,
+                'audience_code' => $plan->audience_code,
+                'target_user_tag_id' => $plan->target_user_tag_id,
+                'revision' => 1,
+                'available_from' => $plan->available_from,
+                'available_until' => $plan->available_until,
+                'published_at' => null,
+                'retired_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function user(): User

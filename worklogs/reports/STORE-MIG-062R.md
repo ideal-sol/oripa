@@ -49,7 +49,7 @@
 
 ## Verification
 
-- Latest-main Backend Targeted: MIG-062S exact Preview API imageとTask専用PostgreSQLを使用し、4 tests／54 assertions PASS。既知のfixture path warning 4件のみ。Task container／networkは削除済み。
+- Latest-main Backend Targeted: MIG-062S exact Preview API imageとTask専用PostgreSQLを使用し、4 tests／54 assertions PASS。既知のfixture path warning 4件のみ。既存published Planを事前投入した共有fixture相当でも同じ54 assertionsがPASSし、test順序依存を解消した。Task container／networkは削除済み。
 - OpenAPI bundle checkと7 tests: PASS。
 - Storefront Client generated check／typecheck／lint／build／25 tests: PASS。
 - Site Schema generated check／typecheck／lint／build／10 tests: PASS。Schema shape差分なし。
