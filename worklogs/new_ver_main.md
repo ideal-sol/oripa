@@ -8340,3 +8340,4 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Migration `000052`は初回公開時刻、予約開始と現在販売開始を分離したCurrent Presentation、Draw State閉鎖情報、単一Open State制約を追加する。事前Preview調査で複数Open State、Pointer不整合、移行停止条件は検出されなかった。
 - 終端の非公開後もAdmin詳細は最後のPublished Snapshot＋Current Presentationを表示するが、Current Published Pointerは復元せず再公開を拒否する。
 - PostgreSQL 17.11のBackup／Restore Gateで、単一Open Draw State Partial Unique Indexの同義なpredicate表現差を検出した。Migration SQLをPostgreSQLの安定したCanonical表現へ限定修正し、fresh／rollback／reapplyとschema round-trip一致を再確認した。
+- Public Contract ArtifactはProduction Host Buildを避け、既存Preview Image Build Workflowを最小拡張し、Exact PR Head／Required Checksを検証した同一GitHub-hosted Jobで生成・検証する。新Secret／Registry／Cloud Resourceは追加しない。

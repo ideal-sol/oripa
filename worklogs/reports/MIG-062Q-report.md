@@ -6,7 +6,7 @@
 - Base: `main@25fa06d40a169b43ee677d1fe84d0cf8f3ae7715`
 - Branch: `feat/MIG-062Q-gacha-lifecycle-presentation`
 - Risk: R4
-- Task Policy SHA-256: `1605ab2bf214483e7bacdf4fb6b90b5800d2c94379206d02468db3d22605987c`
+- Task Policy SHA-256: `67f9a102ea59f9806258573029bcacbd0e6d088500cd186de4080ed170086d76`（既存Preview Image Build WorkflowのContract Artifact生成拡張だけをAtomic追加許可）
 - Final Head／PR／Squash Commit: Closeout時に確定
 - MIG-062P Cleanup: Worktree、Task DB、Container、Network、Volume、Local Branch削除済み。開始時に`main = origin/main`、Working Tree cleanを確認した。
 
@@ -31,6 +31,7 @@
 - 実Draw成功数の正本は`gacha_draw_states.sold_count`である。Pause／Resume、Presentation編集、Point交換では変更せず、`catalog_gachas.sold_count`を判定正本にしない。
 - Public Sale Stateへ`paused`を追加した。停止中もPublic一覧／詳細へ実残数と通常表示情報を返し、CTA disabled、reason `sales_paused`、`allowed_draw_counts=[]`とする。非公開だけをPublic対象外とする。
 - Public OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.16`へ同期する。旧Artifactは上書きしない。Final Head確定前に生成した未採用`alpha.15`候補も差し替えず保持し、配布対象にしない。Strict Client採用前のShared Storefrontで`paused`を生成しないよう、Previewの停止Smokeは直接APIで行い元状態へ戻す。
+- Contract ArtifactはProduction HostでBuildせず、Exact PR HeadとRequired ChecksをFail Closedで検証する既存GitHub-hosted `ubuntu-24.04` Preview Image Build Workflowから3 PackageとPublic OpenAPIも生成し、別の1日保持GitHub Artifactとして搬出する。新Secret、Registry、Cloud Resourceは使用しない。
 
 ## Migration／Characterization
 
