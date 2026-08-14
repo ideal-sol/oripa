@@ -747,11 +747,14 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             flags: JSON_THROW_ON_ERROR
         );
         $fixture['gachas'][0]['sold_count'] = 0;
-        $fixture['versions'][0]['total_count'] = max(1000, $prizeCount + 10);
+        $inventoryTotal = max(1000, $prizeCount + 10);
+        $fixture['versions'][0]['total_count'] = $inventoryTotal;
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         $fixture['prizes'][0]['exchange_points'] = $exchangePoints;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = max(1000, $prizeCount + 10);
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $index === 0
+                ? intdiv($inventoryTotal, 10)
+                : $inventoryTotal - intdiv($inventoryTotal, 10);
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

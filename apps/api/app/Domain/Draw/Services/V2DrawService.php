@@ -174,14 +174,19 @@ final class V2DrawService
                         'The Draw request is invalid.'
                     );
                 }
-                if ($state->status !== 'selling') {
+                $remainingCount = (int) DB::table('prize_inventories')
+                    ->where('gacha_draw_state_id', $state->id)
+                    ->sum('available_quantity');
+                if (
+                    $state->status !== 'selling'
+                    && ! ($state->status === 'sold_out' && $remainingCount > 0)
+                ) {
                     throw new V2DrawException(
                         'GACHA_NOT_DRAWABLE',
                         409,
                         'The requested Gacha is not selling.'
                     );
                 }
-                $remainingCount = max(0, $state->total_count - $state->sold_count);
                 if ($remainingCount === 0) {
                     throw new V2DrawException(
                         'DRAW_COUNT_INSUFFICIENT',
@@ -305,7 +310,10 @@ final class V2DrawService
                     'sold_count' => $state->sold_count + $executedCount,
                     'lock_version' => $state->lock_version + 1,
                 ]);
-                if ($state->sold_count === $state->total_count) {
+                $remainingAfter = (int) DB::table('prize_inventories')
+                    ->where('gacha_draw_state_id', $state->id)
+                    ->sum('available_quantity');
+                if ($remainingAfter === 0) {
                     $state->forceFill([
                         'status' => 'sold_out',
                         'sold_out_at' => $occurredAt,
@@ -776,7 +784,7 @@ final class V2DrawService
         $rangeCache = [];
         $inventoryWon = $inventoryWonSeed ?? $inventories->mapWithKeys(
             fn (PrizeInventory $inventory): array => [
-                (int) $inventory->gacha_version_prize_id => (int) $inventory->won_count,
+                (int) $inventory->gacha_version_prize_id => (int) $inventory->awarded_count,
             ]
         )->all();
         foreach ($randomValues as $index => $randomValue) {
@@ -806,7 +814,7 @@ final class V2DrawService
                     );
                 }
                 $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-                if ($nextWon > $inventory->initial_quantity) {
+                if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
                     throw new V2DrawException(
                         'PRIZE_INVENTORY_INSUFFICIENT',
                         409,
@@ -814,7 +822,7 @@ final class V2DrawService
                     );
                 }
                 $inventoryWon[$relationId] = $nextWon;
-                if ($nextWon === $inventory->initial_quantity) {
+                if ($nextWon === $inventory->awarded_count + $inventory->available_quantity) {
                     $rangeCache = [];
                 }
                 $prize = $probability['prizes'][$relationId];
@@ -913,11 +921,11 @@ final class V2DrawService
         }
         $inventoryWon = $inventories->mapWithKeys(
             fn (PrizeInventory $row): array => [
-                (int) $row->gacha_version_prize_id => (int) $row->won_count,
+                (int) $row->gacha_version_prize_id => (int) $row->awarded_count,
             ]
         )->all();
         $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-        if ($nextWon > $inventory->initial_quantity) {
+        if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
             throw new V2DrawException(
                 'QA_CONFIGURATION_INVALID',
                 422,
@@ -1004,7 +1012,7 @@ final class V2DrawService
         $stageIndex = 0;
         $inventoryWon = $inventories->mapWithKeys(
             fn (PrizeInventory $inventory): array => [
-                (int) $inventory->gacha_version_prize_id => (int) $inventory->won_count,
+                (int) $inventory->gacha_version_prize_id => (int) $inventory->awarded_count,
             ]
         )->all();
         foreach ($randomValues as $index => $randomValue) {
@@ -1033,7 +1041,7 @@ final class V2DrawService
                 );
             }
             $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-            if ($nextWon > $inventory->initial_quantity) {
+            if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
                 throw new V2DrawException(
                     'QA_CONFIGURATION_INVALID',
                     422,
@@ -1134,7 +1142,10 @@ final class V2DrawService
                         'Prize Inventory is unavailable.'
                     );
                 }
-                if (($inventoryWon[$relationId] ?? 0) >= $inventory->initial_quantity) {
+                if (
+                    ($inventoryWon[$relationId] ?? 0)
+                    >= $inventory->awarded_count + $inventory->available_quantity
+                ) {
                     $exhaustedPpm += $ppm;
                     continue;
                 }
@@ -1168,7 +1179,8 @@ final class V2DrawService
             $inventory = $inventories->get($relationId);
             if (
                 ! $inventory instanceof PrizeInventory
-                || ($inventoryWon[$relationId] ?? 0) >= $inventory->initial_quantity
+                || ($inventoryWon[$relationId] ?? 0)
+                    >= $inventory->awarded_count + $inventory->available_quantity
             ) {
                 throw new V2DrawException(
                     'MINIMUM_GUARANTEE_UNAVAILABLE',
@@ -1292,25 +1304,45 @@ final class V2DrawService
     ): void {
         $changed = [];
         foreach ($inventories as $relationId => $inventory) {
-            $won = $inventoryWon[(int) $relationId] ?? (int) $inventory->won_count;
-            if ($won !== (int) $inventory->won_count) {
-                $changed[(int) $inventory->id] = $won;
+            $awarded = $inventoryWon[(int) $relationId]
+                ?? (int) $inventory->awarded_count;
+            if ($awarded !== (int) $inventory->awarded_count) {
+                $delta = $awarded - (int) $inventory->awarded_count;
+                if ($delta < 0 || $delta > (int) $inventory->available_quantity) {
+                    throw new V2DrawException(
+                        'PRIZE_INVENTORY_INSUFFICIENT',
+                        409,
+                        'Selected Prize Inventory is insufficient.'
+                    );
+                }
+                $changed[(int) $inventory->id] = [
+                    'awarded' => $awarded,
+                    'available' => (int) $inventory->available_quantity - $delta,
+                ];
             }
         }
         foreach (array_chunk($changed, 250, true) as $chunk) {
             $cases = [];
-            $bindings = [];
-            foreach ($chunk as $id => $won) {
+            $awardedBindings = [];
+            $availableCases = [];
+            $availableBindings = [];
+            foreach ($chunk as $id => $quantities) {
                 $cases[] = 'WHEN ?::bigint THEN ?::bigint';
-                $bindings[] = $id;
-                $bindings[] = $won;
+                $awardedBindings[] = $id;
+                $awardedBindings[] = $quantities['awarded'];
+                $availableCases[] = 'WHEN ?::bigint THEN ?::bigint';
+                $availableBindings[] = $id;
+                $availableBindings[] = $quantities['available'];
             }
             $ids = array_keys($chunk);
+            $bindings = [...$awardedBindings, ...$availableBindings];
             $bindings[] = $occurredAt;
             array_push($bindings, ...$ids);
             DB::update(
-                'UPDATE prize_inventories SET won_count = CASE id '.
+                'UPDATE prize_inventories SET awarded_count = CASE id '.
                 implode(' ', $cases).
+                ' END, available_quantity = CASE id '.
+                implode(' ', $availableCases).
                 ' END, lock_version = lock_version + 1, updated_at = ? '.
                 'WHERE id IN ('.implode(',', array_fill(0, count($ids), '?')).')',
                 $bindings

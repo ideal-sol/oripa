@@ -1157,7 +1157,7 @@ final class V2CatalogMasterMutationService
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
                     ->where('gacha_version_id', $version->id)
                     ->max('sort_order') + 1;
-                DB::table('catalog_gacha_version_prizes')->insert([
+                $relationId = DB::table('catalog_gacha_version_prizes')->insertGetId([
                     'gacha_version_id' => $version->id,
                     'prize_id' => $prize->id,
                     'rank_id' => $rank->id,
@@ -1173,6 +1173,17 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
                     'sort_order' => $sortOrder,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                DB::table('prize_inventories')->insert([
+                    'gacha_draw_state_id' => null,
+                    'gacha_version_prize_id' => $relationId,
+                    'total_quantity' => $payload['total_inventory'],
+                    'awarded_count' => 0,
+                    'available_quantity' => $payload['total_inventory'],
+                    'withdrawn_quantity' => 0,
+                    'lock_version' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
@@ -1209,7 +1220,15 @@ final class V2CatalogMasterMutationService
                 ...$payload,
             ],
             200,
-            function () use ($gachaPublicId, $versionPublicId, $prizePublicId, $payload): object {
+            function () use (
+                $context,
+                $admin,
+                $gachaPublicId,
+                $versionPublicId,
+                $prizePublicId,
+                $idempotencyKey,
+                $payload
+            ): object {
                 $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
                 $version = $this->find(
                     'catalog_gacha_versions',
@@ -1247,7 +1266,10 @@ final class V2CatalogMasterMutationService
                         $version,
                         $prize,
                         $relation,
-                        $payload
+                        $payload,
+                        $context,
+                        $admin,
+                        $idempotencyKey
                     );
 
                     return $this->find(
@@ -1270,13 +1292,17 @@ final class V2CatalogMasterMutationService
                     ->where('gacha_version_prize_id', $relation->id)
                     ->lockForUpdate()
                     ->first();
-                if ($inventory !== null && $payload['total_inventory'] < (int) $inventory->won_count) {
-                    throw new V2CatalogException(
-                        'CATALOG_PRIZE_INVENTORY_CONFLICT',
-                        409,
-                        'Total inventory cannot be lower than confirmed inventory usage.'
-                    );
-                }
+                $this->adjustOperationalInventory(
+                    $gacha,
+                    $version,
+                    $prize,
+                    $relation,
+                    $inventory,
+                    $payload,
+                    $context,
+                    $admin,
+                    $idempotencyKey
+                );
                 DB::table('catalog_prizes')->where('id', $prize->id)->update([
                     'rank_id' => $rank->id,
                     'presentation_asset_id' => $asset?->id,
@@ -1300,12 +1326,6 @@ final class V2CatalogMasterMutationService
                     'initial_inventory' => $payload['total_inventory'],
                     'updated_at' => now()->startOfSecond(),
                 ]);
-                if ($inventory !== null) {
-                    DB::table('prize_inventories')->where('id', $inventory->id)->update([
-                        'initial_quantity' => $payload['total_inventory'],
-                        'updated_at' => now()->startOfSecond(),
-                    ]);
-                }
                 $this->incrementGachaVersionRevision($version);
 
                 return $this->find('catalog_prizes', $prizePublicId, false);
@@ -4398,7 +4418,10 @@ final class V2CatalogMasterMutationService
         object $version,
         object $prize,
         object $relation,
-        array $payload
+        array $payload,
+        V2AdminAuthorizationContext $context,
+        Admin $admin,
+        string $idempotencyKey
     ): void {
         if (
             $gacha->first_published_at === null
@@ -4407,15 +4430,8 @@ final class V2CatalogMasterMutationService
             throw $this->immutableException();
         }
         $rank = $this->find('catalog_ranks', $payload['rank_id'], true);
-        $inventory = DB::table('prize_inventories')
-            ->where('gacha_version_prize_id', $relation->id)
-            ->lockForUpdate()->first();
-        $totalInventory = $inventory === null
-            ? (int) $relation->initial_inventory
-            : (int) $inventory->initial_quantity;
         if (
             (int) $rank->id !== (int) $relation->rank_id
-            || $payload['total_inventory'] !== $totalInventory
             || $payload['exchange_points'] !== (int) $relation->exchange_points
             || $payload['cost_price'] !== (int) $relation->cost_price
             || $payload['is_active'] !== (bool) $relation->is_visible
@@ -4423,9 +4439,20 @@ final class V2CatalogMasterMutationService
             throw new V2CatalogException(
                 'CATALOG_GACHA_POST_PUBLISH_FIELD_IMMUTABLE',
                 409,
-                'Published Prize inventory and economic fields are immutable.'
+                'Published Prize economic fields are immutable.'
             );
         }
+        $this->adjustOperationalInventory(
+            $gacha,
+            $version,
+            $prize,
+            $relation,
+            null,
+            $payload,
+            $context,
+            $admin,
+            $idempotencyKey
+        );
         $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
         if ($asset !== null && $asset->media_type !== 'image') {
             throw $this->validationException();
@@ -4436,6 +4463,148 @@ final class V2CatalogMasterMutationService
             'revision' => (int) $prize->revision + 1,
             'updated_at' => now()->startOfSecond(),
         ]);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function adjustOperationalInventory(
+        object $gacha,
+        object $version,
+        object $prize,
+        object $relation,
+        ?object $inventory,
+        array $payload,
+        V2AdminAuthorizationContext $context,
+        Admin $admin,
+        string $idempotencyKey
+    ): void {
+        if (
+            $gacha->archived_at !== null
+            || ! in_array((string) $gacha->management_status, [
+                'draft', 'scheduled', 'published', 'sales_paused',
+            ], true)
+        ) {
+            throw $this->immutableException();
+        }
+        $state = null;
+        if ($gacha->active_draw_state_id !== null) {
+            $state = DB::table('gacha_draw_states')
+                ->where('id', $gacha->active_draw_state_id)
+                ->where('gacha_id', $gacha->id)
+                ->lockForUpdate()
+                ->first();
+        }
+        $inventory ??= DB::table('prize_inventories')
+            ->where('gacha_version_prize_id', $relation->id)
+            ->lockForUpdate()
+            ->first();
+        if (
+            $inventory === null
+            || (
+                $state !== null
+                && (int) $inventory->gacha_draw_state_id !== (int) $state->id
+            )
+            || (
+                $state === null
+                && $inventory->gacha_draw_state_id !== null
+            )
+        ) {
+            throw new V2CatalogException(
+                'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT',
+                409,
+                'Prize Inventory has changed.'
+            );
+        }
+        if (! $payload['adjust_inventory']) {
+            if ($payload['total_inventory'] !== (int) $inventory->total_quantity) {
+                throw new V2CatalogException(
+                    'CATALOG_PRIZE_INVENTORY_ADJUSTMENT_REQUIRED',
+                    409,
+                    'Prize Inventory changes require adjustment metadata.'
+                );
+            }
+
+            return;
+        }
+        if ((int) $inventory->lock_version !== $payload['expected_inventory_revision']) {
+            throw new V2CatalogException(
+                'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT',
+                409,
+                'Prize Inventory has changed.'
+            );
+        }
+        $awarded = (int) $inventory->awarded_count;
+        $total = $payload['total_inventory'];
+        $available = $payload['available_inventory'];
+        if ($total < $awarded || $available > $total - $awarded) {
+            throw new V2CatalogException(
+                'CATALOG_PRIZE_INVENTORY_CONFLICT',
+                409,
+                'Prize Inventory cannot be lower than confirmed awards.'
+            );
+        }
+        $withdrawn = $total - $awarded - $available;
+        if (
+            $total === (int) $inventory->total_quantity
+            && $available === (int) $inventory->available_quantity
+        ) {
+            return;
+        }
+        $afterLockVersion = (int) $inventory->lock_version + 1;
+        $now = now()->startOfSecond();
+        DB::table('prize_inventories')->where('id', $inventory->id)->update([
+            'total_quantity' => $total,
+            'available_quantity' => $available,
+            'withdrawn_quantity' => $withdrawn,
+            'lock_version' => $afterLockVersion,
+            'updated_at' => $now,
+        ]);
+        $adjustmentPublicId = (string) Str::uuid7();
+        DB::table('prize_inventory_adjustments')->insert([
+            'public_id' => $adjustmentPublicId,
+            'prize_inventory_id' => $inventory->id,
+            'admin_id' => $admin->id,
+            'actor_public_id' => $admin->public_id,
+            'request_id' => $context->requestId,
+            'idempotency_key' => $idempotencyKey,
+            'reason' => $payload['inventory_reason'],
+            'before_total_quantity' => $inventory->total_quantity,
+            'before_awarded_count' => $awarded,
+            'before_available_quantity' => $inventory->available_quantity,
+            'before_withdrawn_quantity' => $inventory->withdrawn_quantity,
+            'before_lock_version' => $inventory->lock_version,
+            'after_total_quantity' => $total,
+            'after_awarded_count' => $awarded,
+            'after_available_quantity' => $available,
+            'after_withdrawn_quantity' => $withdrawn,
+            'after_lock_version' => $afterLockVersion,
+            'created_at' => $now,
+        ]);
+        $this->recordAudit(
+            'catalog.inventory.adjusted',
+            $context,
+            $admin,
+            'prize_inventory',
+            'adjust',
+            'success',
+            'inventory_adjusted',
+            $adjustmentPublicId,
+            [
+                'gacha_public_id' => $gacha->public_id,
+                'gacha_version_public_id' => $version->public_id,
+                'prize_public_id' => $prize->public_id,
+                'before_total_quantity' => (int) $inventory->total_quantity,
+                'before_awarded_count' => $awarded,
+                'before_available_quantity' => (int) $inventory->available_quantity,
+                'before_withdrawn_quantity' => (int) $inventory->withdrawn_quantity,
+                'before_lock_version' => (int) $inventory->lock_version,
+                'after_total_quantity' => $total,
+                'after_awarded_count' => $awarded,
+                'after_available_quantity' => $available,
+                'after_withdrawn_quantity' => $withdrawn,
+                'after_lock_version' => $afterLockVersion,
+                'reason' => $payload['inventory_reason'],
+            ]
+        );
     }
 
     /** @return array<string, mixed> */
@@ -4525,9 +4694,27 @@ final class V2CatalogMasterMutationService
             'is_active',
         ];
         $allowed = $required;
+        $adjustInventory = false;
         if ($updating) {
             $required[] = 'expected_revision';
             $allowed[] = 'expected_revision';
+            $allowed[] = 'available_inventory';
+            $allowed[] = 'expected_inventory_revision';
+            $allowed[] = 'inventory_reason';
+            $inventoryFields = [
+                'available_inventory',
+                'expected_inventory_revision',
+                'inventory_reason',
+            ];
+            $providedInventoryFields = array_filter(
+                $inventoryFields,
+                static fn (string $field): bool => array_key_exists($field, $input)
+            );
+            if (count($providedInventoryFields) !== 0
+                && count($providedInventoryFields) !== count($inventoryFields)) {
+                throw $this->validationException();
+            }
+            $adjustInventory = count($providedInventoryFields) === count($inventoryFields);
         }
         $this->assertFields($input, $allowed, $required);
 
@@ -4544,6 +4731,20 @@ final class V2CatalogMasterMutationService
             ),
             'name' => $this->plainText($input['name'], 1, 191),
             'total_inventory' => $this->nonNegativeInteger($input['total_inventory']),
+            'adjust_inventory' => $adjustInventory,
+            ...($adjustInventory ? [
+                'available_inventory' => $this->nonNegativeInteger(
+                    $input['available_inventory']
+                ),
+                'expected_inventory_revision' => $this->nonNegativeInteger(
+                    $input['expected_inventory_revision']
+                ),
+                'inventory_reason' => $this->plainText(
+                    $input['inventory_reason'],
+                    1,
+                    500
+                ),
+            ] : []),
             'exchange_points' => $this->nonNegativeInteger($input['exchange_points']),
             'cost_price' => $this->nonNegativeInteger($input['cost_price']),
             'is_active' => $this->boolean($input['is_active']),
@@ -6167,6 +6368,20 @@ final class V2CatalogMasterMutationService
      * } $contextRows
      * @return array<string, mixed>
      */
+    private function operationalDrawStateMatches(object $drawState): bool
+    {
+        if ($drawState->status === 'selling') {
+            return true;
+        }
+        if ($drawState->status !== 'sold_out') {
+            return false;
+        }
+
+        return (int) DB::table('prize_inventories')
+            ->where('gacha_draw_state_id', $drawState->id)
+            ->sum('available_quantity') > 0;
+    }
+
     private function gachaSalesPreflightResult(
         string $requestId,
         object $gacha,
@@ -6212,7 +6427,7 @@ final class V2CatalogMasterMutationService
             || (int) $drawState->gacha_id !== (int) $gacha->id
             || $version === null
             || (int) $drawState->gacha_version_id !== (int) $version->id
-            || $drawState->status !== 'selling'
+            || ! $this->operationalDrawStateMatches($drawState)
         ) {
             $block(
                 'GACHA_DRAW_STATE_MISMATCH',
@@ -6256,7 +6471,9 @@ final class V2CatalogMasterMutationService
             }
             if (
                 $drawState !== null
-                && (int) $drawState->sold_count >= (int) $drawState->total_count
+                && (int) DB::table('prize_inventories')
+                    ->where('gacha_draw_state_id', $drawState->id)
+                    ->sum('available_quantity') === 0
             ) {
                 $block(
                     'GACHA_SOLD_OUT',
@@ -6267,7 +6484,10 @@ final class V2CatalogMasterMutationService
                 $drawState !== null
                 && DB::table('prize_inventories')
                     ->where('gacha_draw_state_id', $drawState->id)
-                    ->whereColumn('won_count', '>', 'initial_quantity')
+                    ->whereRaw(
+                        'total_quantity <> awarded_count '.
+                        '+ available_quantity + withdrawn_quantity'
+                    )
                     ->exists()
             ) {
                 $block(
@@ -6392,7 +6612,7 @@ final class V2CatalogMasterMutationService
             || (int) $drawState->gacha_id !== (int) $gacha->id
             || $version === null
             || (int) $drawState->gacha_version_id !== (int) $version->id
-            || $drawState->status !== 'selling'
+            || ! $this->operationalDrawStateMatches($drawState)
         ) {
             $block(
                 'GACHA_DRAW_STATE_MISMATCH',
@@ -6529,7 +6749,9 @@ final class V2CatalogMasterMutationService
                 : [
                     'status' => $drawState->status,
                     'sold_count' => (int) $drawState->sold_count,
-                    'total_count' => (int) $drawState->total_count,
+                    'total_count' => (int) DB::table('prize_inventories')
+                        ->where('gacha_draw_state_id', $drawState->id)
+                        ->sum('total_quantity'),
                 ],
             'publish_schedule' => $schedule === null
                 ? null
@@ -6788,23 +7010,55 @@ final class V2CatalogMasterMutationService
             'created_at' => DB::raw('CURRENT_TIMESTAMP'),
             'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
         ]);
-        $inventoryRows = DB::table('catalog_gacha_version_prizes')
+        $inventoryRelations = DB::table('catalog_gacha_version_prizes')
             ->where('gacha_version_id', $version->id)
             ->orderBy('id')
-            ->get(['id', 'initial_inventory'])
-            ->map(static fn (object $relation): array => [
-                'gacha_draw_state_id' => $drawStateId,
-                'gacha_version_prize_id' => $relation->id,
-                'initial_quantity' => $relation->initial_inventory,
-                'won_count' => 0,
-                'lock_version' => 0,
-                'created_at' => DB::raw('CURRENT_TIMESTAMP'),
-                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-            ])->all();
-        if ($inventoryRows === []) {
+            ->get(['id', 'initial_inventory']);
+        if ($inventoryRelations->isEmpty()) {
             throw $this->gachaPublishException();
         }
-        DB::table('prize_inventories')->insert($inventoryRows);
+        $remainingCount = 0;
+        foreach ($inventoryRelations as $relation) {
+            $inventory = DB::table('prize_inventories')
+                ->where('gacha_version_prize_id', $relation->id)
+                ->lockForUpdate()
+                ->first();
+            if ($inventory === null) {
+                DB::table('prize_inventories')->insert([
+                    'gacha_draw_state_id' => $drawStateId,
+                    'gacha_version_prize_id' => $relation->id,
+                    'total_quantity' => $relation->initial_inventory,
+                    'awarded_count' => 0,
+                    'available_quantity' => $relation->initial_inventory,
+                    'withdrawn_quantity' => 0,
+                    'lock_version' => 0,
+                    'created_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                ]);
+                $remainingCount += (int) $relation->initial_inventory;
+                continue;
+            }
+            if (
+                $inventory->gacha_draw_state_id !== null
+                || (int) $inventory->awarded_count !== 0
+            ) {
+                throw $this->gachaPublishException();
+            }
+            DB::table('prize_inventories')->where('id', $inventory->id)->update([
+                'gacha_draw_state_id' => $drawStateId,
+                'lock_version' => (int) $inventory->lock_version + 1,
+                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+            ]);
+            $remainingCount += (int) $inventory->available_quantity;
+        }
+        if ($remainingCount === 0) {
+            DB::table('gacha_draw_states')->where('id', $drawStateId)->update([
+                'status' => 'sold_out',
+                'sold_out_at' => DB::raw('CURRENT_TIMESTAMP'),
+                'lock_version' => 1,
+                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+            ]);
+        }
         DB::table('catalog_gachas')->where('id', $gacha->id)->update([
             'state' => 'active',
             'published_version_id' => $version->id,

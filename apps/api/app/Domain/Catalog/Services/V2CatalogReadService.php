@@ -203,7 +203,7 @@ final class V2CatalogReadService
             $now
         );
         $reason = $this->presentationReason($saleState, $evaluation);
-        $remainingCount = max(0, (int) $row->total_count - (int) $row->sold_count);
+        $remainingCount = (int) $row->remaining_count;
         $allowedCounts = [];
         if ($reason === null) {
             $dailyRemaining = $evaluation['daily']['remaining'];
@@ -279,6 +279,20 @@ final class V2CatalogReadService
                 '=',
                 'g.active_draw_state_id'
             )
+            ->leftJoinSub(
+                DB::table('prize_inventories')
+                    ->selectRaw(
+                        'gacha_draw_state_id, '.
+                        'SUM(total_quantity)::bigint AS total_count, '.
+                        'SUM(available_quantity)::bigint AS remaining_count'
+                    )
+                    ->whereNotNull('gacha_draw_state_id')
+                    ->groupBy('gacha_draw_state_id'),
+                'inventory_totals',
+                'inventory_totals.gacha_draw_state_id',
+                '=',
+                'ds.id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as a',
                 'a.id',
@@ -322,7 +336,8 @@ final class V2CatalogReadService
             'g.current_description as description',
             'g.current_notices as notices',
             'gv.price_points',
-            'gv.total_count',
+            DB::raw('COALESCE(inventory_totals.total_count, 0) as total_count'),
+            DB::raw('COALESCE(inventory_totals.remaining_count, 0) as remaining_count'),
             'gv.daily_draw_limit',
             'gv.audience_code',
             'gv.first_time_eligible_days',
@@ -391,10 +406,7 @@ final class V2CatalogReadService
             'title' => $row->title,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
-            'remaining_count' => max(
-                0,
-                (int) $row->total_count - (int) $row->sold_count
-            ),
+            'remaining_count' => (int) $row->remaining_count,
             'publish_start_at' => CarbonImmutable::parse($row->publish_start_at)->utc()
                 ->toIso8601ZuluString(),
             'publish_end_at' => $row->publish_end_at === null
@@ -453,17 +465,16 @@ final class V2CatalogReadService
         if ($endsAt !== null && ! $now->lessThan($endsAt)) {
             return 'ended';
         }
+        if ((int) $row->remaining_count === 0) {
+            return 'sold_out';
+        }
         if ((bool) $row->sales_paused) {
             return 'paused';
         }
-        if (
-            $row->draw_state_status === 'sold_out'
-            || (int) $row->sold_count >= (int) $row->total_count
-        ) {
-            return 'sold_out';
-        }
 
-        return $row->draw_state_status === 'selling' ? 'on_sale' : 'ended';
+        return in_array($row->draw_state_status, ['selling', 'sold_out'], true)
+            ? 'on_sale'
+            : 'ended';
     }
 
     /**

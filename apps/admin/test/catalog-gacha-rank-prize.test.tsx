@@ -78,6 +78,35 @@ describe("Gacha Rank and Prize manager", () => {
     expect(screen.queryByRole("button", { name: "ランク設定" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新規景品登録" })).not.toBeInTheDocument();
   });
+
+  it("submits operational inventory changes for a published Prize", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
+      .mockResolvedValue({ data: prize, idempotent_replay: false });
+    render(
+      <CatalogGachaRankPrizeManager
+        canManage
+        gachaId={GACHA_ID}
+        presentationOnly
+        version={version}
+      />,
+    );
+    await screen.findByText("SS景品");
+    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
+    const dialog = screen.getByRole("dialog", { name: "景品編集" });
+    fireEvent.change(within(dialog).getByLabelText("総在庫数"), { target: { value: "12" } });
+    fireEvent.change(within(dialog).getByLabelText("現在個数"), { target: { value: "8" } });
+    fireEvent.change(within(dialog).getByLabelText("在庫変更理由"), {
+      target: { value: "棚卸差異を反映" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][3]).toMatchObject({
+      available_inventory: 8,
+      expected_inventory_revision: 4,
+      inventory_reason: "棚卸差異を反映",
+      total_inventory: 12,
+    });
+  });
 });
 
 const asset = {
@@ -112,6 +141,7 @@ const rank = {
 
 const prize = {
   available_inventory: 7,
+  awarded_inventory: 2,
   code: "prize-ss",
   cost_price: 5000,
   created_at: "2026-08-20T00:00:00Z",
@@ -119,6 +149,7 @@ const prize = {
   display_price: 0,
   exchange_points: 8000,
   id: PRIZE_ID,
+  inventory_revision: 4,
   is_visible: true,
   name: "SS景品",
   presentation_asset: asset,
@@ -127,6 +158,7 @@ const prize = {
   total_inventory: 10,
   updated_at: "2026-08-20T00:00:00Z",
   version_sort_order: 0,
+  withdrawn_inventory: 1,
 };
 
 const version: AdminCatalogGachaVersion = {

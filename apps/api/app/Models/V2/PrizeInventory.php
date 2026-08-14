@@ -13,8 +13,10 @@ final class PrizeInventory extends Model
     protected function casts(): array
     {
         return [
-            'initial_quantity' => 'integer',
-            'won_count' => 'integer',
+            'total_quantity' => 'integer',
+            'awarded_count' => 'integer',
+            'available_quantity' => 'integer',
+            'withdrawn_quantity' => 'integer',
             'lock_version' => 'integer',
         ];
     }

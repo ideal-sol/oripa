@@ -511,8 +511,10 @@ final class V2CatalogFixtureImporter
                 DB::table('prize_inventories')->insertOrIgnore([
                     'gacha_draw_state_id' => $stateId,
                     'gacha_version_prize_id' => $relation->id,
-                    'initial_quantity' => $relation->initial_inventory,
-                    'won_count' => 0,
+                    'total_quantity' => $relation->initial_inventory,
+                    'awarded_count' => 0,
+                    'available_quantity' => $relation->initial_inventory,
+                    'withdrawn_quantity' => 0,
                     'lock_version' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,

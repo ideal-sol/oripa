@@ -4879,11 +4879,14 @@ components:
             - {type: 'null'}
         name: {type: string, minLength: 1, maxLength: 191}
         total_inventory: {type: integer, minimum: 0}
+        available_inventory: {type: integer, minimum: 0}
         exchange_points: {type: integer, minimum: 0}
         cost_price: {type: integer, minimum: 0}
         is_active: {type: boolean}
         expected_revision: {type: integer, minimum: 1}
         expected_version_revision: {type: integer, minimum: 1}
+        expected_inventory_revision: {type: integer, minimum: 0}
+        inventory_reason: {type: string, minLength: 1, maxLength: 500}
     AdminCatalogPresentationAssetCreate:
       type: object
       additionalProperties: false
@@ -5080,7 +5083,10 @@ components:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
             - {type: 'null'}
         total_inventory: {type: integer, minimum: 0}
-        available_inventory: {type: integer}
+        available_inventory: {type: integer, minimum: 0}
+        awarded_inventory: {type: integer, minimum: 0, readOnly: true}
+        withdrawn_inventory: {type: integer, minimum: 0, readOnly: true}
+        inventory_revision: {type: integer, minimum: 0, readOnly: true}
         version_sort_order: {type: integer, minimum: 0}
         revision: {type: integer, minimum: 1}
         is_archived: {type: boolean}

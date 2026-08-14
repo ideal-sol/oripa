@@ -562,8 +562,11 @@ final class V2AdminCatalogReadService
                 'current_asset.is_public as current_asset_is_public',
                 'relation.initial_inventory',
                 'relation.sort_order as version_sort_order',
-                'inventory.initial_quantity',
-                'inventory.won_count',
+                'inventory.total_quantity',
+                'inventory.awarded_count',
+                'inventory.available_quantity',
+                'inventory.withdrawn_quantity',
+                'inventory.lock_version as inventory_lock_version',
             ]);
 
         return [
@@ -581,18 +584,21 @@ final class V2AdminCatalogReadService
                         $row->asset_is_public = $row->current_asset_is_public;
                     }
                 }
-                $total = $row->initial_quantity === null
+                $total = $row->total_quantity === null
                     ? (int) $row->initial_inventory
-                    : (int) $row->initial_quantity;
-                $available = $row->initial_quantity === null
+                    : (int) $row->total_quantity;
+                $available = $row->available_quantity === null
                     ? $total
-                    : $total - (int) $row->won_count;
+                    : (int) $row->available_quantity;
 
                 return [
                     ...$this->mapPrize($row),
                     'cost_price' => (int) $row->cost_price,
                     'total_inventory' => $total,
                     'available_inventory' => $available,
+                    'awarded_inventory' => (int) ($row->awarded_count ?? 0),
+                    'withdrawn_inventory' => (int) ($row->withdrawn_quantity ?? 0),
+                    'inventory_revision' => (int) ($row->inventory_lock_version ?? 0),
                     'version_sort_order' => (int) $row->version_sort_order,
                 ];
             })->all(),

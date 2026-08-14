@@ -316,11 +316,12 @@ function rank() {
 
 function prize() {
   return {
-    available_inventory: 10, code: "prize-s", cost_price: 500,
+    available_inventory: 10, awarded_inventory: 0, code: "prize-s", cost_price: 500,
     created_at: "2026-08-01T00:00:00Z", exchange_points: 1000,
     id: prizeId, is_active: true, name: "景品S", presentation_asset: null,
     rank: { code: "S", id: rankId, name: "S", sort_order: 1 },
-    revision: 1, total_inventory: 10, updated_at: "2026-08-01T00:00:00Z",
+    inventory_revision: 0, revision: 1, total_inventory: 10,
+    updated_at: "2026-08-01T00:00:00Z", withdrawn_inventory: 0,
   };
 }
 

@@ -172,8 +172,8 @@ final class AdminUserPrizeReadTest extends TestCase
         );
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10];
         $fixture['versions'][0]['total_count'] = 1000;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = 1000;
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $index === 0 ? 100 : 900;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

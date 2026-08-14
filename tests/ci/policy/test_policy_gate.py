@@ -934,6 +934,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_05_000050_add_v2_static_page_footer_visibility.php",
             "apps/api/database/migrations-v2/2026_09_06_000051_add_v2_banner_top_presentation.php",
             "apps/api/database/migrations-v2/2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
+            "apps/api/database/migrations-v2/2026_09_08_000053_operational_gacha_inventory.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

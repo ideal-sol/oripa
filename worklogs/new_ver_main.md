@@ -8342,3 +8342,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PostgreSQL 17.11のBackup／Restore Gateで、単一Open Draw State Partial Unique Indexの同義なpredicate表現差を検出した。Migration SQLをPostgreSQLの安定したCanonical表現へ限定修正し、fresh／rollback／reapplyとschema round-trip一致を再確認した。
 - Public Contract ArtifactはProduction Host Buildを避け、既存Preview Image Build Workflowを最小拡張し、Exact PR Head／Required Checksを検証した同一GitHub-hosted Jobで生成・検証する。新Secret／Registry／Cloud Resourceは追加しない。
 - PostgreSQL 17.11でMigrationのschema round-tripを再現し、Partial Unique Index predicateをdump／restoreで同形になるSQLへ補正した後、Required Integration Gateのmigration／backup restore smokeがPASSした。
+
+## MIG-062S Operational Inventory／在庫調整
+
+- Base `2daef365fa1b5a845857b93e64651114700dc22e`からIssue #268、Branch `feat/MIG-062S-operational-gacha-inventory`、Risk R4で開始した。
+- Prize Inventoryを`total_quantity = awarded_count + available_quantity + withdrawn_quantity`へ移行し、成功Prize Drawだけが`awarded_count`を増やす。Adminは公開後も現在個数／総在庫数をTransaction、Row Lock、OCC、Idempotency、Adjustment Log／Audit付きで変更できる。
+- `sold_count`はDraw State、`remaining_count`はavailable合計、`total_count`はtotal合計を正本とし、Pause時も実残数を返す。Inventory調整はVersion、Draw State、`sold_count`、過去Draw、User Prizeを変更しない。
+- Migrationは既存Preview DataをFail Closed Characterization後にBackfillする。Draw、Partial Remaining、Catalog／Detail、MIG-062Q／062J／062L／062M回帰、同時Draw／AdjustmentのOversell／Lost Update防止をTargeted Testで確認した。
+- Public Contract ShapeとStorefront Artifactは変更せず、Admin OpenAPI／Generated Clientだけを同期する。Preview、Required Checks、Fresh Self-review、Merge／CleanupはCloseout時に確定する。
+- 初回Required Integration Gateが新規`prize_inventory_adjustments` TableのV2 schema inventory未登録を検出したため、Task PolicyへDB Guard本体／Unitの2 PathだけをAtomic追加し、Schema inventoryと明示回帰Testを同期した。
+- 初回Preview Image BuildはTask BranchをWorkflow control refにしていたためread wrapperがFail Closedした。Artifactは使用せず、control refをtrusted `main`、checkout対象をexact PR Headに分離して再実行する。
+- GitHub-hosted amd64 ArtifactをChecksum／OCI Revisionまで検証し、Host BuildなしでMigration `000053`とAPI／AdminだけをPreviewへ反映した。Inventory編集、sold-out／復元、Public count、paused実残数、Desktop／Mobile、500系0を確認し、既存Synthetic QAのDraw 422／Resume Preflight制約とFixture Asset 404はDataを修正せず例外記録した。
