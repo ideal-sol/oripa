@@ -4,7 +4,7 @@
 
 - Task ID: MIG-062S
 - Issue: #268
-- Base: `main@2daef365fa1b5a845857b93e64651114700dc22e`
+- Base SHA: `2daef365fa1b5a845857b93e64651114700dc22e`
 - Branch: `feat/MIG-062S-operational-gacha-inventory`
 - Risk: R4
 - Task Policy SHA-256: initial `fbf7dfde9ebc275333b669341887d3ddde8627d09e0164fadb7b2031f6c26c90`; current `1f0791271f20892f65ec3163bf7329f66dc7b03869498bb36049734b96a29dea`
