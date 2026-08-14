@@ -27,6 +27,8 @@ final class V2ContentReadService
             ->leftJoin('catalog_presentation_assets as asset', 'asset.id', '=', 'cva.presentation_asset_id')
             ->where('asset.is_public', true)
             ->where('asset.media_type', 'image')
+            ->where('cv.show_on_top', true)
+            ->whereNotNull('cv.link_url')
             ->orderBy('cv.sort_order')
             ->orderBy('p.id')
             ->get([
@@ -44,6 +46,7 @@ final class V2ContentReadService
                 'id' => $row->public_id,
                 'title' => $row->title,
                 'link_url' => $row->link_url,
+                'image_url' => $this->assetPublicPath($row->asset_public_id),
                 'asset' => [
                     'id' => $row->asset_public_id,
                     'path' => $this->assetPublicPath($row->asset_public_id),

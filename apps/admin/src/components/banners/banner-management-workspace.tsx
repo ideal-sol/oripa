@@ -35,10 +35,18 @@ import type { AdminBannerCategory, AdminManagedBanner } from "@/lib/admin-api/ge
 interface BannerDraft {
   categoryId: string;
   file: File | null;
+  linkUrl: string;
+  showOnTop: boolean;
   title: string;
 }
 
-const EMPTY_DRAFT: BannerDraft = { categoryId: "", file: null, title: "" };
+const EMPTY_DRAFT: BannerDraft = {
+  categoryId: "",
+  file: null,
+  linkUrl: "",
+  showOnTop: false,
+  title: "",
+};
 
 export function BannerManagementWorkspace() {
   return (
@@ -96,8 +104,8 @@ function BannerManagement() {
 
   async function submitBanner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft.categoryId || !draft.title.trim() || !draft.file) {
-      setError("カテゴリ、タイトル、画像を入力してください。");
+    if (!draft.categoryId || !draft.title.trim() || !draft.file || (draft.showOnTop && !draft.linkUrl.trim())) {
+      setError("カテゴリ、タイトル、画像、トップ表示時のクリック先URLを入力してください。");
       return;
     }
     setSubmitting(true);
@@ -112,6 +120,8 @@ function BannerManagement() {
         {
           asset_id: asset.id,
           category_id: draft.categoryId,
+          link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null,
+          show_on_top: draft.showOnTop,
           title: draft.title.normalize("NFC").trim(),
         },
         crypto.randomUUID(),
@@ -155,6 +165,8 @@ function BannerManagement() {
           <label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
           <label>画像<input accept="image/gif,image/jpeg,image/png,image/webp" required type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label>
           {previewUrl ? <Image alt="登録するバナー画像のプレビュー" height={120} src={previewUrl} unoptimized width={320} /> : null}
+          <label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>
+          {draft.showOnTop ? <label>クリック先URL<input maxLength={2048} placeholder="/gachas または https://..." required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}
           <div className="announcement-form-actions">
             <button className="primary-button" disabled={submitting} type="submit">
               {submitting ? <LoaderCircle className="spin" aria-hidden="true" size={17} /> : <ImagePlus aria-hidden="true" size={17} />}
@@ -184,11 +196,11 @@ function BannerManagement() {
         ) : (
           <div className="table-container">
             <table className="announcement-table">
-              <thead><tr><th>アップロード画像</th><th>タイトル</th><th>カテゴリ</th><th>画像URL</th><th>登録日</th><th>編集</th><th>削除</th></tr></thead>
+              <thead><tr><th>アップロード画像</th><th>タイトル</th><th>カテゴリ</th><th>トップ表示</th><th>画像URL</th><th>登録日</th><th>編集</th><th>削除</th></tr></thead>
               <tbody>{items.map((item) => (
                 <tr key={item.id}>
                   <td><Image alt={item.title} className="announcement-thumbnail" height={48} src={item.asset.public_url} unoptimized width={88} /></td>
-                  <td><strong>{item.title}</strong></td><td>{item.category.name}</td>
+                  <td><strong>{item.title}</strong></td><td>{item.category.name}</td><td>{item.show_on_top ? <span>ON<br /><small>{item.link_url}</small></span> : "OFF"}</td>
                   <td><div className="announcement-form-actions"><code>{item.asset.public_url}</code><button aria-label={`${item.title}の画像URLをコピー`} className="icon-button" onClick={() => void navigator.clipboard.writeText(item.asset.public_url)} title="URLをコピー" type="button"><Clipboard aria-hidden="true" size={16} /></button><a aria-label={`${item.title}の画像を新しいタブで開く`} className="icon-button" href={item.asset.public_url} rel="noreferrer" target="_blank" title="画像を開く"><ExternalLink aria-hidden="true" size={16} /></a></div></td>
                   <td>{formatJst(item.created_at)}</td>
                   <td>{canManage ? <button aria-label={`${item.title}を編集`} className="icon-button" onClick={() => setEditing(item)} title="編集" type="button"><Pencil aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
@@ -218,9 +230,9 @@ function CategoryDialog({ onClose, onCreated }: { onClose: () => void; onCreated
 }
 
 function EditDialog({ banner, categories, onClose, onSaved }: { banner: AdminManagedBanner; categories: AdminBannerCategory[]; onClose: () => void; onSaved: () => void }) {
-  const [draft, setDraft] = useState<BannerDraft>({ categoryId: banner.category.id, file: null, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(onClose); const preview = useObjectUrl(draft.file) ?? banner.asset.public_url;
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setError(null); try { const client = new AdminApiClient(); const assetId = draft.file ? (await client.uploadBannerAsset(await fileInput(draft.file), crypto.randomUUID())).id : null; await client.updateManagedBanner(banner.id, { asset_id: assetId, category_id: draft.categoryId, title: draft.title.normalize("NFC").trim() }, crypto.randomUUID()); onSaved(); } catch (reason) { setError(bannerError(reason)); setBusy(false); } }
-  return <Dialog closeRef={close} id="banner-edit-title" onClose={onClose} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : "更新"}</button></div></form></Dialog>;
+  const [draft, setDraft] = useState<BannerDraft>({ categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(onClose); const preview = useObjectUrl(draft.file) ?? banner.asset.public_url;
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (draft.showOnTop && !draft.linkUrl.trim()) { setError("トップ表示時はクリック先URLを入力してください。"); return; } setBusy(true); setError(null); try { const client = new AdminApiClient(); const assetId = draft.file ? (await client.uploadBannerAsset(await fileInput(draft.file), crypto.randomUUID())).id : null; await client.updateManagedBanner(banner.id, { asset_id: assetId, category_id: draft.categoryId, link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null, show_on_top: draft.showOnTop, title: draft.title.normalize("NFC").trim() }, crypto.randomUUID()); onSaved(); } catch (reason) { setError(bannerError(reason)); setBusy(false); } }
+  return <Dialog closeRef={close} id="banner-edit-title" onClose={onClose} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}<div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : "更新"}</button></div></form></Dialog>;
 }
 
 function DeleteDialog({ banner, onClose, onDeleted }: { banner: AdminManagedBanner; onClose: () => void; onDeleted: () => void }) {

@@ -107,11 +107,15 @@ final class AdminBannerManagementTest extends TestCase
             'category_id' => $category['id'],
             'title' => 'メインバナー',
             'asset_id' => $asset['id'],
+            'show_on_top' => true,
+            'link_url' => '/gachas',
         ];
         $created = $service->createManagedBanner($context, $input, $createKey);
         self::assertSame('draft', $created['status']);
         self::assertSame($expectedPublicUrl, $created['asset']['public_url']);
         self::assertSame('トップ', $created['category']['name']);
+        self::assertTrue($created['show_on_top']);
+        self::assertSame('/gachas', $created['link_url']);
         self::assertTrue($service->createManagedBanner(
             $context,
             $input,
@@ -129,9 +133,13 @@ final class AdminBannerManagementTest extends TestCase
             'category_id' => $category['id'],
             'title' => '更新バナー',
             'asset_id' => null,
+            'show_on_top' => false,
+            'link_url' => 'javascript:ignored()',
         ], 'banner-update-'.Str::uuid7());
         self::assertSame(2, $updated['version_number']);
         self::assertSame($asset['id'], $updated['asset']['id']);
+        self::assertFalse($updated['show_on_top']);
+        self::assertNull($updated['link_url']);
 
         $deleted = $service->deleteManagedBanner(
             $context,
@@ -172,6 +180,34 @@ final class AdminBannerManagementTest extends TestCase
             self::fail('Unsupported images must fail.');
         } catch (V2ContentContactException $exception) {
             self::assertSame('BANNER_ASSET_INVALID', $exception->errorCode);
+        }
+
+        $category = $service->createBannerCategory(
+            $admin,
+            ['name' => 'URL検証'],
+            'banner-category-url-'.Str::uuid7()
+        );
+        $asset = $service->uploadBannerAsset(
+            $admin,
+            $this->imageInput('url.png'),
+            'banner-url-asset-'.Str::uuid7()
+        );
+        foreach ([null, 'javascript:alert(1)', '//evil.example/path'] as $linkUrl) {
+            try {
+                $service->createManagedBanner($admin, [
+                    'category_id' => $category['id'],
+                    'title' => '危険URL',
+                    'asset_id' => $asset['id'],
+                    'show_on_top' => true,
+                    'link_url' => $linkUrl,
+                ], 'banner-url-invalid-'.Str::uuid7());
+                self::fail('Top Banners must require a safe click URL.');
+            } catch (V2ContentContactException $exception) {
+                self::assertContains($exception->errorCode, [
+                    'BANNER_TOP_LINK_REQUIRED',
+                    'CONTENT_LINK_INVALID',
+                ]);
+            }
         }
 
         try {

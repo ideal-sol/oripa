@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.11",
+    "version": "2.0.0-alpha.12",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -15711,7 +15711,8 @@
         "additionalProperties": false,
         "required": [
           "category_id",
-          "title"
+          "title",
+          "show_on_top"
         ],
         "properties": {
           "category_id": {
@@ -15721,6 +15722,17 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 191
+          },
+          "show_on_top": {
+            "type": "boolean",
+            "default": false
+          },
+          "link_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
           },
           "asset_id": {
             "oneOf": [
@@ -15761,6 +15773,8 @@
           "id",
           "title",
           "status",
+          "show_on_top",
+          "link_url",
           "category",
           "asset",
           "version_id",
@@ -15781,6 +15795,16 @@
               "draft",
               "published"
             ]
+          },
+          "show_on_top": {
+            "type": "boolean"
+          },
+          "link_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
           },
           "category": {
             "$ref": "#/components/schemas/AdminBannerCategory"

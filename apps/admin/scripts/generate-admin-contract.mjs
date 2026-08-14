@@ -2437,6 +2437,8 @@ export interface AdminManagedBannerInput {
   category_id: string;
   title: string;
   asset_id?: string | null;
+  show_on_top: boolean;
+  link_url?: string | null;
 }
 
 export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
@@ -2449,6 +2451,8 @@ export interface AdminManagedBanner {
   id: string;
   title: string;
   status: "draft" | "published";
+  show_on_top: boolean;
+  link_url: string | null;
   category: AdminBannerCategory;
   asset: { id: string; public_url: string };
   version_id: string;

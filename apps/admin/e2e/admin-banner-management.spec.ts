@@ -20,12 +20,15 @@ test("desktop banner management renders exact columns, filter, and dialogs", asy
   expect((await page.goto("/banners"))?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "バナー管理" })).toBeVisible();
   await expect(page.getByRole("columnheader")).toHaveText([
-    "アップロード画像", "タイトル", "カテゴリ", "画像URL", "登録日", "編集", "削除",
+    "アップロード画像", "タイトル", "カテゴリ", "トップ表示", "画像URL", "登録日", "編集", "削除",
   ]);
+  await expect(page.getByText("/gachas")).toBeVisible();
   await expect(page.getByText(publicAssetUrl)).toBeVisible();
   await page.getByLabel("カテゴリ絞り込み").selectOption(categoryId);
   await page.getByRole("button", { name: "メインバナーを編集" }).click();
   await expect(page.getByRole("dialog", { name: "バナー編集" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "バナー編集" }).getByLabel("トップに表示")).toBeChecked();
+  await expect(page.getByRole("dialog", { name: "バナー編集" }).getByLabel("クリック先URL")).toHaveValue("/gachas");
   await page.getByRole("button", { name: "バナー編集を閉じる" }).click();
   await page.getByRole("button", { name: "メインバナーを削除" }).click();
   await expect(page.getByRole("dialog", { name: "バナー削除" })).toContainText("共有画像Assetは保持");
@@ -61,7 +64,7 @@ async function installApi(page: Page): Promise<void> {
     if (url.pathname.endsWith("/banner-management/categories")) return json(route, { items: [{ created_at: "2026-08-05T00:00:00Z", id: categoryId, name: "トップ" }] });
     if (url.pathname.endsWith("/banner-management/banners")) {
       if (url.searchParams.get("category_id")) expect(url.searchParams.get("category_id")).toBe(categoryId);
-      return json(route, { items: [{ asset: { id: uuid("3"), public_url: publicAssetUrl }, category: { id: categoryId, name: "トップ" }, created_at: "2026-08-05T00:00:00Z", id: bannerId, status: "draft", title: "メインバナー", updated_at: "2026-08-05T00:00:00Z", version_id: uuid("4"), version_number: 1 }], next_cursor: null });
+      return json(route, { items: [{ asset: { id: uuid("3"), public_url: publicAssetUrl }, category: { id: categoryId, name: "トップ" }, created_at: "2026-08-05T00:00:00Z", id: bannerId, link_url: "/gachas", show_on_top: true, status: "draft", title: "メインバナー", updated_at: "2026-08-05T00:00:00Z", version_id: uuid("4"), version_number: 1 }], next_cursor: null });
     }
     return route.fulfill({ status: 404 });
   });
