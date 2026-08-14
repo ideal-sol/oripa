@@ -134,6 +134,20 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.display.show_price_points', false)
             ->assertJsonPath('data.display.show_total_count', false)
             ->assertJsonPath('data.display.show_drawn_count', false);
+
+        $inventory = DB::table('prize_inventories')->orderBy('id')->firstOrFail();
+        DB::table('prize_inventories')->where('id', $inventory->id)->update([
+            'total_quantity' => (int) $inventory->total_quantity + 1,
+            'available_quantity' => 1,
+        ]);
+        $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'on_sale')
+            ->assertJsonPath('data.total_count', 111)
+            ->assertJsonPath('data.remaining_count', 1);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'on_sale');
     }
 
     public function test_anonymous_and_all_user_states_are_private_and_machine_readable(): void

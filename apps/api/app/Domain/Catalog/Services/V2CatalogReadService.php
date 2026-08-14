@@ -472,7 +472,9 @@ final class V2CatalogReadService
             return 'paused';
         }
 
-        return $row->draw_state_status === 'selling' ? 'on_sale' : 'ended';
+        return in_array($row->draw_state_status, ['selling', 'sold_out'], true)
+            ? 'on_sale'
+            : 'ended';
     }
 
     /**
