@@ -20,6 +20,7 @@ import {
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
+  createStorefrontPointProductClient,
   createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
 
@@ -425,6 +426,7 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listPointProducts",
     "getGacha",
     "getGachaBySlug",
     "getGachaPresentation",
@@ -945,4 +947,20 @@ test("Catalog FacadeはPublic GETだけを決定的なPathへ送る", async () =
     () => catalog.listGachas({ limit: 101 }),
     /limit must be an integer/,
   );
+});
+
+test("Point Product FacadeはCanonical一覧Pathだけを呼ぶ", async () => {
+  const paths = [];
+  const products = createStorefrontPointProductClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: { data: [] },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+
+  await products.listPointProducts();
+  assert.deepEqual(paths, ["/point-products"]);
 });
