@@ -6311,7 +6311,7 @@ components:
     AdminManagedPage:
       type: object
       additionalProperties: false
-      required: [id, slug, title, body_html, visibility, show_in_footer, footer_sort_order, category, version_id, version_number, created_at, updated_at]
+      required: [id, slug, title, body_html, visibility, category, version_id, version_number, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         slug: {type: string}

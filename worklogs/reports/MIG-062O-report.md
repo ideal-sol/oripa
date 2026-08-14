@@ -30,6 +30,7 @@
 - Backend: 5 tests／44 assertions PASS。Default OFF、Footer ON/OFF、公開期間、表示順、Sanitize、既存Static Page Detailを確認した。
 - Admin: Unit 4 tests、Desktop／Mobile Browser 2 tests、Typecheck、Lint、Production Build PASS。
 - Contract: Public 49／Admin 212／Webhook 1 operations、OpenAPI lint／bundle／Breaking Check、Generated同期 PASS。
+- Admin Responseの新規`show_in_footer`／`footer_sort_order`はRuntimeで常に返す一方、OpenAPIでは後方互換なoptional追加とし、既存ClientへのBreaking Changeを回避した。
 - Storefront Client 24 tests、Site Schema 10 tests、Testkit 29 tests、Policy Unit 125 tests PASS。
 - 全V2 Suite、全Admin E2E、Storefront Repository TestはScope外のため実行しない。
 

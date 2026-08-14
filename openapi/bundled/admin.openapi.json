@@ -15500,8 +15500,6 @@
           "title",
           "body_html",
           "visibility",
-          "show_in_footer",
-          "footer_sort_order",
           "category",
           "version_id",
           "version_number",
