@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/content/footer-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Footer表示対象の公開Static Page一覧を取得する */
+        get: operations["listContentFooterPages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/content/pages/{slug}": {
         parameters: {
             query?: never;
@@ -801,6 +818,14 @@ export interface components {
             /** Format: date-time */
             publish_end_at: string | null;
         };
+        ContentFooterPage: {
+            id: components["schemas"]["OpaqueId"];
+            slug: string;
+            title: string;
+        };
+        ContentFooterPageCollection: {
+            items: components["schemas"]["ContentFooterPage"][];
+        };
         CreateContactInquiryRequest: {
             name: string;
             /** Format: email */
@@ -1501,6 +1526,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContentNotice"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listContentFooterPages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開中かつFooter表示ONのStatic Page一覧。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentFooterPageCollection"];
                 };
             };
             default: components["responses"]["Problem"];

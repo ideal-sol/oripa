@@ -320,6 +320,7 @@ final class V2ContentContactAdminService
                 $parentId = DB::table('content_static_pages')->insertGetId([
                     'public_id' => $publicId, 'slug' => $payload['slug'],
                     'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
+                    'show_in_footer' => $payload['show_in_footer'] ?? false,
                     'status' => 'draft', 'created_at' => $now, 'updated_at' => $now,
                 ]);
             } catch (\Throwable) {
@@ -331,6 +332,8 @@ final class V2ContentContactAdminService
             $this->auditContent('content.page_created', $context, 'static-page', $publicId, [
                 'version_public_id' => $version['id'], 'category_public_id' => $payload['category_id'],
                 'visibility' => $payload['visibility'],
+                'show_in_footer' => $payload['show_in_footer'] ?? false,
+                'footer_sort_order' => $payload['footer_sort_order'] ?? 0,
             ]);
             $result = $this->managedPageByPublicId($publicId);
             $this->completePageMutation($claim, 'content_static_page', $publicId, $result, 201);
@@ -364,13 +367,25 @@ final class V2ContentContactAdminService
             if ($parent->status === 'archived') {
                 throw $this->conflict('PAGE_ARCHIVED');
             }
-            $number = (int) DB::table('content_versions')->where('static_page_id', $parent->id)
-                ->max('version_number') + 1;
-            $version = $this->createVersionRow('static-page', 'static_page_id', (int) $parent->id, $number, $this->pageVersionInput($payload), $admin);
+            $latest = DB::table('content_versions')->where('static_page_id', $parent->id)
+                ->orderByDesc('version_number')->first(['version_number', 'sort_order']);
+            if ($latest === null) {
+                throw $this->notFound('PAGE_VERSION_NOT_FOUND');
+            }
+            $number = (int) $latest->version_number + 1;
+            $version = $this->createVersionRow(
+                'static-page',
+                'static_page_id',
+                (int) $parent->id,
+                $number,
+                $this->pageVersionInput($payload, (int) $latest->sort_order),
+                $admin
+            );
             try {
                 DB::table('content_static_pages')->where('id', $parent->id)->update([
                     'slug' => $payload['slug'],
                     'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
+                    'show_in_footer' => $payload['show_in_footer'] ?? (bool) $parent->show_in_footer,
                     'updated_at' => now()->startOfSecond(),
                 ]);
             } catch (\Throwable) {
@@ -381,6 +396,8 @@ final class V2ContentContactAdminService
             $this->auditContent('content.page_updated', $context, 'static-page', $publicId, [
                 'version_public_id' => $version['id'], 'category_public_id' => $payload['category_id'],
                 'visibility' => $payload['visibility'],
+                'show_in_footer' => $payload['show_in_footer'] ?? (bool) $parent->show_in_footer,
+                'footer_sort_order' => $payload['footer_sort_order'] ?? (int) $latest->sort_order,
             ]);
             $result = $this->managedPageByPublicId($publicId);
             $this->completePageMutation($claim, 'content_static_page', $publicId, $result);
@@ -1581,8 +1598,25 @@ final class V2ContentContactAdminService
     /** @param array<string, mixed> $input @return array<string, mixed> */
     private function pageInput(array $input): array
     {
-        $this->assertFields($input, ['category_id', 'title', 'body_html', 'slug', 'visibility'], ['category_id', 'title', 'body_html', 'slug', 'visibility']);
+        $this->assertFields(
+            $input,
+            [
+                'category_id', 'title', 'body_html', 'slug', 'visibility',
+                'show_in_footer', 'footer_sort_order',
+            ],
+            ['category_id', 'title', 'body_html', 'slug', 'visibility']
+        );
         $slug = trim(trim((string) $input['slug']), '/');
+        $showInFooter = null;
+        if (array_key_exists('show_in_footer', $input)) {
+            if (! is_bool($input['show_in_footer'])) {
+                throw $this->invalid('PAGE_FOOTER_VISIBILITY_INVALID');
+            }
+            $showInFooter = $input['show_in_footer'];
+        }
+        $footerSortOrder = array_key_exists('footer_sort_order', $input)
+            ? $this->integer($input['footer_sort_order'], 0, 1_000_000)
+            : null;
 
         return [
             'category_id' => $this->uuid($input['category_id'], 'PAGE_CATEGORY_INVALID'),
@@ -1590,16 +1624,40 @@ final class V2ContentContactAdminService
             'body_html' => $this->string($input['body_html'], 1, 100_000),
             'slug' => $this->identifier($slug),
             'visibility' => $this->pageVisibility($input['visibility']),
+            'show_in_footer' => $showInFooter,
+            'footer_sort_order' => $footerSortOrder,
         ];
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    private function pageVersionInput(array $payload): array
+    private function pageVersionInput(array $payload, int $defaultSortOrder = 0): array
     {
         return [
             'category_id' => $payload['category_id'], 'title' => $payload['title'],
             'body_html' => $payload['body_html'], 'publish_start_at' => now()->startOfSecond()->toIso8601String(),
             'publish_end_at' => null,
+            'sort_order' => $payload['footer_sort_order'] ?? $defaultSortOrder,
+        ];
+    }
+
+    /** @param array<string, mixed> $input @return array<string, string> */
+    public function previewManagedPage(
+        V2AdminAuthorizationContext $context,
+        array $input
+    ): array {
+        $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        $this->assertFields($input, ['title', 'body_html'], ['title', 'body_html']);
+        try {
+            $body = $this->sanitizer->sanitize(
+                $this->string($input['body_html'], 1, 100_000)
+            );
+        } catch (\RuntimeException) {
+            throw $this->invalid('CONTENT_BODY_INVALID');
+        }
+
+        return [
+            'title' => $this->plainText($input['title'], 1, 191),
+            'body_html' => $body,
         ];
     }
 
@@ -1634,8 +1692,9 @@ final class V2ContentContactAdminService
     {
         return [
             'page.id as internal_cursor', 'page.public_id', 'page.slug', 'page.status',
+            'page.show_in_footer',
             'page.created_at', 'page.updated_at', 'version.public_id as version_public_id',
-            'version.version_number', 'version.title', 'version.body_html',
+            'version.version_number', 'version.title', 'version.body_html', 'version.sort_order',
             'category.public_id as category_public_id', 'category.name as category_name',
             'category.is_visible as category_is_visible', 'category.created_at as category_created_at',
         ];
@@ -1665,6 +1724,8 @@ final class V2ContentContactAdminService
         return [
             'id' => $row->public_id, 'slug' => $row->slug, 'title' => $row->title,
             'body_html' => $row->body_html, 'visibility' => $row->status === 'published' ? 'visible' : 'hidden',
+            'show_in_footer' => (bool) $row->show_in_footer,
+            'footer_sort_order' => (int) $row->sort_order,
             'category' => $row->category_public_id === null ? null : [
                 'id' => $row->category_public_id, 'name' => $row->category_name,
                 'visibility' => $row->category_is_visible ? 'visible' : 'hidden',

@@ -62,8 +62,7 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
             '--force' => true,
         ]);
         Artisan::call('migrate:rollback', [
-            '--path' => 'database/migrations-v2',
-            '--step' => 1,
+            '--path' => 'database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php',
             '--force' => true,
         ]);
         $admin = Admin::query()->create([
@@ -77,8 +76,8 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         $expired = $this->migrationUser('expired');
         $current = $this->migrationUser('current');
         foreach ([
-            [$expired, now()->subHours(2), now()->subHour()],
-            [$current, now(), now()->addHour()],
+            [$expired, DB::raw("CURRENT_TIMESTAMP - INTERVAL '2 hours'"), DB::raw("CURRENT_TIMESTAMP - INTERVAL '1 hour'")],
+            [$current, DB::raw('CURRENT_TIMESTAMP'), DB::raw("CURRENT_TIMESTAMP + INTERVAL '1 hour'")],
         ] as [$user, $startsAt, $endsAt]) {
             DB::table('qa_test_user_modes')->insert([
                 'public_id' => (string) Str::uuid7(),
@@ -95,7 +94,7 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         }
 
         Artisan::call('migrate', [
-            '--path' => 'database/migrations-v2',
+            '--path' => 'database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php',
             '--force' => true,
         ]);
 

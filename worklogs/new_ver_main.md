@@ -8310,3 +8310,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - `GHSA-2v37-7h3g-55p8`の修正版境界更新に対応し、既存3.x系列の`nanoid` Pinを`3.3.17`から最小安全版`3.3.18`へ更新する。
 - Root／Legacy Lockfileと中央のDependency Pin検査だけを同期し、Baseline追加、Advisory無視、Application／Runtime変更は行わない。
+
+## MIG-062O ページ設定フッター表示／Public Contract拡張
+
+- Base `3b8445f1cf8f858fb46c0afe9e366faaf5e78f5e`からIssue #259、Branch `feat/MIG-062O-static-page-footer-contract`、Risk R3で開始した。
+- Static Page親へDefault OFFのFooter表示Flagを追加し、既存immutable HTML Version、Sanitize、Checksum、公開期間、公開状態を再利用する。
+- Admin登録／編集へFooter ON/OFF、表示順、Sanitize済みPreviewを追加し、Public APIは現在公開中かつFooter ONの`id`／`slug`／`title`だけを返す。
+- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.11`へ同期し、既存Artifactは上書きしない。
+- Migration fresh／rollback／reapply、Backend 5 tests／44 assertions、Admin Unit 4 tests、Desktop／Mobile Browser 2 tests、Client 24 tests、Site Schema 10 tests、Testkit 29 tests、OpenAPI／Policy UnitがPASSした。
+- Required Integration Gateで検出した既存MIG-062M Migration testの`--step 1`順序依存を、`000049` exact pathとDB時刻fixtureへ限定補正した。RuntimeとMigration仕様は不変。

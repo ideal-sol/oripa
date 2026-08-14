@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FilePlus2,
+  Eye,
   LoaderCircle,
   Pencil,
   Plus,
@@ -23,6 +24,7 @@ import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminManagedPage,
   AdminManagedPageInput,
+  AdminManagedPagePreview,
   AdminPageCategory,
   AdminPageVisibility,
 } from "@/lib/admin-api/generated";
@@ -31,6 +33,8 @@ type Mode = "list" | "create" | "edit";
 const EMPTY_FORM: AdminManagedPageInput = {
   body_html: "",
   category_id: "",
+  footer_sort_order: 0,
+  show_in_footer: false,
   slug: "",
   title: "",
   visibility: "hidden",
@@ -85,12 +89,13 @@ function PageList() {
         {loading ? <State text="ページを読み込んでいます。" /> : error ? <State error text={error} /> : items.length === 0 ? <State text="登録済みのページはありません。" /> : (
           <div className="table-container">
             <table className="announcement-table">
-              <thead><tr><th>ページ</th><th>URL</th><th>カテゴリ</th><th>表示状態</th><th>更新日時</th><th>編集</th></tr></thead>
+              <thead><tr><th>ページ</th><th>URL</th><th>カテゴリ</th><th>表示状態</th><th>フッター</th><th>更新日時</th><th>編集</th></tr></thead>
               <tbody>{items.map((item) => <tr key={item.id}>
                 <td><strong>{item.title}</strong></td>
                 <td><code>/{item.slug}</code></td>
                 <td>{item.category ? <>{item.category.name} <Status value={item.category.visibility} /></> : "未設定"}</td>
                 <td><Status value={item.visibility} /></td>
+                <td>{item.show_in_footer ? `表示（${item.footer_sort_order}）` : "非表示"}</td>
                 <td>{formatJst(item.updated_at)}</td>
                 <td>{canManage ? <Link aria-label={`${item.title}を編集`} className="icon-button" href={`/settings/pages/${item.id}`} title="編集"><Pencil aria-hidden="true" size={16} /></Link> : <span className="muted-text">参照のみ</span>}</td>
               </tr>)}</tbody>
@@ -115,6 +120,8 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
   const [categoryDialog, setCategoryDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<AdminManagedPagePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,7 +132,7 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
       mode === "edit" && pageId ? client.getManagedPage(pageId, controller.signal) : Promise.resolve(null),
     ]).then(([categoryResult, page]) => {
       setCategories(categoryResult.items);
-      if (page) setDraft({ body_html: page.body_html, category_id: page.category?.id ?? "", slug: page.slug, title: page.title, visibility: page.visibility });
+      if (page) setDraft({ body_html: page.body_html, category_id: page.category?.id ?? "", footer_sort_order: page.footer_sort_order, show_in_footer: page.show_in_footer, slug: page.slug, title: page.title, visibility: page.visibility });
       setError(null);
     }).catch((reason: unknown) => {
       if (!controller.signal.aborted) setError(pageError(reason));
@@ -146,11 +153,28 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
       const result = mode === "create"
         ? await client.createManagedPage(payload, crypto.randomUUID())
         : await client.updateManagedPage(pageId ?? "", payload, crypto.randomUUID());
+      await client.getManagedPage(result.id);
       router.push(`/settings/pages/${result.id}`);
       router.refresh();
     } catch (reason) {
       setError(pageError(reason));
       setSubmitting(false);
+    }
+  }
+
+  async function showPreview() {
+    if (!canManage) return;
+    setPreviewing(true);
+    setError(null);
+    try {
+      setPreview(await new AdminApiClient().previewManagedPage({
+        body_html: draft.body_html,
+        title: draft.title.normalize("NFC").trim(),
+      }));
+    } catch (reason) {
+      setError(pageError(reason));
+    } finally {
+      setPreviewing(false);
     }
   }
 
@@ -169,11 +193,19 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
           <label>カテゴリ<select disabled={!canManage} required value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}><option value="">選択してください</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}（{category.visibility === "visible" ? "表示" : "非表示"}）</option>)}</select></label>
           {canManage ? <button className="secondary-button" onClick={() => setCategoryDialog(true)} type="button"><Plus aria-hidden="true" size={16} />カテゴリ追加</button> : null}
         </div>
-        <div className="announcement-form-actions"><Link className="secondary-button" href="/settings/pages">一覧へ戻る</Link>{canManage ? <button className="primary-button" disabled={submitting} type="submit"><Save aria-hidden="true" size={16} />{submitting ? "保存中" : "保存"}</button> : null}</div>
+        <label className="check-row"><input checked={draft.show_in_footer ?? false} disabled={!canManage} onChange={(event) => setDraft({ ...draft, show_in_footer: event.target.checked })} type="checkbox" /><span>フッターに表示</span></label>
+        {draft.show_in_footer ? <label>フッター表示順<input disabled={!canManage} max={1000000} min={0} required type="number" value={draft.footer_sort_order ?? 0} onChange={(event) => setDraft({ ...draft, footer_sort_order: Number(event.target.value) })} /></label> : null}
+        <div className="announcement-form-actions"><Link className="secondary-button" href="/settings/pages">一覧へ戻る</Link>{canManage ? <><button className="secondary-button" disabled={previewing || submitting} onClick={() => void showPreview()} type="button"><Eye aria-hidden="true" size={16} />{previewing ? "生成中" : "プレビュー"}</button><button className="primary-button" disabled={submitting} type="submit"><Save aria-hidden="true" size={16} />{submitting ? "保存中" : "保存"}</button></> : null}</div>
       </form>
     )}
     {categoryDialog ? <CategoryDialog onClose={() => setCategoryDialog(false)} onCreated={(category) => { setCategories((current) => [...current, category].sort((a, b) => a.name.localeCompare(b.name, "ja"))); setDraft((current) => ({ ...current, category_id: category.id })); setCategoryDialog(false); }} /> : null}
+    {preview ? <PagePreview onClose={() => setPreview(null)} preview={preview} /> : null}
   </main>;
+}
+
+function PagePreview({ onClose, preview }: { onClose: () => void; preview: AdminManagedPagePreview }) {
+  const closeRef = useDialogFocus(onClose);
+  return <div className="dialog-backdrop" role="presentation"><section aria-labelledby="page-preview-title" aria-modal="true" className="dialog-panel announcement-preview" role="dialog"><header><div><span>ページプレビュー</span><h2 id="page-preview-title">{preview.title}</h2></div><button aria-label="ページプレビューを閉じる" className="icon-button" onClick={onClose} ref={closeRef} type="button"><X aria-hidden="true" size={18} /></button></header><article className="announcement-preview-body" dangerouslySetInnerHTML={{ __html: preview.body_html }} /></section></div>;
 }
 
 function CategoryDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (category: AdminPageCategory) => void }) {

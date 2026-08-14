@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.10
+  version: 2.0.0-alpha.11
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1873,6 +1873,19 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPageInput'}}}}
       responses:
         '201': {description: 作成したページ。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPageMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /page-management/pages/preview:
+    post:
+      operationId: previewManagedAdminPage
+      summary: Static Page本文をServer側で安全化してPreviewする
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPagePreviewInput'}}}}
+      responses:
+        '200': {description: 安全化済みPage Preview。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPagePreview'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /page-management/pages/{page_id}:
     get:
@@ -6279,6 +6292,22 @@ components:
         body_html: {type: string, minLength: 1, maxLength: 100000}
         slug: {type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 128}
         visibility: {$ref: '#/components/schemas/AdminPageVisibility'}
+        show_in_footer: {type: boolean, default: false}
+        footer_sort_order: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+    AdminManagedPagePreviewInput:
+      type: object
+      additionalProperties: false
+      required: [title, body_html]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 191}
+        body_html: {type: string, minLength: 1, maxLength: 100000}
+    AdminManagedPagePreview:
+      type: object
+      additionalProperties: false
+      required: [title, body_html]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 191}
+        body_html: {type: string}
     AdminManagedPage:
       type: object
       additionalProperties: false
@@ -6289,6 +6318,8 @@ components:
         title: {type: string}
         body_html: {type: string}
         visibility: {$ref: '#/components/schemas/AdminPageVisibility'}
+        show_in_footer: {type: boolean}
+        footer_sort_order: {type: integer, minimum: 0, maximum: 1000000}
         category:
           oneOf:
             - {$ref: '#/components/schemas/AdminPageCategory'}

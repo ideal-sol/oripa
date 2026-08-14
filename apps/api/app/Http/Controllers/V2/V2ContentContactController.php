@@ -87,6 +87,15 @@ final class V2ContentContactController
         );
     }
 
+    public function footerPages(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (): array => $this->content->footerPages(),
+            cache: true
+        );
+    }
+
     public function contact(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->contacts->submit(

@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.10",
+      storefront_client_version: "2.0.0-alpha.11",
       required_capabilities: [],
     },
     public: {
@@ -60,7 +60,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.10",
+  minimum_storefront_client_version: "2.0.0-alpha.11",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -77,6 +77,36 @@ export const PUBLIC_RESPONSE_METADATA_FIXTURE = Object.freeze({
   api_version: "2",
   idempotency_replayed: false,
 }) satisfies StorefrontResponseMetadata;
+
+export const PUBLIC_FOOTER_PAGES_FIXTURE = Object.freeze({
+  response: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000301",
+        slug: "terms",
+        title: "利用規約",
+      },
+    ],
+  },
+  excluded: {
+    footer_off: {
+      id: "0198a001-0000-7000-8000-000000000302",
+      slug: "guide",
+      title: "ご利用ガイド",
+    },
+    outside_publication_period: {
+      id: "0198a001-0000-7000-8000-000000000303",
+      slug: "future-policy",
+      title: "公開前ポリシー",
+    },
+  },
+} as const satisfies {
+  response: PublicComponents["schemas"]["ContentFooterPageCollection"];
+  excluded: {
+    footer_off: PublicComponents["schemas"]["ContentFooterPage"];
+    outside_publication_period: PublicComponents["schemas"]["ContentFooterPage"];
+  };
+});
 
 export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
   data: {

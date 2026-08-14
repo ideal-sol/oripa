@@ -61,6 +61,7 @@ const operations = {
   createAdminPageCategory: ["post", "/page-management/categories"],
   listManagedAdminPages: ["get", "/page-management/pages"],
   createManagedAdminPage: ["post", "/page-management/pages"],
+  previewManagedAdminPage: ["post", "/page-management/pages/preview"],
   getManagedAdminPage: ["get", "/page-management/pages/{page_id}"],
   updateManagedAdminPage: ["put", "/page-management/pages/{page_id}"],
   uploadAdminBannerAsset: ["post", "/banner-management/assets"],
@@ -2368,6 +2369,18 @@ export interface AdminManagedPageInput {
   body_html: string;
   slug: string;
   visibility: AdminPageVisibility;
+  show_in_footer?: boolean;
+  footer_sort_order?: number;
+}
+
+export interface AdminManagedPagePreviewInput {
+  title: string;
+  body_html: string;
+}
+
+export interface AdminManagedPagePreview {
+  title: string;
+  body_html: string;
 }
 
 export interface AdminManagedPage {
@@ -2376,6 +2389,8 @@ export interface AdminManagedPage {
   title: string;
   body_html: string;
   visibility: AdminPageVisibility;
+  show_in_footer: boolean;
+  footer_sort_order: number;
   category: AdminPageCategory | null;
   version_id: string;
   version_number: number;

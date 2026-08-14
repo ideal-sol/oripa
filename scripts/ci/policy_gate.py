@@ -940,8 +940,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.10",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.10",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.11",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.11",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1316,7 +1316,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
-    if package.get("version") != "2.0.0-alpha.10":
+    if package.get("version") != "2.0.0-alpha.11":
         raise PolicyFailure("package.json: V2 workspace version is invalid")
     if package.get("private") is not True:
         raise PolicyFailure("package.json: root workspace must be private")
@@ -1438,7 +1438,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     package = load_json(repository, "apps/admin/package.json")
     if (
         package.get("name") != "@oripa/admin"
-        or package.get("version") != "2.0.0-alpha.10"
+        or package.get("version") != "2.0.0-alpha.11"
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
@@ -1689,7 +1689,7 @@ def validate_package_skeletons(repository: Path) -> None:
         package = load_json(repository, relative)
         if (
             package.get("name") != expected_name
-            or package.get("version") != "2.0.0-alpha.10"
+            or package.get("version") != "2.0.0-alpha.11"
             or package.get("private") is not True
         ):
             raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
@@ -1733,7 +1733,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.10",
+        "version": "2.0.0-alpha.11",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1774,7 +1774,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.10",
+        "minimumPublicApiContract": "2.0.0-alpha.11",
         "requiredCapabilities": [
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
@@ -1870,7 +1870,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.10",
+        "version": "2.0.0-alpha.11",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1988,7 +1988,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.10",
+        "version": "2.0.0-alpha.11",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2029,9 +2029,9 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.10",
-        "siteSchemaVersion": "2.0.0-alpha.10",
-        "publicApiOperationCount": 48,
+        "storefrontClientVersion": "2.0.0-alpha.11",
+        "siteSchemaVersion": "2.0.0-alpha.11",
+        "publicApiOperationCount": 49,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -2049,8 +2049,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 48",
-        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        "operation_count: 49",
+        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","listContentBanners","listContentFooterPages","listContentNotices","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -2310,6 +2310,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_02_000047_add_v2_user_state_revision.php",
         "2026_09_03_000048_add_v2_gacha_prize_ownership_snapshots.php",
         "2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
+        "2026_09_05_000050_add_v2_static_page_footer_visibility.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4606,6 +4607,7 @@ def validate_v2_content_contact_boundary(
     }
     required_public = {
         "listContentBanners",
+        "listContentFooterPages",
         "listContentNotices",
         "getContentNotice",
         "getContentStaticPage",
@@ -4891,9 +4893,9 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     required_statements = {
-        'PLATFORM_VERSION = "2.0.0-alpha.10"',
+        'PLATFORM_VERSION = "2.0.0-alpha.11"',
         'CHANNEL = "alpha"',
-        'RELEASE_TAG = "platform-v2.0.0-alpha.10"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.11"',
         "PRODUCTION_ALLOWED = False",
         "DATA_RETENTION_GUARANTEED = False",
         "pnpm",

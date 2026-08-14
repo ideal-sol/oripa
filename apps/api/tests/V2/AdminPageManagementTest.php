@@ -53,11 +53,14 @@ final class AdminPageManagementTest extends TestCase
             'category_id' => $category['id'], 'title' => 'ご利用ガイド',
             'body_html' => '<p>安全な本文</p><script>alert(1)</script>',
             'slug' => ' /guide/ ', 'visibility' => 'visible',
+            'show_in_footer' => true, 'footer_sort_order' => 20,
         ];
         $createKey = 'page-create-'.Str::uuid7();
         $created = $service->createManagedPage($context, $input, $createKey);
         self::assertSame('guide', $created['slug']);
         self::assertSame('visible', $created['visibility']);
+        self::assertTrue($created['show_in_footer']);
+        self::assertSame(20, $created['footer_sort_order']);
         self::assertStringNotContainsString('<script', $created['body_html']);
         self::assertTrue($service->createManagedPage($context, $input, $createKey)['idempotent_replay']);
         self::assertDatabaseCount('content_static_pages', 1);
@@ -68,14 +71,45 @@ final class AdminPageManagementTest extends TestCase
         $updated = $service->updateManagedPage($context, $created['id'], [
             'category_id' => $category['id'], 'title' => '更新ガイド',
             'body_html' => '<h2>更新内容</h2>', 'slug' => 'updated-guide',
-            'visibility' => 'hidden',
+            'visibility' => 'hidden', 'show_in_footer' => false,
+            'footer_sort_order' => 3,
         ], 'page-update-'.Str::uuid7());
         self::assertSame('hidden', $updated['visibility']);
+        self::assertFalse($updated['show_in_footer']);
+        self::assertSame(3, $updated['footer_sort_order']);
         self::assertSame(2, $updated['version_number']);
         self::assertDatabaseHas('content_versions', ['id' => $publishedVersionId, 'status' => 'published']);
         self::assertNull(DB::table('content_static_pages')->where('public_id', $created['id'])
             ->value('published_version_id'));
         self::assertSame($updated['id'], $service->managedPages($context, null, 20)['items'][0]['id']);
+    }
+
+    public function test_footer_defaults_to_off_and_preview_uses_canonical_sanitizer(): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $category = $service->createPageCategory($context, [
+            'name' => '規約', 'visibility' => 'visible',
+        ], 'category-'.Str::uuid7());
+        $created = $service->createManagedPage(
+            $context,
+            $this->pageInput($category['id'], 'privacy-guide'),
+            'page-'.Str::uuid7()
+        );
+
+        self::assertFalse($created['show_in_footer']);
+        self::assertSame(0, $created['footer_sort_order']);
+        self::assertDatabaseHas('content_static_pages', [
+            'public_id' => $created['id'], 'show_in_footer' => false,
+        ]);
+
+        $preview = $service->previewManagedPage($context, [
+            'title' => 'プライバシー',
+            'body_html' => '<p>安全</p><script>alert(1)</script>',
+        ]);
+        self::assertSame('プライバシー', $preview['title']);
+        self::assertStringContainsString('<p>安全</p>', $preview['body_html']);
+        self::assertStringNotContainsString('<script', $preview['body_html']);
     }
 
     public function test_slug_category_validation_permission_and_idempotency_fail_closed(): void
@@ -122,6 +156,7 @@ final class AdminPageManagementTest extends TestCase
         self::assertContains('POST admin/api/v2/page-management/categories', $methods);
         self::assertContains('GET admin/api/v2/page-management/pages', $methods);
         self::assertContains('POST admin/api/v2/page-management/pages', $methods);
+        self::assertContains('POST admin/api/v2/page-management/pages/preview', $methods);
         self::assertContains('GET admin/api/v2/page-management/pages/{pageId}', $methods);
         self::assertContains('PUT admin/api/v2/page-management/pages/{pageId}', $methods);
         self::assertFalse($methods->contains(fn (string $route): bool => str_starts_with($route, 'DELETE ')));

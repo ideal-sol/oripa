@@ -97,6 +97,8 @@ import {
   type AdminManagedPageCollection,
   type AdminManagedPageInput,
   type AdminManagedPageMutationResult,
+  type AdminManagedPagePreview,
+  type AdminManagedPagePreviewInput,
   type AdminAccountCreate,
   type AdminAccountCreateResponse,
   type AdminEnrollmentResult,
@@ -652,6 +654,13 @@ export class AdminApiClient {
       return Promise.reject(new AdminApiError(422, "PAGE_IDEMPOTENCY_KEY_INVALID", null, null, false));
     }
     return this.request("POST", "/page-management/pages", { body, idempotencyKey, signal });
+  }
+
+  previewManagedPage(
+    body: AdminManagedPagePreviewInput,
+    signal?: AbortSignal,
+  ): Promise<AdminManagedPagePreview> {
+    return this.request("POST", "/page-management/pages/preview", { body, signal });
   }
 
   updateManagedPage(
