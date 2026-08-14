@@ -24,6 +24,9 @@ export interface StorefrontContentContactClient {
   getStaticPage(
     slug: string,
   ): Promise<StorefrontResponse<Schemas["ContentStaticPage"]>>;
+  listFooterPages(): Promise<
+    StorefrontResponse<Schemas["ContentFooterPageCollection"]>
+  >;
   submitContact(
     input: Schemas["CreateContactInquiryRequest"],
     options: ContactSubmissionOptions,
@@ -74,6 +77,8 @@ export function createStorefrontContentContactClient(
       transport.request({
         path: `/content/pages/${segment(slug, "slug")}`,
       }),
+    listFooterPages: () =>
+      transport.request({ path: "/content/footer-pages" }),
     submitContact: (input, options) =>
       transport.request({
         path: "/contact-inquiries",

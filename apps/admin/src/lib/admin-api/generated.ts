@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 61544536c5e5702bbf47677af50eb9dd90c9a9af44bdb368868f210638591ed1
+// Contract SHA-256: cda338e9bd061a8ab6413118d905e242a5993d98c7e49366dd9344b87562ebbd
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1816,6 +1816,18 @@ export interface AdminManagedPageInput {
   body_html: string;
   slug: string;
   visibility: AdminPageVisibility;
+  show_in_footer?: boolean;
+  footer_sort_order?: number;
+}
+
+export interface AdminManagedPagePreviewInput {
+  title: string;
+  body_html: string;
+}
+
+export interface AdminManagedPagePreview {
+  title: string;
+  body_html: string;
 }
 
 export interface AdminManagedPage {
@@ -1824,6 +1836,8 @@ export interface AdminManagedPage {
   title: string;
   body_html: string;
   visibility: AdminPageVisibility;
+  show_in_footer: boolean;
+  footer_sort_order: number;
   category: AdminPageCategory | null;
   version_id: string;
   version_number: number;

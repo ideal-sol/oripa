@@ -199,6 +199,23 @@ final class V2ContentReadService
         ];
     }
 
+    /** @return array{items: list<array{id: string, slug: string, title: string}>} */
+    public function footerPages(): array
+    {
+        $items = $this->publishedQuery('content_static_pages', 'static_page_id')
+            ->where('p.show_in_footer', true)
+            ->orderBy('cv.sort_order')
+            ->orderBy('p.id')
+            ->get(['p.public_id', 'p.slug', 'cv.title'])
+            ->map(static fn (object $row): array => [
+                'id' => (string) $row->public_id,
+                'slug' => (string) $row->slug,
+                'title' => (string) $row->title,
+            ])->all();
+
+        return ['items' => $items];
+    }
+
     private function publishedQuery(string $table, string $ownerColumn): Builder
     {
         $now = now();

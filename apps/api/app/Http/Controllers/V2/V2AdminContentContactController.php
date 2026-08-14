@@ -116,6 +116,12 @@ final class V2AdminContentContactController
             ), 201);
     }
 
+    public function previewManagedPage(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->service->previewManagedPage($context, $request->all()));
+    }
+
     public function updateManagedPage(Request $request, string $pageId): JsonResponse
     {
         return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>

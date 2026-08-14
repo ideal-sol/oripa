@@ -346,6 +346,7 @@ Route::prefix('v2')
         Route::post('/page-management/categories', [V2AdminContentContactController::class, 'createPageCategory']);
         Route::get('/page-management/pages', [V2AdminContentContactController::class, 'managedPages']);
         Route::post('/page-management/pages', [V2AdminContentContactController::class, 'createManagedPage']);
+        Route::post('/page-management/pages/preview', [V2AdminContentContactController::class, 'previewManagedPage']);
         Route::get('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'managedPage'])->whereUuid('pageId');
         Route::put('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'updateManagedPage'])->whereUuid('pageId');
         Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);

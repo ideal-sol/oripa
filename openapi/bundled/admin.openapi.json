@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.10",
+    "version": "2.0.0-alpha.11",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -4464,6 +4464,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminManagedPageMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/page-management/pages/preview": {
+      "post": {
+        "operationId": "previewManagedAdminPage",
+        "summary": "Static Page本文をServer側で安全化してPreviewする",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminManagedPagePreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "安全化済みPage Preview。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminManagedPagePreview"
                 }
               }
             }
@@ -15400,6 +15440,54 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/AdminPageVisibility"
+          },
+          "show_in_footer": {
+            "type": "boolean",
+            "default": false
+          },
+          "footer_sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 0
+          }
+        }
+      },
+      "AdminManagedPagePreviewInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "body_html"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "body_html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "AdminManagedPagePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "body_html"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "body_html": {
+            "type": "string"
           }
         }
       },
@@ -15412,6 +15500,8 @@
           "title",
           "body_html",
           "visibility",
+          "show_in_footer",
+          "footer_sort_order",
           "category",
           "version_id",
           "version_number",
@@ -15433,6 +15523,14 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/AdminPageVisibility"
+          },
+          "show_in_footer": {
+            "type": "boolean"
+          },
+          "footer_sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
           },
           "category": {
             "oneOf": [

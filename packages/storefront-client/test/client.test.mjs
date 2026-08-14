@@ -61,7 +61,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.10");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.11");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -448,6 +448,7 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "reauthenticateUserPassword",
     "unlinkGoogleIdentity",
     "listContentBanners",
+    "listContentFooterPages",
     "listContentNotices",
     "getContentNotice",
     "getContentStaticPage",
@@ -602,6 +603,7 @@ test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを�
     },
   });
   await client.listBanners();
+  await client.listFooterPages();
   await client.listNotices({ limit: 20, cursor: "next" });
   await client.getNotice("0198a001-0000-7000-8000-000000000201");
   await client.getStaticPage("privacy");
@@ -618,16 +620,17 @@ test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを�
   );
 
   assert.equal(requests[0].path, "/content/banners");
-  assert.equal(requests[1].path, "/content/notices?limit=20&cursor=next");
+  assert.equal(requests[1].path, "/content/footer-pages");
+  assert.equal(requests[2].path, "/content/notices?limit=20&cursor=next");
   assert.equal(
-    requests[2].path,
+    requests[3].path,
     "/content/notices/0198a001-0000-7000-8000-000000000201",
   );
-  assert.equal(requests[3].path, "/content/pages/privacy");
-  assert.equal(requests[4].path, "/contact-inquiries");
-  assert.equal(requests[4].method, "POST");
-  assert.equal(requests[4].headers["X-XSRF-TOKEN"], "c".repeat(64));
-  assert.equal(requests[4].csrf, "required");
+  assert.equal(requests[4].path, "/content/pages/privacy");
+  assert.equal(requests[5].path, "/contact-inquiries");
+  assert.equal(requests[5].method, "POST");
+  assert.equal(requests[5].headers["X-XSRF-TOKEN"], "c".repeat(64));
+  assert.equal(requests[5].csrf, "required");
 });
 
 test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡す", async () => {

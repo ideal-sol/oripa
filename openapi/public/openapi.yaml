@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.10
+  version: 2.0.0-alpha.11
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -73,6 +73,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContentNotice'
+        default:
+          $ref: '#/components/responses/Problem'
+  /content/footer-pages:
+    get:
+      operationId: listContentFooterPages
+      summary: Footer表示対象の公開Static Page一覧を取得する
+      x-idempotency: safe
+      x-rate-limit: public-read
+      x-cache-policy: public-60-seconds
+      x-stability: alpha
+      security: []
+      responses:
+        '200':
+          description: 公開中かつFooter表示ONのStatic Page一覧。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentFooterPageCollection'
         default:
           $ref: '#/components/responses/Problem'
   /content/pages/{slug}:
@@ -1414,6 +1432,29 @@ components:
         publish_end_at:
           type: [string, 'null']
           format: date-time
+    ContentFooterPage:
+      type: object
+      additionalProperties: false
+      required: [id, slug, title]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          maxLength: 128
+        title:
+          type: string
+          maxLength: 191
+    ContentFooterPageCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFooterPage'
     CreateContactInquiryRequest:
       type: object
       additionalProperties: false

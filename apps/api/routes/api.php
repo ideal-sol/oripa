@@ -39,6 +39,8 @@ Route::prefix('v2')->group(function (): void {
         ->name('v2.public.content.notices');
     Route::get('/content/notices/{noticeId}', [V2ContentContactController::class, 'notice'])
         ->whereUuid('noticeId')->name('v2.public.content.notices.show');
+    Route::get('/content/footer-pages', [V2ContentContactController::class, 'footerPages'])
+        ->name('v2.public.content.footer-pages.index');
     Route::get('/content/pages/{slug}', [V2ContentContactController::class, 'staticPage'])
         ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
         ->name('v2.public.content.pages.show');

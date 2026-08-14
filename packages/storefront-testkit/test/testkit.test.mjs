@@ -25,6 +25,7 @@ import {
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
+  PUBLIC_FOOTER_PAGES_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
@@ -148,6 +149,16 @@ test("Content Fixtureは公開AssetとSanitize済み本文だけを含む", () =
   assert.doesNotMatch(
     serialized,
     /storage_identifier|internal_id|cost_price|individual_ppm|script|secret/i,
+  );
+});
+
+test("Footer Page Fixtureは公開中かつFooter ONだけを一覧へ含める", () => {
+  assert.equal(PUBLIC_FOOTER_PAGES_FIXTURE.response.items.length, 1);
+  assert.equal(PUBLIC_FOOTER_PAGES_FIXTURE.response.items[0].slug, "terms");
+  assert.equal(PUBLIC_FOOTER_PAGES_FIXTURE.excluded.footer_off.slug, "guide");
+  assert.equal(
+    PUBLIC_FOOTER_PAGES_FIXTURE.excluded.outside_publication_period.slug,
+    "future-policy",
   );
 });
 
@@ -438,9 +449,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつGacha Presentationを含むOperation 48件である", () => {
+test("Public OpenAPIは3.1.1かつFooter Pageを含むOperation 49件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 48);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 49);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -463,6 +474,7 @@ test("Public OpenAPIは3.1.1かつGacha Presentationを含むOperation 48件で�
     "getUserPrize",
     "getUserSession",
     "listContentBanners",
+    "listContentFooterPages",
     "listContentNotices",
     "listExternalIdentities",
     "listGachaCategories",
@@ -611,6 +623,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_DRAW_FIXTURE",
     "PUBLIC_DRAW_PROBLEM_FIXTURES",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
+    "PUBLIC_FOOTER_PAGES_FIXTURE",
     "PUBLIC_FULFILLMENT_PROBLEM_FIXTURES",
     "PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",

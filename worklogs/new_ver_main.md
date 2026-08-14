@@ -8305,3 +8305,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 全User Prizeを取得時Snapshot、User、Canonical Gacha、Draw、Shipping、Point Exchangeと結合するAdmin Read Modelを追加した。
 - 一覧はUser／景品名／Gacha／状態FilterとOpaque Cursorを備え、詳細はDraw、Allowed Actions、配送先、Point交換、状態履歴を表示する。
 - Allowed Actionsと権限は既存Prize Fulfillment Domainおよび`shipping.request.manage`を再利用し、Admin MutationやPublic／Storefront Contract変更を追加しない。
+
+## MIG-062O ページ設定フッター表示／Public Contract拡張
+
+- Base `3b8445f1cf8f858fb46c0afe9e366faaf5e78f5e`からIssue #259、Branch `feat/MIG-062O-static-page-footer-contract`、Risk R3で開始した。
+- Static Page親へDefault OFFのFooter表示Flagを追加し、既存immutable HTML Version、Sanitize、Checksum、公開期間、公開状態を再利用する。
+- Admin登録／編集へFooter ON/OFF、表示順、Sanitize済みPreviewを追加し、Public APIは現在公開中かつFooter ONの`id`／`slug`／`title`だけを返す。
+- Public／Admin OpenAPI、Generated Types、Storefront Client、Site Schema、Testkitを`2.0.0-alpha.11`へ同期し、既存Artifactは上書きしない。
+- Migration fresh／rollback／reapply、Backend 5 tests／44 assertions、Admin Unit 4 tests、Desktop／Mobile Browser 2 tests、Client 24 tests、Site Schema 10 tests、Testkit 29 tests、OpenAPI／Policy UnitがPASSした。
