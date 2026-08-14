@@ -933,6 +933,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
             "apps/api/database/migrations-v2/2026_09_05_000050_add_v2_static_page_footer_visibility.php",
             "apps/api/database/migrations-v2/2026_09_06_000051_add_v2_banner_top_presentation.php",
+            "apps/api/database/migrations-v2/2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1142,6 +1143,12 @@ python3 scripts/db/v2_database.py smoke \\
             destination = root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
+        lifecycle_test = Path(
+            "apps/api/tests/V2/GachaLifecyclePresentationTest.php"
+        )
+        lifecycle_destination = root / lifecycle_test
+        lifecycle_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / lifecycle_test, lifecycle_destination)
         workflow = root / ".github/workflows/platform-ci.yml"
         workflow.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / ".github/workflows/platform-ci.yml", workflow)
@@ -1631,7 +1638,7 @@ This is a non-Production Skeleton and contains no application implementation.
             json.dumps(
                 {
                     "name": "@oripa/platform-workspace",
-                    "version": "2.0.0-alpha.14",
+                    "version": "2.0.0-alpha.16",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -1691,7 +1698,7 @@ packages:
                 json.dumps(
                     {
                         "name": name,
-                        "version": "2.0.0-alpha.14",
+                        "version": "2.0.0-alpha.16",
                         "private": True,
                         "description": "Fixture Skeleton",
                         "license": "UNLICENSED",
@@ -1703,7 +1710,7 @@ packages:
             json.dumps(
                 {
                     "name": "@oripa/site-schema",
-                    "version": "2.0.0-alpha.14",
+                    "version": "2.0.0-alpha.16",
                     "private": True,
                     "description": "Fixture Alpha",
                     "license": "UNLICENSED",
@@ -1843,7 +1850,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.14",
+                    "version": "2.0.0-alpha.16",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -1881,7 +1888,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.14",
+                        "minimumPublicApiContract": "2.0.0-alpha.16",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

@@ -81,7 +81,7 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Versionは`2.0.0-alpha.14`。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Gacha Catalogの販売状態／
+Versionは`2.0.0-alpha.16`。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Gacha Catalogの販売状態／
 Eligibility／表示制御、User Prize Presentation、型付きDraw／Fulfillment Problem Contract、
 残口数に合わせた端数Draw Fixtureを含む非公開AlphaでありProduction利用不可。
 Canonical Site Templateや認証以外のPublic API Operationの実装済みを意味しない。

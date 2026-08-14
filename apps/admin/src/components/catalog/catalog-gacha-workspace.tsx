@@ -785,9 +785,10 @@ function GachaDetail({
       </section>
       {publishedVersion ? (
         <CatalogGachaRankPrizeManager
-          canManage={false}
+          canManage={canManage}
           gachaId={gachaIdentifier(gacha)}
           heading="現在公開中の景品ラインナップ"
+          presentationOnly
           version={publishedVersion}
           versionLabel={`公開済み バージョン ${publishedVersion.version_number}`}
         />

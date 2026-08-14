@@ -76,6 +76,46 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.display.show_drawn_count', false);
 
         CarbonImmutable::setTestNow('2026-07-29T00:00:00Z');
+        $adminPublicId = (string) Str::uuid7();
+        DB::table('admins')->insert([
+            'public_id' => $adminPublicId,
+            'email_display' => 'pause-owner@example.test',
+            'email_normalized' => 'pause-owner@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
+            'role' => 'owner',
+            'state' => 'active',
+        ]);
+        $gacha = DB::table('catalog_gachas')->firstOrFail();
+        DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+            'management_status' => 'sales_paused',
+            'sales_paused' => true,
+            'sales_paused_at' => now(),
+            'sales_paused_by_admin_public_id' => $adminPublicId,
+            'sales_pause_reason_code' => 'operations_review',
+            'sales_last_mutation_request_id' => (string) Str::uuid7(),
+            'revision' => (int) $gacha->revision + 1,
+        ]);
+        $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'paused')
+            ->assertJsonPath('data.remaining_count', 995);
+        $this->getJson($this->presentationUrl())
+            ->assertOk()
+            ->assertJsonPath('data.sale_state', 'paused')
+            ->assertJsonPath('data.ineligible_reason', 'sales_paused')
+            ->assertJsonPath('data.allowed_draw_counts', [])
+            ->assertJsonPath('data.display.show_price_points', true)
+            ->assertJsonPath('data.display.show_total_count', true)
+            ->assertJsonPath('data.display.show_drawn_count', true);
+
+        DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+            'management_status' => 'published',
+            'sales_paused' => false,
+            'sales_resumed_at' => now(),
+            'sales_last_mutation_request_id' => (string) Str::uuid7(),
+            'revision' => (int) $gacha->revision + 2,
+        ]);
         DB::table('gacha_draw_states')->update([
             'status' => 'sold_out',
             'sold_count' => 1000,

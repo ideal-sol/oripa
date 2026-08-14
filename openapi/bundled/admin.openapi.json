@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.14",
+    "version": "2.0.0-alpha.16",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -12206,6 +12206,13 @@
               "sales_paused",
               "unpublished"
             ]
+          },
+          "first_published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "version_count": {
             "type": "integer",

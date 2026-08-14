@@ -1,6 +1,6 @@
 {
   "name": "@oripa/site-schema",
-  "version": "2.0.0-alpha.14",
+  "version": "2.0.0-alpha.16",
   "private": true,
   "description": "Public-safeなSite Manifestを検証するAlpha Package。",
   "license": "UNLICENSED",

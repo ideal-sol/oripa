@@ -565,10 +565,6 @@ final class V2DrawService
             ->where('id', $state->gacha_version_id)
             ->where('gacha_id', $gacha->id)
             ->where('status', 'published')
-            ->where('publish_start_at', '<=', $now)
-            ->where(function ($query) use ($now): void {
-                $query->whereNull('publish_end_at')->orWhere('publish_end_at', '>', $now);
-            })
             ->first();
         $probability = DB::table('catalog_probability_versions')
             ->where('id', $state->probability_version_id)
@@ -582,7 +578,25 @@ final class V2DrawService
             || (int) $version->published_probability_version_id
                 !== (int) $state->probability_version_id
             || $gacha->state !== 'active'
+            || ! in_array((string) $gacha->management_status, [
+                'scheduled', 'published',
+            ], true)
         ) {
+            throw new V2DrawException(
+                'GACHA_NOT_DRAWABLE',
+                409,
+                'The requested Gacha is outside its published Draw period.'
+            );
+        }
+        $startsAt = CarbonImmutable::parse(
+            (string) ($gacha->current_publish_start_at ?? $version->publish_start_at)
+        );
+        $endsAtValue = $gacha->current_publish_end_at
+            ?? $version->publish_end_at;
+        $endsAt = $endsAtValue === null
+            ? null
+            : CarbonImmutable::parse((string) $endsAtValue);
+        if ($startsAt->greaterThan($now) || ($endsAt !== null && ! $endsAt->greaterThan($now))) {
             throw new V2DrawException(
                 'GACHA_NOT_DRAWABLE',
                 409,
@@ -657,14 +671,16 @@ final class V2DrawService
                 'catalog_presentation_assets as asset',
                 'asset.id',
                 '=',
-                'relation.presentation_asset_id'
+                DB::raw(
+                    'COALESCE(prize.presentation_asset_id, relation.presentation_asset_id)'
+                )
             )
             ->where('relation.gacha_version_id', $gachaVersionId)
             ->select([
                 'relation.id as relation_id',
                 'relation.sort_order as relation_sort_order',
                 'prize.public_id as prize_public_id',
-                'relation.display_name as prize_name',
+                'prize.display_name as prize_name',
                 'relation.exchange_points as prize_exchange_points',
                 'rank.id as rank_id',
                 'rank.public_id as rank_public_id',

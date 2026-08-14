@@ -1141,11 +1141,11 @@ export interface components {
             data: components["schemas"]["GachaDetail"];
         };
         /** @enum {string} */
-        GachaSaleState: "coming_soon" | "on_sale" | "sold_out" | "ended";
+        GachaSaleState: "coming_soon" | "on_sale" | "paused" | "sold_out" | "ended";
         /** @enum {string} */
         GachaAudience: "all_users" | "first_time_users" | "line_users";
         /** @enum {string|null} */
-        GachaPresentationReason: "sale_not_started" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "daily_limit_reached" | null;
+        GachaPresentationReason: "sale_not_started" | "sales_paused" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "daily_limit_reached" | null;
         GachaDailyLimitState: {
             limit: number;
             unlimited: boolean;

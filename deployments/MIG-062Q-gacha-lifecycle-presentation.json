@@ -1,0 +1,30 @@
+{
+  "task_id": "MIG-062Q",
+  "risk": "R4",
+  "status": "pending_preview_deployment",
+  "base_branch": "main",
+  "base_sha": "25fa06d40a169b43ee677d1fe84d0cf8f3ae7715",
+  "task_policy_sha256": "1605ab2bf214483e7bacdf4fb6b90b5800d2c94379206d02468db3d22605987c",
+  "issue": 265,
+  "target": "admin.luxe-pack.biz",
+  "public_target": "test.luxe-pack.biz",
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062Q/",
+  "preview": {
+    "compose_project": "mig061a-v2-preview",
+    "database": "oripa_v2_mig061a",
+    "migration": "2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
+    "architecture": "linux/amd64",
+    "build_on_host": false,
+    "update_services": ["api", "admin"],
+    "migration_mode": "single_forward_migration",
+    "migration_applied": false,
+    "db_target_safety_guard": "PENDING",
+    "image_artifact_verification": "PENDING",
+    "runtime_smoke": "PENDING",
+    "nginx_change": "NONE",
+    "v1_change": "NONE",
+    "storefront_repository_change": "NONE"
+  },
+  "gate_g4": "NOT COMPLETE",
+  "gate_g5": "NOT COMPLETE"
+}

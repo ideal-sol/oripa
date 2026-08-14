@@ -18,6 +18,14 @@ final class CatalogGacha extends Model
         'category_id',
         'state',
         'management_status',
+        'first_published_at',
+        'scheduled_start_at',
+        'current_publish_start_at',
+        'current_title',
+        'current_description',
+        'current_notices',
+        'current_presentation_asset_id',
+        'current_publish_end_at',
         'sold_count',
         'published_version_id',
         'revision',
@@ -37,6 +45,10 @@ final class CatalogGacha extends Model
         return [
             'sold_count' => 'integer',
             'revision' => 'integer',
+            'first_published_at' => 'immutable_datetime',
+            'scheduled_start_at' => 'immutable_datetime',
+            'current_publish_start_at' => 'immutable_datetime',
+            'current_publish_end_at' => 'immutable_datetime',
             'archived_at' => 'immutable_datetime',
         ];
     }

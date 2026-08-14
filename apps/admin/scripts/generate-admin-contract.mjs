@@ -1837,6 +1837,7 @@ export interface AdminCatalogGacha {
   published_version: AdminCatalogGachaVersionSummary | null;
   current_version?: AdminCatalogGachaCoreVersion | null;
   publication_status?: "draft" | "published" | "scheduled" | "sales_paused" | "unpublished";
+  first_published_at?: string | null;
   version_count: number;
   has_draw_history: boolean;
   is_archived: boolean;

@@ -775,6 +775,10 @@ MIG_062N_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/user-prizes/admin-user-prize-list.tsx",
     "apps/admin/test/admin-user-prize-management.test.tsx",
 }
+MIG_062Q_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-lifecycle.spec.ts",
+    "apps/admin/test/catalog-gacha-lifecycle.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -894,6 +898,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062K_ADMIN_SKELETON_FILES,
     *MIG_062M_ADMIN_SKELETON_FILES,
     *MIG_062N_ADMIN_SKELETON_FILES,
+    *MIG_062Q_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -940,8 +945,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.14",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.14",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.16",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.16",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1316,7 +1321,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
-    if package.get("version") != "2.0.0-alpha.14":
+    if package.get("version") != "2.0.0-alpha.16":
         raise PolicyFailure("package.json: V2 workspace version is invalid")
     if package.get("private") is not True:
         raise PolicyFailure("package.json: root workspace must be private")
@@ -1438,7 +1443,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     package = load_json(repository, "apps/admin/package.json")
     if (
         package.get("name") != "@oripa/admin"
-        or package.get("version") != "2.0.0-alpha.14"
+        or package.get("version") != "2.0.0-alpha.16"
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
@@ -1689,7 +1694,7 @@ def validate_package_skeletons(repository: Path) -> None:
         package = load_json(repository, relative)
         if (
             package.get("name") != expected_name
-            or package.get("version") != "2.0.0-alpha.14"
+            or package.get("version") != "2.0.0-alpha.16"
             or package.get("private") is not True
         ):
             raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
@@ -1733,7 +1738,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.14",
+        "version": "2.0.0-alpha.16",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1774,7 +1779,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.14",
+        "minimumPublicApiContract": "2.0.0-alpha.16",
         "requiredCapabilities": [
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
@@ -1870,7 +1875,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.14",
+        "version": "2.0.0-alpha.16",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1988,7 +1993,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.14",
+        "version": "2.0.0-alpha.16",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2029,8 +2034,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.14",
-        "siteSchemaVersion": "2.0.0-alpha.14",
+        "storefrontClientVersion": "2.0.0-alpha.16",
+        "siteSchemaVersion": "2.0.0-alpha.16",
         "publicApiOperationCount": 49,
     }:
         raise PolicyFailure(
@@ -2312,6 +2317,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_04_000049_integrate_v2_qa_test_user_guarantees.php",
         "2026_09_05_000050_add_v2_static_page_footer_visibility.php",
         "2026_09_06_000051_add_v2_banner_top_presentation.php",
+        "2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3759,12 +3765,19 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ).read_text(encoding="utf-8")
     if "test_concurrent_publish_has_one_immutable_winner" not in concurrency_tests:
         raise PolicyFailure("V2 Probability Publish concurrency test is missing")
+    initial_publish_tests = (
+        repository / "apps/api/tests/V2/GachaLifecyclePresentationTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_initial_publish_uses_one_draw_state_and_current_overlay",
+        "test_initial_publish_rolls_back_activation_on_outbox_failure",
+    ):
+        if required not in initial_publish_tests:
+            raise PolicyFailure(f"V2 Gacha Initial Publish test missing {required}")
     immediate_publish_tests = (
         repository / "apps/api/tests/V2/AdminGachaPublishPreflightTest.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "test_immediate_publish_atomically_switches_public_and_draw_state",
-        "test_immediate_publish_rolls_back_all_activation_on_outbox_failure",
         "test_activation_database_guards_reject_partial_or_destructive_sql",
         "test_immediate_publish_requires_admin_permission_fresh_mfa_and_csrf",
     ):
@@ -4894,9 +4907,9 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     required_statements = {
-        'PLATFORM_VERSION = "2.0.0-alpha.14"',
+        'PLATFORM_VERSION = "2.0.0-alpha.16"',
         'CHANNEL = "alpha"',
-        'RELEASE_TAG = "platform-v2.0.0-alpha.14"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.16"',
         "PRODUCTION_ALLOWED = False",
         "DATA_RETENTION_GUARANTEED = False",
         "pnpm",
