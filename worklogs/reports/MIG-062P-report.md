@@ -6,7 +6,8 @@
 - Base: `main@9dd56e758872286abfdd05cadc7ce0c62e14e0a3`
 - Branch: `feat/MIG-062P-banner-top-presentation-contract`
 - Risk: R3
-- Task Policy SHA-256: `5127712fa372dfed7102519008d45b40c4e091c1e7bd7adcc43a20fec7af599d`
+- Task Policy SHA-256: `39716ca12ec238a004638172d640bfdde24ad95595e3dac0ca1d39869c82c730`
+- Policy再発行: Required Integration Gateで既存性能Fixtureの新しいTop表示条件追従が必要と判明したため、`apps/api/tests/V2/ZContentContactPerformanceTest.php`だけを完全一致で追加した。他Fieldは変更していない。
 
 ## Schema／Admin
 
@@ -32,6 +33,7 @@
 - Admin: Unit 3 tests、Desktop／Mobile Browser 2 tests、Typecheck、Lint、Production Build、Generated Client同期 PASS。
 - Contract: Public 49／Admin 212／Webhook 1 operations、OpenAPI lint／bundle／Breaking Check PASS。
 - Storefront Client 24 tests、Site Schema 10 tests、Testkit 30 tests、Policy Gate、対象Policy Unit、Frozen Install、`git diff --check` PASS。
+- Required Integration Gateで検出した既存Banner性能Fixtureを、100件すべて`show_on_top = true`とする新Canonical Contractへ限定追従した。性能閾値や件数Assertionは変更していない。
 - 全V2 Suite、全Admin E2E、Storefront Repository TestはScope外のため実行しない。
 
 ## Preview／Closeout

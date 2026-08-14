@@ -4,7 +4,7 @@
   "status": "local_validated",
   "base_branch": "main",
   "base_sha": "9dd56e758872286abfdd05cadc7ce0c62e14e0a3",
-  "task_policy_sha256": "5127712fa372dfed7102519008d45b40c4e091c1e7bd7adcc43a20fec7af599d",
+  "task_policy_sha256": "39716ca12ec238a004638172d640bfdde24ad95595e3dac0ca1d39869c82c730",
   "issue": 263,
   "target": "admin.luxe-pack.biz",
   "public_target": "test.luxe-pack.biz",
