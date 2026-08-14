@@ -135,7 +135,7 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             CREATE UNIQUE INDEX gacha_draw_states_one_open_per_gacha
             ON gacha_draw_states (gacha_id)
-            WHERE status IN ('selling', 'paused')
+            WHERE status::text = ANY (ARRAY['selling'::text, 'paused'::text])
             SQL);
         $this->installSalesStateGuard(true);
         $this->installGachaRelationGuard(true);

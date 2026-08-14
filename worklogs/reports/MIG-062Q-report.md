@@ -38,6 +38,7 @@
 - Preview事前調査はGacha 6件（published 4、draft 2、scheduled／paused／unpublished 0）、一度公開済み4件、未公開2件、Draw Request 4件、Draw Result 16件だった。
 - 全GachaのDraw Stateは各1件以下で、複数Selling State、Active Pointer不整合、旧State参照の移行障害は0件だった。通常Dataの意味を失う自動変換は不要と判定した。
 - Task DBでfresh、rollback、reapplyを確認した。現在Pointerあり／なし双方の既存公開Gacha BackfillとLifecycle Constraintを対象Migration Testで検証した。
+- Required Integration GateでPostgreSQL 17.11のschema dump／restore表現差を検出した。単一Open State Partial Unique Indexのpredicateを同義のCanonical SQLへ限定修正し、17.11でfresh、rollback、reapplyおよびnonce以外のschema round-trip一致を再確認した。DB保証とApplication挙動は変更していない。
 
 ## Verification／Preview／Closeout
 
