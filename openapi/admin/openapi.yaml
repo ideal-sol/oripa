@@ -4870,7 +4870,7 @@ components:
     AdminGachaVersionPrizeUpdate:
       type: object
       additionalProperties: false
-      required: [rank_id, presentation_asset_id, name, total_inventory, available_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision, expected_inventory_revision, inventory_reason]
+      required: [rank_id, presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
       properties:
         rank_id: {$ref: '#/components/schemas/OpaqueId'}
         presentation_asset_id:
@@ -5067,7 +5067,7 @@ components:
     AdminGachaVersionPrize:
       type: object
       additionalProperties: false
-      required: [id, code, name, exchange_points, cost_price, is_visible, rank, presentation_asset, total_inventory, available_inventory, awarded_inventory, withdrawn_inventory, inventory_revision, version_sort_order, revision, created_at, updated_at]
+      required: [id, code, name, exchange_points, cost_price, is_visible, rank, presentation_asset, total_inventory, available_inventory, version_sort_order, revision, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}

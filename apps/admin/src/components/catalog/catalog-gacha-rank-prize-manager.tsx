@@ -158,7 +158,7 @@ export function CatalogGachaRankPrizeManager({
             ...common,
             available_inventory: Number(data.get("available_inventory")),
             expected_revision: prizeEditing.revision,
-            expected_inventory_revision: prizeEditing.inventory_revision,
+            expected_inventory_revision: prizeEditing.inventory_revision ?? 0,
             inventory_reason: String(data.get("inventory_reason") ?? "").trim(),
           },
           crypto.randomUUID(),
@@ -223,8 +223,8 @@ export function CatalogGachaRankPrizeManager({
                 <td>{prize.rank.name}</td>
                 <td>{prize.name}</td>
                 <td><PublicAssetPreview asset={prize.presentation_asset} /></td>
-                <td>{prize.total_inventory.toLocaleString()}</td>
-                <td>{prize.available_inventory.toLocaleString()}</td>
+                <td>{(prize.total_inventory ?? 0).toLocaleString()}</td>
+                <td>{(prize.available_inventory ?? 0).toLocaleString()}</td>
                 <td>{prize.exchange_points.toLocaleString()}</td>
                 <td>{prize.is_visible ? "有効" : "無効"}</td>
                 <td>{formatJst(prize.created_at)}</td>
@@ -304,7 +304,7 @@ function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, presen
     <AssetSelect current={current?.presentation_asset?.id} label="サムネイル" name="presentation_asset_id" options={assets} />
     <div className="catalog-form-grid">
       <label>総在庫数<input defaultValue={current?.total_inventory ?? 0} min={0} name="total_inventory" required type="number" /></label>
-      {current ? <label>現在個数<input defaultValue={current.available_inventory} min={0} name="available_inventory" required type="number" /></label> : null}
+      {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
       <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" readOnly={presentationOnly} required type="number" /></label>
       <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" readOnly={presentationOnly} required type="number" /></label>
       <label>状態<select defaultValue={String(current?.is_visible ?? true)} disabled={presentationOnly} name={presentationOnly ? undefined : "is_active"}><option value="true">有効</option><option value="false">無効</option></select>{presentationOnly ? <input name="is_active" type="hidden" value={String(current?.is_visible ?? true)} /> : null}</label>

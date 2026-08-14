@@ -2,6 +2,7 @@
 
 ## Task
 
+- Task ID: MIG-062S
 - Issue: #268
 - Base: `main@2daef365fa1b5a845857b93e64651114700dc22e`
 - Branch: `feat/MIG-062S-operational-gacha-inventory`

@@ -308,6 +308,56 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             ->assertJsonPath('code', 'CATALOG_PRIZE_INVENTORY_CONFLICT');
     }
 
+    public function test_published_presentation_update_keeps_inventory_without_adjustment_metadata(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $versionRevision = (int) DB::table('catalog_gacha_versions')
+            ->where('public_id', self::PUBLISHED_VERSION_ID)
+            ->value('revision');
+        $collection = $this->asAdmin($owner)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
+                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes')
+            ->assertOk()
+            ->json();
+        $prize = $collection['items'][0];
+        $inventoryBefore = DB::table('prize_inventories as inventory')
+            ->join(
+                'catalog_gacha_version_prizes as relation',
+                'relation.id',
+                '=',
+                'inventory.gacha_version_prize_id'
+            )
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('prize.public_id', $prize['id'])
+            ->firstOrFail(['inventory.*']);
+
+        $this->mutate(
+            $owner,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
+                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes/'.$prize['id'],
+            [
+                'rank_id' => $prize['rank']['id'],
+                'presentation_asset_id' => $prize['presentation_asset']['id'] ?? null,
+                'name' => $prize['name'].' Presentation',
+                'total_inventory' => $prize['total_inventory'],
+                'exchange_points' => $prize['exchange_points'],
+                'cost_price' => $prize['cost_price'],
+                'is_active' => $prize['is_visible'],
+                'expected_revision' => $prize['revision'],
+                'expected_version_revision' => $versionRevision,
+            ]
+        )->assertOk()->assertJsonPath('data.name', $prize['name'].' Presentation');
+
+        $inventoryAfter = DB::table('prize_inventories')
+            ->where('id', $inventoryBefore->id)
+            ->firstOrFail();
+        self::assertSame((array) $inventoryBefore, (array) $inventoryAfter);
+        self::assertSame(0, DB::table('prize_inventory_adjustments')->count());
+        self::assertSame(0, DB::table('audit_logs')
+            ->where('action_code', 'catalog.inventory.adjusted')->count());
+    }
+
     public function test_database_guard_protects_new_rank_fields_of_published_versions(): void
     {
         $rankId = DB::table('catalog_ranks')->where('code', 'S')->value('id');

@@ -10953,14 +10953,11 @@
           "presentation_asset_id",
           "name",
           "total_inventory",
-          "available_inventory",
           "exchange_points",
           "cost_price",
           "is_active",
           "expected_revision",
-          "expected_version_revision",
-          "expected_inventory_revision",
-          "inventory_reason"
+          "expected_version_revision"
         ],
         "properties": {
           "rank_id": {
@@ -11628,9 +11625,6 @@
           "presentation_asset",
           "total_inventory",
           "available_inventory",
-          "awarded_inventory",
-          "withdrawn_inventory",
-          "inventory_revision",
           "version_sort_order",
           "revision",
           "created_at",

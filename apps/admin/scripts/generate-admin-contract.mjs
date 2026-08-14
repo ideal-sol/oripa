@@ -1750,9 +1750,9 @@ export interface AdminGachaVersionPrize extends AdminCatalogPrize {
   cost_price: number;
   total_inventory: number;
   available_inventory: number;
-  awarded_inventory: number;
-  withdrawn_inventory: number;
-  inventory_revision: number;
+  awarded_inventory?: number;
+  withdrawn_inventory?: number;
+  inventory_revision?: number;
   version_sort_order: number;
   revision: number;
 }
@@ -1769,10 +1769,10 @@ export interface AdminGachaVersionPrizeCreate {
 }
 
 export interface AdminGachaVersionPrizeUpdate extends AdminGachaVersionPrizeCreate {
-  available_inventory: number;
+  available_inventory?: number;
   expected_revision: number;
-  expected_inventory_revision: number;
-  inventory_reason: string;
+  expected_inventory_revision?: number;
+  inventory_reason?: string;
 }
 
 export interface AdminGachaVersionPrizeCollection {

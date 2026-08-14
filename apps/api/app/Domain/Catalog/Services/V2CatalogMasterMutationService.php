@@ -4499,7 +4499,6 @@ final class V2CatalogMasterMutationService
             ->first();
         if (
             $inventory === null
-            || (int) $inventory->lock_version !== $payload['expected_inventory_revision']
             || (
                 $state !== null
                 && (int) $inventory->gacha_draw_state_id !== (int) $state->id
@@ -4509,6 +4508,24 @@ final class V2CatalogMasterMutationService
                 && $inventory->gacha_draw_state_id !== null
             )
         ) {
+            throw new V2CatalogException(
+                'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT',
+                409,
+                'Prize Inventory has changed.'
+            );
+        }
+        if (! $payload['adjust_inventory']) {
+            if ($payload['total_inventory'] !== (int) $inventory->total_quantity) {
+                throw new V2CatalogException(
+                    'CATALOG_PRIZE_INVENTORY_ADJUSTMENT_REQUIRED',
+                    409,
+                    'Prize Inventory changes require adjustment metadata.'
+                );
+            }
+
+            return;
+        }
+        if ((int) $inventory->lock_version !== $payload['expected_inventory_revision']) {
             throw new V2CatalogException(
                 'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT',
                 409,
@@ -4677,15 +4694,27 @@ final class V2CatalogMasterMutationService
             'is_active',
         ];
         $allowed = $required;
+        $adjustInventory = false;
         if ($updating) {
             $required[] = 'expected_revision';
             $allowed[] = 'expected_revision';
-            $required[] = 'available_inventory';
             $allowed[] = 'available_inventory';
-            $required[] = 'expected_inventory_revision';
             $allowed[] = 'expected_inventory_revision';
-            $required[] = 'inventory_reason';
             $allowed[] = 'inventory_reason';
+            $inventoryFields = [
+                'available_inventory',
+                'expected_inventory_revision',
+                'inventory_reason',
+            ];
+            $providedInventoryFields = array_filter(
+                $inventoryFields,
+                static fn (string $field): bool => array_key_exists($field, $input)
+            );
+            if (count($providedInventoryFields) !== 0
+                && count($providedInventoryFields) !== count($inventoryFields)) {
+                throw $this->validationException();
+            }
+            $adjustInventory = count($providedInventoryFields) === count($inventoryFields);
         }
         $this->assertFields($input, $allowed, $required);
 
@@ -4702,7 +4731,8 @@ final class V2CatalogMasterMutationService
             ),
             'name' => $this->plainText($input['name'], 1, 191),
             'total_inventory' => $this->nonNegativeInteger($input['total_inventory']),
-            ...($updating ? [
+            'adjust_inventory' => $adjustInventory,
+            ...($adjustInventory ? [
                 'available_inventory' => $this->nonNegativeInteger(
                     $input['available_inventory']
                 ),
