@@ -8306,6 +8306,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 一覧はUser／景品名／Gacha／状態FilterとOpaque Cursorを備え、詳細はDraw、Allowed Actions、配送先、Point交換、状態履歴を表示する。
 - Allowed Actionsと権限は既存Prize Fulfillment Domainおよび`shipping.request.manage`を再利用し、Admin MutationやPublic／Storefront Contract変更を追加しない。
 
+## SEC-010 nanoid Advisory対応
+
+- `GHSA-2v37-7h3g-55p8`の修正版境界更新に対応し、既存3.x系列の`nanoid` Pinを`3.3.17`から最小安全版`3.3.18`へ更新する。
+- Root／Legacy Lockfileと中央のDependency Pin検査だけを同期し、Baseline追加、Advisory無視、Application／Runtime変更は行わない。
+
 ## MIG-062O ページ設定フッター表示／Public Contract拡張
 
 - Base `3b8445f1cf8f858fb46c0afe9e366faaf5e78f5e`からIssue #259、Branch `feat/MIG-062O-static-page-footer-contract`、Risk R3で開始した。

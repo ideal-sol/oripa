@@ -35,6 +35,7 @@
 
 ## Preview／Closeout
 
+- 2026-08-13更新の`GHSA-2v37-7h3g-55p8`でRequired Security Gateが停止したため、独立SEC-010で`nanoid 3.3.17 -> 3.3.18`を最小更新し、Squash Commit `66c6be862589f6f1f44e3eef6fc83c8d0f39cacb`をmain経由で取り込んだ。MIG-062O Application差分は不変。
 - Required Checks成功後、exact PR HeadのGitHub-hosted amd64 API／Admin Imageを検証し、Host Buildなしでloadする。
 - DB Target Safety Guard後にMigration `000050`だけを適用し、Footer ON公開PageとFooter OFF公開Pageを必要最小限のSynthetic Dataで確認する。
 - Admin保存／Preview、Public Footer一覧、既存Static Page Detail、Desktop／Mobile、Console／HTTP 500／502／504をSmokeする。
