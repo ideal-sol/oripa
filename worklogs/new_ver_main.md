@@ -8363,3 +8363,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Local Policy GateはTestkit package metadataと`policy_gate.py`のPublic 49 operations固定値でFAILした。MIG-062Qと同Path競合するためPhase Aでは変更せずPhase B最終同期へ留保した。
 - Phase A差分は専用Worktreeでstaged済みだが、Local `git commit`は実行環境のCommand Policyにより拒否され、push／Draft PRは未実施となった。
 - MIG-062QとのPublic OpenAPI／Generated Contract競合が残るためintegration-waitとし、Artifact、Preview、Runtime、Merge／Closeoutは実施しない。
+
+## MIG-062R Point Product Read／Eligibility Contract Phase B
+
+- MIG-062Q／MIG-062S merge後の`main@e305a76a9a2dbd88e019ceecb7153514906a38d0`へ追従し、Public OpenAPI／Generated Contract競合を最新main正本からの再生成で解消した。Point DomainとMigration setへの直接競合はない。
+- Public／Admin／Webhook ContractとPlatform／Storefront Client／Site Schema／Testkitを既存Versionを上書きしない`2.0.0-alpha.17`へ同期した。Public 50／Admin 212／Webhook 1 operations、Migration 53件である。
+- Latest-main Backend Targeted 4 tests／54 assertions、OpenAPI、Storefront Client 25 tests、Site Schema 10 tests、Testkit 31 tests、Policy Unit 125 tests、Local Policy Gate、Release foundation／validationがPASSした。
+- Migration、Point購入Mutation、Payment Provider／Session、Point付与／Ledger、Webhook、Refund、Purchase Lifecycleは変更していない。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはPR exact headで実施する。
