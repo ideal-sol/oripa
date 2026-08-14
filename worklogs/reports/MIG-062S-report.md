@@ -9,6 +9,30 @@
 - Task Policy SHA-256: `fbf7dfde9ebc275333b669341887d3ddde8627d09e0164fadb7b2031f6c26c90`
 - Final Head／PR／Squash Commit: Closeout時に確定
 
+## Summary
+
+- Gacha Prize在庫をOperational Inventoryへ移行し、Admin調整、Draw、Catalog／Detailを同じCanonical Sourceへ切り替える。
+- Inventory調整は過去Draw、User Prize、Draw State、`sold_count`を変更せず、Transaction、Row Lock、OCC、Idempotency、append-only Auditで実行する。
+
+## Specification sources
+
+- 最新`origin/main`、root／nested `AGENTS.md`、Governance／Release Gatesを適用した。
+- Merge済みMigration／Catalog／Draw Domain、およびMIG-062Q／062J／062L／062Mを実装面の正本とした。
+
+## Scope
+
+### Allowed paths
+
+- V2 Laravel Gacha／Catalog／QA、Admin API／Admin UI、PostgreSQL Migration、OpenAPI／generated artifact、targeted tests、Task deployment／worklog／policy fixture。
+
+### Changed files
+
+- Operational Inventory schema／mutation／audit、Draw integration、Public aggregate count、Admin inventory form／contract、targeted tests、Task recordsを変更した。
+
+### Explicitly not changed
+
+- Storefront Repository、V1、Nginx、Point／Payment、Persistent QA制約、Probability／Minimum Guarantee／Direct Point Back、残在庫Weighted Selection、Production Drawアルゴリズムは変更していない。
+
 ## Characterization
 
 - Previewの既存DataをRead-only調査し、Gacha 6件、Prize 8件、Version Prize 12件、Prize Inventory 7件を確認した。
@@ -43,7 +67,7 @@
 - Task DBでfresh、rollback、reapplyをPASSした。成功Draw履歴を持つInventoryを旧Columnへrollback後に再適用し、`total=90`、`awarded=1`、`available=89`、`withdrawn=0`を自動Testで確認した。
 - Adjustment Logが存在する場合、またはOperational調整後の`draw_state.sold_count > draw_state.total_count`をLegacyへ戻せない場合はrollbackをFail Closedする。
 
-## Verification／Preview／Closeout
+## Verification performed
 
 - Backend targeted: Admin Inventory、Publish／Pause／Resume、Draw、Partial Remaining、Catalog／Detail、MIG-062Q Lifecycle、MIG-062L Snapshot、MIG-062M QA Guarantee、QA Draw、Migration BackfillがPASSした。PHP 8.4の既知Fixture path warning以外の失敗はない。
 - Concurrency: 同一InventoryへDrawとAdmin Adjustmentを同時実行し、確定は一方だけ、`available=0`、`awarded + withdrawn = total`、`sold_count = awarded`、Adjustment件数=`withdrawn`を確認した。Oversell／Lost Updateは0件だった。
@@ -51,3 +75,8 @@
 - 全Suite、Production Host Build、残在庫Weighted Selection、Production Draw再設計、Persistent QA制約、Storefront Repository、V1、Nginx、Point、Paymentは対象外である。
 - Preview Image、Required Checks、CodeQL／Dependency Review、Fresh Self-review、Squash Merge、CleanupはCloseout時に確定する。
 - G4／G5はNOT COMPLETEを維持する。
+
+## Verification not performed
+
+- Repository全SuiteとProduction Host BuildはTask指示に従い実行していない。
+- Preview、exact-head Required Checks、Fresh Self-review、Merge／CleanupはCloseout工程で実施する。
