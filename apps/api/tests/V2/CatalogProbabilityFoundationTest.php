@@ -229,7 +229,8 @@ final class CatalogProbabilityFoundationTest extends TestCase
                 'authentication_required'
             )
             ->assertJsonPath('data.0.presentation.display.show_price_points', true)
-            ->assertJsonPath('data.0.remaining_count', 995)
+            ->assertJsonPath('data.0.total_count', 110)
+            ->assertJsonPath('data.0.remaining_count', 110)
             ->assertJsonPath('meta.has_more', false)
             ->assertJsonPath('meta.next_cursor', null);
 
@@ -261,6 +262,10 @@ final class CatalogProbabilityFoundationTest extends TestCase
             'storage_identifier',
             'snapshot_sha256',
             'gacha_internal_id',
+            'total_quantity',
+            'available_quantity',
+            'awarded_count',
+            'withdrawn_quantity',
             'tenant_id',
         ] as $prohibited) {
             self::assertStringNotContainsString($prohibited, $json);

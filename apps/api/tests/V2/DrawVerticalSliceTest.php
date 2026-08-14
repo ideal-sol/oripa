@@ -120,6 +120,41 @@ final class DrawVerticalSliceTest extends TestCase
         );
     }
 
+    public function test_successful_prize_draw_moves_operational_inventory_atomically(): void
+    {
+        [$user] = $this->fixture([5_000], totalCount: 100);
+        $inventoryBefore = DB::table('prize_inventories')
+            ->orderBy('id')
+            ->firstOrFail();
+        $stateBefore = DB::table('gacha_draw_states')->firstOrFail();
+
+        $response = $this->draw($user, 1, 'operational-inventory-draw-key');
+
+        $inventoryAfter = DB::table('prize_inventories')
+            ->where('id', $inventoryBefore->id)
+            ->firstOrFail();
+        $stateAfter = DB::table('gacha_draw_states')->firstOrFail();
+        self::assertSame(1, $response['executed_count']);
+        self::assertSame(
+            (int) $inventoryBefore->awarded_count + 1,
+            (int) $inventoryAfter->awarded_count
+        );
+        self::assertSame(
+            (int) $inventoryBefore->available_quantity - 1,
+            (int) $inventoryAfter->available_quantity
+        );
+        self::assertSame(
+            (int) $inventoryAfter->total_quantity,
+            (int) $inventoryAfter->awarded_count
+                + (int) $inventoryAfter->available_quantity
+                + (int) $inventoryAfter->withdrawn_quantity
+        );
+        self::assertSame(
+            (int) $stateBefore->sold_count + 1,
+            (int) $stateAfter->sold_count
+        );
+    }
+
     public function test_first_time_audience_uses_registration_age_not_draw_history(): void
     {
         [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
@@ -220,7 +255,7 @@ final class DrawVerticalSliceTest extends TestCase
 
         $wallet = DB::table('wallets')->where('user_id', $user->id)->first();
         $soldCount = (int) DB::table('gacha_draw_states')->value('sold_count');
-        $inventoryWon = (int) DB::table('prize_inventories')->sum('won_count');
+        $inventoryWon = (int) DB::table('prize_inventories')->sum('awarded_count');
         $historyCount = DB::table('draw_results')->count();
         $this->expectDrawFailure(
             fn () => $this->draw($user, 1, 'daily-same-jst-day-key'),
@@ -231,7 +266,7 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame($wallet->free_balance, DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance'));
         self::assertSame($soldCount, (int) DB::table('gacha_draw_states')->value('sold_count'));
-        self::assertSame($inventoryWon, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame($inventoryWon, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame($historyCount, DB::table('draw_results')->count());
 
         CarbonImmutable::setTestNow('2026-07-29T15:00:00Z');
@@ -306,10 +341,17 @@ final class DrawVerticalSliceTest extends TestCase
     public function test_remaining_count_is_executed_atomically_and_replayed_canonically(): void
     {
         [$user] = $this->fixture(
-            [150_000],
+            [50_000],
             totalCount: 1_000,
             allowedDrawCounts: [1, 100, 1000]
         );
+        DB::table('prize_inventories')
+            ->orderBy('id')
+            ->limit(1)
+            ->update([
+                'available_quantity' => 0,
+                'withdrawn_quantity' => 100,
+            ]);
         DB::table('gacha_draw_states')->update(['sold_count' => 100]);
 
         $first = $this->draw($user, 1000, 'partial-remaining-draw-key');
@@ -376,6 +418,12 @@ final class DrawVerticalSliceTest extends TestCase
             'status' => 'sold_out',
             'sold_out_at' => now(),
         ]);
+        DB::table('prize_inventories')->update([
+            'withdrawn_quantity' => DB::raw(
+                'withdrawn_quantity + available_quantity'
+            ),
+            'available_quantity' => 0,
+        ]);
         $this->expectDrawFailure(
             fn () => $this->draw($user, 5, 'insufficient-count-key-0001'),
             'GACHA_NOT_DRAWABLE'
@@ -410,9 +458,11 @@ final class DrawVerticalSliceTest extends TestCase
             )
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->where('prize.code', 'fixture-a-1')
-            ->first(['inventory.id', 'inventory.initial_quantity']);
+            ->first(['inventory.id', 'inventory.total_quantity']);
         DB::table('prize_inventories')->where('id', $inventory->id)->update([
-            'won_count' => $inventory->initial_quantity,
+            'awarded_count' => $inventory->total_quantity,
+            'available_quantity' => 0,
+            'withdrawn_quantity' => 0,
         ]);
         $auditBefore = DB::table('audit_logs')->count();
         $outboxBefore = DB::table('outbox_messages')->count();
@@ -649,7 +699,7 @@ final class DrawVerticalSliceTest extends TestCase
         $walletBefore = (int) DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance');
         $soldBefore = (int) DB::table('gacha_draw_states')->value('sold_count');
-        $inventoryBefore = (int) DB::table('prize_inventories')->sum('won_count');
+        $inventoryBefore = (int) DB::table('prize_inventories')->sum('awarded_count');
 
         $this->expectDrawFailure(
             fn () => $this->draw($user, 5, 'gacha-disabled-count-key'),
@@ -662,7 +712,7 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame($walletBefore, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
         self::assertSame($soldBefore, (int) DB::table('gacha_draw_states')->value('sold_count'));
-        self::assertSame($inventoryBefore, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame($inventoryBefore, (int) DB::table('prize_inventories')->sum('awarded_count'));
 
         $first = $this->draw($user, 10, 'gacha-enabled-count-key');
         $replay = $this->draw($user, 10, 'gacha-enabled-count-key');
@@ -696,8 +746,9 @@ final class DrawVerticalSliceTest extends TestCase
         $fixture['versions'][0]['audience_code'] = $audienceCode;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         $fixture['versions'][0]['allowed_draw_counts'] = $allowedDrawCounts;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = $totalCount;
+        $inventoryQuantities = [intdiv($totalCount, 10), $totalCount - intdiv($totalCount, 10)];
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $inventoryQuantities[$index] ?? 0;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

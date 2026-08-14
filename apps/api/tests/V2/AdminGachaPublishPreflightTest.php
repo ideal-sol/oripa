@@ -692,6 +692,9 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $drawKey,
             (string) Str::uuid7()
         );
+        $remainingBeforePause = (int) DB::table('prize_inventories')
+            ->where('gacha_draw_state_id', $activeDrawStateId)
+            ->sum('available_quantity');
         DB::table('gacha_draw_states')->where('id', $activeDrawStateId)->update([
             'sold_count' => DB::raw('total_count'),
         ]);
@@ -742,7 +745,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 ->value('active_draw_state_id')
         );
         self::assertSame(
-            0,
+            $remainingBeforePause,
             app(V2CatalogReadService::class)
                 ->getBySlug('fixture-catalog')['remaining_count']
         );
@@ -753,7 +756,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         $inventoryBeforeRejectedDraw = DB::table('prize_inventories')
             ->where('gacha_draw_state_id', $activeDrawStateId)
             ->orderBy('id')
-            ->pluck('won_count', 'id')
+            ->pluck('awarded_count', 'id')
             ->all();
         try {
             app(V2DrawService::class)->create(
@@ -776,7 +779,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             DB::table('prize_inventories')
                 ->where('gacha_draw_state_id', $activeDrawStateId)
                 ->orderBy('id')
-                ->pluck('won_count', 'id')
+                ->pluck('awarded_count', 'id')
                 ->all()
         );
         self::assertSame(
@@ -804,6 +807,18 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->assertJsonPath('data.gacha_revision', $paused['gacha_revision'])
             ->assertJsonPath('idempotent_replay', true);
 
+        $inventoryBeforeCanonicalSoldOut = DB::table('prize_inventories')
+            ->where('gacha_draw_state_id', $activeDrawStateId)
+            ->orderBy('id')
+            ->get(['id', 'available_quantity', 'withdrawn_quantity']);
+        foreach ($inventoryBeforeCanonicalSoldOut as $inventory) {
+            DB::table('prize_inventories')->where('id', $inventory->id)->update([
+                'available_quantity' => 0,
+                'withdrawn_quantity' => (int) $inventory->withdrawn_quantity
+                    + (int) $inventory->available_quantity,
+            ]);
+        }
+
         Auth::forgetGuards();
         $this->mutatingRequest(
             $token,
@@ -816,9 +831,12 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->assertJsonPath('data.validation_codes.0', 'GACHA_SOLD_OUT')
             ->assertJsonPath('data.sales_state.status', 'paused');
 
-        DB::table('gacha_draw_states')->where('id', $activeDrawStateId)->update([
-            'sold_count' => 1,
-        ]);
+        foreach ($inventoryBeforeCanonicalSoldOut as $inventory) {
+            DB::table('prize_inventories')->where('id', $inventory->id)->update([
+                'available_quantity' => $inventory->available_quantity,
+                'withdrawn_quantity' => $inventory->withdrawn_quantity,
+            ]);
+        }
         Auth::forgetGuards();
         $this->mutatingRequest(
             $token,

@@ -49,8 +49,8 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = 2_000;
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = 2_000;
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $index === 0 ? 200 : 1_800;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);
@@ -118,7 +118,7 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         self::assertSame($count, DB::table('user_prizes')
             ->whereIn('draw_result_id', $results->pluck('id'))->count());
         self::assertSame($count, (int) DB::table('gacha_draw_states')->value('sold_count'));
-        self::assertSame($count, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame($count, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame(
             $walletBefore - ($count * 100),
             (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance')
@@ -196,7 +196,11 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
             ->where('prize.public_id', self::PRIZE_ID)
             ->value('relation.id');
         DB::table('prize_inventories')->where('gacha_version_prize_id', $relationId)
-            ->update(['won_count' => DB::raw('initial_quantity')]);
+            ->update([
+                'awarded_count' => DB::raw('total_quantity'),
+                'available_quantity' => 0,
+                'withdrawn_quantity' => 0,
+            ]);
         $wallet = (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance');
         try {
             app(V2DrawService::class)->create(
@@ -254,11 +258,16 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
             'sold_count' => 1_100,
             'lock_version' => DB::raw('lock_version + 1'),
         ]);
-        DB::table('prize_inventories')->update([
-            'initial_quantity' => 2_000,
-            'won_count' => 550,
-            'lock_version' => DB::raw('lock_version + 1'),
-        ]);
+        $inventories = DB::table('prize_inventories')->orderBy('id')->get();
+        foreach ($inventories as $index => $inventory) {
+            $available = $index === $inventories->count() - 1 ? 900 : 0;
+            DB::table('prize_inventories')->where('id', $inventory->id)->update([
+                'available_quantity' => $available,
+                'withdrawn_quantity' => (int) $inventory->total_quantity
+                    - (int) $inventory->awarded_count - $available,
+                'lock_version' => DB::raw('lock_version + 1'),
+            ]);
+        }
 
         $response = app(V2DrawService::class)->create(
             $user,

@@ -451,7 +451,11 @@ final class QaDrawVerticalSliceTest extends TestCase
             )
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->where('prize.public_id', self::PRIZE_S_ID)
-            ->update(['initial_quantity' => 10]);
+            ->update([
+                'total_quantity' => 10,
+                'available_quantity' => 10,
+                'withdrawn_quantity' => 0,
+            ]);
         $wallet = (int) DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance');
 
@@ -464,7 +468,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertDatabaseCount('draw_requests', 0);
         self::assertDatabaseCount('qa_draw_executions', 0);
         self::assertSame(0, (int) DB::table('qa_draw_plan_items')->value('consumed_count'));
-        self::assertSame(0, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame($wallet, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
     }
@@ -517,7 +521,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertDatabaseCount('user_prizes', 0);
         self::assertDatabaseCount('qa_draw_executions', 0);
         self::assertSame(0, (int) DB::table('qa_draw_plan_items')->value('consumed_count'));
-        self::assertSame(0, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame(0, (int) DB::table('gacha_draw_states')->value('sold_count'));
         self::assertSame($wallet, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
@@ -678,8 +682,9 @@ final class QaDrawVerticalSliceTest extends TestCase
         $fixture['versions'][0]['total_count'] = $totalCount;
         $fixture['versions'][0]['audience_code'] = $audienceCode;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = $totalCount;
+        $inventoryQuantities = [intdiv($totalCount, 10), $totalCount - intdiv($totalCount, 10)];
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $inventoryQuantities[$index] ?? 0;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

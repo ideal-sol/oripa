@@ -441,7 +441,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             ->where('user_id', $user->id)
             ->value('free_balance');
         $resultsBefore = DB::table('draw_results')->count();
-        $wonBefore = (int) DB::table('prize_inventories')->sum('won_count');
+        $wonBefore = (int) DB::table('prize_inventories')->sum('awarded_count');
 
         $token = (string) Str::uuid7();
         $startPath = "/tmp/mig060l-pause-draw-{$token}.start";
@@ -526,7 +526,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                         ? 1
                         : 0
                 ),
-                (int) DB::table('prize_inventories')->sum('won_count')
+                (int) DB::table('prize_inventories')->sum('awarded_count')
             );
             self::assertSame(
                 1,

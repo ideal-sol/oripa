@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 9e28ab6ef03dff350ad797d0489693d14919930264c73437ab8a91e29b31d145
+// Contract SHA-256: 59ccd17af255a19c4189d17f192bd7b80cb231d28e212fe87eb085d5c08cb011
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1197,6 +1197,9 @@ export interface AdminGachaVersionPrize extends AdminCatalogPrize {
   cost_price: number;
   total_inventory: number;
   available_inventory: number;
+  awarded_inventory: number;
+  withdrawn_inventory: number;
+  inventory_revision: number;
   version_sort_order: number;
   revision: number;
 }
@@ -1213,7 +1216,10 @@ export interface AdminGachaVersionPrizeCreate {
 }
 
 export interface AdminGachaVersionPrizeUpdate extends AdminGachaVersionPrizeCreate {
+  available_inventory: number;
   expected_revision: number;
+  expected_inventory_revision: number;
+  inventory_reason: string;
 }
 
 export interface AdminGachaVersionPrizeCollection {

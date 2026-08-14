@@ -99,7 +99,8 @@ final class GachaDetailPresentationContractTest extends TestCase
         $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'paused')
-            ->assertJsonPath('data.remaining_count', 995);
+            ->assertJsonPath('data.total_count', 110)
+            ->assertJsonPath('data.remaining_count', 110);
         $this->getJson($this->presentationUrl())
             ->assertOk()
             ->assertJsonPath('data.sale_state', 'paused')
@@ -120,6 +121,10 @@ final class GachaDetailPresentationContractTest extends TestCase
             'status' => 'sold_out',
             'sold_count' => 1000,
             'sold_out_at' => now(),
+        ]);
+        DB::table('prize_inventories')->update([
+            'available_quantity' => 0,
+            'withdrawn_quantity' => DB::raw('total_quantity - awarded_count'),
         ]);
         $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
             ->assertOk()

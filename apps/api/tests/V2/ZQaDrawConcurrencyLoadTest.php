@@ -71,7 +71,7 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
             'qa_executions' => DB::table('qa_draw_executions')->count(),
             'negative_wallets' => DB::table('wallets')->where('free_balance', '<', 0)->count(),
             'inventory_overflow' => DB::table('prize_inventories')
-                ->whereColumn('won_count', '>', 'initial_quantity')->count(),
+                ->whereRaw('total_quantity <> awarded_count + available_quantity + withdrawn_quantity')->count(),
         ];
         fwrite(STDOUT, "\nMIG-053_QA_PERFORMANCE=".json_encode(
             $evidence,
@@ -354,8 +354,8 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = 100_000;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = 100_000;
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $index === 0 ? 10_000 : 90_000;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

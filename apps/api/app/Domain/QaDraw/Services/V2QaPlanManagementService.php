@@ -1241,7 +1241,7 @@ final class V2QaPlanManagementService
             && DB::table('prize_inventories')
                 ->where('gacha_draw_state_id', $gacha->active_draw_state_id)
                 ->where('gacha_version_prize_id', $relation->id)
-                ->whereColumn('won_count', '<', 'initial_quantity')
+                ->where('available_quantity', '>', 0)
                 ->exists();
 
         return [
@@ -1313,7 +1313,7 @@ final class V2QaPlanManagementService
             ->where('relation.gacha_version_id', $gacha->published_version_id)
             ->where('relation.is_visible', true)
             ->whereNull('prize.archived_at')
-            ->whereColumn('inventory.won_count', '<', 'inventory.initial_quantity')
+            ->where('inventory.available_quantity', '>', 0)
             ->where(function ($query) use ($probabilityId): void {
                 $query->whereExists(function ($entry) use ($probabilityId): void {
                     $entry->selectRaw('1')

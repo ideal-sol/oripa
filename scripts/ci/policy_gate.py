@@ -2318,6 +2318,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_05_000050_add_v2_static_page_footer_visibility.php",
         "2026_09_06_000051_add_v2_banner_top_presentation.php",
         "2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
+        "2026_09_08_000053_operational_gacha_inventory.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

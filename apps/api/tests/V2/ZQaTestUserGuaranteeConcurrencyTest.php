@@ -48,11 +48,11 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         self::assertSame(3, DB::table('draw_results')->where('is_qa_draw', true)->count());
         self::assertSame(3, DB::table('qa_draw_executions')->count());
         self::assertSame(15, DB::table('user_prizes')->count());
-        self::assertSame(15, (int) DB::table('prize_inventories')->sum('won_count'));
+        self::assertSame(15, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame(198_500, (int) DB::table('wallets')
             ->where('user_id', $user->id)->value('free_balance'));
         self::assertSame(0, DB::table('prize_inventories')
-            ->whereColumn('won_count', '>', 'initial_quantity')->count());
+            ->whereRaw('total_quantity <> awarded_count + available_quantity + withdrawn_quantity')->count());
     }
 
     public function test_migration_only_converts_current_modes_to_indefinite(): void
@@ -138,8 +138,8 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         );
         $fixture['gachas'][0]['sold_count'] = 0;
         $fixture['versions'][0]['total_count'] = 100;
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = 100;
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $index === 0 ? 10 : 90;
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);

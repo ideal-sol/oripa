@@ -2,19 +2,221 @@
 
 namespace Tests\V2;
 
+use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
+use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
 use App\Domain\Draw\Exceptions\V2DrawException;
+use App\Domain\Draw\Services\V2CryptographicRandomSource;
 use App\Domain\Draw\Services\V2DrawService;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
+use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
+use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class ZDrawConcurrencyLoadTest extends TestCase
 {
+    private const GACHA_ID = '0198a001-0000-7000-8000-000000000011';
+    private const VERSION_ID = '0198a001-0000-7000-8000-000000000012';
+    private const PRIZE_A_ID = '0198a001-0000-7000-8000-000000000010';
+
+    public function test_operational_inventory_migration_backfills_successful_draw_history(): void
+    {
+        $this->configureInventoryBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        $this->importGachas(1, totalCount: 100);
+        $user = $this->inventoryUser('backfill');
+        $this->app->instance(
+            V2CryptographicRandomSource::class,
+            new V2CryptographicRandomSource(static fn (): int => 50_000)
+        );
+        app(V2DrawService::class)->create(
+            $user,
+            self::GACHA_ID,
+            1,
+            'operational-inventory-backfill-draw',
+            (string) Str::uuid7()
+        );
+        $relationId = (int) DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('prize.public_id', self::PRIZE_A_ID)
+            ->value('relation.id');
+
+        try {
+            Artisan::call('migrate:rollback', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_08_000053_operational_gacha_inventory.php',
+                '--force' => true,
+            ]);
+            $legacy = DB::table('prize_inventories')
+                ->where('gacha_version_prize_id', $relationId)
+                ->firstOrFail();
+            self::assertSame(90, (int) $legacy->initial_quantity);
+            self::assertSame(1, (int) $legacy->won_count);
+
+            Artisan::call('migrate', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_08_000053_operational_gacha_inventory.php',
+                '--force' => true,
+            ]);
+            $inventory = DB::table('prize_inventories')
+                ->where('gacha_version_prize_id', $relationId)
+                ->firstOrFail();
+            self::assertSame(90, (int) $inventory->total_quantity);
+            self::assertSame(1, (int) $inventory->awarded_count);
+            self::assertSame(89, (int) $inventory->available_quantity);
+            self::assertSame(0, (int) $inventory->withdrawn_quantity);
+            self::assertSame(
+                (int) $inventory->total_quantity,
+                (int) $inventory->awarded_count
+                    + (int) $inventory->available_quantity
+                    + (int) $inventory->withdrawn_quantity
+            );
+        } finally {
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+        }
+    }
+
+    public function test_concurrent_draw_and_inventory_adjustment_have_one_canonical_winner(): void
+    {
+        if (getenv('V2_OPERATIONAL_INVENTORY_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('MIG-062Sの明示的Concurrency検証で実行する。');
+        }
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for Operational Inventory concurrency verification.');
+        }
+        $this->configureInventoryBoundary();
+        $this->importGachas(1, totalCount: 1);
+        $user = $this->inventoryUser('concurrency');
+        $context = $this->inventoryAdminContext();
+        $payload = $this->publishedInventoryPayload();
+        $this->app->instance(
+            V2CryptographicRandomSource::class,
+            new V2CryptographicRandomSource(static fn (): int => 50_000)
+        );
+
+        $directory = sys_get_temp_dir().'/mig062s-inventory-'.getmypid();
+        mkdir($directory, 0700, true);
+        $startAt = microtime(true) + 0.5;
+        $children = [];
+        foreach (['draw', 'admin'] as $worker) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                self::fail('Operational Inventory worker could not be created.');
+            }
+            if ($pid === 0) {
+                while (microtime(true) < $startAt) {
+                    usleep(1_000);
+                }
+                DB::disconnect();
+                DB::reconnect();
+                try {
+                    if ($worker === 'draw') {
+                        app(V2DrawService::class)->create(
+                            User::query()->findOrFail($user->id),
+                            self::GACHA_ID,
+                            1,
+                            'operational-inventory-concurrent-draw',
+                            (string) Str::uuid7()
+                        );
+                    } else {
+                        app(V2CatalogMasterMutationService::class)->updateGachaDraftPrize(
+                            $context,
+                            self::GACHA_ID,
+                            self::VERSION_ID,
+                            self::PRIZE_A_ID,
+                            'operational-inventory-concurrent-adjustment',
+                            $payload
+                        );
+                    }
+                    $result = ['status' => 'completed'];
+                } catch (V2DrawException|V2CatalogException $exception) {
+                    $result = [
+                        'status' => 'rejected',
+                        'code' => $exception->errorCode,
+                    ];
+                } catch (\Throwable $exception) {
+                    $result = [
+                        'status' => 'failed',
+                        'class' => get_class($exception),
+                    ];
+                }
+                file_put_contents(
+                    "{$directory}/{$worker}.json",
+                    json_encode($result, JSON_THROW_ON_ERROR),
+                    LOCK_EX
+                );
+                exit($result['status'] === 'failed' ? 1 : 0);
+            }
+            $children[] = $pid;
+        }
+        DB::disconnect();
+        DB::reconnect();
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            self::assertTrue(pcntl_wifexited($status));
+            self::assertSame(0, pcntl_wexitstatus($status));
+        }
+
+        $results = [];
+        foreach (['draw', 'admin'] as $worker) {
+            $path = "{$directory}/{$worker}.json";
+            $results[$worker] = json_decode(
+                file_get_contents($path),
+                true,
+                flags: JSON_THROW_ON_ERROR
+            );
+            unlink($path);
+        }
+        rmdir($directory);
+        self::assertCount(1, array_filter(
+            $results,
+            static fn (array $result): bool => $result['status'] === 'completed'
+        ), json_encode($results, JSON_THROW_ON_ERROR));
+        self::assertCount(1, array_filter(
+            $results,
+            static fn (array $result): bool => $result['status'] === 'rejected'
+        ), json_encode($results, JSON_THROW_ON_ERROR));
+
+        $inventory = DB::table('prize_inventories as inventory')
+            ->join(
+                'catalog_gacha_version_prizes as relation',
+                'relation.id',
+                '=',
+                'inventory.gacha_version_prize_id'
+            )
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('prize.public_id', self::PRIZE_A_ID)
+            ->firstOrFail(['inventory.*']);
+        self::assertSame(1, (int) $inventory->total_quantity);
+        self::assertSame(0, (int) $inventory->available_quantity);
+        self::assertSame(
+            1,
+            (int) $inventory->awarded_count + (int) $inventory->withdrawn_quantity
+        );
+        self::assertSame((int) $inventory->awarded_count, DB::table('draw_results')->count());
+        self::assertSame(
+            (int) $inventory->awarded_count,
+            (int) DB::table('gacha_draw_states')->value('sold_count')
+        );
+        self::assertSame(
+            (int) $inventory->withdrawn_quantity,
+            DB::table('prize_inventory_adjustments')->count()
+        );
+    }
+
     public function test_concurrent_requests_cannot_exceed_daily_draw_limit(): void
     {
         if (getenv('V2_DRAW_LIMIT_CONCURRENCY_TEST') !== '1') {
@@ -278,7 +480,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         self::assertSame(
             0,
             DB::table('prize_inventories')
-                ->whereColumn('won_count', '>', 'initial_quantity')->count()
+                ->whereRaw('total_quantity <> awarded_count + available_quantity + withdrawn_quantity')->count()
         );
     }
 
@@ -459,8 +661,9 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $fixture['versions'][0]['total_count'] = $totalCount;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
-        foreach ($fixture['gacha_prizes'] as &$relation) {
-            $relation['initial_inventory'] = $totalCount;
+        $inventoryQuantities = [intdiv($totalCount, 10), $totalCount - intdiv($totalCount, 10)];
+        foreach ($fixture['gacha_prizes'] as $index => &$relation) {
+            $relation['initial_inventory'] = $inventoryQuantities[$index] ?? 0;
         }
         unset($relation);
         $baseGacha = $fixture['gachas'][0];
@@ -536,6 +739,115 @@ final class ZDrawConcurrencyLoadTest extends TestCase
     private function uuid(int $group, int $suffix): string
     {
         return sprintf('0198a%03d-0000-7000-8000-%012d', $group, $suffix);
+    }
+
+    private function configureInventoryBoundary(): void
+    {
+        config([
+            'cache.default' => 'array',
+            'v2_audit.active_hmac_key_version' => 'v1',
+            'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('s', 32)),
+            'v2_audit.business_timezone' => 'Asia/Tokyo',
+        ]);
+    }
+
+    private function inventoryUser(string $suffix): User
+    {
+        $email = "inventory-{$suffix}-".Str::uuid().'@example.test';
+        $user = User::query()->create([
+            'email_display' => $email,
+            'email_normalized' => $email,
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree(
+            $user->id,
+            1_000,
+            now()->addYear(),
+            "operational-inventory-{$suffix}-points-".Str::uuid()
+        );
+
+        return $user;
+    }
+
+    private function inventoryAdminContext(): V2AdminAuthorizationContext
+    {
+        $publicId = (string) Str::uuid7();
+        $email = 'operational-inventory-admin-'.Str::uuid().'@example.test';
+        $adminId = (int) DB::table('admins')->insertGetId([
+            'public_id' => $publicId,
+            'email_display' => $email,
+            'email_normalized' => $email,
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
+            'role' => V2AdminRole::Owner->value,
+            'state' => 'active',
+        ]);
+        $sessionHash = app(V2SessionPolicy::class)->hashSessionId(
+            app(V2SessionPolicy::class)->issueOpaqueSessionId()
+        );
+        $createdAt = now()->subSecond();
+        DB::table('admin_sessions')->insert([
+            'session_id_hash' => $sessionHash,
+            'admin_id' => $adminId,
+            'mfa_verified_at' => now(),
+            'requires_mfa_enrollment' => false,
+            'created_at' => $createdAt,
+            'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15),
+            'absolute_expires_at' => $createdAt->copy()->addHours(8),
+        ]);
+
+        return new V2AdminAuthorizationContext(
+            $adminId,
+            $publicId,
+            V2AdminRole::Owner,
+            $sessionHash,
+            hash('sha256', $sessionHash),
+            (string) Str::uuid7()
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function publishedInventoryPayload(): array
+    {
+        $version = DB::table('catalog_gacha_versions')
+            ->where('public_id', self::VERSION_ID)
+            ->firstOrFail();
+        $prize = DB::table('catalog_prizes')
+            ->where('public_id', self::PRIZE_A_ID)
+            ->firstOrFail();
+        $relation = DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $version->id)
+            ->where('prize_id', $prize->id)
+            ->firstOrFail();
+        $rankId = DB::table('catalog_ranks')
+            ->where('id', $relation->rank_id)
+            ->value('public_id');
+        $assetId = $relation->presentation_asset_id === null
+            ? null
+            : DB::table('catalog_presentation_assets')
+                ->where('id', $relation->presentation_asset_id)
+                ->value('public_id');
+        $inventoryRevision = DB::table('prize_inventories')
+            ->where('gacha_version_prize_id', $relation->id)
+            ->value('lock_version');
+
+        return [
+            'rank_id' => $rankId,
+            'presentation_asset_id' => $assetId,
+            'name' => $relation->display_name,
+            'total_inventory' => 1,
+            'available_inventory' => 0,
+            'exchange_points' => (int) $relation->exchange_points,
+            'cost_price' => (int) $relation->cost_price,
+            'is_active' => (bool) $relation->is_visible,
+            'expected_revision' => (int) $prize->revision,
+            'expected_version_revision' => (int) $version->revision,
+            'expected_inventory_revision' => (int) $inventoryRevision,
+            'inventory_reason' => 'Concurrent operational inventory withdrawal',
+        ];
     }
 
     /**

@@ -455,7 +455,7 @@ final class V2QaExecutionManagementService
             $inventory = $inventories->get($relationId);
             if (
                 $inventory === null
-                || (int) $inventory->won_count + $quantity > (int) $inventory->initial_quantity
+                || $quantity > (int) $inventory->available_quantity
             ) {
                 return false;
             }

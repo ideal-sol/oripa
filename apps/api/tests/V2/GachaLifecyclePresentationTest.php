@@ -636,6 +636,15 @@ final class GachaLifecyclePresentationTest extends TestCase
             ->where('id', $gacha->published_version_id)->firstOrFail();
         $prize = DB::table('catalog_prizes')
             ->where('public_id', $prepared['prize_id'])->firstOrFail();
+        $inventory = DB::table('prize_inventories')
+            ->join(
+                'catalog_gacha_version_prizes as relation',
+                'relation.id',
+                '=',
+                'prize_inventories.gacha_version_prize_id'
+            )
+            ->where('relation.prize_id', $prize->id)
+            ->firstOrFail(['prize_inventories.available_quantity', 'prize_inventories.lock_version']);
         $this->mutate(
             $token,
             'PUT',
@@ -645,11 +654,14 @@ final class GachaLifecyclePresentationTest extends TestCase
                 'presentation_asset_id' => self::PRIZE_ASSET_ID,
                 'name' => $name,
                 'total_inventory' => 10,
+                'available_inventory' => (int) $inventory->available_quantity,
                 'exchange_points' => 100,
                 'cost_price' => 50,
                 'is_active' => true,
                 'expected_revision' => (int) $prize->revision,
                 'expected_version_revision' => (int) $version->revision,
+                'expected_inventory_revision' => (int) $inventory->lock_version,
+                'inventory_reason' => 'Presentation-only edit; inventory unchanged',
             ],
             'lifecycle-prize-presentation'
         )->assertOk();

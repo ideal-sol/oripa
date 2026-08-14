@@ -124,6 +124,9 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             ->assertJsonPath('items.0.id', $prize['id'])
             ->assertJsonPath('items.0.total_inventory', 10)
             ->assertJsonPath('items.0.available_inventory', 10)
+            ->assertJsonPath('items.0.awarded_inventory', 0)
+            ->assertJsonPath('items.0.withdrawn_inventory', 0)
+            ->assertJsonPath('items.0.inventory_revision', 0)
             ->assertJsonMissingPath('items.0.internal_id');
 
         Auth::forgetGuards();
@@ -136,11 +139,14 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
                 'presentation_asset_id' => self::PRIZE_ASSET_ID,
                 'name' => 'SS景品 改訂',
                 'total_inventory' => 12,
+                'available_inventory' => 12,
                 'exchange_points' => 8500,
                 'cost_price' => 5200,
                 'is_active' => false,
                 'expected_revision' => 1,
                 'expected_version_revision' => 3,
+                'expected_inventory_revision' => 0,
+                'inventory_reason' => 'Draft inventory correction',
             ]
         )->assertOk()
             ->assertJsonPath('data.name', 'SS景品 改訂')
@@ -178,6 +184,128 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
                 .self::PUBLISHED_VERSION_ID.'/ranks',
             $payload
         )->assertConflict()->assertJsonPath('code', 'CATALOG_GACHA_VERSION_IMMUTABLE');
+    }
+
+    public function test_published_inventory_adjustment_is_occ_idempotent_and_audited(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $versionRevision = (int) DB::table('catalog_gacha_versions')
+            ->where('public_id', self::PUBLISHED_VERSION_ID)
+            ->value('revision');
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', self::PUBLISHED_GACHA_ID)
+            ->firstOrFail();
+        $stateBefore = DB::table('gacha_draw_states')
+            ->where('id', $gacha->active_draw_state_id)
+            ->firstOrFail();
+        $collection = $this->asAdmin($owner)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
+                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes')
+            ->assertOk()
+            ->json();
+        $prize = $collection['items'][0];
+        $payload = [
+            'rank_id' => $prize['rank']['id'],
+            'presentation_asset_id' => $prize['presentation_asset']['id'] ?? null,
+            'name' => $prize['name'],
+            'total_inventory' => $prize['total_inventory'] + 5,
+            'available_inventory' => $prize['available_inventory'] + 2,
+            'exchange_points' => $prize['exchange_points'],
+            'cost_price' => $prize['cost_price'],
+            'is_active' => $prize['is_visible'],
+            'expected_revision' => $prize['revision'],
+            'expected_version_revision' => $versionRevision,
+            'expected_inventory_revision' => $prize['inventory_revision'],
+            'inventory_reason' => 'Operational stock reconciliation',
+        ];
+        $uri = '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
+            .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes/'.$prize['id'];
+        $key = 'published-inventory-adjustment-key';
+
+        $this->mutate($owner, 'PUT', $uri, $payload, $key)
+            ->assertOk()
+            ->assertJsonPath('idempotent_replay', false);
+        Auth::forgetGuards();
+        $this->mutate($owner, 'PUT', $uri, $payload, $key)
+            ->assertOk()
+            ->assertJsonPath('idempotent_replay', true);
+
+        $inventory = DB::table('prize_inventories as inventory')
+            ->join(
+                'catalog_gacha_version_prizes as relation',
+                'relation.id',
+                '=',
+                'inventory.gacha_version_prize_id'
+            )
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('prize.public_id', $prize['id'])
+            ->firstOrFail(['inventory.*']);
+        self::assertSame($payload['total_inventory'], (int) $inventory->total_quantity);
+        self::assertSame($payload['available_inventory'], (int) $inventory->available_quantity);
+        self::assertSame(
+            (int) $inventory->total_quantity,
+            (int) $inventory->awarded_count
+                + (int) $inventory->available_quantity
+                + (int) $inventory->withdrawn_quantity
+        );
+        self::assertSame(1, (int) $inventory->lock_version);
+        self::assertSame(1, DB::table('prize_inventory_adjustments')->count());
+        self::assertSame(1, DB::table('audit_logs')
+            ->where('action_code', 'catalog.inventory.adjusted')->count());
+        self::assertDatabaseHas('prize_inventory_adjustments', [
+            'idempotency_key' => $key,
+            'reason' => 'Operational stock reconciliation',
+            'before_lock_version' => 0,
+            'after_lock_version' => 1,
+        ]);
+        $stateAfter = DB::table('gacha_draw_states')
+            ->where('id', $gacha->active_draw_state_id)
+            ->firstOrFail();
+        self::assertSame((int) $stateBefore->id, (int) $stateAfter->id);
+        self::assertSame($stateBefore->status, $stateAfter->status);
+        self::assertSame((int) $stateBefore->sold_count, (int) $stateAfter->sold_count);
+        self::assertSame((int) $stateBefore->lock_version, (int) $stateAfter->lock_version);
+        self::assertSame(
+            $versionRevision,
+            (int) DB::table('catalog_gacha_versions')
+                ->where('public_id', self::PUBLISHED_VERSION_ID)
+                ->value('revision')
+        );
+        $currentPrizeRevision = (int) DB::table('catalog_prizes')
+            ->where('public_id', $prize['id'])
+            ->value('revision');
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $owner,
+            'PUT',
+            $uri,
+            [...$payload, 'expected_revision' => $currentPrizeRevision],
+            'published-inventory-stale-key'
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT');
+
+        Auth::forgetGuards();
+        $this->mutate($owner, 'PUT', $uri, [
+            ...$payload,
+            'available_inventory' => -1,
+            'expected_inventory_revision' => 1,
+        ], 'published-inventory-negative-key')->assertUnprocessable();
+
+        DB::table('prize_inventories')->where('id', $inventory->id)->update([
+            'awarded_count' => DB::raw('awarded_count + 1'),
+            'available_quantity' => DB::raw('available_quantity - 1'),
+            'lock_version' => 2,
+        ]);
+        Auth::forgetGuards();
+        $this->mutate($owner, 'PUT', $uri, [
+            ...$payload,
+            'expected_revision' => $currentPrizeRevision,
+            'total_inventory' => 0,
+            'available_inventory' => 0,
+            'expected_inventory_revision' => 2,
+        ], 'published-inventory-below-awarded-key')->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_PRIZE_INVENTORY_CONFLICT');
     }
 
     public function test_database_guard_protects_new_rank_fields_of_published_versions(): void
