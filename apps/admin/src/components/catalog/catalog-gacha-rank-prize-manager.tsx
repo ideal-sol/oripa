@@ -18,12 +18,14 @@ export function CatalogGachaRankPrizeManager({
   canManage,
   gachaId,
   heading = "ランク／景品管理",
+  presentationOnly = false,
   versionLabel,
   version,
 }: {
   canManage: boolean;
   gachaId: string;
   heading?: string;
+  presentationOnly?: boolean;
   versionLabel?: string;
   version: AdminCatalogGachaVersion | null;
 }) {
@@ -180,7 +182,7 @@ export function CatalogGachaRankPrizeManager({
           <span className="eyebrow">{versionLabel ?? `バージョン ${version.version_number}`}</span>
           <h2 id={headingId}>{heading}</h2>
         </div>
-        {canManage ? (
+        {canManage && !presentationOnly ? (
           <button className="secondary-button" onClick={() => setRankDialog(true)} type="button">
             <Settings2 aria-hidden="true" size={17} /> ランク設定
           </button>
@@ -192,7 +194,7 @@ export function CatalogGachaRankPrizeManager({
       {error ? <p className="form-field-error" role="alert">{error}</p> : null}
       <div className="catalog-prize-heading">
         <h3>景品一覧</h3>
-        {canManage ? (
+        {canManage && !presentationOnly ? (
           <button
             className="primary-button"
             disabled={ranks.length === 0}
@@ -254,7 +256,7 @@ export function CatalogGachaRankPrizeManager({
       ) : null}
       {prizeDialog ? (
         <Dialog title={prizeEditing ? "景品編集" : "新規景品登録"} onClose={() => setPrizeDialog(false)}>
-          <PrizeForm assets={images} busy={busy} current={prizeEditing} inputRef={firstDialogControl} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} ranks={ranks} />
+          <PrizeForm assets={images} busy={busy} current={prizeEditing} inputRef={firstDialogControl} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
         </Dialog>
       ) : null}
     </section>
@@ -289,16 +291,16 @@ function RankForm({ assets, busy, current, inputRef, onCancel, onSubmit }: { ass
   </form>;
 }
 
-function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, ranks }: { assets: AdminCatalogPresentationAsset[]; busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; ranks: AdminCatalogRank[] }) {
+function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, presentationOnly, ranks }: { assets: AdminCatalogPresentationAsset[]; busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; presentationOnly: boolean; ranks: AdminCatalogRank[] }) {
   return <form className="catalog-mutation-form" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onSubmit(event.currentTarget); }}>
-    <label>ランク<select defaultValue={current?.rank.id ?? ""} name="rank_id" required><option disabled value="">選択してください</option>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{rank.name}</option>)}</select></label>
+    <label>ランク<select defaultValue={current?.rank.id ?? ""} disabled={presentationOnly} name={presentationOnly ? undefined : "rank_id"} required><option disabled value="">選択してください</option>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{rank.name}</option>)}</select>{presentationOnly ? <input name="rank_id" type="hidden" value={current?.rank.id ?? ""} /> : null}</label>
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
     <AssetSelect current={current?.presentation_asset?.id} label="サムネイル" name="presentation_asset_id" options={assets} />
     <div className="catalog-form-grid">
-      <label>総在庫数<input defaultValue={current?.total_inventory ?? 0} min={0} name="total_inventory" required type="number" /></label>
-      <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" required type="number" /></label>
-      <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" required type="number" /></label>
-      <label>状態<select defaultValue={String(current?.is_visible ?? true)} name="is_active"><option value="true">有効</option><option value="false">無効</option></select></label>
+      <label>総在庫数<input defaultValue={current?.total_inventory ?? 0} min={0} name="total_inventory" readOnly={presentationOnly} required type="number" /></label>
+      <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" readOnly={presentationOnly} required type="number" /></label>
+      <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" readOnly={presentationOnly} required type="number" /></label>
+      <label>状態<select defaultValue={String(current?.is_visible ?? true)} disabled={presentationOnly} name={presentationOnly ? undefined : "is_active"}><option value="true">有効</option><option value="false">無効</option></select>{presentationOnly ? <input name="is_active" type="hidden" value={String(current?.is_visible ?? true)} /> : null}</label>
     </div>
     <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
   </form>;

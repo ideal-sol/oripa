@@ -3850,6 +3850,7 @@
         "enum": [
           "coming_soon",
           "on_sale",
+          "paused",
           "sold_out",
           "ended"
         ]
@@ -3869,6 +3870,7 @@
         ],
         "enum": [
           "sale_not_started",
+          "sales_paused",
           "sold_out",
           "sale_ended",
           "authentication_required",

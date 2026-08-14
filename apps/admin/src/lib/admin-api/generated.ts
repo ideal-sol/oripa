@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: d80890ace4584ca14c7ff09d65f1e0c06fe82bcf0a99fa0fc2bb99e99433f857
+// Contract SHA-256: d4860f3a71fc90cc7b52271fab398452d6e4c662fc99551fdc9380414f38ef9c
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1284,6 +1284,7 @@ export interface AdminCatalogGacha {
   published_version: AdminCatalogGachaVersionSummary | null;
   current_version?: AdminCatalogGachaCoreVersion | null;
   publication_status?: "draft" | "published" | "scheduled" | "sales_paused" | "unpublished";
+  first_published_at?: string | null;
   version_count: number;
   has_draw_history: boolean;
   is_archived: boolean;

@@ -430,7 +430,12 @@ export function GachaPublishPreflightPanel({
   }
 
   async function cancelSchedule() {
-    if (!schedule || schedule.status !== "scheduled" || !canPublish) return;
+    if (
+      !schedule
+      || !["scheduled", "completed"].includes(schedule.status)
+      || Date.parse(schedule.scheduled_for) <= Date.now()
+      || !canPublish
+    ) return;
     const body = {
       expected_schedule_revision: schedule.revision,
       expected_gacha_revision: schedule.gacha_revision,
@@ -1111,7 +1116,7 @@ export function GachaPublishPreflightPanel({
             <dt>結果</dt>
             <dd>{schedule.failure_code ?? schedule.completed_at ?? "処理待ち"}</dd>
           </div>
-          {canPublish && schedule.status === "scheduled" ? (
+          {canPublish && ["scheduled", "completed"].includes(schedule.status) && Date.parse(schedule.scheduled_for) > Date.now() ? (
             <div>
               <dt>操作</dt>
               <dd>
@@ -1239,7 +1244,7 @@ export function GachaPublishPreflightPanel({
             <p>
               v{version.version_number}を
               {formatAdminDateTime(schedulePreflight.scheduled_for)}
-              にActivationします。実行直前にもServer Preflightを再実行します。
+              から公開します。開始時刻の到達はBackendが現在時刻から判定します。
             </p>
             <div className="catalog-dialog-actions">
               <button
@@ -1276,7 +1281,7 @@ export function GachaPublishPreflightPanel({
               ref={confirmHeading}
               tabIndex={-1}
             >
-              Publish予約を取消しますか
+              初回公開予約を取消しますか
             </h2>
             <p>取消後、このDraft Versionは再編集できます。</p>
             <div className="catalog-dialog-actions">

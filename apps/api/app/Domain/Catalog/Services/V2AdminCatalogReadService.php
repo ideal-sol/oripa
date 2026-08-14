@@ -450,7 +450,10 @@ final class V2AdminCatalogReadService
         string $versionPublicId
     ): array {
         $this->authorize($context);
-        [, $version] = $this->gachaVersionParent($gachaPublicId, $versionPublicId);
+        [, $version] = $this->gachaVersionParent(
+            $gachaPublicId,
+            $versionPublicId
+        );
         $rows = DB::table('catalog_gacha_version_ranks as relation')
             ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
             ->where('relation.gacha_version_id', $version->id)
@@ -497,7 +500,12 @@ final class V2AdminCatalogReadService
         string $versionPublicId
     ): array {
         $this->authorize($context);
-        [, $version] = $this->gachaVersionParent($gachaPublicId, $versionPublicId);
+        [$gacha, $version] = $this->gachaVersionParent(
+            $gachaPublicId,
+            $versionPublicId
+        );
+        $useCurrentPresentation = (int) ($gacha->published_version_id ?? 0)
+            === (int) $version->id;
         $rows = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
@@ -506,6 +514,12 @@ final class V2AdminCatalogReadService
                 'asset.id',
                 '=',
                 'relation.presentation_asset_id'
+            )
+            ->leftJoin(
+                'catalog_presentation_assets as current_asset',
+                'current_asset.id',
+                '=',
+                'prize.presentation_asset_id'
             )
             ->leftJoin(
                 'prize_inventories as inventory',
@@ -520,6 +534,7 @@ final class V2AdminCatalogReadService
                 'prize.public_id',
                 'prize.code',
                 'relation.display_name',
+                'prize.display_name as current_display_name',
                 'relation.description',
                 'relation.display_price',
                 'relation.exchange_points',
@@ -539,6 +554,12 @@ final class V2AdminCatalogReadService
                 'asset.mime_type as asset_mime_type',
                 'asset.alt_text as asset_alt_text',
                 'asset.is_public as asset_is_public',
+                'current_asset.public_id as current_asset_public_id',
+                'current_asset.public_path as current_asset_public_path',
+                'current_asset.media_type as current_asset_media_type',
+                'current_asset.mime_type as current_asset_mime_type',
+                'current_asset.alt_text as current_asset_alt_text',
+                'current_asset.is_public as current_asset_is_public',
                 'relation.initial_inventory',
                 'relation.sort_order as version_sort_order',
                 'inventory.initial_quantity',
@@ -546,7 +567,20 @@ final class V2AdminCatalogReadService
             ]);
 
         return [
-            'items' => $rows->map(function (object $row): array {
+            'items' => $rows->map(function (object $row) use (
+                $useCurrentPresentation
+            ): array {
+                if ($useCurrentPresentation) {
+                    $row->display_name = $row->current_display_name;
+                    if ($row->current_asset_public_id !== null) {
+                        $row->asset_public_id = $row->current_asset_public_id;
+                        $row->asset_public_path = $row->current_asset_public_path;
+                        $row->asset_media_type = $row->current_asset_media_type;
+                        $row->asset_mime_type = $row->current_asset_mime_type;
+                        $row->asset_alt_text = $row->current_asset_alt_text;
+                        $row->asset_is_public = $row->current_asset_is_public;
+                    }
+                }
                 $total = $row->initial_quantity === null
                     ? (int) $row->initial_inventory
                     : (int) $row->initial_quantity;
@@ -1587,16 +1621,32 @@ final class V2AdminCatalogReadService
             : DB::table('catalog_gacha_versions')
                 ->where('id', $row->published_version_id)
                 ->first();
-        $currentVersion = DB::table('catalog_gacha_versions')
-            ->where('gacha_id', $row->id)
-            ->where('status', 'draft')
-            ->whereNull('archived_at')
-            ->orderByDesc('version_number')
-            ->first() ?? $publishedVersion;
+        $lastPublishedVersion = $publishedVersion;
+        if ($lastPublishedVersion === null && $row->first_published_at !== null) {
+            $lastPublishedVersion = DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $row->id)
+                ->where('status', 'published')
+                ->orderByDesc('version_number')
+                ->first();
+        }
+        $currentVersion = (string) ($row->management_status ?? 'draft') === 'draft'
+            ? DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $row->id)
+                ->where('status', 'draft')
+                ->whereNull('archived_at')
+                ->orderByDesc('version_number')
+                ->first() ?? $lastPublishedVersion
+            : $lastPublishedVersion;
         $category = DB::table('catalog_categories')
             ->where('id', $currentVersion?->category_id ?? $row->category_id)
             ->firstOrFail();
-        $versionTags = $currentVersion === null ? collect() : DB::table(
+        $useCurrentPresentation = $currentVersion !== null
+            && $lastPublishedVersion !== null
+            && (int) $currentVersion->id === (int) $lastPublishedVersion->id
+            && (string) ($row->management_status ?? 'draft') !== 'draft';
+        $versionTags = $useCurrentPresentation || $currentVersion === null
+            ? collect()
+            : DB::table(
             'catalog_gacha_version_tags as relation'
         )->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')
             ->where('relation.gacha_version_id', $currentVersion->id)
@@ -1627,7 +1677,11 @@ final class V2AdminCatalogReadService
             'code' => $row->code,
             'slug' => $row->slug,
             'state' => $row->state,
-            'sold_count' => (int) $row->sold_count,
+            'sold_count' => $row->active_draw_state_id === null
+                ? 0
+                : (int) DB::table('gacha_draw_states')
+                    ->where('id', $row->active_draw_state_id)
+                    ->value('sold_count'),
             'category' => [
                 'id' => $category->public_id,
                 'code' => $category->code,
@@ -1642,8 +1696,12 @@ final class V2AdminCatalogReadService
             ],
             'current_version' => $currentVersion === null
                 ? null
-                : $this->mapGachaCoreVersion($currentVersion),
+                : $this->mapGachaCoreVersion(
+                    $currentVersion,
+                    $useCurrentPresentation ? $row : null
+                ),
             'publication_status' => $publicationStatus,
+            'first_published_at' => $row->first_published_at,
             'version_count' => DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)->count(),
             'has_draw_history' => DB::table('draw_requests as draw')
@@ -1664,21 +1722,33 @@ final class V2AdminCatalogReadService
     }
 
     /** @return array<string, mixed> */
-    private function mapGachaCoreVersion(object $row): array
+    private function mapGachaCoreVersion(
+        object $row,
+        ?object $presentation = null
+    ): array
     {
-        $asset = $row->presentation_asset_id === null
+        $assetId = $presentation === null
+            ? $row->presentation_asset_id
+            : $presentation->current_presentation_asset_id;
+        $asset = $assetId === null
             ? null
             : DB::table('catalog_presentation_assets')
-                ->where('id', $row->presentation_asset_id)
+                ->where('id', $assetId)
                 ->first();
 
         return [
             'id' => $row->public_id,
             'version_number' => (int) $row->version_number,
             'status' => $row->status,
-            'title' => $row->title,
-            'description' => $row->description,
-            'notices' => $row->notices,
+            'title' => $presentation === null
+                ? $row->title
+                : $presentation->current_title,
+            'description' => $presentation === null
+                ? $row->description
+                : $presentation->current_description,
+            'notices' => $presentation === null
+                ? $row->notices
+                : $presentation->current_notices,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
@@ -1695,8 +1765,11 @@ final class V2AdminCatalogReadService
                 'public_path' => $asset->is_public ? $asset->public_path : null,
                 'is_public' => (bool) $asset->is_public,
             ],
-            'publish_start_at' => $row->publish_start_at,
-            'publish_end_at' => $row->publish_end_at,
+            'publish_start_at' => $presentation?->current_publish_start_at
+                ?? $row->publish_start_at,
+            'publish_end_at' => $presentation === null
+                ? $row->publish_end_at
+                : $presentation->current_publish_end_at,
             'revision' => (int) $row->revision,
         ];
     }

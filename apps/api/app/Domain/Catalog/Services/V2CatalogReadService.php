@@ -283,17 +283,23 @@ final class V2CatalogReadService
                 'catalog_presentation_assets as a',
                 'a.id',
                 '=',
-                'gv.presentation_asset_id'
+                'g.current_presentation_asset_id'
             )
             ->where('g.state', 'active')
+            ->whereIn('g.management_status', [
+                'scheduled', 'published', 'sales_paused',
+            ])
             ->where('gv.status', 'published')
             ->where('pv.status', 'published')
             ->where('c.is_visible', true)
             ->when($withinPublishedPeriod, function (Builder $query) use ($now): void {
-                $query->where('gv.publish_start_at', '<=', $now)
+                $query->whereRaw(
+                    'COALESCE(g.current_publish_start_at, gv.publish_start_at) <= ?',
+                    [$now]
+                )
                     ->where(function (Builder $period) use ($now): void {
-                        $period->whereNull('gv.publish_end_at')
-                            ->orWhere('gv.publish_end_at', '>', $now);
+                        $period->whereNull('g.current_publish_end_at')
+                            ->orWhere('g.current_publish_end_at', '>', $now);
                     });
             });
     }
@@ -309,20 +315,20 @@ final class V2CatalogReadService
             'g.public_code',
             'g.slug',
             'g.sales_paused',
-            DB::raw('COALESCE(ds.sold_count, g.sold_count) as sold_count'),
+            DB::raw('ds.sold_count as sold_count'),
             'ds.status as draw_state_status',
             'gv.id as version_internal_id',
-            'gv.title',
-            'gv.description',
-            'gv.notices',
+            'g.current_title as title',
+            'g.current_description as description',
+            'g.current_notices as notices',
             'gv.price_points',
             'gv.total_count',
             'gv.daily_draw_limit',
             'gv.audience_code',
             'gv.first_time_eligible_days',
             'gv.allowed_draw_counts',
-            'gv.publish_start_at',
-            'gv.publish_end_at',
+            DB::raw('COALESCE(g.current_publish_start_at, gv.publish_start_at) as publish_start_at'),
+            'g.current_publish_end_at as publish_end_at',
             'gv.published_probability_version_id',
             'c.public_id as category_public_id',
             'c.slug as category_slug',
@@ -350,10 +356,10 @@ final class V2CatalogReadService
         foreach (
             DB::table('catalog_gachas as g')
                 ->join(
-                    'catalog_gacha_version_tags as gt',
-                    'gt.gacha_version_id',
+                'catalog_gacha_tags as gt',
+                    'gt.gacha_id',
                     '=',
-                    'g.published_version_id'
+                    'g.id'
                 )
                 ->join('catalog_tags as t', 't.id', '=', 'gt.tag_id')
                 ->whereIn('g.id', $gachaIds)
@@ -385,9 +391,10 @@ final class V2CatalogReadService
             'title' => $row->title,
             'price_points' => (int) $row->price_points,
             'total_count' => (int) $row->total_count,
-            'remaining_count' => (bool) $row->sales_paused
-                ? 0
-                : max(0, (int) $row->total_count - (int) $row->sold_count),
+            'remaining_count' => max(
+                0,
+                (int) $row->total_count - (int) $row->sold_count
+            ),
             'publish_start_at' => CarbonImmutable::parse($row->publish_start_at)->utc()
                 ->toIso8601ZuluString(),
             'publish_end_at' => $row->publish_end_at === null
@@ -447,7 +454,7 @@ final class V2CatalogReadService
             return 'ended';
         }
         if ((bool) $row->sales_paused) {
-            return 'ended';
+            return 'paused';
         }
         if (
             $row->draw_state_status === 'sold_out'
@@ -467,6 +474,7 @@ final class V2CatalogReadService
         if ($saleState !== 'on_sale') {
             return match ($saleState) {
                 'coming_soon' => 'sale_not_started',
+                'paused' => 'sales_paused',
                 'sold_out' => 'sold_out',
                 default => 'sale_ended',
             };
@@ -532,7 +540,7 @@ final class V2CatalogReadService
                 'catalog_presentation_assets as a',
                 'a.id',
                 '=',
-                'gvp.presentation_asset_id'
+                DB::raw('COALESCE(p.presentation_asset_id, gvp.presentation_asset_id)')
             )
             ->where('gvp.gacha_version_id', $gachaVersionId)
             ->where('gvp.is_visible', true)
@@ -541,7 +549,7 @@ final class V2CatalogReadService
             ->get([
                 'gvp.rank_id',
                 'p.public_id',
-                'gvp.display_name',
+                'p.display_name',
                 'gvp.description',
                 'gvp.display_price',
                 'gvp.exchange_points',

@@ -93,6 +93,10 @@ export function CatalogGachaCoreForm({
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const postPublished = mode === "edit" && current?.first_published_at != null;
+  const scheduled = current?.publication_status === "scheduled";
+  const scheduledStartReached = scheduled
+    && Date.parse(current?.current_version?.publish_start_at ?? "") <= Date.now();
   const dirty = draft.thumbnailFile !== null || JSON.stringify({
     ...draft,
     thumbnailFile: null,
@@ -183,13 +187,13 @@ export function CatalogGachaCoreForm({
       <header>
         <span className="eyebrow">下書きガチャ</span>
         <h2 id="gacha-core-heading">{mode === "create" ? "ガチャ登録" : "ガチャ編集"}</h2>
-        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : "変更は編集中データへ保存され、公開済み内容には直接反映されません。"}</p>
+        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : postPublished ? "公開後は表示情報と終了日時だけを変更できます。販売条件と抽選条件は変更できません。" : "変更は編集中データへ保存され、公開済み内容には直接反映されません。"}</p>
       </header>
       <form className="catalog-mutation-form" onSubmit={submit}>
         <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
         <FieldError message={errors.title} />
         <div className="catalog-form-grid">
-          <label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>カテゴリ<select disabled={postPublished} required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <GachaThumbnailField
             current={current?.current_version?.presentation_asset ?? null}
             onChange={(thumbnailFile) => setDraft({ ...draft, thumbnailFile })}
@@ -199,10 +203,10 @@ export function CatalogGachaCoreForm({
         <FieldError message={errors.category ?? errors.asset} />
         <fieldset className="catalog-choice-fieldset"><legend>タグ</legend>{tags.length === 0 ? <p>選択可能なタグはありません。</p> : null}{tags.map((tag) => <label className="catalog-checkbox" key={tag.id}><input type="checkbox" checked={draft.tagIds.includes(tag.id)} onChange={(event) => setDraft({ ...draft, tagIds: event.target.checked ? [...draft.tagIds, tag.id] : draft.tagIds.filter((id) => id !== tag.id) })} />{tag.name}</label>)}</fieldset>
         <div className="catalog-form-grid">
-          <NumberField label="消費ポイント" min={1} onChange={(pricePoints) => setDraft({ ...draft, pricePoints })} value={draft.pricePoints} />
-          <NumberField label="総口数" min={1} onChange={(totalCount) => setDraft({ ...draft, totalCount })} value={draft.totalCount} />
-          <NumberField label="1日規定回数（0は無制限・JST 0時リセット）" min={0} onChange={(dailyDrawLimit) => setDraft({ ...draft, dailyDrawLimit })} value={draft.dailyDrawLimit} />
-          {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}><option value="draft">下書き</option><option value="scheduled">予約公開</option><option value="published">公開</option><option value="sales_paused">販売停止</option><option value="unpublished">非公開</option></select></label>}
+          <NumberField disabled={postPublished} label="消費ポイント" min={1} onChange={(pricePoints) => setDraft({ ...draft, pricePoints })} value={draft.pricePoints} />
+          <NumberField disabled={postPublished} label="総口数" min={1} onChange={(totalCount) => setDraft({ ...draft, totalCount })} value={draft.totalCount} />
+          <NumberField disabled={postPublished} label="1日規定回数（0は無制限・JST 0時リセット）" min={0} onChange={(dailyDrawLimit) => setDraft({ ...draft, dailyDrawLimit })} value={draft.dailyDrawLimit} />
+          {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}>{managementStatusOptions(current?.publication_status, scheduledStartReached).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
         </div>
         <FieldError message={errors.price ?? errors.total ?? errors.daily} />
         <fieldset className="catalog-choice-fieldset">
@@ -211,7 +215,7 @@ export function CatalogGachaCoreForm({
             <label className="catalog-checkbox" key={count}>
               <input
                 checked={draft.allowedDrawCounts.includes(count)}
-                disabled={count === 1}
+                disabled={count === 1 || postPublished}
                 onChange={(event) => setDraft({
                   ...draft,
                   allowedDrawCounts: event.target.checked
@@ -225,10 +229,10 @@ export function CatalogGachaCoreForm({
           ))}
         </fieldset>
         <FieldError message={errors.drawCounts} />
-        <label>会員ランク<select value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
-        {draft.audienceCode === "first_time_users" ? <><NumberField label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
+        <label>会員ランク<select disabled={postPublished} value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
+        {draft.audienceCode === "first_time_users" ? <><NumberField disabled={postPublished} label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
         <div className="catalog-form-grid">
-          <DateTimeField label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />
+          <DateTimeField disabled={postPublished && (!scheduled || scheduledStartReached)} label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />
           <DateTimeField label="終了日時（Asia/Tokyo）" onChange={(publishEndAt) => setDraft({ ...draft, publishEndAt: publishEndAt || null })} required={false} value={draft.publishEndAt ?? ""} />
         </div>
         <FieldError message={errors.start ?? errors.end} />
@@ -808,11 +812,13 @@ function TextArea({
 }
 
 function NumberField({
+  disabled = false,
   label,
   min,
   onChange,
   value,
 }: {
+  disabled?: boolean;
   label: string;
   min: number;
   onChange: (value: number) => void;
@@ -822,6 +828,7 @@ function NumberField({
     <label>
       {label}
       <input
+        disabled={disabled}
         min={min}
         onChange={(event) => onChange(Number(event.target.value))}
         required
@@ -834,11 +841,13 @@ function NumberField({
 }
 
 function DateTimeField({
+  disabled = false,
   label,
   onChange,
   required = true,
   value,
 }: {
+  disabled?: boolean;
   label: string;
   onChange: (value: string) => void;
   required?: boolean;
@@ -848,6 +857,7 @@ function DateTimeField({
     <label>
       {label}
       <input
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         required={required}
         type="datetime-local"
@@ -855,6 +865,45 @@ function DateTimeField({
       />
     </label>
   );
+}
+
+function managementStatusOptions(
+  status?: AdminCatalogGacha["publication_status"],
+  scheduledStartReached = false,
+): Array<{ label: string; value: GachaCoreDraft["managementStatus"] }> {
+  switch (status) {
+    case "scheduled":
+      return scheduledStartReached
+        ? [
+            { label: "公開中（予約開始済み）", value: "scheduled" },
+            { label: "販売停止", value: "sales_paused" },
+            { label: "非公開", value: "unpublished" },
+          ]
+        : [
+            { label: "予約公開", value: "scheduled" },
+            { label: "予約取消（下書きへ戻す）", value: "draft" },
+          ];
+    case "published":
+      return [
+        { label: "公開", value: "published" },
+        { label: "販売停止", value: "sales_paused" },
+        { label: "非公開", value: "unpublished" },
+      ];
+    case "sales_paused":
+      return [
+        { label: "販売停止", value: "sales_paused" },
+        { label: "公開（販売再開）", value: "published" },
+        { label: "非公開", value: "unpublished" },
+      ];
+    case "unpublished":
+      return [{ label: "非公開", value: "unpublished" }];
+    default:
+      return [
+        { label: "下書き", value: "draft" },
+        { label: "予約公開", value: "scheduled" },
+        { label: "公開", value: "published" },
+      ];
+  }
 }
 
 function useDirtyGuard(dirty: boolean) {

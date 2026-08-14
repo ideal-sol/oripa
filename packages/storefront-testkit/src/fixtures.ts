@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.14",
+      storefront_client_version: "2.0.0-alpha.15",
       required_capabilities: [],
     },
     public: {
@@ -60,7 +60,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.14",
+  minimum_storefront_client_version: "2.0.0-alpha.15",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -280,6 +280,21 @@ export const PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES = Object.freeze({
         state: "disabled",
         action: "draw",
         reason: "sale_not_started",
+      },
+    },
+  },
+  paused: {
+    ...catalogFixture,
+    presentation: {
+      ...presentationFixture,
+      sale_state: "paused",
+      eligible: false,
+      ineligible_reason: "sales_paused",
+      allowed_draw_counts: [],
+      cta: {
+        state: "disabled",
+        action: "draw",
+        reason: "sales_paused",
       },
     },
   },

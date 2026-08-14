@@ -566,6 +566,7 @@ test("Gacha Catalog Fixtureは販売状態とUser判定をBackend Presentation�
     [
       "on_sale",
       "coming_soon",
+      "paused",
       "ended",
       "sold_out",
       "authenticated_eligible",
@@ -577,6 +578,14 @@ test("Gacha Catalog Fixtureは販売状態とUser判定をBackend Presentation�
     PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.authenticated_ineligible.presentation
       .ineligible_reason,
     "audience_not_eligible",
+  );
+  assert.equal(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.paused.presentation.cta.state,
+    "disabled",
+  );
+  assert.equal(
+    PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES.paused.presentation.cta.reason,
+    "sales_paused",
   );
   for (const state of ["ended", "sold_out"]) {
     const display =

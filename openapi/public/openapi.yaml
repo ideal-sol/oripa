@@ -2302,7 +2302,7 @@ components:
           $ref: '#/components/schemas/GachaDetail'
     GachaSaleState:
       type: string
-      enum: [coming_soon, on_sale, sold_out, ended]
+      enum: [coming_soon, on_sale, paused, sold_out, ended]
     GachaAudience:
       type: string
       enum: [all_users, first_time_users, line_users]
@@ -2310,6 +2310,7 @@ components:
       type: [string, 'null']
       enum:
         - sale_not_started
+        - sales_paused
         - sold_out
         - sale_ended
         - authentication_required

@@ -97,7 +97,11 @@ final class AdminGachaPrizeOwnershipTest extends TestCase
 
         $detail = app(V2CatalogReadService::class)->getByPublicId(self::GACHA_ID);
         self::assertSame('Sランク', $detail['ranks'][0]['name']);
-        self::assertSame('Fixture S景品', $detail['ranks'][0]['prizes'][0]['name']);
+        self::assertSame('編集中の景品名', $detail['ranks'][0]['prizes'][0]['name']);
+        self::assertSame(
+            (int) $before->exchange_points,
+            $detail['ranks'][0]['prizes'][0]['exchange_points']
+        );
     }
 
     private function copyGacha(object $source): int

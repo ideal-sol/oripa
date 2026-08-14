@@ -8330,3 +8330,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Required Integration Gateで検出した既存Banner性能FixtureだけをTop表示Contractへ追従し、性能閾値と件数Assertionは維持した。
 - Artifact `2.0.0-alpha.14`を発行し、Manifest／SHA256SUMSとWorkspace外Clean Installを検証した。
 - GitHub-hosted amd64 Pipelineの検証済みAPI／Admin ImageをHost BuildなしでPreviewへ反映し、Safety Guard後にMigration `000051`だけを適用した。Top ON／OFF、Public Asset／Link URL、Desktop／Mobile、Console／HTTP ErrorをSmokeし、Nginx／V1／Storefrontを変更していない。
+
+## MIG-062Q Gacha Lifecycle／公開後編集／Public State整理
+
+- Base `25fa06d40a169b43ee677d1fe84d0cf8f3ae7715`からIssue #265、Branch `feat/MIG-062Q-gacha-lifecycle-presentation`、Risk R4で開始した。
+- 初回公開だけ即時／予約を許可し、一度公開済みの事実を不可逆に保持する。販売停止／再開／非公開は同じPublished Version、Draw State、Inventory、`sold_count`を維持する。
+- 公開後のGacha／Prize表示変更はCurrent Presentation Overlayへ限定し、Published／Historical Snapshot、Draw Result、User Prizeを変更しない。販売・経済条件はBackendで拒否する。
+- Public Sale Stateへ`paused`を追加し、実残数、disabled CTA、`sales_paused`理由を明示する。Public／Admin ContractとStorefront packagesは`2.0.0-alpha.15`へ同期する。
+- Migration `000052`は初回公開時刻、予約開始と現在販売開始を分離したCurrent Presentation、Draw State閉鎖情報、単一Open State制約を追加する。事前Preview調査で複数Open State、Pointer不整合、移行停止条件は検出されなかった。
+- 終端の非公開後もAdmin詳細は最後のPublished Snapshot＋Current Presentationを表示するが、Current Published Pointerは復元せず再公開を拒否する。

@@ -12207,6 +12207,13 @@
               "unpublished"
             ]
           },
+          "first_published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
           "version_count": {
             "type": "integer",
             "minimum": 0

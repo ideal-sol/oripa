@@ -14,6 +14,7 @@ use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,8 +26,115 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
     private const GACHA_ID = '0198a001-0000-7000-8000-000000000011';
     private const PUBLISHED_GACHA_VERSION_ID =
         '0198a001-0000-7000-8000-000000000012';
+    private const CATEGORY_ID = '0198a001-0000-7000-8000-000000000001';
+    private const TAG_ID = '0198a001-0000-7000-8000-000000000002';
+    private const GACHA_ASSET_ID = '0198a001-0000-7000-8000-000000000005';
+    private const PRIZE_ASSET_ID = '0198a001-0000-7000-8000-000000000007';
     private const PRIZE_S_ID = '0198a001-0000-7000-8000-000000000009';
     private const PRIZE_A_ID = '0198a001-0000-7000-8000-000000000010';
+
+    public function test_lifecycle_migration_backfills_ever_published_gacha_without_current_pointer(): void
+    {
+        $this->configureTestBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $publishedAt = DB::table('catalog_gacha_versions')
+            ->where('id', $gacha->published_version_id)
+            ->value('published_at');
+
+        try {
+            Artisan::call('migrate:rollback', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php',
+                '--force' => true,
+            ]);
+            DB::statement('SET session_replication_role = replica');
+            try {
+                DB::table('gacha_draw_states')
+                    ->where('id', $gacha->active_draw_state_id)
+                    ->update([
+                        'status' => 'sold_out',
+                        'sold_count' => DB::raw('total_count'),
+                        'sold_out_at' => DB::raw('CURRENT_TIMESTAMP'),
+                    ]);
+                DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+                    'management_status' => 'unpublished',
+                    'published_version_id' => null,
+                    'active_draw_state_id' => null,
+                ]);
+            } finally {
+                DB::statement('SET session_replication_role = origin');
+            }
+            Artisan::call('migrate', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php',
+                '--force' => true,
+            ]);
+
+            self::assertSame(
+                CarbonImmutable::parse((string) $publishedAt)
+                    ->utc()->toIso8601ZuluString(),
+                CarbonImmutable::parse((string) DB::table('catalog_gachas')
+                    ->where('id', $gacha->id)
+                    ->value('first_published_at'))
+                    ->utc()->toIso8601ZuluString()
+            );
+        } finally {
+            DB::statement('SET session_replication_role = origin');
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+        }
+    }
+
+    public function test_lifecycle_migration_backfills_current_published_presentation(): void
+    {
+        $this->configureTestBoundary();
+        Artisan::call('migrate:fresh', [
+            '--path' => 'database/migrations-v2',
+            '--force' => true,
+        ]);
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', self::GACHA_ID)->firstOrFail();
+        $version = DB::table('catalog_gacha_versions')
+            ->where('id', $gacha->published_version_id)->firstOrFail();
+
+        try {
+            Artisan::call('migrate:rollback', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php',
+                '--force' => true,
+            ]);
+            Artisan::call('migrate', [
+                '--path' => 'database/migrations-v2/'.
+                    '2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php',
+                '--force' => true,
+            ]);
+
+            $migrated = DB::table('catalog_gachas')
+                ->where('id', $gacha->id)->firstOrFail();
+            self::assertSame($version->title, $migrated->current_title);
+            self::assertSame(
+                CarbonImmutable::parse((string) $version->publish_start_at)
+                    ->utc()->toIso8601ZuluString(),
+                CarbonImmutable::parse((string) $migrated->current_publish_start_at)
+                    ->utc()->toIso8601ZuluString()
+            );
+            self::assertSame((int) $gacha->revision + 1, (int) $migrated->revision);
+        } finally {
+            Artisan::call('migrate:fresh', [
+                '--path' => 'database/migrations-v2',
+                '--force' => true,
+            ]);
+        }
+    }
 
     public function test_concurrent_selection_has_one_canonical_winner(): void
     {
@@ -137,7 +245,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             self::assertCount(1, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
-            ));
+            ), json_encode($results, JSON_THROW_ON_ERROR));
             $failures = array_values(array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'failure'
@@ -193,68 +301,9 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         app(V2CatalogFixtureImporter::class)->import($this->fixture());
         $context = $this->createAdminContext();
         $service = app(V2CatalogMasterMutationService::class);
-        $draft = $service->cloneGachaDraft(
-            $context,
-            self::GACHA_ID,
-            self::PUBLISHED_GACHA_VERSION_ID,
-            'gacha-publish-concurrency-clone',
-            []
-        )['data'];
-        $probabilityDraft = $service->createProbabilityDraft(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            'gacha-publish-concurrency-probability-create',
-            []
-        )['data'];
-        $probabilityDraft = $service->replaceProbabilityEntries(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            $probabilityDraft['id'],
-            'gacha-publish-concurrency-probability-entries',
-            [
-                'expected_revision' => $probabilityDraft['revision'],
-                'stages' => [[
-                    'code' => 'stage-1',
-                    'name' => 'Stage 1',
-                    'min_draw_number' => 1,
-                    'max_draw_number' => null,
-                    'entries' => [[
-                        'result_type' => 'prize',
-                        'prize_id' => self::PRIZE_S_ID,
-                        'point_amount' => null,
-                        'probability_ppm' => 600000,
-                    ]],
-                    'minimum_guarantee' => [
-                        'result_type' => 'prize',
-                        'prize_id' => self::PRIZE_A_ID,
-                        'point_amount' => null,
-                        'probability_ppm' => 400000,
-                    ],
-                ]],
-            ]
-        )['data'];
-        $published = $service->publishProbabilityDraft(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            $probabilityDraft['id'],
-            'gacha-publish-concurrency-probability-publish',
-            ['expected_revision' => $probabilityDraft['revision']]
-        )['data'];
-        $selected = $service->selectPublishedProbability(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            'gacha-publish-concurrency-selection',
-            [
-                'expected_revision' => $draft['revision'],
-                'probability_version_id' => $published['id'],
-            ]
-        )['data'];
+        $prepared = $this->prepareInitialPublish($context, $service);
         $gachaRevision = (int) DB::table('catalog_gachas')
-            ->where('public_id', self::GACHA_ID)
+            ->where('public_id', $prepared['gacha_id'])
             ->value('revision');
 
         $token = (string) Str::uuid7();
@@ -275,8 +324,9 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                 if ($pid === 0) {
                     $this->runImmediatePublish(
                         $context,
-                        $draft['id'],
-                        (int) $selected['revision'],
+                        $prepared['gacha_id'],
+                        $prepared['version_id'],
+                        $prepared['version_revision'],
                         $gachaRevision,
                         "gacha-publish-concurrency-{$index}",
                         $startPath,
@@ -303,7 +353,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             self::assertCount(1, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
-            ));
+            ), json_encode($results, JSON_THROW_ON_ERROR));
             $failures = array_values(array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'failure'
@@ -313,10 +363,10 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
 
             DB::reconnect();
             $gacha = DB::table('catalog_gachas')
-                ->where('public_id', self::GACHA_ID)
+                ->where('public_id', $prepared['gacha_id'])
                 ->first(['published_version_id', 'active_draw_state_id']);
             $version = DB::table('catalog_gacha_versions')
-                ->where('public_id', $draft['id'])
+                ->where('public_id', $prepared['version_id'])
                 ->first(['id', 'status']);
             self::assertSame('published', $version->status);
             self::assertSame((int) $version->id, (int) $gacha->published_version_id);
@@ -327,17 +377,17 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                     ->value('gacha_version_id')
             );
             self::assertSame(
-                2,
+                1,
                 DB::table('gacha_draw_states')
                     ->where('gacha_id', DB::table('catalog_gachas')
-                        ->where('public_id', self::GACHA_ID)
+                        ->where('public_id', $prepared['gacha_id'])
                         ->value('id'))
                     ->count()
             );
             self::assertSame(
                 1,
                 DB::table('outbox_messages')
-                    ->where('aggregate_public_id', $draft['id'])
+                    ->where('aggregate_public_id', $prepared['version_id'])
                     ->where('topic', 'catalog.change')
                     ->where(
                         'event_type',
@@ -510,83 +560,22 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         app(V2CatalogFixtureImporter::class)->import($this->fixture());
         $context = $this->createAdminContext();
         $service = app(V2CatalogMasterMutationService::class);
-        $draft = $service->cloneGachaDraft(
-            $context,
-            self::GACHA_ID,
-            self::PUBLISHED_GACHA_VERSION_ID,
-            'gacha-unpublish-concurrency-clone',
-            []
-        )['data'];
-        $probabilityDraft = $service->createProbabilityDraft(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            'gacha-unpublish-concurrency-probability-create',
-            []
-        )['data'];
-        $probabilityDraft = $service->replaceProbabilityEntries(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            $probabilityDraft['id'],
-            'gacha-unpublish-concurrency-probability-entries',
-            [
-                'expected_revision' => $probabilityDraft['revision'],
-                'stages' => [[
-                    'code' => 'stage-1',
-                    'name' => 'Stage 1',
-                    'min_draw_number' => 1,
-                    'max_draw_number' => null,
-                    'entries' => [[
-                        'result_type' => 'prize',
-                        'prize_id' => self::PRIZE_S_ID,
-                        'point_amount' => null,
-                        'probability_ppm' => 600000,
-                    ]],
-                    'minimum_guarantee' => [
-                        'result_type' => 'prize',
-                        'prize_id' => self::PRIZE_A_ID,
-                        'point_amount' => null,
-                        'probability_ppm' => 400000,
-                    ],
-                ]],
-            ]
-        )['data'];
-        $probability = $service->publishProbabilityDraft(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            $probabilityDraft['id'],
-            'gacha-unpublish-concurrency-probability-publish',
-            ['expected_revision' => $probabilityDraft['revision']]
-        )['data'];
-        $selected = $service->selectPublishedProbability(
-            $context,
-            self::GACHA_ID,
-            $draft['id'],
-            'gacha-unpublish-concurrency-selection',
-            [
-                'expected_revision' => $draft['revision'],
-                'probability_version_id' => $probability['id'],
-            ]
-        )['data'];
-        $gachaRevision = (int) DB::table('catalog_gachas')
-            ->where('public_id', self::GACHA_ID)->value('revision');
+        $prepared = $this->prepareInitialPublish($context, $service);
         $service->publishGachaVersionImmediately(
             $context,
-            self::GACHA_ID,
-            $draft['id'],
-            'gacha-unpublish-concurrency-publish',
+            $prepared['gacha_id'],
+            $prepared['version_id'],
+            'gacha-unpublish-concurrency-initial-publish',
             [
-                'expected_revision' => $selected['revision'],
-                'expected_gacha_revision' => $gachaRevision,
+                'expected_revision' => $prepared['version_revision'],
+                'expected_gacha_revision' => 1,
             ]
         );
         $gachaRevision = (int) DB::table('catalog_gachas')
-            ->where('public_id', self::GACHA_ID)->value('revision');
+            ->where('public_id', $prepared['gacha_id'])->value('revision');
         $paused = $service->pauseGachaSales(
             $context,
-            self::GACHA_ID,
+            $prepared['gacha_id'],
             'gacha-unpublish-concurrency-pause',
             [
                 'expected_gacha_revision' => $gachaRevision,
@@ -612,6 +601,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                 if ($pid === 0) {
                     $this->runUnpublish(
                         $context,
+                        $prepared['gacha_id'],
                         (int) $paused['gacha_revision'],
                         "gacha-unpublish-concurrency-{$index}",
                         $startPath,
@@ -637,7 +627,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             self::assertCount(1, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
-            ));
+            ), json_encode($results, JSON_THROW_ON_ERROR));
             $failures = array_values(array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'failure'
@@ -647,14 +637,19 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
 
             DB::reconnect();
             $gacha = DB::table('catalog_gachas')
-                ->where('public_id', self::GACHA_ID)->firstOrFail();
+                ->where('public_id', $prepared['gacha_id'])->firstOrFail();
             self::assertNull($gacha->published_version_id);
             self::assertNull($gacha->active_draw_state_id);
             self::assertTrue((bool) $gacha->sales_paused);
+            self::assertDatabaseHas('gacha_draw_states', [
+                'gacha_id' => $gacha->id,
+                'status' => 'closed',
+                'close_reason' => 'superseded',
+            ]);
             self::assertSame(
                 1,
                 DB::table('outbox_messages')
-                    ->where('aggregate_public_id', self::GACHA_ID)
+                    ->where('aggregate_public_id', $prepared['gacha_id'])
                     ->where('event_type', 'catalog.master.unpublished')
                     ->count()
             );
@@ -710,6 +705,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
 
     private function runImmediatePublish(
         V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
         string $gachaVersionId,
         int $revision,
         int $gachaRevision,
@@ -727,7 +723,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             app(V2CatalogMasterMutationService::class)
                 ->publishGachaVersionImmediately(
                     $context,
-                    self::GACHA_ID,
+                    $gachaPublicId,
                     $gachaVersionId,
                     $idempotencyKey,
                     [
@@ -744,6 +740,125 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         file_put_contents($resultPath, json_encode($result, JSON_THROW_ON_ERROR));
         DB::disconnect();
         exit(0);
+    }
+
+    /** @return array{gacha_id: string, version_id: string, version_revision: int} */
+    private function prepareInitialPublish(
+        V2AdminAuthorizationContext $context,
+        V2CatalogMasterMutationService $service
+    ): array {
+        $core = $service->createGachaCore(
+            $context,
+            'gacha-initial-publish-concurrency-core',
+            [
+                'title' => 'Initial publish concurrency',
+                'category_id' => self::CATEGORY_ID,
+                'tag_ids' => [self::TAG_ID],
+                'price_points' => 100,
+                'total_count' => 10,
+                'daily_draw_limit' => 0,
+                'audience_code' => 'all_users',
+                'first_time_eligible_days' => 7,
+                'allowed_draw_counts' => [1, 5, 10],
+                'presentation_asset_id' => self::GACHA_ASSET_ID,
+                'publish_start_at' => now()->subMinute()->toIso8601String(),
+                'publish_end_at' => now()->addYear()->toIso8601String(),
+                'description' => null,
+                'notices' => null,
+            ]
+        )['data'];
+        $versionId = (string) $core['current_version']['id'];
+        $rank = $service->createGachaDraftRank(
+            $context,
+            $core['id'],
+            $versionId,
+            'gacha-initial-publish-concurrency-rank',
+            [
+                'code' => 's',
+                'name' => 'S rank',
+                'description' => null,
+                'image_asset_id' => null,
+                'video_asset_id' => null,
+                'expected_version_revision' => 1,
+            ]
+        )['data'];
+        $prize = $service->createGachaDraftPrize(
+            $context,
+            $core['id'],
+            $versionId,
+            'gacha-initial-publish-concurrency-prize',
+            [
+                'rank_id' => $rank['id'],
+                'presentation_asset_id' => self::PRIZE_ASSET_ID,
+                'name' => 'Initial publish prize',
+                'total_inventory' => 10,
+                'exchange_points' => 100,
+                'cost_price' => 50,
+                'is_active' => true,
+                'expected_version_revision' => 2,
+            ]
+        )['data'];
+        $probability = $service->createProbabilityDraft(
+            $context,
+            $core['id'],
+            $versionId,
+            'gacha-initial-publish-concurrency-probability',
+            []
+        )['data'];
+        $probability = $service->replaceProbabilityEntries(
+            $context,
+            $core['id'],
+            $versionId,
+            $probability['id'],
+            'gacha-initial-publish-concurrency-probability-entries',
+            [
+                'expected_revision' => $probability['revision'],
+                'stages' => [[
+                    'code' => 'default',
+                    'name' => 'Default',
+                    'min_draw_number' => 1,
+                    'max_draw_number' => null,
+                    'entries' => [[
+                        'result_type' => 'prize',
+                        'prize_id' => $prize['id'],
+                        'point_amount' => null,
+                        'probability_ppm' => 900_000,
+                    ]],
+                    'minimum_guarantee' => [
+                        'result_type' => 'prize',
+                        'prize_id' => $prize['id'],
+                        'point_amount' => null,
+                        'probability_ppm' => 100_000,
+                    ],
+                ]],
+            ]
+        )['data'];
+        $probability = $service->publishProbabilityDraft(
+            $context,
+            $core['id'],
+            $versionId,
+            $probability['id'],
+            'gacha-initial-publish-concurrency-probability-publish',
+            ['expected_revision' => $probability['revision']]
+        )['data'];
+        $versionRevision = (int) DB::table('catalog_gacha_versions')
+            ->where('public_id', $versionId)->value('revision');
+        $selected = $service->selectPublishedProbability(
+            $context,
+            $core['id'],
+            $versionId,
+            'gacha-initial-publish-concurrency-probability-select',
+            [
+                'expected_revision' => $versionRevision,
+                'probability_version_id' => $probability['id'],
+            ]
+        )['data'];
+
+        return [
+            'gacha_id' => (string) $core['id'],
+            'version_id' => $versionId,
+            'version_revision' => (int) $selected['revision'],
+        ];
     }
 
     private function runSalesPause(
@@ -818,6 +933,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
 
     private function runUnpublish(
         V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
         int $gachaRevision,
         string $idempotencyKey,
         string $startPath,
@@ -832,7 +948,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         try {
             app(V2CatalogMasterMutationService::class)->unpublishGacha(
                 $context,
-                self::GACHA_ID,
+                $gachaPublicId,
                 $idempotencyKey,
                 ['expected_gacha_revision' => $gachaRevision]
             );

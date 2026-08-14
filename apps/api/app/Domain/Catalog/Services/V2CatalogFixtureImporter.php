@@ -428,6 +428,7 @@ final class V2CatalogFixtureImporter
                     'active_draw_state_id',
                     'sold_count',
                     'revision',
+                    'current_title',
                 ]);
             if ($gachaRow === null) {
                 continue;
@@ -440,8 +441,18 @@ final class V2CatalogFixtureImporter
             } else {
                 $versionQuery->orderByDesc('version_number');
             }
-            $version = $versionQuery
-                ->first(['id', 'published_probability_version_id', 'total_count']);
+            $version = $versionQuery->first([
+                'id',
+                'published_probability_version_id',
+                'total_count',
+                'title',
+                'description',
+                'notices',
+                'presentation_asset_id',
+                'publish_start_at',
+                'publish_end_at',
+                'published_at',
+            ]);
             if ($version === null || $version->published_probability_version_id === null) {
                 continue;
             }
@@ -471,12 +482,22 @@ final class V2CatalogFixtureImporter
             if (
                 (int) ($gachaRow->published_version_id ?? 0) !== (int) $version->id
                 || (int) ($gachaRow->active_draw_state_id ?? 0) !== (int) $stateId
+                || $gachaRow->current_title === null
             ) {
                 DB::table('catalog_gachas')->where('id', $gachaRow->id)->update([
                     'state' => 'active',
                     'management_status' => 'published',
                     'published_version_id' => $version->id,
                     'active_draw_state_id' => $stateId,
+                    'first_published_at' => $version->published_at ?? $now,
+                    'scheduled_start_at' => null,
+                    'current_publish_start_at' => $version->publish_start_at,
+                    'current_title' => $version->title,
+                    'current_description' => $version->description,
+                    'current_notices' => $version->notices,
+                    'current_presentation_asset_id' =>
+                        $version->presentation_asset_id,
+                    'current_publish_end_at' => $version->publish_end_at,
                     'revision' => (int) $gachaRow->revision + 1,
                     'updated_at' => $now,
                 ]);
