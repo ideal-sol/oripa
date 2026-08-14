@@ -7080,20 +7080,28 @@ final class V2CatalogMasterMutationService
             : DB::table('catalog_gacha_versions')
                 ->where('id', $row->published_version_id)
                 ->first();
+        $lastPublishedVersion = $publishedVersion;
+        if ($lastPublishedVersion === null && $row->first_published_at !== null) {
+            $lastPublishedVersion = DB::table('catalog_gacha_versions')
+                ->where('gacha_id', $row->id)
+                ->where('status', 'published')
+                ->orderByDesc('version_number')
+                ->first();
+        }
         $currentVersion = (string) ($row->management_status ?? 'draft') === 'draft'
             ? DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)
                 ->where('status', 'draft')
                 ->whereNull('archived_at')
                 ->orderByDesc('version_number')
-                ->first() ?? $publishedVersion
-            : $publishedVersion;
+                ->first() ?? $lastPublishedVersion
+            : $lastPublishedVersion;
         $category = DB::table('catalog_categories')
             ->where('id', $currentVersion?->category_id ?? $row->category_id)
             ->firstOrFail();
         $useCurrentPresentation = $currentVersion !== null
-            && $publishedVersion !== null
-            && (int) $currentVersion->id === (int) $publishedVersion->id
+            && $lastPublishedVersion !== null
+            && (int) $currentVersion->id === (int) $lastPublishedVersion->id
             && (string) ($row->management_status ?? 'draft') !== 'draft';
         $versionTags = $useCurrentPresentation || $currentVersion === null
             ? collect()
