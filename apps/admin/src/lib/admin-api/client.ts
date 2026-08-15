@@ -617,6 +617,23 @@ export class AdminApiClient {
     );
   }
 
+  publishContentBanner(
+    id: string,
+    versionId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminContentDetail> {
+    if (!isOpaqueId(id) || !isOpaqueId(versionId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CONTENT_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "POST",
+      `/content/banners/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/publish`,
+      { signal },
+    );
+  }
+
   listPageCategories(signal?: AbortSignal): Promise<AdminPageCategoryCollection> {
     return this.request("GET", "/page-management/categories", { signal });
   }

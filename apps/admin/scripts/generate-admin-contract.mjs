@@ -70,6 +70,10 @@ const operations = {
   createManagedAdminBanner: ["post", "/banner-management/banners"],
   updateManagedAdminBanner: ["put", "/banner-management/banners/{banner_id}"],
   deleteManagedAdminBanner: ["delete", "/banner-management/banners/{banner_id}"],
+  publishAdminContentBannerVersion: [
+    "post",
+    "/content/banners/{content_id}/versions/{version_id}/publish",
+  ],
   createAdminContentNotice: ["post", "/content/notices"],
   previewAdminContentNotice: ["post", "/content/notices/preview"],
   getAdminContentNotice: ["get", "/content/notices/{content_id}"],
