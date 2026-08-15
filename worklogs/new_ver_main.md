@@ -8385,3 +8385,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回E2Eは既存cross-origin Synthetic Asset URLがAdmin CSPにより遮断され、Console Error assertionでFAILした。Assertionは維持し、Synthetic Asset fixtureだけをsame-origin Public API pathへ補正後、Desktop／Mobile 2 testsとConsole／Page／500系0がPASSした。
 - Phase Bではexact PR headのRequired Checks、GitHub-hosted Preview Artifact、Synthetic BannerのAdmin Publish／Public Contract／Storefront Carousel／Link遷移、Fresh Self-review、Squash Merge、Issue／branch／worktree cleanupを記録する。
 - 初回PR Head `52530798be5854225697315d82404b50b1518d88`ではPolicy／Security／Integration、CodeQL、Dependency ReviewがPASSしたが、MIG-062T非変更のGacha lifecycle Admin Unitが単発FAILしQuality／ci-gateがFAILした。同testをlocalで5回反復して全PASSし、同一headのWorkflow再実行では全5 Required ChecksがPASSした。ただし固定wrapperは同一headの過去failed runもFail Closedするため、失敗と再現結果をReportへ記録したdocs-only fresh headで全Checksを再実行する。
+
+## MIG-062T Banner Publish Admin UI Fix Phase B
+
+- Fresh Application／Preview Head `2065b48e1ae59dcd9dd3278955ae8ab59787275f`はRequired 5 Checks、CodeQL、Dependency Reviewが失敗履歴0でPASSした。GitHub-hosted `linux/amd64` Artifactのdigest／manifest／OCI revision／Architectureを検証し、Host BuildなしでPreview AdminだけをTask Imageへ更新した。
+- 実Admin UIでSynthetic Banner登録、Top ON、`link_url=/gachas`、Draft／Version、Desktop／Mobile「公開する」、既存Backend Publish、Canonical再取得Publishedを確認した。Public BannerはCache TTL 60秒後に200 responseへ含まれ、`test.luxe-pack.biz` Carousel表示と`/gachas`遷移がPASSした。Synthetic BannerはAdmin UIで削除済みである。
+- Page ErrorとHTTP 500／502／504は0。既存Admin CSPの`blob:` preview拒否と既存相対Asset URL 4件のAdmin origin 404はAllowed Paths外の既存Console事象として記録し、Publish／Public Contract／Storefront結果と分離した。Category 0件だったためCanonical UIで`MIG-062T Preview`を作成し、削除ContractがないためDB直接削除せず保持する。
+- Storefront、Backend、OpenAPI source／bundle、DB／Migration、Cache、Dependency、V1、Infrastructureは変更していない。Final docs-only head、Fresh Self-review、Squash／Issue Close／branch／worktree cleanupはReport commit後にPR／Issue Closeoutへexact値を記録する。
