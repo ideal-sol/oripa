@@ -50,6 +50,9 @@
 - Quality: Unit 5 tests、Local `quality-gate` PASS。
 - Security: Unit 10 tests、Composer／Root pnpm／Legacy pnpm Fresh Audit各0件、Secret candidate 0、Local `security-gate` PASS。
 - GitHub Required Checks、CodeQL、Dependency Review: Phase Bでexact headに固定して記録する。
+- 初回PR Head `52530798be5854225697315d82404b50b1518d88`: Policy／Security／Integration、CodeQL、Dependency Review PASS。QualityはMIG-062T非変更の`catalog-gacha-lifecycle.test.tsx` 1件が単発FAILし、`ci-gate`もFAILした。
+- 同じGacha lifecycle testをlocalで5回反復し、全5回／15 testsがPASSした。同一headの公式Workflow再実行ではPolicy／Quality／Security／Integration／ci-gateがすべてPASSした。
+- GitHub App wrapperは同一headに残る過去failed check-runもFail Closedするため、失敗履歴と再現結果を記録したdocs-only fresh headでRequired Checksを新規実行し、失敗履歴0を要求する。TestやAssertion、Gateは変更していない。
 
 ## Phase B
 
