@@ -8420,3 +8420,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 順序は`created_at DESC, draw_request.id DESC`、CursorはCurrent User所有のDraw Request public IDから継続位置を解決する。Authenticated only、`private, no-store`、`Vary: Cookie`、Typed Problemを維持する。
 - Public OpenAPI／bundle、Generated Types、薄いStorefront Client、Site capability、Testkit fixtureを`2.0.0-alpha.19`へ同期した。Migration created／Task・Preview appliedは0で、Local synthetic test DBだけに既存V2 Migration 53件を適用した。Draw／Point／Inventory／Prize／Payment Mutation、Gacha lifecycle、Storefront Repositoryは変更していない。
 - Backend targeted 3 tests／55 assertions、既存Draw／QA／V1 characterization、OpenAPI、Client 27 tests、Site Schema 10 tests、Testkit 33 tests、Admin、Policy／Quality／Security／Release local checksがPASSした。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはApplication exact headで継続する。
+
+## MIG-062V Current User Gacha History Read Contract Phase B
+
+- Phase B開始時もRemote mainはBaseから移動せず、Generated Contract／Artifact／Preview lock競合はない。Application Head `2b58e308693fa6e642023e2778274e789da75c09`のRequired 5 Checks、CodeQL、CodeQL JavaScript、Dependency Reviewが失敗履歴0でPASSした。
+- GitHub-hosted Run `31886804304`のimmutable `2.0.0-alpha.19` Contract Artifactと`linux/amd64` Preview Imageをouter digest／manifest／package identity／OCI revisionまでreadback検証した。Host BuildなしでAPIだけをTask imageへ更新した。
+- 旧QA credentialはTask Image／直前Image双方で401となり回帰ではなく失効と切り分けた。より新しい安全な既存Preview QA Userへ切替え、Gacha履歴4件／2ページ、partial execution、public asset、Backend status／label、Stable Ordering、Cursor、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出をReadのみで確認した。
+- Preview Runtime Error／Mutation／Migration／Cache削除／Storefront変更は0。Admin、PostgreSQL、Redis、Nginx、Storefront Runtimeは変更していない。
+- Synthetic test Container／networkは削除した。実行PolicyがDocker volume削除を拒否したため未接続dependency volume 1件だけ残る。Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Issue／branch／worktree cleanupはexact headで継続する。
