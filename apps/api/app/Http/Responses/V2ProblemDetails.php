@@ -36,6 +36,7 @@ final class V2ProblemDetails
             [
                 'Content-Type' => 'application/problem+json',
                 'Cache-Control' => 'private, no-store',
+                'Vary' => 'Cookie',
                 'X-Request-Id' => $requestId,
                 'X-Oripa-Api-Version' => '2',
             ]

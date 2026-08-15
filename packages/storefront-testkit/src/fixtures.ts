@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.17",
+      storefront_client_version: "2.0.0-alpha.18",
       required_capabilities: [],
     },
     public: {
@@ -39,6 +39,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         "gacha.catalog-display.v2",
         "gacha.presentation.v2",
         "prize.fulfillment-browser-mutation.v2",
+        "user-point.read.v2",
         "user-prize.presentation.v2",
       ],
     },
@@ -51,6 +52,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
           "gacha.catalog-display.v2",
           "gacha.presentation.v2",
           "prize.fulfillment-browser-mutation.v2",
+          "user-point.read.v2",
           "user-prize.presentation.v2",
         ],
       },
@@ -60,13 +62,14 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.17",
+  minimum_storefront_client_version: "2.0.0-alpha.18",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
     "gacha.catalog-display.v2",
     "gacha.presentation.v2",
     "prize.fulfillment-browser-mutation.v2",
+    "user-point.read.v2",
     "user-prize.presentation.v2",
   ],
 }) satisfies PlatformRuntimeCompatibility;
@@ -232,6 +235,94 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
 } as const satisfies Record<
   string,
   PublicComponents["schemas"]["PointProductCollection"]
+>);
+
+export const PUBLIC_POINT_BALANCE_FIXTURES = Object.freeze({
+  positive: { paid_points: 800, free_points: 200, total_points: 1000 },
+  zero: { paid_points: 0, free_points: 0, total_points: 0 },
+} as const satisfies Record<string, PublicComponents["schemas"]["WalletBalance"]>);
+
+export const PUBLIC_POINT_HISTORY_FIXTURES = Object.freeze({
+  multiple: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000343",
+        occurred_at: "2026-08-15T00:03:00Z",
+        amount_delta: -300,
+        reason: { label: "ガチャ利用" },
+      },
+      {
+        id: "0198a001-0000-7000-8000-000000000342",
+        occurred_at: "2026-08-15T00:02:00Z",
+        amount_delta: 50,
+        reason: { label: "景品のポイント交換" },
+      },
+      {
+        id: "0198a001-0000-7000-8000-000000000341",
+        occurred_at: "2026-08-15T00:01:00Z",
+        amount_delta: 1000,
+        reason: { label: "ポイント購入" },
+      },
+    ],
+    next_cursor: null,
+  },
+  empty: { items: [], next_cursor: null },
+  first_page: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000343",
+        occurred_at: "2026-08-15T00:03:00Z",
+        amount_delta: -300,
+        reason: { label: "ガチャ利用" },
+      },
+    ],
+    next_cursor: "MDE5OGEwMDEtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMzQz",
+  },
+  continuation: {
+    items: [
+      {
+        id: "0198a001-0000-7000-8000-000000000342",
+        occurred_at: "2026-08-15T00:02:00Z",
+        amount_delta: 50,
+        reason: { label: "景品のポイント交換" },
+      },
+    ],
+    next_cursor: null,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PointHistoryCollection"]
+>);
+
+export const PUBLIC_POINT_READ_PROBLEM_FIXTURES = Object.freeze({
+  unauthenticated: {
+    type: "https://oripa.example/problems/authentication_required",
+    title: "Authentication is required.",
+    status: 401,
+    code: "AUTHENTICATION_REQUIRED",
+    request_id: "request-point-auth-001",
+    retryable: false,
+  },
+  session_expired: {
+    type: "https://oripa.example/problems/session_expired",
+    title: "The session has expired.",
+    status: 401,
+    code: "SESSION_EXPIRED",
+    request_id: "request-point-session-001",
+    retryable: false,
+  },
+  rate_limited: {
+    type: "https://oripa.example/problems/rate_limited",
+    title: "Too many requests.",
+    status: 429,
+    code: "RATE_LIMITED",
+    request_id: "request-point-rate-001",
+    retryable: true,
+    retry_after_seconds: 60,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PointReadProblemDetails"]
 >);
 
 export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
