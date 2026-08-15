@@ -8,6 +8,13 @@ type Schemas = PublicComponents["schemas"];
 
 export type DrawCount = 1 | 5 | 10 | 100 | 1000;
 
+export interface DrawHistoryQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export type DrawHistoryReadProblemCode = Schemas["DrawHistoryReadProblemCode"];
+
 export interface CreateDrawOptions {
   idempotency_key: string;
   csrf_token: string;
@@ -22,6 +29,9 @@ export interface BrowserCreateDrawOptions {
 }
 
 export interface StorefrontDrawClient {
+  listDrawHistory(
+    query?: DrawHistoryQuery,
+  ): Promise<StorefrontResponse<Schemas["DrawHistoryCollection"]>>;
   createDraw(
     gachaId: string,
     drawCount: DrawCount,
@@ -34,6 +44,9 @@ export interface StorefrontDrawClient {
 }
 
 export interface BrowserStorefrontDrawClient {
+  listDrawHistory(
+    query?: DrawHistoryQuery,
+  ): Promise<StorefrontResponse<Schemas["DrawHistoryCollection"]>>;
   createDraw(
     gachaId: string,
     drawCount: DrawCount,
@@ -53,10 +66,27 @@ function pathSegment(value: string, name: string): string {
   return encodeURIComponent(value);
 }
 
+function historyQueryString(query: DrawHistoryQuery): string {
+  const parameters = new URLSearchParams();
+  if (query.limit !== undefined) {
+    if (!Number.isSafeInteger(query.limit) || query.limit < 1 || query.limit > 100) {
+      throw new TypeError("limit must be an integer from 1 through 100");
+    }
+    parameters.set("limit", String(query.limit));
+  }
+  if (query.cursor !== undefined) {
+    parameters.set("cursor", query.cursor);
+  }
+  const encoded = parameters.toString();
+  return encoded === "" ? "" : `?${encoded}`;
+}
+
 export function createStorefrontDrawClient(
   transport: StorefrontTransport,
 ): StorefrontDrawClient {
   return {
+    listDrawHistory: (query = {}) =>
+      transport.request({ path: `/me/draws${historyQueryString(query)}` }),
     createDraw: (gachaId, drawCount, options) => {
       if (![1, 5, 10, 100, 1000].includes(drawCount)) {
         throw new TypeError("draw_count is invalid");
@@ -88,6 +118,8 @@ export function createCsrfManagedStorefrontDrawClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontDrawClient {
   return {
+    listDrawHistory: (query = {}) =>
+      transport.request({ path: `/me/draws${historyQueryString(query)}` }),
     createDraw: (gachaId, drawCount, options) => {
       if (![1, 5, 10, 100, 1000].includes(drawCount)) {
         throw new TypeError("draw_count is invalid");

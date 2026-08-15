@@ -310,6 +310,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/draws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current UserのGacha利用履歴を新しい順で取得する */
+        get: operations["listDrawHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/prizes/{prize_id}": {
         parameters: {
             query?: never;
@@ -1314,6 +1331,41 @@ export interface components {
         };
         /** @description Point Readで実在する既知Code、または安全に汎用処理する未知のProblem Details。 */
         PointReadProblemResponse: components["schemas"]["PointReadProblemDetails"] | components["schemas"]["ProblemDetails"];
+        /** @constant */
+        DrawHistoryStatusCode: "completed";
+        DrawHistoryStatus: {
+            code: components["schemas"]["DrawHistoryStatusCode"];
+            /**
+             * @description BackendがCanonical Draw Request statusから確定した表示Label。
+             * @constant
+             */
+            label: "完了";
+        };
+        DrawHistoryGachaPresentation: {
+            id: components["schemas"]["GachaPublicId"];
+            title: string;
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+        };
+        DrawHistoryEntry: {
+            id: components["schemas"]["OpaqueId"];
+            gacha: components["schemas"]["DrawHistoryGachaPresentation"];
+            occurred_at: components["schemas"]["UtcDateTime"];
+            /** @enum {integer} */
+            requested_count: 1 | 5 | 10 | 100 | 1000;
+            executed_count: number;
+            status: components["schemas"]["DrawHistoryStatus"];
+        };
+        DrawHistoryCollection: {
+            items: components["schemas"]["DrawHistoryEntry"][];
+            next_cursor: string | null;
+        };
+        /** @enum {string} */
+        DrawHistoryReadProblemCode: "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        DrawHistoryReadProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["DrawHistoryReadProblemCode"];
+        };
+        /** @description Draw History Readの既知Code、または安全に汎用処理する未知のProblem Details。 */
+        DrawHistoryReadProblemResponse: components["schemas"]["DrawHistoryReadProblemDetails"] | components["schemas"]["ProblemDetails"];
         DrawPrizeReference: {
             id: components["schemas"]["OpaqueId"];
             name: string;
@@ -1567,6 +1619,18 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["PointReadProblemResponse"];
+            };
+        };
+        /** @description Current User Draw History ReadのRFC 9457 Problem Details。 */
+        DrawHistoryReadProblem: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["DrawHistoryReadProblemResponse"];
             };
         };
     };
@@ -2019,6 +2083,33 @@ export interface operations {
             422: components["responses"]["PointReadProblem"];
             429: components["responses"]["PointReadProblem"];
             default: components["responses"]["PointReadProblem"];
+        };
+    };
+    listDrawHistory: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 発生日時と内部tie-breakerで決定的に並べたCurrent UserのGacha利用履歴。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawHistoryCollection"];
+                };
+            };
+            401: components["responses"]["DrawHistoryReadProblem"];
+            422: components["responses"]["DrawHistoryReadProblem"];
+            429: components["responses"]["DrawHistoryReadProblem"];
+            default: components["responses"]["DrawHistoryReadProblem"];
         };
     };
     getUserPrize: {

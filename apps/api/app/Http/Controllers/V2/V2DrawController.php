@@ -61,6 +61,33 @@ final class V2DrawController
         }
     }
 
+    public function history(Request $request): JsonResponse
+    {
+        $requestId = $this->requestId($request);
+        try {
+            $cursor = $request->query('cursor');
+            if ($cursor !== null && ! is_string($cursor)) {
+                throw new V2DrawException('INVALID_CURSOR', 422, 'The cursor is invalid.');
+            }
+            $limit = filter_var($request->query('limit', 20), FILTER_VALIDATE_INT);
+            if ($limit === false) {
+                throw new V2DrawException(
+                    'INVALID_PAGINATION',
+                    422,
+                    'The pagination input is invalid.'
+                );
+            }
+
+            return $this->success(
+                $this->draws->history($this->user(), $cursor, $limit),
+                $requestId,
+                true
+            );
+        } catch (V2DrawException $exception) {
+            return $this->problem($exception, $requestId, true);
+        }
+    }
+
     private function user(): User
     {
         $user = Auth::guard('v2_user')->user();
@@ -78,16 +105,29 @@ final class V2DrawController
     /**
      * @param array<string, mixed> $body
      */
-    private function success(array $body, string $requestId): JsonResponse
+    private function success(
+        array $body,
+        string $requestId,
+        bool $private = false
+    ): JsonResponse
     {
-        return response()->json($body, 200, [
-            'Cache-Control' => 'no-store',
+        $headers = [
+            'Cache-Control' => $private ? 'private, no-store' : 'no-store',
             'X-Request-Id' => $requestId,
             'X-Oripa-Api-Version' => '2',
-        ]);
+        ];
+        if ($private) {
+            $headers['Vary'] = 'Cookie';
+        }
+
+        return response()->json($body, 200, $headers);
     }
 
-    private function problem(V2DrawException $exception, string $requestId): JsonResponse
+    private function problem(
+        V2DrawException $exception,
+        string $requestId,
+        bool $private = false
+    ): JsonResponse
     {
         $body = [
             'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
@@ -101,12 +141,16 @@ final class V2DrawController
             $body['retry_after_seconds'] = $exception->retryAfterSeconds;
         }
 
-        $response = response()->json($body, $exception->status, [
+        $headers = [
             'Content-Type' => 'application/problem+json',
-            'Cache-Control' => 'no-store',
+            'Cache-Control' => $private ? 'private, no-store' : 'no-store',
             'X-Request-Id' => $requestId,
             'X-Oripa-Api-Version' => '2',
-        ]);
+        ];
+        if ($private) {
+            $headers['Vary'] = 'Cookie';
+        }
+        $response = response()->json($body, $exception->status, $headers);
         if ($exception->retryAfterSeconds !== null) {
             $response->headers->set('Retry-After', (string) $exception->retryAfterSeconds);
         }

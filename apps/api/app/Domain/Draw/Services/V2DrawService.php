@@ -18,6 +18,8 @@ use App\Models\V2\IdempotencyRecord;
 use App\Models\V2\PrizeInventory;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -519,6 +521,140 @@ final class V2DrawService
         }
 
         return $this->canonicalResponse($request);
+    }
+
+    /** @return array{items: list<array<string, mixed>>, next_cursor: string|null} */
+    public function history(User $user, ?string $cursor, int $limit): array
+    {
+        $limit = $this->historyLimit($limit);
+        $query = $this->historyQuery($user->id);
+        $this->applyHistoryCursor($query, $user->id, $this->decodeHistoryCursor($cursor));
+        $rows = $query
+            ->orderByDesc('request.created_at')
+            ->orderByDesc('request.id')
+            ->limit($limit + 1)
+            ->get();
+        $hasMore = $rows->count() > $limit;
+        $visible = $rows->take($limit);
+        $items = $visible->map(fn (object $row): array => [
+            'id' => $row->public_id,
+            'gacha' => [
+                'id' => $row->gacha_public_id,
+                'title' => $row->gacha_title,
+                'presentation_asset' => $this->asset($row),
+            ],
+            'occurred_at' => CarbonImmutable::parse($row->occurred_at)
+                ->utc()->startOfSecond()->toIso8601ZuluString(),
+            'requested_count' => (int) $row->requested_count,
+            'executed_count' => (int) $row->executed_count,
+            'status' => [
+                'code' => $row->status,
+                'label' => '完了',
+            ],
+        ])->values()->all();
+
+        return [
+            'items' => $items,
+            'next_cursor' => $hasMore && $visible->isNotEmpty()
+                ? $this->encodeHistoryCursor((string) $visible->last()->public_id)
+                : null,
+        ];
+    }
+
+    private function historyQuery(int $userId): Builder
+    {
+        return DB::table('draw_requests as request')
+            ->join('catalog_gacha_versions as version', 'version.id', '=', 'request.gacha_version_id')
+            ->join('catalog_gachas as gacha', 'gacha.id', '=', 'version.gacha_id')
+            ->leftJoin(
+                'catalog_presentation_assets as asset',
+                function (JoinClause $join): void {
+                    $join->on('asset.id', '=', 'version.presentation_asset_id')
+                        ->where('asset.is_public', true);
+                }
+            )
+            ->where('request.user_id', $userId)
+            ->where('request.status', 'completed')
+            ->select([
+                'request.id',
+                'request.public_id',
+                'request.created_at as occurred_at',
+                'request.requested_count',
+                'request.executed_count',
+                'request.status',
+                'gacha.public_id as gacha_public_id',
+                'version.title as gacha_title',
+                'asset.public_id as asset_public_id',
+                'asset.public_path as asset_path',
+                'asset.checksum_sha256 as asset_checksum',
+                'asset.media_type as asset_media_type',
+                'asset.mime_type as asset_mime_type',
+                'asset.alt_text as asset_alt_text',
+            ]);
+    }
+
+    private function applyHistoryCursor(Builder $query, int $userId, ?string $publicId): void
+    {
+        if ($publicId === null) {
+            return;
+        }
+        $row = DB::table('draw_requests')
+            ->where('user_id', $userId)
+            ->where('status', 'completed')
+            ->where('public_id', $publicId)
+            ->first(['id', 'created_at']);
+        if ($row === null) {
+            throw $this->invalidHistoryCursor();
+        }
+        $query->where(function (Builder $page) use ($row): void {
+            $page->where('request.created_at', '<', $row->created_at)
+                ->orWhere(function (Builder $sameTime) use ($row): void {
+                    $sameTime->where('request.created_at', '=', $row->created_at)
+                        ->where('request.id', '<', $row->id);
+                });
+        });
+    }
+
+    private function historyLimit(int $limit): int
+    {
+        if ($limit < 1 || $limit > 100) {
+            throw new V2DrawException(
+                'INVALID_PAGINATION',
+                422,
+                'The pagination input is invalid.'
+            );
+        }
+
+        return $limit;
+    }
+
+    private function encodeHistoryCursor(string $publicId): string
+    {
+        return rtrim(strtr(base64_encode($publicId), '+/', '-_'), '=');
+    }
+
+    private function decodeHistoryCursor(?string $cursor): ?string
+    {
+        if ($cursor === null) {
+            return null;
+        }
+        if (! preg_match('/^[A-Za-z0-9_-]{8,128}$/', $cursor)) {
+            throw $this->invalidHistoryCursor();
+        }
+        $decoded = base64_decode(
+            strtr($cursor, '-_', '+/').str_repeat('=', (4 - strlen($cursor) % 4) % 4),
+            true
+        );
+        if (! is_string($decoded) || ! Str::isUuid($decoded)) {
+            throw $this->invalidHistoryCursor();
+        }
+
+        return $decoded;
+    }
+
+    private function invalidHistoryCursor(): V2DrawException
+    {
+        return new V2DrawException('INVALID_CURSOR', 422, 'The cursor is invalid.');
     }
 
     private function assertInput(

@@ -53,6 +53,8 @@ export type {
   BrowserCreateDrawOptions,
   BrowserStorefrontDrawClient,
   CreateDrawOptions,
+  DrawHistoryQuery,
+  DrawHistoryReadProblemCode,
   DrawCount,
   StorefrontDrawClient,
 } from "./draw.js";

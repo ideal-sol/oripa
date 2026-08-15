@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.18",
+      storefront_client_version: "2.0.0-alpha.19",
       required_capabilities: [],
     },
     public: {
@@ -39,6 +39,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         "gacha.catalog-display.v2",
         "gacha.presentation.v2",
         "prize.fulfillment-browser-mutation.v2",
+        "user-draw-history.read.v2",
         "user-point.read.v2",
         "user-prize.presentation.v2",
       ],
@@ -52,6 +53,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
           "gacha.catalog-display.v2",
           "gacha.presentation.v2",
           "prize.fulfillment-browser-mutation.v2",
+          "user-draw-history.read.v2",
           "user-point.read.v2",
           "user-prize.presentation.v2",
         ],
@@ -62,13 +64,14 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.18",
+  minimum_storefront_client_version: "2.0.0-alpha.19",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
     "gacha.catalog-display.v2",
     "gacha.presentation.v2",
     "prize.fulfillment-browser-mutation.v2",
+    "user-draw-history.read.v2",
     "user-point.read.v2",
     "user-prize.presentation.v2",
   ],
@@ -557,6 +560,94 @@ export const PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES = Object.freeze({
 } as const satisfies Record<
   string,
   PublicComponents["schemas"]["GachaSummary"]
+>);
+
+const drawHistoryGacha = {
+  id: "0198a001-0000-7000-8000-000000000011",
+  title: "Fixture Catalog Gacha",
+  presentation_asset: {
+    id: "0198a001-0000-7000-8000-000000000005",
+    path: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000005",
+    checksum_sha256:
+      "0605cbbe5fcd83f57adc97efe4eb39efc5639b28f6fc48e097dc4a9ba68d86c8",
+    media_type: "image",
+    mime_type: "image/png",
+    alt_text: "Fixtureガチャ",
+  },
+} as const satisfies PublicComponents["schemas"]["DrawHistoryGachaPresentation"];
+
+const drawHistoryItems = [
+  {
+    id: "0198a001-0000-7000-8000-000000000093",
+    gacha: drawHistoryGacha,
+    occurred_at: "2026-08-15T00:00:00Z",
+    requested_count: 5,
+    executed_count: 2,
+    status: { code: "completed", label: "完了" },
+  },
+  {
+    id: "0198a001-0000-7000-8000-000000000092",
+    gacha: drawHistoryGacha,
+    occurred_at: "2026-08-15T00:00:00Z",
+    requested_count: 5,
+    executed_count: 5,
+    status: { code: "completed", label: "完了" },
+  },
+  {
+    id: "0198a001-0000-7000-8000-000000000091",
+    gacha: drawHistoryGacha,
+    occurred_at: "2026-08-14T23:59:00Z",
+    requested_count: 1,
+    executed_count: 1,
+    status: { code: "completed", label: "完了" },
+  },
+] satisfies PublicComponents["schemas"]["DrawHistoryEntry"][];
+
+export const PUBLIC_DRAW_HISTORY_FIXTURES = Object.freeze({
+  empty: { items: [], next_cursor: null },
+  multiple: { items: drawHistoryItems, next_cursor: null },
+  first_page: {
+    items: [drawHistoryItems[0]],
+    next_cursor: "MDE5OGEwMDEtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMDkz",
+  },
+  continuation: {
+    items: [drawHistoryItems[1], drawHistoryItems[2]],
+    next_cursor: null,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["DrawHistoryCollection"]
+>);
+
+export const PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES = Object.freeze({
+  unauthenticated: {
+    type: "https://oripa.example/problems/authentication_required",
+    title: "Authentication is required.",
+    status: 401,
+    code: "AUTHENTICATION_REQUIRED",
+    request_id: "request-draw-history-auth-001",
+    retryable: false,
+  },
+  invalid_cursor: {
+    type: "https://oripa.example/problems/invalid_cursor",
+    title: "The cursor is invalid.",
+    status: 422,
+    code: "INVALID_CURSOR",
+    request_id: "request-draw-history-cursor-001",
+    retryable: false,
+  },
+  rate_limited: {
+    type: "https://oripa.example/problems/rate_limited",
+    title: "Too many requests.",
+    status: 429,
+    code: "RATE_LIMITED",
+    request_id: "request-draw-history-rate-001",
+    retryable: true,
+    retry_after_seconds: 60,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["DrawHistoryReadProblemDetails"]
 >);
 
 export const PUBLIC_DRAW_FIXTURE = Object.freeze({

@@ -35,7 +35,7 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Versionは`2.0.0-alpha.18`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Versionは`2.0.0-alpha.19`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -52,6 +52,10 @@ Point Product Facadeの`listPointProducts`は、Backendが販売期間、Audienc
 Current User Point Facadeの`getWallet`／`listPointLedgerEntries`は、利用可能残高と
 Backend-authoritativeな理由Presentation／Stable Ordering／Cursorを返す。Client側で
 Ledger集計、理由変換、並び替えを行わない。
+
+Draw Facadeの`listDrawHistory`は、Current User自身のGacha利用履歴を
+Backend-authoritativeなGacha Presentation／status label／Stable Ordering／Cursorで返す。
+Client側で内部status、DB ID、event codeを解釈せず、履歴の並び替えも行わない。
 
 Catalog Facadeの`listGachas`はPublic対象を販売状態やEligibilityで除外せず、Backend判定済み
 Sale State、Eligibility、CTA、項目表示可否を返す。匿名Responseだけをpublic cache対象とし、
