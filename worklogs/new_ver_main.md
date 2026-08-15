@@ -8405,4 +8405,8 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ## MIG-062U Current User Point Balance／History Read Contract Phase B
 
 - Phase B開始時もRemote mainはBaseから移動せず、Generated Contract／Artifact／Preview lock競合はない。既存Versionを上書きしない`2.0.0-alpha.18`へPlatform／3 Contract／Storefront Client／Site Schema／Testkitを同期し、Public 52／Admin 212／Webhook 1 operationsとした。
-- Package full checks、Required CI、Artifact／Preview、Fresh Self-review、Squash Merge／Cleanupはexact headで継続する。
+- Backend 5 tests／54 assertions、Client 26 tests、Site Schema 10 tests、Testkit 32 tests、Admin 159 tests、OpenAPI／Policy／Quality／Security／Release local checksとApplication HeadのRequired CI／CodeQL／Dependency ReviewがPASSした。
+- GitHub-hosted Run `31862183365`のimmutable `2.0.0-alpha.18` Contract Artifactと`linux/amd64` Preview Imageをouter digest／manifest／package identity／OCI revisionまでreadback検証した。Host BuildなしでAPIだけをTask imageへ更新した。
+- Preview QA UserのReadだけで残高200、履歴7件／4ページ、加算／減算、Stable Ordering、Cursor continuation、空Continuation、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出、Runtime Error 0を確認した。Mutation／Migration／Cache削除／Storefront変更は0。
+- API更新時に固定IP override欠落で初回Domain Smokeが502となりFail Closedした。既存正本のAPI `192.168.61.10`／loopback `8611`へ復旧し、healthyと全Read acceptanceを再確認した。DB、Cache、Admin、Storefront Runtimeは変更していない。
+- Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Cleanupはexact headで継続する。
