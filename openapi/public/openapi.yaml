@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.18
+  version: 2.0.0-alpha.19
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -435,6 +435,34 @@ paths:
           $ref: '#/components/responses/PointReadProblem'
         default:
           $ref: '#/components/responses/PointReadProblem'
+  /me/draws:
+    get:
+      operationId: listDrawHistory
+      summary: Current UserのGacha利用履歴を新しい順で取得する
+      x-idempotency: safe
+      x-rate-limit: user-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogLimit'
+        - $ref: '#/components/parameters/CatalogCursor'
+      responses:
+        '200':
+          description: 発生日時と内部tie-breakerで決定的に並べたCurrent UserのGacha利用履歴。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrawHistoryCollection'
+        '401':
+          $ref: '#/components/responses/DrawHistoryReadProblem'
+        '422':
+          $ref: '#/components/responses/DrawHistoryReadProblem'
+        '429':
+          $ref: '#/components/responses/DrawHistoryReadProblem'
+        default:
+          $ref: '#/components/responses/DrawHistoryReadProblem'
   /me/prizes/{prize_id}:
     get:
       operationId: getUserPrize
@@ -2681,6 +2709,91 @@ components:
       anyOf:
         - $ref: '#/components/schemas/PointReadProblemDetails'
         - $ref: '#/components/schemas/ProblemDetails'
+    DrawHistoryStatusCode:
+      type: string
+      const: completed
+    DrawHistoryStatus:
+      type: object
+      additionalProperties: false
+      required: [code, label]
+      properties:
+        code:
+          $ref: '#/components/schemas/DrawHistoryStatusCode'
+        label:
+          type: string
+          const: 完了
+          description: BackendがCanonical Draw Request statusから確定した表示Label。
+    DrawHistoryGachaPresentation:
+      type: object
+      additionalProperties: false
+      required: [id, title, presentation_asset]
+      properties:
+        id:
+          $ref: '#/components/schemas/GachaPublicId'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 191
+        presentation_asset:
+          $ref: '#/components/schemas/NullablePresentationAsset'
+    DrawHistoryEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - gacha
+        - occurred_at
+        - requested_count
+        - executed_count
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        gacha:
+          $ref: '#/components/schemas/DrawHistoryGachaPresentation'
+        occurred_at:
+          $ref: '#/components/schemas/UtcDateTime'
+        requested_count:
+          type: integer
+          enum: [1, 5, 10, 100, 1000]
+        executed_count:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        status:
+          $ref: '#/components/schemas/DrawHistoryStatus'
+    DrawHistoryCollection:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DrawHistoryEntry'
+        next_cursor:
+          type: [string, 'null']
+    DrawHistoryReadProblemCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - INVALID_CURSOR
+        - INVALID_PAGINATION
+        - RATE_LIMITED
+        - SESSION_EXPIRED
+    DrawHistoryReadProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              $ref: '#/components/schemas/DrawHistoryReadProblemCode'
+    DrawHistoryReadProblemResponse:
+      description: Draw History Readの既知Code、または安全に汎用処理する未知のProblem Details。
+      anyOf:
+        - $ref: '#/components/schemas/DrawHistoryReadProblemDetails'
+        - $ref: '#/components/schemas/ProblemDetails'
     DrawPrizeReference:
       type: object
       additionalProperties: false
@@ -3282,3 +3395,16 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/PointReadProblemResponse'
+    DrawHistoryReadProblem:
+      description: Current User Draw History ReadのRFC 9457 Problem Details。
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+        X-Oripa-Api-Version:
+          $ref: '#/components/headers/XOripaApiVersion'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DrawHistoryReadProblemResponse'

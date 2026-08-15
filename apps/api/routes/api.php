@@ -91,6 +91,8 @@ Route::prefix('v2')
         Route::get('/draw-requests/{drawRequestId}', [V2DrawController::class, 'show'])
             ->whereUuid('drawRequestId')
             ->name('v2.public.draws.show');
+        Route::get('/me/draws', [V2DrawController::class, 'history'])
+            ->name('v2.public.draws.history');
         Route::get('/me/wallet', [V2CurrentUserPointController::class, 'wallet'])
             ->name('v2.public.wallet.show');
         Route::get('/me/point-ledgers', [V2CurrentUserPointController::class, 'history'])

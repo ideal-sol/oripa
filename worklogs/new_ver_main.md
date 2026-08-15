@@ -8410,3 +8410,21 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview QA UserのReadだけで残高200、履歴7件／4ページ、加算／減算、Stable Ordering、Cursor continuation、空Continuation、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出、Runtime Error 0を確認した。Mutation／Migration／Cache削除／Storefront変更は0。
 - API更新時に固定IP override欠落で初回Domain Smokeが502となりFail Closedした。既存正本のAPI `192.168.61.10`／loopback `8611`へ復旧し、healthyと全Read acceptanceを再確認した。DB、Cache、Admin、Storefront Runtimeは変更していない。
 - Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Cleanupはexact headで継続する。
+
+## MIG-062V Current User Gacha History Read Contract Phase A
+
+- Latest Platform `main@642ab8f6bfe7ef2ca0a7e3fb9d0ecd05b600d803`、GitHub Issue／PR全履歴、Task Policy、Remote refsを照合し、既存最大`MIG-062U`の次で未使用な`MIG-062V`を採番した。Issue #275、Branch `feat/MIG-062V-current-user-draw-history-read-contract`、Risk R3で開始した。
+- Active Platform Taskは0件で、Open Dependabotとはfirst-party Version metadataのPath overlapだけを記録した。Dependency値を変更せず、Gacha／Draw Domainの同時変更がないためScope Gate／Conflict GateはPASSした。
+- Canonical History Sourceは`draw_requests`であり、owner、public ID、requested／executed count、completed status、transaction-fixed occurrence timeを再利用する。Historical Gacha PresentationはDraw Requestが参照するimmutable published Gacha Versionを正本とする。
+- `GET /api/v2/me/draws`を追加し、Draw／Gacha public ID、title／public asset、UTC occurrence、requested／executed count、Backend status／labelだけを返す。FrontendへDB ID、event／QA／probability codeの解釈を要求しない。
+- 順序は`created_at DESC, draw_request.id DESC`、CursorはCurrent User所有のDraw Request public IDから継続位置を解決する。Authenticated only、`private, no-store`、`Vary: Cookie`、Typed Problemを維持する。
+- Public OpenAPI／bundle、Generated Types、薄いStorefront Client、Site capability、Testkit fixtureを`2.0.0-alpha.19`へ同期した。Migration created／Task・Preview appliedは0で、Local synthetic test DBだけに既存V2 Migration 53件を適用した。Draw／Point／Inventory／Prize／Payment Mutation、Gacha lifecycle、Storefront Repositoryは変更していない。
+- Backend targeted 3 tests／55 assertions、既存Draw／QA／V1 characterization、OpenAPI、Client 27 tests、Site Schema 10 tests、Testkit 33 tests、Admin、Policy／Quality／Security／Release local checksがPASSした。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはApplication exact headで継続する。
+
+## MIG-062V Current User Gacha History Read Contract Phase B
+
+- Phase B開始時もRemote mainはBaseから移動せず、Generated Contract／Artifact／Preview lock競合はない。Application Head `2b58e308693fa6e642023e2778274e789da75c09`のRequired 5 Checks、CodeQL、CodeQL JavaScript、Dependency Reviewが失敗履歴0でPASSした。
+- GitHub-hosted Run `31886804304`のimmutable `2.0.0-alpha.19` Contract Artifactと`linux/amd64` Preview Imageをouter digest／manifest／package identity／OCI revisionまでreadback検証した。Host BuildなしでAPIだけをTask imageへ更新した。
+- 旧QA credentialはTask Image／直前Image双方で401となり回帰ではなく失効と切り分けた。より新しい安全な既存Preview QA Userへ切替え、Gacha履歴4件／2ページ、partial execution、public asset、Backend status／label、Stable Ordering、Cursor、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出をReadのみで確認した。
+- Preview Runtime Error／Mutation／Migration／Cache削除／Storefront変更は0。Admin、PostgreSQL、Redis、Nginx、Storefront Runtimeは変更していない。
+- Synthetic test Container／networkは削除した。実行PolicyがDocker volume削除を拒否したため未接続dependency volume 1件だけ残る。Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Issue／branch／worktree cleanupはexact headで継続する。

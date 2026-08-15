@@ -28,6 +28,8 @@ import {
   PUBLIC_FOOTER_PAGES_FIXTURE,
   PUBLIC_TOP_BANNERS_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
+  PUBLIC_DRAW_HISTORY_FIXTURES,
+  PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES,
   PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
   PUBLIC_POINT_PRODUCT_FIXTURES,
   PUBLIC_POINT_BALANCE_FIXTURES,
@@ -69,6 +71,33 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
   assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("Draw History FixtureはPresentation、Stable Ordering、Cursor、Typed Errorを固定する", () => {
+  assert.equal(PUBLIC_DRAW_HISTORY_FIXTURES.empty.items.length, 0);
+  assert.equal(PUBLIC_DRAW_HISTORY_FIXTURES.multiple.items[0].executed_count, 2);
+  assert.deepEqual(PUBLIC_DRAW_HISTORY_FIXTURES.multiple.items[0].status, {
+    code: "completed",
+    label: "完了",
+  });
+  assert.equal(
+    PUBLIC_DRAW_HISTORY_FIXTURES.multiple.items[0].gacha.title,
+    "Fixture Catalog Gacha",
+  );
+  assert.equal(
+    PUBLIC_DRAW_HISTORY_FIXTURES.continuation.items[0].id,
+    PUBLIC_DRAW_HISTORY_FIXTURES.multiple.items[1].id,
+  );
+  assert.match(PUBLIC_DRAW_HISTORY_FIXTURES.first_page.next_cursor, /^[A-Za-z0-9_-]+$/);
+  for (const problem of Object.values(PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES)) {
+    const error = new ApiProblemError(problem);
+    assertProblemDetails(error);
+    assert.equal(error.code, problem.code);
+  }
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_DRAW_HISTORY_FIXTURES),
+    /user_id|gacha_version_id|probability_version_id|event_code|is_qa_draw|internal_id/i,
+  );
 });
 
 test("Point Read Fixtureは残高、増減、空履歴、Cursor、Typed Errorを固定する", () => {
@@ -521,9 +550,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつPoint Readを含むOperation 52件である", () => {
+test("Public OpenAPIは3.1.1かつDraw History Readを含むOperation 53件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 52);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 53);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -549,6 +578,7 @@ test("Public OpenAPIは3.1.1かつPoint Readを含むOperation 52件である", 
     "listContentBanners",
     "listContentFooterPages",
     "listContentNotices",
+    "listDrawHistory",
     "listExternalIdentities",
     "listGachaCategories",
     "listGachaTags",
@@ -705,6 +735,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",
+    "PUBLIC_DRAW_HISTORY_FIXTURES",
+    "PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES",
     "PUBLIC_DRAW_PROBLEM_FIXTURES",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
     "PUBLIC_FOOTER_PAGES_FIXTURE",

@@ -63,7 +63,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.18");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.19");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -672,6 +672,26 @@ test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡
   assert.throws(
     () => draw.createDraw("valid", 2, { idempotency_key: key, csrf_token: csrf }),
     /draw_count is invalid/,
+  );
+});
+
+test("Draw FacadeはCurrent User履歴Read PathとOpaque Cursorだけを呼ぶ", async () => {
+  const paths = [];
+  const draw = createStorefrontDrawClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: { items: [], next_cursor: null },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+
+  await draw.listDrawHistory({ limit: 20, cursor: "opaque-cursor" });
+  assert.deepEqual(paths, ["/me/draws?limit=20&cursor=opaque-cursor"]);
+  assert.throws(
+    () => draw.listDrawHistory({ limit: 101 }),
+    /limit must be an integer/,
   );
 });
 
