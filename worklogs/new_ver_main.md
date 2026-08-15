@@ -8374,3 +8374,21 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PR本文Gateの残件`Summary`見出しを追加し、必須5見出しを揃えた最終docs-only headでfresh checksを実行する。
 - PR本文へPolicy parserが要求する`Task ID`／`Risk`／event Base SHA、39件の`Changed files`、同一境界の`Allowed paths`を追加し、ローカルPR body validationがPASSした。失敗履歴のないfresh headでRequired Checksを再実行する。
 - Migration、Point購入Mutation、Payment Provider／Session、Point付与／Ledger、Webhook、Refund、Purchase Lifecycleは変更していない。Artifact、Preview、Required Checks、Fresh Self-review、Merge／CleanupはPR exact headで実施する。
+
+## MIG-062T Banner Publish Admin UI Fix Phase A
+
+- Latest Platform `main@37035893ad649b17a526f5dd3477f8e30fae1f38`、GitHub Open Issue／PR、local worktree／branchを照合し、Active Platform Task 0件、Open Dependabot PRだけであることを確認した。既存Task ID履歴に`MIG-062T`が未使用であることを確認し、Issue #271、Branch `fix/MIG-062T-banner-publish-admin-ui`、Risk R3で開始した。
+- Allowed PathsはAdmin生成検証、Client、Banner UI、Unit／E2E、Worklog／Reportの8 exact pathだけとした。Backend、OpenAPI source／bundle、Storefront、DB／Migration、Cache、Dependency、V1、InfrastructureはForbiddenであり、Scope／Conflict GateはPASSした。
+- 既存`publishAdminContentBannerVersion` operationを生成時検証へ追加し、`AdminApiClient.publishContentBanner`から同じCanonical Endpointへ接続した。Backend State Transition、`content.publish`判定、保存時Draft作成は変更していない。
+- Banner一覧へ`Draft`／`Published`、Version番号／ID、`content.publish`保有者だけの「公開する」Buttonを追加した。同期Guardとdisabled状態で二重送信を防ぎ、成功後は管理一覧をCanonical再取得する。403／409／422／429を含む既存Typed Error表示を再利用する。
+- Admin generated check、全Unit 158 tests、対象Unit 6 tests、Typecheck、Lint、Production Build、Desktop／Mobile Banner E2E 2 tests、Policy Unit 125 tests／Local Policy Gate、Quality Unit 5 tests／Local Quality Gate、Security Unit 10 tests／Fresh Audit 0件／Local Security GateがPASSした。
+- 初回E2Eは既存cross-origin Synthetic Asset URLがAdmin CSPにより遮断され、Console Error assertionでFAILした。Assertionは維持し、Synthetic Asset fixtureだけをsame-origin Public API pathへ補正後、Desktop／Mobile 2 testsとConsole／Page／500系0がPASSした。
+- Phase Bではexact PR headのRequired Checks、GitHub-hosted Preview Artifact、Synthetic BannerのAdmin Publish／Public Contract／Storefront Carousel／Link遷移、Fresh Self-review、Squash Merge、Issue／branch／worktree cleanupを記録する。
+- 初回PR Head `52530798be5854225697315d82404b50b1518d88`ではPolicy／Security／Integration、CodeQL、Dependency ReviewがPASSしたが、MIG-062T非変更のGacha lifecycle Admin Unitが単発FAILしQuality／ci-gateがFAILした。同testをlocalで5回反復して全PASSし、同一headのWorkflow再実行では全5 Required ChecksがPASSした。ただし固定wrapperは同一headの過去failed runもFail Closedするため、失敗と再現結果をReportへ記録したdocs-only fresh headで全Checksを再実行する。
+
+## MIG-062T Banner Publish Admin UI Fix Phase B
+
+- Fresh Application／Preview Head `2065b48e1ae59dcd9dd3278955ae8ab59787275f`はRequired 5 Checks、CodeQL、Dependency Reviewが失敗履歴0でPASSした。GitHub-hosted `linux/amd64` Artifactのdigest／manifest／OCI revision／Architectureを検証し、Host BuildなしでPreview AdminだけをTask Imageへ更新した。
+- 実Admin UIでSynthetic Banner登録、Top ON、`link_url=/gachas`、Draft／Version、Desktop／Mobile「公開する」、既存Backend Publish、Canonical再取得Publishedを確認した。Public BannerはCache TTL 60秒後に200 responseへ含まれ、`test.luxe-pack.biz` Carousel表示と`/gachas`遷移がPASSした。Synthetic BannerはAdmin UIで削除済みである。
+- Page ErrorとHTTP 500／502／504は0。既存Admin CSPの`blob:` preview拒否と既存相対Asset URL 4件のAdmin origin 404はAllowed Paths外の既存Console事象として記録し、Publish／Public Contract／Storefront結果と分離した。Category 0件だったためCanonical UIで`MIG-062T Preview`を作成し、削除ContractがないためDB直接削除せず保持する。
+- Storefront、Backend、OpenAPI source／bundle、DB／Migration、Cache、Dependency、V1、Infrastructureは変更していない。Final docs-only head、Fresh Self-review、Squash／Issue Close／branch／worktree cleanupはReport commit後にPR／Issue Closeoutへexact値を記録する。

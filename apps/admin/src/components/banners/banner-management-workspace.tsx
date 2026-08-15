@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
@@ -61,6 +62,7 @@ export function BannerManagementWorkspace() {
 function BannerManagement() {
   const { permissions } = usePermissions();
   const canManage = permissions.has("content.manage");
+  const canPublish = permissions.has("content.publish");
   const [categories, setCategories] = useState<AdminBannerCategory[]>([]);
   const [items, setItems] = useState<AdminManagedBanner[]>([]);
   const [filterCategory, setFilterCategory] = useState("");
@@ -73,6 +75,9 @@ function BannerManagement() {
   const [categoryDialog, setCategoryDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const publishingRef = useRef<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const previewUrl = useObjectUrl(draft.file);
@@ -138,6 +143,23 @@ function BannerManagement() {
     }
   }
 
+  async function publishBanner(banner: AdminManagedBanner) {
+    if (publishingRef.current !== null || banner.status !== "draft") return;
+    publishingRef.current = banner.id;
+    setPublishingId(banner.id);
+    setPublishError(null);
+    try {
+      await new AdminApiClient().publishContentBanner(banner.id, banner.version_id);
+      setLoading(true);
+      setReload((value) => value + 1);
+    } catch (reason) {
+      setPublishError(bannerError(reason));
+    } finally {
+      publishingRef.current = null;
+      setPublishingId(null);
+    }
+  }
+
   return (
     <main className="workspace announcement-workspace">
       <AdminPageHeader
@@ -177,6 +199,7 @@ function BannerManagement() {
       ) : null}
 
       <section className="announcement-table-section" aria-label="バナー一覧">
+        {publishError ? <div className="form-error" role="alert">{publishError}</div> : null}
         <div className="announcement-form-grid">
           <label>
             カテゴリ絞り込み
@@ -196,13 +219,14 @@ function BannerManagement() {
         ) : (
           <div className="table-container">
             <table className="announcement-table">
-              <thead><tr><th>アップロード画像</th><th>タイトル</th><th>カテゴリ</th><th>トップ表示</th><th>画像URL</th><th>登録日</th><th>編集</th><th>削除</th></tr></thead>
+              <thead><tr><th>アップロード画像</th><th>タイトル</th><th>カテゴリ</th><th>状態</th><th>Version</th><th>トップ表示</th><th>画像URL</th><th>登録日</th><th>公開</th><th>編集</th><th>削除</th></tr></thead>
               <tbody>{items.map((item) => (
                 <tr key={item.id}>
                   <td><Image alt={item.title} className="announcement-thumbnail" height={48} src={item.asset.public_url} unoptimized width={88} /></td>
-                  <td><strong>{item.title}</strong></td><td>{item.category.name}</td><td>{item.show_on_top ? <span>ON<br /><small>{item.link_url}</small></span> : "OFF"}</td>
+                  <td><strong>{item.title}</strong></td><td>{item.category.name}</td><td><StatusBadge status={item.status} /></td><td><span>v{item.version_number}</span><br /><code>{item.version_id}</code></td><td>{item.show_on_top ? <span>ON<br /><small>{item.link_url}</small></span> : "OFF"}</td>
                   <td><div className="announcement-form-actions"><code>{item.asset.public_url}</code><button aria-label={`${item.title}の画像URLをコピー`} className="icon-button" onClick={() => void navigator.clipboard.writeText(item.asset.public_url)} title="URLをコピー" type="button"><Clipboard aria-hidden="true" size={16} /></button><a aria-label={`${item.title}の画像を新しいタブで開く`} className="icon-button" href={item.asset.public_url} rel="noreferrer" target="_blank" title="画像を開く"><ExternalLink aria-hidden="true" size={16} /></a></div></td>
                   <td>{formatJst(item.created_at)}</td>
+                  <td>{canPublish && item.status === "draft" ? <button className="primary-button" disabled={publishingId !== null} onClick={() => void publishBanner(item)} type="button">{publishingId === item.id ? <LoaderCircle className="spin" aria-hidden="true" size={16} /> : <Send aria-hidden="true" size={16} />}{publishingId === item.id ? "公開中" : "公開する"}</button> : item.status === "published" ? <span className="muted-text">公開済み</span> : <span className="muted-text">参照のみ</span>}</td>
                   <td>{canManage ? <button aria-label={`${item.title}を編集`} className="icon-button" onClick={() => setEditing(item)} title="編集" type="button"><Pencil aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
                   <td>{canManage ? <button aria-label={`${item.title}を削除`} className="icon-button" onClick={() => setDeleting(item)} title="削除" type="button"><Trash2 aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
                 </tr>
@@ -253,6 +277,7 @@ function useDialogFocus(onClose: () => void) {
 }
 
 function useObjectUrl(file: File | null): string | null { const url = useMemo(() => file ? URL.createObjectURL(file) : null, [file]); useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]); return url; }
+function StatusBadge({ status }: { status: AdminManagedBanner["status"] }) { return <span className={`status-badge status-${status === "published" ? "active" : "neutral"}`}>{status === "published" ? "Published" : "Draft"}</span>; }
 async function fileInput(file: File) { const content = new Uint8Array(await file.arrayBuffer()); let binary = ""; for (const byte of content) binary += String.fromCharCode(byte); return { content_base64: btoa(binary), file_name: file.name, mime_type: file.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp" }; }
 function formatJst(value: string): string { return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date(value)); }
 function bannerError(reason: unknown): string { if (reason instanceof AdminApiError) { if (reason.status === 409) return "同名カテゴリ、再利用Key、または別更新と競合しました。最新状態を再取得してください。"; if (reason.status === 422) return "入力内容、画像形式、画像サイズを確認してください。"; if (reason.status === 429) return "操作回数が上限に達しました。時間を置いて再試行してください。"; if (reason.status === 403) return "この操作を行う権限がありません。"; } return "バナーを処理できませんでした。再試行してください。"; }

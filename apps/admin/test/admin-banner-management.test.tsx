@@ -3,8 +3,12 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BannerManagementWorkspace } from "@/components/banners/banner-management-workspace";
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminManagedBanner } from "@/lib/admin-api/generated";
+
+const permissionSet = vi.hoisted(
+  () => new Set(["content.read", "content.manage", "content.publish"]),
+);
 
 vi.mock("@/components/shell/admin-shell", () => ({
   AdminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -15,7 +19,7 @@ vi.mock("@/components/permissions/protected-admin-route", () => ({
 vi.mock("@/components/permissions/permission-provider", () => ({
   usePermissions: () => ({
     hasPermission: () => true,
-    permissions: new Set(["content.read", "content.manage"]),
+    permissions: permissionSet,
     role: "admin",
     status: "ready",
   }),
@@ -26,8 +30,11 @@ vi.mock("next/image", () => ({
 }));
 
 const category = { id: uuid("1"), name: "トップ", created_at: "2026-08-05T00:00:00Z" };
-
 beforeEach(() => {
+  permissionSet.clear();
+  permissionSet.add("content.read");
+  permissionSet.add("content.manage");
+  permissionSet.add("content.publish");
   vi.spyOn(AdminApiClient.prototype, "listBannerCategories")
     .mockResolvedValue({ items: [category] });
   vi.spyOn(AdminApiClient.prototype, "listManagedBanners")
@@ -48,8 +55,11 @@ describe("Banner management", () => {
     expect(await screen.findByRole("heading", { name: "バナー管理" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "バナー登録" })).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "アップロード画像", "タイトル", "カテゴリ", "トップ表示", "画像URL", "登録日", "編集", "削除",
+      "アップロード画像", "タイトル", "カテゴリ", "状態", "Version", "トップ表示", "画像URL", "登録日", "公開", "編集", "削除",
     ]);
+    expect(screen.getByText("Draft")).toBeVisible();
+    expect(screen.getByText("v1")).toBeVisible();
+    expect(screen.getByText(uuid("5"))).toBeVisible();
     expect(screen.getByText("/gachas")).toBeVisible();
     expect(screen.getByText("メインバナー")).toBeVisible();
     expect(screen.getByText(
@@ -68,6 +78,53 @@ describe("Banner management", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
     );
+  });
+
+  it("publishes a Draft once and reloads the canonical Published banner", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners")
+      .mockResolvedValueOnce({ items: [banner()], next_cursor: null })
+      .mockResolvedValue({ items: [{ ...banner(), status: "published" }], next_cursor: null });
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner")
+      .mockResolvedValue({
+        id: banner().id,
+        identifier: "main-banner",
+        is_legal: false,
+        status: "published",
+        versions: [],
+      });
+    render(<BannerManagementWorkspace />);
+    const button = await screen.findByRole("button", { name: "公開する" });
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(publish).toHaveBeenCalledOnce());
+    expect(publish).toHaveBeenCalledWith(banner().id, banner().version_id);
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Published")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "公開する" })).not.toBeInTheDocument();
+  });
+
+  it("does not offer publish without content.publish permission", async () => {
+    permissionSet.delete("content.publish");
+    render(<BannerManagementWorkspace />);
+
+    expect(await screen.findByText("Draft")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "公開する" })).not.toBeInTheDocument();
+  });
+
+  it("shows the existing typed conflict error and re-enables publish", async () => {
+    vi.spyOn(AdminApiClient.prototype, "publishContentBanner")
+      .mockRejectedValue(new AdminApiError(409, "CONTENT_VERSION_CONFLICT", null, null, false));
+    render(<BannerManagementWorkspace />);
+    const button = await screen.findByRole("button", { name: "公開する" });
+
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "同名カテゴリ、再利用Key、または別更新と競合しました。最新状態を再取得してください。",
+    );
+    expect(screen.getByRole("button", { name: "公開する" })).toBeEnabled();
   });
 
   it("creates a category without reloading and selects it", async () => {
