@@ -29,6 +29,7 @@ use App\Http\Controllers\V2\V2CatalogController;
 use App\Http\Controllers\V2\V2DrawController;
 use App\Http\Controllers\V2\V2PrizeShippingController;
 use App\Http\Controllers\V2\V2ContentContactController;
+use App\Http\Controllers\V2\V2CurrentUserPointController;
 use App\Http\Controllers\V2\V2PointProductController;
 
 Route::prefix('v2')->group(function (): void {
@@ -90,6 +91,10 @@ Route::prefix('v2')
         Route::get('/draw-requests/{drawRequestId}', [V2DrawController::class, 'show'])
             ->whereUuid('drawRequestId')
             ->name('v2.public.draws.show');
+        Route::get('/me/wallet', [V2CurrentUserPointController::class, 'wallet'])
+            ->name('v2.public.wallet.show');
+        Route::get('/me/point-ledgers', [V2CurrentUserPointController::class, 'history'])
+            ->name('v2.public.point-ledgers.index');
         Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
             ->name('v2.public.prizes.index');
         Route::get('/me/prizes/{prizeId}', [V2PrizeShippingController::class, 'prize'])

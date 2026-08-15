@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.17",
+    "version": "2.0.0-alpha.18",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -594,6 +594,89 @@
           },
           "default": {
             "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/wallet": {
+      "get": {
+        "operationId": "getWallet",
+        "summary": "Current Userの現在利用可能なPoint残高を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "予約中Pointを除いたCurrent Userの利用可能残高。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletBalance"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/PointReadProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PointReadProblem"
+          },
+          "default": {
+            "$ref": "#/components/responses/PointReadProblem"
+          }
+        }
+      }
+    },
+    "/me/point-ledgers": {
+      "get": {
+        "operationId": "listPointLedgerEntries",
+        "summary": "Current UserのPoint増減履歴を新しい順で取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogLimit"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "発生日時と内部IDで決定的に並べたCurrent UserのPoint履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointHistoryCollection"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/PointReadProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PointReadProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PointReadProblem"
+          },
+          "default": {
+            "$ref": "#/components/responses/PointReadProblem"
           }
         }
       }
@@ -4312,6 +4395,7 @@
       "WalletBalance": {
         "type": "object",
         "additionalProperties": false,
+        "description": "予約中Pointを除いたCurrent Userの利用可能残高。",
         "required": [
           "paid_points",
           "free_points",
@@ -4331,6 +4415,107 @@
             "minimum": 0
           }
         }
+      },
+      "PointHistoryReason": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "BackendがCanonical Domain sourceから表示用に確定した理由。"
+          }
+        }
+      },
+      "PointHistoryEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "occurred_at",
+          "amount_delta",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "occurred_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "amount_delta": {
+            "type": "integer",
+            "description": "加算は正数、減算は負数で表すOperation単位のPoint増減量。"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/PointHistoryReason"
+          }
+        }
+      },
+      "PointHistoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PointHistoryEntry"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PointReadProblemCode": {
+        "type": "string",
+        "enum": [
+          "AUTHENTICATION_REQUIRED",
+          "INVALID_CURSOR",
+          "INVALID_PAGINATION",
+          "RATE_LIMITED",
+          "SESSION_EXPIRED"
+        ]
+      },
+      "PointReadProblemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/PointReadProblemCode"
+              }
+            }
+          }
+        ]
+      },
+      "PointReadProblemResponse": {
+        "description": "Point Readで実在する既知Code、または安全に汎用処理する未知のProblem Details。",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PointReadProblemDetails"
+          },
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          }
+        ]
       },
       "DrawPrizeReference": {
         "type": "object",
@@ -5347,6 +5532,27 @@
           "application/problem+json": {
             "schema": {
               "$ref": "#/components/schemas/PublicAuthProblemDetails"
+            }
+          }
+        }
+      },
+      "PointReadProblem": {
+        "description": "Current User Point ReadのRFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Oripa-Api-Version": {
+            "$ref": "#/components/headers/XOripaApiVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/PointReadProblemResponse"
             }
           }
         }

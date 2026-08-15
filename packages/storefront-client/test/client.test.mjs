@@ -20,6 +20,7 @@ import {
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
+  createStorefrontCurrentUserPointClient,
   createStorefrontPointProductClient,
   createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
@@ -62,7 +63,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.17");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.18");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -963,4 +964,30 @@ test("Point Product FacadeはCanonical一覧Pathだけを呼ぶ", async () => {
 
   await products.listPointProducts();
   assert.deepEqual(paths, ["/point-products"]);
+});
+
+test("Current User Point Facadeは認証済みRead PathとCursorだけを呼ぶ", async () => {
+  const paths = [];
+  const points = createStorefrontCurrentUserPointClient({
+    request: async (options) => {
+      paths.push(options.path);
+      return {
+        data: options.path === "/me/wallet"
+          ? { paid_points: 800, free_points: 200, total_points: 1000 }
+          : { items: [], next_cursor: null },
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+
+  await points.getWallet();
+  await points.listPointLedgerEntries({ limit: 20, cursor: "opaque-cursor" });
+  assert.deepEqual(paths, [
+    "/me/wallet",
+    "/me/point-ledgers?limit=20&cursor=opaque-cursor",
+  ]);
+  assert.throws(
+    () => points.listPointLedgerEntries({ limit: 101 }),
+    /limit must be an integer/,
+  );
 });

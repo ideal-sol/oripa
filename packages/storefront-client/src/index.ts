@@ -21,6 +21,9 @@ export {
   createStorefrontPointProductClient,
 } from "./point-products.js";
 export {
+  createStorefrontCurrentUserPointClient,
+} from "./points.js";
+export {
   createStorefrontDrawClient,
 } from "./draw.js";
 export {
@@ -41,6 +44,11 @@ export type {
 export type {
   StorefrontPointProductClient,
 } from "./point-products.js";
+export type {
+  PointHistoryQuery,
+  PointReadProblemCode,
+  StorefrontCurrentUserPointClient,
+} from "./points.js";
 export type {
   BrowserCreateDrawOptions,
   BrowserStorefrontDrawClient,

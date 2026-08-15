@@ -276,6 +276,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Userの現在利用可能なPoint残高を取得する */
+        get: operations["getWallet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/point-ledgers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current UserのPoint増減履歴を新しい順で取得する */
+        get: operations["listPointLedgerEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/prizes/{prize_id}": {
         parameters: {
             query?: never;
@@ -1252,11 +1286,34 @@ export interface components {
             paid_points: number;
             free_points: number;
         };
+        /** @description 予約中Pointを除いたCurrent Userの利用可能残高。 */
         WalletBalance: {
             paid_points: number;
             free_points: number;
             total_points: number;
         };
+        PointHistoryReason: {
+            /** @description BackendがCanonical Domain sourceから表示用に確定した理由。 */
+            label: string;
+        };
+        PointHistoryEntry: {
+            id: components["schemas"]["OpaqueId"];
+            occurred_at: components["schemas"]["UtcDateTime"];
+            /** @description 加算は正数、減算は負数で表すOperation単位のPoint増減量。 */
+            amount_delta: number;
+            reason: components["schemas"]["PointHistoryReason"];
+        };
+        PointHistoryCollection: {
+            items: components["schemas"]["PointHistoryEntry"][];
+            next_cursor: string | null;
+        };
+        /** @enum {string} */
+        PointReadProblemCode: "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        PointReadProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["PointReadProblemCode"];
+        };
+        /** @description Point Readで実在する既知Code、または安全に汎用処理する未知のProblem Details。 */
+        PointReadProblemResponse: components["schemas"]["PointReadProblemDetails"] | components["schemas"]["ProblemDetails"];
         DrawPrizeReference: {
             id: components["schemas"]["OpaqueId"];
             name: string;
@@ -1498,6 +1555,18 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["PublicAuthProblemDetails"];
+            };
+        };
+        /** @description Current User Point ReadのRFC 9457 Problem Details。 */
+        PointReadProblem: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["PointReadProblemResponse"];
             };
         };
     };
@@ -1900,6 +1969,56 @@ export interface operations {
                 };
             };
             default: components["responses"]["Problem"];
+        };
+    };
+    getWallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 予約中Pointを除いたCurrent Userの利用可能残高。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletBalance"];
+                };
+            };
+            401: components["responses"]["PointReadProblem"];
+            429: components["responses"]["PointReadProblem"];
+            default: components["responses"]["PointReadProblem"];
+        };
+    };
+    listPointLedgerEntries: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 発生日時と内部IDで決定的に並べたCurrent UserのPoint履歴。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointHistoryCollection"];
+                };
+            };
+            401: components["responses"]["PointReadProblem"];
+            422: components["responses"]["PointReadProblem"];
+            429: components["responses"]["PointReadProblem"];
+            default: components["responses"]["PointReadProblem"];
         };
     };
     getUserPrize: {

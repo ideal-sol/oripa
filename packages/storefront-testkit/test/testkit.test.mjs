@@ -30,6 +30,9 @@ import {
   PUBLIC_DRAW_FIXTURE,
   PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE,
   PUBLIC_POINT_PRODUCT_FIXTURES,
+  PUBLIC_POINT_BALANCE_FIXTURES,
+  PUBLIC_POINT_HISTORY_FIXTURES,
+  PUBLIC_POINT_READ_PROBLEM_FIXTURES,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
@@ -66,6 +69,37 @@ test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含ま�
   assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("Point Read Fixtureは残高、増減、空履歴、Cursor、Typed Errorを固定する", () => {
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.positive.total_points, 1000);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.zero.total_points, 0);
+  assert.equal(PUBLIC_POINT_HISTORY_FIXTURES.empty.items.length, 0);
+  assert.equal(PUBLIC_POINT_HISTORY_FIXTURES.multiple.items[0].amount_delta, -300);
+  assert.equal(PUBLIC_POINT_HISTORY_FIXTURES.multiple.items[2].amount_delta, 1000);
+  assert.ok(
+    PUBLIC_POINT_HISTORY_FIXTURES.multiple.items.every(
+      (item, index, items) =>
+        index === 0 || item.occurred_at < items[index - 1].occurred_at,
+    ),
+  );
+  assert.equal(
+    PUBLIC_POINT_HISTORY_FIXTURES.continuation.items[0].id,
+    PUBLIC_POINT_HISTORY_FIXTURES.multiple.items[1].id,
+  );
+  assert.match(PUBLIC_POINT_HISTORY_FIXTURES.first_page.next_cursor, /^[A-Za-z0-9_-]+$/);
+  for (const problem of Object.values(PUBLIC_POINT_READ_PROBLEM_FIXTURES)) {
+    const error = new ApiProblemError(problem);
+    assertProblemDetails(error);
+    assert.equal(error.code, problem.code);
+  }
+  assert.doesNotMatch(
+    JSON.stringify({
+      balance: PUBLIC_POINT_BALANCE_FIXTURES,
+      history: PUBLIC_POINT_HISTORY_FIXTURES,
+    }),
+    /wallet_id|ledger_id|point_lot_id|source_type|operation_type|internal_id/i,
+  );
 });
 
 test("端数Draw Fixtureは要求数と実行数を分離してReplayを固定する", () => {
@@ -487,9 +521,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつPoint Productを含むOperation 50件である", () => {
+test("Public OpenAPIは3.1.1かつPoint Readを含むOperation 52件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 50);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 52);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -511,6 +545,7 @@ test("Public OpenAPIは3.1.1かつPoint Productを含むOperation 50件である
     "getSmsVerificationStatus",
     "getUserPrize",
     "getUserSession",
+    "getWallet",
     "listContentBanners",
     "listContentFooterPages",
     "listContentNotices",
@@ -518,6 +553,7 @@ test("Public OpenAPIは3.1.1かつPoint Productを含むOperation 50件である
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listPointLedgerEntries",
     "listPointProducts",
     "listShippingAddresses",
     "listShippingRequests",
@@ -677,7 +713,10 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
+    "PUBLIC_POINT_BALANCE_FIXTURES",
+    "PUBLIC_POINT_HISTORY_FIXTURES",
     "PUBLIC_POINT_PRODUCT_FIXTURES",
+    "PUBLIC_POINT_READ_PROBLEM_FIXTURES",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
     "PUBLIC_TOP_BANNERS_FIXTURE",

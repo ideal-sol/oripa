@@ -8392,3 +8392,21 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 実Admin UIでSynthetic Banner登録、Top ON、`link_url=/gachas`、Draft／Version、Desktop／Mobile「公開する」、既存Backend Publish、Canonical再取得Publishedを確認した。Public BannerはCache TTL 60秒後に200 responseへ含まれ、`test.luxe-pack.biz` Carousel表示と`/gachas`遷移がPASSした。Synthetic BannerはAdmin UIで削除済みである。
 - Page ErrorとHTTP 500／502／504は0。既存Admin CSPの`blob:` preview拒否と既存相対Asset URL 4件のAdmin origin 404はAllowed Paths外の既存Console事象として記録し、Publish／Public Contract／Storefront結果と分離した。Category 0件だったためCanonical UIで`MIG-062T Preview`を作成し、削除ContractがないためDB直接削除せず保持する。
 - Storefront、Backend、OpenAPI source／bundle、DB／Migration、Cache、Dependency、V1、Infrastructureは変更していない。Final docs-only head、Fresh Self-review、Squash／Issue Close／branch／worktree cleanupはReport commit後にPR／Issue Closeoutへexact値を記録する。
+
+## MIG-062U Current User Point Balance／History Read Contract Phase A
+
+- Latest Platform `main@5be4488dad7aafb6e306d356a75598bc0279065c`、GitHub全Issue／PR履歴、Task Policy、Remote refsを照合し、既存最大`MIG-062T`の次で未使用な`MIG-062U`を採番した。Issue #273、Branch `feat/MIG-062U-current-user-point-read-contract`、Risk R3で開始した。
+- Active Platform Taskは0件で、Open Dependabotとはfirst-party Version metadataのPath overlapだけを記録した。Dependency値を変更せず、Point Domainの同時変更がないためScope Gate／Conflict GateはPASSした。
+- Canonical Balance SourceはV2 Walletの利用可能paid／free残高、Canonical History Sourceはimmutable Point Ledgerとappend-only Point Operationである。GETはWalletを作成せず、Point Mutation／Transaction／Ledger書込／Payment／MIG-062Rを変更しない。
+- `GET /api/v2/me/wallet`と`GET /api/v2/me/point-ledgers`を追加し、Operation public ID、UTC発生日時、signed delta、Backend理由Labelだけを返す。順序は`occurred_at DESC, operation.id DESC`、CursorはCurrent UserのOperation public IDから継続位置を解決する。
+- Authenticated only、`private, no-store`、`Vary: Cookie`、既存RFC 9457 Typed Problemを維持し、Read-only GETへCSRFを追加しない。内部Wallet／Ledger／Lot／Operation ID、source／actor／business keyを公開しない。
+- Public OpenAPI／bundle、Generated Types、薄いStorefront Client、Site capability、Testkit fixtureを同期した。Migration created／appliedは0。Backend targeted 5 tests／54 assertions、Storefront Client 26 testsがPASSした。
+
+## MIG-062U Current User Point Balance／History Read Contract Phase B
+
+- Phase B開始時もRemote mainはBaseから移動せず、Generated Contract／Artifact／Preview lock競合はない。既存Versionを上書きしない`2.0.0-alpha.18`へPlatform／3 Contract／Storefront Client／Site Schema／Testkitを同期し、Public 52／Admin 212／Webhook 1 operationsとした。
+- Backend 5 tests／54 assertions、Client 26 tests、Site Schema 10 tests、Testkit 32 tests、Admin 159 tests、OpenAPI／Policy／Quality／Security／Release local checksとApplication HeadのRequired CI／CodeQL／Dependency ReviewがPASSした。
+- GitHub-hosted Run `31862183365`のimmutable `2.0.0-alpha.18` Contract Artifactと`linux/amd64` Preview Imageをouter digest／manifest／package identity／OCI revisionまでreadback検証した。Host BuildなしでAPIだけをTask imageへ更新した。
+- Preview QA UserのReadだけで残高200、履歴7件／4ページ、加算／減算、Stable Ordering、Cursor continuation、空Continuation、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出、Runtime Error 0を確認した。Mutation／Migration／Cache削除／Storefront変更は0。
+- API更新時に固定IP override欠落で初回Domain Smokeが502となりFail Closedした。既存正本のAPI `192.168.61.10`／loopback `8611`へ復旧し、healthyと全Read acceptanceを再確認した。DB、Cache、Admin、Storefront Runtimeは変更していない。
+- Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Cleanupはexact headで継続する。
