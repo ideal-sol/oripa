@@ -8428,3 +8428,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 旧QA credentialはTask Image／直前Image双方で401となり回帰ではなく失効と切り分けた。より新しい安全な既存Preview QA Userへ切替え、Gacha履歴4件／2ページ、partial execution、public asset、Backend status／label、Stable Ordering、Cursor、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出をReadのみで確認した。
 - Preview Runtime Error／Mutation／Migration／Cache削除／Storefront変更は0。Admin、PostgreSQL、Redis、Nginx、Storefront Runtimeは変更していない。
 - Synthetic test Container／networkは削除した。実行PolicyがDocker volume削除を拒否したため未接続dependency volume 1件だけ残る。Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Issue／branch／worktree cleanupはexact headで継続する。
+
+## QUALITY-002 V1 AdminPaymentApiTest Baseline Expiry Remediation
+
+- Latest `main@1118703eb704f901d25d946074e3707e9c557c6f`、Active Task Ledger、Integration／Migration Allocation／Preview Lockを再確認し、Issue #279、Branch `fix/QUALITY-002-admin-payment-baseline-removal`、専用Worktree、Risk R3で開始した。Migration番号、Integration Lock、Artifact Lock、Preview Lockは取得していない。
+- `MIG-062W`はplat-contractのBlocked Taskとして分離し、そのBranch／Worktree／Source／LINE Contractを変更していない。QUALITY-002の変更PathはV1 Payment test fixture、CI backend test実行、baseline関連File、CI文書、Worklog／Reportだけである。
+- GOV-009が2026-08-15まで管理した2件をlatest main相当のMIG-062V API Imageと完全分離PostgreSQLで再現した。RefundはPayment-origin Point Lot不在、ChargebackはWallet不在により各422となり、旧fixtureが現在必須のPayment-origin Point Stateを作成していないことがRoot Causeである。
+- ApplicationのRefund／Chargeback実装は変更せず、2 fixtureへWallet、paid／free Payment-origin Point Lotを追加した。Response Assertionは現在のCanonical `PaymentReversalResource`へ追従し、completed reversal、Payment status、reason、全Point反転、shortfall 0、Wallet／Lot 0、Point Ledger、Audit、User suspensionを強く検証する。
+- `AdminPaymentApiTest`全6 tests／50 assertionsとbackend全342 tests／1854 assertionsがbaselineなしでexit 0となった。Container Imageに`.env`をMaterializeしない局所実行のためLaravelの`.env`読込Warningは発生したが、Test failureは0である。
+- Exit条件を満たしたためQUALITY-002 baselineは延長せず削除した。Integration Workflowは失敗を収集して許容する処理を廃止し、`php artisan test`の通常exit statusで全backend failureを拒否する。Gate名、Required Context、assertion、skip、Application behaviorは弱めていない。
+- Quality Unit 4 tests、Policy Unit 125 tests、Security Unit 10 tests、Local Policy／Quality／Security Gate、Fresh Composer／Root pnpm／Legacy pnpm Audit各0件、`git diff --check`がPASSした。Migration created／applied、Generated Contract、Artifact、Preview、Storefront、Production変更は0である。
