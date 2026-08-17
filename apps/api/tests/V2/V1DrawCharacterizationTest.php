@@ -37,8 +37,8 @@ final class V1DrawCharacterizationTest extends TestCase
         self::assertSame($evidence['allowed_counts'], $config['allowed_counts']);
         foreach ([
             'V2CryptographicRandomSource',
-            'stageForSequence',
-            'rangeForStage',
+            'remainingInventory',
+            'pickInventory',
             'persistResults',
             'persistUserPrizes',
             'idempotent_replay',

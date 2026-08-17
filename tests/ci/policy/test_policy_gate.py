@@ -1335,6 +1335,77 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "random_value"):
                 policy_gate.validate_v2_draw_boundary(root, paths)
 
+    def test_v2_draw_legacy_probability_selection_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            service = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8")
+                + "\n// catalog_probability_entries\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "legacy selection"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_direct_point_back_selection_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            service = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8")
+                + "\n// grantDrawPointBackBatch(\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "legacy selection"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_fixed_ppm_random_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            service = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "random->integer(1, $totalWeight)",
+                    "random->integer(0, 999_999)",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "integer"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_canonical_inventory_snapshot_fails_when_bypassed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            service = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "$remainingCount = $this->remainingInventory($inventories)",
+                    "$remainingCount = 0",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "remainingCount"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
+    def test_v2_draw_transaction_idempotency_boundary_fails_when_removed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_draw_boundary(root)
+            service = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "$this->idempotency->complete",
+                    "$this->idempotency->discard",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "idempotency"):
+                policy_gate.validate_v2_draw_boundary(root, paths)
+
     def copy_v2_prize_shipping_boundary(self, root):
         paths = set(policy_gate.V2_PRIZE_SHIPPING_REQUIRED_FILES)
         supporting = {
@@ -1404,6 +1475,23 @@ python3 scripts/db/v2_database.py smoke \\
             root = Path(temporary)
             paths = self.copy_v2_qa_draw_boundary(root)
             policy_gate.validate_v2_qa_draw_boundary(root, paths)
+
+    def test_v2_qa_draw_inventory_first_lock_order_fails_when_reversed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_qa_draw_boundary(root)
+            draw = root / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
+            draw.write_text(
+                draw.read_text(encoding="utf-8").replace(
+                    "$inventories = $this->lockInventories($state);",
+                    "$inventories = collect();",
+                    1,
+                )
+                + "\n// $this->lockInventories($state);\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "lock order"):
+                policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
     def test_v2_qa_draw_fresh_mfa_boundary_fails_when_five_minute_check_is_removed(self):
         with tempfile.TemporaryDirectory() as temporary:

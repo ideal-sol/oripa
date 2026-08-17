@@ -3841,13 +3841,26 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
         repository / "apps/api/app/Domain/Draw/Services/V2DrawService.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "random->integer(0, 999_999)",
+        "$this->transactions->run",
+        "$this->idempotency->claim",
+        "$this->idempotency->complete",
+        "random->integer(1, $totalWeight)",
         "lockForUpdate()",
-        "rangeCache",
-        "stageIndex",
+        "lockInventories",
+        "remainingInventory",
+        "$remainingCount = $this->remainingInventory($inventories)",
+        "min($drawCount, $remainingCount)",
+        "availableInventory",
+        "totalInventoryWeight",
+        "pickInventory",
+        "prizeOutcomeRow",
+        "persistInventory",
+        "available_quantity",
+        "awarded_count",
+        "sold_count",
+        "response_data",
         "array_chunk",
         "consumeForDraw",
-        "grantDrawPointBackBatch",
         "draw.idempotent_replay",
         "draw.completed",
         "draw.events",
@@ -3856,13 +3869,21 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
             raise PolicyFailure(f"V2 Draw service missing {required}")
     for prohibited in (
         "Math.random",
+        "mt_rand(",
+        "rand(",
+        "random->integer(0, 999_999)",
         "SKIP LOCKED",
         "tenant_id",
         "individual_ppm",
         "no_prize",
+        "catalog_probability_entries",
+        "catalog_minimum_guarantees",
+        "grantDrawPointBackBatch(",
     ):
         if prohibited in service:
-            raise PolicyFailure(f"V2 Draw service contains prohibited {prohibited}")
+            raise PolicyFailure(
+                f"V2 Draw service contains prohibited legacy selection {prohibited}"
+            )
 
     eligibility = (
         repository / "apps/api/app/Domain/Draw/Services/V2DrawEligibilityService.php"
@@ -3920,8 +3941,10 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
     ).read_text(encoding="utf-8")
     for required in (
         "test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response",
-        "test_stage_pointer_minimum_guarantee_and_point_back_follow_draw_order",
+        "test_locked_remaining_inventory_is_the_dynamic_integer_weight",
+        "test_probability_stage_guarantee_and_point_back_do_not_select_results",
         "test_idempotent_replay_returns_canonical_result_and_conflict_is_rejected",
+        "test_legacy_point_back_success_replays_saved_canonical_response_without_mutation",
         "test_chunk_failure_rolls_back_point_inventory_history_audit_and_outbox",
         "test_response_audit_and_outbox_do_not_expose_internal_or_sensitive_fields",
         "test_single_bulk_performance_meets_merge_thresholds",
@@ -4245,12 +4268,12 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     if draw.index("$this->qaDraw->resolve") > draw.index("$this->points->consumeForDraw"):
         raise PolicyFailure("V2 QA configuration must be resolved before Point consumption")
     if not (
-        draw.index("$this->points->lockAndValidateForDraw")
-        < draw.index("$this->lockInventories")
+        draw.index("$this->lockInventories")
+        < draw.index("$this->points->lockAndValidateForDraw")
         < draw.index("$this->points->consumeForDraw")
     ):
         raise PolicyFailure(
-            "V2 QA Draw lock order must be Point validation before Inventory and consumption"
+            "V2 QA Draw lock order must be locked Inventory before Point validation and consumption"
         )
 
     admin_bundle = load_json(repository, "openapi/bundled/admin.openapi.json")

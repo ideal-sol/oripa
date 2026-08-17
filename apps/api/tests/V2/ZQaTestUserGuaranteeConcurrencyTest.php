@@ -145,7 +145,9 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 500_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int => $minimum
+            )
         );
         $owner = Admin::query()->create([
             'email_display' => 'qa-concurrency-owner@example.test',

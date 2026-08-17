@@ -122,7 +122,7 @@ final class DrawVerticalSliceTest extends TestCase
 
     public function test_successful_prize_draw_moves_operational_inventory_atomically(): void
     {
-        [$user] = $this->fixture([5_000], totalCount: 100);
+        [$user] = $this->fixture([1], totalCount: 100);
         $inventoryBefore = DB::table('prize_inventories')
             ->orderBy('id')
             ->firstOrFail();
@@ -153,6 +153,69 @@ final class DrawVerticalSliceTest extends TestCase
             (int) $stateBefore->sold_count + 1,
             (int) $stateAfter->sold_count
         );
+    }
+
+    public function test_locked_remaining_inventory_is_the_dynamic_integer_weight(): void
+    {
+        [$user] = $this->fixture(
+            [1],
+            totalCount: 5,
+            allowedDrawCounts: [1, 5]
+        );
+        $inventories = DB::table('prize_inventories')
+            ->orderBy('id')
+            ->get(['id', 'gacha_version_prize_id']);
+        DB::table('prize_inventories')->where('id', $inventories[0]->id)->update([
+            'total_quantity' => 2,
+            'awarded_count' => 0,
+            'available_quantity' => 2,
+            'withdrawn_quantity' => 0,
+        ]);
+        DB::table('prize_inventories')->where('id', $inventories[1]->id)->update([
+            'total_quantity' => 3,
+            'awarded_count' => 0,
+            'available_quantity' => 3,
+            'withdrawn_quantity' => 0,
+        ]);
+        $tickets = [2, 2, 1, 2, 1];
+        $bounds = [];
+        $index = 0;
+        $this->app->instance(
+            V2CryptographicRandomSource::class,
+            new V2CryptographicRandomSource(
+                static function (int $minimum, int $maximum) use (
+                    &$bounds,
+                    &$index,
+                    $tickets
+                ): int {
+                    $bounds[] = [$minimum, $maximum];
+
+                    return $tickets[$index++];
+                }
+            )
+        );
+
+        $response = $this->draw($user, 5, 'dynamic-inventory-weight-key');
+        $selected = DB::table('draw_results')
+            ->orderBy('request_sequence')
+            ->pluck('gacha_version_prize_id')
+            ->map(static fn ($value): int => (int) $value)
+            ->all();
+
+        self::assertSame([[1, 5], [1, 4], [1, 3], [1, 2], [1, 1]], $bounds);
+        self::assertSame([
+            (int) $inventories[0]->gacha_version_prize_id,
+            (int) $inventories[1]->gacha_version_prize_id,
+            (int) $inventories[0]->gacha_version_prize_id,
+            (int) $inventories[1]->gacha_version_prize_id,
+            (int) $inventories[1]->gacha_version_prize_id,
+        ], $selected);
+        self::assertSame(5, $response['executed_count']);
+        self::assertSame(0, $response['point_back_total']);
+        self::assertSame(5, DB::table('draw_results')->where('result_type', 'prize')->count());
+        self::assertSame(0, DB::table('draw_results')->where('result_type', 'point_back')->count());
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('available_quantity'));
+        self::assertSame(5, (int) DB::table('prize_inventories')->sum('awarded_count'));
     }
 
     public function test_first_time_audience_uses_registration_age_not_draw_history(): void
@@ -276,7 +339,7 @@ final class DrawVerticalSliceTest extends TestCase
         );
     }
 
-    public function test_stage_pointer_minimum_guarantee_and_point_back_follow_draw_order(): void
+    public function test_probability_stage_guarantee_and_point_back_do_not_select_results(): void
     {
         [$user] = $this->fixture([999_999, 250_000, 5_000]);
         DB::table('gacha_draw_states')->update(['sold_count' => 499]);
@@ -289,25 +352,30 @@ final class DrawVerticalSliceTest extends TestCase
             ->get(['ps.code', 'dr.result_type', 'dr.point_back_amount']);
 
         self::assertSame('stage-1', $rows[0]->code);
-        self::assertSame('stage-2', $rows[1]->code);
+        self::assertSame('stage-1', $rows[1]->code);
         self::assertSame('prize', $rows[0]->result_type);
-        self::assertSame('point_back', $rows[1]->result_type);
-        self::assertSame(100, (int) $rows[1]->point_back_amount);
+        self::assertSame('prize', $rows[1]->result_type);
+        self::assertSame(0, (int) $rows[1]->point_back_amount);
         self::assertSame('prize', $rows[2]->result_type);
+        self::assertSame(0, $response['point_back_total']);
     }
 
-    public function test_point_consumption_point_back_and_reconciliation_are_consistent(): void
+    public function test_point_consumption_prize_results_and_reconciliation_are_consistent(): void
     {
         [$user] = $this->fixture([150_000], allowedDrawCounts: [1, 5, 10, 100]);
         $response = $this->draw($user, 100, 'point-back-key-0001');
 
         self::assertSame(10_000, $response['point_cost_total']);
-        self::assertSame(10_000, $response['point_back_total']);
-        self::assertSame(1_000_000, $response['wallet_after']['total_points']);
-        self::assertSame(100, DB::table('draw_results')
+        self::assertSame(0, $response['point_back_total']);
+        self::assertSame(990_000, $response['wallet_after']['total_points']);
+        self::assertSame(0, DB::table('draw_results')
             ->where('draw_request_id', $this->requestId($response))
             ->where('result_type', 'point_back')->count());
-        self::assertSame(100, DB::table('point_operations')
+        self::assertSame(100, DB::table('draw_results')
+            ->where('draw_request_id', $this->requestId($response))
+            ->where('result_type', 'prize')->count());
+        self::assertSame(100, DB::table('user_prizes')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('point_operations')
             ->where('source_type', 'draw')
             ->where('operation_type', 'free_grant')->count());
     }
@@ -366,6 +434,13 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame(900, $replay['executed_count']);
         self::assertSame($first['id'], $replay['id']);
         self::assertSame(900, DB::table('draw_results')->count());
+        self::assertSame(900, DB::table('draw_results')->where('result_type', 'prize')->count());
+        self::assertSame(0, DB::table('draw_results')->where('result_type', 'point_back')->count());
+        self::assertSame(900, DB::table('user_prizes')->count());
+        self::assertSame(0, $first['point_back_total']);
+        self::assertSame(910_000, $first['wallet_after']['total_points']);
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('available_quantity'));
+        self::assertSame(900, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame(
             900,
             DB::table('draw_requests')->where('status', 'completed')->sum('executed_count')
@@ -373,11 +448,52 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame(1, DB::table('draw_requests')->count());
         self::assertSame(1_000, (int) DB::table('gacha_draw_states')->value('sold_count'));
         self::assertSame('sold_out', DB::table('gacha_draw_states')->value('status'));
-        self::assertSame(
-            900,
-            DB::table('draw_results')->where('result_type', 'prize')->count()
-                + DB::table('draw_results')->where('result_type', 'point_back')->count()
+        self::assertEquals($first['prize_counts'], $replay['prize_counts']);
+    }
+
+    public function test_legacy_point_back_success_replays_saved_canonical_response_without_mutation(): void
+    {
+        [$user] = $this->fixture([50_000], totalCount: 10);
+        $key = 'legacy-point-back-replay-key';
+        $first = $this->draw($user, 1, $key);
+        $request = DB::table('draw_requests')->where('public_id', $first['id'])->firstOrFail();
+        $legacy = $first;
+        $legacy['point_back_total'] = 100;
+        $legacy['results'][0]['result_type'] = 'point_back';
+        $legacy['results'][0]['rank'] = null;
+        $legacy['results'][0]['prize'] = null;
+        $legacy['results'][0]['point_back'] = ['amount' => 100, 'point_type' => 'free'];
+        $encoded = json_encode($legacy, JSON_THROW_ON_ERROR);
+        DB::table('draw_requests')->where('id', $request->id)->update([
+            'point_back_total' => 100,
+            'response_data' => $encoded,
+        ]);
+        DB::table('idempotency_records')
+            ->where('resource_public_id', $request->public_id)
+            ->update(['response_data' => $encoded]);
+        $before = [
+            'wallet' => DB::table('wallets')->where('user_id', $user->id)->first(),
+            'inventory' => DB::table('prize_inventories')->orderBy('id')->get()->toArray(),
+            'sold_count' => DB::table('gacha_draw_states')->value('sold_count'),
+            'draw_results' => DB::table('draw_results')->count(),
+            'user_prizes' => DB::table('user_prizes')->count(),
+        ];
+
+        $replay = $this->draw($user, 1, $key);
+
+        $legacy['idempotent_replay'] = true;
+        self::assertEquals($legacy, $replay);
+        self::assertEquals(
+            $before['wallet'],
+            DB::table('wallets')->where('user_id', $user->id)->first()
         );
+        self::assertEquals(
+            $before['inventory'],
+            DB::table('prize_inventories')->orderBy('id')->get()->toArray()
+        );
+        self::assertSame($before['sold_count'], DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($before['draw_results'], DB::table('draw_results')->count());
+        self::assertSame($before['user_prizes'], DB::table('user_prizes')->count());
     }
 
     public function test_daily_limit_does_not_trigger_partial_execution(): void
@@ -449,27 +565,25 @@ final class DrawVerticalSliceTest extends TestCase
         );
         $walletBefore = (int) DB::table('wallets')->where('user_id', $user->id)
             ->value('free_balance');
-        $inventory = DB::table('prize_inventories as inventory')
-            ->join(
-                'catalog_gacha_version_prizes as relation',
-                'relation.id',
-                '=',
-                'inventory.gacha_version_prize_id'
-            )
-            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->where('prize.code', 'fixture-a-1')
-            ->first(['inventory.id', 'inventory.total_quantity']);
-        DB::table('prize_inventories')->where('id', $inventory->id)->update([
-            'awarded_count' => $inventory->total_quantity,
-            'available_quantity' => 0,
-            'withdrawn_quantity' => 0,
-        ]);
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION v2_fail_draw_result_insert()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RAISE EXCEPTION 'synthetic Draw Result persistence failure';
+            END;
+            $$;
+            CREATE TRIGGER draw_results_fail_insert
+            BEFORE INSERT ON draw_results
+            FOR EACH ROW EXECUTE FUNCTION v2_fail_draw_result_insert();
+            SQL);
         $auditBefore = DB::table('audit_logs')->count();
         $outboxBefore = DB::table('outbox_messages')->count();
 
         $this->expectDrawFailure(
             fn () => $this->draw($user, 1000, 'rollback-chunk-key-0001'),
-            'MINIMUM_GUARANTEE_UNAVAILABLE'
+            'DRAW_INTERNAL_ERROR'
         );
         self::assertSame(0, DB::table('draw_requests')->count());
         self::assertSame(0, DB::table('draw_results')->count());
@@ -687,6 +801,14 @@ final class DrawVerticalSliceTest extends TestCase
 
         self::assertLessThanOrEqual(2_000, $evidence['1000']['p95_ms']);
         self::assertLessThanOrEqual(100, $evidence['1000']['query_count_max']);
+        self::assertLessThanOrEqual(
+            10,
+            $evidence['1000']['query_count_max'] - $evidence['100']['query_count_max']
+        );
+        self::assertSame(
+            $evidence['100']['query_types']['SELECT'],
+            $evidence['1000']['query_types']['SELECT']
+        );
         self::assertLessThan(100_000, $evidence['1000']['response_size_max']);
     }
 
@@ -774,11 +896,14 @@ final class DrawVerticalSliceTest extends TestCase
         $this->app->instance(
             V2CryptographicRandomSource::class,
             new V2CryptographicRandomSource(
-                static function () use (&$index, $randomValues): int {
+                static function (int $minimum, int $maximum) use (
+                    &$index,
+                    $randomValues
+                ): int {
                     $value = $randomValues[$index % count($randomValues)];
                     $index++;
 
-                    return $value;
+                    return max($minimum, min($maximum, $value));
                 }
             )
         );

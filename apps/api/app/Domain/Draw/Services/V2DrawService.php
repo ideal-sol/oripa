@@ -51,7 +51,6 @@ final class V2DrawService
         ?V2AdminQaDrawCommand $adminCommand = null
     ): array {
         $this->assertInput($gachaPublicId, $drawCount, $idempotencyKey, $requestId);
-        $randomValues = null;
         $started = hrtime(true);
         $qaRetryItemIds = null;
         $qaAttempted = false;
@@ -64,7 +63,6 @@ final class V2DrawService
                 $idempotencyKey,
                 $requestId,
                 $started,
-                &$randomValues,
                 &$qaRetryItemIds,
                 &$qaAttempted,
                 $adminCommand
@@ -114,13 +112,6 @@ final class V2DrawService
 
                     return $response;
                 }
-                if ($randomValues === null) {
-                    $randomValues = [];
-                    for ($index = 0; $index < $drawCount; $index++) {
-                        $randomValues[] = $this->random->integer(0, 999_999);
-                    }
-                }
-
                 $gacha = DB::table('catalog_gachas')
                     ->where('public_id', $gachaPublicId)
                     ->lockForUpdate()
@@ -176,9 +167,9 @@ final class V2DrawService
                         'The Draw request is invalid.'
                     );
                 }
-                $remainingCount = (int) DB::table('prize_inventories')
-                    ->where('gacha_draw_state_id', $state->id)
-                    ->sum('available_quantity');
+                $inventories = $this->lockInventories($state);
+                $remainingCount = $this->remainingInventory($inventories);
+                $this->qaDraw->validateInventory($qaSelection, $inventories);
                 if (
                     $state->status !== 'selling'
                     && ! ($state->status === 'sold_out' && $remainingCount > 0)
@@ -221,15 +212,12 @@ final class V2DrawService
                         $occurredAt
                     );
                 }
-                $inventories = null;
                 if ($qaSelection['active']) {
                     $this->points->lockAndValidateForDraw(
                         $user->id,
                         $totalCost,
                         $occurredAt
                     );
-                    $inventories = $this->lockInventories($state);
-                    $this->qaDraw->validateInventory($qaSelection, $inventories);
                 }
                 $drawRequest = new DrawRequest();
                 $drawRequest->forceFill([
@@ -273,8 +261,7 @@ final class V2DrawService
                     $drawRequest->public_id,
                     $occurredAt
                 );
-                $inventories ??= $this->lockInventories($state);
-                $probability = $this->probabilityContext(
+                $drawMetadata = $this->drawMetadata(
                     (int) $context['probability']->id,
                     (int) $context['version']->id,
                     $inventories
@@ -282,9 +269,8 @@ final class V2DrawService
                 $outcomes = $qaSelection['kind'] === 'legacy_plan'
                     ? $this->selectQaOutcomes(
                         $state,
-                        $probability,
+                        $drawMetadata,
                         $inventories,
-                        array_slice($randomValues, 0, $executedCount),
                         (int) $context['version']->price_points,
                         $occurredAt,
                         $qaSelection
@@ -292,18 +278,18 @@ final class V2DrawService
                     : ($qaSelection['kind'] === 'persistent_guarantee'
                         ? $this->selectGuaranteedOutcomes(
                             $state,
-                            $probability,
+                            $drawMetadata,
                             $inventories,
-                            array_slice($randomValues, 0, $executedCount),
+                            $executedCount,
                             (int) $context['version']->price_points,
                             $occurredAt,
                             $qaSelection
                         )
                         : $this->selectOutcomes(
                         $state,
-                        $probability,
+                        $drawMetadata,
                         $inventories,
-                        array_slice($randomValues, 0, $executedCount),
+                        $executedCount,
                         (int) $context['version']->price_points,
                         $occurredAt
                     ));
@@ -312,9 +298,7 @@ final class V2DrawService
                     'sold_count' => $state->sold_count + $executedCount,
                     'lock_version' => $state->lock_version + 1,
                 ]);
-                $remainingAfter = (int) DB::table('prize_inventories')
-                    ->where('gacha_draw_state_id', $state->id)
-                    ->sum('available_quantity');
+                $remainingAfter = $remainingCount - $executedCount;
                 if ($remainingAfter === 0) {
                     $state->forceFill([
                         'status' => 'sold_out',
@@ -337,32 +321,10 @@ final class V2DrawService
                     $outcomes['rows'],
                     $occurredAt
                 );
-                $pointBackGrants = [];
-                foreach ($outcomes['rows'] as $row) {
-                    if ($row['result_type'] !== 'point_back' || $row['point_back_amount'] === 0) {
-                        continue;
-                    }
-                    $result = $results->get($row['request_sequence']);
-                    if (! $result instanceof DrawResult) {
-                        throw new V2DrawException(
-                            'DRAW_PERSISTENCE_FAILED',
-                            500,
-                            'A Draw Result could not be mapped.'
-                        );
-                    }
-                    $pointBackGrants[] = [
-                        'draw_result_id' => $result->id,
-                        'draw_result_public_id' => $result->public_id,
-                        'amount' => $row['point_back_amount'],
-                    ];
-                }
-                $pointBack = $this->points->grantDrawPointBackBatch(
-                    $user->id,
-                    $drawRequest->id,
-                    $drawRequest->public_id,
-                    $pointBackGrants,
-                    $occurredAt
-                );
+                $pointBack = [
+                    'total' => 0,
+                    'wallet_free_after' => $pointConsumption['wallet_free_after'],
+                ];
                 $qaExecution = $qaSelection['active']
                     ? $this->qaDraw->consume(
                         $qaSelection,
@@ -775,39 +737,42 @@ final class V2DrawService
             ->keyBy('gacha_version_prize_id');
     }
 
+    /** @param Collection<int, PrizeInventory> $inventories */
+    private function remainingInventory(Collection $inventories): int
+    {
+        $remaining = 0;
+        foreach ($inventories as $inventory) {
+            $available = (int) $inventory->available_quantity;
+            if ($available < 0 || $remaining > PHP_INT_MAX - $available) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_UNAVAILABLE',
+                    409,
+                    'Prize Inventory cannot be represented safely.'
+                );
+            }
+            $remaining += $available;
+        }
+
+        return $remaining;
+    }
+
     /**
      * @param Collection<int, PrizeInventory> $inventories
      * @return array{
-     *   stages: Collection<int, object>,
-     *   entries: array<int, list<object>>,
-     *   guarantees: array<int, object>,
+     *   legacy_stage: object,
      *   prizes: array<int, array<string, mixed>>
      * }
      */
-    private function probabilityContext(
+    private function drawMetadata(
         int $probabilityVersionId,
         int $gachaVersionId,
         Collection $inventories
     ): array {
-        $stages = DB::table('catalog_probability_stages')
+        $legacyStage = DB::table('catalog_probability_stages')
             ->where('probability_version_id', $probabilityVersionId)
             ->orderBy('min_draw_number')
             ->orderBy('id')
-            ->get();
-        $entries = DB::table('catalog_probability_entries')
-            ->whereIn('probability_stage_id', $stages->pluck('id'))
-            ->orderBy('probability_stage_id')
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get()
-            ->groupBy('probability_stage_id')
-            ->map(fn (Collection $rows): array => $rows->all())
-            ->all();
-        $guarantees = DB::table('catalog_minimum_guarantees')
-            ->whereIn('probability_stage_id', $stages->pluck('id'))
-            ->get()
-            ->keyBy('probability_stage_id')
-            ->all();
+            ->first();
         $prizeRows = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
             ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
@@ -881,25 +846,22 @@ final class V2DrawService
                 'animation_video' => $this->animation($animations, 'video'),
             ];
         }
-        if ($stages->isEmpty() || count($guarantees) !== $stages->count()) {
+        if ($legacyStage === null) {
             throw new V2DrawException(
                 'PROBABILITY_CONFIGURATION_INVALID',
                 409,
-                'Published Probability configuration is incomplete.'
+                'Published Probability legacy metadata is incomplete.'
             );
         }
 
         return [
-            'stages' => $stages,
-            'entries' => $entries,
-            'guarantees' => $guarantees,
+            'legacy_stage' => $legacyStage,
             'prizes' => $prizes,
         ];
     }
 
     /**
      * @param Collection<int, PrizeInventory> $inventories
-     * @param list<int> $randomValues
      * @return array{
      *   rows: list<array<string, mixed>>,
      *   inventory_won: array<int, int>
@@ -907,115 +869,55 @@ final class V2DrawService
      */
     private function selectOutcomes(
         GachaDrawState $state,
-        array $probability,
+        array $drawMetadata,
         Collection $inventories,
-        array $randomValues,
+        int $drawCount,
         int $pricePoints,
         CarbonImmutable $occurredAt,
         int $requestSequenceOffset = 0,
         ?array $inventoryWonSeed = null
     ): array {
         $rows = [];
-        $stageIndex = 0;
-        $rangeCache = [];
         $inventoryWon = $inventoryWonSeed ?? $inventories->mapWithKeys(
             fn (PrizeInventory $inventory): array => [
                 (int) $inventory->gacha_version_prize_id => (int) $inventory->awarded_count,
             ]
         )->all();
-        foreach ($randomValues as $index => $randomValue) {
+        $available = $this->availableInventory($inventories, $inventoryWon);
+        $totalWeight = $this->totalInventoryWeight($available);
+        for ($index = 0; $index < $drawCount; $index++) {
             $requestSequence = $requestSequenceOffset + $index + 1;
             $sequence = $state->sold_count + $requestSequence;
-            $stage = $this->stageForSequence(
-                $probability['stages'],
-                $sequence,
-                $stageIndex
-            );
-            $rangeCache[$stage->id] ??= $this->rangeForStage(
-                $stage,
-                $probability,
-                $inventories,
-                $inventoryWon
-            );
-            $selected = $this->pick($rangeCache[$stage->id], $randomValue);
-            $publicId = (string) Str::uuid7();
-            if ($selected['result_type'] === 'prize') {
-                $relationId = $selected['gacha_version_prize_id'];
-                $inventory = $inventories->get($relationId);
-                if (! $inventory instanceof PrizeInventory) {
-                    throw new V2DrawException(
-                        'PRIZE_INVENTORY_UNAVAILABLE',
-                        409,
-                        'Selected Prize Inventory is unavailable.'
-                    );
-                }
-                $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-                if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
-                    throw new V2DrawException(
-                        'PRIZE_INVENTORY_INSUFFICIENT',
-                        409,
-                        'Selected Prize Inventory is insufficient.'
-                    );
-                }
-                $inventoryWon[$relationId] = $nextWon;
-                if ($nextWon === $inventory->awarded_count + $inventory->available_quantity) {
-                    $rangeCache = [];
-                }
-                $prize = $probability['prizes'][$relationId];
-                $snapshot = [
-                    'result_type' => 'prize',
-                    'rank' => [
-                        'id' => $prize['rank_public_id'],
-                        'code' => $prize['rank_code'],
-                        'name' => $prize['rank_name'],
-                    ],
-                    'prize' => [
-                        'id' => $prize['prize_public_id'],
-                        'name' => $prize['prize_name'],
-                        'presentation_asset' => $prize['asset'],
-                    ],
-                    'animation' => [
-                        'image' => $prize['animation_image'],
-                        'video' => $prize['animation_video'],
-                    ],
-                ];
-                $rows[] = $this->outcomeRow(
-                    $publicId,
-                    $requestSequence,
-                    $sequence,
-                    $stage,
-                    $randomValue,
-                    'prize',
-                    $relationId,
-                    $prize['rank_id'],
-                    0,
-                    $pricePoints,
-                    $snapshot,
-                    $occurredAt,
-                    $prize
-                );
-            } else {
-                $amount = (int) $selected['point_amount'];
-                $snapshot = [
-                    'result_type' => 'point_back',
-                    'point_back' => ['amount' => $amount, 'point_type' => 'free'],
-                ];
-                $rows[] = $this->outcomeRow(
-                    $publicId,
-                    $requestSequence,
-                    $sequence,
-                    $stage,
-                    $randomValue,
-                    'point_back',
-                    null,
-                    null,
-                    $amount,
-                    $pricePoints,
-                    $snapshot,
-                    $occurredAt,
-                    null
+            if ($totalWeight < 1) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_INSUFFICIENT',
+                    409,
+                    'Selected Prize Inventory is insufficient.'
                 );
             }
+            $ticket = $this->random->integer(1, $totalWeight);
+            $relationId = $this->pickInventory($available, $ticket);
+            $available[$relationId]--;
+            $totalWeight--;
+            $inventoryWon[$relationId]++;
+            $prize = $drawMetadata['prizes'][$relationId] ?? null;
+            if (! is_array($prize)) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_UNAVAILABLE',
+                    409,
+                    'Selected Prize metadata is unavailable.'
+                );
+            }
+            $rows[] = $this->prizeOutcomeRow(
+                $requestSequence,
+                $sequence,
+                $drawMetadata['legacy_stage'],
+                $this->legacyRandomValue($ticket),
+                $relationId,
+                $pricePoints,
+                $occurredAt,
+                $prize
+            );
         }
 
         return ['rows' => $rows, 'inventory_won' => $inventoryWon];
@@ -1023,58 +925,90 @@ final class V2DrawService
 
     /**
      * @param Collection<int, PrizeInventory> $inventories
-     * @param list<int> $randomValues
-     * @param array<string, mixed> $selection
-     * @return array{rows: list<array<string, mixed>>, inventory_won: array<int, int>}
+     * @param array<int, int> $inventoryWon
+     * @return array<int, int>
      */
-    private function selectGuaranteedOutcomes(
-        GachaDrawState $state,
-        array $probability,
-        Collection $inventories,
-        array $randomValues,
-        int $pricePoints,
-        CarbonImmutable $occurredAt,
-        array $selection
-    ): array {
-        $selected = $selection['items'][0] ?? null;
-        $randomValue = $randomValues[0] ?? null;
-        if (! is_array($selected) || ! is_int($randomValue)) {
-            throw new V2DrawException(
-                'QA_CONFIGURATION_INVALID',
-                422,
-                'The persistent QA guarantee selection is incomplete.'
-            );
+    private function availableInventory(Collection $inventories, array $inventoryWon): array
+    {
+        $available = [];
+        foreach ($inventories as $relationId => $inventory) {
+            $awarded = (int) $inventory->awarded_count;
+            $inventoryAvailable = (int) $inventory->available_quantity;
+            $selected = $inventoryWon[(int) $relationId] ?? $awarded;
+            $used = $selected - $awarded;
+            if ($used < 0 || $used > $inventoryAvailable) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_INSUFFICIENT',
+                    409,
+                    'Selected Prize Inventory is insufficient.'
+                );
+            }
+            $available[(int) $relationId] = $inventoryAvailable - $used;
         }
-        $relationId = (int) $selected['relation_id'];
-        $inventory = $inventories->get($relationId);
-        $prize = $probability['prizes'][$relationId] ?? null;
-        if (! $inventory instanceof PrizeInventory || ! is_array($prize)) {
-            throw new V2DrawException(
-                'QA_CONFIGURATION_INVALID',
-                422,
-                'The persistent QA guarantee Prize is unavailable.'
-            );
+
+        return $available;
+    }
+
+    /** @param array<int, int> $available */
+    private function totalInventoryWeight(array $available): int
+    {
+        $total = 0;
+        foreach ($available as $weight) {
+            if ($weight < 0 || $total > PHP_INT_MAX - $weight) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_UNAVAILABLE',
+                    409,
+                    'Prize Inventory cannot be represented safely.'
+                );
+            }
+            $total += $weight;
         }
-        $inventoryWon = $inventories->mapWithKeys(
-            fn (PrizeInventory $row): array => [
-                (int) $row->gacha_version_prize_id => (int) $row->awarded_count,
-            ]
-        )->all();
-        $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-        if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
-            throw new V2DrawException(
-                'QA_CONFIGURATION_INVALID',
-                422,
-                'The persistent QA guarantee Prize Inventory is insufficient.'
-            );
+
+        return $total;
+    }
+
+    /** @param array<int, int> $available */
+    private function pickInventory(array $available, int $ticket): int
+    {
+        $cursor = 0;
+        foreach ($available as $relationId => $weight) {
+            if ($weight === 0) {
+                continue;
+            }
+            $cursor += $weight;
+            if ($ticket <= $cursor) {
+                return $relationId;
+            }
         }
-        $inventoryWon[$relationId] = $nextWon;
-        $stageIndex = 0;
-        $stage = $this->stageForSequence(
-            $probability['stages'],
-            $state->sold_count + 1,
-            $stageIndex
+
+        throw new V2DrawException(
+            'PRIZE_INVENTORY_INSUFFICIENT',
+            409,
+            'Weighted Prize selection exceeded available Inventory.'
         );
+    }
+
+    private function legacyRandomValue(int $ticket): int
+    {
+        return $ticket <= 1_000_000 ? $ticket - 1 : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $prize
+     * @return array<string, mixed>
+     */
+    private function prizeOutcomeRow(
+        int $requestSequence,
+        int $drawSequence,
+        object $legacyStage,
+        int $legacyRandomValue,
+        int $relationId,
+        int $consumedPoints,
+        CarbonImmutable $occurredAt,
+        array $prize,
+        ?int $qaDrawPlanItemId = null,
+        ?int $qaGuaranteeAssignmentId = null
+    ): array {
         $snapshot = [
             'result_type' => 'prize',
             'rank' => [
@@ -1092,18 +1026,80 @@ final class V2DrawService
                 'video' => $prize['animation_video'],
             ],
         ];
-        $guaranteed = $this->outcomeRow(
+
+        return $this->outcomeRow(
             (string) Str::uuid7(),
-            1,
-            $state->sold_count + 1,
-            $stage,
-            $randomValue,
+            $requestSequence,
+            $drawSequence,
+            $legacyStage,
+            $legacyRandomValue,
             'prize',
             $relationId,
             $prize['rank_id'],
             0,
-            $pricePoints,
+            $consumedPoints,
             $snapshot,
+            $occurredAt,
+            $prize,
+            $qaDrawPlanItemId,
+            $qaGuaranteeAssignmentId
+        );
+    }
+
+    /**
+     * @param Collection<int, PrizeInventory> $inventories
+     * @param array<string, mixed> $selection
+     * @return array{rows: list<array<string, mixed>>, inventory_won: array<int, int>}
+     */
+    private function selectGuaranteedOutcomes(
+        GachaDrawState $state,
+        array $drawMetadata,
+        Collection $inventories,
+        int $drawCount,
+        int $pricePoints,
+        CarbonImmutable $occurredAt,
+        array $selection
+    ): array {
+        $selected = $selection['items'][0] ?? null;
+        if (! is_array($selected)) {
+            throw new V2DrawException(
+                'QA_CONFIGURATION_INVALID',
+                422,
+                'The persistent QA guarantee selection is incomplete.'
+            );
+        }
+        $relationId = (int) $selected['relation_id'];
+        $inventory = $inventories->get($relationId);
+        $prize = $drawMetadata['prizes'][$relationId] ?? null;
+        if (! $inventory instanceof PrizeInventory || ! is_array($prize)) {
+            throw new V2DrawException(
+                'QA_CONFIGURATION_INVALID',
+                422,
+                'The persistent QA guarantee Prize is unavailable.'
+            );
+        }
+        $inventoryWon = $inventories->mapWithKeys(
+            fn (PrizeInventory $row): array => [
+                (int) $row->gacha_version_prize_id => (int) $row->awarded_count,
+            ]
+        )->all();
+        $awarded = (int) $inventory->awarded_count;
+        $used = ($inventoryWon[$relationId] ?? $awarded) - $awarded;
+        if ($used < 0 || $used >= (int) $inventory->available_quantity) {
+            throw new V2DrawException(
+                'QA_CONFIGURATION_INVALID',
+                422,
+                'The persistent QA guarantee Prize Inventory is insufficient.'
+            );
+        }
+        $inventoryWon[$relationId] = $awarded + $used + 1;
+        $guaranteed = $this->prizeOutcomeRow(
+            1,
+            $state->sold_count + 1,
+            $drawMetadata['legacy_stage'],
+            0,
+            $relationId,
+            $pricePoints,
             $occurredAt,
             $prize,
             null,
@@ -1111,9 +1107,9 @@ final class V2DrawService
         );
         $normal = $this->selectOutcomes(
             $state,
-            $probability,
+            $drawMetadata,
             $inventories,
-            array_slice($randomValues, 1),
+            $drawCount - 1,
             $pricePoints,
             $occurredAt,
             1,
@@ -1128,7 +1124,6 @@ final class V2DrawService
 
     /**
      * @param Collection<int, PrizeInventory> $inventories
-     * @param list<int> $randomValues
      * @param array<string, mixed> $selection
      * @return array{
      *   rows: list<array<string, mixed>>,
@@ -1137,28 +1132,20 @@ final class V2DrawService
      */
     private function selectQaOutcomes(
         GachaDrawState $state,
-        array $probability,
+        array $drawMetadata,
         Collection $inventories,
-        array $randomValues,
         int $pricePoints,
         CarbonImmutable $occurredAt,
         array $selection
     ): array {
         $rows = [];
-        $stageIndex = 0;
         $inventoryWon = $inventories->mapWithKeys(
             fn (PrizeInventory $inventory): array => [
                 (int) $inventory->gacha_version_prize_id => (int) $inventory->awarded_count,
             ]
         )->all();
-        foreach ($randomValues as $index => $randomValue) {
+        foreach ($selection['items'] as $index => $selected) {
             $sequence = $state->sold_count + $index + 1;
-            $stage = $this->stageForSequence(
-                $probability['stages'],
-                $sequence,
-                $stageIndex
-            );
-            $selected = $selection['items'][$index] ?? null;
             if (! is_array($selected)) {
                 throw new V2DrawException(
                     'QA_CONFIGURATION_INVALID',
@@ -1168,7 +1155,7 @@ final class V2DrawService
             }
             $relationId = (int) $selected['relation_id'];
             $inventory = $inventories->get($relationId);
-            $prize = $probability['prizes'][$relationId] ?? null;
+            $prize = $drawMetadata['prizes'][$relationId] ?? null;
             if (! $inventory instanceof PrizeInventory || ! is_array($prize)) {
                 throw new V2DrawException(
                     'QA_CONFIGURATION_INVALID',
@@ -1176,208 +1163,35 @@ final class V2DrawService
                     'The QA Draw Prize is unavailable.'
                 );
             }
-            $nextWon = ($inventoryWon[$relationId] ?? 0) + 1;
-            if ($nextWon > $inventory->awarded_count + $inventory->available_quantity) {
+            $awarded = (int) $inventory->awarded_count;
+            $used = ($inventoryWon[$relationId] ?? $awarded) - $awarded;
+            if ($used < 0 || $used >= (int) $inventory->available_quantity) {
                 throw new V2DrawException(
                     'QA_CONFIGURATION_INVALID',
                     422,
                     'The QA Draw Prize Inventory is insufficient.'
                 );
             }
-            $inventoryWon[$relationId] = $nextWon;
-            $snapshot = [
-                'result_type' => 'prize',
-                'rank' => [
-                    'id' => $prize['rank_public_id'],
-                    'code' => $prize['rank_code'],
-                    'name' => $prize['rank_name'],
-                ],
-                'prize' => [
-                    'id' => $prize['prize_public_id'],
-                    'name' => $prize['prize_name'],
-                    'presentation_asset' => $prize['asset'],
-                ],
-                'animation' => [
-                    'image' => $selected['fixed_image'] ?? $prize['animation_image'],
-                    'video' => $selected['fixed_video'] ?? $prize['animation_video'],
-                ],
+            $inventoryWon[$relationId] = $awarded + $used + 1;
+            $qaPrize = [
+                ...$prize,
+                'animation_image' => $selected['fixed_image'] ?? $prize['animation_image'],
+                'animation_video' => $selected['fixed_video'] ?? $prize['animation_video'],
             ];
-            $rows[] = $this->outcomeRow(
-                (string) Str::uuid7(),
+            $rows[] = $this->prizeOutcomeRow(
                 $index + 1,
                 $sequence,
-                $stage,
-                $randomValue,
-                'prize',
-                $relationId,
-                $prize['rank_id'],
+                $drawMetadata['legacy_stage'],
                 0,
+                $relationId,
                 $pricePoints,
-                $snapshot,
                 $occurredAt,
-                $prize,
+                $qaPrize,
                 (int) $selected['item_id']
             );
         }
 
         return ['rows' => $rows, 'inventory_won' => $inventoryWon];
-    }
-
-    private function stageForSequence(
-        Collection $stages,
-        int $sequence,
-        int &$stageIndex
-    ): object {
-        while ($stageIndex < $stages->count()) {
-            $stage = $stages->get($stageIndex);
-            if (
-                (int) $stage->min_draw_number <= $sequence
-                && ($stage->max_draw_number === null
-                    || (int) $stage->max_draw_number >= $sequence)
-            ) {
-                return $stage;
-            }
-            if ($stage->max_draw_number !== null
-                && (int) $stage->max_draw_number < $sequence) {
-                $stageIndex++;
-                continue;
-            }
-            break;
-        }
-
-        throw new V2DrawException(
-            'PROBABILITY_STAGE_NOT_FOUND',
-            409,
-            'No Published Probability Stage covers the Draw sequence.'
-        );
-    }
-
-    /**
-     * @param Collection<int, PrizeInventory> $inventories
-     * @param array<int, int> $inventoryWon
-     * @return list<array<string, mixed>>
-     */
-    private function rangeForStage(
-        object $stage,
-        array $probability,
-        Collection $inventories,
-        array $inventoryWon
-    ): array {
-        $range = [];
-        $cursor = 0;
-        $exhaustedPpm = 0;
-        foreach ($probability['entries'][$stage->id] ?? [] as $entry) {
-            $ppm = (int) $entry->probability_ppm;
-            if ($entry->result_type === 'prize') {
-                $relationId = (int) $entry->gacha_version_prize_id;
-                $inventory = $inventories->get($relationId);
-                if (! $inventory instanceof PrizeInventory) {
-                    throw new V2DrawException(
-                        'PRIZE_INVENTORY_UNAVAILABLE',
-                        409,
-                        'Prize Inventory is unavailable.'
-                    );
-                }
-                if (
-                    ($inventoryWon[$relationId] ?? 0)
-                    >= $inventory->awarded_count + $inventory->available_quantity
-                ) {
-                    $exhaustedPpm += $ppm;
-                    continue;
-                }
-                $target = [
-                    'result_type' => 'prize',
-                    'gacha_version_prize_id' => $relationId,
-                    'point_amount' => null,
-                ];
-            } elseif ($entry->result_type === 'point_back') {
-                $target = [
-                    'result_type' => 'point_back',
-                    'gacha_version_prize_id' => null,
-                    'point_amount' => (int) $entry->point_amount,
-                ];
-            } else {
-                throw new V2DrawException(
-                    'PROBABILITY_CONFIGURATION_INVALID',
-                    409,
-                    'Probability Result Type is invalid.'
-                );
-            }
-            if ($ppm > 0) {
-                $range[] = [...$target, 'start' => $cursor, 'end' => $cursor + $ppm];
-                $cursor += $ppm;
-            }
-        }
-        $guarantee = $probability['guarantees'][$stage->id];
-        $guaranteePpm = (int) $guarantee->probability_ppm + $exhaustedPpm;
-        if ($guarantee->result_type === 'prize') {
-            $relationId = (int) $guarantee->gacha_version_prize_id;
-            $inventory = $inventories->get($relationId);
-            if (
-                ! $inventory instanceof PrizeInventory
-                || ($inventoryWon[$relationId] ?? 0)
-                    >= $inventory->awarded_count + $inventory->available_quantity
-            ) {
-                throw new V2DrawException(
-                    'MINIMUM_GUARANTEE_UNAVAILABLE',
-                    409,
-                    'Minimum Guarantee Prize Inventory is unavailable.'
-                );
-            }
-            $target = [
-                'result_type' => 'prize',
-                'gacha_version_prize_id' => $relationId,
-                'point_amount' => null,
-            ];
-        } elseif ($guarantee->result_type === 'point_back') {
-            $target = [
-                'result_type' => 'point_back',
-                'gacha_version_prize_id' => null,
-                'point_amount' => (int) $guarantee->point_amount,
-            ];
-        } else {
-            throw new V2DrawException(
-                'PROBABILITY_CONFIGURATION_INVALID',
-                409,
-                'Minimum Guarantee Result Type is invalid.'
-            );
-        }
-        if ($guaranteePpm > 0) {
-            $range[] = [
-                ...$target,
-                'start' => $cursor,
-                'end' => $cursor + $guaranteePpm,
-            ];
-            $cursor += $guaranteePpm;
-        }
-        if ($cursor !== 1_000_000) {
-            throw new V2DrawException(
-                'PROBABILITY_TOTAL_INVALID',
-                409,
-                'Probability Stage total must be exactly 1,000,000 ppm.'
-            );
-        }
-
-        return $range;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $range
-     * @return array<string, mixed>
-     */
-    private function pick(array $range, int $randomValue): array
-    {
-        foreach ($range as $entry) {
-            if ($randomValue >= $entry['start'] && $randomValue < $entry['end']) {
-                return $entry;
-            }
-        }
-
-        throw new V2DrawException(
-            'PROBABILITY_SELECTION_FAILED',
-            500,
-            'Probability selection did not produce a result.'
-        );
     }
 
     /**

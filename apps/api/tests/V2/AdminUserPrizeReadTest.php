@@ -194,7 +194,10 @@ final class AdminUserPrizeReadTest extends TestCase
         );
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 5_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int =>
+                    intdiv(5_000 * $maximum, 1_000_000) + 1
+            )
         );
         app(V2DrawService::class)->create(
             $this->user,

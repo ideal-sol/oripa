@@ -389,11 +389,14 @@ final class GachaDetailPresentationContractTest extends TestCase
         $this->app->instance(
             V2CryptographicRandomSource::class,
             new V2CryptographicRandomSource(
-                static function () use (&$index, $values): int {
-                    $value = $values[$index % count($values)];
+                static function (int $minimum, int $maximum) use (&$index, $values): int {
+                    $value = intdiv(
+                        $values[$index % count($values)] * $maximum,
+                        1_000_000
+                    ) + 1;
                     $index++;
 
-                    return $value;
+                    return min($maximum, max($minimum, $value));
                 }
             )
         );
