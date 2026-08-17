@@ -10,7 +10,7 @@
 - Branch: `feat/MIG-062W-line-friend-state-read-contract`
 - Worktree: `/var/www/oripa-worktrees/MIG-062W`
 - Task Policy SHA-256: `e51655a6f2cb4584dcb3b33b88c7436f2a2dec2d76b0ccf0a2579b02713589f0`
-- Current Head: `58f7bf9212941572a30360d1881b63712c6bf4a6`
+- CI Evidence Head: `58f7bf9212941572a30360d1881b63712c6bf4a6`
 - Application Head: `904de9f2867ae6e8f5becc74d4e7b1d3b1013ee0`
 - Preview Head／Artifact: Required Integration Gate未達のため未作成。
 - Final Head／Squash Commit: Required Integration Gate未達のため未確定。
