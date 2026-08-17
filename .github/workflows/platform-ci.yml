@@ -276,19 +276,9 @@ jobs:
           --path=database/migrations
           --no-interaction
 
-      - name: Run backend tests against the exact legacy baseline
-        run: |
-          set +e
-          (
-            cd apps/api
-            php artisan test --log-junit "$RUNNER_TEMP/backend-tests.xml"
-          )
-          backend_status=$?
-          set -e
-          echo "backend test raw exit status: $backend_status"
-          python3 scripts/ci/backend_test_baseline.py \
-            --report "$RUNNER_TEMP/backend-tests.xml" \
-            --baseline .ci/baselines/backend-tests.json
+      - name: Run backend tests
+        working-directory: apps/api
+        run: php artisan test
 
       - name: Validate Site Template policy
         run: |

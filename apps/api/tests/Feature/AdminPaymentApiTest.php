@@ -4,9 +4,14 @@ namespace Tests\Feature;
 
 use App\Domain\Admin\Enums\AdminRole;
 use App\Domain\Payment\Enums\PaymentStatus;
+use App\Domain\Point\Enums\PointLotSourceType;
+use App\Domain\Point\Enums\PointType;
 use App\Models\AdminUser;
 use App\Models\Payment;
+use App\Models\PointLedger;
+use App\Models\PointLot;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -53,15 +58,24 @@ class AdminPaymentApiTest extends TestCase
     public function test_admin_can_mark_succeeded_payment_as_refunded_and_audit_log_is_recorded(): void
     {
         $admin = $this->actingAdmin();
-        $payment = $this->createPayment(User::factory()->create(), PaymentStatus::Succeeded, 'mock_payment_refund');
+        $user = User::factory()->create();
+        $payment = $this->createPayment($user, PaymentStatus::Succeeded, 'mock_payment_refund');
+        $wallet = $this->createWallet($user, paid: 1000, free: 100);
+        $paidLot = $this->createPaymentLot($user, $payment, PointType::Paid, 1000);
+        $freeLot = $this->createPaymentLot($user, $payment, PointType::Free, 100);
 
         $this->postJson("/admin/api/payments/{$payment->id}/refund", [
             'reason' => 'Customer support refund.',
         ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'refunded')
-            ->assertJsonPath('data.metadata.admin_status_change.reason', 'Customer support refund.')
-            ->assertJsonPath('data.metadata.admin_status_change.point_reversal', 'pending_manual_or_followup_process');
+            ->assertJsonPath('data.type', 'refund')
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.reason', 'Customer support refund.')
+            ->assertJsonPath('data.payment.status', 'refunded')
+            ->assertJsonPath('data.paid_reversed_amount', 1000)
+            ->assertJsonPath('data.free_reversed_amount', 100)
+            ->assertJsonPath('data.shortfall_paid_amount', 0)
+            ->assertJsonPath('data.shortfall_free_amount', 0);
 
         $this->assertDatabaseHas('payments', [
             'id' => $payment->id,
@@ -72,6 +86,18 @@ class AdminPaymentApiTest extends TestCase
             'action' => 'admin.payment.refunded',
             'auditable_type' => Payment::class,
             'auditable_id' => $payment->id,
+        ]);
+        $this->assertSame(0, $wallet->refresh()->paid_balance);
+        $this->assertSame(0, $wallet->free_balance);
+        $this->assertSame(0, $paidLot->refresh()->remaining_amount);
+        $this->assertSame(0, $freeLot->refresh()->remaining_amount);
+        $this->assertSame(2, PointLedger::query()->where('related_type', 'payment_reversal')->count());
+        $this->assertDatabaseHas('payment_reversals', [
+            'payment_id' => $payment->id,
+            'admin_user_id' => $admin->id,
+            'type' => 'refund',
+            'status' => 'completed',
+            'reason' => 'Customer support refund.',
         ]);
     }
 
@@ -95,13 +121,23 @@ class AdminPaymentApiTest extends TestCase
         $admin = $this->actingAdmin();
         $user = User::factory()->create(['status' => 'active']);
         $payment = $this->createPayment($user, PaymentStatus::Succeeded, 'mock_payment_chargeback');
+        $wallet = $this->createWallet($user, paid: 1000, free: 100);
+        $paidLot = $this->createPaymentLot($user, $payment, PointType::Paid, 1000);
+        $freeLot = $this->createPaymentLot($user, $payment, PointType::Free, 100);
 
         $this->postJson("/admin/api/payments/{$payment->id}/chargeback", [
             'reason' => 'Card issuer dispute.',
         ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'chargeback')
-            ->assertJsonPath('data.user.status', 'suspended');
+            ->assertJsonPath('data.type', 'chargeback')
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.reason', 'Card issuer dispute.')
+            ->assertJsonPath('data.payment.status', 'chargeback')
+            ->assertJsonPath('data.user.status', 'suspended')
+            ->assertJsonPath('data.paid_reversed_amount', 1000)
+            ->assertJsonPath('data.free_reversed_amount', 100)
+            ->assertJsonPath('data.shortfall_paid_amount', 0)
+            ->assertJsonPath('data.shortfall_free_amount', 0);
 
         $this->assertDatabaseHas('payments', [
             'id' => $payment->id,
@@ -116,6 +152,18 @@ class AdminPaymentApiTest extends TestCase
             'action' => 'admin.payment.chargeback',
             'auditable_type' => Payment::class,
             'auditable_id' => $payment->id,
+        ]);
+        $this->assertSame(0, $wallet->refresh()->paid_balance);
+        $this->assertSame(0, $wallet->free_balance);
+        $this->assertSame(0, $paidLot->refresh()->remaining_amount);
+        $this->assertSame(0, $freeLot->refresh()->remaining_amount);
+        $this->assertSame(2, PointLedger::query()->where('related_type', 'payment_reversal')->count());
+        $this->assertDatabaseHas('payment_reversals', [
+            'payment_id' => $payment->id,
+            'admin_user_id' => $admin->id,
+            'type' => 'chargeback',
+            'status' => 'completed',
+            'reason' => 'Card issuer dispute.',
         ]);
     }
 
@@ -143,6 +191,29 @@ class AdminPaymentApiTest extends TestCase
             'free_point_amount' => 100,
             'currency' => 'JPY',
             'paid_at' => $status === PaymentStatus::Succeeded ? now() : null,
+        ]);
+    }
+
+    private function createWallet(User $user, int $paid, int $free): Wallet
+    {
+        return Wallet::query()->create([
+            'user_id' => $user->id,
+            'paid_balance' => $paid,
+            'free_balance' => $free,
+        ]);
+    }
+
+    private function createPaymentLot(User $user, Payment $payment, PointType $pointType, int $amount): PointLot
+    {
+        return PointLot::query()->create([
+            'user_id' => $user->id,
+            'point_type' => $pointType,
+            'granted_amount' => $amount,
+            'remaining_amount' => $amount,
+            'source_type' => PointLotSourceType::Purchase,
+            'source_id' => $payment->id,
+            'granted_at' => now()->subDay(),
+            'expire_at' => $pointType === PointType::Free ? now()->addMonth() : null,
         ]);
     }
 }
