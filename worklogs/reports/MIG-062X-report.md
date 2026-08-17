@@ -30,6 +30,8 @@
 
 - `apps/api/app/Domain/Draw/Services/V2DrawService.php`
 - `apps/api/tests/V2/**`
+- `scripts/ci/policy_gate.py`
+- `tests/ci/policy/test_policy_gate.py`
 - `worklogs/new_ver_main.md`
 - `worklogs/reports/MIG-062X-report.md`
 
@@ -47,6 +49,8 @@
 - `apps/api/tests/V2/V1DrawCharacterizationTest.php`
 - `apps/api/tests/V2/ZDrawConcurrencyLoadTest.php`
 - `apps/api/tests/V2/ZQaTestUserGuaranteeConcurrencyTest.php`
+- `scripts/ci/policy_gate.py`
+- `tests/ci/policy/test_policy_gate.py`
 - `worklogs/new_ver_main.md`
 - `worklogs/reports/MIG-062X-report.md`
 
@@ -78,7 +82,9 @@
 
 ## Verification performed
 
-- PHP syntax: 変更PHP 11 files PASS。`git diff --check` PASS。
+- PHP syntax: 変更PHP 12 files PASS。`git diff --check` PASS。
+- Policy Gate: B2の動的bounded CSPRNG、Canonical locked Inventory snapshot、Partial Remaining、Aggregate Inventory mutation、Transaction／Idempotency、Prize-only境界、Legacy Probability／Direct Point Back禁止、Inventory-first QA lock順をMachine-readable Gateへ同期した。Legacy Schema／過去履歴互換の既存Migration／Public Read境界は維持した。Policy Unit 131 tests PASS、Local Policy Gate PASS。
+- Quality: Quality Unit 4 tests PASS、Local Quality Gate PASS、Composer manifest validation PASS。
 - Draw Unit／Integration: `DrawVerticalSliceTest` 22 tests／210 assertions PASS。1／5／10／100／1000、動的Weight、zero exclusion、Probability非依存、Prize-only、Partial Remaining 900、Idempotency、Legacy Point Back Replay、Rollback、Typed Error、LINE audience、Query特性を含む。
 - Persistent QA: `QaTestUserGuaranteeIntegrationTest`＋`QaDrawVerticalSliceTest` 23 tests／252 assertions PASS。1000連1件保証、残りWeighted、在庫0 Fail Closed、Legacy QA、Rollbackを含む。
 - Read／Lifecycle regression: Current User Draw History、Admin User Prize、Gacha Detail／Eligibility、Admin Gacha Usage Historyを実行し、Task変更に起因する失敗0。MIG-062W LINE Friend State Read／Eligibility変更を維持した。
@@ -88,6 +94,7 @@
 - 1000連: p95 640.407ms、query max 55（`SELECT` 30、`INSERT` 19、`UPDATE` 6）。100連はquery max 49（`SELECT` 30、`INSERT` 13、`UPDATE` 6）で、Selection／Inventory queryのN+1はない。
 - Local isolated synthetic PostgreSQLへ既存V2 Migration 53件を適用した。Task Migration created 0、Task／Preview／Production Migration applied 0。
 - Local harness初回はMigration path誤指定によるSchema未作成、`APP_KEY`／Audit HMAC test env未指定、および旧ppm値をそのままbounded値へClampしたFixture期待差でFAILした。V2 Migration pathとSynthetic test keyを正し、Fixtureを旧比率相当のbounded integerへ修正後、上記Final focused commandを全て再実行してPASSした。ApplicationのSecurity Controlは変更・迂回していない。
+- 初回PR Head `eb87ff173dc72a108dbb9987255cb02874072af5`は、Policy Gateが旧固定ppm／Point-first QA lock順を要求してFAILし、Quality GateはTask実行前の`setup-php`取得でGitHub側429／502によりFAILした。B2 Human仕様へPolicy境界とUnitを同期し、失敗履歴のないfresh headで全Checksを再実行する。
 
 ## Verification not performed
 
