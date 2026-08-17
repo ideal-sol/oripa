@@ -4,13 +4,14 @@
 
 - Task ID: `MIG-062W`
 - Issue: `#277` (`https://github.com/ideal-sol/oripa/issues/277`)
-- PR: Phase A Application head push後に作成する。
+- PR: `#278` (`https://github.com/ideal-sol/oripa/pull/278`)
 - Risk: `R3`
 - Base: `1118703eb704f901d25d946074e3707e9c557c6f`
 - Branch: `feat/MIG-062W-line-friend-state-read-contract`
 - Worktree: `/var/www/oripa-worktrees/MIG-062W`
 - Task Policy SHA-256: `e51655a6f2cb4584dcb3b33b88c7436f2a2dec2d76b0ccf0a2579b02713589f0`
-- Application／Preview Head: Phase A commit後に固定する。
+- Application Head: `904de9f2867ae6e8f5becc74d4e7b1d3b1013ee0`
+- Preview Head: PR本文補正を記録するdocs-only fresh headへ固定する。
 - Final Head／Squash Commit: Fresh Closeout後にIssue／PRへ記録する。
 
 ## Phase A
@@ -47,6 +48,7 @@
 - Security Unit 10 tests、Composer／Workspace pnpm／Legacy pnpm Fresh Audit各0件、Secret candidate 0、Local Security Gate: PASS。
 - Release Unit 10 tests／`release:validate`: PASS。`2.0.0-alpha.20`、Migration 53件、Public／Admin／Webhook checksum一致を確認した。
 - Application exact headのRequired CI、Artifact、Preview、Fresh Self-reviewはPhase Bで実施する。
+- 初回PR event Policy GateはPR本文の必須見出しを`#`で記載したため、parserが要求する`##`／`###`として認識せずFAILした。同Application headのmanual dispatch Policy GateはPASSした。本文をCanonical見出しとexact `Changed files`／`Allowed paths`へ補正し、本記録を含むdocs-only fresh headで全Checksを再実行する。
 
 ## Scope Impact
 
