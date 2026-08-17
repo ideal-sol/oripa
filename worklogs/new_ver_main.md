@@ -8457,3 +8457,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 - Base `0f4e05920c19e12a613a9c6c320cda8e2d7af272`、Issue #287、Branch `security/GOV-015-conflict-aware-task-base-sync`、Risk R3で開始した。OPS-007 branch／worktree／Issue／PRとluxe-pack.biz V2 Cutover Retryは変更しない。
 - current task headとcurrent mainを親順固定の二親merge candidateとして検証し、current baseからcandidateへのnet changed paths、automatic mergeとの差分、未解決conflict marker、親片側の選択をFail Closedとするwrapper gateを追加する。
+
+## OPS-007 V2 Preview Public Asset Persistence
+
+- Issue `#283`、Risk `R4`、Base `f3cfff8c3f707cdc49fcf8101788f7e3ba2ac36f`、専用Branch／Worktreeで開始し、Preview Deployment Lockを取得した。`luxe-pack.biz`のV2切替は実行していない。
+- local filesystem rootだけを`v2_api_assets` named volumeへmountし、29 Objectをchecksum確認後に移行した。DB／Migration／Data削除／Production Host Buildは0である。
+- API-only recreateを2回実行し、existing Asset、controller upload、recreate後Asset、health、test Top／Banner APIを確認した。25 Public Imageのchecksum／MIMEとupload checksumは不変、HTTP 500／502／504は0である。
+- canonical bytesがない7 Public metadata rowは復元せず、Asset ID、Content relation、Public exposure、Re-upload actionをOPS-007 Reportへ記録した。current public 2件が未復元のため、V2切替再試行は`NOT READY`を維持する。
