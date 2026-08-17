@@ -10,7 +10,7 @@
 - Latest Main: `c2960e4c73aaeab8d840c09a8ec714266962d823`
 - Branch: `feat/MIG-062W-line-friend-state-read-contract`
 - Worktree: `/var/www/oripa-worktrees/MIG-062W`
-- Task Policy SHA-256: `18f72d3b3f7d547df2c0a59dd978e633a1c289c00c87d663a3661a41ba0cee80`
+- Task Policy SHA-256: `efe786ff3c10eaeaf6bb8285fce63829ffeea81e6dc39fe38d0e199c45ff4353`
 - CI Evidence Head: `58f7bf9212941572a30360d1881b63712c6bf4a6`
 - Original Implementation Head: `904de9f2867ae6e8f5becc74d4e7b1d3b1013ee0`
 - Resume Head: `cbae33cf629daa1729bc9cd626f6bb8fa872d8f6`
@@ -79,6 +79,7 @@
 - Preflightではlocal／origin／Remote mainが`c2960e4c73aaeab8d840c09a8ec714266962d823`で一致し、Issue／PRはOpen、Task worktreeはclean、Remote task headは`cbae33cf629daa1729bc9cd626f6bb8fa872d8f6`だった。Open first-party TaskはMIG-062Wだけである。
 - Coordination Ledgerは完了済みOPS-007をstale active／Preview Lock heldとしていた。Issue #283 close、mainへのsquash、worktree削除、最新人間READYを照合してstale lockを解放し、Migration／Artifact／Preview Lockがnoneの状態からMIG-062WがPlatform Integration Lockを取得した。
 - QUALITY-002、OPS-006、GOV-014、GOV-015、OPS-007のlatest-main変更とLINE sourceのPath overlapは0で、automatic merge conflictは`worklogs/new_ver_main.md`だけだった。両Task記録を保持した二親merge candidateをGOV-015 wrapperで検証し、Remote head`776c368beabe3d7f51b4ef3ecf812d6cc5f4126a`へno-force syncした。
+- Base sync時だけTask Policyへ`sync-task-branch-base`を許可し、完了後はAPI lifecycle wrapperのstrict operation schemaへ戻した。Policy `base_sha`は実際に取り込んだlatest mainへ更新し、Allowed Pathsは変更していない。
 - latest mainのProduction Artifact Versionは`2.0.0-alpha.19`であり、MIG-062Wが次Version`2.0.0-alpha.20`を使用することを正本から再確認した。OpenAPI／Generated Types／Client／Site Schema／Testkit／Admin生成を再実行し、差分0、Public 54／Admin 212／Webhook 1 operationsである。
 - Fresh LocalはOpenAPI 7、Storefront Client 27、Site Schema 10、Testkit 34、Admin 159、Policy 125、Quality 4、Security 10、Release 10、Ops 34 tests、各generate／typecheck／lint／build、Local Policy／Quality／Security／Release Gate、dependency audit 0、secret candidate 0がPASSした。
 - PHP 8.4一時test imageと完全分離PostgreSQLで、MIG-062W 6 tests／46 assertions、既存LINE audience 2 tests／9 assertions、QUALITY-002後の`AdminPaymentApiTest` 6 tests／50 assertionsがPASSした。初回はphpunit固定DB名`oripa_test`とsynthetic DB名不一致で0 assertion FAILし、Runtime／Sourceを変更せず正しいCI DB名へ合わせて再実行した。
