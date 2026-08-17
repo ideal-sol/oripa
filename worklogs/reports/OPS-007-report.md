@@ -36,3 +36,7 @@ No canonical bytes exist for the following public metadata rows. No byte was gue
 The Draft PR body initially used level-two path headings and omitted the
 required `Scope` heading. The fixed body and this report correction create a
 new exact head for fresh required checks and fixed-head self-review.
+
+The corrected PR body passes the repository policy in the workflow-dispatch
+run. The same-head PR-event failure was created before the body correction;
+its `ci-gate` failure is therefore an aggregate of that stale policy result.
