@@ -13,6 +13,17 @@ class TaskBranchBaseSyncError(ValueError):
     pass
 
 
+def validate_current_refs(
+    *, task_head: str, base_sha: str, remote_task_head: str, remote_base_sha: str
+) -> None:
+    """Require exact optimistic locks before preparing or pushing a sync."""
+
+    if remote_task_head != task_head:
+        raise TaskBranchBaseSyncError("sync_task_head_changed")
+    if remote_base_sha != base_sha:
+        raise TaskBranchBaseSyncError("sync_base_changed")
+
+
 def path_allowed(path: str, allowed_paths: list[str]) -> bool:
     return any(
         path == allowed

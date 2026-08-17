@@ -40,6 +40,34 @@ def candidate(**overrides):
 
 
 class TaskBranchBaseSyncTest(unittest.TestCase):
+    def test_current_ref_locks_pass(self):
+        self.assertIsNone(
+            gate.validate_current_refs(
+                task_head=TASK,
+                base_sha=BASE,
+                remote_task_head=TASK,
+                remote_base_sha=BASE,
+            )
+        )
+
+    def test_stale_task_head_rejects(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_task_head_changed"):
+            gate.validate_current_refs(
+                task_head=TASK,
+                base_sha=BASE,
+                remote_task_head="d" * 40,
+                remote_base_sha=BASE,
+            )
+
+    def test_stale_base_rejects(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_base_changed"):
+            gate.validate_current_refs(
+                task_head=TASK,
+                base_sha=BASE,
+                remote_task_head=TASK,
+                remote_base_sha="d" * 40,
+            )
+
     def test_valid_conflict_resolution_passes(self):
         result = candidate()
         self.assertTrue(result["passed"])
