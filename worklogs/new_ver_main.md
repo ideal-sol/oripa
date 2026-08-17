@@ -8445,6 +8445,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Fresh head `58f7bf9212941572a30360d1881b63712c6bf4a6`ではPolicy／Quality／Security Gate、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがPASSしたが、Integration Gateとその結果を集約するci-gateがFAILした。
 - Integrationの失敗はTask非変更の既存V1 `AdminPaymentApiTest` 2件と、最新mainにも存在する`.ci/baselines/backend-tests.json`の期限切れである。Baselineは`QUALITY-002`を追跡先、`2026-08-15`を期限としており、現在日は`2026-08-17`である。
 - MIG-062WのScopeを既存V1 fixture修正、baseline延長、Gate緩和へ広げない。Required Checks未達のためArtifact／Preview／Fresh Self-review／Merge／Cleanupは実行せず、PR #278、Task branch、専用worktreeを保持してPrerequisite修正を待つ。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Phase B Resume
+
+- Human Operatorの決済審査用V2環境READY／再開承認を受け、既存Issue #277、PR #278、Branch、Worktreeを継続した。Preflightでlocal／origin／Remote main`c2960e4c73aaeab8d840c09a8ec714266962d823`、Open状態、clean worktree、保持commitを確認した。
+- OPS-007はIssue close／main squash／worktree削除済みで、Coordination Ledgerだけがstale Preview Lockを保持していた。最新人間READYと実状態を照合してlockを解放し、MIG-062WがPlatform Integration Lockを取得した。Migration／Artifact／Preview Lockはnoneだった。
+- QUALITY-002／ドメイン切替／Asset persistenceとLINE sourceの競合は0、`worklogs/new_ver_main.md`だけを両側保持で解決した。GOV-015 no-force wrapperが二親、Remote refs、base side保持、scope、conflict marker、secretを検証し、latest mainをRemote head`776c368beabe3d7f51b4ef3ecf812d6cc5f4126a`へ同期した。
+- latest main正本は`2.0.0-alpha.19`で、MIG-062W Artifact Version`2.0.0-alpha.20`を確定した。再生成差分0、Public 54／Admin 212／Webhook 1 operations、Client／Site Schema／Testkit／AdminとLocal Policy／Quality／Security／Release GateがPASSした。
+- 隔離PHP 8.4／PostgreSQLでLINE Friend State 6 tests／46 assertions、既存LINE audience 2 tests／9 assertions、QUALITY-002後の`AdminPaymentApiTest` 6 tests／50 assertionsがPASSした。Migration created／Task・Preview appliedは0である。
 ## QUALITY-002 V1 AdminPaymentApiTest Baseline Expiry Remediation
 
 - Latest `main@1118703eb704f901d25d946074e3707e9c557c6f`、Active Task Ledger、Integration／Migration Allocation／Preview Lockを再確認し、Issue #279、Branch `fix/QUALITY-002-admin-payment-baseline-removal`、専用Worktree、Risk R3で開始した。Migration番号、Integration Lock、Artifact Lock、Preview Lockは取得していない。
