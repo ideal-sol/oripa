@@ -8438,3 +8438,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - `AdminPaymentApiTest`全6 tests／50 assertionsとbackend全342 tests／1854 assertionsがbaselineなしでexit 0となった。Container Imageに`.env`をMaterializeしない局所実行のためLaravelの`.env`読込Warningは発生したが、Test failureは0である。
 - Exit条件を満たしたためQUALITY-002 baselineは延長せず削除した。Integration Workflowは失敗を収集して許容する処理を廃止し、`php artisan test`の通常exit statusで全backend failureを拒否する。Gate名、Required Context、assertion、skip、Application behaviorは弱めていない。
 - Quality Unit 4 tests、Policy Unit 125 tests、Security Unit 10 tests、Local Policy／Quality／Security Gate、Fresh Composer／Root pnpm／Legacy pnpm Audit各0件、`git diff --check`がPASSした。Migration created／applied、Generated Contract、Artifact、Preview、Storefront、Production変更は0である。
+
+## OPS-006 決済審査用luxe-pack.biz V2一時切替
+
+- Base `acb444db7d8cc61d431b7e41381d36743109f833`、Issue #281、Branch `chore/OPS-006-payment-review-v2-cutover`、Risk R4で開始し、3 lane、Preview／Integration Lock、Storefront release、API／DB、Nginx effective configのConflict GateをPASSした。作業中はPreview Deployment Lockを取得して共有deployをFreezeした。
+- luxe／test Nginx、Canonical Preview env／Compose、Runtime情報とV2 DB Custom dumpをroot-only evidenceへ保存し、Rollbackを先に確定した。Origin一行だけをluxeへ変更し、同じImage／IP／DBのAPIだけを`--no-build --no-deps`で再作成した。luxe固有TLS／ACME／redirectを維持してRoutingだけをV2 Storefront／APIへ変更し、`nginx -t`成功後にreloadした。
+- API Session、Canonical Origin＋CSRF、旧Origin／CSRF拒否、Catalog、Gacha一覧／詳細、Banner、Notice、Footer、Public Admin 404、HTTP 500系0はPASSした。Desktop Browserで複数Public Asset 404／Console Errorを検出し、Mobile前に重大FAILとして即時Fail Closedした。
+- Preview APIは`FILESYSTEM_DISK=local`かつstorage永続mountなしであり、Container再作成によりAsset writable layerが失われた。DB metadata 36件中、Canonical evidenceとchecksum一致する29件だけを同一storage identifierへ復元した。残る7件はOriginal bytes不在のため推測復元せず、test側Asset 404を残課題とした。
+- luxe NginxとOriginは事前checksumへ復元し、luxe V1 200、test V2 Session 200、API healthy、同じImage／IP／DB、Migration 53件／batch 25を確認した。Banner linkの一時相対化も既存Admin APIで元のtest絶対URLへ再公開した。Migration／削除／Payment／Draw／Build／Source変更は0である。決済審査用V2環境は`NOT READY`。
