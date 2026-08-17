@@ -30,6 +30,7 @@ use App\Http\Controllers\V2\V2DrawController;
 use App\Http\Controllers\V2\V2PrizeShippingController;
 use App\Http\Controllers\V2\V2ContentContactController;
 use App\Http\Controllers\V2\V2CurrentUserPointController;
+use App\Http\Controllers\V2\V2CurrentUserLineController;
 use App\Http\Controllers\V2\V2PointProductController;
 
 Route::prefix('v2')->group(function (): void {
@@ -97,6 +98,8 @@ Route::prefix('v2')
             ->name('v2.public.wallet.show');
         Route::get('/me/point-ledgers', [V2CurrentUserPointController::class, 'history'])
             ->name('v2.public.point-ledgers.index');
+        Route::get('/me/line-friend-state', [V2CurrentUserLineController::class, 'show'])
+            ->name('v2.public.line-friend-state.show');
         Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
             ->name('v2.public.prizes.index');
         Route::get('/me/prizes/{prizeId}', [V2PrizeShippingController::class, 'prize'])

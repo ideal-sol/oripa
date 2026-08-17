@@ -8429,6 +8429,38 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Preview Runtime Error／Mutation／Migration／Cache削除／Storefront変更は0。Admin、PostgreSQL、Redis、Nginx、Storefront Runtimeは変更していない。
 - Synthetic test Container／networkは削除した。実行PolicyがDocker volume削除を拒否したため未接続dependency volume 1件だけ残る。Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Issue／branch／worktree cleanupはexact headで継続する。
 
+## MIG-062W LINE Friend State Read／Presentation Contract Phase A
+
+- Latest Platform `main@1118703eb704f901d25d946074e3707e9c557c6f`、GitHub Issue／PR全履歴、Task Policy、Remote refsを照合し、既存最大`MIG-062V`の次で未使用な`MIG-062W`を採番した。Issue #277、Branch `feat/MIG-062W-line-friend-state-read-contract`、Risk R3で開始した。
+- Canonical Friend Stateは既存の有効なLINE `external_identity_accounts`と、同一User／subjectの`line_friendships.status = friend`かつ`unfollowed_at IS NULL`のJoinである。既存Draw eligibilityの判定を共通Serviceへ抽出し、Current User ReadとDrawが同じ結果を利用する。
+- `GET /api/v2/me/line-friend-state`／`getLineFriendState`は`linked`、`friend_confirmed`、Backend確定`is_line_user`、status label、既存`friend_add_url`を使うPrimary CTAを返す。Provider subject／issuer／secret／token、内部ID、reward設定は公開しない。
+- Authenticated Current User only、Success／Typed RFC 9457 Problemとも`private, no-store`、`Vary: Cookie`である。ReadはLINE／Point／Webhook Tableを変更せず、CSRF、Recent Authentication、unlink、OAuth／Callback、Provider／Webhook transitionを変更しない。
+- Public OpenAPI／bundle、Generated Types、薄いStorefront Identity Client、Site capability `user-line-friend-state.read.v2`、Testkitの3状態／Typed Problem fixtureを既存Versionを上書きしない`2.0.0-alpha.20`へ同期した。Public 54／Admin 212／Webhook 1 operationsである。
+- Backend targeted 6 tests／46 assertions、既存LINE audience回帰2 tests／9 assertions、OpenAPI 7 tests、Client 27 tests、Site Schema 10 tests、Testkit 34 tests、Admin 159 tests、Policy 125 tests、Quality 5 tests、Security 10 tests、Fresh Audit 0件、Local Policy／Quality／Security／Release Gate、Admin Production BuildがPASSした。
+- Migration created: 0。Task／Preview Migration applied: 0。Local isolated synthetic PostgreSQLだけに既存V2 Migration 53件を適用した。Storefront Repository、Runtime Preview、Artifact、Required Checks、Fresh Self-review、Merge／CleanupはPhase Bでexact headへ固定する。
+- 初回PR event Policy GateはPR本文の必須見出しを`#`で記載したため、parserが要求する`##`／`###`として認識せずFAILした。同Application headのmanual dispatch Policy GateはPASSしており、本文を`Summary`／`Task`／`Scope`／`Specification sources`／`Verification performed`／`Verification not performed`および`### Changed files`／`### Allowed paths`へ補正した。失敗履歴のないdocs-only fresh headで全Checksを再実行する。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Phase B Blocked
+
+- Fresh head `58f7bf9212941572a30360d1881b63712c6bf4a6`ではPolicy／Quality／Security Gate、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがPASSしたが、Integration Gateとその結果を集約するci-gateがFAILした。
+- Integrationの失敗はTask非変更の既存V1 `AdminPaymentApiTest` 2件と、最新mainにも存在する`.ci/baselines/backend-tests.json`の期限切れである。Baselineは`QUALITY-002`を追跡先、`2026-08-15`を期限としており、現在日は`2026-08-17`である。
+- MIG-062WのScopeを既存V1 fixture修正、baseline延長、Gate緩和へ広げない。Required Checks未達のためArtifact／Preview／Fresh Self-review／Merge／Cleanupは実行せず、PR #278、Task branch、専用worktreeを保持してPrerequisite修正を待つ。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Phase B Resume
+
+- Human Operatorの決済審査用V2環境READY／再開承認を受け、既存Issue #277、PR #278、Branch、Worktreeを継続した。Preflightでlocal／origin／Remote main`c2960e4c73aaeab8d840c09a8ec714266962d823`、Open状態、clean worktree、保持commitを確認した。
+- OPS-007はIssue close／main squash／worktree削除済みで、Coordination Ledgerだけがstale Preview Lockを保持していた。最新人間READYと実状態を照合してlockを解放し、MIG-062WがPlatform Integration Lockを取得した。Migration／Artifact／Preview Lockはnoneだった。
+- QUALITY-002／ドメイン切替／Asset persistenceとLINE sourceの競合は0、`worklogs/new_ver_main.md`だけを両側保持で解決した。GOV-015 no-force wrapperが二親、Remote refs、base side保持、scope、conflict marker、secretを検証し、latest mainをRemote head`776c368beabe3d7f51b4ef3ecf812d6cc5f4126a`へ同期した。
+- latest main正本は`2.0.0-alpha.19`で、MIG-062W Artifact Version`2.0.0-alpha.20`を確定した。再生成差分0、Public 54／Admin 212／Webhook 1 operations、Client／Site Schema／Testkit／AdminとLocal Policy／Quality／Security／Release GateがPASSした。
+- 隔離PHP 8.4／PostgreSQLでLINE Friend State 6 tests／46 assertions、既存LINE audience 2 tests／9 assertions、QUALITY-002後の`AdminPaymentApiTest` 6 tests／50 assertionsがPASSした。Migration created／Task・Preview appliedは0である。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Artifact／Preview
+
+- Application head `dfefa07e1a905bba07a56079d02ebfbaabfafc94`でRequired 5 Checks、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがFresh PASSした。Integration GateはQUALITY-002 baselineなしの通常Backend test exit codeでPASSした。
+- Workflow Run `32031837467`が`2.0.0-alpha.20` Storefront Contract Artifactと`linux/amd64` Preview imagesを同じSource Commitから生成した。Contract Artifact ID `9289306391`、Manifest SHA-256 `ae598940be23c6ca7a9bcb244100d4815c5e7e836b10c4e840236acff1a60240`、Image Artifact ID `9289296682`、Image Manifest SHA-256 `15251cda000bdd62b9d42bdf4823135de95a7f87e5dcaae8e5d95262fb28926c`である。
+- Client／Testkit／Site Schema tarballとPublic OpenAPIを`SHA256SUMS`へreadback一致確認した。Registry publish、Stable Tag、GitHub Release、Production Releaseは実施していない。
+- Runtime preflightでluxe／testが同じV2 Storefront／API、既存Preview DB 53 migrations、User Origin luxe、Admin別境界であることを確認した。API exact-head imageだけをno-build／no-depsで反映し、Nginx／Origin／DB／Admin／Storefront／Providerは変更していない。
+- Synthetic QA Current User Readは200、`linked=false`、`friend_confirmed=false`、Backend確定`is_line_user=false`、private／no-store、Vary Cookieを確認した。匿名／invalid sessionは401 Typed Problem、Runtime 500系0、LINE／DB／OAuth／Webhook／Provider Mutationは0である。
 ## QUALITY-002 V1 AdminPaymentApiTest Baseline Expiry Remediation
 
 - Latest `main@1118703eb704f901d25d946074e3707e9c557c6f`、Active Task Ledger、Integration／Migration Allocation／Preview Lockを再確認し、Issue #279、Branch `fix/QUALITY-002-admin-payment-baseline-removal`、専用Worktree、Risk R3で開始した。Migration番号、Integration Lock、Artifact Lock、Preview Lockは取得していない。

@@ -63,7 +63,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.19");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.20");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -446,6 +446,7 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "startGoogleLogin",
     "completeGoogleOidc",
     "listExternalIdentities",
+    "getLineFriendState",
     "startGoogleIdentityLink",
     "startGoogleReauthentication",
     "reauthenticateUserPassword",
@@ -532,6 +533,7 @@ test("Identity FacadeはGoogle／LINE Tokenを保持せずContractどおり送�
     iss: "https://accounts.google.com",
   });
   await identity.listExternalIdentities();
+  await identity.getLineFriendState();
   await identity.startGoogleIdentityLink({ return_path: "/" }, options);
   await identity.startGoogleReauthentication({ return_path: "/" }, options);
   await identity.reauthenticateUserPassword(
@@ -554,28 +556,29 @@ test("Identity FacadeはGoogle／LINE Tokenを保持せずContractどおり送�
     /^\/auth\/external\/google\/callback\?code=authorization-code&state=a{64}&iss=/,
   );
   assert.equal(requests[2].path, "/me/external-identities");
-  assert.equal(requests[3].path, "/me/external-identities/google/link");
+  assert.equal(requests[3].path, "/me/line-friend-state");
+  assert.equal(requests[4].path, "/me/external-identities/google/link");
   assert.equal(
-    requests[4].path,
+    requests[5].path,
     "/me/external-identities/google/reauthenticate",
   );
-  assert.equal(requests[5].path, "/me/password/reauthenticate");
-  assert.equal(requests[6].path, "/me/external-identities/google");
-  assert.equal(requests[6].method, "DELETE");
-  assert.equal(requests[6].headers["X-XSRF-TOKEN"], "e".repeat(64));
-  assert.equal(requests[7].path, "/auth/external/line/start");
+  assert.equal(requests[6].path, "/me/password/reauthenticate");
+  assert.equal(requests[7].path, "/me/external-identities/google");
+  assert.equal(requests[7].method, "DELETE");
+  assert.equal(requests[7].headers["X-XSRF-TOKEN"], "e".repeat(64));
+  assert.equal(requests[8].path, "/auth/external/line/start");
   assert.match(
-    requests[8].path,
+    requests[9].path,
     /^\/auth\/external\/line\/callback\?code=line-authorization-code&state=b{64}$/,
   );
-  assert.equal(requests[9].path, "/me/external-identities/line/link");
+  assert.equal(requests[10].path, "/me/external-identities/line/link");
   assert.equal(
-    requests[10].path,
+    requests[11].path,
     "/me/external-identities/line/reauthenticate",
   );
-  assert.equal(requests[11].path, "/me/external-identities/line");
-  assert.equal(requests[11].method, "DELETE");
-  assert.equal(requests[11].headers["X-XSRF-TOKEN"], "e".repeat(64));
+  assert.equal(requests[12].path, "/me/external-identities/line");
+  assert.equal(requests[12].method, "DELETE");
+  assert.equal(requests[12].headers["X-XSRF-TOKEN"], "e".repeat(64));
   assert.throws(
     () =>
       identity.completeGoogleOidc({

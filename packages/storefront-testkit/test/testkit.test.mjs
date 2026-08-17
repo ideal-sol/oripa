@@ -25,6 +25,8 @@ import {
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
+  PUBLIC_LINE_FRIEND_STATE_FIXTURES,
+  PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES,
   PUBLIC_FOOTER_PAGES_FIXTURE,
   PUBLIC_TOP_BANNERS_FIXTURE,
   PUBLIC_DRAW_FIXTURE,
@@ -62,6 +64,25 @@ test("Public Auth FixtureはCookie Session状態をCredentialなしで表現す�
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_AUTH_FIXTURE),
     /password|token|cookie|session_id|secret/i,
+  );
+});
+
+test("LINE Friend State Fixtureは連携・友だち確認・LINEユーザー判定をBackend Presentationで固定する", () => {
+  assert.equal(PUBLIC_LINE_FRIEND_STATE_FIXTURES.unlinked.linked, false);
+  assert.equal(
+    PUBLIC_LINE_FRIEND_STATE_FIXTURES.friend_add_required.primary_action.code,
+    "open_friend_add_url",
+  );
+  assert.equal(PUBLIC_LINE_FRIEND_STATE_FIXTURES.confirmed.friend_confirmed, true);
+  assert.equal(PUBLIC_LINE_FRIEND_STATE_FIXTURES.confirmed.is_line_user, true);
+  for (const problem of Object.values(PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES)) {
+    const error = new ApiProblemError(problem);
+    assertProblemDetails(error);
+    assert.equal(error.code, problem.code);
+  }
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_LINE_FRIEND_STATE_FIXTURES),
+    /subject_hash|issuer|provider|channel_secret|access_token|internal_id/i,
   );
 });
 
@@ -550,9 +571,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつDraw History Readを含むOperation 53件である", () => {
+test("Public OpenAPIは3.1.1かつLINE Friend State Readを含むOperation 54件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 53);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 54);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -569,6 +590,7 @@ test("Public OpenAPIは3.1.1かつDraw History Readを含むOperation 53件で�
     "getGacha",
     "getGachaBySlug",
     "getGachaPresentation",
+    "getLineFriendState",
     "getShippingAddress",
     "getShippingRequest",
     "getSmsVerificationStatus",
@@ -744,6 +766,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES",
     "PUBLIC_GACHA_PRESENTATION_FIXTURE",
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
+    "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
+    "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
     "PUBLIC_POINT_BALANCE_FIXTURES",
     "PUBLIC_POINT_HISTORY_FIXTURES",

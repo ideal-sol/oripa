@@ -327,6 +327,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/line-friend-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current UserのLINE連携・友だち追加確認状態を取得する */
+        get: operations["getLineFriendState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/prizes/{prize_id}": {
         parameters: {
             query?: never;
@@ -1366,6 +1383,41 @@ export interface components {
         };
         /** @description Draw History Readの既知Code、または安全に汎用処理する未知のProblem Details。 */
         DrawHistoryReadProblemResponse: components["schemas"]["DrawHistoryReadProblemDetails"] | components["schemas"]["ProblemDetails"];
+        /** @enum {string} */
+        LineFriendStateCode: "not_linked" | "friend_add_required" | "confirmed";
+        LineFriendStateStatus: {
+            code: components["schemas"]["LineFriendStateCode"];
+            /** @description BackendがCanonical stateから確定した表示Label。 */
+            label: string;
+        };
+        /** @enum {string} */
+        LineFriendStateActionCode: "start_identity_link" | "open_friend_add_url" | "none";
+        LineFriendStateAction: {
+            code: components["schemas"]["LineFriendStateActionCode"];
+            label: string | null;
+            /**
+             * Format: uri
+             * @description 既存LINE Messaging設定の友だち追加URL。Identity link開始時はnull。
+             */
+            href: string | null;
+        };
+        LineFriendStatePresentation: {
+            /** @description Current Userへ有効なLINE External IdentityがLink済みか。 */
+            linked: boolean;
+            /** @description Link済みIdentityと同一subjectのCanonical Friendshipがfriend状態か。 */
+            friend_confirmed: boolean;
+            /** @description linkedかつfriend_confirmedをBackendで確定したLINEユーザー判定。 */
+            is_line_user: boolean;
+            status: components["schemas"]["LineFriendStateStatus"];
+            primary_action: components["schemas"]["LineFriendStateAction"];
+        };
+        /** @enum {string} */
+        LineFriendStateReadProblemCode: "AUTHENTICATION_REQUIRED" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        LineFriendStateReadProblemDetails: components["schemas"]["ProblemDetails"] & {
+            code: components["schemas"]["LineFriendStateReadProblemCode"];
+        };
+        /** @description LINE Friend State Readの既知Code、または安全に汎用処理する未知のProblem Details。 */
+        LineFriendStateReadProblemResponse: components["schemas"]["LineFriendStateReadProblemDetails"] | components["schemas"]["ProblemDetails"];
         DrawPrizeReference: {
             id: components["schemas"]["OpaqueId"];
             name: string;
@@ -1631,6 +1683,20 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["DrawHistoryReadProblemResponse"];
+            };
+        };
+        /** @description Current User LINE Friend State ReadのRFC 9457 Problem Details。 */
+        LineFriendStateReadProblem: {
+            headers: {
+                "Cache-Control": "private, no-store";
+                Vary: "Cookie";
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "X-Oripa-Api-Version": components["headers"]["XOripaApiVersion"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["LineFriendStateReadProblemResponse"];
             };
         };
     };
@@ -2110,6 +2176,31 @@ export interface operations {
             422: components["responses"]["DrawHistoryReadProblem"];
             429: components["responses"]["DrawHistoryReadProblem"];
             default: components["responses"]["DrawHistoryReadProblem"];
+        };
+    };
+    getLineFriendState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical LINE IdentityとFriendshipから確定したCurrent User Presentation。 */
+            200: {
+                headers: {
+                    "Cache-Control": "private, no-store";
+                    Vary: "Cookie";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineFriendStatePresentation"];
+                };
+            };
+            401: components["responses"]["LineFriendStateReadProblem"];
+            429: components["responses"]["LineFriendStateReadProblem"];
+            default: components["responses"]["LineFriendStateReadProblem"];
         };
     };
     getUserPrize: {

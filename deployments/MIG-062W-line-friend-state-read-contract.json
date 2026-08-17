@@ -1,0 +1,67 @@
+{
+  "task_id": "MIG-062W",
+  "risk": "R3",
+  "status": "preview_read_verified",
+  "base_branch": "main",
+  "base_sha": "c2960e4c73aaeab8d840c09a8ec714266962d823",
+  "task_policy_sha256": "efe786ff3c10eaeaf6bb8285fce63829ffeea81e6dc39fe38d0e199c45ff4353",
+  "issue": 277,
+  "targets": [
+    "https://luxe-pack.biz",
+    "https://test.luxe-pack.biz"
+  ],
+  "evidence_path": "/var/lib/oripa-v2-evidence/MIG-062W/",
+  "application_head": "dfefa07e1a905bba07a56079d02ebfbaabfafc94",
+  "contract_artifact": {
+    "version": "2.0.0-alpha.20",
+    "workflow_run_id": 32031837467,
+    "artifact_id": 9289306391,
+    "github_digest": "sha256:219520ffe421eb9f62be3c2cce7e0cfafa5f15cf6a40ad1d702793596aa0752a",
+    "manifest_sha256": "ae598940be23c6ca7a9bcb244100d4815c5e7e836b10c4e840236acff1a60240",
+    "client_sha256": "8f0db985566066aaa14830c5df0bb837ed620a0c218050da4d71c87c8e042835",
+    "site_schema_sha256": "4381b2ea9d6e8611643e3aade6aa439ac26c0e7d999f4886aeb5190e578b3856",
+    "testkit_sha256": "3085459dc255079fb1c9f79a51fdb183cea4c701bfb5fb619dd505d627f6d158",
+    "public_openapi_sha256": "9e14fb6ee0a7e09be2a024ef1089a20ddf2ccc5614aa46d29adeeaff6d00fe51"
+  },
+  "runtime_boundary": {
+    "storefront": "shared V2 payment-review runtime on both targets",
+    "api": "shared V2 Preview API on both targets",
+    "database": "existing V2 Preview DB unchanged",
+    "user_origin": "https://luxe-pack.biz",
+    "admin": "separate Admin origin; public /admin/api remains rejected",
+    "nginx_change": "NONE",
+    "user_origin_change": "NONE",
+    "storefront_change": "NONE"
+  },
+  "preview": {
+    "architecture": "linux/amd64",
+    "build_on_host": false,
+    "update_services": [
+      "api"
+    ],
+    "migration_mode": "none",
+    "migration_created": 0,
+    "migration_applied": false,
+    "image_artifact_verification": "PASS",
+    "image_artifact_id": 9289296682,
+    "image_artifact_digest": "sha256:dda6757ccf7f9bd911888c138f69bc725a36e606124f4eb16f3740ecd2413fc9",
+    "image_manifest_sha256": "15251cda000bdd62b9d42bdf4823135de95a7f87e5dcaae8e5d95262fb28926c",
+    "api_image": "oripa-v2-api:preview-MIG-062W-dfefa07e1a90",
+    "api_image_id": "sha256:ff2a41240fcbd126acac61107a1e6d73af121bd8247a2734debf2367ee6bc30d",
+    "runtime_smoke": "PASS_READ_ONLY",
+    "linked": false,
+    "friend_confirmed": false,
+    "is_line_user": false,
+    "backend_relation_valid": true,
+    "authenticated_status": 200,
+    "anonymous_status": 401,
+    "invalid_session_status": 401,
+    "cache_control": "private, no-store",
+    "vary": "Cookie",
+    "runtime_500_502_504": 0,
+    "line_state_mutation_count": 0
+  },
+  "storefront_adoption": "PENDING_SITE_TASK",
+  "production_release": "NOT_PERFORMED",
+  "commercial_production_go": "NOT_APPLICABLE"
+}
