@@ -1,0 +1,49 @@
+{
+  "task_id": "OPS-007",
+  "risk": "R4",
+  "status": "preview_verified_not_cutover",
+  "base_sha": "f3cfff8c3f707cdc49fcf8101788f7e3ba2ac36f",
+  "issue": 283,
+  "persistent_storage": {
+    "type": "named_docker_volume",
+    "volume": "mig061a-v2-preview_v2_api_assets",
+    "compose_key": "v2_api_assets",
+    "mount": "/var/www/backend/storage/app/private",
+    "owner": "root:root",
+    "directory_mode": "0700",
+    "file_mode": "0600"
+  },
+  "runtime": {
+    "api_container": "mig061a-v2-preview-api-1",
+    "api_image": "oripa-v2-api:preview-MIG-062V-2b58e308693f",
+    "api_recreation": "--no-build --no-deps --force-recreate api",
+    "production_host_build": false,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "database_changed": false
+  },
+  "asset_migration": {
+    "snapshot_object_count": 29,
+    "snapshot_checksum_verified": true,
+    "existing_public_image_checksum_matches": 25,
+    "unrecovered_public_images": 7,
+    "guessed_recovery": false,
+    "database_reference_changes": 0
+  },
+  "verification": {
+    "first_api_recreation": "PASS",
+    "second_api_recreation": "PASS",
+    "controller_upload_status": 201,
+    "uploaded_asset_checksum_before_after": "PASS",
+    "api_health": "PASS",
+    "test_luxe_pack_biz_top": 200,
+    "test_luxe_pack_biz_banners": 200,
+    "http_500_502_504": 0,
+    "luxe_pack_biz_v2_cutover": "NOT_EXECUTED"
+  },
+  "rollback": {
+    "procedure": "Recreate API with the prior Compose definition; retain the pre-volume storage snapshot and named volume.",
+    "volume_retained": true
+  },
+  "ready_for_luxe_pack_v2_cutover": false
+}

@@ -46,6 +46,8 @@ services:
     ports:
       - "127.0.0.1:${V2_API_LOOPBACK_PORT:-8611}:8000"
     restart: unless-stopped
+    volumes:
+      - v2_api_assets:/var/www/backend/storage/app/private
     networks:
       - v2_private
 
@@ -114,5 +116,6 @@ networks:
     internal: true
 
 volumes:
+  v2_api_assets:
   v2_postgres:
   v2_redis:
