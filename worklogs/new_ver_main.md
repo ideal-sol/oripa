@@ -8453,6 +8453,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - QUALITY-002／ドメイン切替／Asset persistenceとLINE sourceの競合は0、`worklogs/new_ver_main.md`だけを両側保持で解決した。GOV-015 no-force wrapperが二親、Remote refs、base side保持、scope、conflict marker、secretを検証し、latest mainをRemote head`776c368beabe3d7f51b4ef3ecf812d6cc5f4126a`へ同期した。
 - latest main正本は`2.0.0-alpha.19`で、MIG-062W Artifact Version`2.0.0-alpha.20`を確定した。再生成差分0、Public 54／Admin 212／Webhook 1 operations、Client／Site Schema／Testkit／AdminとLocal Policy／Quality／Security／Release GateがPASSした。
 - 隔離PHP 8.4／PostgreSQLでLINE Friend State 6 tests／46 assertions、既存LINE audience 2 tests／9 assertions、QUALITY-002後の`AdminPaymentApiTest` 6 tests／50 assertionsがPASSした。Migration created／Task・Preview appliedは0である。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Artifact／Preview
+
+- Application head `dfefa07e1a905bba07a56079d02ebfbaabfafc94`でRequired 5 Checks、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがFresh PASSした。Integration GateはQUALITY-002 baselineなしの通常Backend test exit codeでPASSした。
+- Workflow Run `32031837467`が`2.0.0-alpha.20` Storefront Contract Artifactと`linux/amd64` Preview imagesを同じSource Commitから生成した。Contract Artifact ID `9289306391`、Manifest SHA-256 `ae598940be23c6ca7a9bcb244100d4815c5e7e836b10c4e840236acff1a60240`、Image Artifact ID `9289296682`、Image Manifest SHA-256 `15251cda000bdd62b9d42bdf4823135de95a7f87e5dcaae8e5d95262fb28926c`である。
+- Client／Testkit／Site Schema tarballとPublic OpenAPIを`SHA256SUMS`へreadback一致確認した。Registry publish、Stable Tag、GitHub Release、Production Releaseは実施していない。
+- Runtime preflightでluxe／testが同じV2 Storefront／API、既存Preview DB 53 migrations、User Origin luxe、Admin別境界であることを確認した。API exact-head imageだけをno-build／no-depsで反映し、Nginx／Origin／DB／Admin／Storefront／Providerは変更していない。
+- Synthetic QA Current User Readは200、`linked=false`、`friend_confirmed=false`、Backend確定`is_line_user=false`、private／no-store、Vary Cookieを確認した。匿名／invalid sessionは401 Typed Problem、Runtime 500系0、LINE／DB／OAuth／Webhook／Provider Mutationは0である。
 ## QUALITY-002 V1 AdminPaymentApiTest Baseline Expiry Remediation
 
 - Latest `main@1118703eb704f901d25d946074e3707e9c557c6f`、Active Task Ledger、Integration／Migration Allocation／Preview Lockを再確認し、Issue #279、Branch `fix/QUALITY-002-admin-payment-baseline-removal`、専用Worktree、Risk R3で開始した。Migration番号、Integration Lock、Artifact Lock、Preview Lockは取得していない。

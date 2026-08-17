@@ -15,9 +15,11 @@
 - Original Implementation Head: `904de9f2867ae6e8f5becc74d4e7b1d3b1013ee0`
 - Resume Head: `cbae33cf629daa1729bc9cd626f6bb8fa872d8f6`
 - Latest-main Sync Head: `776c368beabe3d7f51b4ef3ecf812d6cc5f4126a`
-- Phase B Application Head: 本再開記録commitで確定する。
-- Preview Head／Artifact: Fresh Required Checks PASS後に確定する。
-- Final Head／Squash Commit: Preview／Closeout後に確定する。
+- Phase B Application／Preview Source Head: `dfefa07e1a905bba07a56079d02ebfbaabfafc94`
+- Preview Image Artifact: `9289296682`
+- Storefront Contract Artifact: `9289306391`
+- Final Head: このReport／deployment manifestを含むdocs-only headをFresh CI前に固定し、exact SHAをPR／Self-review／Issue Closeoutへ記録する。
+- Squash Commit: Gate-compliant merge後にIssue Closeoutへ記録する。Commit済みReport自身へmerge後SHAを後書きしない。
 
 ## Phase A
 
@@ -85,3 +87,45 @@
 - PHP 8.4一時test imageと完全分離PostgreSQLで、MIG-062W 6 tests／46 assertions、既存LINE audience 2 tests／9 assertions、QUALITY-002後の`AdminPaymentApiTest` 6 tests／50 assertionsがPASSした。初回はphpunit固定DB名`oripa_test`とsynthetic DB名不一致で0 assertion FAILし、Runtime／Sourceを変更せず正しいCI DB名へ合わせて再実行した。
 - Migration createdは0、Task／Preview／Production appliedは0。Local synthetic V2 DBだけに既存53 migrations、別synthetic V1 DBだけに既存V1 migrationsを適用した。
 - Exact Application headのFresh Required Checks、Artifact、Runtime boundary preflight、Read-only Preview、Fresh Self-review、Merge／Cleanupは後続Phase Bで実行する。
+
+## Fresh Required Checks
+
+- Application head `dfefa07e1a905bba07a56079d02ebfbaabfafc94`の`policy-gate`、`quality-gate`、`security-gate`、`integration-gate`、`ci-gate`はすべてFresh PASSした。Integrationは通常Backend test exit codeで完了し、削除済みQUALITY-002 baselineやfailure allowanceを使用していない。
+- `AdminPaymentApiTest`はLocal隔離実行6 tests／50 assertionsとFresh Integration Gateの通常full backend suiteでPASSした。Assertion弱体化、skip、baseline追加、MIG-062WからのQUALITY-002再実装は0である。
+- CodeQL、CodeQL JavaScript／TypeScript、Dependency Reviewも同一headでPASSした。Open findingはSEV-0 0／SEV-1 0である。
+- PR本文はlatest Base SHAとApplication headへ同期済みである。初回push eventのPolicy failureは更新前本文を評価したもので、同一headをretriggerしたFresh eventではPolicy GateがPASSした。
+
+## Immutable Artifact
+
+- Production Artifact Versionはlatest main `2.0.0-alpha.19`の次である`2.0.0-alpha.20`に確定した。Registry publish／Stable Tag／GitHub Release／Production Releaseは実施していない。
+- GitHub-hosted Workflow Run `32031837467`がSource Commit `dfefa07e1a905bba07a56079d02ebfbaabfafc94`から`linux/amd64` Preview imagesとimmutable Storefront Contract Artifactを同一runで生成した。Host buildをPreviewへ使用していない。
+- Storefront Contract Artifact ID `9289306391`、outer／GitHub digest `sha256:219520ffe421eb9f62be3c2cce7e0cfafa5f15cf6a40ad1d702793596aa0752a`、Manifest SHA-256 `ae598940be23c6ca7a9bcb244100d4815c5e7e836b10c4e840236acff1a60240`である。
+- Client `8f0db985566066aaa14830c5df0bb837ed620a0c218050da4d71c87c8e042835`、Testkit `3085459dc255079fb1c9f79a51fdb183cea4c701bfb5fb619dd505d627f6d158`、Site Schema `4381b2ea9d6e8611643e3aade6aa439ac26c0e7d999f4886aeb5190e578b3856`、Public OpenAPI `9e14fb6ee0a7e09be2a024ef1089a20ddf2ccc5614aa46d29adeeaff6d00fe51`のSHA-256を`SHA256SUMS`と実Fileでreadback一致確認した。
+- Preview Image Artifact ID `9289296682`、outer／GitHub digest `sha256:dda6757ccf7f9bd911888c138f69bc725a36e606124f4eb16f3740ecd2413fc9`、Image Manifest SHA-256 `15251cda000bdd62b9d42bdf4823135de95a7f87e5dcaae8e5d95262fb28926c`である。
+
+## Runtime Boundary
+
+- 実行前にNginx effective config、Compose identity、Container image／health／network、V2 migration status、Public HTTPをread-only確認した。`luxe-pack.biz`と`test.luxe-pack.biz`は同じV2 Storefront／V2 Preview APIへ接続し、User Originは`https://luxe-pack.biz`である。
+- API、Admin、PostgreSQL、Redisはhealthy、V2 Preview DBは既存53 migrations／最新batch 25のままである。Adminは別Originで、両Public domainの`/admin/api/`はTyped 404を維持する。
+- 本TaskはNginx、User Origin、TLS、DNS、Admin、Storefront、PostgreSQL、Redis、Provider設定、LINE Webhook、Migrationを変更していない。正式Production DB／Runtime切替およびCommercial Production GOではない。
+
+## Preview
+
+- 検証済みGitHub-hosted API image `oripa-v2-api:preview-MIG-062W-dfefa07e1a90`／Image ID `sha256:ff2a41240fcbd126acac61107a1e6d73af121bd8247a2734debf2367ee6bc30d`だけを既存Compose projectへ`--no-build --no-deps --force-recreate api`で反映した。固定upstream、既存Preview DB、persistent Asset volumeを維持した。
+- Synthetic QA SessionのCurrent User GETは200で、`linked=false`、`friend_confirmed=false`、Backend-authoritative `is_line_user=false`、`not_linked`／`start_identity_link`を返し、論理式とPresentation Contractが一致した。内部LINE／Provider fieldは非露出だった。
+- Anonymousとinvalid synthetic sessionは401 Typed `AUTHENTICATION_REQUIRED`、luxe／test双方で`private, no-store`、`Vary: Cookie`だった。Endpoint request logの500／502／504／ERRORは0である。
+- Storefront Client `2.0.0-alpha.20` headerでContractを確認した。Testkitの未連携／連携済み未確認／確認済み3 fixtureとTyped Problems、Site capability `user-line-friend-state.read.v2`はpackage checks／Artifact readbackでPASSした。
+- LINE link／unlink、friend follow／unfollow、OAuth／Callback、Webhook／Provider transition、Recent Authentication、DB直接変更、Migration、Cache削除、Nginx／Origin／Routing変更、Storefront Repository変更は実行していない。
+
+## Cleanup
+
+- Preview結果とArtifactを記録したFinal docs headでFresh Required ChecksとFresh Self-reviewを作成し、PASS時だけSquash Merge、Issue close、Remote／local branch、worktree cleanup、local／origin main同期を行う。
+- Synthetic V1／V2 PostgreSQL Container、network、local test image、一時env／audit fileは削除済みである。Rollbackは直前API imageへAPIだけをno-build／no-depsで戻す。DB／Migration／Nginx rollbackは不要である。
+
+## Storefront Adoption Pending
+
+- Storefront Adoptionは別Site Taskで`/mypage/line`へ接続するためPendingである。MIG-062WはStorefront Repositoryを変更しない。
+
+## Remaining
+
+- Final docs-only headのFresh Required Checks／Fresh Self-review、Squash Merge、Issue Close、Remote／local branch、worktree cleanup、local／origin main同期。
