@@ -33,7 +33,6 @@ No canonical bytes exist for the following public metadata rows. No byte was gue
 
 ## CI Handling
 
-The Draft PR emitted an early PR-event policy check before the independently
-dispatched fixed-head check completed. Per Governance, that failure is not
-reused: this report commit creates a new exact head for fresh required checks
-and fixed-head self-review.
+The Draft PR body initially used level-two path headings and omitted the
+required `Scope` heading. The fixed body and this report correction create a
+new exact head for fresh required checks and fixed-head self-review.
