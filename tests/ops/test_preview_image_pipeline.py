@@ -282,15 +282,26 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
             {
                 "id": index,
                 "name": name,
+                "head_sha": HEAD,
                 "status": "completed",
                 "conclusion": "success",
+                "started_at": f"2026-08-12T00:00:{index:02d}Z",
+                "app": {
+                    "id": 15368,
+                    "slug": "github-actions",
+                    "owner": {"login": "github"},
+                },
             }
             for index, name in enumerate(sorted(wrapper.REQUIRED_CHECKS), start=1)
         ]
-        with mock.patch.object(wrapper, "api_get", return_value={"check_runs": checks}):
+        with mock.patch.object(
+            wrapper, "api_get", return_value={"total_count": len(checks), "check_runs": checks}
+        ):
             wrapper.validate_required_checks(HEAD)
         checks[-1]["conclusion"] = "failure"
-        with mock.patch.object(wrapper, "api_get", return_value={"check_runs": checks}):
+        with mock.patch.object(
+            wrapper, "api_get", return_value={"total_count": len(checks), "check_runs": checks}
+        ):
             with self.assertRaisesRegex(wrapper.WrapperError, "required_checks_not_successful"):
                 wrapper.validate_required_checks(HEAD)
 

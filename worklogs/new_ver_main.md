@@ -8453,6 +8453,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Canonical evaluatorはexact headの`filter=all` Check Runsを最大1000件まで全ページ取得し、Required 5 contextごとにGitHub Actions App（ID `15368`、slug `github-actions`、owner `github`）の最新開始Runを選択する。同一headの旧failureは後続successが存在する場合にのみ非blockingとする。
 - Required Check欠落、pending、failure、stale head、source mismatch、ページ打切りはFail Closedとし、unrelated checkはRequired判定へ影響させない。Focused Unit 22 testsはPASSし、PR #284 exact head `46f02501fab0f1da82598f9cdf200147e3d17242` のread-only評価はRequired 5件success／`passed: true`となった。
 
+## GOV-015 conflict-aware no-force task base sync
+
+- Base `0f4e05920c19e12a613a9c6c320cda8e2d7af272`、Issue #287、Branch `security/GOV-015-conflict-aware-task-base-sync`、Risk R3で開始した。OPS-007 branch／worktree／Issue／PRとluxe-pack.biz V2 Cutover Retryは変更しない。
+- current task headとcurrent mainを親順固定の二親merge candidateとして検証し、current baseからcandidateへのnet changed paths、automatic mergeとの差分、未解決conflict marker、親片側の選択をFail Closedとするwrapper gateを追加する。
+
 ## OPS-007 V2 Preview Public Asset Persistence
 
 - Issue `#283`、Risk `R4`、Base `f3cfff8c3f707cdc49fcf8101788f7e3ba2ac36f`、専用Branch／Worktreeで開始し、Preview Deployment Lockを取得した。`luxe-pack.biz`のV2切替は実行していない。
