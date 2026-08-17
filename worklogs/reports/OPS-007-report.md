@@ -40,3 +40,7 @@ new exact head for fresh required checks and fixed-head self-review.
 The corrected PR body passes the repository policy in the workflow-dispatch
 run. The same-head PR-event failure was created before the body correction;
 its `ci-gate` failure is therefore an aggregate of that stale policy result.
+
+The remaining PR-event failure was reproduced locally: the PR `Summary` used
+an H1 heading while the policy requires H2 or H3. The PR body now uses H2 and
+the next exact head is required for a fresh event validation.
