@@ -370,11 +370,15 @@ def validate_compose(
         if service.get("container_name"):
             raise GuardFailure("Fixed Container names are prohibited")
     volumes = config.get("volumes", {})
-    expected_volume_names = {f"{project}_v2_postgres", f"{project}_v2_redis"}
+    expected_volume_names = {
+        f"{project}_v2_api_assets",
+        f"{project}_v2_postgres",
+        f"{project}_v2_redis",
+    }
     actual_volume_names = {
         str(value.get("name")) for value in volumes.values() if isinstance(value, dict)
     }
-    if set(volumes) != {"v2_postgres", "v2_redis"}:
+    if set(volumes) != {"v2_api_assets", "v2_postgres", "v2_redis"}:
         raise GuardFailure("V2 Volume isolation is invalid")
     if actual_volume_names != expected_volume_names or actual_volume_names & V1_VOLUMES:
         raise GuardFailure("V2 Volume isolation is invalid")
