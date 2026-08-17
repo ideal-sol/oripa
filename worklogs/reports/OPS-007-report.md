@@ -30,3 +30,10 @@ No canonical bytes exist for the following public metadata rows. No byte was gue
 | `01a00340-0c79-7197-af75-36b03dffb301` | Published banner `banner-01a003400d9770dbb651a58df41077f9` | Current public | Original PNG, checksum verified. |
 
 `luxe-pack.biz` remains V1. The V2 retry is **NOT READY** until the two currently exposed originals are recovered and a separate browser asset acceptance task passes.
+
+## CI Handling
+
+The Draft PR emitted an early PR-event policy check before the independently
+dispatched fixed-head check completed. Per Governance, that failure is not
+reused: this report commit creates a new exact head for fresh required checks
+and fixed-head self-review.
