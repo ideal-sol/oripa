@@ -10,9 +10,10 @@
 - Branch: `feat/MIG-062W-line-friend-state-read-contract`
 - Worktree: `/var/www/oripa-worktrees/MIG-062W`
 - Task Policy SHA-256: `e51655a6f2cb4584dcb3b33b88c7436f2a2dec2d76b0ccf0a2579b02713589f0`
+- Current Head: `58f7bf9212941572a30360d1881b63712c6bf4a6`
 - Application Head: `904de9f2867ae6e8f5becc74d4e7b1d3b1013ee0`
-- Preview Head: PR本文補正を記録するdocs-only fresh headへ固定する。
-- Final Head／Squash Commit: Fresh Closeout後にIssue／PRへ記録する。
+- Preview Head／Artifact: Required Integration Gate未達のため未作成。
+- Final Head／Squash Commit: Required Integration Gate未達のため未確定。
 
 ## Phase A
 
@@ -59,7 +60,11 @@
 - Infrastructure impact: Phase Aはなし。PreviewはGitHub-hosted exact-head imageを使用しHost buildを行わない。
 - Storefront Repository impact: なし。別SITE Taskで`/mypage/line`へ採用する。
 
-## Phase B Pending
+## Phase B Blocked
 
-- Draft PR、exact Application head Required Checks、immutable `2.0.0-alpha.20` Artifact、Read-only Preview、Fresh Self-review、Squash Merge、Issue／branch／worktree cleanup。
-- PreviewでLINE link／unlink、OAuth／Callback、follow／unfollow、Webhook、Provider操作、DB直接更新、Migration、Cache削除を実行しない。
+- Fresh head `58f7bf9212941572a30360d1881b63712c6bf4a6`では`policy-gate`、`quality-gate`、`security-gate`、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがPASSした。
+- `integration-gate`はTask非変更の既存V1 `Tests\\Feature\\AdminPaymentApiTest` 2件と、`.ci/baselines/backend-tests.json`の期限切れを検出してFAILした。`ci-gate`もその必須Gate失敗を受けてFAILした。
+- Backend baselineは最新mainと同一で、tracking taskは`QUALITY-002`、期限は`2026-08-15`である。現在日は`2026-08-17`であり、GitHub履歴にActiveな`QUALITY-002` Taskは存在しない。
+- 既存V1 fixture変更、baseline延長、Gate緩和は本TaskのAllowed Paths外かつ無関係な品質問題であるため、MIG-062Wへ取り込まない。Task固有のLocal checksとFresh CIのPolicy／Quality／Securityには失敗がない。
+- Required 5 Checksを満たせないため、immutable `2.0.0-alpha.20` Artifact、Preview、Fresh Self-review、Squash Merge、Issue close、Remote／local branch削除、worktree削除は未実施である。PR #278、Task branch、専用worktreeを保持してPrerequisite修正後の再開を待つ。
+- Previewは未実施であり、LINE link／unlink、OAuth／Callback、follow／unfollow、Webhook、Provider操作、DB直接更新、Migration、Cache削除を実行していない。

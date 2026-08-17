@@ -8439,3 +8439,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Backend targeted 6 tests／46 assertions、既存LINE audience回帰2 tests／9 assertions、OpenAPI 7 tests、Client 27 tests、Site Schema 10 tests、Testkit 34 tests、Admin 159 tests、Policy 125 tests、Quality 5 tests、Security 10 tests、Fresh Audit 0件、Local Policy／Quality／Security／Release Gate、Admin Production BuildがPASSした。
 - Migration created: 0。Task／Preview Migration applied: 0。Local isolated synthetic PostgreSQLだけに既存V2 Migration 53件を適用した。Storefront Repository、Runtime Preview、Artifact、Required Checks、Fresh Self-review、Merge／CleanupはPhase Bでexact headへ固定する。
 - 初回PR event Policy GateはPR本文の必須見出しを`#`で記載したため、parserが要求する`##`／`###`として認識せずFAILした。同Application headのmanual dispatch Policy GateはPASSしており、本文を`Summary`／`Task`／`Scope`／`Specification sources`／`Verification performed`／`Verification not performed`および`### Changed files`／`### Allowed paths`へ補正した。失敗履歴のないdocs-only fresh headで全Checksを再実行する。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Phase B Blocked
+
+- Fresh head `58f7bf9212941572a30360d1881b63712c6bf4a6`ではPolicy／Quality／Security Gate、CodeQL、CodeQL JavaScript／TypeScript、Dependency ReviewがPASSしたが、Integration Gateとその結果を集約するci-gateがFAILした。
+- Integrationの失敗はTask非変更の既存V1 `AdminPaymentApiTest` 2件と、最新mainにも存在する`.ci/baselines/backend-tests.json`の期限切れである。Baselineは`QUALITY-002`を追跡先、`2026-08-15`を期限としており、現在日は`2026-08-17`である。
+- MIG-062WのScopeを既存V1 fixture修正、baseline延長、Gate緩和へ広げない。Required Checks未達のためArtifact／Preview／Fresh Self-review／Merge／Cleanupは実行せず、PR #278、Task branch、専用worktreeを保持してPrerequisite修正を待つ。
