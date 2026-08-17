@@ -6,9 +6,9 @@
 - Issue: `#281`
 - Risk: `R4`
 - Base: `main@acb444db7d8cc61d431b7e41381d36743109f833`
-- Branch: `ops/OPS-006-payment-review-v2-cutover`
+- Branch: `chore/OPS-006-payment-review-v2-cutover`
 - Worktree: `/var/www/oripa-worktrees/OPS-006`
-- Task Policy SHA-256: `b790c3d2b5d9df72ea73f1001ee88b858d8df37c1af3369fd15cff0f511b46e2`
+- Task Policy SHA-256: `5db1679a5e06af53fc404d4dd341e0a541d3c7f860da02b6c77f0d3c3ab7e7d4`
 - Evidence: `/var/lib/oripa-v2-evidence/OPS-006/`
 - Final result: `NOT READY`
 

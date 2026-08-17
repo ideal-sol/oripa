@@ -8441,7 +8441,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 
 ## OPS-006 決済審査用luxe-pack.biz V2一時切替
 
-- Base `acb444db7d8cc61d431b7e41381d36743109f833`、Issue #281、Branch `ops/OPS-006-payment-review-v2-cutover`、Risk R4で開始し、3 lane、Preview／Integration Lock、Storefront release、API／DB、Nginx effective configのConflict GateをPASSした。作業中はPreview Deployment Lockを取得して共有deployをFreezeした。
+- Base `acb444db7d8cc61d431b7e41381d36743109f833`、Issue #281、Branch `chore/OPS-006-payment-review-v2-cutover`、Risk R4で開始し、3 lane、Preview／Integration Lock、Storefront release、API／DB、Nginx effective configのConflict GateをPASSした。作業中はPreview Deployment Lockを取得して共有deployをFreezeした。
 - luxe／test Nginx、Canonical Preview env／Compose、Runtime情報とV2 DB Custom dumpをroot-only evidenceへ保存し、Rollbackを先に確定した。Origin一行だけをluxeへ変更し、同じImage／IP／DBのAPIだけを`--no-build --no-deps`で再作成した。luxe固有TLS／ACME／redirectを維持してRoutingだけをV2 Storefront／APIへ変更し、`nginx -t`成功後にreloadした。
 - API Session、Canonical Origin＋CSRF、旧Origin／CSRF拒否、Catalog、Gacha一覧／詳細、Banner、Notice、Footer、Public Admin 404、HTTP 500系0はPASSした。Desktop Browserで複数Public Asset 404／Console Errorを検出し、Mobile前に重大FAILとして即時Fail Closedした。
 - Preview APIは`FILESYSTEM_DISK=local`かつstorage永続mountなしであり、Container再作成によりAsset writable layerが失われた。DB metadata 36件中、Canonical evidenceとchecksum一致する29件だけを同一storage identifierへ復元した。残る7件はOriginal bytes不在のため推測復元せず、test側Asset 404を残課題とした。
