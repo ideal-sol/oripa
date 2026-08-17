@@ -3,12 +3,17 @@
 namespace App\Domain\Draw\Services;
 
 use App\Domain\Draw\Exceptions\V2DrawException;
+use App\Domain\Line\Services\V2LineFriendStateService;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class V2DrawEligibilityService
 {
+    public function __construct(private readonly V2LineFriendStateService $lineFriendState)
+    {
+    }
+
     /**
      * @return array{
      *   authenticated: bool,
@@ -129,7 +134,7 @@ final class V2DrawEligibilityService
                 $firstTimeEligibleDays,
                 $occurredAt
             ),
-            'line_users' => $this->isConfirmedLineFriend((int) $user->id),
+            'line_users' => $this->lineFriendState->isLineUser((int) $user->id),
             default => false,
         };
     }
@@ -189,19 +194,4 @@ final class V2DrawEligibilityService
         return ['start' => $start, 'end' => $start->addDay()];
     }
 
-    private function isConfirmedLineFriend(int $userId): bool
-    {
-        return DB::table('external_identity_accounts as identity')
-            ->join('line_friendships as friendship', function ($join): void {
-                $join->on('friendship.user_id', '=', 'identity.user_id')
-                    ->on('friendship.subject_hash', '=', 'identity.subject_hash');
-            })
-            ->where('identity.user_id', $userId)
-            ->where('identity.provider', 'line')
-            ->where('identity.issuer', 'https://access.line.me')
-            ->whereNull('identity.revoked_at')
-            ->where('friendship.status', 'friend')
-            ->whereNull('friendship.unfollowed_at')
-            ->exists();
-    }
 }

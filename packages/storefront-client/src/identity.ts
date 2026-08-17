@@ -52,6 +52,9 @@ export interface StorefrontIdentityClient {
   listExternalIdentities(): Promise<
     StorefrontResponse<Schemas["ExternalIdentityCollection"]>
   >;
+  getLineFriendState(): Promise<
+    StorefrontResponse<Schemas["LineFriendStatePresentation"]>
+  >;
   startGoogleIdentityLink(
     input: Schemas["ExternalIdentityStartRequest"],
     options: IdentityMutationOptions,
@@ -208,6 +211,8 @@ export function createStorefrontIdentityClient(
     },
     listExternalIdentities: () =>
       transport.request({ path: "/me/external-identities" }),
+    getLineFriendState: () =>
+      transport.request({ path: "/me/line-friend-state" }),
     startGoogleIdentityLink: (input, options) =>
       mutation<Schemas["ExternalIdentityStart"]>(
         "/me/external-identities/google/link",

@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.19
+  version: 2.0.0-alpha.20
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -463,6 +463,40 @@ paths:
           $ref: '#/components/responses/DrawHistoryReadProblem'
         default:
           $ref: '#/components/responses/DrawHistoryReadProblem'
+  /me/line-friend-state:
+    get:
+      operationId: getLineFriendState
+      summary: Current UserのLINE連携・友だち追加確認状態を取得する
+      x-idempotency: safe
+      x-rate-limit: user-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - userSession: []
+      responses:
+        '200':
+          description: Canonical LINE IdentityとFriendshipから確定したCurrent User Presentation。
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                const: private, no-store
+            Vary:
+              required: true
+              schema:
+                type: string
+                const: Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineFriendStatePresentation'
+        '401':
+          $ref: '#/components/responses/LineFriendStateReadProblem'
+        '429':
+          $ref: '#/components/responses/LineFriendStateReadProblem'
+        default:
+          $ref: '#/components/responses/LineFriendStateReadProblem'
   /me/prizes/{prize_id}:
     get:
       operationId: getUserPrize
@@ -2794,6 +2828,82 @@ components:
       anyOf:
         - $ref: '#/components/schemas/DrawHistoryReadProblemDetails'
         - $ref: '#/components/schemas/ProblemDetails'
+    LineFriendStateCode:
+      type: string
+      enum: [not_linked, friend_add_required, confirmed]
+    LineFriendStateStatus:
+      type: object
+      additionalProperties: false
+      required: [code, label]
+      properties:
+        code:
+          $ref: '#/components/schemas/LineFriendStateCode'
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: BackendがCanonical stateから確定した表示Label。
+    LineFriendStateActionCode:
+      type: string
+      enum: [start_identity_link, open_friend_add_url, none]
+    LineFriendStateAction:
+      type: object
+      additionalProperties: false
+      required: [code, label, href]
+      properties:
+        code:
+          $ref: '#/components/schemas/LineFriendStateActionCode'
+        label:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 128
+        href:
+          type: [string, 'null']
+          format: uri
+          maxLength: 2048
+          description: 既存LINE Messaging設定の友だち追加URL。Identity link開始時はnull。
+    LineFriendStatePresentation:
+      type: object
+      additionalProperties: false
+      required:
+        - linked
+        - friend_confirmed
+        - is_line_user
+        - status
+        - primary_action
+      properties:
+        linked:
+          type: boolean
+          description: Current Userへ有効なLINE External IdentityがLink済みか。
+        friend_confirmed:
+          type: boolean
+          description: Link済みIdentityと同一subjectのCanonical Friendshipがfriend状態か。
+        is_line_user:
+          type: boolean
+          description: linkedかつfriend_confirmedをBackendで確定したLINEユーザー判定。
+        status:
+          $ref: '#/components/schemas/LineFriendStateStatus'
+        primary_action:
+          $ref: '#/components/schemas/LineFriendStateAction'
+    LineFriendStateReadProblemCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - RATE_LIMITED
+        - SESSION_EXPIRED
+    LineFriendStateReadProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              $ref: '#/components/schemas/LineFriendStateReadProblemCode'
+    LineFriendStateReadProblemResponse:
+      description: LINE Friend State Readの既知Code、または安全に汎用処理する未知のProblem Details。
+      anyOf:
+        - $ref: '#/components/schemas/LineFriendStateReadProblemDetails'
+        - $ref: '#/components/schemas/ProblemDetails'
     DrawPrizeReference:
       type: object
       additionalProperties: false
@@ -3408,3 +3518,26 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/DrawHistoryReadProblemResponse'
+    LineFriendStateReadProblem:
+      description: Current User LINE Friend State ReadのRFC 9457 Problem Details。
+      headers:
+        Cache-Control:
+          required: true
+          schema:
+            type: string
+            const: private, no-store
+        Vary:
+          required: true
+          schema:
+            type: string
+            const: Cookie
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+        X-Oripa-Api-Version:
+          $ref: '#/components/headers/XOripaApiVersion'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/LineFriendStateReadProblemResponse'

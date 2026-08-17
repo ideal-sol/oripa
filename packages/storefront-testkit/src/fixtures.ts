@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.19",
+      storefront_client_version: "2.0.0-alpha.20",
       required_capabilities: [],
     },
     public: {
@@ -39,6 +39,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         "gacha.catalog-display.v2",
         "gacha.presentation.v2",
         "prize.fulfillment-browser-mutation.v2",
+        "user-line-friend-state.read.v2",
         "user-draw-history.read.v2",
         "user-point.read.v2",
         "user-prize.presentation.v2",
@@ -53,6 +54,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
           "gacha.catalog-display.v2",
           "gacha.presentation.v2",
           "prize.fulfillment-browser-mutation.v2",
+          "user-line-friend-state.read.v2",
           "user-draw-history.read.v2",
           "user-point.read.v2",
           "user-prize.presentation.v2",
@@ -64,13 +66,14 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.19",
+  minimum_storefront_client_version: "2.0.0-alpha.20",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
     "gacha.catalog-display.v2",
     "gacha.presentation.v2",
     "prize.fulfillment-browser-mutation.v2",
+    "user-line-friend-state.read.v2",
     "user-draw-history.read.v2",
     "user-point.read.v2",
     "user-prize.presentation.v2",
@@ -951,3 +954,69 @@ export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
   linked: PublicComponents["schemas"]["ExternalIdentityCollection"];
   session: PublicComponents["schemas"]["ExternalIdentitySession"];
 });
+
+export const PUBLIC_LINE_FRIEND_STATE_FIXTURES = Object.freeze({
+  unlinked: {
+    linked: false,
+    friend_confirmed: false,
+    is_line_user: false,
+    status: { code: "not_linked", label: "LINE未連携" },
+    primary_action: {
+      code: "start_identity_link",
+      label: "LINEを連携する",
+      href: null,
+    },
+  },
+  friend_add_required: {
+    linked: true,
+    friend_confirmed: false,
+    is_line_user: false,
+    status: { code: "friend_add_required", label: "友だち追加未確認" },
+    primary_action: {
+      code: "open_friend_add_url",
+      label: "LINE公式アカウントを友だち追加する",
+      href: "https://line.me/R/ti/p/synthetic",
+    },
+  },
+  confirmed: {
+    linked: true,
+    friend_confirmed: true,
+    is_line_user: true,
+    status: { code: "confirmed", label: "LINEユーザー" },
+    primary_action: { code: "none", label: null, href: null },
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["LineFriendStatePresentation"]
+>);
+
+export const PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES = Object.freeze({
+  unauthenticated: {
+    type: "https://oripa.example/problems/authentication_required",
+    title: "Authentication is required.",
+    status: 401,
+    code: "AUTHENTICATION_REQUIRED",
+    request_id: "request-line-friend-state-auth-001",
+    retryable: false,
+  },
+  session_expired: {
+    type: "https://oripa.example/problems/session_expired",
+    title: "The session has expired.",
+    status: 401,
+    code: "SESSION_EXPIRED",
+    request_id: "request-line-friend-state-session-001",
+    retryable: false,
+  },
+  rate_limited: {
+    type: "https://oripa.example/problems/rate_limited",
+    title: "Too many requests.",
+    status: 429,
+    code: "RATE_LIMITED",
+    request_id: "request-line-friend-state-rate-001",
+    retryable: true,
+    retry_after_seconds: 60,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["LineFriendStateReadProblemDetails"]
+>);

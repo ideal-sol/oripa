@@ -8428,3 +8428,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 旧QA credentialはTask Image／直前Image双方で401となり回帰ではなく失効と切り分けた。より新しい安全な既存Preview QA Userへ切替え、Gacha履歴4件／2ページ、partial execution、public asset、Backend status／label、Stable Ordering、Cursor、匿名401、`private, no-store`／`Vary: Cookie`、内部ID非露出をReadのみで確認した。
 - Preview Runtime Error／Mutation／Migration／Cache削除／Storefront変更は0。Admin、PostgreSQL、Redis、Nginx、Storefront Runtimeは変更していない。
 - Synthetic test Container／networkは削除した。実行PolicyがDocker volume削除を拒否したため未接続dependency volume 1件だけ残る。Final docs-only headのFresh Required Checks／Self-review、Squash Merge／Issue／branch／worktree cleanupはexact headで継続する。
+
+## MIG-062W LINE Friend State Read／Presentation Contract Phase A
+
+- Latest Platform `main@1118703eb704f901d25d946074e3707e9c557c6f`、GitHub Issue／PR全履歴、Task Policy、Remote refsを照合し、既存最大`MIG-062V`の次で未使用な`MIG-062W`を採番した。Issue #277、Branch `feat/MIG-062W-line-friend-state-read-contract`、Risk R3で開始した。
+- Canonical Friend Stateは既存の有効なLINE `external_identity_accounts`と、同一User／subjectの`line_friendships.status = friend`かつ`unfollowed_at IS NULL`のJoinである。既存Draw eligibilityの判定を共通Serviceへ抽出し、Current User ReadとDrawが同じ結果を利用する。
+- `GET /api/v2/me/line-friend-state`／`getLineFriendState`は`linked`、`friend_confirmed`、Backend確定`is_line_user`、status label、既存`friend_add_url`を使うPrimary CTAを返す。Provider subject／issuer／secret／token、内部ID、reward設定は公開しない。
+- Authenticated Current User only、Success／Typed RFC 9457 Problemとも`private, no-store`、`Vary: Cookie`である。ReadはLINE／Point／Webhook Tableを変更せず、CSRF、Recent Authentication、unlink、OAuth／Callback、Provider／Webhook transitionを変更しない。
+- Public OpenAPI／bundle、Generated Types、薄いStorefront Identity Client、Site capability `user-line-friend-state.read.v2`、Testkitの3状態／Typed Problem fixtureを既存Versionを上書きしない`2.0.0-alpha.20`へ同期した。Public 54／Admin 212／Webhook 1 operationsである。
+- Backend targeted 6 tests／46 assertions、既存LINE audience回帰2 tests／9 assertions、OpenAPI 7 tests、Client 27 tests、Site Schema 10 tests、Testkit 34 tests、Admin 159 tests、Policy 125 tests、Quality 5 tests、Security 10 tests、Fresh Audit 0件、Local Policy／Quality／Security／Release Gate、Admin Production BuildがPASSした。
+- Migration created: 0。Task／Preview Migration applied: 0。Local isolated synthetic PostgreSQLだけに既存V2 Migration 53件を適用した。Storefront Repository、Runtime Preview、Artifact、Required Checks、Fresh Self-review、Merge／CleanupはPhase Bでexact headへ固定する。
