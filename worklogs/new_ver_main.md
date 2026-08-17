@@ -8446,3 +8446,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - API Session、Canonical Origin＋CSRF、旧Origin／CSRF拒否、Catalog、Gacha一覧／詳細、Banner、Notice、Footer、Public Admin 404、HTTP 500系0はPASSした。Desktop Browserで複数Public Asset 404／Console Errorを検出し、Mobile前に重大FAILとして即時Fail Closedした。
 - Preview APIは`FILESYSTEM_DISK=local`かつstorage永続mountなしであり、Container再作成によりAsset writable layerが失われた。DB metadata 36件中、Canonical evidenceとchecksum一致する29件だけを同一storage identifierへ復元した。残る7件はOriginal bytes不在のため推測復元せず、test側Asset 404を残課題とした。
 - luxe NginxとOriginは事前checksumへ復元し、luxe V1 200、test V2 Session 200、API healthy、同じImage／IP／DB、Migration 53件／batch 25を確認した。Banner linkの一時相対化も既存Admin APIで元のtest絶対URLへ再公開した。Migration／削除／Payment／Draw／Build／Source変更は0である。決済審査用V2環境は`NOT READY`。
+
+## GOV-014 fixed-head Required Check 最新Run判定
+
+- Base `f3cfff8c3f707cdc49fcf8101788f7e3ba2ac36f`、Issue #285、Branch `security/GOV-014-fixed-head-latest-check-runs`、専用Worktree、Risk R2で開始した。変更対象はGitHub App fixed-head check evaluator／境界test／Worklogだけであり、OPS-007、B2、Storefront、Platform Domainは対象外である。
+- Canonical evaluatorはexact headの`filter=all` Check Runsを最大1000件まで全ページ取得し、Required 5 contextごとにGitHub Actions App（ID `15368`、slug `github-actions`、owner `github`）の最新開始Runを選択する。同一headの旧failureは後続successが存在する場合にのみ非blockingとする。
+- Required Check欠落、pending、failure、stale head、source mismatch、ページ打切りはFail Closedとし、unrelated checkはRequired判定へ影響させない。Focused Unit 22 testsはPASSし、PR #284 exact head `46f02501fab0f1da82598f9cdf200147e3d17242` のread-only評価はRequired 5件success／`passed: true`となった。
