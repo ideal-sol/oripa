@@ -339,7 +339,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertSame($expected, (int) DB::table('qa_draw_plan_items')->value('consumed_count'));
         self::assertSame(5, DB::table('qa_draw_executions')->count());
         self::assertSame($expected, (int) DB::table('gacha_draw_states')->value('sold_count'));
-        self::assertSame($expected, $randomCounter->count);
+        self::assertSame(0, $randomCounter->count);
 
         try {
             $this->draw($user, 5, 'qa-allowed-count-10-key');
@@ -705,7 +705,10 @@ final class QaDrawVerticalSliceTest extends TestCase
         $index = 0;
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static function () use (
+            new V2CryptographicRandomSource(static function (
+                int $minimum,
+                int $maximum
+            ) use (
                 &$index,
                 $randomValues,
                 $randomCounter
@@ -716,7 +719,7 @@ final class QaDrawVerticalSliceTest extends TestCase
                     $randomCounter->count++;
                 }
 
-                return $value;
+                return max($minimum, min($maximum, $value));
             })
         );
 

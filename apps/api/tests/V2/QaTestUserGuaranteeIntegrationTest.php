@@ -56,7 +56,10 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 500_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int =>
+                    $minimum + intdiv($maximum - $minimum, 2)
+            )
         );
     }
 
@@ -104,6 +107,7 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
 
         self::assertSame($count, $response['requested_count']);
         self::assertSame($count, $response['executed_count']);
+        self::assertSame(0, $response['point_back_total']);
         self::assertCount($count, $results);
         self::assertTrue((bool) $results->first()->is_qa_draw);
         self::assertNotNull($results->first()->qa_gacha_guarantee_assignment_id);
@@ -117,6 +121,7 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         );
         self::assertSame($count, DB::table('user_prizes')
             ->whereIn('draw_result_id', $results->pluck('id'))->count());
+        self::assertSame(0, $results->where('result_type', 'point_back')->count());
         self::assertSame($count, (int) DB::table('gacha_draw_states')->value('sold_count'));
         self::assertSame($count, (int) DB::table('prize_inventories')->sum('awarded_count'));
         self::assertSame(

@@ -159,7 +159,10 @@ final class CurrentUserDrawHistoryReadContractTest extends TestCase
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 150_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int =>
+                    intdiv(150_000 * $maximum, 1_000_000) + 1
+            )
         );
 
         return [$this->user('owner'), $fixture['gachas'][0]['public_id']];

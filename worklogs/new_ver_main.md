@@ -8496,3 +8496,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - local filesystem rootだけを`v2_api_assets` named volumeへmountし、29 Objectをchecksum確認後に移行した。DB／Migration／Data削除／Production Host Buildは0である。
 - API-only recreateを2回実行し、existing Asset、controller upload、recreate後Asset、health、test Top／Banner APIを確認した。25 Public Imageのchecksum／MIMEとupload checksumは不変、HTTP 500／502／504は0である。
 - canonical bytesがない7 Public metadata rowは復元せず、Asset ID、Content relation、Public exposure、Re-upload actionをOPS-007 Reportへ記録した。current public 2件が未復元のため、V2切替再試行は`NOT READY`を維持する。
+
+## MIG-062X 残在庫Weighted Draw／Probability Legacy整理
+
+- Latest `main@ac3df5985018ab134065fbae56d1ad8b10042fb0`を唯一のBaseとし、MIG-062WのPR #278 Squash Merge、Issue Close、Remote／Local Branch、Worktree、Lock、Ledger、Artifact Manifestの完全Closeoutを確認した。Issue #289、Branch `feat/MIG-062X-remaining-inventory-weighted-draw`、専用Worktree、Risk R4で開始し、Integration Lockだけを取得した。
+- Gacha／Draw State／Operational Inventoryを同一TransactionでRow Lockし、Lock済み`available_quantity`だけを動的integer WeightとするCSPRNG Selectionへ切り替えた。当選ごとにin-memory Weightを減らし、zero Inventoryを除外し、景品別deltaをAggregate更新する。
+- Probability Entry／Stage範囲、Minimum Guarantee、Direct Point Backを新規Production景品選択から外した。Schema／Legacy metadata／過去Result／保存済みIdempotency Replayは維持し、新規Draw／QA DrawはPrize-only、Point Back 0である。
+- Partial Remaining 1000 requested／900 executedでPoint、Result、User Prize、Inventory、awarded、`sold_count`、履歴、Replayを900へ一致させた。Persistent QAは指定景品1件だけを保証消費し、残りを更新後Weightで選択し、在庫0を副作用なしでFail Closedする。
+- Draw 22 tests／210 assertions、QA 23／252、Point Exchange 2／19、Draw対Inventory Adjustment／daily limit／remaining boundary／QA Replay／Prize Action ConcurrencyをPASSした。同一／別Gacha計55 concurrent requestsはfailure／unresolved deadlock 0だった。
+- 1000連はquery max 55（SELECT 30／INSERT 19／UPDATE 6）、100連は49（SELECT 30／INSERT 13／UPDATE 6）でSelection／Inventory N+1なし。Task Migration created／applied 0、Public OpenAPI／Client／Testkit／Artifact／Storefront／Preview変更0である。
+- Required Checks、CodeQL、Dependency Review、Fresh Self-review、Squash Merge、Issue／branch／worktree／Integration Lock cleanupはFinal Head固定後に継続する。

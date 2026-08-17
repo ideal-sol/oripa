@@ -37,7 +37,9 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $user = $this->inventoryUser('backfill');
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 50_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int => $maximum
+            )
         );
         app(V2DrawService::class)->create(
             $user,
@@ -104,7 +106,9 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $payload = $this->publishedInventoryPayload();
         $this->app->instance(
             V2CryptographicRandomSource::class,
-            new V2CryptographicRandomSource(static fn (): int => 50_000)
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int => $maximum
+            )
         );
 
         $directory = sys_get_temp_dir().'/mig062s-inventory-'.getmypid();
@@ -329,6 +333,15 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         ]);
 
         $gachaId = $this->importGachas(1, totalCount: 1_000, soldCount: 850)[0];
+        $inventories = DB::table('prize_inventories')->orderBy('id')->get();
+        DB::table('prize_inventories')->where('id', $inventories[0]->id)->update([
+            'available_quantity' => 0,
+            'withdrawn_quantity' => 100,
+        ]);
+        DB::table('prize_inventories')->where('id', $inventories[1]->id)->update([
+            'available_quantity' => 150,
+            'withdrawn_quantity' => 750,
+        ]);
         $user = User::query()->create([
             'email_display' => 'partial-concurrency-'.Str::uuid().'@example.test',
             'email_normalized' => 'partial-concurrency-'.Str::uuid().'@example.test',
@@ -398,6 +411,11 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         sort($executed);
         self::assertSame([50, 100], $executed);
         self::assertSame(150, DB::table('draw_results')->count());
+        self::assertSame(150, DB::table('draw_results')->where('result_type', 'prize')->count());
+        self::assertSame(0, DB::table('draw_results')->where('result_type', 'point_back')->count());
+        self::assertSame(150, DB::table('user_prizes')->count());
+        self::assertSame(150, (int) DB::table('prize_inventories')->sum('awarded_count'));
+        self::assertSame(0, (int) DB::table('prize_inventories')->sum('available_quantity'));
         self::assertSame(1_000, (int) DB::table('gacha_draw_states')->value('sold_count'));
         self::assertSame('sold_out', DB::table('gacha_draw_states')->value('status'));
     }
