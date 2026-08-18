@@ -76,7 +76,14 @@ describe("Admin User Read workspace", () => {
     render(<AdminUserReadWorkspace mode="detail" userPublicId={uuid("1")} />);
 
     expect(screen.getByRole("heading", { name: "基本情報" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "ポイント残高" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "コイン残高" })).toBeVisible();
+    expect(screen.getByText("合計コイン")).toBeVisible();
+    expect(screen.getByText("有償コイン")).toBeVisible();
+    expect(screen.getByText("ボーナスコイン")).toBeVisible();
+    expect(screen.getByText("次回失効コイン数")).toBeVisible();
+    expect(screen.getByText("次回失効日時")).toBeVisible();
+    expect(screen.getByText("300 コイン")).toBeVisible();
+    expect(screen.getByText("2026/08/20 9:30")).toBeVisible();
     expect(screen.queryByText("ユーザー保有景品")).toBeNull();
     expect(screen.getByRole("link", { name: "ガチャ履歴を表示" })).toHaveAttribute(
       "href",
@@ -142,7 +149,13 @@ function userSummary() {
     created_at: "2026-08-03T00:00:00Z",
     display_name: null,
     id: uuid("1"),
-    point_balance: { free_balance: 200, paid_balance: 100, total_balance: 300 },
+    point_balance: {
+      free_balance: 200,
+      next_expires_at: "2026-08-20T00:30:00Z",
+      next_expiring_amount: 25,
+      paid_balance: 100,
+      total_balance: 300,
+    },
     status: "active" as const,
   };
 }

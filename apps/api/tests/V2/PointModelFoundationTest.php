@@ -329,7 +329,16 @@ final class PointModelFoundationTest extends TestCase
                 ->whereColumn('remaining_amount', '>', 'reserved_amount')
                 ->count());
             $balance = app(V2CurrentUserPointReadService::class)->wallet($user);
-            self::assertSame(['paid_points' => 0, 'free_points' => 30, 'total_points' => 30], $balance);
+            self::assertSame([
+                'paid_points' => 0,
+                'free_points' => 30,
+                'total_points' => 30,
+                'as_of' => $cutoff->utc()->startOfSecond()->toIso8601ZuluString(),
+                'expiring_within_7_days' => [[
+                    'expires_at' => $cutoff->addSecond()->utc()->toIso8601ZuluString(),
+                    'amount' => 30,
+                ]],
+            ], $balance);
 
             app(V2PointService::class)->consume($user->id, 30, 'hybrid-expiry-consume', $cutoff);
             self::assertSame(0, PointLot::query()->findOrFail($live->id)->remaining_amount);

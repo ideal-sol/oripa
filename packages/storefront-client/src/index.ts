@@ -48,6 +48,7 @@ export type {
   PointHistoryQuery,
   PointReadProblemCode,
   StorefrontCurrentUserPointClient,
+  StorefrontWalletBalance,
 } from "./points.js";
 export type {
   BrowserCreateDrawOptions,

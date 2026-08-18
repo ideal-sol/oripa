@@ -175,8 +175,8 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
       <section className="admin-user-summary" aria-labelledby="user-balance-heading">
         <div className="admin-user-section-heading">
           <div>
-            <h2 id="user-balance-heading">ポイント残高</h2>
-            <p>Canonical Walletの現在残高です。</p>
+            <h2 id="user-balance-heading">コイン残高</h2>
+            <p>Canonical Walletの現在利用可能なコインです。</p>
           </div>
           {canAdjustPoints ? (
             <button className="primary-button" onClick={() => setAdjustmentOpen(true)} type="button">
@@ -187,9 +187,15 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
         </div>
         {user.point_balance ? (
           <div className="admin-user-balance-grid">
-            <Metric label="合計残高" value={user.point_balance.total_balance} />
-            <Metric label="有償P" value={user.point_balance.paid_balance} />
-            <Metric label="無償P" value={user.point_balance.free_balance} />
+            <Metric label="合計コイン" value={user.point_balance.total_balance} />
+            <Metric label="有償コイン" value={user.point_balance.paid_balance} />
+            <Metric label="ボーナスコイン" value={user.point_balance.free_balance} />
+            <Metric label="次回失効コイン数" value={user.point_balance.next_expiring_amount ?? 0} />
+            <Definition label="次回失効日時">
+              {user.point_balance.next_expires_at
+                ? formatDateTime(user.point_balance.next_expires_at)
+                : "失効予定なし"}
+            </Definition>
           </div>
         ) : <State message="Walletはまだ作成されていません。" />}
       </section>
@@ -263,7 +269,7 @@ function Definition({ children, label }: { children: ReactNode; label: string })
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div><span>{label}</span><strong>{number.format(value)} pt</strong></div>;
+  return <div><span>{label}</span><strong>{number.format(value)} コイン</strong></div>;
 }
 
 function Status({ value }: { value: string }) {

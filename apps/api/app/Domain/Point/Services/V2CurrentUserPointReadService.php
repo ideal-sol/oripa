@@ -11,11 +11,19 @@ use Illuminate\Support\Str;
 
 final class V2CurrentUserPointReadService
 {
-    /** @return array{paid_points: int, free_points: int, total_points: int} */
+    /**
+     * @return array{
+     *     paid_points: int,
+     *     free_points: int,
+     *     total_points: int,
+     *     as_of: string,
+     *     expiring_within_7_days: list<array{expires_at: string, amount: int}>
+     * }
+     */
     public function wallet(User $user): array
     {
-        $operationAt = CarbonImmutable::now()->startOfSecond();
-        $operationAtIso = $operationAt->toIso8601String();
+        $operationAt = CarbonImmutable::now()->utc()->startOfSecond();
+        $operationAtIso = $operationAt->toIso8601ZuluString();
         $wallet = DB::table('wallets')->where('user_id', $user->id)->first([
             'paid_balance',
             'free_balance',
@@ -23,7 +31,13 @@ final class V2CurrentUserPointReadService
             'free_reserved_balance',
         ]);
         if ($wallet === null) {
-            return ['paid_points' => 0, 'free_points' => 0, 'total_points' => 0];
+            return [
+                'paid_points' => 0,
+                'free_points' => 0,
+                'total_points' => 0,
+                'as_of' => $operationAtIso,
+                'expiring_within_7_days' => [],
+            ];
         }
         $lotCounts = DB::table('point_lots')
             ->where('user_id', $user->id)
@@ -36,6 +50,7 @@ final class V2CurrentUserPointReadService
             ->first();
         $available = DB::table('point_lots')
             ->where('user_id', $user->id)
+            ->whereRaw('remaining_amount > reserved_amount')
             ->where(function (Builder $query) use ($operationAtIso): void {
                 $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
             })
@@ -56,11 +71,28 @@ final class V2CurrentUserPointReadService
         $free = (int) $lotCounts->free_count > 0
             ? (int) $available->free_available
             : (int) $wallet->free_balance - (int) $wallet->free_reserved_balance;
+        $expiring = DB::table('point_lots')
+            ->where('user_id', $user->id)
+            ->whereNotNull('expire_at')
+            ->where('expire_at', '>', $operationAtIso)
+            ->where('expire_at', '<=', $operationAt->addDays(7)->toIso8601ZuluString())
+            ->whereRaw('remaining_amount > reserved_amount')
+            ->groupBy('expire_at')
+            ->orderBy('expire_at')
+            ->select('expire_at')
+            ->selectRaw('SUM(remaining_amount - reserved_amount) AS amount')
+            ->get()
+            ->map(fn (object $row): array => [
+                'expires_at' => CarbonImmutable::parse($row->expire_at)->utc()->toIso8601ZuluString(),
+                'amount' => (int) $row->amount,
+            ])->all();
 
         return [
             'paid_points' => $paid,
             'free_points' => $free,
             'total_points' => $paid + $free,
+            'as_of' => $operationAtIso,
+            'expiring_within_7_days' => $expiring,
         ];
     }
 

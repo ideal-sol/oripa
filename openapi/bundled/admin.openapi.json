@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.20",
+    "version": "2.0.0-alpha.21",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -19581,6 +19581,17 @@
           },
           "free_balance": {
             "type": "integer"
+          },
+          "next_expiring_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },

@@ -6,6 +6,8 @@ import type {
 
 type Schemas = PublicComponents["schemas"];
 
+export type StorefrontWalletBalance = Schemas["CurrentUserWalletBalance"];
+
 export interface PointHistoryQuery {
   limit?: number;
   cursor?: string;
@@ -14,7 +16,7 @@ export interface PointHistoryQuery {
 export type PointReadProblemCode = Schemas["PointReadProblemCode"];
 
 export interface StorefrontCurrentUserPointClient {
-  getWallet(): Promise<StorefrontResponse<Schemas["WalletBalance"]>>;
+  getWallet(): Promise<StorefrontResponse<StorefrontWalletBalance>>;
   listPointLedgerEntries(
     query?: PointHistoryQuery,
   ): Promise<StorefrontResponse<Schemas["PointHistoryCollection"]>>;

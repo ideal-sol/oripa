@@ -8519,6 +8519,29 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Initial focused failuresはtimezone境界fixture、Reservation global worker count、C1a FEFO後Chargeback期待、PostgreSQL function残存再freshであり、各root cause修正後に対象test／migrationを再実行してPASSした。Application Head `6f718cce59da065287f6c4f7ebb9205943c3a30e`、PR #292を作成し、Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge／CleanupはFinal Head固定後に継続する。
 - Initial remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`はPolicy／Quality PASS、Integration／Security／ci-gate FAILだった。Integrationが検出したfree Grant idempotencyの時刻依存payloadと、Lot未作成の既存Current／Admin read fixture回帰を根因修正し、Point 16／87、Current＋Admin 8／142、QA preflight 1／3、idempotency 1／4を再PASSした。Security failureはTask非変更の空Dependency Advisory baselineが`2026-08-17`で失効したFail Closed結果であり、MIG-062YではGate／baselineを変更しない。
 
+## MIG-062Z Coin Read Contract and Platform Presentation
+
+- Issue #295、Branch `feat/MIG-062Z-coin-read-contract-presentation`、Risk R3、Base `main@4c5e241aeb7331ae27c3720862ccbf74edc41339`、専用Worktreeで開始した。Migration Allocationは取得せず、Platform Integration Lockだけを取得した。
+- C1aの既存Wallet／Point Ledger Contractを維持したまま、available total／paid／free、UTC `as_of`、exact `expires_at`単位の7日Bucketをadditiveに公開する。Admin User Detailは今回のCoin Read表示だけを追加し、Point／Coin API・DB・Class Rename、Mutation、Worker、Payment、Draw、Preview／Productionは対象外とする。
+- 現行verified Storefront Contract Artifact Manifestは`2.0.0-alpha.20`、SHA-256 `ae598940be23c6ca7a9bcb244100d4815c5e7e836b10c4e840236acff1a60240`である。新しいContract Packageを正規発行するには次Versionの明示allocationが必要だが、正本に未記載である。採番推測は禁止のため、Manifest／Package Version更新、Artifact、handoff、PR／Mergeはallocation受領まで実行しない。
+
+## MIG-062Z Coin Read Contract Version Allocation／Application Validation
+
+- Human OperatorがArtifact Version `2.0.0-alpha.21`を明示割当した。最新main、Manifest、Active Task Ledger、Artifact Release Lock、Remote Tagを再照合し、別Allocation／Tag競合0を確認してArtifact Release Lockを取得した。Task Policy SHA-256は`f5e5adc617eb06c206f67de4298c8ee5ddd1aa20417b6ca92460da38a4226db4`である。
+- Public Wallet GETは既存3残高Fieldを維持し、Backend UTC `as_of`とexact expiry単位の7日Bucketをadditiveに返す。期限切れ／予約中を残高・Bucketから除外し、Legacy No Expiryを残高だけへ含め、同一時刻だけを集約する。GET前後のWallet／Lot／Operation／Ledger不変を固定した。
+- Draw Mutationが共有する既存`WalletBalance`は変更せず、GET専用`CurrentUserWalletBalance`へ新Fieldを必須化した。ClientはそのBackend Canonical型だけを公開し、Site側の残高合算／期限判定を不要にした。Testkitはpaid/free/Legacy、expired/reserved、7日未満／一致／超過、as_of一致、同一expiry集約、異なるexact timestamp分離を固定した。
+- Admin User Detailは利用可能total／paid／bonus、次回失効amount／UTC timestampを返し、JST日付＋時刻でCoin表示する。既存User list契約とPoint adjustment文言は維持した。
+- 隔離PostgreSQLでCurrent User Point Read 6 tests／68 assertions、Admin User Read 4／112、Admin UI focused 5 testsをPASSした。OpenAPI 7、Client 27、Site Schema 10、Testkit 34、Policy focused 2、Release 10、各generate／typecheck／lint／build、Local Policy／Release validationがPASSした。Migration created／Task・Preview・Production appliedは0、synthetic DBだけに既存54件を適用した。
+- Root／Admin／Platform／Client／Site Schema／Testkit／OpenAPI／compatibility／Policy／release sourceは`2.0.0-alpha.21`へ同期済みである。Required Checks、CodeQL、Dependency Review、immutable Artifact、Fresh Self-review、Merge／Cleanupはfixed Application headで継続する。
+- Initial head `952c42402e5b9c6a8d0598182b187c408bd20938`はPolicy／Quality／Security PASS、Integration／ci-gate FAILだった。Integrationが検出した2件はC1a Payment reservation release／due Lot read testの旧3-field Wallet exact arrayであり、Mutationを変更せず`as_of`／Bucketを決定的期待値へ同期した。Task source全体からbuildしたfresh image／DBで各1 test（5／8 assertions）をPASSした。
+
+## MIG-062Z Coin Read Contract Artifact
+
+- Application Head `1a53ba630264258291cb72e84707e488782cbc08`のRequired 5 ChecksはすべてPASSした。GitHub-hosted Workflow Run `32115646025`が同一Source Commitからimmutable Storefront Contract Artifactを正規発行した。
+- Artifact Versionは人間明示割当の`2.0.0-alpha.21`、Contract Artifact IDは`9316692687`、outer／GitHub SHA-256は`190fd12cb327634dbab21d343bc92fba37ba657635ff3093b39d55d8030226fe`、Manifest SHA-256は`ac5f051c6171d40f5ed1a0039b7103a8e5917dd90da871fead91b9f8b1aed115`である。
+- Client `39622cdfaea2c80f72595396359e67aac7f1de34582ae23ef2de2831d31b594d`、Site Schema `03f78cd1d090e1cc99ae8af9d8b9c381b720c0eab27b8beee34c5567dcc8018b`、Testkit `170d2fbb3b9f12cc4e906120c3d23714d612104c544b44498c81641563376263`、Public OpenAPI `103b8d8ccb1312fecf3013a531102faf5d73cdeb667a7f8d705d6aaf581a1299`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは3 packageの固定Version／tarball SHA、Public OpenAPI、Manifest、SHA256SUMSである。Registry publish、Storefront Repositoryへの直接導入、Preview deployment／browser verification、Runtime／Nginx／DB変更は実施していない。
+
 ## SEC-011 Dependency Advisory Baseline Fresh Security Review
 
 - MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。

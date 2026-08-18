@@ -1326,6 +1326,27 @@ export interface components {
             free_points: number;
             total_points: number;
         };
+        /** @description 予約中Pointを除いたCurrent UserのBackend Canonical利用可能残高。 */
+        CurrentUserWalletBalance: {
+            paid_points: number;
+            free_points: number;
+            total_points: number;
+            /**
+             * Format: date-time
+             * @description Backendが利用可能残高と失効Bucketを判定したUTC基準時刻。
+             */
+            as_of: string;
+            /** @description as_ofより後かつ7日以内に失効する利用可能残高を、exact expires_at単位で集計したBucket。 */
+            expiring_within_7_days: components["schemas"]["WalletExpiryBucket"][];
+        };
+        WalletExpiryBucket: {
+            /**
+             * Format: date-time
+             * @description UTC exact expiry timestamp。
+             */
+            expires_at: string;
+            amount: number;
+        };
         PointHistoryReason: {
             /** @description BackendがCanonical Domain sourceから表示用に確定した理由。 */
             label: string;
@@ -2116,7 +2137,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WalletBalance"];
+                    "application/json": components["schemas"]["CurrentUserWalletBalance"];
                 };
             };
             401: components["responses"]["PointReadProblem"];
