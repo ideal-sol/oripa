@@ -277,7 +277,8 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'user_tag_id' => $tag->id,
         ])->delete();
         $event = $service->recordVerifiedProviderEvent(
-            'mock', 'event-tag-'.Str::uuid7(), 'payment.succeeded', '{}', [], $payment->id
+            'mock', 'event-tag-'.Str::uuid7(), 'payment.succeeded', '{}', [],
+            $payment->id, null, now()
         );
         try {
             $service->confirmSucceeded($event->id);
@@ -302,10 +303,12 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             $user->id, $plan->id, 'mock', 'second-'.Str::uuid7(), (string) Str::uuid7()
         );
         $firstEvent = $service->recordVerifiedProviderEvent(
-            'mock', 'event-first-'.Str::uuid7(), 'payment.succeeded', '{}', [], $first->id
+            'mock', 'event-first-'.Str::uuid7(), 'payment.succeeded', '{}', [],
+            $first->id, null, now()
         );
         $secondEvent = $service->recordVerifiedProviderEvent(
-            'mock', 'event-second-'.Str::uuid7(), 'payment.succeeded', '{}', [], $second->id
+            'mock', 'event-second-'.Str::uuid7(), 'payment.succeeded', '{}', [],
+            $second->id, null, now()
         );
         $service->confirmSucceeded($firstEvent->id);
         try {

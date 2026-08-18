@@ -8553,3 +8553,14 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - SEC-011 merge `edd1965ddee851eb3fed6e327c7477236f0a8083`を含む最新mainへ、履歴rewriteなしの二親mergeで同期した。競合はWorklogだけで、SEC-011のbaseline／Worklog／reportはbase側に保持され、Application DomainとMigration差分の競合は0件だった。
 - `000054`より新しいmain Migrationがないことを確認し、Migration AllocationとIntegration Lockを再取得した。Task専用PostgreSQLで54件fresh apply、`000054`単独rollback／reapply、Migration statusを再PASSした。
 - Base同期の影響範囲に限定し、Migration PHP syntax、Policy Unit 133 tests、Local Policy Gate、`git diff --check`をPASSした。SEC-011 auditの再実行、全Suite／全Build、Public OpenAPI／Artifact／Storefront／Client／Testkit変更は行っていない。
+
+## MIG-063A Limited Bonus Domain Core
+
+- Latest `main@80fa6d7c7202e800ab4da50665c466cc63f893a8`、Issue #297、Branch `feat/MIG-063A-limited-bonus-domain-core`、専用Worktree、Risk R3で開始し、Migration Allocation Lock取得後に`000055`を採番した。Public／Admin HTTP、UI、OpenAPI、Client、Site Schema、Testkit、Artifact、Storefront、Provider接続、Preview／Productionは対象外である。
+- Exact Point Purchase Plan VersionへON/OFF、`start < end`、`bonus > 0`のLimited Bonus Campaignを追加した。同一Versionの期間は`[start,end)`で重複禁止、adjacent許可とし、Plan parent→Campaign rowの既存Lock順、PostgreSQL advisory transaction lock、最大3回の既存Transaction retryで同時mutationを直列化する。
+- Payment作成時にCampaign設定をimmutable snapshot化する。Successはverified `payment.succeeded` eventの`provider_occurred_at`だけをCanonical時刻とし、`payments.succeeded_at`へ保存する。`received_at`／処理時刻は判定に使わず、Canonical欠落はIngress／確定双方でFail Closed、Legacy Paymentはsnapshot不在のため遡及Grant 0である。
+- 通常free＋確定Limited Bonusを既存単一`payment_grant` operation／`payment_point_grants`へ合算し、既存`V2CoinExpiryPolicy`のGrant確定＋180日を使用する。Refund／Chargebackのrequired freeへ確定額を含め、origin-first、paid優先、不足free、Chargeback Reversal manual reviewは維持した。
+- Task専用PostgreSQLでMigration 55件fresh apply、`000055` rollback／reapplyをPASSした。Limited Bonus、Payment Foundation、Point Purchase Plan focusedは36 tests／180 assertions、Policy focused 4 tests、Local Policy Gate、変更PHP syntax、Python compile、`git diff --check`がPASSした。全Suite／Repository全Buildは実行していない。
+- 初回検証は既存timestamp秒精度とmicrosecond replay比較の不一致、success fixtureのCanonical時刻欠落、event type guardの汎用status path誤適用を検出した。DB精度へのUTC秒正規化、success fixture更新、guardのsuccess確定path限定後に全focused testを再実行してPASSした。
+- Initial GitHub Integration Gateは新規Limited Bonus testが外側Transactionを使わずPoint fixtureを後続Line Messaging testへ残したため2 failuresとなった。Concurrency test以外をrollbackし、Concurrency fixtureを明示cleanupした後、Limited Bonus 7 tests／36 assertions、後続Line対象2 tests／24 assertions、全focused 36／180をPASSした。
+- Second GitHub Integration GateはMigration `000055`の新規2 tableが明示V2 Schema Inventoryへ未登録としてFail Closedした。`payment_limited_bonus_snapshots`と`point_purchase_plan_limited_bonus_campaigns`を正規順で登録し、focused inventory unitとLocal Policy GateをPASSした。
