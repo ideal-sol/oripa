@@ -24,7 +24,8 @@ final class V2PointService
     public function __construct(
         private readonly V2PointTransactionRunner $transactions,
         private readonly V2PointIdempotencyService $idempotency,
-        private readonly V2AuditLogService $audit
+        private readonly V2AuditLogService $audit,
+        private readonly V2CoinExpiryPolicy $expiryPolicy
     ) {
     }
 
@@ -58,18 +59,14 @@ final class V2PointService
     public function grantFree(
         int $userId,
         int $amount,
-        CarbonInterface $expireAt,
         string $idempotencyKey,
         ?CarbonInterface $occurredAt = null
     ): PointOperation {
         if ($amount <= 0) {
             throw new V2PointException('Free point grant amount must be positive.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt ?? now())->startOfSecond();
-        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
-        if ($expiry->lessThanOrEqualTo($occurred)) {
-            throw new V2PointException('Free point expiry must be after grant time.');
-        }
+        $occurred = CarbonImmutable::instance($occurredAt ?? now())->startOfSecond();
+        $expiry = $this->expiryPolicy->expiresAt($occurred);
 
         return $this->transactions->run(function () use (
             $userId,
@@ -156,7 +153,6 @@ final class V2PointService
         int $friendshipId,
         string $friendshipPublicId,
         int $amount,
-        CarbonInterface $expireAt,
         CarbonInterface $occurredAt
     ): ?PointOperation {
         if ($amount === 0) {
@@ -172,11 +168,8 @@ final class V2PointService
         ) {
             throw new V2PointException('LINE friend reward input is invalid.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
-        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
-        if ($expiry->lessThanOrEqualTo($occurred)) {
-            throw new V2PointException('LINE friend reward expiry is invalid.');
-        }
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $expiry = $this->expiryPolicy->expiresAt($occurred);
         $businessKey = 'line.friend_reward:'.$friendshipPublicId;
         $existing = PointOperation::query()
             ->where('business_key', $businessKey)
@@ -248,7 +241,6 @@ final class V2PointService
         string $referralPublicId,
         string $beneficiary,
         int $amount,
-        CarbonInterface $expireAt,
         CarbonInterface $occurredAt
     ): PointOperation {
         if (
@@ -262,11 +254,8 @@ final class V2PointService
         ) {
             throw new V2PointException('Referral reward input is invalid.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
-        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
-        if ($expiry->lessThanOrEqualTo($occurred)) {
-            throw new V2PointException('Referral reward expiry is invalid.');
-        }
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $expiry = $this->expiryPolicy->expiresAt($occurred);
         $businessKey = 'referral.reward:'.$referralPublicId.':'.$beneficiary;
         $existing = PointOperation::query()->where('business_key', $businessKey)->first();
         if ($existing instanceof PointOperation) {
@@ -341,7 +330,6 @@ final class V2PointService
         int $exchangeRequestId,
         string $exchangeRequestPublicId,
         int $amount,
-        CarbonInterface $expireAt,
         CarbonInterface $occurredAt
     ): array {
         if (
@@ -353,11 +341,8 @@ final class V2PointService
         ) {
             throw new V2PointException('Prize exchange point grant input is invalid.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
-        $expiry = CarbonImmutable::parse($expireAt)->startOfSecond();
-        if ($expiry->lessThanOrEqualTo($occurred)) {
-            throw new V2PointException('Prize exchange point expiry is invalid.');
-        }
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $expiry = $this->expiryPolicy->expiresAt($occurred);
 
         $wallet = $this->lockWallet($userId);
         $before = (int) $wallet->free_balance;
@@ -426,7 +411,7 @@ final class V2PointService
         if ($amount <= 0) {
             throw new V2PointException('Point consumption amount must be positive.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt ?? now())->startOfSecond();
+        $occurred = CarbonImmutable::instance($occurredAt ?? now())->startOfSecond();
 
         return $this->transactions->run(function () use (
             $userId,
@@ -448,21 +433,14 @@ final class V2PointService
                     ->where('public_id', $claim->record->resource_public_id)
                     ->firstOrFail();
             }
-            $availablePaid = (int) $wallet->paid_balance
-                - (int) $wallet->paid_reserved_balance;
-            $freeLots = $this->lockFreeLots($userId, $occurred);
-            $availableFree = $freeLots->sum(
+            $lots = $this->lockConsumableLots($userId, $occurred);
+            $available = $lots->sum(
                 fn (PointLot $lot): int =>
                     (int) $lot->remaining_amount - (int) $lot->reserved_amount
             );
-            if ($availableFree + $availablePaid < $amount) {
+            if ($available < $amount) {
                 throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
             }
-            $freeToConsume = min($amount, $availableFree);
-            $paidToConsume = $amount - $freeToConsume;
-            $paidLots = $paidToConsume > 0
-                ? $this->lockPaidLots($userId)
-                : collect();
             $operation = $this->operation(
                 $userId,
                 'spend',
@@ -473,31 +451,20 @@ final class V2PointService
                 $userId
             );
             $sequence = 1;
-            $remainingFree = $freeToConsume;
+            $remaining = $amount;
             $runningFree = (int) $wallet->free_balance;
-            $this->consumeLots(
-                $freeLots,
-                $remainingFree,
+            $runningPaid = (int) $wallet->paid_balance;
+            $consumed = $this->consumeLots(
+                $lots,
+                $remaining,
                 $operation,
                 $wallet,
-                'free',
+                $runningPaid,
                 $runningFree,
                 $sequence,
                 $occurred
             );
-            $remainingPaid = $paidToConsume;
-            $runningPaid = (int) $wallet->paid_balance;
-            $this->consumeLots(
-                $paidLots,
-                $remainingPaid,
-                $operation,
-                $wallet,
-                'paid',
-                $runningPaid,
-                $sequence,
-                $occurred
-            );
-            if ($remainingFree !== 0 || $remainingPaid !== 0) {
+            if ($remaining !== 0) {
                 throw new V2PointException('Locked point lots do not match wallet availability.');
             }
 
@@ -528,8 +495,8 @@ final class V2PointService
                 ],
                 'metadata' => [
                     'amount' => $amount,
-                    'free_amount' => $freeToConsume,
-                    'paid_amount' => $paidToConsume,
+                    'free_amount' => $consumed['free'],
+                    'paid_amount' => $consumed['paid'],
                     'operation_public_id' => $operation->public_id,
                 ],
             ]);
@@ -549,25 +516,20 @@ final class V2PointService
         if (DB::transactionLevel() < 1 || $amount <= 0) {
             throw new V2PointException('Draw point validation input is invalid.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
-        $wallet = $this->lockWallet($userId);
-        $freeLots = $this->lockFreeLots($userId, $occurred);
-        $availableFree = $freeLots->sum(
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $this->lockWallet($userId);
+        $lots = $this->lockConsumableLots($userId, $occurred);
+        $available = $lots->sum(
             fn (PointLot $lot): int =>
                 (int) $lot->remaining_amount - (int) $lot->reserved_amount
         );
-        $availablePaid = (int) $wallet->paid_balance
-            - (int) $wallet->paid_reserved_balance;
-        if ($availableFree + $availablePaid < $amount) {
+        if ($available < $amount) {
             throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
-        }
-        if ($availablePaid > 0) {
-            $this->lockPaidLots($userId);
         }
     }
 
     /**
-     * Draw Transaction内で既存のfree優先／paid FIFO規則を適用する。
+     * Draw Transaction内でpaid／free横断FEFO規則を適用する。
      *
      * @return array{
      *   operation: PointOperation,
@@ -592,23 +554,16 @@ final class V2PointService
         ) {
             throw new V2PointException('Draw point consumption input is invalid.');
         }
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
         $wallet = $this->lockWallet($userId);
-        $availablePaid = (int) $wallet->paid_balance
-            - (int) $wallet->paid_reserved_balance;
-        $freeLots = $this->lockFreeLots($userId, $occurred);
-        $availableFree = $freeLots->sum(
+        $lots = $this->lockConsumableLots($userId, $occurred);
+        $available = $lots->sum(
             fn (PointLot $lot): int =>
                 (int) $lot->remaining_amount - (int) $lot->reserved_amount
         );
-        if ($availableFree + $availablePaid < $amount) {
+        if ($available < $amount) {
             throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
         }
-        $freeToConsume = min($amount, $availableFree);
-        $paidToConsume = $amount - $freeToConsume;
-        $paidLots = $paidToConsume > 0
-            ? $this->lockPaidLots($userId)
-            : collect();
         $operation = $this->operation(
             $userId,
             'spend',
@@ -620,31 +575,20 @@ final class V2PointService
             $drawRequestId
         );
         $sequence = 1;
-        $remainingFree = $freeToConsume;
+        $remaining = $amount;
         $runningFree = (int) $wallet->free_balance;
-        $this->consumeLotsForDraw(
-            $freeLots,
-            $remainingFree,
+        $runningPaid = (int) $wallet->paid_balance;
+        $consumed = $this->consumeLotsForDraw(
+            $lots,
+            $remaining,
             $operation,
             $wallet,
-            'free',
+            $runningPaid,
             $runningFree,
             $sequence,
             $occurred
         );
-        $remainingPaid = $paidToConsume;
-        $runningPaid = (int) $wallet->paid_balance;
-        $this->consumeLotsForDraw(
-            $paidLots,
-            $remainingPaid,
-            $operation,
-            $wallet,
-            'paid',
-            $runningPaid,
-            $sequence,
-            $occurred
-        );
-        if ($remainingFree !== 0 || $remainingPaid !== 0) {
+        if ($remaining !== 0) {
             throw new V2PointException('Locked point lots do not match wallet availability.');
         }
         $wallet->forceFill([
@@ -655,8 +599,8 @@ final class V2PointService
 
         return [
             'operation' => $operation,
-            'paid' => $paidToConsume,
-            'free' => $freeToConsume,
+            'paid' => $consumed['paid'],
+            'free' => $consumed['free'],
             'wallet_paid_after' => $runningPaid,
             'wallet_free_after' => $runningFree,
         ];
@@ -696,16 +640,13 @@ final class V2PointService
             throw new V2PointException('Admin point adjustment input is invalid.');
         }
 
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
         $wallet = $this->lockWallet($userId);
         $paidBefore = (int) $wallet->paid_balance;
         $freeBefore = (int) $wallet->free_balance;
-        $expireAt = $pointType === 'free' && $direction === 'grant'
-            ? $occurred->addDays((int) config('oripa.free_point_expiration_days', 180))
+        $expireAt = $direction === 'grant'
+            ? $this->expiryPolicy->expiresAt($occurred)
             : null;
-        if ($expireAt !== null && $expireAt->lessThanOrEqualTo($occurred)) {
-            throw new V2PointException('Free point adjustment expiry is invalid.');
-        }
 
         $operation = $this->operation(
             $userId,
@@ -756,9 +697,7 @@ final class V2PointService
             if ($selectedBalance - $selectedReserved < $amount) {
                 throw new V2PointException('INSUFFICIENT_POINT_BALANCE');
             }
-            $lots = $pointType === 'paid'
-                ? $this->lockPaidLots($userId)
-                : $this->lockFreeLots($userId, $occurred);
+            $lots = $this->lockConsumableLots($userId, $occurred, $pointType);
             $availableLots = $lots->sum(
                 fn (PointLot $lot): int =>
                     (int) $lot->remaining_amount - (int) $lot->reserved_amount
@@ -831,8 +770,8 @@ final class V2PointService
             return ['total' => 0, 'wallet_free_after' => (int) $wallet->free_balance];
         }
 
-        $occurred = CarbonImmutable::parse($occurredAt)->startOfSecond();
-        $expiry = $occurred->addDays((int) config('v2_draw.point_back_expiry_days', 180));
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $expiry = $this->expiryPolicy->expiresAt($occurred);
         $businessDate = $occurred->setTimezone('Asia/Tokyo')->toDateString();
         $wallet = $this->lockWallet($userId);
         $operationRows = [];
@@ -967,13 +906,14 @@ final class V2PointService
         int &$remaining,
         PointOperation $operation,
         Wallet $wallet,
-        string $pointType,
-        int &$runningBalance,
+        int &$runningPaid,
+        int &$runningFree,
         int &$sequence,
         CarbonImmutable $occurred
-    ): void {
+    ): array {
         $updates = [];
         $ledgerRows = [];
+        $consumed = ['paid' => 0, 'free' => 0];
         $businessDate = $occurred->setTimezone('Asia/Tokyo')->toDateString();
         foreach ($lots as $lot) {
             if ($remaining === 0) {
@@ -985,10 +925,18 @@ final class V2PointService
                 continue;
             }
             $lotRemaining = (int) $lot->remaining_amount - $used;
-            $runningBalance -= $used;
-            if ($runningBalance < 0 || $lotRemaining < 0) {
+            $pointType = (string) $lot->point_type;
+            if ($pointType === 'paid') {
+                $runningPaid -= $used;
+                $walletAfter = $runningPaid;
+            } else {
+                $runningFree -= $used;
+                $walletAfter = $runningFree;
+            }
+            if ($walletAfter < 0 || $lotRemaining < 0) {
                 throw new V2PointException('Point consumption would create a negative balance.');
             }
+            $consumed[$pointType] += $used;
             $updates[(int) $lot->id] = $lotRemaining;
             $ledgerRows[] = [
                 'point_operation_id' => $operation->id,
@@ -999,7 +947,7 @@ final class V2PointService
                 'point_type' => $pointType,
                 'entry_type' => 'spend',
                 'amount_delta' => -$used,
-                'wallet_balance_after' => $runningBalance,
+                'wallet_balance_after' => $walletAfter,
                 'lot_remaining_after' => $lotRemaining,
                 'occurred_at' => $occurred,
                 'business_date' => $businessDate,
@@ -1030,14 +978,15 @@ final class V2PointService
         foreach (array_chunk($ledgerRows, 250) as $chunk) {
             DB::table('point_ledger_entries')->insert($chunk);
         }
+
+        return $consumed;
     }
 
-    public function expireFree(CarbonInterface $cutoff): int
+    public function expire(CarbonInterface $cutoff): int
     {
-        $cutoffAt = CarbonImmutable::parse($cutoff)->startOfSecond();
+        $cutoffAt = CarbonImmutable::instance($cutoff)->startOfSecond();
         $userIds = PointLot::query()
-            ->where('point_type', 'free')
-            ->where('expire_at', '<=', $cutoffAt)
+            ->where('expire_at', '<=', $cutoffAt->toIso8601String())
             ->where('remaining_amount', '>', 0)
             ->where('reserved_amount', 0)
             ->orderBy('user_id')
@@ -1046,40 +995,47 @@ final class V2PointService
         $expiredLots = 0;
         foreach ($userIds as $userId) {
             $expiredLots += $this->transactions->run(
-                fn (): int => $this->expireUserFree((int) $userId, $cutoffAt)
+                fn (): int => $this->expireUser((int) $userId, $cutoffAt)
             );
         }
 
         return $expiredLots;
     }
 
-    private function expireUserFree(int $userId, CarbonImmutable $cutoff): int
+    private function expireUser(int $userId, CarbonImmutable $cutoff): int
     {
         $user = User::query()->whereKey($userId)->firstOrFail();
         $wallet = $this->lockWallet($userId);
         $lots = PointLot::query()
             ->where('user_id', $userId)
-            ->where('point_type', 'free')
-            ->where('expire_at', '<=', $cutoff)
+            ->where('expire_at', '<=', $cutoff->toIso8601String())
             ->where('remaining_amount', '>', 0)
             ->where('reserved_amount', 0)
+            ->orderBy('expire_at')
+            ->orderBy('granted_at')
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
         $count = 0;
         foreach ($lots as $lot) {
             $amount = (int) $lot->remaining_amount;
+            $pointType = (string) $lot->point_type;
             $operation = $this->operation(
                 $userId,
-                'free_expire',
+                'point_expire',
                 'point',
-                'point.free_expire:'.$lot->id,
+                'point.expire:'.$lot->id,
                 $cutoff
             );
-            $before = (int) $wallet->free_balance;
+            $balanceColumn = $pointType.'_balance';
+            $before = (int) $wallet->{$balanceColumn};
+            $after = $before - $amount;
+            if ($after < 0) {
+                throw new V2PointException('Point expiration would create a negative balance.');
+            }
             $lot->forceFill(['remaining_amount' => 0])->save();
             $wallet->forceFill([
-                'free_balance' => $before - $amount,
+                $balanceColumn => $after,
                 'lock_version' => (int) $wallet->lock_version + 1,
             ])->save();
             $this->ledger(
@@ -1087,20 +1043,21 @@ final class V2PointService
                 $wallet,
                 $lot,
                 1,
-                'free',
+                $pointType,
                 'expire',
                 -$amount,
-                (int) $wallet->free_balance,
+                $after,
                 0,
                 $cutoff
             );
-            $this->audit->record('point.free_expired', [
+            $this->audit->record('point.expired', [
                 'target_type' => 'user_wallet',
                 'target_public_id' => $user->public_id,
-                'before' => ['free_balance' => $before],
-                'after' => ['free_balance' => (int) $wallet->free_balance],
+                'before' => [$balanceColumn => $before],
+                'after' => [$balanceColumn => $after],
                 'metadata' => [
                     'amount' => $amount,
+                    'point_type' => $pointType,
                     'operation_public_id' => $operation->public_id,
                 ],
             ]);
@@ -1129,29 +1086,21 @@ final class V2PointService
     /**
      * @return Collection<int, PointLot>
      */
-    private function lockFreeLots(int $userId, CarbonImmutable $occurred): Collection
+    private function lockConsumableLots(
+        int $userId,
+        CarbonImmutable $occurred,
+        ?string $pointType = null
+    ): Collection
     {
         return PointLot::query()
             ->where('user_id', $userId)
-            ->where('point_type', 'free')
-            ->where('expire_at', '>', $occurred)
+            ->when($pointType !== null, fn ($query) => $query->where('point_type', $pointType))
+            ->where(function ($query) use ($occurred): void {
+                $query->whereNull('expire_at')
+                    ->orWhere('expire_at', '>', $occurred->toIso8601String());
+            })
             ->whereColumn('remaining_amount', '>', 'reserved_amount')
-            ->orderBy('expire_at')
-            ->orderBy('granted_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
-    }
-
-    /**
-     * @return Collection<int, PointLot>
-     */
-    private function lockPaidLots(int $userId): Collection
-    {
-        return PointLot::query()
-            ->where('user_id', $userId)
-            ->where('point_type', 'paid')
-            ->whereColumn('remaining_amount', '>', 'reserved_amount')
+            ->orderByRaw('expire_at ASC NULLS LAST')
             ->orderBy('granted_at')
             ->orderBy('id')
             ->lockForUpdate()
@@ -1160,17 +1109,19 @@ final class V2PointService
 
     /**
      * @param Collection<int, PointLot> $lots
+     * @return array{paid: int, free: int}
      */
     private function consumeLots(
         Collection $lots,
         int &$remaining,
         PointOperation $operation,
         Wallet $wallet,
-        string $pointType,
-        int &$runningBalance,
+        int &$runningPaid,
+        int &$runningFree,
         int &$sequence,
         CarbonImmutable $occurred
-    ): void {
+    ): array {
+        $consumed = ['paid' => 0, 'free' => 0];
         foreach ($lots as $lot) {
             if ($remaining === 0) {
                 break;
@@ -1181,10 +1132,18 @@ final class V2PointService
                 continue;
             }
             $lotRemaining = (int) $lot->remaining_amount - $used;
-            $runningBalance -= $used;
-            if ($runningBalance < 0 || $lotRemaining < 0) {
+            $pointType = (string) $lot->point_type;
+            if ($pointType === 'paid') {
+                $runningPaid -= $used;
+                $walletAfter = $runningPaid;
+            } else {
+                $runningFree -= $used;
+                $walletAfter = $runningFree;
+            }
+            if ($walletAfter < 0 || $lotRemaining < 0) {
                 throw new V2PointException('Point consumption would create a negative balance.');
             }
+            $consumed[$pointType] += $used;
             $lot->forceFill(['remaining_amount' => $lotRemaining])->save();
             $this->ledger(
                 $operation,
@@ -1194,12 +1153,14 @@ final class V2PointService
                 $pointType,
                 'spend',
                 -$used,
-                $runningBalance,
+                $walletAfter,
                 $lotRemaining,
                 $occurred
             );
             $remaining -= $used;
         }
+
+        return $consumed;
     }
 
     /**

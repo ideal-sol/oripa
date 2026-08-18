@@ -385,14 +385,17 @@ final class V2QaExecutionManagementService
             ->where('id', $assignment->active_draw_state_id)->first();
         $version = $state === null ? null : DB::table('catalog_gacha_versions')
             ->where('id', $state->gacha_version_id)->first();
-        $wallet = DB::table('wallets')->where('user_id', $assignment->user_internal_id)
-            ->first();
         $required = $version === null
             ? 0
             : (int) $version->price_points * $request['draw_count'];
-        $available = $wallet === null
-            ? 0
-            : (int) $wallet->paid_balance + (int) $wallet->free_balance;
+        $operationAt = CarbonImmutable::now()->startOfSecond();
+        $operationAtIso = $operationAt->toIso8601String();
+        $available = (int) DB::table('point_lots')
+            ->where('user_id', $assignment->user_internal_id)
+            ->where(function ($query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->sum(DB::raw('remaining_amount - reserved_amount'));
         $remaining = $state === null
             ? 0
             : (int) $state->total_count - (int) $state->sold_count;

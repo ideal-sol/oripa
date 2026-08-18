@@ -247,7 +247,6 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             10_000,
-            now()->addYear(),
             'daily-limit-concurrency-points'
         );
 
@@ -352,7 +351,6 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             100_000,
-            now()->addYear(),
             'partial-concurrency-points'
         );
 
@@ -448,7 +446,6 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             app(V2PointService::class)->grantFree(
                 $user->id,
                 6_000_000,
-                now()->addYear(),
                 "draw-load-user-{$number}"
             );
             $users[] = $user->id;
@@ -782,7 +779,6 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             1_000,
-            now()->addYear(),
             "operational-inventory-{$suffix}-points-".Str::uuid()
         );
 

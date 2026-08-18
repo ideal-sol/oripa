@@ -167,7 +167,6 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             200_000,
-            now()->addYear(),
             'qa-guarantee-concurrency-points'
         );
         $context = $this->context($owner);

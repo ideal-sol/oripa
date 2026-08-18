@@ -15,6 +15,7 @@ final class PointBalanceSnapshot extends Model
         return [
             'snapshot_date' => 'immutable_date',
             'source_cutoff_at' => 'immutable_datetime',
+            'expired_paid_amount' => 'integer',
             'is_base_date' => 'boolean',
             'generated_at' => 'immutable_datetime',
             'created_at' => 'immutable_datetime',

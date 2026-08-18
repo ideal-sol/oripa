@@ -14,18 +14,26 @@ final class V2CurrentUserPointReadService
     /** @return array{paid_points: int, free_points: int, total_points: int} */
     public function wallet(User $user): array
     {
-        $wallet = DB::table('wallets')->where('user_id', $user->id)->first([
-            'paid_balance',
-            'free_balance',
-            'paid_reserved_balance',
-            'free_reserved_balance',
-        ]);
-        if ($wallet === null) {
-            return ['paid_points' => 0, 'free_points' => 0, 'total_points' => 0];
-        }
-
-        $paid = (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance;
-        $free = (int) $wallet->free_balance - (int) $wallet->free_reserved_balance;
+        $operationAt = CarbonImmutable::now()->startOfSecond();
+        $operationAtIso = $operationAt->toIso8601String();
+        $balance = DB::table('point_lots')
+            ->where('user_id', $user->id)
+            ->where(function (Builder $query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->selectRaw(
+                <<<'SQL'
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'paid'
+                    ), 0) AS paid,
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'free'
+                    ), 0) AS free
+                SQL
+            )
+            ->first();
+        $paid = (int) $balance->paid;
+        $free = (int) $balance->free;
 
         return [
             'paid_points' => $paid,
@@ -116,7 +124,7 @@ final class V2CurrentUserPointReadService
     private function reason(string $sourceType, string $operationType): array
     {
         $label = match (true) {
-            $operationType === 'free_expire' => 'ポイント失効',
+            $operationType === 'point_expire' => 'ポイント失効',
             $sourceType === 'payment' => 'ポイント購入',
             $sourceType === 'draw' && $operationType === 'free_grant' => 'ガチャポイント還元',
             $sourceType === 'draw' => 'ガチャ利用',

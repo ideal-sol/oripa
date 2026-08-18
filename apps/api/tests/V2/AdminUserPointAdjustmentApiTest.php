@@ -70,6 +70,11 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             ->assertJsonPath('data.free_balance_after', 0)
             ->assertJsonPath('idempotent_replay', false);
         self::assertSame('false', $paidGrant->headers->get('Idempotency-Replayed'));
+        $paidLot = DB::table('point_lots')->where('point_type', 'paid')->sole();
+        self::assertSame(
+            now()->startOfSecond()->addDays(180)->toIso8601String(),
+            CarbonImmutable::parse($paidLot->expire_at)->toIso8601String()
+        );
 
         Auth::forgetGuards();
         $admin = $this->adminSession(V2AdminRole::Admin);

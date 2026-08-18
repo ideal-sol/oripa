@@ -182,7 +182,6 @@ final class CurrentUserDrawHistoryReadContractTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             10_000,
-            now()->addYear(),
             'draw-history-points-'.Str::uuid7()
         );
 

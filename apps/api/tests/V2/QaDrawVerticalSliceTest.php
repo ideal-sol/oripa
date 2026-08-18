@@ -661,6 +661,37 @@ final class QaDrawVerticalSliceTest extends TestCase
         self::assertDatabaseCount('draw_requests', 0);
     }
 
+    public function test_admin_qa_preflight_excludes_expired_lots_before_worker_runs(): void
+    {
+        [$user, $owner] = $this->fixture(freePoints: 100);
+        $this->enableMode($owner, $user);
+        $plan = $this->qaPlan($owner, $user, [
+            $this->item(self::PRIZE_A_ID, 1, 1),
+        ]);
+        $assignment = DB::table('qa_draw_plan_assignments')
+            ->where('qa_draw_plan_id', DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('id'))
+            ->firstOrFail();
+        $expiry = CarbonImmutable::parse(DB::table('point_lots')
+            ->where('user_id', $user->id)->value('expire_at'));
+        CarbonImmutable::setTestNow($expiry);
+        $request = [
+            'assignment_id' => $assignment->public_id,
+            'plan_revision' => (int) DB::table('qa_draw_plans')
+                ->where('public_id', $plan['id'])->value('revision'),
+            'assignment_revision' => (int) $assignment->revision,
+            'draw_count' => 1,
+        ];
+
+        $preflight = app(V2QaExecutionManagementService::class)
+            ->preflight($this->adminContext($owner), $plan['id'], $request);
+
+        self::assertSame(0, $preflight['available_points']);
+        self::assertContains('POINT_BALANCE_INSUFFICIENT', $preflight['validation_codes']);
+        self::assertSame(100, (int) DB::table('point_lots')
+            ->where('user_id', $user->id)->value('remaining_amount'));
+    }
+
     /**
      * @param list<int> $randomValues
      * @return array{User, Admin}
@@ -699,7 +730,6 @@ final class QaDrawVerticalSliceTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             $freePoints,
-            now()->addYear(),
             'qa-draw-fixture-points-'.Str::uuid()
         );
         $index = 0;

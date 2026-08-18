@@ -89,6 +89,9 @@ final class V2PointSnapshotService
                         WHERE point_type = 'free' AND entry_type = 'spend'
                     ), 0) AS consumed_free,
                     COALESCE(-SUM(amount_delta) FILTER (
+                        WHERE point_type = 'paid' AND entry_type = 'expire'
+                    ), 0) AS expired_paid,
+                    COALESCE(-SUM(amount_delta) FILTER (
                         WHERE point_type = 'free' AND entry_type = 'expire'
                     ), 0) AS expired_free,
                     COALESCE(-SUM(amount_delta) FILTER (
@@ -124,6 +127,7 @@ final class V2PointSnapshotService
             'granted_free_amount' => (int) $flows->granted_free,
             'consumed_paid_amount' => (int) $flows->consumed_paid,
             'consumed_free_amount' => (int) $flows->consumed_free,
+            'expired_paid_amount' => (int) $flows->expired_paid,
             'expired_free_amount' => (int) $flows->expired_free,
             'reversed_paid_amount' => (int) $flows->reversed_paid,
             'reversed_free_amount' => (int) $flows->reversed_free,

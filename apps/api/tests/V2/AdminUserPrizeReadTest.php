@@ -189,7 +189,6 @@ final class AdminUserPrizeReadTest extends TestCase
         app(V2PointService::class)->grantFree(
             $this->user->id,
             100_000,
-            now()->addYear(),
             'admin-user-prize-points-'.Str::uuid()
         );
         $this->app->instance(

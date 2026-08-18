@@ -935,6 +935,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_06_000051_add_v2_banner_top_presentation.php",
             "apps/api/database/migrations-v2/2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
             "apps/api/database/migrations-v2/2026_09_08_000053_operational_gacha_inventory.php",
+            "apps/api/database/migrations-v2/2026_09_09_000054_add_v2_coin_expiry_core.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1088,6 +1089,40 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "paid Point grant"):
                 policy_gate.validate_v2_point_boundary(root, paths)
 
+    def test_v2_coin_expiry_null_grant_guard_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_point_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_09_09_000054_add_v2_coin_expiry_core.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8").replace(
+                    "point_lots_new_expiry_guard",
+                    "REMOVED_POINT_LOT_EXPIRY_GUARD",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "expiry_guard"):
+                policy_gate.validate_v2_point_boundary(root, paths)
+
+    def test_v2_coin_expiry_fefo_nulls_last_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_point_boundary(root)
+            service = root / "apps/api/app/Domain/Point/Services/V2PointService.php"
+            service.write_text(
+                service.read_text(encoding="utf-8").replace(
+                    "orderByRaw('expire_at ASC NULLS LAST')",
+                    "orderBy('expire_at')",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "NULLS LAST"):
+                policy_gate.validate_v2_point_boundary(root, paths)
+
     def copy_v2_payment_boundary(self, root):
         paths = set(policy_gate.V2_PAYMENT_REQUIRED_FILES)
         for relative in paths:
@@ -1119,7 +1154,7 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "tenant_id"):
                 policy_gate.validate_v2_payment_boundary(root, paths)
 
-    def test_v2_payment_bonus_expiry_fail_closed_boundary_is_required(self):
+    def test_v2_payment_common_expiry_policy_is_required(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.copy_v2_payment_boundary(root)
@@ -1129,12 +1164,12 @@ python3 scripts/db/v2_database.py smoke \\
             )
             service.write_text(
                 service.read_text(encoding="utf-8").replace(
-                    "PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED",
-                    "REMOVED_BONUS_EXPIRY_GUARD",
+                    "expiresAt($grantedAt)",
+                    "REMOVED_COMMON_EXPIRY_POLICY",
                 ),
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(policy_gate.PolicyFailure, "bonus|missing"):
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "expiresAt|missing"):
                 policy_gate.validate_v2_payment_boundary(root, paths)
 
     def copy_v2_catalog_boundary(self, root):

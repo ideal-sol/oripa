@@ -8507,3 +8507,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 1000連はquery max 55（SELECT 30／INSERT 19／UPDATE 6）、100連は49（SELECT 30／INSERT 13／UPDATE 6）でSelection／Inventory N+1なし。Task Migration created／applied 0、Public OpenAPI／Client／Testkit／Artifact／Storefront／Preview変更0である。
 - Required Checks、CodeQL、Dependency Review、Fresh Self-review、Squash Merge、Issue／branch／worktree／Integration Lock cleanupはFinal Head固定後に継続する。
 - 初回PR Head `eb87ff173dc72a108dbb9987255cb02874072af5`では旧固定ppm／Point-first QA lock順を守るPolicy GateがB2 Human仕様と衝突しFAIL、Quality Gateは`setup-php`取得のGitHub 429／502でApplication実行前にFAILした。Draw Policyを動的bounded CSPRNG、Canonical Inventory、Transaction／Idempotency、Prize-only／Legacy Probability・Direct Point Back禁止、Inventory-first QA lock順へFail Closedで同期し、Legacy Schema／過去Read保護は維持した。Policy Unit 131 tests／Local GateをPASSしたfresh headで再検証する。
+
+## MIG-062Y Coin Expiry Core
+
+- Latest `main@1bd2cb5015ca50b1798bca4a83f9d6d5125e5dc6`、MIG-062X完全Closeout、Active Task／Issue／PR／Remote branch／worktree／Integration・Migration・Preview Lockを確認した。Issue #291、Branch `feat/MIG-062Y-coin-expiry-core`、専用Worktree、Risk R4で開始し、Integration LockとMigration Allocation `000054`を取得した。Migration materialize後にAllocation Lockだけ解放し、Integration Lockを保持する。
+- 人間の明示承認により、旧paid無期限／free→paid固定順／free-only expiration Policy GateをC1aへ置換した。負残高、Wallet→Lot Row Lock、`SKIP LOCKED`禁止、SQLSTATE限定最大3回Retry、append-only履歴、Reconciliation non-repairは維持する。
+- 全新規paid／free Grantを確定時刻＋180日へ共通化した。Payment paid／bonus、通常free、LINE、Referral、Point Exchange、Admin Grant、Draw Point Backが同じPolicyを使用し、新規NULL Lot／Grant Adjustmentとexpiry変更をDB Trigger／Constraintで拒否する。
+- Migration 54は既存paid NULL Lot／paid Grant Adjustmentだけを`legacy_no_expiry`で明示し、期限Backfillを行わない。既存free expiryは不変である。通常Consume／Draw／Admin deductは`expires_at ASC NULLS LAST, granted_at ASC, id ASC`の全Lot FEFOとし、期限境界一致をRead／Spend／Draw／QA preflight／新規Reservationから除外する。
+- paid／free ExpirationはReservation中Lotを飛ばし、Wallet／Lot／Ledger／Auditを既存Transaction Runnerで整合させる。Reservation releaseは元expiryを維持し、期限切れ残高をReadへ戻さない。ChargebackはFEFOへ統合せず、origin-first、paid取消優先、free取消、不足記録、Reversal manual reviewを維持する。
+- Task専用PostgreSQLでMigration fresh、rollback／reapply、function残存後の再fresh、適用前Legacy実データupgrade、新規NULL Lot／Adjustment拒否をPASSした。Point 16 tests／84 assertions、Payment 21／90、B2／Grant回帰77／874、Policy境界9 testsがPASSした。Local全Suite／全Build、Public OpenAPI／Client／Testkit／Artifact、Admin Presentation、OPS／Preview／Productionは変更・実行していない。
+- Initial focused failuresはtimezone境界fixture、Reservation global worker count、C1a FEFO後Chargeback期待、PostgreSQL function残存再freshであり、各root cause修正後に対象test／migrationを再実行してPASSした。Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge／CleanupはFinal Head固定後に継続する。

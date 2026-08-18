@@ -355,9 +355,6 @@ final class V2LineFriendService
             (int) $friendship->getKey(),
             $friendship->public_id,
             $amount,
-            CarbonImmutable::parse($occurredAt)->addDays(
-                (int) $setting->reward_expiration_days
-            ),
             $occurredAt
         );
         if ($operation === null) {

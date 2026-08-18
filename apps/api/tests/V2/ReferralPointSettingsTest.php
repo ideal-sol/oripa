@@ -152,7 +152,7 @@ final class ReferralPointSettingsTest extends TestCase
         $expiries = DB::table('point_lots')->pluck('expire_at');
         foreach ($expiries as $expiry) {
             self::assertSame(
-                now()->addDays(30)->startOfSecond()->toIso8601String(),
+                now()->addDays(180)->startOfSecond()->toIso8601String(),
                 CarbonImmutable::parse($expiry)->toIso8601String()
             );
         }

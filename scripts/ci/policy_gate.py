@@ -361,6 +361,11 @@ MIG_061T_V2_POINT_FILES = {
     "apps/api/database/migrations-v2/2026_08_24_000037_create_v2_referral_point_settings.php",
     "apps/api/tests/V2/ReferralPointSettingsTest.php",
 }
+MIG_062Y_V2_POINT_FILES = {
+    "apps/api/app/Console/Commands/V2/ExpirePointLots.php",
+    "apps/api/app/Domain/Point/Services/V2CoinExpiryPolicy.php",
+    "apps/api/database/migrations-v2/2026_09_09_000054_add_v2_coin_expiry_core.php",
+}
 V2_POINT_REQUIRED_FILES = {
     "apps/api/app/Domain/Point/Exceptions/V2PointException.php",
     "apps/api/app/Domain/Point/Services/V2PointIdempotencyService.php",
@@ -385,6 +390,7 @@ V2_POINT_REQUIRED_FILES = {
     "docs/operations/point-model/README.md",
     *MIG_061H_V2_POINT_FILES,
     *MIG_061T_V2_POINT_FILES,
+    *MIG_062Y_V2_POINT_FILES,
 }
 MIG_061V_V2_PAYMENT_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PointPurchasePlanException.php",
@@ -2321,6 +2327,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_06_000051_add_v2_banner_top_presentation.php",
         "2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
         "2026_09_08_000053_operational_gacha_inventory.php",
+        "2026_09_09_000054_add_v2_coin_expiry_core.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2839,8 +2846,6 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         "idempotency_records",
         "paid_reserved_balance <= paid_balance",
         "free_reserved_balance <= free_balance",
-        "point_type = 'paid' AND expire_at IS NULL",
-        "point_type = 'free' AND expire_at IS NOT NULL",
         "$table->string('business_key', 191)->unique()",
         "v2_reject_point_immutable_mutation",
         "BEFORE TRUNCATE",
@@ -2858,23 +2863,67 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         if prohibited in migration:
             raise PolicyFailure(f"V2 Point migration contains prohibited {prohibited}")
 
+    expiry_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_09_09_000054_add_v2_coin_expiry_core.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "legacy_no_expiry",
+        "where('point_type', 'paid')",
+        "whereNull('expire_at')",
+        "v2_reject_new_null_point_expiry",
+        "point_lots_new_expiry_guard",
+        "v2_reject_point_expiry_mutation",
+        "point_lots_expiry_immutable_guard",
+        "v2_reject_new_null_adjustment_grant_expiry",
+        "point_adjustments_new_expiry_guard",
+        "point_adjustments_expiry_immutable_guard",
+        "expire_at ASC NULLS LAST, granted_at ASC, id ASC",
+        "point_lots_expiration_candidates",
+        "expired_paid_amount",
+        "point_snapshots_values_check",
+    ):
+        if required not in expiry_migration:
+            raise PolicyFailure(f"V2 Coin Expiry migration missing {required}")
+    for prohibited in (
+        "UPDATE point_lots SET expire_at",
+        "UPDATE point_adjustments SET expire_at",
+        "DROP TABLE point_lots",
+    ):
+        if prohibited in expiry_migration:
+            raise PolicyFailure(
+                f"V2 Coin Expiry migration contains prohibited {prohibited}"
+            )
+
+    expiry_policy = (
+        repository
+        / "apps/api/app/Domain/Point/Services/V2CoinExpiryPolicy.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "public const EXPIRY_DAYS = 180",
+        "CarbonImmutable::instance($grantedAt)->startOfSecond()->addDays(self::EXPIRY_DAYS)",
+    ):
+        if required not in expiry_policy:
+            raise PolicyFailure(f"V2 Coin Expiry policy missing {required}")
+
     service = (
         repository
         / "apps/api/app/Domain/Point/Services/V2PointService.php"
     ).read_text(encoding="utf-8")
     wallet_lock = service.find("lockWallet(")
-    free_lock = service.find("lockFreeLots(")
-    paid_lock = service.find("lockPaidLots(")
-    if wallet_lock < 0 or free_lock < wallet_lock or paid_lock < free_lock:
+    lot_lock = service.find("lockConsumableLots(", wallet_lock)
+    if wallet_lock < 0 or lot_lock < wallet_lock:
         raise PolicyFailure("V2 Point service does not lock Wallet before ordered Lots")
     for required in (
         "lockForUpdate()",
-        "orderBy('expire_at')",
+        "orderByRaw('expire_at ASC NULLS LAST')",
+        "orWhere('expire_at', '>', $occurred->toIso8601String())",
         "orderBy('granted_at')",
         "orderBy('id')",
         "'point.free_granted'",
         "'point.consumed'",
-        "'point.free_expired'",
+        "'point.expired'",
         "INSUFFICIENT_POINT_BALANCE",
     ):
         if required not in service:
@@ -2894,6 +2943,8 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         "'40P01'",
         "'normal_source' => 'succeeded_payment_only'",
         "'enabled' => false",
+        "'all_lots' => ['expire_at_nulls_last', 'granted_at', 'id']",
+        "'expiry_days' => 180",
     ):
         if required not in point_config:
             raise PolicyFailure(f"V2 Point configuration missing {required}")
@@ -2906,6 +2957,7 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         "where('occurred_at', '<', $cutoff)",
         "'ledger_cutoff'",
         "['03-31', '09-30']",
+        "'expired_paid_amount'",
         "'point.snapshot_generated'",
     ):
         if required not in snapshot:
@@ -2948,7 +3000,9 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
     )
     for required in (
         "test_wallet_and_lot_constraints",
-        "test_consumption_prefers_free_expiry",
+        "test_consumption_uses_cross_type_fefo_and_legacy_no_expiry_last",
+        "test_paid_and_free_expiry_are_idempotent_and_legacy_paid_survives",
+        "test_read_and_spend_exclude_due_lots_before_expiration_worker_runs",
         "test_transaction_rollback",
         "test_idempotency_replays",
         "test_same_wallet_concurrent_consumption",
@@ -3029,7 +3083,9 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
         "recordChargebackReversal",
         "payment_point_grants",
         "POINT_WALLET_NEGATIVE",
-        "PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED",
+        "V2CoinExpiryPolicy",
+        "expiresAt($grantedAt)",
+        "orderByRaw('expire_at ASC NULLS LAST')",
         "manual_review",
         "'payment.succeeded'",
         "'payment.refund.requested'",

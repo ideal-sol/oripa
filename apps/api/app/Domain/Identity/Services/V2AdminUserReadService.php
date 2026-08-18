@@ -28,8 +28,16 @@ final class V2AdminUserReadService
         ?string $cursor,
         int $limit = self::DEFAULT_LIMIT
     ): array {
+        $operationAt = CarbonImmutable::now()->startOfSecond();
         $query = DB::table('users')
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
+            ->leftJoinSub(
+                $this->availableBalances($operationAt),
+                'available_points',
+                'available_points.user_id',
+                '=',
+                'users.id'
+            )
             ->orderByDesc('users.id')
             ->select([
                 'users.id',
@@ -38,8 +46,8 @@ final class V2AdminUserReadService
                 'users.state',
                 'users.created_at',
                 'wallets.id as wallet_id',
-                'wallets.paid_balance',
-                'wallets.free_balance',
+                'available_points.paid_balance',
+                'available_points.free_balance',
             ]);
         $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
             'id' => (string) $row->public_id,
@@ -61,8 +69,16 @@ final class V2AdminUserReadService
         V2AdminAuthorizationContext $context,
         string $userPublicId
     ): array {
+        $operationAt = CarbonImmutable::now()->startOfSecond();
         $row = DB::table('users')
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
+            ->leftJoinSub(
+                $this->availableBalances($operationAt),
+                'available_points',
+                'available_points.user_id',
+                '=',
+                'users.id'
+            )
             ->where('users.public_id', $userPublicId)
             ->select([
                 'users.id',
@@ -76,8 +92,8 @@ final class V2AdminUserReadService
                 'users.updated_at',
                 'users.tag_assignment_revision',
                 'wallets.id as wallet_id',
-                'wallets.paid_balance',
-                'wallets.free_balance',
+                'available_points.paid_balance',
+                'available_points.free_balance',
             ])
             ->first();
         if ($row === null) {
@@ -229,14 +245,36 @@ final class V2AdminUserReadService
         if ($row->wallet_id === null) {
             return null;
         }
-        $paid = (int) $row->paid_balance;
-        $free = (int) $row->free_balance;
+        $paid = (int) ($row->paid_balance ?? 0);
+        $free = (int) ($row->free_balance ?? 0);
 
         return [
             'total_balance' => $paid + $free,
             'paid_balance' => $paid,
             'free_balance' => $free,
         ];
+    }
+
+    private function availableBalances(CarbonImmutable $operationAt): Builder
+    {
+        $operationAtIso = $operationAt->toIso8601String();
+
+        return DB::table('point_lots')
+            ->where(function (Builder $query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->groupBy('user_id')
+            ->select('user_id')
+            ->selectRaw(
+                <<<'SQL'
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'paid'
+                    ), 0) AS paid_balance,
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'free'
+                    ), 0) AS free_balance
+                SQL
+            );
     }
 
     /** @return list<array<string, mixed>> */

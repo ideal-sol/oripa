@@ -415,7 +415,6 @@ final class GachaDetailPresentationContractTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             10_000,
-            now()->addYear(),
             'presentation-points-'.Str::uuid()
         );
 

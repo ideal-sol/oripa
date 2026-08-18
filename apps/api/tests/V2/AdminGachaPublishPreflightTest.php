@@ -681,7 +681,6 @@ final class AdminGachaPublishPreflightTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             2_000,
-            now()->addYear(),
             'gacha-sales-pause-draw-points'
         );
         $drawKey = 'gacha-sales-pause-completed-draw';
@@ -1016,7 +1015,6 @@ final class AdminGachaPublishPreflightTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             2_000,
-            now()->addYear(),
             'gacha-unpublish-draw-points'
         );
         $drawKey = 'gacha-unpublish-completed-draw';

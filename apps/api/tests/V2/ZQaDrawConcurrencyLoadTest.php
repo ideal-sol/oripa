@@ -269,7 +269,6 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             2_000_000,
-            now()->addYear(),
             'qa-load-points-'.$user->public_id
         );
         $service = app(V2QaDrawAdminService::class);
