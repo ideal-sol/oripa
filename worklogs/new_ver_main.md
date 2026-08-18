@@ -8518,3 +8518,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Task専用PostgreSQLでMigration fresh、rollback／reapply、function残存後の再fresh、適用前Legacy実データupgrade、新規NULL Lot／Adjustment拒否をPASSした。Point 16 tests／87 assertions、Payment 21／90、B2／Grant回帰77／874、Policy境界9 testsがPASSした。Local全Suite／全Build、Public OpenAPI／Client／Testkit／Artifact、Admin Presentation、OPS／Preview／Productionは変更・実行していない。
 - Initial focused failuresはtimezone境界fixture、Reservation global worker count、C1a FEFO後Chargeback期待、PostgreSQL function残存再freshであり、各root cause修正後に対象test／migrationを再実行してPASSした。Application Head `6f718cce59da065287f6c4f7ebb9205943c3a30e`、PR #292を作成し、Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge／CleanupはFinal Head固定後に継続する。
 - Initial remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`はPolicy／Quality PASS、Integration／Security／ci-gate FAILだった。Integrationが検出したfree Grant idempotencyの時刻依存payloadと、Lot未作成の既存Current／Admin read fixture回帰を根因修正し、Point 16／87、Current＋Admin 8／142、QA preflight 1／3、idempotency 1／4を再PASSした。Security failureはTask非変更の空Dependency Advisory baselineが`2026-08-17`で失効したFail Closed結果であり、MIG-062YではGate／baselineを変更しない。
+
+## SEC-011 Dependency Advisory Baseline Fresh Security Review
+
+- MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。
+- 2026-08-18のfresh canonical Composer、Root pnpm／V2 workspace、Legacy pnpm auditはいずれも0 findingだった。新規Advisory、baseline array、dependency／lockfile、Gate／auditの弱体化はない。
+- empty baseline management metadataだけをSEC-011、review reason、bounded expiry `2026-08-25`へ更新した。次のFindingはremediationまたはexact-fingerprint Security Taskを必要とし、日付だけの延長を禁止する。
