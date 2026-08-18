@@ -288,6 +288,10 @@ test("Point Product Fixtureは順序、Eligibility、CTAをBackend判定済み�
     "first_purchase_required",
   );
   assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.unavailable.data[0].is_available, false);
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_eligible.data[0].limited_bonus.state, "active");
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_eligible.data[1].limited_bonus.state, "upcoming");
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.unavailable.data[0].limited_bonus.state, "inactive");
+  assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.unavailable.data[0].limited_bonus.presentation.is_visible, false);
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_POINT_PRODUCT_FIXTURES),
     /point_purchase_plan_id|target_user_tag_id|provider_code|internal_id|secret/i,

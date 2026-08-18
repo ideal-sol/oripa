@@ -16,6 +16,7 @@ final class V2PointProductReadService
     /** @return list<array<string, mixed>> */
     public function listing(?User $user): array
     {
+        $asOf = CarbonImmutable::now('UTC')->startOfSecond();
         $latest = DB::table('point_purchase_plans')
             ->selectRaw('code, MAX(version_no) AS version_no')
             ->groupBy('code');
@@ -43,15 +44,31 @@ final class V2PointProductReadService
                 'plan.available_from',
                 'plan.available_until',
             ]);
-        $now = CarbonImmutable::now('UTC')->startOfSecond();
+        $campaigns = DB::table('point_purchase_plan_limited_bonus_campaigns')
+            ->whereIn('point_purchase_plan_id', $rows->pluck('id'))
+            ->where('is_enabled', true)
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('point_purchase_plan_id');
 
         return $rows->map(
-            fn (object $plan): array => $this->present($plan, $user, $now)
+            fn (object $plan): array => $this->present(
+                $plan,
+                $user,
+                $asOf,
+                $campaigns->get($plan->id, collect())->all()
+            )
         )->values()->all();
     }
 
     /** @return array<string, mixed> */
-    private function present(object $plan, ?User $user, CarbonImmutable $now): array
+    private function present(
+        object $plan,
+        ?User $user,
+        CarbonImmutable $now,
+        array $campaigns
+    ): array
     {
         $saleState = $this->saleState($plan, $now);
         $reason = $this->reason($plan, $user, $saleState);
@@ -69,6 +86,7 @@ final class V2PointProductReadService
                 'total_points' => (int) $plan->paid_point_amount
                     + (int) $plan->free_point_amount,
             ],
+            'limited_bonus' => $this->limitedBonus($campaigns, $now),
             'audience' => [
                 'code' => $plan->audience_code,
                 'label' => $plan->audience_code
@@ -83,6 +101,47 @@ final class V2PointProductReadService
             'ineligible_reason' => $reason,
             'cta' => $this->cta($reason),
         ];
+    }
+
+    /** @param list<object> $campaigns */
+    private function limitedBonus(array $campaigns, CarbonImmutable $asOf): array
+    {
+        $active = null;
+        $upcoming = null;
+        foreach ($campaigns as $campaign) {
+            $start = CarbonImmutable::parse($campaign->starts_at)->utc();
+            $end = CarbonImmutable::parse($campaign->ends_at)->utc();
+            if (! $asOf->lessThan($start) && $asOf->lessThan($end)) {
+                $active = $campaign;
+                break;
+            }
+            if ($asOf->lessThan($start) && $upcoming === null) {
+                $upcoming = $campaign;
+            }
+        }
+        $selected = $active ?? $upcoming;
+        $state = $active !== null ? 'active' : ($upcoming !== null ? 'upcoming' : 'inactive');
+        $amount = $selected === null ? 0 : (int) $selected->bonus_point_amount;
+
+        return [
+            'amount' => $amount,
+            'starts_at' => $selected === null ? null : $this->utc($selected->starts_at),
+            'ends_at' => $selected === null ? null : $this->utc($selected->ends_at),
+            'state' => $state,
+            'as_of' => $asOf->toIso8601ZuluString(),
+            'presentation' => [
+                'is_visible' => $selected !== null,
+                'label' => '期間限定ボーナスコイン',
+                'amount_text' => $selected === null
+                    ? null
+                    : '+'.number_format($amount).'コイン',
+            ],
+        ];
+    }
+
+    private function utc(mixed $value): string
+    {
+        return CarbonImmutable::parse($value)->utc()->toIso8601ZuluString();
     }
 
     private function saleState(object $plan, CarbonImmutable $now): string

@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.21
+  version: 2.0.0-alpha.23
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -2081,6 +2081,45 @@ components:
         total_points:
           type: integer
           minimum: 1
+    PointProductLimitedBonusState:
+      type: string
+      enum: [active, upcoming, inactive]
+    PointProductLimitedBonusPresentation:
+      type: object
+      additionalProperties: false
+      required: [is_visible, label, amount_text]
+      properties:
+        is_visible:
+          type: boolean
+        label:
+          type: string
+          const: 期間限定ボーナスコイン
+        amount_text:
+          type: [string, 'null']
+          description: Backendが確定した表示用追加Coin量。inactiveはnull。
+    PointProductLimitedBonus:
+      type: object
+      additionalProperties: false
+      required: [amount, starts_at, ends_at, state, as_of, presentation]
+      properties:
+        amount:
+          type: integer
+          minimum: 0
+          description: activeまたは次のupcoming Campaignの追加Bonus Coin量。inactiveは0。
+        starts_at:
+          type: [string, 'null']
+          format: date-time
+        ends_at:
+          type: [string, 'null']
+          format: date-time
+        state:
+          $ref: '#/components/schemas/PointProductLimitedBonusState'
+        as_of:
+          type: string
+          format: date-time
+          description: stateとpresentationをBackendが確定したUTC時刻。
+        presentation:
+          $ref: '#/components/schemas/PointProductLimitedBonusPresentation'
     PointProductSaleState:
       type: string
       enum: [coming_soon, available, ended]
@@ -2135,6 +2174,8 @@ components:
           $ref: '#/components/schemas/PointProductPrice'
         grant:
           $ref: '#/components/schemas/PointProductGrant'
+        limited_bonus:
+          $ref: '#/components/schemas/PointProductLimitedBonus'
         audience:
           $ref: '#/components/schemas/PointProductAudience'
         sale_state:

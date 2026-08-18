@@ -107,6 +107,9 @@ import {
   type AdminLineMessagingPreviewRequest,
   type AdminLineMessagingSettingResponse,
   type AdminLineMessagingSettingUpdate,
+  type AdminLimitedBonusCampaignCollection,
+  type AdminLimitedBonusCampaignInput,
+  type AdminLimitedBonusCampaignMutationResult,
   type AdminReferralPointSettingMutationResult,
   type AdminReferralPointSettingResponse,
   type AdminReferralPointSettingUpdate,
@@ -500,6 +503,17 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminPointPurchasePlanResponse> {
     return this.request("GET", `/point-purchase-plans/${encodeURIComponent(id)}`, { signal });
+  }
+
+  listLimitedBonusCampaigns(
+    planId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminLimitedBonusCampaignCollection> {
+    return this.request(
+      "GET",
+      `/point-purchase-plans/${encodeURIComponent(planId)}/limited-bonus-campaigns`,
+      { signal },
+    );
   }
 
   listContentNotices(
@@ -921,6 +935,39 @@ export class AdminApiClient {
       idempotencyKey,
       signal,
     });
+  }
+
+  createLimitedBonusCampaign(
+    planId: string,
+    body: AdminLimitedBonusCampaignInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminLimitedBonusCampaignMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "LIMITED_BONUS_CAMPAIGN_INVALID", null, null, false));
+    }
+    return this.request(
+      "POST",
+      `/point-purchase-plans/${encodeURIComponent(planId)}/limited-bonus-campaigns`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  updateLimitedBonusCampaign(
+    planId: string,
+    campaignId: string,
+    body: AdminLimitedBonusCampaignInput,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminLimitedBonusCampaignMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "LIMITED_BONUS_CAMPAIGN_INVALID", null, null, false));
+    }
+    return this.request(
+      "PUT",
+      `/point-purchase-plans/${encodeURIComponent(planId)}/limited-bonus-campaigns/${encodeURIComponent(campaignId)}`,
+      { body, idempotencyKey, signal },
+    );
   }
 
   listCatalogCategories(

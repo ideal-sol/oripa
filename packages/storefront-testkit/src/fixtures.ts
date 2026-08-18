@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.21",
+      storefront_client_version: "2.0.0-alpha.23",
       required_capabilities: [],
     },
     public: {
@@ -66,7 +66,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.21",
+  minimum_storefront_client_version: "2.0.0-alpha.23",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -153,6 +153,18 @@ const allUsersPointProduct = {
   title: "スタンダード1000ポイント",
   price: { amount: 1000, currency: "JPY" },
   grant: { paid_points: 1000, bonus_points: 100, total_points: 1100 },
+  limited_bonus: {
+    amount: 300,
+    starts_at: "2026-08-15T00:00:00Z",
+    ends_at: "2026-08-16T00:00:00Z",
+    state: "active",
+    as_of: "2026-08-15T00:00:00Z",
+    presentation: {
+      is_visible: true,
+      label: "期間限定ボーナスコイン",
+      amount_text: "+300コイン",
+    },
+  },
   audience: { code: "all_users", label: "すべてのユーザー" },
   sale_state: "available",
   is_available: true,
@@ -167,6 +179,18 @@ const firstPurchasePointProduct = {
   title: "初回限定1000ポイント",
   price: { amount: 1000, currency: "JPY" },
   grant: { paid_points: 1000, bonus_points: 500, total_points: 1500 },
+  limited_bonus: {
+    amount: 500,
+    starts_at: "2026-08-16T00:00:00Z",
+    ends_at: "2026-08-17T00:00:00Z",
+    state: "upcoming",
+    as_of: "2026-08-15T00:00:00Z",
+    presentation: {
+      is_visible: true,
+      label: "期間限定ボーナスコイン",
+      amount_text: "+500コイン",
+    },
+  },
   audience: { code: "first_purchase_users", label: "初回ユーザー" },
   sale_state: "available",
   is_available: true,
@@ -226,6 +250,18 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
     data: [
       {
         ...allUsersPointProduct,
+        limited_bonus: {
+          amount: 0,
+          starts_at: null,
+          ends_at: null,
+          state: "inactive",
+          as_of: "2026-08-15T00:00:00Z",
+          presentation: {
+            is_visible: false,
+            label: "期間限定ボーナスコイン",
+            amount_text: null,
+          },
+        },
         sale_state: "ended",
         is_available: false,
         eligible: false,

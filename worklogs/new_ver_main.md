@@ -8564,3 +8564,32 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回検証は既存timestamp秒精度とmicrosecond replay比較の不一致、success fixtureのCanonical時刻欠落、event type guardの汎用status path誤適用を検出した。DB精度へのUTC秒正規化、success fixture更新、guardのsuccess確定path限定後に全focused testを再実行してPASSした。
 - Initial GitHub Integration Gateは新規Limited Bonus testが外側Transactionを使わずPoint fixtureを後続Line Messaging testへ残したため2 failuresとなった。Concurrency test以外をrollbackし、Concurrency fixtureを明示cleanupした後、Limited Bonus 7 tests／36 assertions、後続Line対象2 tests／24 assertions、全focused 36／180をPASSした。
 - Second GitHub Integration GateはMigration `000055`の新規2 tableが明示V2 Schema Inventoryへ未登録としてFail Closedした。`payment_limited_bonus_snapshots`と`point_purchase_plan_limited_bonus_campaigns`を正規順で登録し、focused inventory unitとLocal Policy GateをPASSした。
+
+## MIG-063B Limited Bonus Admin／Public Contract／Artifact
+
+- Latest `main@f2ecce33f8552e89dcda95fc0ac531d832a1c29e`、C2a Issue #297／PR #298、Migration `000055`、Remote／local branch・worktree・LockのCloseoutを必要最小限再確認した。Issue #299、Branch `feat/MIG-063B-limited-bonus-admin-public-contract`、専用Worktree、Risk R3で開始し、Artifact Release Lockを取得した。Migration Allocation、Integration Lock、Preview Lockは取得していない。
+- C2aの既存`V2LimitedBonusCampaignService`をExact Point Purchase Plan Versionへ接続し、Admin一覧／登録／編集、ON／OFF、開始／終了、追加量を提供した。Admin Adapterは型・認証・MFA・Idempotency・Audit・Problem変換だけを担当し、`start < end`、`bonus > 0`、`[start,end)` overlap、Lock／Transactionを再実装しない。
+- Public Point Productは既存`paid_points`／`bonus_points`／`total_points`を不変のまま、`limited_bonus`のamount、start、end、Backend UTC `as_of`、`active`／`upcoming`／`inactive`、表示可否・文言・追加量表示をadditiveに返す。開始境界はactive、終了境界はinactiveで、Storefrontに期間／Stack判定を持たせない。
+- Admin／Public／Webhook OpenAPI、bundles、Generated Admin型、Storefront Client型、Site Schema version、Testkit active／upcoming／inactive fixtureを新規`2.0.0-alpha.22`へ同期した。既存`2.0.0-alpha.21`は上書きせず、Storefront Repositoryへの直接導入、Registry publish、Stable Tag、Release、Preview／Production deployは実施しない。
+- 隔離PostgreSQLへ既存55 migrationsをfresh applyし、Admin CampaignとPublic境界8 tests／103 assertionsをPASSした。Admin 161 tests、Client 27、Site Schema 10、Testkit 34、OpenAPI 7、Release 10、Policy 135、各generate／check／typecheck／lint／build、Admin Production Build、PHP syntax、`git diff --check`がPASSした。Migration createdは0で、Task／Preview／ProductionへMigrationを適用していない。
+- Payment Snapshot、`provider_occurred_at`、single Grant、Expiry、Refund、Chargeback、金融Concurrency、Draw、Inventory、実Provider、Storefront Repositoryは変更していない。Required Checks、immutable Artifact発行／readback、Fresh Self-review、Squash Merge／Issue・branch・worktree cleanupはApplication Head固定後に継続する。
+
+## MIG-063B Limited Bonus Contract Artifact
+
+- Application Head `1ee95268b145713e5df31dfe7f4b1c8158df7414`のRequired 5 Checksは全てPASSした。初回PR event Policy GateはPR本文のAllowed Pathsが機械可読bulletでなかったためFail Closedし、actual diff 37 pathsをChanged／Allowed双方へ完全列挙した同一Headのmanual dispatchでPASSした。
+- GitHub-hosted Workflow Run `32141593541`が同一Source Commitからimmutable Storefront Contract Artifact `2.0.0-alpha.22`を発行した。Artifact IDは`9326245788`、outer／GitHub SHA-256は`e8b5598ce0eacc0bef032dbca141e91da9d110db816f916813218083b209087d`、Manifest SHA-256は`fcda62708350fab1249bdb0b6ab2fab8440ca89b2681edf8d587e60c27027d9c`である。
+- Client `d642a64afff5b310b4997ed63fb1fad3780eeb6b1e6b5dfef49f32dfb20b0c42`、Site Schema `94a4c2032a0ffd95b7931a8628031935e5f6b463703d5f7339e5ebe35bf4d6a7`、Testkit `0d19f288c5fe74722585a7896998df722946953f3b22d0f49559d22a8d41ca6c`、Public OpenAPI `ba00b46d34d0889bc883c86551c85ea2322d4f354723c3a2a68636e27cf5374a`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは上記3 packageの固定Version／tarball SHA、Public OpenAPI、Manifest、SHA256SUMSまでである。Storefront Repositoryへの直接導入、Registry publish、Stable Tag、GitHub Release、Preview／Production deployは実施していない。
+
+## MIG-063B Backward Compatibility Correction
+
+- PR-native Quality GateがPublic `PointProduct.required`への`limited_bonus`追加をbreaking changeとしてFail Closedした。Backendは常にCanonical fieldを返す一方、OpenAPIではfield自体をoptional additiveにして既存Consumer互換を維持し、Generated Client型も`limited_bonus?`へ修正した。既存`grant`のrequired fieldと意味は不変である。
+- Application Head `1ee95268b145713e5df31dfe7f4b1c8158df7414`由来の`2.0.0-alpha.22` Artifactは既にimmutable発行済みのため上書き／handoffせず、retired non-handoff evidenceとして保持する。Artifact Release Lock下で未使用Tagを確認し、正規handoff Versionを`2.0.0-alpha.23`へ再採番した。
+- Public OpenAPI PR-event backward compatibility、bundle／generate check、Client build＋27 tests、Testkit build＋34 tests、Admin typecheck、Policy 135、Release 10、Local Policy／Quality Gateを再PASSした。新しいexact Application HeadのRequired Checks、Artifact発行／readback、Final docs-only Head、Fresh Self-reviewは継続する。
+
+## MIG-063B Additive Contract Artifact Final
+
+- Corrected Application Head `633b41f347083c82028229d6e238842118635feb`のPR-native Required 5 Checksは全てPASSした。GitHub-hosted Workflow Run `32147032173`が同一Source Commitから正規handoff対象のimmutable Storefront Contract Artifact `2.0.0-alpha.23`を発行した。
+- Artifact IDは`9328364646`、outer／GitHub SHA-256は`a4e7fde91c4148971723778b847d0f1a43d4b58b3716fb1c9f4b1eceeb06818c`、Manifest SHA-256は`556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe`である。
+- Client `28a7b3558329eed9c608f828948befe2034e86c0add1511bd48db1ed437f58d9`、Site Schema `b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2`、Testkit `dc0bf6c16af439bf5a364955e8add936e8842096ca295a136a0f15a86e4102b0`、Public OpenAPI `5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは上記`2.0.0-alpha.23`の3 tarballs、Public OpenAPI、Manifest、SHA256SUMSだけを対象とする。`2.0.0-alpha.22`はhandoff対象外であり、Registry publish／Storefront Repository直接導入／Stable Tag／Release／Deployは0である。

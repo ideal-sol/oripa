@@ -49,6 +49,7 @@ use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminUserTagController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
+use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
 use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
 
@@ -142,6 +143,13 @@ Route::prefix('v2')
             ->whereUuid('planId')->name('v2.admin.point-purchase-plans.show');
         Route::put('/point-purchase-plans/{planId}', [V2AdminPointPurchasePlanController::class, 'update'])
             ->whereUuid('planId')->name('v2.admin.point-purchase-plans.update');
+        Route::get('/point-purchase-plans/{planId}/limited-bonus-campaigns', [V2AdminLimitedBonusCampaignController::class, 'index'])
+            ->whereUuid('planId')->name('v2.admin.point-purchase-plans.limited-bonus-campaigns.index');
+        Route::post('/point-purchase-plans/{planId}/limited-bonus-campaigns', [V2AdminLimitedBonusCampaignController::class, 'store'])
+            ->whereUuid('planId')->name('v2.admin.point-purchase-plans.limited-bonus-campaigns.store');
+        Route::put('/point-purchase-plans/{planId}/limited-bonus-campaigns/{campaignId}', [V2AdminLimitedBonusCampaignController::class, 'update'])
+            ->whereUuid('planId')->whereUuid('campaignId')
+            ->name('v2.admin.point-purchase-plans.limited-bonus-campaigns.update');
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
         Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])

@@ -121,6 +121,18 @@ const operations = {
   createAdminPointPurchasePlan: ["post", "/point-purchase-plans"],
   getAdminPointPurchasePlan: ["get", "/point-purchase-plans/{plan_id}"],
   updateAdminPointPurchasePlan: ["put", "/point-purchase-plans/{plan_id}"],
+  listAdminLimitedBonusCampaigns: [
+    "get",
+    "/point-purchase-plans/{plan_id}/limited-bonus-campaigns",
+  ],
+  createAdminLimitedBonusCampaign: [
+    "post",
+    "/point-purchase-plans/{plan_id}/limited-bonus-campaigns",
+  ],
+  updateAdminLimitedBonusCampaign: [
+    "put",
+    "/point-purchase-plans/{plan_id}/limited-bonus-campaigns/{campaign_id}",
+  ],
   listQaManagementPlans: ["get", "/qa/plans"],
   createQaManagementPlan: ["post", "/qa/plans"],
   getQaManagementPlan: ["get", "/qa/plans/{qa_plan_id}"],
@@ -468,6 +480,10 @@ const requiredSchemas = [
   "AdminPointPurchasePlanCollection",
   "AdminPointPurchasePlanResponse",
   "AdminPointPurchasePlanMutationResult",
+  "AdminLimitedBonusCampaign",
+  "AdminLimitedBonusCampaignInput",
+  "AdminLimitedBonusCampaignCollection",
+  "AdminLimitedBonusCampaignMutationResult",
   "QaManagementPlanCreate",
   "QaManagementPlanUpdate",
   "QaManagementPlanSummary",
@@ -1279,6 +1295,36 @@ export interface AdminPointPurchasePlanResponse {
 
 export interface AdminPointPurchasePlanMutationResult {
   data: AdminPointPurchasePlan;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminLimitedBonusCampaign {
+  id: string;
+  point_purchase_plan_id: string;
+  point_purchase_plan_version: number;
+  is_enabled: boolean;
+  starts_at: string;
+  ends_at: string;
+  bonus_point_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminLimitedBonusCampaignInput {
+  is_enabled: boolean;
+  starts_at: string;
+  ends_at: string;
+  bonus_point_amount: number;
+}
+
+export interface AdminLimitedBonusCampaignCollection {
+  items: AdminLimitedBonusCampaign[];
+  request_id: string;
+}
+
+export interface AdminLimitedBonusCampaignMutationResult {
+  data: AdminLimitedBonusCampaign;
   idempotent_replay: boolean;
   request_id: string;
 }

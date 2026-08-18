@@ -957,8 +957,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.21",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.21",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.23",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.23",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1333,7 +1333,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
-    if package.get("version") != "2.0.0-alpha.21":
+    if package.get("version") != "2.0.0-alpha.23":
         raise PolicyFailure("package.json: V2 workspace version is invalid")
     if package.get("private") is not True:
         raise PolicyFailure("package.json: root workspace must be private")
@@ -1455,7 +1455,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     package = load_json(repository, "apps/admin/package.json")
     if (
         package.get("name") != "@oripa/admin"
-        or package.get("version") != "2.0.0-alpha.21"
+        or package.get("version") != "2.0.0-alpha.23"
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
         or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
@@ -1706,7 +1706,7 @@ def validate_package_skeletons(repository: Path) -> None:
         package = load_json(repository, relative)
         if (
             package.get("name") != expected_name
-            or package.get("version") != "2.0.0-alpha.21"
+            or package.get("version") != "2.0.0-alpha.23"
             or package.get("private") is not True
         ):
             raise PolicyFailure(f"{relative}: Package Skeleton identity is invalid")
@@ -1750,7 +1750,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.21",
+        "version": "2.0.0-alpha.23",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1791,7 +1791,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     if package.get("oripaCompatibility") != {
         "family": 2,
         "apiMajor": 2,
-        "minimumPublicApiContract": "2.0.0-alpha.21",
+        "minimumPublicApiContract": "2.0.0-alpha.23",
         "requiredCapabilities": [
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
@@ -1889,7 +1889,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.21",
+        "version": "2.0.0-alpha.23",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2007,7 +2007,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.21",
+        "version": "2.0.0-alpha.23",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2048,8 +2048,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.21",
-        "siteSchemaVersion": "2.0.0-alpha.21",
+        "storefrontClientVersion": "2.0.0-alpha.23",
+        "siteSchemaVersion": "2.0.0-alpha.23",
         "publicApiOperationCount": 54,
     }:
         raise PolicyFailure(
@@ -5051,9 +5051,9 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     required_statements = {
-        'PLATFORM_VERSION = "2.0.0-alpha.21"',
+        'PLATFORM_VERSION = "2.0.0-alpha.23"',
         'CHANNEL = "alpha"',
-        'RELEASE_TAG = "platform-v2.0.0-alpha.21"',
+        'RELEASE_TAG = "platform-v2.0.0-alpha.23"',
         "PRODUCTION_ALLOWED = False",
         "DATA_RETENTION_GUARANTEED = False",
         "pnpm",
