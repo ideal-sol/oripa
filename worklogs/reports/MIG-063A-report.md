@@ -42,6 +42,7 @@
 - Policy focused: 4 tests PASS。Local Policy Gate、変更PHP syntax、Python compile、`git diff --check` PASS。
 - Focused API image build PASS。全Suite／Repository全BuildはTask指示により未実行。
 - Initial GitHub Integration Gateは新規testのPoint fixture残存により後続Line Messaging 2 testsがFAILした。Concurrency test以外のTransaction rollbackとConcurrency fixture cleanupへ修正し、Limited Bonus 7／36、後続Line対象2／24、全focused 36／180を再PASSした。
+- Second GitHub Integration GateはMigration `000055`の新規2 tableが明示V2 Schema Inventoryへ未登録としてFAILした。両tableを正規順で登録し、focused inventory unitとLocal Policy GateをPASSした。
 
 ## Scope／Impact
 

@@ -181,7 +181,19 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
         self.assertIn(
+            "public.payment_limited_bonus_snapshots",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        self.assertIn(
             "public.payment_provider_events",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        self.assertIn(
+            "public.point_purchase_plan_limited_bonus_campaigns",
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
