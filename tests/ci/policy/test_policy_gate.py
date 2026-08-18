@@ -1791,7 +1791,7 @@ This is a non-Production Skeleton and contains no application implementation.
             json.dumps(
                 {
                     "name": "@oripa/platform-workspace",
-                    "version": "2.0.0-alpha.22",
+                    "version": "2.0.0-alpha.23",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -1851,7 +1851,7 @@ packages:
                 json.dumps(
                     {
                         "name": name,
-                        "version": "2.0.0-alpha.22",
+                        "version": "2.0.0-alpha.23",
                         "private": True,
                         "description": "Fixture Skeleton",
                         "license": "UNLICENSED",
@@ -1863,7 +1863,7 @@ packages:
             json.dumps(
                 {
                     "name": "@oripa/site-schema",
-                    "version": "2.0.0-alpha.22",
+                    "version": "2.0.0-alpha.23",
                     "private": True,
                     "description": "Fixture Alpha",
                     "license": "UNLICENSED",
@@ -2003,7 +2003,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.22",
+                    "version": "2.0.0-alpha.23",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2041,7 +2041,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.22",
+                        "minimumPublicApiContract": "2.0.0-alpha.23",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

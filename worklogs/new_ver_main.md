@@ -8580,3 +8580,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - GitHub-hosted Workflow Run `32141593541`が同一Source Commitからimmutable Storefront Contract Artifact `2.0.0-alpha.22`を発行した。Artifact IDは`9326245788`、outer／GitHub SHA-256は`e8b5598ce0eacc0bef032dbca141e91da9d110db816f916813218083b209087d`、Manifest SHA-256は`fcda62708350fab1249bdb0b6ab2fab8440ca89b2681edf8d587e60c27027d9c`である。
 - Client `d642a64afff5b310b4997ed63fb1fad3780eeb6b1e6b5dfef49f32dfb20b0c42`、Site Schema `94a4c2032a0ffd95b7931a8628031935e5f6b463703d5f7339e5ebe35bf4d6a7`、Testkit `0d19f288c5fe74722585a7896998df722946953f3b22d0f49559d22a8d41ca6c`、Public OpenAPI `ba00b46d34d0889bc883c86551c85ea2322d4f354723c3a2a68636e27cf5374a`を`SHA256SUMS`と実Fileへreadback一致確認した。
 - Storefront handoffは上記3 packageの固定Version／tarball SHA、Public OpenAPI、Manifest、SHA256SUMSまでである。Storefront Repositoryへの直接導入、Registry publish、Stable Tag、GitHub Release、Preview／Production deployは実施していない。
+
+## MIG-063B Backward Compatibility Correction
+
+- PR-native Quality GateがPublic `PointProduct.required`への`limited_bonus`追加をbreaking changeとしてFail Closedした。Backendは常にCanonical fieldを返す一方、OpenAPIではfield自体をoptional additiveにして既存Consumer互換を維持し、Generated Client型も`limited_bonus?`へ修正した。既存`grant`のrequired fieldと意味は不変である。
+- Application Head `1ee95268b145713e5df31dfe7f4b1c8158df7414`由来の`2.0.0-alpha.22` Artifactは既にimmutable発行済みのため上書き／handoffせず、retired non-handoff evidenceとして保持する。Artifact Release Lock下で未使用Tagを確認し、正規handoff Versionを`2.0.0-alpha.23`へ再採番した。
+- Public OpenAPI PR-event backward compatibility、bundle／generate check、Client build＋27 tests、Testkit build＋34 tests、Admin typecheck、Policy 135、Release 10、Local Policy／Quality Gateを再PASSした。新しいexact Application HeadのRequired Checks、Artifact発行／readback、Final docs-only Head、Fresh Self-reviewは継続する。

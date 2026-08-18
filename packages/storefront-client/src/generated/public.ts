@@ -1154,7 +1154,7 @@ export interface components {
             title: string;
             price: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PointProductGrant"];
-            limited_bonus: components["schemas"]["PointProductLimitedBonus"];
+            limited_bonus?: components["schemas"]["PointProductLimitedBonus"];
             audience: components["schemas"]["PointProductAudience"];
             sale_state: components["schemas"]["PointProductSaleState"];
             is_available: boolean;
