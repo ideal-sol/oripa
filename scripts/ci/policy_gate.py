@@ -403,6 +403,11 @@ MIG_061V_V2_PAYMENT_FILES = {
 MIG_062D_V2_PAYMENT_FILES = {
     "apps/api/database/migrations-v2/2026_08_29_000043_add_v2_point_purchase_plan_target_tag.php",
 }
+MIG_063A_V2_PAYMENT_FILES = {
+    "apps/api/app/Domain/Payment/V2/Services/V2LimitedBonusCampaignService.php",
+    "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
+    "apps/api/tests/V2/LimitedBonusDomainCoreTest.php",
+}
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
     "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php",
@@ -412,6 +417,7 @@ V2_PAYMENT_REQUIRED_FILES = {
     "docs/operations/payment-model/README.md",
     *MIG_061V_V2_PAYMENT_FILES,
     *MIG_062D_V2_PAYMENT_FILES,
+    *MIG_063A_V2_PAYMENT_FILES,
 }
 MIG_061I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
@@ -2328,6 +2334,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_07_000052_add_v2_gacha_lifecycle_presentation.php",
         "2026_09_08_000053_operational_gacha_inventory.php",
         "2026_09_09_000054_add_v2_coin_expiry_core.php",
+        "2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3100,6 +3107,61 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if prohibited in service:
             raise PolicyFailure(f"V2 Payment service contains prohibited {prohibited}")
+
+    limited_bonus_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_09_10_000055_add_v2_limited_bonus_domain_core.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "point_purchase_plan_limited_bonus_campaigns",
+        "payment_limited_bonus_snapshots",
+        "limited_bonus_point_amount",
+        "pg_advisory_xact_lock",
+        "tstzrange",
+        "'[)'",
+        "payment_limited_bonus_snapshots_reject_mutation",
+    ):
+        if required not in limited_bonus_migration:
+            raise PolicyFailure(f"V2 Limited Bonus migration missing {required}")
+
+    limited_bonus_service = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/"
+        "V2LimitedBonusCampaignService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "lockForUpdate()",
+        "LIMITED_BONUS_CAMPAIGN_INVALID",
+        "LIMITED_BONUS_CAMPAIGN_OVERLAP",
+    ):
+        if required not in limited_bonus_service:
+            raise PolicyFailure(f"V2 Limited Bonus service missing {required}")
+
+    for required in (
+        "PROVIDER_OCCURRED_AT_REQUIRED",
+        "$event->provider_occurred_at",
+        "payment_limited_bonus_snapshots",
+        "paymentFreeGrantAmount($payment)",
+        "limited_bonus_point_amount",
+    ):
+        if required not in service:
+            raise PolicyFailure(f"V2 Limited Bonus payment integration missing {required}")
+
+    limited_bonus_tests = (
+        repository / "apps/api/tests/V2/LimitedBonusDomainCoreTest.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "test_campaign_validation_overlap_adjacent_and_off_state",
+        "test_concurrent_overlapping_campaign_mutations_are_serialized",
+        "test_payment_snapshots_campaign_and_grants_regular_plus_limited_once",
+        "test_success_boundaries_use_provider_time_and_disabled_snapshot_is_off",
+        "test_missing_canonical_success_time_fails_closed",
+        "test_legacy_payment_without_snapshot_never_receives_limited_bonus",
+        "test_refund_chargeback_totals_include_granted_bonus_and_reversal_is_manual",
+    ):
+        if required not in limited_bonus_tests:
+            raise PolicyFailure(f"V2 Limited Bonus test missing {required}")
 
     config = (repository / "apps/api/config/v2_payment.php").read_text(
         encoding="utf-8"

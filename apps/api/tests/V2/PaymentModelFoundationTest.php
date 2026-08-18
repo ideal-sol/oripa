@@ -190,7 +190,9 @@ final class PaymentModelFoundationTest extends TestCase
             'payment.succeeded',
             '{}',
             [],
-            $payment->id
+            $payment->id,
+            null,
+            now()
         );
         $this->expectException(V2PaymentException::class);
         $this->expectExceptionMessage('PAYMENT_TERMINAL_STATE');
@@ -594,7 +596,9 @@ final class PaymentModelFoundationTest extends TestCase
             'payment.succeeded',
             '{}',
             [],
-            $olderPayment->id
+            $olderPayment->id,
+            null,
+            now()
         );
         $service->confirmSucceeded($olderEvent->id);
         $targetPayment = $this->payment(
@@ -608,7 +612,9 @@ final class PaymentModelFoundationTest extends TestCase
             'payment.succeeded',
             '{}',
             [],
-            $targetPayment->id
+            $targetPayment->id,
+            null,
+            now()
         );
         $service->confirmSucceeded($targetSuccess->id);
         $targetGrantOperation = DB::table('payment_point_grants')
@@ -687,7 +693,9 @@ final class PaymentModelFoundationTest extends TestCase
             'payment.succeeded',
             '{"safe":true}',
             [],
-            $payment->id
+            $payment->id,
+            null,
+            now()
         );
 
         return [$payment, $event];

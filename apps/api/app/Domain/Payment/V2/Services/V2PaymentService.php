@@ -89,6 +89,11 @@ final class V2PaymentService
                 throw new V2PaymentException('PURCHASE_PLAN_NOT_AVAILABLE');
             }
             $this->purchaseEligibility->assertEligible($user, $plan);
+            $campaigns = DB::table('point_purchase_plan_limited_bonus_campaigns')
+                ->where('point_purchase_plan_id', $plan->id)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
             $now = now()->startOfSecond();
             $publicId = (string) Str::uuid7();
             $paymentId = DB::table('payments')->insertGetId([
@@ -109,6 +114,17 @@ final class V2PaymentService
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            foreach ($campaigns as $campaign) {
+                DB::table('payment_limited_bonus_snapshots')->insert([
+                    'payment_id' => $paymentId,
+                    'campaign_public_id' => $campaign->public_id,
+                    'is_enabled' => $campaign->is_enabled,
+                    'starts_at' => $campaign->starts_at,
+                    'ends_at' => $campaign->ends_at,
+                    'bonus_point_amount' => $campaign->bonus_point_amount,
+                    'snapshotted_at' => $now,
+                ]);
+            }
             $this->paymentHistory($paymentId, null, 'created', 'user', null);
             $this->idempotency->complete($claim->record, 'payment', $publicId);
 
@@ -129,6 +145,9 @@ final class V2PaymentService
         ?int $adjustmentId = null,
         ?\DateTimeInterface $providerOccurredAt = null
     ): object {
+        if ($eventType === 'payment.succeeded' && $providerOccurredAt === null) {
+            throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
+        }
         foreach (array_keys($headers) as $key) {
             if (preg_match('/authorization|cookie|secret|token|signature/i', $key)) {
                 unset($headers[$key]);
@@ -142,7 +161,10 @@ final class V2PaymentService
                 'payment_id' => $paymentId,
                 'payment_adjustment_id' => $adjustmentId,
                 'signature_verified_at' => now()->startOfSecond(),
-                'provider_occurred_at' => $providerOccurredAt,
+                'provider_occurred_at' => $providerOccurredAt === null
+                    ? null
+                    : CarbonImmutable::parse($providerOccurredAt->format('Y-m-d H:i:s.uP'))
+                        ->utc()->startOfSecond()->toIso8601String(),
                 'received_at' => now()->startOfSecond(),
                 'payload_hash' => hash('sha256', $rawPayload),
                 'payload_ciphertext' => Crypt::encryptString($rawPayload),
@@ -166,6 +188,7 @@ final class V2PaymentService
             || (int) ($event->payment_id ?? 0) !== (int) ($paymentId ?? 0)
             || (int) ($event->payment_adjustment_id ?? 0) !== (int) ($adjustmentId ?? 0)
             || ! hash_equals($event->payload_hash, hash('sha256', $rawPayload))
+            || ! $this->sameInstant($event->provider_occurred_at, $providerOccurredAt)
         ) {
             throw new V2PaymentException('PROVIDER_EVENT_ID_REUSED');
         }
@@ -323,9 +346,17 @@ final class V2PaymentService
         return $this->transactions->run(function () use ($providerEventId): object {
             $event = DB::table('payment_provider_events')
                 ->where('id', $providerEventId)->lockForUpdate()->firstOrFail();
-            if ($event->signature_verified_at === null || $event->payment_id === null) {
+            if (
+                $event->event_type !== 'payment.succeeded'
+                || $event->signature_verified_at === null
+                || $event->payment_id === null
+            ) {
                 throw new V2PaymentException('VERIFIED_SERVER_EVENT_REQUIRED');
             }
+            if ($event->provider_occurred_at === null) {
+                throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
+            }
+            $succeededAt = CarbonImmutable::parse($event->provider_occurred_at);
             $payment = DB::table('payments')
                 ->where('id', $event->payment_id)->lockForUpdate()->firstOrFail();
             $existing = DB::table('payment_point_grants')
@@ -345,8 +376,16 @@ final class V2PaymentService
                 ->firstOrFail();
             $user = User::query()->findOrFail($payment->user_id);
             $this->purchaseEligibility->assertEligible($user, $plan, (int) $payment->id);
-            $this->transitionPayment($payment, 'succeeded', 'provider_event', $event->id);
-            $grant = $this->grantPaymentPoints($payment);
+            $limitedBonus = $this->limitedBonusAt((int) $payment->id, $succeededAt);
+            $succeededPayment = $this->transitionPayment(
+                $payment,
+                'succeeded',
+                'provider_event',
+                $event->id,
+                $succeededAt,
+                $limitedBonus
+            );
+            $grant = $this->grantPaymentPoints($succeededPayment);
             DB::table('payments')->where('id', $payment->id)->update([
                 'points_granted_at' => $grant->granted_at,
                 'updated_at' => now(),
@@ -359,6 +398,7 @@ final class V2PaymentService
                     'provider_code' => $payment->provider_code,
                     'amount' => (int) $payment->amount,
                     'currency' => $payment->currency,
+                    'limited_bonus_point_amount' => $limitedBonus,
                     'point_operation_public_id' => $grant->operation_public_id,
                 ],
             ]);
@@ -567,7 +607,7 @@ final class V2PaymentService
             DB::table('payment_adjustment_point_impacts')->insert([
                 'payment_adjustment_id' => $adjustment->id,
                 'required_paid_amount' => $payment->paid_point_amount,
-                'required_free_amount' => $payment->free_point_amount,
+                'required_free_amount' => $this->paymentFreeGrantAmount($payment),
                 'reversed_paid_from_paid' => $paid,
                 'reversed_free_from_free' => $free,
                 'reversed_paid_shortage_from_free' => 0,
@@ -647,7 +687,7 @@ final class V2PaymentService
             $allFree = $allLots->where('point_type', 'free')->values();
             $sequence = 1;
             $paidNeed = (int) $payment->paid_point_amount;
-            $freeNeed = (int) $payment->free_point_amount;
+            $freeNeed = $this->paymentFreeGrantAmount($payment);
             $runningPaidBalance = (int) $wallet->paid_balance;
             $runningFreeBalance = (int) $wallet->free_balance;
             $paidFromPaid = $this->consumeChargebackLots(
@@ -674,7 +714,7 @@ final class V2PaymentService
             DB::table('payment_adjustment_point_impacts')->insert([
                 'payment_adjustment_id' => $adjustment->id,
                 'required_paid_amount' => $payment->paid_point_amount,
-                'required_free_amount' => $payment->free_point_amount,
+                'required_free_amount' => $this->paymentFreeGrantAmount($payment),
                 'reversed_paid_from_paid' => $paidFromPaid,
                 'reversed_free_from_free' => $freeFromFree,
                 'reversed_paid_shortage_from_free' => $paidShortageFromFree,
@@ -760,7 +800,7 @@ final class V2PaymentService
         $grantedAt = CarbonImmutable::parse($operation->occurred_at)->startOfSecond();
         $expiresAt = $this->expiryPolicy->expiresAt($grantedAt);
         $paid = (int) $payment->paid_point_amount;
-        $free = (int) $payment->free_point_amount;
+        $free = $this->paymentFreeGrantAmount($payment);
         if ($paid > 0) {
             $this->grantLot($operation, $wallet, 'paid', $paid, $expiresAt, $sequence++);
         }
@@ -1026,12 +1066,27 @@ final class V2PaymentService
         object $payment,
         string $to,
         string $source,
-        ?int $eventId
+        ?int $eventId,
+        ?\DateTimeInterface $transitionedAt = null,
+        ?int $limitedBonusPointAmount = null
     ): object {
         $updates = ['status' => $to, 'updated_at' => now()];
-        $updates[$to.'_at'] = now()->startOfSecond();
+        $occurredAt = $transitionedAt === null
+            ? now()->startOfSecond()
+            : CarbonImmutable::parse($transitionedAt->format('Y-m-d H:i:s.uP'));
+        $updates[$to.'_at'] = $occurredAt->utc()->toIso8601String();
+        if ($to === 'succeeded') {
+            $updates['limited_bonus_point_amount'] = $limitedBonusPointAmount ?? 0;
+        }
         DB::table('payments')->where('id', $payment->id)->update($updates);
-        $this->paymentHistory($payment->id, $payment->status, $to, $source, $eventId);
+        $this->paymentHistory(
+            $payment->id,
+            $payment->status,
+            $to,
+            $source,
+            $eventId,
+            $occurredAt
+        );
 
         return DB::table('payments')->where('id', $payment->id)->firstOrFail();
     }
@@ -1041,7 +1096,8 @@ final class V2PaymentService
         ?string $from,
         string $to,
         string $source,
-        ?int $eventId
+        ?int $eventId,
+        ?\DateTimeInterface $occurredAt = null
     ): void {
         DB::table('payment_status_histories')->insert([
             'payment_id' => $paymentId,
@@ -1050,7 +1106,10 @@ final class V2PaymentService
             'transition_source' => $source,
             'provider_event_id' => $eventId,
             'actor_type' => $source === 'user' ? 'user' : 'system',
-            'occurred_at' => now()->startOfSecond(),
+            'occurred_at' => $occurredAt === null
+                ? now()->startOfSecond()
+                : CarbonImmutable::parse($occurredAt->format('Y-m-d H:i:s.uP'))
+                    ->utc()->toIso8601String(),
             'request_id' => (string) Str::uuid(),
             'created_at' => now(),
         ]);
@@ -1133,6 +1192,41 @@ final class V2PaymentService
             'request_id' => (string) Str::uuid(),
             'created_at' => now(),
         ]);
+    }
+
+    private function limitedBonusAt(int $paymentId, CarbonImmutable $succeededAt): int
+    {
+        $snapshots = DB::table('payment_limited_bonus_snapshots')
+            ->where('payment_id', $paymentId)
+            ->where('is_enabled', true)
+            ->where('starts_at', '<=', $succeededAt->utc()->toIso8601String())
+            ->where('ends_at', '>', $succeededAt->utc()->toIso8601String())
+            ->orderBy('id')
+            ->get();
+        if ($snapshots->count() > 1) {
+            throw new V2PaymentException('LIMITED_BONUS_SNAPSHOT_STACK_INVALID');
+        }
+
+        return $snapshots->isEmpty() ? 0 : (int) $snapshots->first()->bonus_point_amount;
+    }
+
+    private function paymentFreeGrantAmount(object $payment): int
+    {
+        return (int) $payment->free_point_amount
+            + (int) ($payment->limited_bonus_point_amount ?? 0);
+    }
+
+    private function sameInstant(mixed $stored, ?\DateTimeInterface $provided): bool
+    {
+        if ($stored === null || $provided === null) {
+            return $stored === null && $provided === null;
+        }
+
+        return CarbonImmutable::parse($stored)->utc()->startOfSecond()->equalTo(
+            CarbonImmutable::parse($provided->format('Y-m-d H:i:s.uP'))
+                ->utc()
+                ->startOfSecond()
+        );
     }
 
     private function auditAdjustment(object $payment, object $adjustment, string $action): void
