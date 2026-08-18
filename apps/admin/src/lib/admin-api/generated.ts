@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5d363605caae9b9f0095601b96ef35f12a7bd21ff33ca1a5cea879a5cb64d4dd
+// Contract SHA-256: c66a7ac5029a421c60a089211630e52681aacfc8b12fe8f0f1f34a2b5fa5a9a4
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -116,6 +116,8 @@ export interface AdminUserPointBalance {
   total_balance: number;
   paid_balance: number;
   free_balance: number;
+  next_expiring_amount?: number;
+  next_expires_at?: string | null;
 }
 
 export interface AdminUserSummary {

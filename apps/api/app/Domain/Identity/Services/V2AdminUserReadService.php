@@ -84,7 +84,7 @@ final class V2AdminUserReadService
         $row = DB::table('users')
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
             ->leftJoinSub(
-                $this->availableBalances($operationAt),
+                $this->canonicalAvailableBalances($operationAt),
                 'available_points',
                 'available_points.user_id',
                 '=',
@@ -94,6 +94,13 @@ final class V2AdminUserReadService
                 $this->lotCounts(),
                 'point_lot_counts',
                 'point_lot_counts.user_id',
+                '=',
+                'users.id'
+            )
+            ->leftJoinSub(
+                $this->nextExpiryBalances($operationAt),
+                'next_expiry_points',
+                'next_expiry_points.user_id',
                 '=',
                 'users.id'
             )
@@ -112,10 +119,14 @@ final class V2AdminUserReadService
                 'wallets.id as wallet_id',
                 'wallets.paid_balance',
                 'wallets.free_balance',
+                'wallets.paid_reserved_balance',
+                'wallets.free_reserved_balance',
                 'point_lot_counts.paid_count',
                 'point_lot_counts.free_count',
                 'available_points.paid_balance as available_paid_balance',
                 'available_points.free_balance as available_free_balance',
+                'next_expiry_points.amount as next_expiring_amount',
+                'next_expiry_points.expire_at as next_expires_at',
             ])
             ->first();
         if ($row === null) {
@@ -261,7 +272,7 @@ final class V2AdminUserReadService
         ];
     }
 
-    /** @return array<string, int>|null */
+    /** @return array<string, int|string|null>|null */
     private function pointBalance(object $row): ?array
     {
         if ($row->wallet_id === null) {
@@ -269,16 +280,28 @@ final class V2AdminUserReadService
         }
         $paid = (int) ($row->paid_count ?? 0) > 0
             ? (int) $row->available_paid_balance
-            : (int) $row->paid_balance;
+            : (int) $row->paid_balance - (property_exists($row, 'paid_reserved_balance')
+                ? (int) $row->paid_reserved_balance
+                : 0);
         $free = (int) ($row->free_count ?? 0) > 0
             ? (int) $row->available_free_balance
-            : (int) $row->free_balance;
+            : (int) $row->free_balance - (property_exists($row, 'free_reserved_balance')
+                ? (int) $row->free_reserved_balance
+                : 0);
 
-        return [
+        $balance = [
             'total_balance' => $paid + $free,
             'paid_balance' => $paid,
             'free_balance' => $free,
         ];
+        if (property_exists($row, 'next_expiring_amount')) {
+            $balance['next_expiring_amount'] = (int) ($row->next_expiring_amount ?? 0);
+            $balance['next_expires_at'] = $row->next_expires_at === null
+                ? null
+                : $this->timestamp($row->next_expires_at);
+        }
+
+        return $balance;
     }
 
     private function availableBalances(CarbonImmutable $operationAt): Builder
@@ -301,6 +324,49 @@ final class V2AdminUserReadService
                     ), 0) AS free_balance
                 SQL
             );
+    }
+
+    private function canonicalAvailableBalances(CarbonImmutable $operationAt): Builder
+    {
+        $operationAtIso = $operationAt->toIso8601String();
+
+        return DB::table('point_lots')
+            ->whereRaw('remaining_amount > reserved_amount')
+            ->where(function (Builder $query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->groupBy('user_id')
+            ->select('user_id')
+            ->selectRaw(
+                <<<'SQL'
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'paid'
+                    ), 0) AS paid_balance,
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'free'
+                    ), 0) AS free_balance
+                SQL
+            );
+    }
+
+    private function nextExpiryBalances(CarbonImmutable $operationAt): Builder
+    {
+        $operationAtIso = $operationAt->toIso8601String();
+        $byTimestamp = DB::table('point_lots')
+            ->whereNotNull('expire_at')
+            ->where('expire_at', '>', $operationAtIso)
+            ->whereRaw('remaining_amount > reserved_amount')
+            ->groupBy(['user_id', 'expire_at'])
+            ->select(['user_id', 'expire_at'])
+            ->selectRaw('SUM(remaining_amount - reserved_amount) AS amount')
+            ->selectRaw(
+                'ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY expire_at ASC) AS expiry_rank'
+            );
+
+        return DB::query()
+            ->fromSub($byTimestamp, 'expiry_buckets')
+            ->where('expiry_rank', 1)
+            ->select(['user_id', 'expire_at', 'amount']);
     }
 
     private function lotCounts(): Builder

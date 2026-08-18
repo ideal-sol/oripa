@@ -123,6 +123,26 @@ test("Draw History FixtureはPresentation、Stable Ordering、Cursor、Typed Err
 
 test("Point Read Fixtureは残高、増減、空履歴、Cursor、Typed Errorを固定する", () => {
   assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.positive.total_points, 1000);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.canonical_expiry.paid_points, 130);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.canonical_expiry.free_points, 160);
+  assert.deepEqual(PUBLIC_POINT_BALANCE_FIXTURES.canonical_expiry.expiring_within_7_days, [
+    { expires_at: "2026-08-21T00:00:00Z", amount: 60 },
+    { expires_at: "2026-08-21T01:00:00Z", amount: 10 },
+    { expires_at: "2026-08-22T00:00:00Z", amount: 80 },
+  ]);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.legacy_no_expiry.total_points, 50);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.legacy_no_expiry.expiring_within_7_days.length, 0);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.expired_excluded.total_points, 0);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.reserved_excluded.total_points, 0);
+  assert.deepEqual(PUBLIC_POINT_BALANCE_FIXTURES.seven_day_boundary.expiring_within_7_days, [
+    { expires_at: "2026-08-22T00:00:00Z", amount: 20 },
+  ]);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.seven_day_boundary.total_points, 30);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.less_than_seven_days.expiring_within_7_days.length, 1);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.over_seven_days.expiring_within_7_days.length, 0);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.expires_at_as_of_excluded.total_points, 0);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.same_expiry_aggregated.expiring_within_7_days[0].amount, 30);
+  assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.timestamp_separation.expiring_within_7_days.length, 2);
   assert.equal(PUBLIC_POINT_BALANCE_FIXTURES.zero.total_points, 0);
   assert.equal(PUBLIC_POINT_HISTORY_FIXTURES.empty.items.length, 0);
   assert.equal(PUBLIC_POINT_HISTORY_FIXTURES.multiple.items[0].amount_delta, -300);

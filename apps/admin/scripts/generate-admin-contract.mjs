@@ -673,6 +673,8 @@ export interface AdminUserPointBalance {
   total_balance: number;
   paid_balance: number;
   free_balance: number;
+  next_expiring_amount?: number;
+  next_expires_at?: string | null;
 }
 
 export interface AdminUserSummary {

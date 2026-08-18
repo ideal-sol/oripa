@@ -28,24 +28,85 @@ final class CurrentUserPointReadContractTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_wallet_returns_canonical_available_balance_and_private_cache_boundary(): void
+    public function test_wallet_returns_canonical_available_balance_expiry_buckets_and_private_cache_boundary(): void
     {
         $user = $this->user();
-        $this->wallet($user, paid: 1200, free: 500, paidReserved: 200, freeReserved: 50);
+        $this->wallet($user, paid: 100, free: 206, paidReserved: 20);
+        $sixDays = CarbonImmutable::parse('2026-08-21T00:00:00Z');
+        $sixDaysLater = CarbonImmutable::parse('2026-08-21T01:00:00Z');
+        $sevenDays = CarbonImmutable::parse('2026-08-22T00:00:00Z');
+        $this->lot($user, 'free', 40, 10, $sixDays);
+        $this->lot($user, 'free', 30, 0, $sixDays);
+        $this->lot($user, 'free', 11, 0, $sixDaysLater);
+        $this->lot($user, 'free', 70, 0, $sevenDays);
+        $this->lot($user, 'free', 19, 0, CarbonImmutable::parse('2026-08-22T00:00:01Z'));
+        $this->lot($user, 'free', 13, 0, CarbonImmutable::parse('2026-08-15T00:00:00Z'));
+        $this->lot($user, 'free', 23, 23, CarbonImmutable::parse('2026-08-17T00:00:00Z'));
         Auth::guard('v2_user')->setUser($user);
+        $operationCount = DB::table('point_operations')->where('user_id', $user->id)->count();
+        $ledgerCount = DB::table('point_ledger_entries')->where('user_id', $user->id)->count();
+        $walletState = DB::table('wallets')->where('user_id', $user->id)->first();
+        $lotState = DB::table('point_lots')->where('user_id', $user->id)
+            ->orderBy('id')->get([
+                'remaining_amount',
+                'reserved_amount',
+                'expire_at',
+                'legacy_no_expiry',
+            ])->all();
 
         $response = $this->getJson('/api/v2/me/wallet')
             ->assertOk()
             ->assertHeader('Vary', 'Cookie')
-            ->assertExactJson([
-                'paid_points' => 1000,
-                'free_points' => 450,
-                'total_points' => 1450,
+            ->assertJsonPath('paid_points', 80)
+            ->assertJsonPath('free_points', 160)
+            ->assertJsonPath('total_points', 240)
+            ->assertJsonPath('as_of', '2026-08-15T00:00:00Z')
+            ->assertJsonPath('expiring_within_7_days', [
+                ['expires_at' => '2026-08-21T00:00:00Z', 'amount' => 60],
+                ['expires_at' => '2026-08-21T01:00:00Z', 'amount' => 11],
+                ['expires_at' => '2026-08-22T00:00:00Z', 'amount' => 70],
             ]);
 
         $cacheControl = (string) $response->headers->get('Cache-Control');
         self::assertStringContainsString('private', $cacheControl);
         self::assertStringContainsString('no-store', $cacheControl);
+        self::assertSame($operationCount, DB::table('point_operations')->where('user_id', $user->id)->count());
+        self::assertSame($ledgerCount, DB::table('point_ledger_entries')->where('user_id', $user->id)->count());
+        self::assertEquals($walletState, DB::table('wallets')->where('user_id', $user->id)->first());
+        self::assertEquals(
+            $lotState,
+            DB::table('point_lots')->where('user_id', $user->id)
+                ->orderBy('id')->get([
+                    'remaining_amount',
+                    'reserved_amount',
+                    'expire_at',
+                    'legacy_no_expiry',
+                ])->all()
+        );
+    }
+
+    public function test_wallet_preserves_legacy_no_expiry_balance_without_expiry_bucket(): void
+    {
+        $user = $this->user();
+        $this->wallet($user, paid: 50, free: 30);
+        DB::statement('ALTER TABLE point_lots DISABLE TRIGGER point_lots_new_expiry_guard');
+        try {
+            $this->lot($user, 'paid', 50, 0, null, true);
+        } finally {
+            DB::statement('ALTER TABLE point_lots ENABLE TRIGGER point_lots_new_expiry_guard');
+        }
+        $this->lot($user, 'free', 30, 0, CarbonImmutable::now()->addDays(3));
+        Auth::guard('v2_user')->setUser($user);
+
+        $this->getJson('/api/v2/me/wallet')
+            ->assertOk()
+            ->assertJsonPath('paid_points', 50)
+            ->assertJsonPath('free_points', 30)
+            ->assertJsonPath('total_points', 80)
+            ->assertJsonPath('as_of', '2026-08-15T00:00:00Z')
+            ->assertJsonPath('expiring_within_7_days', [
+                ['expires_at' => '2026-08-18T00:00:00Z', 'amount' => 30],
+            ]);
     }
 
     public function test_wallet_without_row_is_zero_and_read_does_not_create_domain_data(): void
@@ -58,6 +119,8 @@ final class CurrentUserPointReadContractTest extends TestCase
             'paid_points' => 0,
             'free_points' => 0,
             'total_points' => 0,
+            'as_of' => '2026-08-15T00:00:00Z',
+            'expiring_within_7_days' => [],
         ]);
         self::assertSame(0, DB::table('wallets')->where('user_id', $user->id)->count());
     }
@@ -249,5 +312,42 @@ final class CurrentUserPointReadContractTest extends TestCase
         }
 
         return $publicId;
+    }
+
+    private function lot(
+        User $user,
+        string $pointType,
+        int $remainingAmount,
+        int $reservedAmount,
+        ?CarbonImmutable $expiresAt,
+        bool $legacyNoExpiry = false
+    ): void {
+        $operationId = DB::table('point_operations')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $user->id,
+            'operation_type' => $pointType.'_grant',
+            'business_key' => 'point.read.lot:'.Str::uuid7(),
+            'source_type' => 'admin_adjustment',
+            'source_id' => null,
+            'actor_type' => 'system',
+            'actor_id' => null,
+            'is_qa' => false,
+            'qa_draw_execution_id' => null,
+            'occurred_at' => now(),
+            'business_date' => now()->setTimezone('Asia/Tokyo')->toDateString(),
+            'metadata' => '{}',
+            'created_at' => now(),
+        ]);
+        DB::table('point_lots')->insert([
+            'user_id' => $user->id,
+            'grant_operation_id' => $operationId,
+            'point_type' => $pointType,
+            'granted_amount' => $remainingAmount,
+            'remaining_amount' => $remainingAmount,
+            'reserved_amount' => $reservedAmount,
+            'granted_at' => now(),
+            'expire_at' => $expiresAt?->toIso8601String(),
+            'legacy_no_expiry' => $legacyNoExpiry,
+        ]);
     }
 }

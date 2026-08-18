@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.20",
+      storefront_client_version: "2.0.0-alpha.21",
       required_capabilities: [],
     },
     public: {
@@ -66,7 +66,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
 
 export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
   compatibility_family: 2,
-  minimum_storefront_client_version: "2.0.0-alpha.20",
+  minimum_storefront_client_version: "2.0.0-alpha.21",
   capabilities: [
     "auth.session.v2",
     "draw.browser-mutation.v2",
@@ -244,9 +244,107 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
 >);
 
 export const PUBLIC_POINT_BALANCE_FIXTURES = Object.freeze({
-  positive: { paid_points: 800, free_points: 200, total_points: 1000 },
-  zero: { paid_points: 0, free_points: 0, total_points: 0 },
-} as const satisfies Record<string, PublicComponents["schemas"]["WalletBalance"]>);
+  positive: {
+    paid_points: 800,
+    free_points: 200,
+    total_points: 1000,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  canonical_expiry: {
+    paid_points: 130,
+    free_points: 160,
+    total_points: 290,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [
+      { expires_at: "2026-08-21T00:00:00Z", amount: 60 },
+      { expires_at: "2026-08-21T01:00:00Z", amount: 10 },
+      { expires_at: "2026-08-22T00:00:00Z", amount: 80 },
+    ],
+  },
+  legacy_no_expiry: {
+    paid_points: 50,
+    free_points: 0,
+    total_points: 50,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  expired_excluded: {
+    paid_points: 0,
+    free_points: 0,
+    total_points: 0,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  reserved_excluded: {
+    paid_points: 0,
+    free_points: 0,
+    total_points: 0,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  seven_day_boundary: {
+    paid_points: 0,
+    free_points: 30,
+    total_points: 30,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [
+      { expires_at: "2026-08-22T00:00:00Z", amount: 20 },
+    ],
+  },
+  less_than_seven_days: {
+    paid_points: 0,
+    free_points: 20,
+    total_points: 20,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [
+      { expires_at: "2026-08-21T23:59:59Z", amount: 20 },
+    ],
+  },
+  over_seven_days: {
+    paid_points: 0,
+    free_points: 20,
+    total_points: 20,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  expires_at_as_of_excluded: {
+    paid_points: 0,
+    free_points: 0,
+    total_points: 0,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+  same_expiry_aggregated: {
+    paid_points: 0,
+    free_points: 30,
+    total_points: 30,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [
+      { expires_at: "2026-08-18T00:00:00Z", amount: 30 },
+    ],
+  },
+  timestamp_separation: {
+    paid_points: 0,
+    free_points: 42,
+    total_points: 42,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [
+      { expires_at: "2026-08-18T00:00:00Z", amount: 30 },
+      { expires_at: "2026-08-18T01:00:00Z", amount: 12 },
+    ],
+  },
+  zero: {
+    paid_points: 0,
+    free_points: 0,
+    total_points: 0,
+    as_of: "2026-08-15T00:00:00Z",
+    expiring_within_7_days: [],
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["CurrentUserWalletBalance"]
+>);
 
 export const PUBLIC_POINT_HISTORY_FIXTURES = Object.freeze({
   multiple: {

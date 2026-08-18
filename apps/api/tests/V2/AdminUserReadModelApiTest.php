@@ -7,6 +7,7 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Models\V2\Admin;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -48,6 +49,11 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertJsonPath('data.id', $user['public_id'])
                 ->assertJsonPath('data.email', $user['email'])
                 ->assertJsonPath('data.state_revision', 1)
+                ->assertJsonPath('data.point_balance.total_balance', 270)
+                ->assertJsonPath('data.point_balance.paid_balance', 90)
+                ->assertJsonPath('data.point_balance.free_balance', 180)
+                ->assertJsonPath('data.point_balance.next_expiring_amount', 0)
+                ->assertJsonPath('data.point_balance.next_expires_at', null)
                 ->assertJsonPath('data.tag_assignment_revision', 1)
                 ->assertJsonCount(0, 'data.tags')
                 ->assertJsonMissingPath('data.password_hash')
@@ -60,6 +66,40 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertJsonPath('user_id', $user['public_id'])
                 ->assertJsonCount(0, 'items');
             $this->assertPrivateContract($history);
+        }
+    }
+
+    public function test_detail_returns_available_balances_and_the_next_exact_expiry_bucket(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-18T00:00:00Z');
+
+        try {
+            $user = $this->user();
+            DB::table('wallets')->where('user_id', $user['id'])->update([
+                'paid_balance' => 120,
+                'free_balance' => 190,
+                'paid_reserved_balance' => 0,
+                'free_reserved_balance' => 10,
+            ]);
+            $this->lot($user['id'], 40, 10, CarbonImmutable::now()->addDays(2));
+            $this->lot($user['id'], 20, 0, CarbonImmutable::now()->addDays(2));
+            $this->lot($user['id'], 100, 0, CarbonImmutable::now()->addDays(3));
+            $this->lot($user['id'], 30, 0, CarbonImmutable::now()->subSecond());
+
+            $detail = $this->asAdmin($this->sessionToken(V2AdminRole::Owner))
+                ->getJson('/admin/api/v2/users/'.$user['public_id'])
+                ->assertOk()
+                ->assertJsonPath('data.point_balance.total_balance', 270)
+                ->assertJsonPath('data.point_balance.paid_balance', 120)
+                ->assertJsonPath('data.point_balance.free_balance', 150)
+                ->assertJsonPath('data.point_balance.next_expiring_amount', 50)
+                ->assertJsonPath(
+                    'data.point_balance.next_expires_at',
+                    '2026-08-20T00:00:00+00:00'
+                );
+            $this->assertPrivateContract($detail);
+        } finally {
+            CarbonImmutable::setTestNow();
         }
     }
 
@@ -129,7 +169,7 @@ final class AdminUserReadModelApiTest extends TestCase
         return $token;
     }
 
-    /** @return array{public_id: string, email: string} */
+    /** @return array{id: int, public_id: string, email: string} */
     private function user(): array
     {
         $publicId = (string) Str::uuid7();
@@ -156,7 +196,42 @@ final class AdminUserReadModelApiTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        return ['public_id' => $publicId, 'email' => $email];
+        return ['id' => $userId, 'public_id' => $publicId, 'email' => $email];
+    }
+
+    private function lot(
+        int $userId,
+        int $remainingAmount,
+        int $reservedAmount,
+        CarbonImmutable $expiresAt
+    ): void {
+        $operationId = DB::table('point_operations')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $userId,
+            'operation_type' => 'free_grant',
+            'business_key' => 'admin.user.read.lot:'.Str::uuid7(),
+            'source_type' => 'admin_adjustment',
+            'source_id' => null,
+            'actor_type' => 'system',
+            'actor_id' => null,
+            'is_qa' => false,
+            'qa_draw_execution_id' => null,
+            'occurred_at' => now(),
+            'business_date' => now()->setTimezone('Asia/Tokyo')->toDateString(),
+            'metadata' => '{}',
+            'created_at' => now(),
+        ]);
+        DB::table('point_lots')->insert([
+            'user_id' => $userId,
+            'grant_operation_id' => $operationId,
+            'point_type' => 'free',
+            'granted_amount' => $remainingAmount,
+            'remaining_amount' => $remainingAmount,
+            'reserved_amount' => $reservedAmount,
+            'granted_at' => now(),
+            'expire_at' => $expiresAt->toIso8601String(),
+            'legacy_no_expiry' => false,
+        ]);
     }
 
     private function asAdmin(string $token): static

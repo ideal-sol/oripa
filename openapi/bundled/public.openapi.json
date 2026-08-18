@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.20",
+    "version": "2.0.0-alpha.21",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -617,7 +617,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WalletBalance"
+                  "$ref": "#/components/schemas/CurrentUserWalletBalance"
                 }
               }
             }
@@ -4512,6 +4512,63 @@
           "total_points": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "CurrentUserWalletBalance": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "予約中Pointを除いたCurrent UserのBackend Canonical利用可能残高。",
+        "required": [
+          "paid_points",
+          "free_points",
+          "total_points",
+          "as_of",
+          "expiring_within_7_days"
+        ],
+        "properties": {
+          "paid_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "free_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Backendが利用可能残高と失効Bucketを判定したUTC基準時刻。"
+          },
+          "expiring_within_7_days": {
+            "type": "array",
+            "description": "as_ofより後かつ7日以内に失効する利用可能残高を、exact expires_at単位で集計したBucket。",
+            "items": {
+              "$ref": "#/components/schemas/WalletExpiryBucket"
+            }
+          }
+        }
+      },
+      "WalletExpiryBucket": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expires_at",
+          "amount"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC exact expiry timestamp。"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
