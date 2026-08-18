@@ -385,14 +385,49 @@ final class V2QaExecutionManagementService
             ->where('id', $assignment->active_draw_state_id)->first();
         $version = $state === null ? null : DB::table('catalog_gacha_versions')
             ->where('id', $state->gacha_version_id)->first();
-        $wallet = DB::table('wallets')->where('user_id', $assignment->user_internal_id)
-            ->first();
         $required = $version === null
             ? 0
             : (int) $version->price_points * $request['draw_count'];
-        $available = $wallet === null
-            ? 0
-            : (int) $wallet->paid_balance + (int) $wallet->free_balance;
+        $operationAt = CarbonImmutable::now()->startOfSecond();
+        $operationAtIso = $operationAt->toIso8601String();
+        $wallet = DB::table('wallets')
+            ->where('user_id', $assignment->user_internal_id)
+            ->first([
+                'paid_balance',
+                'free_balance',
+                'paid_reserved_balance',
+                'free_reserved_balance',
+            ]);
+        $lotCounts = DB::table('point_lots')
+            ->where('user_id', $assignment->user_internal_id)
+            ->selectRaw(
+                <<<'SQL'
+                    COUNT(*) FILTER (WHERE point_type = 'paid') AS paid_count,
+                    COUNT(*) FILTER (WHERE point_type = 'free') AS free_count
+                SQL
+            )->first();
+        $availableLots = DB::table('point_lots')
+            ->where('user_id', $assignment->user_internal_id)
+            ->where(function ($query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->selectRaw(
+                <<<'SQL'
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'paid'
+                    ), 0) AS paid_available,
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'free'
+                    ), 0) AS free_available
+                SQL
+            )->first();
+        $available = $wallet === null ? 0 :
+            ((int) $lotCounts->paid_count > 0
+                ? (int) $availableLots->paid_available
+                : (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance)
+            + ((int) $lotCounts->free_count > 0
+                ? (int) $availableLots->free_available
+                : (int) $wallet->free_balance - (int) $wallet->free_reserved_balance);
         $remaining = $state === null
             ? 0
             : (int) $state->total_count - (int) $state->sold_count;

@@ -762,7 +762,6 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             1_000_000,
-            now()->addYear(),
             'prize-shipping-points-'.Str::uuid()
         );
         $this->app->instance(

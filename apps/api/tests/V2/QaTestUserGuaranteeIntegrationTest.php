@@ -334,7 +334,6 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             200_000,
-            now()->addYears(2),
             'qa-guarantee-points-'.Str::uuid()
         );
 

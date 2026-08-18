@@ -5,6 +5,7 @@ namespace App\Domain\Payment\V2\Services;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
+use App\Domain\Point\Services\V2CoinExpiryPolicy;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointTransactionRunner;
 use App\Models\V2\User;
@@ -29,7 +30,8 @@ final class V2PaymentService
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox,
-        private readonly V2PointPurchaseEligibilityService $purchaseEligibility
+        private readonly V2PointPurchaseEligibilityService $purchaseEligibility,
+        private readonly V2CoinExpiryPolicy $expiryPolicy
     ) {
     }
 
@@ -346,7 +348,7 @@ final class V2PaymentService
             $this->transitionPayment($payment, 'succeeded', 'provider_event', $event->id);
             $grant = $this->grantPaymentPoints($payment);
             DB::table('payments')->where('id', $payment->id)->update([
-                'points_granted_at' => now()->startOfSecond(),
+                'points_granted_at' => $grant->granted_at,
                 'updated_at' => now(),
             ]);
             $this->providerAttempt($event->id, 'success');
@@ -414,11 +416,13 @@ final class V2PaymentService
             if ($lots->isEmpty()) {
                 throw new V2PaymentException('REFUND_POINT_GRANT_NOT_FOUND');
             }
+            $reservedAt = now()->startOfSecond();
             foreach ($lots as $lot) {
                 if (
                     (int) $lot->remaining_amount !== (int) $lot->granted_amount
                     || (int) $lot->reserved_amount !== 0
-                    || ($lot->point_type === 'free' && CarbonImmutable::parse($lot->expire_at)->isPast())
+                    || ($lot->expire_at !== null
+                        && ! $reservedAt->lessThan(CarbonImmutable::parse($lot->expire_at)))
                 ) {
                     throw new V2PaymentException('REFUND_POINTS_NOT_FULLY_UNUSED');
                 }
@@ -440,7 +444,7 @@ final class V2PaymentService
                     'payment_adjustment_id' => $adjustment->id,
                     'amount' => $lot->granted_amount,
                     'status' => 'active',
-                    'reserved_at' => now()->startOfSecond(),
+                    'reserved_at' => $reservedAt,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -630,13 +634,17 @@ final class V2PaymentService
                 'payment_adjustment',
                 'payment.chargeback:'.$adjustment->id
             );
-            $originLots = $this->paymentLots($payment->id)->keyBy('id');
-            $allPaid = DB::table('point_lots')->where('user_id', $payment->user_id)
-                ->where('point_type', 'paid')->whereColumn('remaining_amount', '>', 'reserved_amount')
-                ->orderBy('granted_at')->orderBy('id')->lockForUpdate()->get();
-            $allFree = DB::table('point_lots')->where('user_id', $payment->user_id)
-                ->where('point_type', 'free')->whereColumn('remaining_amount', '>', 'reserved_amount')
-                ->orderBy('expire_at')->orderBy('granted_at')->orderBy('id')->lockForUpdate()->get();
+            $originLots = $this->paymentLots($payment->id, false)->keyBy('id');
+            $allLots = DB::table('point_lots')->where('user_id', $payment->user_id)
+                ->whereColumn('remaining_amount', '>', 'reserved_amount')
+                ->orderByRaw('expire_at ASC NULLS LAST')
+                ->orderBy('granted_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $allPaid = $allLots->where('point_type', 'paid')
+                ->sortBy([['granted_at', 'asc'], ['id', 'asc']])->values();
+            $allFree = $allLots->where('point_type', 'free')->values();
             $sequence = 1;
             $paidNeed = (int) $payment->paid_point_amount;
             $freeNeed = (int) $payment->free_point_amount;
@@ -749,28 +757,15 @@ final class V2PaymentService
             'payment.grant:'.$payment->id
         );
         $sequence = 1;
+        $grantedAt = CarbonImmutable::parse($operation->occurred_at)->startOfSecond();
+        $expiresAt = $this->expiryPolicy->expiresAt($grantedAt);
         $paid = (int) $payment->paid_point_amount;
         $free = (int) $payment->free_point_amount;
         if ($paid > 0) {
-            $this->grantLot($operation, $wallet, 'paid', $paid, null, $sequence++);
+            $this->grantLot($operation, $wallet, 'paid', $paid, $expiresAt, $sequence++);
         }
         if ($free > 0) {
-            $expiryDays = filter_var(
-                config('v2_payment.purchase_bonus_expiry_days'),
-                FILTER_VALIDATE_INT,
-                ['options' => ['min_range' => 1]]
-            );
-            if ($expiryDays === false) {
-                throw new V2PaymentException('PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED');
-            }
-            $this->grantLot(
-                $operation,
-                $wallet,
-                'free',
-                $free,
-                now()->addDays($expiryDays)->startOfSecond(),
-                $sequence++
-            );
+            $this->grantLot($operation, $wallet, 'free', $free, $expiresAt, $sequence++);
         }
         DB::table('wallets')->where('id', $wallet->id)->update([
             'paid_balance' => (int) $wallet->paid_balance + $paid,
@@ -781,10 +776,13 @@ final class V2PaymentService
         DB::table('payment_point_grants')->insert([
             'payment_id' => $payment->id,
             'point_operation_id' => $operation->id,
-            'granted_at' => now()->startOfSecond(),
+            'granted_at' => $grantedAt,
         ]);
 
-        return (object) ['operation_public_id' => $operation->public_id];
+        return (object) [
+            'operation_public_id' => $operation->public_id,
+            'granted_at' => $grantedAt,
+        ];
     }
 
     private function grantLot(
@@ -792,7 +790,7 @@ final class V2PaymentService
         object $wallet,
         string $type,
         int $amount,
-        ?\DateTimeInterface $expiry,
+        \DateTimeInterface $expiry,
         int $sequence
     ): void {
         $lotId = DB::table('point_lots')->insertGetId([
@@ -967,15 +965,19 @@ final class V2PaymentService
         ]);
     }
 
-    private function paymentLots(int $paymentId): Collection
+    private function paymentLots(int $paymentId, bool $lock = true): Collection
     {
         $grant = DB::table('payment_point_grants')->where('payment_id', $paymentId)->first();
         if ($grant === null) {
             return collect();
         }
 
-        return DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)
-            ->orderBy('id')->lockForUpdate()->get();
+        $query = DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)
+            ->orderByRaw('expire_at ASC NULLS LAST')
+            ->orderBy('granted_at')
+            ->orderBy('id');
+
+        return ($lock ? $query->lockForUpdate() : $query)->get();
     }
 
     private function lockWallet(int $userId): object

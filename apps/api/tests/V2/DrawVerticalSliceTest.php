@@ -526,7 +526,6 @@ final class DrawVerticalSliceTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             100_000,
-            now()->addYear(),
             'top-up-for-negative-cases'
         );
         DB::table('gacha_draw_states')->update([
@@ -886,7 +885,6 @@ final class DrawVerticalSliceTest extends TestCase
             app(V2PointService::class)->grantFree(
                 $user->id,
                 $freePoints,
-                now()->addYear(),
                 'draw-fixture-points-'.Str::uuid()
             );
         } else {

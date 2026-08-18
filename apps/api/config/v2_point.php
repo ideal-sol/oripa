@@ -7,9 +7,9 @@ return [
         'sqlstates' => ['40001', '40P01'],
     ],
     'consumption_order' => [
-        'free' => ['expire_at', 'granted_at', 'id'],
-        'paid' => ['granted_at', 'id'],
+        'all_lots' => ['expire_at_nulls_last', 'granted_at', 'id'],
     ],
+    'expiry_days' => 180,
     'paid_grant' => [
         'normal_source' => 'succeeded_payment_only',
         'enabled' => false,

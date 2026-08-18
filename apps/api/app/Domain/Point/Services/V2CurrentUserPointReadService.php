@@ -14,6 +14,8 @@ final class V2CurrentUserPointReadService
     /** @return array{paid_points: int, free_points: int, total_points: int} */
     public function wallet(User $user): array
     {
+        $operationAt = CarbonImmutable::now()->startOfSecond();
+        $operationAtIso = $operationAt->toIso8601String();
         $wallet = DB::table('wallets')->where('user_id', $user->id)->first([
             'paid_balance',
             'free_balance',
@@ -23,9 +25,37 @@ final class V2CurrentUserPointReadService
         if ($wallet === null) {
             return ['paid_points' => 0, 'free_points' => 0, 'total_points' => 0];
         }
-
-        $paid = (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance;
-        $free = (int) $wallet->free_balance - (int) $wallet->free_reserved_balance;
+        $lotCounts = DB::table('point_lots')
+            ->where('user_id', $user->id)
+            ->selectRaw(
+                <<<'SQL'
+                    COUNT(*) FILTER (WHERE point_type = 'paid') AS paid_count,
+                    COUNT(*) FILTER (WHERE point_type = 'free') AS free_count
+                SQL
+            )
+            ->first();
+        $available = DB::table('point_lots')
+            ->where('user_id', $user->id)
+            ->where(function (Builder $query) use ($operationAtIso): void {
+                $query->whereNull('expire_at')->orWhere('expire_at', '>', $operationAtIso);
+            })
+            ->selectRaw(
+                <<<'SQL'
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'paid'
+                    ), 0) AS paid_available,
+                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                        WHERE point_type = 'free'
+                    ), 0) AS free_available
+                SQL
+            )
+            ->first();
+        $paid = (int) $lotCounts->paid_count > 0
+            ? (int) $available->paid_available
+            : (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance;
+        $free = (int) $lotCounts->free_count > 0
+            ? (int) $available->free_available
+            : (int) $wallet->free_balance - (int) $wallet->free_reserved_balance;
 
         return [
             'paid_points' => $paid,
@@ -116,7 +146,7 @@ final class V2CurrentUserPointReadService
     private function reason(string $sourceType, string $operationType): array
     {
         $label = match (true) {
-            $operationType === 'free_expire' => 'ポイント失効',
+            in_array($operationType, ['free_expire', 'point_expire'], true) => 'ポイント失効',
             $sourceType === 'payment' => 'ポイント購入',
             $sourceType === 'draw' && $operationType === 'free_grant' => 'ガチャポイント還元',
             $sourceType === 'draw' => 'ガチャ利用',

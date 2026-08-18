@@ -187,9 +187,6 @@ final class V2PrizeShippingService
                 $request->id,
                 $request->public_id,
                 $total,
-                $now->copy()->addDays(
-                    (int) config('v2_prize_shipping.exchange_point_expiry_days', 180)
-                ),
                 $now
             );
             foreach ($prizes as $prize) {

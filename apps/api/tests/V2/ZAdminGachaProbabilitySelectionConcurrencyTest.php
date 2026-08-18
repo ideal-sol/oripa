@@ -431,7 +431,6 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             10_000,
-            now()->addYear(),
             'gacha-sales-pause-draw-fixture'
         );
         $gachaRevision = (int) DB::table('catalog_gachas')

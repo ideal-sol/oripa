@@ -7,8 +7,11 @@ use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use App\Domain\Point\Exceptions\V2PointException;
+use App\Domain\Point\Services\V2CurrentUserPointReadService;
 use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,7 +26,6 @@ final class PaymentModelFoundationTest extends TestCase
             'cache.default' => 'array',
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
-            'v2_payment.purchase_bonus_expiry_days' => 365,
         ]);
     }
 
@@ -79,6 +81,19 @@ final class PaymentModelFoundationTest extends TestCase
             'point_type' => 'free',
             'remaining_amount' => 100,
         ]);
+        $grantedAt = CarbonImmutable::parse($first->granted_at)->startOfSecond();
+        $lots = DB::table('point_lots')
+            ->where('user_id', $payment->user_id)
+            ->orderBy('id')
+            ->get();
+        self::assertCount(2, $lots);
+        foreach ($lots as $lot) {
+            self::assertSame(
+                $grantedAt->addDays(180)->toIso8601String(),
+                CarbonImmutable::parse($lot->expire_at)->toIso8601String()
+            );
+            self::assertFalse((bool) $lot->legacy_no_expiry);
+        }
         self::assertDatabaseHas('audit_logs', ['action_code' => 'payment.succeeded']);
         self::assertDatabaseHas('outbox_messages', ['event_type' => 'payment.succeeded']);
     }
@@ -217,12 +232,23 @@ final class PaymentModelFoundationTest extends TestCase
     public function test_payment_success_rolls_back_all_point_and_event_side_effects(): void
     {
         [$payment, $event] = $this->paymentWithVerifiedEvent('success-rollback');
-        config(['v2_payment.purchase_bonus_expiry_days' => null]);
+        DB::table('point_operations')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $payment->user_id,
+            'operation_type' => 'fixture',
+            'business_key' => 'payment.grant:'.$payment->id,
+            'source_type' => 'test_fixture',
+            'actor_type' => 'system',
+            'is_qa' => false,
+            'occurred_at' => now(),
+            'business_date' => now('Asia/Tokyo')->toDateString(),
+            'metadata' => '{}',
+        ]);
         try {
             app(V2PaymentService::class)->confirmSucceeded($event->id);
-            self::fail('Invalid bonus expiry configuration must fail the transaction.');
-        } catch (V2PaymentException $exception) {
-            self::assertSame('PAYMENT_BONUS_EXPIRY_NOT_CONFIGURED', $exception->getMessage());
+            self::fail('Duplicate point operation must fail the transaction.');
+        } catch (QueryException) {
+            self::assertTrue(true);
         }
 
         self::assertSame(
@@ -231,7 +257,7 @@ final class PaymentModelFoundationTest extends TestCase
         );
         self::assertSame(0, DB::table('payment_point_grants')
             ->where('payment_id', $payment->id)->count());
-        self::assertSame(0, DB::table('point_operations')
+        self::assertSame(1, DB::table('point_operations')
             ->where('business_key', 'payment.grant:'.$payment->id)->count());
         self::assertSame(0, DB::table('audit_logs')
             ->where('action_code', 'payment.succeeded')
@@ -331,6 +357,80 @@ final class PaymentModelFoundationTest extends TestCase
             ->where('payment_adjustment_id', $uncertain->id)
             ->where('status', 'released')->count());
         self::assertDatabaseHas('audit_logs', ['action_code' => 'payment.refund_failed']);
+    }
+
+    public function test_expired_payment_lots_cannot_be_newly_reserved_at_boundary(): void
+    {
+        Carbon::setTestNow('2026-08-01 00:00:00+00');
+        CarbonImmutable::setTestNow('2026-08-01 00:00:00+00');
+        try {
+            [$payment, $event] = $this->paymentWithVerifiedEvent('expired-reservation');
+            $service = app(V2PaymentService::class);
+            $service->confirmSucceeded($event->id);
+            $expiry = CarbonImmutable::parse(DB::table('point_lots')
+                ->where('user_id', $payment->user_id)->min('expire_at'));
+            Carbon::setTestNow($expiry);
+            CarbonImmutable::setTestNow($expiry);
+
+            try {
+                $service->reserveFullRefund($payment->id, 'expired-reservation-key');
+                self::fail('A lot is unavailable when operation_at equals expire_at.');
+            } catch (V2PaymentException $exception) {
+                self::assertSame('REFUND_POINTS_NOT_FULLY_UNUSED', $exception->getMessage());
+            }
+            $lotIds = DB::table('point_lots')
+                ->where('user_id', $payment->user_id)
+                ->pluck('id');
+            self::assertSame(0, DB::table('point_lot_reservations')
+                ->whereIn('point_lot_id', $lotIds)->count());
+        } finally {
+            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_reservation_release_keeps_original_expiry_and_does_not_restore_availability(): void
+    {
+        Carbon::setTestNow('2026-08-01 00:00:00+00');
+        CarbonImmutable::setTestNow('2026-08-01 00:00:00+00');
+        try {
+            [$payment, $event] = $this->paymentWithVerifiedEvent('reservation-expiry');
+            $service = app(V2PaymentService::class);
+            $service->confirmSucceeded($event->id);
+            $originalExpiries = DB::table('point_lots')
+                ->where('user_id', $payment->user_id)->orderBy('id')->pluck('expire_at', 'id');
+            $adjustment = $service->reserveFullRefund($payment->id, 'reservation-expiry-key');
+            $afterExpiry = CarbonImmutable::parse($originalExpiries->first())->addSecond();
+            Carbon::setTestNow($afterExpiry);
+            CarbonImmutable::setTestNow($afterExpiry);
+
+            app(V2PointService::class)->expire($afterExpiry);
+            self::assertSame(
+                [1000, 100],
+                DB::table('point_lots')->where('user_id', $payment->user_id)
+                    ->orderBy('id')->pluck('remaining_amount')->map(fn ($value): int => (int) $value)->all()
+            );
+            $service->resolveRefund($adjustment->id, 'failed');
+            self::assertSame(
+                $originalExpiries->all(),
+                DB::table('point_lots')->where('user_id', $payment->user_id)
+                    ->orderBy('id')->pluck('expire_at', 'id')->all()
+            );
+            self::assertSame(
+                ['paid_points' => 0, 'free_points' => 0, 'total_points' => 0],
+                app(V2CurrentUserPointReadService::class)
+                    ->wallet(User::query()->findOrFail($payment->user_id))
+            );
+            self::assertSame(2, app(V2PointService::class)->expire($afterExpiry));
+            self::assertDatabaseHas('wallets', [
+                'user_id' => $payment->user_id,
+                'paid_balance' => 0,
+                'free_balance' => 0,
+            ]);
+        } finally {
+            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_refund_reservation_blocks_point_consumption(): void
@@ -453,8 +553,10 @@ final class PaymentModelFoundationTest extends TestCase
         $impact = DB::table('payment_adjustment_point_impacts')
             ->where('payment_adjustment_id', $adjustment->id)->firstOrFail();
 
-        self::assertSame(950, (int) $impact->shortfall_paid_amount);
-        self::assertSame(100, (int) $impact->shortfall_free_amount);
+        self::assertSame(1000, (int) $impact->shortfall_paid_amount);
+        self::assertSame(50, (int) $impact->shortfall_free_amount);
+        self::assertSame(0, (int) $impact->reversed_paid_from_paid);
+        self::assertSame(50, (int) $impact->reversed_free_from_free);
         self::assertSame(0, DB::table('point_ledger_entries')
             ->where('wallet_balance_after', '<', 0)->count());
         self::assertSame(1, DB::table('payment_adjustments')

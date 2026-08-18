@@ -453,7 +453,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertSame(1, PointLedgerEntry::query()->count());
         $lot = PointLot::query()->sole();
         self::assertEquals(
-            30,
+            180,
             $lot->granted_at->startOfDay()->diffInDays($lot->expire_at->startOfDay())
         );
         self::assertSame('sent', LineWebhookEvent::query()->sole()->reply_status);

@@ -176,7 +176,6 @@ final class PrizeShippingConcurrencyTest extends TestCase
         app(V2PointService::class)->grantFree(
             $user->id,
             100_000,
-            now()->addYear(),
             'prize-shipping-concurrency-points'
         );
         $this->app->instance(

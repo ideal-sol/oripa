@@ -8508,8 +8508,25 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Required Checks、CodeQL、Dependency Review、Fresh Self-review、Squash Merge、Issue／branch／worktree／Integration Lock cleanupはFinal Head固定後に継続する。
 - 初回PR Head `eb87ff173dc72a108dbb9987255cb02874072af5`では旧固定ppm／Point-first QA lock順を守るPolicy GateがB2 Human仕様と衝突しFAIL、Quality Gateは`setup-php`取得のGitHub 429／502でApplication実行前にFAILした。Draw Policyを動的bounded CSPRNG、Canonical Inventory、Transaction／Idempotency、Prize-only／Legacy Probability・Direct Point Back禁止、Inventory-first QA lock順へFail Closedで同期し、Legacy Schema／過去Read保護は維持した。Policy Unit 131 tests／Local GateをPASSしたfresh headで再検証する。
 
+## MIG-062Y Coin Expiry Core
+
+- Latest `main@1bd2cb5015ca50b1798bca4a83f9d6d5125e5dc6`、MIG-062X完全Closeout、Active Task／Issue／PR／Remote branch／worktree／Integration・Migration・Preview Lockを確認した。Issue #291、Branch `feat/MIG-062Y-coin-expiry-core`、専用Worktree、Risk R4で開始し、Integration LockとMigration Allocation `000054`を取得した。Migration materialize後にAllocation Lockだけ解放し、Integration Lockを保持する。
+- 人間の明示承認により、旧paid無期限／free→paid固定順／free-only expiration Policy GateをC1aへ置換した。負残高、Wallet→Lot Row Lock、`SKIP LOCKED`禁止、SQLSTATE限定最大3回Retry、append-only履歴、Reconciliation non-repairは維持する。
+- 全新規paid／free Grantを確定時刻＋180日へ共通化した。Payment paid／bonus、通常free、LINE、Referral、Point Exchange、Admin Grant、Draw Point Backが同じPolicyを使用し、新規NULL Lot／Grant Adjustmentとexpiry変更をDB Trigger／Constraintで拒否する。
+- Migration 54は既存paid NULL Lot／paid Grant Adjustmentだけを`legacy_no_expiry`で明示し、期限Backfillを行わない。既存free expiryは不変である。通常Consume／Draw／Admin deductは`expires_at ASC NULLS LAST, granted_at ASC, id ASC`の全Lot FEFOとし、期限境界一致をRead／Spend／Draw／QA preflight／新規Reservationから除外する。
+- paid／free ExpirationはReservation中Lotを飛ばし、Wallet／Lot／Ledger／Auditを既存Transaction Runnerで整合させる。Reservation releaseは元expiryを維持し、期限切れ残高をReadへ戻さない。ChargebackはFEFOへ統合せず、origin-first、paid取消優先、free取消、不足記録、Reversal manual reviewを維持する。
+- Task専用PostgreSQLでMigration fresh、rollback／reapply、function残存後の再fresh、適用前Legacy実データupgrade、新規NULL Lot／Adjustment拒否をPASSした。Point 16 tests／87 assertions、Payment 21／90、B2／Grant回帰77／874、Policy境界9 testsがPASSした。Local全Suite／全Build、Public OpenAPI／Client／Testkit／Artifact、Admin Presentation、OPS／Preview／Productionは変更・実行していない。
+- Initial focused failuresはtimezone境界fixture、Reservation global worker count、C1a FEFO後Chargeback期待、PostgreSQL function残存再freshであり、各root cause修正後に対象test／migrationを再実行してPASSした。Application Head `6f718cce59da065287f6c4f7ebb9205943c3a30e`、PR #292を作成し、Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge／CleanupはFinal Head固定後に継続する。
+- Initial remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`はPolicy／Quality PASS、Integration／Security／ci-gate FAILだった。Integrationが検出したfree Grant idempotencyの時刻依存payloadと、Lot未作成の既存Current／Admin read fixture回帰を根因修正し、Point 16／87、Current＋Admin 8／142、QA preflight 1／3、idempotency 1／4を再PASSした。Security failureはTask非変更の空Dependency Advisory baselineが`2026-08-17`で失効したFail Closed結果であり、MIG-062YではGate／baselineを変更しない。
+
 ## SEC-011 Dependency Advisory Baseline Fresh Security Review
 
 - MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。
 - 2026-08-18のfresh canonical Composer、Root pnpm／V2 workspace、Legacy pnpm auditはいずれも0 findingだった。新規Advisory、baseline array、dependency／lockfile、Gate／auditの弱体化はない。
 - empty baseline management metadataだけをSEC-011、review reason、bounded expiry `2026-08-25`へ更新した。次のFindingはremediationまたはexact-fingerprint Security Taskを必要とし、日付だけの延長を禁止する。
+
+## MIG-062Y Coin Expiry Core Closeout Resume
+
+- SEC-011 merge `edd1965ddee851eb3fed6e327c7477236f0a8083`を含む最新mainへ、履歴rewriteなしの二親mergeで同期した。競合はWorklogだけで、SEC-011のbaseline／Worklog／reportはbase側に保持され、Application DomainとMigration差分の競合は0件だった。
+- `000054`より新しいmain Migrationがないことを確認し、Migration AllocationとIntegration Lockを再取得した。Task専用PostgreSQLで54件fresh apply、`000054`単独rollback／reapply、Migration statusを再PASSした。
+- Base同期の影響範囲に限定し、Migration PHP syntax、Policy Unit 133 tests、Local Policy Gate、`git diff --check`をPASSした。SEC-011 auditの再実行、全Suite／全Build、Public OpenAPI／Artifact／Storefront／Client／Testkit変更は行っていない。

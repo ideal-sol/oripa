@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointLedgerService;
+use App\Domain\Point\Services\V2CurrentUserPointReadService;
 use App\Domain\Point\Services\V2PointReconciliationService;
 use App\Domain\Point\Services\V2PointService;
 use App\Domain\Point\Services\V2PointSnapshotService;
@@ -20,6 +21,7 @@ use App\Models\V2\PointOperation;
 use App\Models\V2\PointReconciliationDiscrepancy;
 use App\Models\V2\User;
 use App\Models\V2\Wallet;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +68,19 @@ final class PointModelFoundationTest extends TestCase
             'remaining_amount' => 10,
             'reserved_amount' => 0,
             'granted_at' => now(),
-            'expire_at' => now()->addDay(),
+            'expire_at' => null,
+            'legacy_no_expiry' => false,
+        ]));
+        $this->expectQueryFailure(fn () => DB::table('point_lots')->insert([
+            'user_id' => $user->id,
+            'grant_operation_id' => $operation->id,
+            'point_type' => 'paid',
+            'granted_amount' => 10,
+            'remaining_amount' => 10,
+            'reserved_amount' => 0,
+            'granted_at' => now(),
+            'expire_at' => null,
+            'legacy_no_expiry' => true,
         ]));
         $this->expectQueryFailure(fn () => DB::table('point_lots')->insert([
             'user_id' => $user->id,
@@ -96,7 +110,6 @@ final class PointModelFoundationTest extends TestCase
         $operation = app(V2PointService::class)->grantFree(
             $user->id,
             120,
-            CarbonImmutable::parse('2027-01-01T00:00:00+09:00'),
             'free-grant-1',
             CarbonImmutable::parse('2026-07-24T10:00:00+09:00')
         );
@@ -115,6 +128,12 @@ final class PointModelFoundationTest extends TestCase
             'granted_amount' => 120,
             'remaining_amount' => 120,
         ]);
+        $lot = PointLot::query()->where('grant_operation_id', $operation->id)->sole();
+        self::assertSame(
+            CarbonImmutable::parse('2026-07-24T10:00:00+09:00')->addDays(180)
+                ->utc()->toIso8601String(),
+            $lot->expire_at->utc()->toIso8601String()
+        );
         self::assertDatabaseHas('point_ledger_entries', [
             'point_operation_id' => $operation->id,
             'entry_type' => 'grant',
@@ -131,7 +150,6 @@ final class PointModelFoundationTest extends TestCase
         $operation = app(V2PointService::class)->grantFree(
             $user->id,
             10,
-            now()->addDay(),
             'immutable-grant'
         );
         $entry = PointLedgerEntry::query()
@@ -158,30 +176,42 @@ final class PointModelFoundationTest extends TestCase
         );
     }
 
-    public function test_consumption_prefers_free_expiry_then_grant_time_then_paid_fifo(): void
+    public function test_consumption_uses_cross_type_fefo_and_legacy_no_expiry_last(): void
     {
         $user = $this->user('order');
-        $this->seedLot($user, 'free', 20, '2026-01-01 00:00:02+00', '2026-09-01 00:00:00+00');
-        $first = $this->seedLot(
+        $paidSoon = $this->seedLot(
+            $user,
+            'paid',
+            10,
+            '2026-01-03 00:00:00+00',
+            '2026-07-25 00:00:00+00'
+        );
+        $freeSameExpiry = $this->seedLot(
             $user,
             'free',
             15,
             '2026-01-01 00:00:00+00',
             '2026-08-01 00:00:00+00'
         );
-        $second = $this->seedLot(
+        $paidSameExpiry = $this->seedLot(
             $user,
-            'free',
+            'paid',
             15,
             '2026-01-01 00:00:01+00',
             '2026-08-01 00:00:00+00'
         );
-        $paidFirst = $this->seedLot($user, 'paid', 30, '2026-01-01 00:00:00+00');
-        $paidSecond = $this->seedLot($user, 'paid', 30, '2026-01-01 00:00:01+00');
+        $freeLater = $this->seedLot(
+            $user,
+            'free',
+            20,
+            '2026-01-01 00:00:02+00',
+            '2026-09-01 00:00:00+00'
+        );
+        $legacy = $this->seedLegacyPaidLot($user, 30, '2025-01-01 00:00:00+00');
 
         $operation = app(V2PointService::class)->consume(
             $user->id,
-            70,
+            65,
             'ordered-consume',
             CarbonImmutable::parse('2026-07-24 00:00:00+00')
         );
@@ -194,10 +224,11 @@ final class PointModelFoundationTest extends TestCase
                 ->all()
         );
         $expectedLotIds = array_map('intval', [
-            $first->id,
-            $second->id,
-            $this->lotId($user, 'free', 20),
-            $paidFirst->id,
+            $paidSoon->id,
+            $freeSameExpiry->id,
+            $paidSameExpiry->id,
+            $freeLater->id,
+            $legacy->id,
         ]);
         self::assertSame(
             $expectedLotIds,
@@ -208,12 +239,11 @@ final class PointModelFoundationTest extends TestCase
                 json_encode($lotIds, JSON_THROW_ON_ERROR)
             )
         );
-        self::assertSame(10, PointLot::query()->findOrFail($paidFirst->id)->remaining_amount);
-        self::assertSame(30, PointLot::query()->findOrFail($paidSecond->id)->remaining_amount);
-        self::assertSame(['paid' => 40, 'free' => 0], app(V2PointLedgerService::class)->rebuild($user->id));
+        self::assertSame(25, PointLot::query()->findOrFail($legacy->id)->remaining_amount);
+        self::assertSame(['paid' => 25, 'free' => 0], app(V2PointLedgerService::class)->rebuild($user->id));
     }
 
-    public function test_free_expiry_is_idempotent_and_paid_never_expires(): void
+    public function test_paid_and_free_expiry_are_idempotent_and_legacy_paid_survives(): void
     {
         $user = $this->user('expiry');
         $free = $this->seedLot(
@@ -223,17 +253,138 @@ final class PointModelFoundationTest extends TestCase
             '2026-01-01 00:00:00+00',
             '2026-07-01 00:00:00+00'
         );
-        $paid = $this->seedLot($user, 'paid', 40, '2026-01-01 00:00:00+00');
+        $paid = $this->seedLot(
+            $user,
+            'paid',
+            40,
+            '2026-01-01 00:00:00+00',
+            '2026-07-01 00:00:00+00'
+        );
+        $legacy = $this->seedLegacyPaidLot($user, 50, '2025-01-01 00:00:00+00');
         $service = app(V2PointService::class);
-        self::assertSame(1, $service->expireFree(CarbonImmutable::parse('2026-07-02 00:00:00+00')));
-        self::assertSame(0, $service->expireFree(CarbonImmutable::parse('2026-07-02 00:00:00+00')));
+        self::assertSame(2, $service->expire(CarbonImmutable::parse('2026-07-02 00:00:00+00')));
+        self::assertSame(0, $service->expire(CarbonImmutable::parse('2026-07-02 00:00:00+00')));
         self::assertSame(0, PointLot::query()->findOrFail($free->id)->remaining_amount);
-        self::assertSame(40, PointLot::query()->findOrFail($paid->id)->remaining_amount);
+        self::assertSame(0, PointLot::query()->findOrFail($paid->id)->remaining_amount);
+        self::assertSame(50, PointLot::query()->findOrFail($legacy->id)->remaining_amount);
         self::assertDatabaseHas('point_ledger_entries', [
             'point_lot_id' => $free->id,
             'entry_type' => 'expire',
             'amount_delta' => -25,
         ]);
+        self::assertDatabaseHas('point_ledger_entries', [
+            'point_lot_id' => $paid->id,
+            'entry_type' => 'expire',
+            'amount_delta' => -40,
+        ]);
+        self::assertDatabaseHas('wallets', [
+            'user_id' => $user->id,
+            'paid_balance' => 50,
+            'free_balance' => 0,
+        ]);
+        $reconciliation = app(V2PointReconciliationService::class)->run('2026-07-02');
+        self::assertSame(0, PointReconciliationDiscrepancy::query()
+            ->where('reconciliation_run_id', $reconciliation->id)
+            ->where('user_id', $user->id)
+            ->count());
+    }
+
+    public function test_read_and_spend_exclude_due_lots_before_expiration_worker_runs(): void
+    {
+        $user = $this->user('hybrid-expiry');
+        $cutoff = CarbonImmutable::parse('2026-07-24 12:00:00+09:00');
+        Carbon::setTestNow($cutoff);
+        CarbonImmutable::setTestNow($cutoff);
+        try {
+            $this->seedLot(
+                $user,
+                'paid',
+                40,
+                '2026-01-01 00:00:00+00',
+                $cutoff
+            );
+            $live = $this->seedLot(
+                $user,
+                'free',
+                30,
+                '2026-07-01 00:00:00+00',
+                $cutoff->addSecond()
+            );
+            self::assertSame(
+                $cutoff->utc()->toIso8601String(),
+                CarbonImmutable::now()->utc()->toIso8601String()
+            );
+            self::assertSame(1, DB::table('point_lots')
+                ->where('user_id', $user->id)
+                ->where('expire_at', '>', $cutoff->toIso8601String())
+                ->count());
+            $serviceNow = CarbonImmutable::now()->startOfSecond();
+            self::assertSame($cutoff->toIso8601String(), $serviceNow->toIso8601String());
+            self::assertSame(1, PointLot::query()
+                ->where('user_id', $user->id)
+                ->where(function ($query) use ($serviceNow): void {
+                    $query->whereNull('expire_at')
+                        ->orWhere('expire_at', '>', $serviceNow->toIso8601String());
+                })
+                ->whereColumn('remaining_amount', '>', 'reserved_amount')
+                ->count());
+            $balance = app(V2CurrentUserPointReadService::class)->wallet($user);
+            self::assertSame(['paid_points' => 0, 'free_points' => 30, 'total_points' => 30], $balance);
+
+            app(V2PointService::class)->consume($user->id, 30, 'hybrid-expiry-consume', $cutoff);
+            self::assertSame(0, PointLot::query()->findOrFail($live->id)->remaining_amount);
+            $this->expectException(V2PointException::class);
+            $this->expectExceptionMessage('INSUFFICIENT_POINT_BALANCE');
+            app(V2PointService::class)->consume($user->id, 1, 'hybrid-expiry-reject', $cutoff);
+        } finally {
+            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_draw_validation_and_consumption_exclude_expired_lots(): void
+    {
+        $user = $this->user('draw-expiry');
+        $operationAt = CarbonImmutable::parse('2026-07-24 12:00:00+09:00');
+        $expired = $this->seedLot(
+            $user,
+            'paid',
+            40,
+            '2026-01-01 00:00:00+00',
+            $operationAt
+        );
+        $live = $this->seedLot(
+            $user,
+            'free',
+            30,
+            '2026-07-01 00:00:00+00',
+            $operationAt->addSecond()
+        );
+        self::assertSame(1, PointLot::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($operationAt): void {
+                $query->whereNull('expire_at')
+                    ->orWhere('expire_at', '>', $operationAt->toIso8601String());
+            })
+            ->whereColumn('remaining_amount', '>', 'reserved_amount')
+            ->count());
+
+        DB::transaction(function () use ($user, $operationAt): void {
+            $service = app(V2PointService::class);
+            $service->lockAndValidateForDraw($user->id, 30, $operationAt);
+            $result = $service->consumeForDraw(
+                $user->id,
+                30,
+                1,
+                (string) Str::uuid7(),
+                $operationAt
+            );
+            self::assertSame(0, $result['paid']);
+            self::assertSame(30, $result['free']);
+        });
+
+        self::assertSame(40, PointLot::query()->findOrFail($expired->id)->remaining_amount);
+        self::assertSame(0, PointLot::query()->findOrFail($live->id)->remaining_amount);
     }
 
     public function test_transaction_rollback_removes_wallet_lot_operation_ledger_idempotency_and_audit(): void
@@ -244,7 +395,6 @@ final class PointModelFoundationTest extends TestCase
                 app(V2PointService::class)->grantFree(
                     $user->id,
                     30,
-                    now()->addDay(),
                     'rollback-grant'
                 );
                 throw new V2PointException('force rollback');
@@ -264,14 +414,13 @@ final class PointModelFoundationTest extends TestCase
     {
         $user = $this->user('idempotency');
         $service = app(V2PointService::class);
-        $expiry = now()->addDay()->startOfSecond();
-        $first = $service->grantFree($user->id, 50, $expiry, 'same-key');
-        $replay = $service->grantFree($user->id, 50, $expiry, 'same-key');
+        $first = $service->grantFree($user->id, 50, 'same-key');
+        $replay = $service->grantFree($user->id, 50, 'same-key');
         self::assertSame($first->id, $replay->id);
         self::assertSame(1, PointOperation::query()->whereKey($first->id)->count());
         $this->expectException(V2PointException::class);
         $this->expectExceptionMessage('IDEMPOTENCY_KEY_REUSED');
-        $service->grantFree($user->id, 51, $expiry, 'same-key');
+        $service->grantFree($user->id, 51, 'same-key');
     }
 
     public function test_same_wallet_concurrent_consumption_does_not_overdraw(): void
@@ -333,7 +482,7 @@ final class PointModelFoundationTest extends TestCase
                         Carbon\CarbonImmutable::parse('2026-07-24 23:59:59+00')
                     );
                 } else {
-                    app(App\Domain\Point\Services\V2PointService::class)->expireFree(
+                    app(App\Domain\Point\Services\V2PointService::class)->expire(
                         Carbon\CarbonImmutable::parse('2026-07-25 00:00:00+00')
                     );
                 }
@@ -391,9 +540,21 @@ final class PointModelFoundationTest extends TestCase
             '2020-03-31 15:00:00+00',
             '2021-01-01 00:00:00+00'
         );
+        $paid = $this->seedLot(
+            $user,
+            'paid',
+            10,
+            '2020-03-31 10:00:00+00',
+            '2020-03-31 14:00:00+00'
+        );
+        app(V2PointService::class)->expire(
+            CarbonImmutable::parse('2020-03-31 14:00:00+00')
+        );
         $snapshot = app(V2PointSnapshotService::class)->generate('2020-03-31');
         self::assertSame(40, $snapshot->closing_free_balance);
         self::assertSame(40, $snapshot->granted_free_amount);
+        self::assertSame(10, $snapshot->expired_paid_amount);
+        self::assertSame(0, PointLot::query()->findOrFail($paid->id)->remaining_amount);
         self::assertTrue($snapshot->is_base_date);
         self::assertSame('2020-03-31', $snapshot->snapshot_date->toDateString());
         self::assertDatabaseHas('audit_logs', ['action_code' => 'point.snapshot_generated']);
@@ -407,7 +568,7 @@ final class PointModelFoundationTest extends TestCase
     public function test_reconciliation_detects_discrepancy_without_repair(): void
     {
         $user = $this->user('reconciliation');
-        app(V2PointService::class)->grantFree($user->id, 30, now()->addDay(), 'reconcile-grant');
+        app(V2PointService::class)->grantFree($user->id, 30, 'reconcile-grant');
         DB::table('wallets')->where('user_id', $user->id)->update(['free_balance' => 29]);
         $run = app(V2PointReconciliationService::class)->run('2026-07-24');
         self::assertSame('completed', $run->status);
@@ -497,9 +658,17 @@ final class PointModelFoundationTest extends TestCase
         string $type,
         int $amount,
         string|\DateTimeInterface $grantedAt,
-        string|\DateTimeInterface|null $expireAt = null
+        string|\DateTimeInterface|null $expireAt = null,
+        bool $legacyNoExpiry = false
     ): PointLot {
-        $granted = CarbonImmutable::parse($grantedAt);
+        $granted = $grantedAt instanceof \DateTimeInterface
+            ? CarbonImmutable::instance($grantedAt)
+            : CarbonImmutable::parse($grantedAt);
+        $expiry = $legacyNoExpiry
+            ? null
+            : ($expireAt instanceof \DateTimeInterface
+                ? CarbonImmutable::instance($expireAt)
+                : CarbonImmutable::parse($expireAt ?? $granted->addDays(180)));
         $operation = $this->rawOperation($user, 'seed-'.$type);
         $wallet = Wallet::query()->where('user_id', $user->id)->first();
         if ($wallet === null) {
@@ -515,7 +684,8 @@ final class PointModelFoundationTest extends TestCase
             'remaining_amount' => $amount,
             'reserved_amount' => 0,
             'granted_at' => $granted,
-            'expire_at' => $expireAt === null ? null : CarbonImmutable::parse($expireAt),
+            'expire_at' => $expiry,
+            'legacy_no_expiry' => $legacyNoExpiry,
         ])->save();
         $wallet->forceFill([
             $type.'_balance' => $before + $amount,
@@ -540,14 +710,18 @@ final class PointModelFoundationTest extends TestCase
         return $lot;
     }
 
-    private function lotId(User $user, string $type, int $amount): int
+    private function seedLegacyPaidLot(
+        User $user,
+        int $amount,
+        string|\DateTimeInterface $grantedAt
+    ): PointLot
     {
-        return PointLot::query()
-            ->where('user_id', $user->id)
-            ->where('point_type', $type)
-            ->where('granted_amount', $amount)
-            ->orderByDesc('id')
-            ->valueOrFail('id');
+        DB::statement('ALTER TABLE point_lots DISABLE TRIGGER point_lots_new_expiry_guard');
+        try {
+            return $this->seedLot($user, 'paid', $amount, $grantedAt, null, true);
+        } finally {
+            DB::statement('ALTER TABLE point_lots ENABLE TRIGGER point_lots_new_expiry_guard');
+        }
     }
 
     private function expectQueryFailure(callable $callback): void

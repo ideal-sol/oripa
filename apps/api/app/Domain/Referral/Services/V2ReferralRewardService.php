@@ -104,7 +104,6 @@ final class V2ReferralRewardService
                     $referral->public_id,
                     $grant['beneficiary'],
                     $grant['amount'],
-                    $now->copy()->addDays((int) $referral->reward_expiration_days),
                     $now
                 );
                 $operations[$grant['column']] = $operation->getKey();
