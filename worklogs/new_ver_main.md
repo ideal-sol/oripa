@@ -8573,3 +8573,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Admin／Public／Webhook OpenAPI、bundles、Generated Admin型、Storefront Client型、Site Schema version、Testkit active／upcoming／inactive fixtureを新規`2.0.0-alpha.22`へ同期した。既存`2.0.0-alpha.21`は上書きせず、Storefront Repositoryへの直接導入、Registry publish、Stable Tag、Release、Preview／Production deployは実施しない。
 - 隔離PostgreSQLへ既存55 migrationsをfresh applyし、Admin CampaignとPublic境界8 tests／103 assertionsをPASSした。Admin 161 tests、Client 27、Site Schema 10、Testkit 34、OpenAPI 7、Release 10、Policy 135、各generate／check／typecheck／lint／build、Admin Production Build、PHP syntax、`git diff --check`がPASSした。Migration createdは0で、Task／Preview／ProductionへMigrationを適用していない。
 - Payment Snapshot、`provider_occurred_at`、single Grant、Expiry、Refund、Chargeback、金融Concurrency、Draw、Inventory、実Provider、Storefront Repositoryは変更していない。Required Checks、immutable Artifact発行／readback、Fresh Self-review、Squash Merge／Issue・branch・worktree cleanupはApplication Head固定後に継続する。
+
+## MIG-063B Limited Bonus Contract Artifact
+
+- Application Head `1ee95268b145713e5df31dfe7f4b1c8158df7414`のRequired 5 Checksは全てPASSした。初回PR event Policy GateはPR本文のAllowed Pathsが機械可読bulletでなかったためFail Closedし、actual diff 37 pathsをChanged／Allowed双方へ完全列挙した同一Headのmanual dispatchでPASSした。
+- GitHub-hosted Workflow Run `32141593541`が同一Source Commitからimmutable Storefront Contract Artifact `2.0.0-alpha.22`を発行した。Artifact IDは`9326245788`、outer／GitHub SHA-256は`e8b5598ce0eacc0bef032dbca141e91da9d110db816f916813218083b209087d`、Manifest SHA-256は`fcda62708350fab1249bdb0b6ab2fab8440ca89b2681edf8d587e60c27027d9c`である。
+- Client `d642a64afff5b310b4997ed63fb1fad3780eeb6b1e6b5dfef49f32dfb20b0c42`、Site Schema `94a4c2032a0ffd95b7931a8628031935e5f6b463703d5f7339e5ebe35bf4d6a7`、Testkit `0d19f288c5fe74722585a7896998df722946953f3b22d0f49559d22a8d41ca6c`、Public OpenAPI `ba00b46d34d0889bc883c86551c85ea2322d4f354723c3a2a68636e27cf5374a`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは上記3 packageの固定Version／tarball SHA、Public OpenAPI、Manifest、SHA256SUMSまでである。Storefront Repositoryへの直接導入、Registry publish、Stable Tag、GitHub Release、Preview／Production deployは実施していない。
