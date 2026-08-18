@@ -11,7 +11,9 @@
 - Integration Lock: 取得済み。Closeoutで解放する。
 - Migration Allocation: `000054`を取得しmaterialize後にAllocation Lockを解放済み。
 - Artifact／Preview Lock: 取得なし。
-- Final Head／PR／Squash SHA: Closeout時に確定する。
+- Application Head: `6f718cce59da065287f6c4f7ebb9205943c3a30e`
+- PR: #292 `https://github.com/ideal-sol/oripa/pull/292`
+- Final Head／Squash SHA: Closeout時に確定する。
 
 ## Summary
 
