@@ -8586,3 +8586,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - PR-native Quality GateがPublic `PointProduct.required`への`limited_bonus`追加をbreaking changeとしてFail Closedした。Backendは常にCanonical fieldを返す一方、OpenAPIではfield自体をoptional additiveにして既存Consumer互換を維持し、Generated Client型も`limited_bonus?`へ修正した。既存`grant`のrequired fieldと意味は不変である。
 - Application Head `1ee95268b145713e5df31dfe7f4b1c8158df7414`由来の`2.0.0-alpha.22` Artifactは既にimmutable発行済みのため上書き／handoffせず、retired non-handoff evidenceとして保持する。Artifact Release Lock下で未使用Tagを確認し、正規handoff Versionを`2.0.0-alpha.23`へ再採番した。
 - Public OpenAPI PR-event backward compatibility、bundle／generate check、Client build＋27 tests、Testkit build＋34 tests、Admin typecheck、Policy 135、Release 10、Local Policy／Quality Gateを再PASSした。新しいexact Application HeadのRequired Checks、Artifact発行／readback、Final docs-only Head、Fresh Self-reviewは継続する。
+
+## MIG-063B Additive Contract Artifact Final
+
+- Corrected Application Head `633b41f347083c82028229d6e238842118635feb`のPR-native Required 5 Checksは全てPASSした。GitHub-hosted Workflow Run `32147032173`が同一Source Commitから正規handoff対象のimmutable Storefront Contract Artifact `2.0.0-alpha.23`を発行した。
+- Artifact IDは`9328364646`、outer／GitHub SHA-256は`a4e7fde91c4148971723778b847d0f1a43d4b58b3716fb1c9f4b1eceeb06818c`、Manifest SHA-256は`556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe`である。
+- Client `28a7b3558329eed9c608f828948befe2034e86c0add1511bd48db1ed437f58d9`、Site Schema `b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2`、Testkit `dc0bf6c16af439bf5a364955e8add936e8842096ca295a136a0f15a86e4102b0`、Public OpenAPI `5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは上記`2.0.0-alpha.23`の3 tarballs、Public OpenAPI、Manifest、SHA256SUMSだけを対象とする。`2.0.0-alpha.22`はhandoff対象外であり、Registry publish／Storefront Repository直接導入／Stable Tag／Release／Deployは0である。
