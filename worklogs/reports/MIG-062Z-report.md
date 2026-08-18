@@ -29,6 +29,7 @@
 ## Focused Verification
 
 - Laravel isolated PostgreSQL: Current User Point Read 6 tests / 68 assertions; Admin User Read 4 tests / 112 assertions. Existing Point Ledger pagination/compatibility and Admin list/detail/history regression are included.
+- C1a read-compatibility regressions: Payment reservation release 1 test / 5 assertions and Point due-lot read/spend 1 test / 8 assertions PASS against a fresh image built from the complete Task source.
 - Public GET mutation assertion covers Wallet, Lot, Operation, and Ledger state. Legacy Lot fixture uses the established test-only trigger-disable boundary and restores the trigger before the request.
 - OpenAPI bundle/check and 7 OpenAPI unit tests: PASS. Public 54 / Admin 212 / Webhook 1 operations.
 - Storefront Client generate/typecheck/lint/build and 27 tests: PASS.
@@ -37,6 +38,11 @@
 - Admin generate/check, typecheck, lint, focused User Read UI 5 tests, and Production build: PASS.
 - Policy focused unit 2 tests, local Policy Gate, Release unit 10 tests, and release source validation: PASS.
 - PHP syntax and `git diff --check`: PASS.
+
+## Initial CI Correction
+
+- Initial head `952c42402e5b9c6a8d0598182b187c408bd20938` passed Policy, Quality, and Security but Integration detected two C1a tests still asserting the pre-additive three-field Wallet array; `ci-gate` failed as the required aggregate.
+- Only those read-contract expected arrays were updated with deterministic `as_of` and Bucket fields. Payment/Reservation/Expiry/Spend behavior and assertions were not weakened or changed.
 
 ## Scope Impact
 

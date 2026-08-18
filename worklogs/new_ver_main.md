@@ -8533,6 +8533,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Admin User Detailは利用可能total／paid／bonus、次回失効amount／UTC timestampを返し、JST日付＋時刻でCoin表示する。既存User list契約とPoint adjustment文言は維持した。
 - 隔離PostgreSQLでCurrent User Point Read 6 tests／68 assertions、Admin User Read 4／112、Admin UI focused 5 testsをPASSした。OpenAPI 7、Client 27、Site Schema 10、Testkit 34、Policy focused 2、Release 10、各generate／typecheck／lint／build、Local Policy／Release validationがPASSした。Migration created／Task・Preview・Production appliedは0、synthetic DBだけに既存54件を適用した。
 - Root／Admin／Platform／Client／Site Schema／Testkit／OpenAPI／compatibility／Policy／release sourceは`2.0.0-alpha.21`へ同期済みである。Required Checks、CodeQL、Dependency Review、immutable Artifact、Fresh Self-review、Merge／Cleanupはfixed Application headで継続する。
+- Initial head `952c42402e5b9c6a8d0598182b187c408bd20938`はPolicy／Quality／Security PASS、Integration／ci-gate FAILだった。Integrationが検出した2件はC1a Payment reservation release／due Lot read testの旧3-field Wallet exact arrayであり、Mutationを変更せず`as_of`／Bucketを決定的期待値へ同期した。Task source全体からbuildしたfresh image／DBで各1 test（5／8 assertions）をPASSした。
 
 ## SEC-011 Dependency Advisory Baseline Fresh Security Review
 

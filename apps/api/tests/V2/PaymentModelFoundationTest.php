@@ -417,7 +417,13 @@ final class PaymentModelFoundationTest extends TestCase
                     ->orderBy('id')->pluck('expire_at', 'id')->all()
             );
             self::assertSame(
-                ['paid_points' => 0, 'free_points' => 0, 'total_points' => 0],
+                [
+                    'paid_points' => 0,
+                    'free_points' => 0,
+                    'total_points' => 0,
+                    'as_of' => $afterExpiry->utc()->startOfSecond()->toIso8601ZuluString(),
+                    'expiring_within_7_days' => [],
+                ],
                 app(V2CurrentUserPointReadService::class)
                     ->wallet(User::query()->findOrFail($payment->user_id))
             );
