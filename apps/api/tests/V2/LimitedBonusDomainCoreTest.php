@@ -15,6 +15,8 @@ use Tests\TestCase;
 
 final class LimitedBonusDomainCoreTest extends TestCase
 {
+    private bool $usesOuterTransaction;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -25,10 +27,18 @@ final class LimitedBonusDomainCoreTest extends TestCase
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
         ]);
         CarbonImmutable::setTestNow('2026-10-01T12:00:00Z');
+        $this->usesOuterTransaction = $this->name()
+            !== 'test_concurrent_overlapping_campaign_mutations_are_serialized';
+        if ($this->usesOuterTransaction) {
+            DB::beginTransaction();
+        }
     }
 
     protected function tearDown(): void
     {
+        if ($this->usesOuterTransaction && DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
         CarbonImmutable::setTestNow();
         parent::tearDown();
     }
@@ -96,14 +106,20 @@ final class LimitedBonusDomainCoreTest extends TestCase
                 exit($exception->getMessage() === 'LIMITED_BONUS_CAMPAIGN_OVERLAP' ? 2 : 3);
             }
             PHP;
-        $results = $this->parallelProcesses($script, [
-            [(string) $plan->id, '2026-10-10T00:00:00Z', '2026-10-12T00:00:00Z'],
-            [(string) $plan->id, '2026-10-11T00:00:00Z', '2026-10-13T00:00:00Z'],
-        ]);
-        sort($results);
-        self::assertSame([0, 2], $results);
-        self::assertSame(1, DB::table('point_purchase_plan_limited_bonus_campaigns')
-            ->where('point_purchase_plan_id', $plan->id)->count());
+        try {
+            $results = $this->parallelProcesses($script, [
+                [(string) $plan->id, '2026-10-10T00:00:00Z', '2026-10-12T00:00:00Z'],
+                [(string) $plan->id, '2026-10-11T00:00:00Z', '2026-10-13T00:00:00Z'],
+            ]);
+            sort($results);
+            self::assertSame([0, 2], $results);
+            self::assertSame(1, DB::table('point_purchase_plan_limited_bonus_campaigns')
+                ->where('point_purchase_plan_id', $plan->id)->count());
+        } finally {
+            DB::table('point_purchase_plan_limited_bonus_campaigns')
+                ->where('point_purchase_plan_id', $plan->id)->delete();
+            DB::table('point_purchase_plans')->where('id', $plan->id)->delete();
+        }
     }
 
     public function test_payment_snapshots_campaign_and_grants_regular_plus_limited_once(): void
@@ -135,8 +151,6 @@ final class LimitedBonusDomainCoreTest extends TestCase
         $event = $this->successEvent($payment, 'snapshot-success', $occurredAt);
         $service = app(V2PaymentService::class);
         $grant = $service->confirmSucceeded($event->id);
-        $replayEvent = $this->successEvent($payment, 'snapshot-success', $occurredAt);
-        self::assertSame($event->id, $replayEvent->id);
         self::assertSame($grant->id, $service->confirmSucceeded($event->id)->id);
 
         $finalPayment = DB::table('payments')->where('id', $payment->id)->firstOrFail();

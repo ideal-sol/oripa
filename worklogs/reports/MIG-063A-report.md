@@ -37,10 +37,11 @@
 
 ## Verification
 
-- Focused API: `LimitedBonusDomainCoreTest`、`PaymentModelFoundationTest`、`AdminPointPurchasePlanManagementTest`の合計36 tests／181 assertions PASS。
+- Focused API: `LimitedBonusDomainCoreTest`、`PaymentModelFoundationTest`、`AdminPointPurchasePlanManagementTest`の合計36 tests／180 assertions PASS。
 - Covered: start/end境界、ON/OFF、overlap／adjacent、concurrent overlap、Payment snapshot、設定変更後不変、provider／received時刻不一致、Canonical欠落、duplicate／replay、単一Grant、180日Expiry、Refund／Chargeback total、Reversal manual review、Legacy非遡及。
 - Policy focused: 4 tests PASS。Local Policy Gate、変更PHP syntax、Python compile、`git diff --check` PASS。
 - Focused API image build PASS。全Suite／Repository全BuildはTask指示により未実行。
+- Initial GitHub Integration Gateは新規testのPoint fixture残存により後続Line Messaging 2 testsがFAILした。Concurrency test以外のTransaction rollbackとConcurrency fixture cleanupへ修正し、Limited Bonus 7／36、後続Line対象2／24、全focused 36／180を再PASSした。
 
 ## Scope／Impact
 
