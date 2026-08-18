@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: c66a7ac5029a421c60a089211630e52681aacfc8b12fe8f0f1f34a2b5fa5a9a4
+// Contract SHA-256: c4cc7dbe3a18c50e6b93870f969e9901d2775f42e6421d8f5b2822c86f87edc9
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -722,6 +722,36 @@ export interface AdminPointPurchasePlanResponse {
 
 export interface AdminPointPurchasePlanMutationResult {
   data: AdminPointPurchasePlan;
+  idempotent_replay: boolean;
+  request_id: string;
+}
+
+export interface AdminLimitedBonusCampaign {
+  id: string;
+  point_purchase_plan_id: string;
+  point_purchase_plan_version: number;
+  is_enabled: boolean;
+  starts_at: string;
+  ends_at: string;
+  bonus_point_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminLimitedBonusCampaignInput {
+  is_enabled: boolean;
+  starts_at: string;
+  ends_at: string;
+  bonus_point_amount: number;
+}
+
+export interface AdminLimitedBonusCampaignCollection {
+  items: AdminLimitedBonusCampaign[];
+  request_id: string;
+}
+
+export interface AdminLimitedBonusCampaignMutationResult {
+  data: AdminLimitedBonusCampaign;
   idempotent_replay: boolean;
   request_id: string;
 }

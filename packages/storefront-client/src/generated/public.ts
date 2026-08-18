@@ -1113,6 +1113,30 @@ export interface components {
             total_points: number;
         };
         /** @enum {string} */
+        PointProductLimitedBonusState: "active" | "upcoming" | "inactive";
+        PointProductLimitedBonusPresentation: {
+            is_visible: boolean;
+            /** @constant */
+            label: "期間限定ボーナスコイン";
+            /** @description Backendが確定した表示用追加Coin量。inactiveはnull。 */
+            amount_text: string | null;
+        };
+        PointProductLimitedBonus: {
+            /** @description activeまたは次のupcoming Campaignの追加Bonus Coin量。inactiveは0。 */
+            amount: number;
+            /** Format: date-time */
+            starts_at: string | null;
+            /** Format: date-time */
+            ends_at: string | null;
+            state: components["schemas"]["PointProductLimitedBonusState"];
+            /**
+             * Format: date-time
+             * @description stateとpresentationをBackendが確定したUTC時刻。
+             */
+            as_of: string;
+            presentation: components["schemas"]["PointProductLimitedBonusPresentation"];
+        };
+        /** @enum {string} */
         PointProductSaleState: "coming_soon" | "available" | "ended";
         /** @enum {string} */
         PointProductUserState: "unauthenticated" | "authenticated";
@@ -1130,6 +1154,7 @@ export interface components {
             title: string;
             price: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PointProductGrant"];
+            limited_bonus: components["schemas"]["PointProductLimitedBonus"];
             audience: components["schemas"]["PointProductAudience"];
             sale_state: components["schemas"]["PointProductSaleState"];
             is_available: boolean;

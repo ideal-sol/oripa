@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.21
+  version: 2.0.0-alpha.22
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -377,6 +377,89 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminPointPurchasePlanMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /point-purchase-plans/{plan_id}/limited-bonus-campaigns:
+    parameters:
+      - name: plan_id
+        in: path
+        required: true
+        description: Exact Point Purchase Plan VersionのPublic ID。
+        schema: {$ref: '#/components/schemas/OpaqueId'}
+    get:
+      operationId: listAdminLimitedBonusCampaigns
+      summary: 期間限定ボーナスコイン設定一覧を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: Exact Plan Versionの期間限定ボーナスコイン設定一覧。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLimitedBonusCampaignCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminLimitedBonusCampaign
+      summary: 期間限定ボーナスコイン設定を登録する
+      description: OwnerまたはAdmin、Fresh MFA、Idempotency-Keyを必須とする。
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLimitedBonusCampaignInput'}
+      responses:
+        '201':
+          description: 登録済み期間限定ボーナスコイン設定。
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLimitedBonusCampaignMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /point-purchase-plans/{plan_id}/limited-bonus-campaigns/{campaign_id}:
+    parameters:
+      - name: plan_id
+        in: path
+        required: true
+        description: Exact Point Purchase Plan VersionのPublic ID。
+        schema: {$ref: '#/components/schemas/OpaqueId'}
+      - name: campaign_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/OpaqueId'}
+    put:
+      operationId: updateAdminLimitedBonusCampaign
+      summary: 期間限定ボーナスコイン設定を編集する
+      description: CampaignのExact Plan Version所属を維持し、既存Domain validationを使用する。
+      x-idempotency: required
+      x-rate-limit: critical-admin-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLimitedBonusCampaignInput'}
+      responses:
+        '200':
+          description: 更新済み期間限定ボーナスコイン設定。
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLimitedBonusCampaignMutationResult'}
         default: {$ref: '#/components/responses/Problem'}
   /catalog/categories:
     get:
@@ -4444,6 +4527,67 @@ components:
       required: [data, idempotent_replay, request_id]
       properties:
         data: {$ref: '#/components/schemas/AdminPointPurchasePlan'}
+        idempotent_replay: {type: boolean}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminLimitedBonusCampaign:
+      type: object
+      additionalProperties: false
+      required: [id, point_purchase_plan_id, point_purchase_plan_version, is_enabled, starts_at, ends_at, bonus_point_amount, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        point_purchase_plan_id:
+          $ref: '#/components/schemas/OpaqueId'
+        point_purchase_plan_version:
+          type: integer
+          minimum: 1
+        is_enabled:
+          type: boolean
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        bonus_point_amount:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminLimitedBonusCampaignInput:
+      type: object
+      additionalProperties: false
+      required: [is_enabled, starts_at, ends_at, bonus_point_amount]
+      properties:
+        is_enabled:
+          type: boolean
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        bonus_point_amount:
+          type: integer
+          minimum: 1
+    AdminLimitedBonusCampaignCollection:
+      type: object
+      additionalProperties: false
+      required: [items, request_id]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AdminLimitedBonusCampaign'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminLimitedBonusCampaignMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminLimitedBonusCampaign'}
         idempotent_replay: {type: boolean}
         request_id: {$ref: '#/components/schemas/OpaqueId'}
     AdminReferralPointSetting:

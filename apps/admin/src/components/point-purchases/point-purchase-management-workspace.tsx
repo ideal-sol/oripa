@@ -12,7 +12,7 @@ import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-ro
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { AdminPointPurchaseAudience, AdminPointPurchasePlan, AdminPointPurchasePlanInput, AdminUserTag } from "@/lib/admin-api/generated";
+import type { AdminLimitedBonusCampaign, AdminLimitedBonusCampaignInput, AdminPointPurchaseAudience, AdminPointPurchasePlan, AdminPointPurchasePlanInput, AdminUserTag } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
 type Mode = "list" | "create" | "edit";
@@ -28,6 +28,12 @@ type FormDraft = {
   availableFrom: string;
   availableUntil: string;
 };
+type CampaignDraft = {
+  isEnabled: boolean;
+  startsAt: string;
+  endsAt: string;
+  bonusAmount: string;
+};
 
 const EMPTY_FORM: FormDraft = {
   name: "",
@@ -40,6 +46,12 @@ const EMPTY_FORM: FormDraft = {
   isActive: true,
   availableFrom: "",
   availableUntil: "",
+};
+const EMPTY_CAMPAIGN: CampaignDraft = {
+  isEnabled: true,
+  startsAt: "",
+  endsAt: "",
+  bonusAmount: "",
 };
 
 export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode; planId?: string }) {
@@ -130,7 +142,10 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
           {busy === "load" ? <Loading /> : mode === "list" ? (
             <PlanList canManage={canManage} plans={plans} />
           ) : (
-            <PlanForm draft={draft} disabled={!canManage || busy === "save"} editing={mode === "edit"} onChange={setDraft} onSubmit={submit} tags={tags} />
+            <>
+              <PlanForm draft={draft} disabled={!canManage || busy === "save"} editing={mode === "edit"} onChange={setDraft} onSubmit={submit} tags={tags} />
+              {mode === "edit" && plan ? <CampaignManager canManage={canManage} client={client} plan={plan} /> : null}
+            </>
           )}
           {mode === "list" && busy !== "load" ? (
             <nav aria-label="ポイント購入商品ページ" className="cursor-actions">
@@ -144,6 +159,94 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
       </ProtectedAdminRoute>
     </AdminShell>
   );
+}
+
+function CampaignManager({ canManage, client, plan }: { canManage: boolean; client: AdminApiClient; plan: AdminPointPurchasePlan }) {
+  const [campaigns, setCampaigns] = useState<AdminLimitedBonusCampaign[]>([]);
+  const [draft, setDraft] = useState<CampaignDraft>(EMPTY_CAMPAIGN);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AdminApiError | null>(null);
+  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
+  const pendingKey = useRef<string | null>(null);
+
+  const load = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await client.listLimitedBonusCampaigns(plan.id);
+      setCampaigns(result.items);
+    } catch (caught) {
+      setError(asApiError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }, [client, plan.id]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [load]);
+
+  async function submit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!canManage || invalidCampaign(draft)) return;
+    setBusy(true);
+    setError(null);
+    pendingKey.current ??= crypto.randomUUID();
+    try {
+      const input = campaignInput(draft);
+      if (editingId) {
+        await client.updateLimitedBonusCampaign(plan.id, editingId, input, pendingKey.current);
+      } else {
+        await client.createLimitedBonusCampaign(plan.id, input, pendingKey.current);
+      }
+      pendingKey.current = null;
+      setDraft(EMPTY_CAMPAIGN);
+      setEditingId(null);
+      await load();
+    } catch (caught) {
+      const next = asApiError(caught);
+      setError(next);
+      if (next.requiresFreshMfa) setFreshMfaOpen(true);
+      else pendingKey.current = null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function edit(campaign: AdminLimitedBonusCampaign) {
+    setEditingId(campaign.id);
+    setDraft({
+      isEnabled: campaign.is_enabled,
+      startsAt: toJstInput(campaign.starts_at),
+      endsAt: toJstInput(campaign.ends_at),
+      bonusAmount: String(campaign.bonus_point_amount),
+    });
+    setError(null);
+  }
+
+  return <section className="point-purchase-section" aria-labelledby="limited-bonus-heading">
+    <h2 id="limited-bonus-heading">期間限定ボーナスコイン</h2>
+    <p>対象商品Version {plan.version} にだけ適用されます。時刻判定と重複判定はBackendが確定します。</p>
+    {error ? <div className="notice notice-error" role="alert"><p>{campaignErrorMessage(error)}</p><button className="secondary-button" onClick={() => void load()} type="button"><RotateCcw aria-hidden="true" size={17} />再読み込み</button></div> : null}
+    {busy && campaigns.length === 0 ? <Loading /> : campaigns.length === 0 ? <p>期間限定ボーナスコイン設定はありません。</p> : (
+      <div className="table-scroll"><table><thead><tr>{["状態", "開始日時", "終了日時", "追加量", "編集"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{campaigns.map((campaign) => <tr key={campaign.id}><td><span className={`status-pill ${campaign.is_enabled ? "status-active" : "status-muted"}`}>{campaign.is_enabled ? "ON" : "OFF"}</span></td><td>{formatJst(campaign.starts_at)}</td><td>{formatJst(campaign.ends_at)}</td><td>{campaign.bonus_point_amount.toLocaleString("ja-JP")} コイン</td><td><button className="secondary-button compact-button" disabled={!canManage || busy} onClick={() => edit(campaign)} type="button">編集</button></td></tr>)}</tbody></table></div>
+    )}
+    <form aria-label="期間限定ボーナスコイン設定" className="point-purchase-form" onSubmit={submit}>
+      <h3>{editingId ? "設定を編集" : "設定を登録"}</h3>
+      <div className="point-purchase-grid">
+        <label><span>期間限定ボーナスコイン開始日時</span><input required type="datetime-local" value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })} /></label>
+        <label><span>期間限定ボーナスコイン終了日時</span><input required type="datetime-local" value={draft.endsAt} onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })} /></label>
+        <label><span>追加ボーナスコイン量</span><input inputMode="numeric" min={1} required type="number" value={draft.bonusAmount} onChange={(event) => setDraft({ ...draft, bonusAmount: event.target.value })} /></label>
+      </div>
+      <label className="check-row"><input checked={draft.isEnabled} onChange={(event) => setDraft({ ...draft, isEnabled: event.target.checked })} type="checkbox" /><span>期間限定ボーナスコインをONにする</span></label>
+      {invalidCampaign(draft) ? <p className="notice notice-error" role="alert">開始日時、終了日時、追加ボーナスコイン量を確認してください。</p> : null}
+      <button className="primary-button" disabled={!canManage || busy || invalidCampaign(draft)} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editingId ? "設定を更新" : "設定を登録"}</button>
+      {editingId ? <button className="secondary-button" disabled={busy} onClick={() => { setEditingId(null); setDraft(EMPTY_CAMPAIGN); }} type="button">登録へ戻す</button> : null}
+    </form>
+    <FreshMfaDialog onClose={() => setFreshMfaOpen(false)} onSuccess={async () => { setFreshMfaOpen(false); await submit(); }} open={freshMfaOpen} />
+  </section>;
 }
 
 function PlanList({ canManage, plans }: { canManage: boolean; plans: AdminPointPurchasePlan[] }) {
@@ -177,7 +280,10 @@ function NumberField({ label, min, onChange, value }: { label: string; min: numb
 function Loading() { return <section className="module-state" role="status"><LoaderCircle aria-hidden="true" className="spin" size={24} /><h2>読み込んでいます</h2></section>; }
 function ErrorNotice({ error, onRetry }: { error: AdminApiError; onRetry: () => Promise<void> }) { return <div className="notice notice-error" role="alert"><p>{error.status === 409 ? "別の操作で更新されています。最新情報を取得してください。" : error.message}</p><button className="secondary-button" onClick={() => void onRetry()} type="button"><RotateCcw aria-hidden="true" size={17} />再読み込み</button></div>; }
 function asApiError(value: unknown): AdminApiError { return value instanceof AdminApiError ? value : new AdminApiError(0, "NETWORK_ERROR", null, null, true); }
+function campaignErrorMessage(error: AdminApiError): string { if (error.code === "LIMITED_BONUS_CAMPAIGN_OVERLAP") return "同じ商品Versionの期間限定ボーナスコイン設定と期間が重複しています。"; if (error.code === "LIMITED_BONUS_CAMPAIGN_INVALID") return "期間限定ボーナスコインの日時または追加量が不正です。"; return error.message; }
 function int(value: string): number { return Number(value); }
+function invalidCampaign(draft: CampaignDraft): boolean { const amount = int(draft.bonusAmount); return !draft.startsAt || !draft.endsAt || draft.endsAt <= draft.startsAt || !Number.isSafeInteger(amount) || amount < 1; }
+function campaignInput(draft: CampaignDraft): AdminLimitedBonusCampaignInput { return { is_enabled: draft.isEnabled, starts_at: `${draft.startsAt}:00+09:00`, ends_at: `${draft.endsAt}:00+09:00`, bonus_point_amount: int(draft.bonusAmount) }; }
 function invalid(draft: FormDraft, tags: AdminUserTag[]): boolean { const amount = int(draft.amount), paid = int(draft.paidPointAmount), free = int(draft.freePointAmount), sort = int(draft.sortOrder); const target = draft.targetUserTagId ? tags.find((tag) => tag.id === draft.targetUserTagId) : null; return draft.name.trim() === "" || ![amount, paid, free, sort].every(Number.isInteger) || amount < 1 || amount > 1_000_000 || paid !== amount || free < 0 || free > 1_000_000 || sort < 0 || sort > 1_000_000 || (!!draft.targetUserTagId && !target?.is_active) || (!!draft.availableFrom && !!draft.availableUntil && draft.availableUntil <= draft.availableFrom); }
 function toInput(draft: FormDraft): AdminPointPurchasePlanInput { return { name: draft.name.trim(), amount: int(draft.amount), paid_point_amount: int(draft.paidPointAmount), free_point_amount: int(draft.freePointAmount), sort_order: int(draft.sortOrder), audience_code: draft.audienceCode, target_user_tag_id: draft.targetUserTagId || null, is_active: draft.isActive, available_from: fromJst(draft.availableFrom), available_until: fromJst(draft.availableUntil) }; }
 function toDraft(plan: AdminPointPurchasePlan): FormDraft { return { name: plan.name, amount: String(plan.amount), paidPointAmount: String(plan.paid_point_amount), freePointAmount: String(plan.free_point_amount), sortOrder: String(plan.sort_order), audienceCode: plan.audience_code, targetUserTagId: plan.target_user_tag?.id ?? "", isActive: plan.is_active, availableFrom: toJstInput(plan.available_from), availableUntil: toJstInput(plan.available_until) }; }

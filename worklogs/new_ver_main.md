@@ -8564,3 +8564,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 初回検証は既存timestamp秒精度とmicrosecond replay比較の不一致、success fixtureのCanonical時刻欠落、event type guardの汎用status path誤適用を検出した。DB精度へのUTC秒正規化、success fixture更新、guardのsuccess確定path限定後に全focused testを再実行してPASSした。
 - Initial GitHub Integration Gateは新規Limited Bonus testが外側Transactionを使わずPoint fixtureを後続Line Messaging testへ残したため2 failuresとなった。Concurrency test以外をrollbackし、Concurrency fixtureを明示cleanupした後、Limited Bonus 7 tests／36 assertions、後続Line対象2 tests／24 assertions、全focused 36／180をPASSした。
 - Second GitHub Integration GateはMigration `000055`の新規2 tableが明示V2 Schema Inventoryへ未登録としてFail Closedした。`payment_limited_bonus_snapshots`と`point_purchase_plan_limited_bonus_campaigns`を正規順で登録し、focused inventory unitとLocal Policy GateをPASSした。
+
+## MIG-063B Limited Bonus Admin／Public Contract／Artifact
+
+- Latest `main@f2ecce33f8552e89dcda95fc0ac531d832a1c29e`、C2a Issue #297／PR #298、Migration `000055`、Remote／local branch・worktree・LockのCloseoutを必要最小限再確認した。Issue #299、Branch `feat/MIG-063B-limited-bonus-admin-public-contract`、専用Worktree、Risk R3で開始し、Artifact Release Lockを取得した。Migration Allocation、Integration Lock、Preview Lockは取得していない。
+- C2aの既存`V2LimitedBonusCampaignService`をExact Point Purchase Plan Versionへ接続し、Admin一覧／登録／編集、ON／OFF、開始／終了、追加量を提供した。Admin Adapterは型・認証・MFA・Idempotency・Audit・Problem変換だけを担当し、`start < end`、`bonus > 0`、`[start,end)` overlap、Lock／Transactionを再実装しない。
+- Public Point Productは既存`paid_points`／`bonus_points`／`total_points`を不変のまま、`limited_bonus`のamount、start、end、Backend UTC `as_of`、`active`／`upcoming`／`inactive`、表示可否・文言・追加量表示をadditiveに返す。開始境界はactive、終了境界はinactiveで、Storefrontに期間／Stack判定を持たせない。
+- Admin／Public／Webhook OpenAPI、bundles、Generated Admin型、Storefront Client型、Site Schema version、Testkit active／upcoming／inactive fixtureを新規`2.0.0-alpha.22`へ同期した。既存`2.0.0-alpha.21`は上書きせず、Storefront Repositoryへの直接導入、Registry publish、Stable Tag、Release、Preview／Production deployは実施しない。
+- 隔離PostgreSQLへ既存55 migrationsをfresh applyし、Admin CampaignとPublic境界8 tests／103 assertionsをPASSした。Admin 161 tests、Client 27、Site Schema 10、Testkit 34、OpenAPI 7、Release 10、Policy 135、各generate／check／typecheck／lint／build、Admin Production Build、PHP syntax、`git diff --check`がPASSした。Migration createdは0で、Task／Preview／ProductionへMigrationを適用していない。
+- Payment Snapshot、`provider_occurred_at`、single Grant、Expiry、Refund、Chargeback、金融Concurrency、Draw、Inventory、実Provider、Storefront Repositoryは変更していない。Required Checks、immutable Artifact発行／readback、Fresh Self-review、Squash Merge／Issue・branch・worktree cleanupはApplication Head固定後に継続する。

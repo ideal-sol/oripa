@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PointPurchaseManagementWorkspace } from "@/components/point-purchases/point-purchase-management-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import type { AdminPointPurchasePlan, AdminUserTag } from "@/lib/admin-api/generated";
+import type { AdminLimitedBonusCampaign, AdminPointPurchasePlan, AdminUserTag } from "@/lib/admin-api/generated";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
@@ -25,6 +25,10 @@ beforeEach(() => {
   vi.spyOn(AdminApiClient.prototype, "listUserTags").mockResolvedValue({
     items: [tag()],
     next_cursor: null,
+    request_id: uuid("9"),
+  });
+  vi.spyOn(AdminApiClient.prototype, "listLimitedBonusCampaigns").mockResolvedValue({
+    items: [campaign()],
     request_id: uuid("9"),
   });
 });
@@ -84,6 +88,48 @@ describe("Point purchase management", () => {
       target_user_tag_id: tag().id,
     });
   });
+
+  it("lists and updates an exact-version limited bonus campaign", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateLimitedBonusCampaign")
+      .mockResolvedValue({ data: { ...campaign(), is_enabled: false, bonus_point_amount: 450 }, idempotent_replay: false, request_id: uuid("9") });
+    render(<PointPurchaseManagementWorkspace mode="edit" planId={plan().id} />);
+    expect(await screen.findByText("期間限定ボーナスコイン")).toBeVisible();
+    expect(screen.getByText("対象商品Version 1 にだけ適用されます。時刻判定と重複判定はBackendが確定します。")).toBeVisible();
+    expect(await screen.findByText("300 コイン")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    fireEvent.click(screen.getByLabelText("期間限定ボーナスコインをONにする"));
+    fireEvent.change(screen.getByLabelText("追加ボーナスコイン量"), { target: { value: "450" } });
+    fireEvent.click(screen.getByRole("button", { name: "設定を更新" }));
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0]).toBe(plan().id);
+    expect(update.mock.calls[0][1]).toBe(campaign().id);
+    expect(update.mock.calls[0][2]).toMatchObject({
+      is_enabled: false,
+      bonus_point_amount: 450,
+      starts_at: "2026-08-20T09:00:00+09:00",
+      ends_at: "2026-08-21T09:00:00+09:00",
+    });
+  });
+
+  it("registers a limited bonus campaign with user-facing coin wording", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listLimitedBonusCampaigns").mockResolvedValue({ items: [], request_id: uuid("9") });
+    const create = vi.spyOn(AdminApiClient.prototype, "createLimitedBonusCampaign")
+      .mockResolvedValue({ data: campaign(), idempotent_replay: false, request_id: uuid("9") });
+    render(<PointPurchaseManagementWorkspace mode="edit" planId={plan().id} />);
+    expect(await screen.findByText("期間限定ボーナスコイン設定はありません。")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("期間限定ボーナスコイン開始日時"), { target: { value: "2026-08-20T09:00" } });
+    fireEvent.change(screen.getByLabelText("期間限定ボーナスコイン終了日時"), { target: { value: "2026-08-21T09:00" } });
+    fireEvent.change(screen.getByLabelText("追加ボーナスコイン量"), { target: { value: "300" } });
+    fireEvent.click(screen.getByRole("button", { name: "設定を登録" }));
+    await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create.mock.calls[0][0]).toBe(plan().id);
+    expect(create.mock.calls[0][1]).toMatchObject({
+      is_enabled: true,
+      bonus_point_amount: 300,
+      starts_at: "2026-08-20T09:00:00+09:00",
+      ends_at: "2026-08-21T09:00:00+09:00",
+    });
+  });
 });
 
 function plan(): AdminPointPurchasePlan {
@@ -115,6 +161,20 @@ function tag(): AdminUserTag {
     name: "VIP",
     revision: 1,
     updated_at: "2026-08-01T00:00:00Z",
+  };
+}
+
+function campaign(): AdminLimitedBonusCampaign {
+  return {
+    id: uuid("3"),
+    point_purchase_plan_id: plan().id,
+    point_purchase_plan_version: 1,
+    is_enabled: true,
+    starts_at: "2026-08-20T00:00:00Z",
+    ends_at: "2026-08-21T00:00:00Z",
+    bonus_point_amount: 300,
+    created_at: "2026-08-18T00:00:00Z",
+    updated_at: "2026-08-18T00:00:00Z",
   };
 }
 

@@ -146,6 +146,44 @@ final class PointProductReadContractTest extends TestCase
             ->assertExactJson(['data' => []]);
     }
 
+    public function test_limited_bonus_state_and_exact_boundaries_are_backend_canonical(): void
+    {
+        $active = $this->plan('開始境界', 'all_users', 1, freePoints: 100);
+        $upcoming = $this->plan('開始前', 'all_users', 2);
+        $ended = $this->plan('終了境界', 'all_users', 3);
+        $disabled = $this->plan('無効', 'all_users', 4);
+        $this->campaign($active, now(), now()->addHour(), 300);
+        $this->campaign($upcoming, now()->addSecond(), now()->addHour(), 400);
+        $this->campaign($ended, now()->subHour(), now(), 500);
+        $this->campaign($disabled, now()->addSecond(), now()->addHour(), 600, false);
+
+        $this->getJson('/api/v2/point-products')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $active->public_id)
+            ->assertJsonPath('data.0.grant.paid_points', 1000)
+            ->assertJsonPath('data.0.grant.bonus_points', 100)
+            ->assertJsonPath('data.0.grant.total_points', 1100)
+            ->assertJsonPath('data.0.limited_bonus.amount', 300)
+            ->assertJsonPath('data.0.limited_bonus.starts_at', '2026-08-14T00:00:00Z')
+            ->assertJsonPath('data.0.limited_bonus.ends_at', '2026-08-14T01:00:00Z')
+            ->assertJsonPath('data.0.limited_bonus.state', 'active')
+            ->assertJsonPath('data.0.limited_bonus.as_of', '2026-08-14T00:00:00Z')
+            ->assertJsonPath('data.0.limited_bonus.presentation.is_visible', true)
+            ->assertJsonPath('data.0.limited_bonus.presentation.label', '期間限定ボーナスコイン')
+            ->assertJsonPath('data.0.limited_bonus.presentation.amount_text', '+300コイン')
+            ->assertJsonPath('data.1.id', $upcoming->public_id)
+            ->assertJsonPath('data.1.limited_bonus.state', 'upcoming')
+            ->assertJsonPath('data.1.limited_bonus.amount', 400)
+            ->assertJsonPath('data.2.id', $ended->public_id)
+            ->assertJsonPath('data.2.limited_bonus.state', 'inactive')
+            ->assertJsonPath('data.2.limited_bonus.amount', 0)
+            ->assertJsonPath('data.2.limited_bonus.starts_at', null)
+            ->assertJsonPath('data.2.limited_bonus.ends_at', null)
+            ->assertJsonPath('data.2.limited_bonus.presentation.is_visible', false)
+            ->assertJsonPath('data.3.id', $disabled->public_id)
+            ->assertJsonPath('data.3.limited_bonus.state', 'inactive');
+    }
+
     private function plan(
         string $name,
         string $audience,
@@ -215,6 +253,25 @@ final class PointProductReadContractTest extends TestCase
                 'updated_at' => now(),
             ]);
         }
+    }
+
+    private function campaign(
+        object $plan,
+        \DateTimeInterface $startsAt,
+        \DateTimeInterface $endsAt,
+        int $amount,
+        bool $enabled = true
+    ): void {
+        DB::table('point_purchase_plan_limited_bonus_campaigns')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'point_purchase_plan_id' => $plan->id,
+            'is_enabled' => $enabled,
+            'starts_at' => CarbonImmutable::parse($startsAt)->utc()->toIso8601String(),
+            'ends_at' => CarbonImmutable::parse($endsAt)->utc()->toIso8601String(),
+            'bonus_point_amount' => $amount,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function user(): User
