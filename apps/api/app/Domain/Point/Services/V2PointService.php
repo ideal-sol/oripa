@@ -82,10 +82,7 @@ final class V2PointService
                 'system',
                 $user->public_id,
                 $idempotencyKey,
-                [
-                    'amount' => $amount,
-                    'expire_at' => $expiry->utc()->toIso8601String(),
-                ]
+                ['amount' => $amount]
             );
             if ($claim->replay) {
                 return PointOperation::query()

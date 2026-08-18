@@ -318,6 +318,16 @@ final class PointModelFoundationTest extends TestCase
                 ->where('user_id', $user->id)
                 ->where('expire_at', '>', $cutoff->toIso8601String())
                 ->count());
+            $serviceNow = CarbonImmutable::now()->startOfSecond();
+            self::assertSame($cutoff->toIso8601String(), $serviceNow->toIso8601String());
+            self::assertSame(1, PointLot::query()
+                ->where('user_id', $user->id)
+                ->where(function ($query) use ($serviceNow): void {
+                    $query->whereNull('expire_at')
+                        ->orWhere('expire_at', '>', $serviceNow->toIso8601String());
+                })
+                ->whereColumn('remaining_amount', '>', 'reserved_amount')
+                ->count());
             $balance = app(V2CurrentUserPointReadService::class)->wallet($user);
             self::assertSame(['paid_points' => 0, 'free_points' => 30, 'total_points' => 30], $balance);
 
@@ -350,6 +360,14 @@ final class PointModelFoundationTest extends TestCase
             '2026-07-01 00:00:00+00',
             $operationAt->addSecond()
         );
+        self::assertSame(1, PointLot::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($operationAt): void {
+                $query->whereNull('expire_at')
+                    ->orWhere('expire_at', '>', $operationAt->toIso8601String());
+            })
+            ->whereColumn('remaining_amount', '>', 'reserved_amount')
+            ->count());
 
         DB::transaction(function () use ($user, $operationAt): void {
             $service = app(V2PointService::class);

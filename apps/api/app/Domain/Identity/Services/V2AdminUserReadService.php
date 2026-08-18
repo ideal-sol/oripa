@@ -38,6 +38,13 @@ final class V2AdminUserReadService
                 '=',
                 'users.id'
             )
+            ->leftJoinSub(
+                $this->lotCounts(),
+                'point_lot_counts',
+                'point_lot_counts.user_id',
+                '=',
+                'users.id'
+            )
             ->orderByDesc('users.id')
             ->select([
                 'users.id',
@@ -46,8 +53,12 @@ final class V2AdminUserReadService
                 'users.state',
                 'users.created_at',
                 'wallets.id as wallet_id',
-                'available_points.paid_balance',
-                'available_points.free_balance',
+                'wallets.paid_balance',
+                'wallets.free_balance',
+                'point_lot_counts.paid_count',
+                'point_lot_counts.free_count',
+                'available_points.paid_balance as available_paid_balance',
+                'available_points.free_balance as available_free_balance',
             ]);
         $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
             'id' => (string) $row->public_id,
@@ -79,6 +90,13 @@ final class V2AdminUserReadService
                 '=',
                 'users.id'
             )
+            ->leftJoinSub(
+                $this->lotCounts(),
+                'point_lot_counts',
+                'point_lot_counts.user_id',
+                '=',
+                'users.id'
+            )
             ->where('users.public_id', $userPublicId)
             ->select([
                 'users.id',
@@ -92,8 +110,12 @@ final class V2AdminUserReadService
                 'users.updated_at',
                 'users.tag_assignment_revision',
                 'wallets.id as wallet_id',
-                'available_points.paid_balance',
-                'available_points.free_balance',
+                'wallets.paid_balance',
+                'wallets.free_balance',
+                'point_lot_counts.paid_count',
+                'point_lot_counts.free_count',
+                'available_points.paid_balance as available_paid_balance',
+                'available_points.free_balance as available_free_balance',
             ])
             ->first();
         if ($row === null) {
@@ -245,8 +267,12 @@ final class V2AdminUserReadService
         if ($row->wallet_id === null) {
             return null;
         }
-        $paid = (int) ($row->paid_balance ?? 0);
-        $free = (int) ($row->free_balance ?? 0);
+        $paid = (int) ($row->paid_count ?? 0) > 0
+            ? (int) $row->available_paid_balance
+            : (int) $row->paid_balance;
+        $free = (int) ($row->free_count ?? 0) > 0
+            ? (int) $row->available_free_balance
+            : (int) $row->free_balance;
 
         return [
             'total_balance' => $paid + $free,
@@ -267,12 +293,25 @@ final class V2AdminUserReadService
             ->select('user_id')
             ->selectRaw(
                 <<<'SQL'
-                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                    COALESCE(SUM(remaining_amount) FILTER (
                         WHERE point_type = 'paid'
                     ), 0) AS paid_balance,
-                    COALESCE(SUM(remaining_amount - reserved_amount) FILTER (
+                    COALESCE(SUM(remaining_amount) FILTER (
                         WHERE point_type = 'free'
                     ), 0) AS free_balance
+                SQL
+            );
+    }
+
+    private function lotCounts(): Builder
+    {
+        return DB::table('point_lots')
+            ->groupBy('user_id')
+            ->select('user_id')
+            ->selectRaw(
+                <<<'SQL'
+                    COUNT(*) FILTER (WHERE point_type = 'paid') AS paid_count,
+                    COUNT(*) FILTER (WHERE point_type = 'free') AS free_count
                 SQL
             );
     }

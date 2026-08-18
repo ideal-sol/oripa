@@ -61,7 +61,7 @@
 
 - PHP syntax: 変更PHP全対象PASS。Python compile、`git diff --check` PASS。Local Policy Gate、Quality Gate（PHP 809 filesを含む）PASS。
 - Policy Unit: Point／Payment／Identity／Database境界9 tests PASS。旧paid grant禁止、`SKIP LOCKED`禁止、新規NULL guard、NULLS LAST FEFO、Payment共通expiryのmutation testsを含む。
-- Point Core: `PointModelFoundationTest` 16 tests／84 assertions PASS。180日、Legacy、全Lot FEFO、境界除外、Draw、paid／free expiration、idempotency、Snapshot、Reconciliation、Consume vs Expire、有限Retryを含む。
+- Point Core: `PointModelFoundationTest` 16 tests／87 assertions PASS。180日、Legacy、全Lot FEFO、境界除外、Draw、paid／free expiration、idempotency、Snapshot、Reconciliation、Consume vs Expire、有限Retryを含む。
 - Payment Core: `PaymentModelFoundationTest` 21 tests／90 assertions PASS。paid／free同一180日、Transaction rollback、Reservation境界、expiry維持、Worker skip、Chargeback paid優先／shortfall、Reversal manual reviewを含む。
 - B2／Grant回帰: Admin Adjustment、Draw、QA Draw、Point Exchange／Prize Shipping、LINE、Referral、Current User historyの選択77 tests／874 assertions PASS。最終時刻変換修正後にDraw 22 tests／210 assertionsを再実行しPASS。
 - Migration: fresh apply、latest rollback／reapply、残存functionを含む再fresh apply、Legacy実データupgrade、新規NULL Lot／Adjustment拒否PASS。
@@ -74,15 +74,18 @@
 - 初回Payment focused runはReservation中のglobal worker count期待と、C1a FEFO後のChargeback shortfall旧期待の2件を検出した。対象Lot状態と新しい消費前提を検証するassertionへ修正後21 testsを再実行しPASSした。
 - Migration再freshはPostgreSQL function残存を検出した。`CREATE OR REPLACE FUNCTION`へ修正し、再fresh／rollback／reapply／Legacy upgradeをPASSした。
 - 最終時刻変換修正後のDraw再実行は、初回が直接`docker run`したためTask DB credential不一致、次回がPHPUnit固定`oripa_test`未作成、作成直後がV2 Migration未適用でApplication実行前にFAILした。Task Composeで専用DBへV2 Migration 54件を適用後、Draw 22 tests／210 assertionsを再実行しPASSした。
+- Initial GitHub Integration Gateは、free Grant replayのidempotency payloadへ実行時算出expiryを含めたため秒境界でreused判定となる1 errorと、Lot未作成の既存Current／Admin read fixtureを0扱いする2 failuresを検出した。Replay payloadを入力amountだけへ戻し、Lotが存在するpoint typeは期限除外Lot集計、Lotが存在しない既存fixtureだけはWalletへfallbackするFail Closed互換へ修正した。Point Core 16 tests／87 assertions、Admin／Current read 8 tests／142 assertions、QA preflight 1 test／3 assertions、idempotency 1 test／4 assertionsを再実行しPASSした。
+- 複数classの同時Focused再実行は3分超で進行しなかったため停止し、Task専用Containerを分離してclass単位で再実行した。ApplicationのRetry上限やLock処理は変更していない。
 
 ## Verification Not Performed
 
 - Task指示に従いLocal全Suite／全Buildは実行していない。
 - Public Contract Shape変更がないためOpenAPI／Storefront Client／Testkit／Artifactは生成・変更・検証していない。
 - Admin Presentation、表示名変更、7日以内表示、期間限定Bonus、Mail／Content、OPS／Cutover、Preview／Production Deployは実施していない。
-- Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge、Issue／branch／worktree／Lock cleanupはFinal Head固定後に実施する。
+- 初回remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`はPolicy／Quality PASS、Integration FAIL、Security FAIL、ci-gate FAILだった。IntegrationのTask回帰は上記のとおり修正済みでfresh head再検証待ちである。SecurityはTask非変更の空Dependency Advisory baselineが`2026-08-17`で失効しているためFAILし、Gate弱体化や別Scopeでのbaseline更新は行っていない。
+- CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge、Issue／branch／worktree／Lock cleanupはfresh head Required Checks後に判定する。
 
 ## Review Findings
 
 - Fresh Self-review前のApplication review: SEV-0 0、SEV-1 0。
-- Remaining blocker: なし。GitHub lifecycleとfixed-head gate待ち。
+- Remaining blocker: Task外の`.ci/baselines/dependency-advisories.json`が期限切れでSecurity GateをFail Closedしている。別Security Taskによるfresh advisory auditとbaseline判断が必要である。
