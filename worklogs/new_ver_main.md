@@ -8535,6 +8535,13 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Root／Admin／Platform／Client／Site Schema／Testkit／OpenAPI／compatibility／Policy／release sourceは`2.0.0-alpha.21`へ同期済みである。Required Checks、CodeQL、Dependency Review、immutable Artifact、Fresh Self-review、Merge／Cleanupはfixed Application headで継続する。
 - Initial head `952c42402e5b9c6a8d0598182b187c408bd20938`はPolicy／Quality／Security PASS、Integration／ci-gate FAILだった。Integrationが検出した2件はC1a Payment reservation release／due Lot read testの旧3-field Wallet exact arrayであり、Mutationを変更せず`as_of`／Bucketを決定的期待値へ同期した。Task source全体からbuildしたfresh image／DBで各1 test（5／8 assertions）をPASSした。
 
+## MIG-062Z Coin Read Contract Artifact
+
+- Application Head `1a53ba630264258291cb72e84707e488782cbc08`のRequired 5 ChecksはすべてPASSした。GitHub-hosted Workflow Run `32115646025`が同一Source Commitからimmutable Storefront Contract Artifactを正規発行した。
+- Artifact Versionは人間明示割当の`2.0.0-alpha.21`、Contract Artifact IDは`9316692687`、outer／GitHub SHA-256は`190fd12cb327634dbab21d343bc92fba37ba657635ff3093b39d55d8030226fe`、Manifest SHA-256は`ac5f051c6171d40f5ed1a0039b7103a8e5917dd90da871fead91b9f8b1aed115`である。
+- Client `39622cdfaea2c80f72595396359e67aac7f1de34582ae23ef2de2831d31b594d`、Site Schema `03f78cd1d090e1cc99ae8af9d8b9c381b720c0eab27b8beee34c5567dcc8018b`、Testkit `170d2fbb3b9f12cc4e906120c3d23714d612104c544b44498c81641563376263`、Public OpenAPI `103b8d8ccb1312fecf3013a531102faf5d73cdeb667a7f8d705d6aaf581a1299`を`SHA256SUMS`と実Fileへreadback一致確認した。
+- Storefront handoffは3 packageの固定Version／tarball SHA、Public OpenAPI、Manifest、SHA256SUMSである。Registry publish、Storefront Repositoryへの直接導入、Preview deployment／browser verification、Runtime／Nginx／DB変更は実施していない。
+
 ## SEC-011 Dependency Advisory Baseline Fresh Security Review
 
 - MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。
