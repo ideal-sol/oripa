@@ -8507,3 +8507,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 1000連はquery max 55（SELECT 30／INSERT 19／UPDATE 6）、100連は49（SELECT 30／INSERT 13／UPDATE 6）でSelection／Inventory N+1なし。Task Migration created／applied 0、Public OpenAPI／Client／Testkit／Artifact／Storefront／Preview変更0である。
 - Required Checks、CodeQL、Dependency Review、Fresh Self-review、Squash Merge、Issue／branch／worktree／Integration Lock cleanupはFinal Head固定後に継続する。
 - 初回PR Head `eb87ff173dc72a108dbb9987255cb02874072af5`では旧固定ppm／Point-first QA lock順を守るPolicy GateがB2 Human仕様と衝突しFAIL、Quality Gateは`setup-php`取得のGitHub 429／502でApplication実行前にFAILした。Draw Policyを動的bounded CSPRNG、Canonical Inventory、Transaction／Idempotency、Prize-only／Legacy Probability・Direct Point Back禁止、Inventory-first QA lock順へFail Closedで同期し、Legacy Schema／過去Read保護は維持した。Policy Unit 131 tests／Local GateをPASSしたfresh headで再検証する。
+
+## SEC-011 Dependency Advisory Baseline Fresh Security Review
+
+- MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。
+- 2026-08-18のfresh canonical Composer、Root pnpm／V2 workspace、Legacy pnpm auditはいずれも0 findingだった。新規Advisory、baseline array、dependency／lockfile、Gate／auditの弱体化はない。
+- empty baseline management metadataだけをSEC-011、review reason、bounded expiry `2026-08-25`へ更新した。次のFindingはremediationまたはexact-fingerprint Security Taskを必要とし、日付だけの延長を禁止する。

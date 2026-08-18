@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "security-owners",
-    "reason": "Re-reviewed on 2026-08-10 in SEC-009 after upgrading mtdowling/jmespath.php to 2.9.1 and nanoid to 3.3.17; fresh Composer, Root pnpm, and Legacy pnpm audits contain no findings.",
+    "reason": "Re-reviewed on 2026-08-18 in SEC-011; fresh Composer, Root pnpm/V2 workspace, and Legacy pnpm canonical audits contain no findings.",
     "removal_condition": "Keep the Composer and pnpm baseline arrays empty; any future finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
-    "expires_at": "2026-08-17",
-    "tracking_task": "SEC-009"
+    "expires_at": "2026-08-25",
+    "tracking_task": "SEC-011"
   },
   "composer": [],
   "pnpm": []
