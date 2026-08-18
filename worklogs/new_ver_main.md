@@ -8524,3 +8524,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - MIG-062Y PR #292のSecurity Gateを停止させた空Dependency Advisory baseline期限切れを、専用Issue #293、Branch、Worktree、Integration Lockで分離して確認した。Migration Allocation、Application Domain、Public Contract、Artifact、Storefront、Preview、Productionは対象外である。
 - 2026-08-18のfresh canonical Composer、Root pnpm／V2 workspace、Legacy pnpm auditはいずれも0 findingだった。新規Advisory、baseline array、dependency／lockfile、Gate／auditの弱体化はない。
 - empty baseline management metadataだけをSEC-011、review reason、bounded expiry `2026-08-25`へ更新した。次のFindingはremediationまたはexact-fingerprint Security Taskを必要とし、日付だけの延長を禁止する。
+
+## MIG-062Y Coin Expiry Core Closeout Resume
+
+- SEC-011 merge `edd1965ddee851eb3fed6e327c7477236f0a8083`を含む最新mainへ、履歴rewriteなしの二親mergeで同期した。競合はWorklogだけで、SEC-011のbaseline／Worklog／reportはbase側に保持され、Application DomainとMigration差分の競合は0件だった。
+- `000054`より新しいmain Migrationがないことを確認し、Migration AllocationとIntegration Lockを再取得した。Task専用PostgreSQLで54件fresh apply、`000054`単独rollback／reapply、Migration statusを再PASSした。
+- Base同期の影響範囲に限定し、Migration PHP syntax、Policy Unit 133 tests、Local Policy Gate、`git diff --check`をPASSした。SEC-011 auditの再実行、全Suite／全Build、Public OpenAPI／Artifact／Storefront／Client／Testkit変更は行っていない。

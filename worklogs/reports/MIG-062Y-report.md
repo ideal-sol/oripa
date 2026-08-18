@@ -5,13 +5,15 @@
 - Task ID: MIG-062Y
 - Issue: #291
 - Risk: R4
-- Base SHA: `1bd2cb5015ca50b1798bca4a83f9d6d5125e5dc6`
+- Original Base SHA: `1bd2cb5015ca50b1798bca4a83f9d6d5125e5dc6`
+- Synced Base SHA: `edd1965ddee851eb3fed6e327c7477236f0a8083`
 - Branch: `feat/MIG-062Y-coin-expiry-core`
 - Worktree: `/var/www/oripa-worktrees/MIG-062Y`
 - Integration Lock: 取得済み。Closeoutで解放する。
-- Migration Allocation: `000054`を取得しmaterialize後にAllocation Lockを解放済み。
+- Migration Allocation: `000054`を再取得済み。Closeoutで解放する。
 - Artifact／Preview Lock: 取得なし。
-- Application Head: `6f718cce59da065287f6c4f7ebb9205943c3a30e`
+- Pre-sync Candidate Head: `69fddd507b4e2d947099f8d81ba2800e8050cac8`
+- Safe-sync Head: `17fee450de2f0bd23a9defffb30a61f6c2d30b0d`
 - PR: #292 `https://github.com/ideal-sol/oripa/pull/292`
 - Final Head／Squash SHA: Closeout時に確定する。
 
@@ -30,6 +32,7 @@
 - `point_lots.legacy_no_expiry`、`point_adjustments.legacy_no_expiry`、`point_balance_snapshots.expired_paid_amount`を追加した。
 - 全Lot FEFO partial index、Expiration candidate index、Lot／Adjustment expiry insert guard、expiry immutable guard、Snapshot paid expiry constraintを追加した。
 - Task専用PostgreSQLでfresh apply、latest rollback／reapply、function残存状態からのfresh reapplyをPASSした。
+- SEC-011を含む最新mainへのsafe sync後、main側に新規Migrationがないことを確認し、Task専用PostgreSQLで54件fresh applyと`000054`単独rollback／reapplyを再度PASSした。
 - 適用前paid NULL Lot、finite free Lot、paid NULL Grant Adjustmentを実データとして作成後にupgradeし、paid NULLだけLegacy marker化、free expiry不変、新規Lot／Adjustment NULL拒否を確認した。
 - Production／Preview Migrationは適用していない。RollbackはApplication rollback後に行い、C1a finite paid rowが存在する状態では旧制約へのdownがFail Closedする。
 
@@ -67,6 +70,7 @@
 - Migration: fresh apply、latest rollback／reapply、残存functionを含む再fresh apply、Legacy実データupgrade、新規NULL Lot／Adjustment拒否PASS。
 - Command discovery: `v2:points:expire`登録PASS。
 - Focused API image buildだけを実行しPASS。Repository全Buildは実行していない。
+- Base sync後はSEC-011のbaseline／Worklog／reportだけがbase側へ追加され、Application Domain差分がないことを確認した。PHP Migration syntax、Policy Unit 133 tests、Local Policy Gate、`git diff --check`をPASSした。
 
 ## Failed Then Fixed
 
@@ -82,10 +86,10 @@
 - Task指示に従いLocal全Suite／全Buildは実行していない。
 - Public Contract Shape変更がないためOpenAPI／Storefront Client／Testkit／Artifactは生成・変更・検証していない。
 - Admin Presentation、表示名変更、7日以内表示、期間限定Bonus、Mail／Content、OPS／Cutover、Preview／Production Deployは実施していない。
-- 初回remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`はPolicy／Quality PASS、Integration FAIL、Security FAIL、ci-gate FAILだった。IntegrationのTask回帰は上記のとおり修正済みでfresh head再検証待ちである。SecurityはTask非変更の空Dependency Advisory baselineが`2026-08-17`で失効しているためFAILし、Gate弱体化や別Scopeでのbaseline更新は行っていない。
-- CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge、Issue／branch／worktree／Lock cleanupはfresh head Required Checks後に判定する。
+- 初回remote head `61ceecc01fd68298d9995dfa6cc6edf74714464c`のIntegration回帰は上記のとおり修正済みである。Security blockerは別Task SEC-011（PR #294、Merge `edd1965ddee851eb3fed6e327c7477236f0a8083`）でfresh canonical audit 0 findingとRequired Checks PASSを経て解消された。MIG-062Yではbaseline再監査・変更を行っていない。
+- Final exact-head Required Checks、CodeQL、Dependency Review、fixed-head Fresh Self-review、Squash Merge、Issue／branch／worktree／Lock cleanupはCloseoutで確定する。
 
 ## Review Findings
 
 - Fresh Self-review前のApplication review: SEV-0 0、SEV-1 0。
-- Remaining blocker: Task外の`.ci/baselines/dependency-advisories.json`が期限切れでSecurity GateをFail Closedしている。別Security Taskによるfresh advisory auditとbaseline判断が必要である。
+- Remaining blocker: なし。Final exact-head gateとfixed-head Fresh Self-reviewをCloseoutで確定する。
