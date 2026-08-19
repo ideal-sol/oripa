@@ -31,7 +31,7 @@
 ## Validation
 
 - PHP 8.4 API image build: PASS.
-- Direct-email focused test: PASS, 3 tests / 27 assertions.
+- Direct-email and Audit/Outbox focused tests: PASS, 15 tests / 80 assertions (existing test-image `.env` warnings only).
 - Authentication focused regression: PASS with existing test-environment `.env` warnings.
 - PHP syntax, Composer validation, Composer/workspace pnpm/legacy pnpm audit: PASS.
 - Policy Unit 138, Quality Unit 4, Security Unit 10; local policy, quality, and security gates: PASS.

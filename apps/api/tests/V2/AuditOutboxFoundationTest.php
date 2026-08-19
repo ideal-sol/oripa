@@ -5,11 +5,11 @@ namespace Tests\V2;
 use App\Domain\Audit\V2\Services\V2AuditChainVerifier;
 use App\Domain\Audit\V2\Services\V2AuditDailyDigestService;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
-use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Outbox\Services\V2OutboxEmailVerificationNotifier;
 use App\Models\V2\AuditDailyDigest;
 use App\Models\V2\AuditLog;
 use App\Models\V2\OutboxMessage;
@@ -358,7 +358,7 @@ final class AuditOutboxFoundationTest extends TestCase
             'state' => V2UserState::PendingVerification,
         ]);
         DB::transaction(function () use ($user): void {
-            app(V2EmailVerificationNotifier::class)->send(
+            app(V2OutboxEmailVerificationNotifier::class)->send(
                 $user,
                 'verification-token-plaintext',
                 '/',
