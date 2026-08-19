@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircle, X } from "lucide-react";
+import Image from "next/image";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient } from "@/lib/admin-api/client";
@@ -103,6 +104,7 @@ export function CatalogPrizeAssetMutationForm({
         const matches = candidates.filter((banner) => banner.asset.id === presentationAssetId);
         if (controller.signal.aborted || bannerPickerChangedRef.current) return;
         if (matches.length === 1) {
+          setBannerLoading(true);
           setBannerCategoryId(matches[0].category.id);
           setSelectedBannerId(matches[0].id);
           setBanners(candidates.filter((banner) => banner.category.id === matches[0].category.id));
@@ -114,12 +116,8 @@ export function CatalogPrizeAssetMutationForm({
     return () => controller.abort();
   }, [initial, mode, resource]);
   useEffect(() => {
-    if (resource !== "prizes" || !bannerCategoryId) {
-      setBanners([]);
-      return;
-    }
+    if (resource !== "prizes" || !bannerCategoryId) return;
     const controller = new AbortController();
-    setBannerLoading(true);
     listAllBannersForCategory(new AdminApiClient(), bannerCategoryId, controller.signal)
       .then((items) => {
         if (!controller.signal.aborted) setBanners(items);
@@ -166,6 +164,7 @@ export function CatalogPrizeAssetMutationForm({
   }
 
   function selectBannerCategory(categoryId: string) {
+    setBannerLoading(Boolean(categoryId));
     setBannerCategoryId(categoryId);
     setSelectedBannerId(null);
     bannerPickerChangedRef.current = true;
@@ -278,7 +277,7 @@ export function CatalogPrizeAssetMutationForm({
                         onClick={() => selectBanner(banner)}
                         type="button"
                       >
-                        <img alt="" height={56} src={banner.asset.public_url} width={96} />
+                        <Image alt="" height={56} src={banner.asset.public_url} unoptimized width={96} />
                         <span>{banner.title}</span>
                       </button>
                     ))}

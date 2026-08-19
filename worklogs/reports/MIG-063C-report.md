@@ -35,6 +35,7 @@
 - PASS: `git diff --check`.
 - Not run: Browser/E2E; no dedicated browser environment was used. GitHub required checks, fixed-head self-review, merge, and cleanup remain pending.
 - FAIL (superseded head `9e7e84b22b4f47669d78c4bce643794f43a92c15`): GitHub Quality Gate found three missing required fields in newly added test fixtures. Only those fixture fields were corrected; fresh-head checks are required before merge.
+- FAIL (superseded head `e553ee4c5e29b57d3b12aeed607a38011f8d168d`): GitHub Quality Gate found an effect-state lint error and a bare image lint warning. Loading state now starts from picker actions and candidate images use unoptimized `next/image`; fresh-head checks are required before merge.
 
 ## Rollback
 
