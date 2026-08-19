@@ -3,6 +3,8 @@
 import { LoaderCircle, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { AdminApiError } from "@/lib/admin-api/client";
+
 export interface CatalogMasterDraft {
   code: string;
   description: string | null;
@@ -75,8 +77,12 @@ export function CatalogMutationForm({
         name: draft.name.trim(),
         slug: draft.slug.trim(),
       });
-    } catch {
-      setError("保存できませんでした。画面の案内に従って再試行してください。");
+    } catch (cause) {
+      setError(
+        cause instanceof AdminApiError
+          ? cause.message
+          : "保存できませんでした。画面の案内に従って再試行してください。",
+      );
     } finally {
       setSubmitting(false);
     }

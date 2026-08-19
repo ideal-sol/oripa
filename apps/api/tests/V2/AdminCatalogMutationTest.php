@@ -23,6 +23,8 @@ final class AdminCatalogMutationTest extends TestCase
 {
     private const PUBLISHED_CATEGORY_ID = '0198a001-0000-7000-8000-000000000001';
 
+    private const PUBLISHED_TAG_ID = '0198a001-0000-7000-8000-000000000002';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -260,13 +262,52 @@ final class AdminCatalogMutationTest extends TestCase
         )->assertConflict()->assertJsonPath('code', 'CATALOG_MASTER_CONFLICT');
     }
 
-    public function test_published_references_block_presentation_changes_and_archive(): void
+    public function test_published_category_allows_presentation_changes_but_protects_slug_and_archive(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         $current = $this->asAdmin($token)
             ->getJson('/admin/api/v2/catalog/categories/'.self::PUBLISHED_CATEGORY_ID)
             ->assertOk()
             ->json('data');
+
+        foreach ([
+            ['name' => 'Published Category Changed'],
+            ['description' => 'Published description changed'],
+            ['sort_order' => 25],
+            ['is_visible' => false],
+            ['is_visible' => true],
+        ] as $change) {
+            Auth::forgetGuards();
+            $current = $this->mutatingRequest(
+                $token,
+                'PUT',
+                '/admin/api/v2/catalog/categories/'.self::PUBLISHED_CATEGORY_ID,
+                [
+                    'expected_revision' => $current['revision'],
+                    'slug' => $current['slug'],
+                    'name' => $current['name'],
+                    'description' => $current['description'],
+                    'sort_order' => $current['sort_order'],
+                    'is_visible' => $current['is_visible'],
+                    ...$change,
+                ]
+            )->assertOk()->json('data');
+        }
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/categories/'.self::PUBLISHED_CATEGORY_ID,
+            [
+                'expected_revision' => $current['revision'] - 1,
+                'slug' => $current['slug'],
+                'name' => $current['name'],
+                'description' => $current['description'],
+                'sort_order' => $current['sort_order'],
+                'is_visible' => $current['is_visible'],
+            ]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -275,14 +316,13 @@ final class AdminCatalogMutationTest extends TestCase
             '/admin/api/v2/catalog/categories/'.self::PUBLISHED_CATEGORY_ID,
             [
                 'expected_revision' => $current['revision'],
-                'slug' => $current['slug'],
-                'name' => 'Published Category Changed',
+                'slug' => 'published-category-changed',
+                'name' => $current['name'],
                 'description' => $current['description'],
                 'sort_order' => $current['sort_order'],
                 'is_visible' => $current['is_visible'],
             ]
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -304,6 +344,66 @@ final class AdminCatalogMutationTest extends TestCase
         ]);
     }
 
+    public function test_published_tag_allows_presentation_changes_but_protects_slug_and_archive(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $current = $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/tags/'.self::PUBLISHED_TAG_ID)
+            ->assertOk()
+            ->json('data');
+
+        foreach ([
+            ['name' => 'Published Tag Changed'],
+            ['sort_order' => 30],
+            ['is_visible' => false],
+            ['is_visible' => true],
+        ] as $change) {
+            Auth::forgetGuards();
+            $current = $this->mutatingRequest(
+                $token,
+                'PUT',
+                '/admin/api/v2/catalog/tags/'.self::PUBLISHED_TAG_ID,
+                [
+                    'expected_revision' => $current['revision'],
+                    'slug' => $current['slug'],
+                    'name' => $current['name'],
+                    'sort_order' => $current['sort_order'],
+                    'is_visible' => $current['is_visible'],
+                    ...$change,
+                ]
+            )->assertOk()->json('data');
+        }
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/tags/'.self::PUBLISHED_TAG_ID,
+            [
+                'expected_revision' => $current['revision'],
+                'slug' => 'published-tag-changed',
+                'name' => $current['name'],
+                'sort_order' => $current['sort_order'],
+                'is_visible' => $current['is_visible'],
+            ]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
+
+        Auth::forgetGuards();
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/tags/'.self::PUBLISHED_TAG_ID.'/archive',
+            ['expected_revision' => $current['revision']]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_PUBLISHED_REFERENCE_CONFLICT');
+
+        self::assertDatabaseHas('catalog_tags', [
+            'public_id' => self::PUBLISHED_TAG_ID,
+            'display_name' => $current['name'],
+            'revision' => $current['revision'],
+            'archived_at' => null,
+        ]);
+    }
+
     public function test_db_guards_reject_physical_delete_and_revision_bypass(): void
     {
         $row = DB::table('catalog_categories')
@@ -311,10 +411,25 @@ final class AdminCatalogMutationTest extends TestCase
             ->firstOrFail();
         foreach ([
             fn () => DB::table('catalog_categories')->where('id', $row->id)->delete(),
+            fn () => DB::table('catalog_tags')
+                ->where('public_id', self::PUBLISHED_TAG_ID)->delete(),
             fn () => DB::table('catalog_categories')->where('id', $row->id)->update([
                 'display_name' => 'Bypass',
                 'revision' => $row->revision,
             ]),
+            fn () => DB::table('catalog_categories')->where('id', $row->id)->update([
+                'slug' => 'published-slug-bypass',
+                'revision' => $row->revision + 1,
+            ]),
+            fn () => DB::table('catalog_categories')->where('id', $row->id)->update([
+                'code' => 'published-code-bypass',
+                'revision' => $row->revision + 1,
+            ]),
+            fn () => DB::table('catalog_tags')
+                ->where('public_id', self::PUBLISHED_TAG_ID)->update([
+                    'code' => 'published-tag-code-bypass',
+                    'revision' => DB::raw('revision + 1'),
+                ]),
         ] as $mutation) {
             DB::beginTransaction();
             try {
@@ -326,6 +441,45 @@ final class AdminCatalogMutationTest extends TestCase
                 self::assertSame('P0001', $exception->errorInfo[0]);
             }
         }
+    }
+
+    public function test_migration_rollback_restores_old_guard_and_reapply_preserves_data(): void
+    {
+        $migration = require database_path(
+            'migrations-v2/2026_09_11_000056_'.
+            'allow_v2_published_category_tag_presentation_edits.php'
+        );
+        $before = DB::table('catalog_categories')
+            ->where('public_id', self::PUBLISHED_CATEGORY_ID)
+            ->firstOrFail(['id', 'public_id', 'code', 'display_name', 'revision']);
+
+        $migration->down();
+        DB::beginTransaction();
+        try {
+            DB::table('catalog_categories')->where('id', $before->id)->update([
+                'display_name' => 'Rollback must protect this change',
+                'revision' => $before->revision + 1,
+            ]);
+            DB::rollBack();
+            self::fail('The rollback guard must restore published presentation protection.');
+        } catch (QueryException $exception) {
+            DB::rollBack();
+            self::assertSame('P0001', $exception->errorInfo[0]);
+        } finally {
+            $migration->up();
+        }
+
+        DB::table('catalog_categories')->where('id', $before->id)->update([
+            'display_name' => 'Reapplied presentation change',
+            'revision' => $before->revision + 1,
+        ]);
+        self::assertDatabaseHas('catalog_categories', [
+            'id' => $before->id,
+            'public_id' => $before->public_id,
+            'code' => $before->code,
+            'display_name' => 'Reapplied presentation change',
+            'revision' => $before->revision + 1,
+        ]);
     }
 
     public function test_http_security_and_direct_service_authorization_cannot_be_bypassed(): void

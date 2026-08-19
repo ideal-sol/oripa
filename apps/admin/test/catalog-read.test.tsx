@@ -14,7 +14,7 @@ import {
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CATALOG_SECTIONS } from "@/lib/catalog/catalog-registry";
 import { ADMIN_PERMISSION_CODES } from "@/lib/admin-api/generated";
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminCatalogPrize } from "@/lib/admin-api/generated";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
@@ -168,7 +168,7 @@ describe("Admin Catalog read components", () => {
     );
   });
 
-  it("provides focused Archive confirmation and stale conflict reload", () => {
+  it("separates stale revision and published-reference conflict guidance", () => {
     const confirm = vi.fn();
     const { rerender } = render(
       <CatalogConfirmationDialog
@@ -183,9 +183,69 @@ describe("Admin Catalog read components", () => {
     expect(confirm).toHaveBeenCalledOnce();
 
     const reload = vi.fn();
-    rerender(<CatalogConflictBoundary onReload={reload} />);
+    rerender(
+      <CatalogConflictBoundary
+        error={new AdminApiError(
+          409,
+          "CATALOG_REVISION_CONFLICT",
+          null,
+          null,
+          false,
+        )}
+        onReload={reload}
+      />,
+    );
+    expect(screen.getByText("最新状態との競合を検出しました")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "再取得" }));
     expect(reload).toHaveBeenCalledOnce();
+
+    rerender(
+      <CatalogConflictBoundary
+        error={new AdminApiError(
+          409,
+          "CATALOG_PUBLISHED_REFERENCE_CONFLICT",
+          null,
+          null,
+          false,
+        )}
+        onReload={reload}
+      />,
+    );
+    expect(
+      screen.getByText("公開中Gachaの参照により変更できません"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("最新状態との競合を検出しました")).toBeNull();
+    expect(screen.getByText(/SlugまたはArchiveは変更できません/u)).toBeInTheDocument();
+  });
+
+  it("shows server validation feedback without a revision-conflict message", async () => {
+    const submit = vi.fn().mockRejectedValue(
+      new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+    );
+    render(
+      <CatalogMutationForm
+        initial={{
+          code: "cards",
+          description: "説明",
+          isVisible: true,
+          name: "カード",
+          slug: "cards",
+          sortOrder: 10,
+        }}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+        resource="categories"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("名称"), {
+      target: { value: "更新後カード" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() =>
+      expect(screen.getByText("入力内容を確認してください。")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("最新状態との競合を検出しました")).toBeNull();
   });
 
   it("submits Presentation Asset registration without inventing upload behavior", async () => {

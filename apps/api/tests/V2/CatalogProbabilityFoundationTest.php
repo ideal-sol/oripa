@@ -272,6 +272,67 @@ final class CatalogProbabilityFoundationTest extends TestCase
         }
     }
 
+    public function test_hidden_category_and_tag_do_not_hide_or_change_published_gacha(): void
+    {
+        app(V2CatalogFixtureImporter::class)->import($this->fixture());
+        $gachaBefore = DB::table('catalog_gachas')->firstOrFail([
+            'state',
+            'management_status',
+            'sales_paused',
+            'published_version_id',
+            'active_draw_state_id',
+            'revision',
+        ]);
+
+        foreach (['catalog_categories', 'catalog_tags'] as $table) {
+            $row = DB::table($table)->firstOrFail(['id', 'revision']);
+            DB::table($table)->where('id', $row->id)->update([
+                'is_visible' => false,
+                'revision' => $row->revision + 1,
+                'updated_at' => now()->startOfSecond(),
+            ]);
+        }
+
+        $this->getJson('/api/v2/gacha-categories')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gacha-tags')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas?limit=20&category=cards')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas?limit=20&tag=featured')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->getJson('/api/v2/gachas?limit=20')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', '0198a001-0000-7000-8000-000000000011')
+            ->assertJsonCount(0, 'data.0.tags');
+        $this->getJson('/api/v2/gachas/by-slug/fixture-catalog')
+            ->assertOk()
+            ->assertJsonPath('data.id', '0198a001-0000-7000-8000-000000000011')
+            ->assertJsonCount(0, 'data.tags');
+
+        $gachaAfter = DB::table('catalog_gachas')->firstOrFail([
+            'state',
+            'management_status',
+            'sales_paused',
+            'published_version_id',
+            'active_draw_state_id',
+            'revision',
+        ]);
+        self::assertEquals($gachaBefore, $gachaAfter);
+
+        foreach (['catalog_categories', 'catalog_tags'] as $table) {
+            $row = DB::table($table)->firstOrFail(['id', 'revision']);
+            DB::table($table)->where('id', $row->id)->update([
+                'is_visible' => true,
+                'revision' => $row->revision + 1,
+                'updated_at' => now()->startOfSecond(),
+            ]);
+        }
+        $this->getJson('/api/v2/gacha-categories')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/v2/gacha-tags')->assertOk()->assertJsonCount(1, 'data');
+    }
+
     public function test_draft_future_and_expired_versions_are_not_public(): void
     {
         $future = $this->fixture();

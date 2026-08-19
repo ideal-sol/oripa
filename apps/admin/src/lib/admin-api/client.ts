@@ -2865,6 +2865,15 @@ function publicErrorMessage(status: number, code: string): string {
   }
   if (status === 403) return "この操作を実行する権限がありません。";
   if (status === 429) return "試行回数が上限に達しました。時間をおいてください。";
+  if (code === "CATALOG_REVISION_CONFLICT") {
+    return "別の操作で更新されています。最新状態を再取得してください。";
+  }
+  if (code === "CATALOG_PUBLISHED_REFERENCE_CONFLICT") {
+    return "公開中Gachaから参照されているため、この項目は変更できません。";
+  }
+  if (code === "CATALOG_MUTATION_INVALID") {
+    return "入力内容を確認してください。";
+  }
   if (status === 409 || status === 412) {
     return "別の操作で更新されています。最新状態を再取得してください。";
   }

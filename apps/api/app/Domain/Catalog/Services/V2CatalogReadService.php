@@ -76,7 +76,8 @@ final class V2CatalogReadService
             ->when($cursorId !== null, fn (Builder $builder): Builder =>
                 $builder->where('g.public_id', '>', $cursorId))
             ->when($categorySlug !== null, fn (Builder $builder): Builder =>
-                $builder->where('c.slug', $categorySlug))
+                $builder->where('c.slug', $categorySlug)
+                    ->where('c.is_visible', true))
             ->when($tagSlug !== null, function (Builder $builder) use ($tagSlug): Builder {
                 return $builder->whereExists(function (Builder $tags) use ($tagSlug): void {
                     $tags->selectRaw('1')
@@ -305,7 +306,6 @@ final class V2CatalogReadService
             ])
             ->where('gv.status', 'published')
             ->where('pv.status', 'published')
-            ->where('c.is_visible', true)
             ->when($withinPublishedPeriod, function (Builder $query) use ($now): void {
                 $query->whereRaw(
                     'COALESCE(g.current_publish_start_at, gv.publish_start_at) <= ?',
