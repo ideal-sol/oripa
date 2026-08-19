@@ -1,13 +1,16 @@
 "use client";
 
 import { LoaderCircle, X } from "lucide-react";
+import Image from "next/image";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient } from "@/lib/admin-api/client";
 import type {
+  AdminBannerCategory,
   AdminCatalogPresentationAsset,
   AdminCatalogPrize,
   AdminCatalogRank,
+  AdminManagedBanner,
 } from "@/lib/admin-api/generated";
 
 export interface CatalogPrizeDraft {
@@ -55,10 +58,17 @@ export function CatalogPrizeAssetMutationForm({
   );
   const [draft, setDraft] = useState(initial);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
-  const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [bannerCategories, setBannerCategories] = useState<AdminBannerCategory[]>([]);
+  const [bannerCategoryId, setBannerCategoryId] = useState("");
+  const [banners, setBanners] = useState<AdminManagedBanner[]>([]);
+  const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
+  const [bannerResolution, setBannerResolution] = useState<"idle" | "unresolved">("idle");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const bannerPickerChangedRef = useRef(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
   useEffect(() => {
@@ -73,18 +83,53 @@ export function CatalogPrizeAssetMutationForm({
         { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
         controller.signal,
       ),
-      client.listCatalogPresentationAssets(
-        { direction: "desc", limit: 100, sort: "created_at", visibility: "visible" },
-        controller.signal,
-      ),
+      client.listBannerCategories(controller.signal),
     ])
-      .then(([rankResponse, assetResponse]) => {
+      .then(async ([rankResponse, categoryResponse]) => {
         setRanks(rankResponse.items.filter((item) => !item.is_archived));
-        setAssets(assetResponse.items.filter((item) => !item.is_archived));
+        setBannerCategories(categoryResponse.items);
+
+        const presentationAssetId = initial.kind === "prize"
+          ? initial.presentationAssetId
+          : null;
+        if (mode !== "edit" || presentationAssetId === null) return;
+
+        const candidates = (
+          await Promise.all(
+            categoryResponse.items.map(async (category) =>
+              listAllBannersForCategory(client, category.id, controller.signal),
+            ),
+          )
+        ).flat();
+        const matches = candidates.filter((banner) => banner.asset.id === presentationAssetId);
+        if (controller.signal.aborted || bannerPickerChangedRef.current) return;
+        if (matches.length === 1) {
+          setBannerLoading(true);
+          setBannerCategoryId(matches[0].category.id);
+          setSelectedBannerId(matches[0].id);
+          setBanners(candidates.filter((banner) => banner.category.id === matches[0].category.id));
+          return;
+        }
+        setBannerResolution("unresolved");
       })
       .catch(() => setError("選択肢を取得できませんでした。"));
     return () => controller.abort();
-  }, [resource]);
+  }, [initial, mode, resource]);
+  useEffect(() => {
+    if (resource !== "prizes" || !bannerCategoryId) return;
+    const controller = new AbortController();
+    listAllBannersForCategory(new AdminApiClient(), bannerCategoryId, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) setBanners(items);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError("バナー候補を取得できませんでした。");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBannerLoading(false);
+      });
+    return () => controller.abort();
+  }, [bannerCategoryId, resource]);
   useEffect(() => {
     if (!dirty) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -95,6 +140,10 @@ export function CatalogPrizeAssetMutationForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (draft.kind === "prize" && bannerPickerChanged && selectedBannerId === null) {
+      setError("選択したBanner CategoryからBannerを選択してください。");
+      return;
+    }
     if (!validDraft(draft, mode)) {
       setError("入力内容を確認してください。HTMLや不正なPathは入力できません。");
       return;
@@ -112,6 +161,27 @@ export function CatalogPrizeAssetMutationForm({
   function cancel() {
     if (dirty && !window.confirm("未保存の変更を破棄しますか。")) return;
     onCancel();
+  }
+
+  function selectBannerCategory(categoryId: string) {
+    setBannerLoading(Boolean(categoryId));
+    setBannerCategoryId(categoryId);
+    setSelectedBannerId(null);
+    bannerPickerChangedRef.current = true;
+    setBannerPickerChanged(true);
+    setBannerResolution("idle");
+    if (draft.kind === "prize") {
+      setDraft({ ...draft, presentationAssetId: null });
+    }
+  }
+
+  function selectBanner(banner: AdminManagedBanner) {
+    setSelectedBannerId(banner.id);
+    bannerPickerChangedRef.current = true;
+    setBannerPickerChanged(true);
+    if (draft.kind === "prize") {
+      setDraft({ ...draft, presentationAssetId: banner.asset.id });
+    }
   }
 
   return (
@@ -172,24 +242,48 @@ export function CatalogPrizeAssetMutationForm({
                 </select>
               </label>
               <label>
-                Presentation Asset
+                Banner Category
                 <select
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      presentationAssetId: event.target.value || null,
-                    })
-                  }
-                  value={draft.presentationAssetId ?? ""}
+                  onChange={(event) => selectBannerCategory(event.target.value)}
+                  value={bannerCategoryId}
                 >
-                  <option value="">未設定</option>
-                  {assets.map((asset) => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.alt_text ?? asset.public_path ?? asset.id}
-                    </option>
+                  <option value="">選択してください</option>
+                  {bannerCategories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
                   ))}
                 </select>
               </label>
+              <fieldset className="catalog-banner-picker">
+                <legend>Banner</legend>
+                {bannerResolution === "unresolved" ? (
+                  <p className="catalog-banner-picker-note">
+                    既存のPresentation Assetに対応するBannerを一意に特定できませんでした。
+                    変更しなければ既存の値は保持されます。
+                  </p>
+                ) : null}
+                {!bannerCategoryId ? (
+                  <p className="catalog-banner-picker-note">先にBanner Categoryを選択してください。</p>
+                ) : bannerLoading ? (
+                  <p className="catalog-banner-picker-note">Banner候補を取得しています。</p>
+                ) : banners.length === 0 ? (
+                  <p className="catalog-banner-picker-note">このCategoryに選択可能なBannerはありません。</p>
+                ) : (
+                  <div aria-label="Banner候補" className="catalog-banner-options">
+                    {banners.map((banner) => (
+                      <button
+                        aria-pressed={selectedBannerId === banner.id}
+                        className="catalog-banner-option"
+                        key={banner.id}
+                        onClick={() => selectBanner(banner)}
+                        type="button"
+                      >
+                        <Image alt="" height={56} src={banner.asset.public_url} unoptimized width={96} />
+                        <span>{banner.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </fieldset>
               <label>
                 名称
                 <input
@@ -373,4 +467,19 @@ function trimDraft(draft: CatalogPrizeAssetDraft): CatalogPrizeAssetDraft {
   return draft.kind === "prize"
     ? { ...draft, name: draft.name.trim(), description: draft.description?.trim() || null }
     : { ...draft, altText: draft.altText?.trim() || null };
+}
+
+async function listAllBannersForCategory(
+  client: AdminApiClient,
+  categoryId: string,
+  signal: AbortSignal,
+): Promise<AdminManagedBanner[]> {
+  const banners: AdminManagedBanner[] = [];
+  let cursor: string | undefined;
+  do {
+    const response = await client.listManagedBanners({ category_id: categoryId, cursor }, signal);
+    banners.push(...response.items);
+    cursor = response.next_cursor ?? undefined;
+  } while (cursor);
+  return banners;
 }
