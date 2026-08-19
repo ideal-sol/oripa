@@ -2789,11 +2789,14 @@ def validate_v2_audit_outbox_boundary(
     provider = (
         repository / "apps/api/app/Providers/V2AuthorizationServiceProvider.php"
     ).read_text(encoding="utf-8")
+    if "V2PersistentSecurityEventSink::class" not in provider:
+        raise PolicyFailure("V2 persistent Audit binding is missing")
     if (
-        "V2PersistentSecurityEventSink::class" not in provider
-        or "V2OutboxEmailVerificationNotifier::class" not in provider
+        "V2EmailVerificationNotifier::class" not in provider
+        or "V2MailEmailVerificationNotifier::class" not in provider
+        or "V2OutboxEmailVerificationNotifier::class" in provider
     ):
-        raise PolicyFailure("V2 persistent Audit／Outbox bindings are missing")
+        raise PolicyFailure("V2 direct email verification binding is missing")
 
     outbox = (
         repository / "apps/api/app/Domain/Outbox/Services/V2OutboxService.php"

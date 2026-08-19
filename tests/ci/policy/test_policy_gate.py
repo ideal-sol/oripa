@@ -1048,6 +1048,21 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_audit_outbox_boundary(root)
             policy_gate.validate_v2_audit_outbox_boundary(root, paths)
 
+    def test_v2_audit_outbox_boundary_rejects_outbox_email_binding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_audit_outbox_boundary(root)
+            provider = root / "apps/api/app/Providers/V2AuthorizationServiceProvider.php"
+            provider.write_text(
+                provider.read_text(encoding="utf-8").replace(
+                    "V2MailEmailVerificationNotifier::class",
+                    "V2OutboxEmailVerificationNotifier::class",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "direct email"):
+                policy_gate.validate_v2_audit_outbox_boundary(root, paths)
+
     def test_v2_audit_outbox_missing_hmac_boundary_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
