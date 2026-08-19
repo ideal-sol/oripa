@@ -32,6 +32,12 @@
 - Database and Policy guards require exactly the private and API-egress networks, preserve `internal: true`, reject egress attachment by Admin/PostgreSQL/Redis, and reject a non-bridge or internal egress network.
 - Focused DB and Policy unit suites pass: 180 tests.
 - Canonical Compose resolution and `git diff --check` pass without displaying environment values.
+- The first activation attempt failed closed because Docker's automatically
+  selected `192.168.32.0/20` egress subnet overlapped the fixed
+  `192.168.61.0/24` private API address. API was immediately restored on the
+  prior image and private-only network, then returned healthy/200. The egress
+  definition now uses a minimal non-overlapping `/28` subnet and the Guard
+  rejects private overlap.
 
 ## Runtime Activation
 

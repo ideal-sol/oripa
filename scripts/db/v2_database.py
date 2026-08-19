@@ -7,6 +7,7 @@ import argparse
 import base64
 import datetime as dt
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -399,6 +400,27 @@ def validate_compose(
         or egress_network.get("driver") != "bridge"
     ):
         raise GuardFailure("V2 Network isolation is invalid")
+    egress_ipam = egress_network.get("ipam")
+    egress_configs = egress_ipam.get("config", []) if isinstance(egress_ipam, dict) else []
+    if len(egress_configs) != 1 or not isinstance(egress_configs[0], dict):
+        raise GuardFailure("V2 API egress subnet is invalid")
+    try:
+        egress_subnet = ipaddress.ip_network(egress_configs[0].get("subnet", ""))
+    except ValueError as error:
+        raise GuardFailure("V2 API egress subnet is invalid") from error
+    if egress_subnet.version != 4 or egress_subnet.prefixlen < 28:
+        raise GuardFailure("V2 API egress subnet is invalid")
+    private_ipam = private_network.get("ipam")
+    private_configs = private_ipam.get("config", []) if isinstance(private_ipam, dict) else []
+    for private_config in private_configs:
+        if not isinstance(private_config, dict) or not private_config.get("subnet"):
+            continue
+        try:
+            private_subnet = ipaddress.ip_network(private_config["subnet"])
+        except ValueError as error:
+            raise GuardFailure("V2 Network isolation is invalid") from error
+        if egress_subnet.overlaps(private_subnet):
+            raise GuardFailure("V2 API egress subnet overlaps the private network")
     expected_service_networks = {
         "api": {"v2_private", "v2_api_egress"},
         "admin": {"v2_private"},

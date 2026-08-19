@@ -10,6 +10,8 @@ authorize a Production deployment or commercial Production GO.
 - `v2_private` remains `internal: true` and carries API, Admin, PostgreSQL, and
   Redis traffic.
 - `v2_api_egress` is a separate bridge network attached only to the API service.
+- Its small IPv4 subnet defaults to `192.168.62.0/28` and may be replaced with
+  `V2_API_EGRESS_SUBNET`; it must not overlap the private or host networks.
 - Admin, PostgreSQL, and Redis must not join `v2_api_egress`.
 - PostgreSQL and Redis expose no host ports and retain their isolated volumes.
 - No canonical outbound proxy is defined by the current finalized Governance;

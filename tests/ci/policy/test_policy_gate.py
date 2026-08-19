@@ -807,6 +807,9 @@ networks:
     internal: true
   v2_api_egress:
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${V2_API_EGRESS_SUBNET:-192.168.62.0/28}
 volumes:
   v2_postgres:
   v2_redis:

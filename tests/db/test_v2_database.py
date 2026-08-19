@@ -66,11 +66,13 @@ class V2DatabaseGuardTest(unittest.TestCase):
                 "v2_private": {
                     "name": f"{project}_v2_private",
                     "internal": True,
+                    "ipam": {"config": [{"subnet": "192.168.61.0/24"}]},
                 },
                 "v2_api_egress": {
                     "name": f"{project}_v2_api_egress",
                     "internal": False,
                     "driver": "bridge",
+                    "ipam": {"config": [{"subnet": "192.168.62.0/28"}]},
                 },
             },
             "volumes": {
@@ -128,6 +130,22 @@ class V2DatabaseGuardTest(unittest.TestCase):
         config = self.valid_compose_config()
         del config["services"]["api"]["networks"]["v2_api_egress"]
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_api_egress_subnet_must_not_overlap_private_network(self):
+        config = self.valid_compose_config()
+        config["networks"]["v2_api_egress"]["ipam"]["config"][0]["subnet"] = (
+            "192.168.61.0/28"
+        )
+        with self.assertRaisesRegex(v2_database.GuardFailure, "overlaps"):
+            self.validate_compose_config(config)
+
+    def test_api_egress_subnet_must_remain_minimal(self):
+        config = self.valid_compose_config()
+        config["networks"]["v2_api_egress"]["ipam"]["config"][0]["subnet"] = (
+            "192.168.0.0/16"
+        )
+        with self.assertRaisesRegex(v2_database.GuardFailure, "subnet is invalid"):
             self.validate_compose_config(config)
 
     def test_unapproved_task_project_is_rejected(self):

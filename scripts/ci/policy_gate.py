@@ -2224,6 +2224,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "v2_redis:/data",
         "v2_private:",
         "v2_api_egress:",
+        "V2_API_EGRESS_SUBNET",
         "internal: true",
     ):
         if required not in compose:
@@ -2266,6 +2267,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
     if (
         not egress_network
         or "driver: bridge" not in egress_network.group("body")
+        or "V2_API_EGRESS_SUBNET" not in egress_network.group("body")
         or "internal: true" in egress_network.group("body")
     ):
         raise PolicyFailure("V2 API egress network boundary is invalid")
