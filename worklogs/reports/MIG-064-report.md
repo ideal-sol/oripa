@@ -36,4 +36,5 @@
 - PHP syntax, Composer validation, Composer/workspace pnpm/legacy pnpm audit: PASS.
 - Policy Unit 138, Quality Unit 4, Security Unit 10; local policy, quality, and security gates: PASS.
 - Compose and Laravel Mail configuration validation with an isolated non-production test environment: PASS.
+- Earlier GitHub integration failure was corrected without changing delivery semantics: non-Mailgun CI mailers no longer require Mailgun secrets, and the generic Outbox encryption test explicitly exercises the retained Outbox notifier rather than the canonical Direct Mail binding.
 - Browser/E2E, repository-wide backend suite, actual Mailgun recipient delivery: not run.
