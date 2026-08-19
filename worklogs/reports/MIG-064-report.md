@@ -18,7 +18,7 @@
 ## Runtime
 
 - Canonical active V2 Preview source: the Compose project's external environment file.
-- `docker-compose.v2.yml` injects `MAIL_MAILER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `MAILGUN_DOMAIN`, and `MAILGUN_SECRET` as required API environment variables. It also accepts optional `MAILGUN_ENDPOINT` and `MAILGUN_SCHEME` with the existing Laravel defaults.
+- `docker-compose.v2.yml` requires `MAIL_MAILER` and injects `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `MAILGUN_DOMAIN`, `MAILGUN_SECRET`, `MAILGUN_ENDPOINT`, and `MAILGUN_SCHEME` with the existing Laravel defaults.
 - Current canonical source and current V2 API process do not configure the required Mail values. No value was displayed or changed, and no dummy value or real-recipient email was used.
 - Before runtime activation, set the listed variables in the canonical env source, recreate only the V2 API service through the approved Compose procedure, then perform an approved QA-recipient delivery smoke.
 
