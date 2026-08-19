@@ -8593,3 +8593,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Artifact IDは`9328364646`、outer／GitHub SHA-256は`a4e7fde91c4148971723778b847d0f1a43d4b58b3716fb1c9f4b1eceeb06818c`、Manifest SHA-256は`556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe`である。
 - Client `28a7b3558329eed9c608f828948befe2034e86c0add1511bd48db1ed437f58d9`、Site Schema `b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2`、Testkit `dc0bf6c16af439bf5a364955e8add936e8842096ca295a136a0f15a86e4102b0`、Public OpenAPI `5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043`を`SHA256SUMS`と実Fileへreadback一致確認した。
 - Storefront handoffは上記`2.0.0-alpha.23`の3 tarballs、Public OpenAPI、Manifest、SHA256SUMSだけを対象とする。`2.0.0-alpha.22`はhandoff対象外であり、Registry publish／Storefront Repository直接導入／Stable Tag／Release／Deployは0である。
+
+## MIG-063C Prize Thumbnail Banner Picker
+
+- Latest `main@5b834faa58d07f4d14874eb73c26ed9ac6536dd1`、Remote refs、Open Task Policy、local mainのclean状態を確認し、未使用Task ID `MIG-063C`、Issue #301、Branch `feat/MIG-063C-prize-thumbnail-banner-picker`、専用Worktree、Risk R2で開始した。Migration Allocation、Integration、Artifact Release、Preview Deployment Lockは取得していない。
+- Prize登録／編集の直接Presentation Asset選択をBanner Category→Bannerのカード型Pickerへ置換した。既存Admin APIの`listBannerCategories`とcategory-filtered `listManagedBanners`だけを再利用し、Bannerのtitleと既存画像URLを併記する。選択時はBanner IDではなく既存`asset.id`をPrize requestのCanonical `presentation_asset_id`へ設定し、Asset複製は0件である。
+- 既存thumbnail Assetが全CategoryのBannerに一意に対応する時だけ初期Category／Bannerを表示する。非一意または未解決なら既存`presentation_asset_id`を保持し、明示的なBanner置換を求める。Category変更は旧Banner選択を解除し、replacement未選択の保存をFail Closedする。
+- Focused Admin component 14 tests、Admin Unit suite、Admin Typecheck、Admin Lint、Admin Production Build、Policy Unit 135 tests、Quality Unit 4 tests、Security Unit 10 tests、Local Policy／Quality／Security Gate、Composer／Root pnpm／Legacy pnpm Audit各0 finding、`git diff --check`はPASSした。Migration、Domain、Admin API、Public OpenAPI、Artifact、Storefront、Preview／Productionは変更していない。Required Checks、Fresh Self-review、Squash Merge／CloseoutはFinal Head固定後に継続する。

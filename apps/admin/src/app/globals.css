@@ -2540,6 +2540,58 @@ label {
   width: 18px;
 }
 
+.catalog-banner-picker {
+  border: 0;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.catalog-banner-picker legend {
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.catalog-banner-picker-note {
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.catalog-banner-options {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.catalog-banner-option {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  padding: 8px;
+  text-align: left;
+}
+
+.catalog-banner-option[aria-pressed="true"] {
+  background: var(--forest-soft);
+  border-color: var(--forest);
+}
+
+.catalog-banner-option img {
+  height: 56px;
+  object-fit: cover;
+  width: 96px;
+}
+
 .catalog-choice-fieldset,
 .catalog-prize-fieldset {
   border: 1px solid var(--line);
