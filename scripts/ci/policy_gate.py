@@ -2223,6 +2223,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "v2_postgres:/var/lib/postgresql/data",
         "v2_redis:/data",
         "v2_private:",
+        "v2_api_egress:",
         "internal: true",
     ):
         if required not in compose:
@@ -2236,14 +2237,41 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
     ):
         if prohibited in compose:
             raise PolicyFailure(f"V2 database Compose contains prohibited {prohibited}")
-    for service in ("postgres", "redis"):
+    service_blocks = {}
+    for service in ("api", "admin", "postgres", "redis"):
         block = re.search(
             rf"(?ms)^  {service}:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^networks:)",
             compose,
         )
         if not block:
             raise PolicyFailure(f"V2 database Compose service missing {service}")
-        if re.search(r"(?m)^\s{4}ports:", block.group("body")):
+        service_blocks[service] = block.group("body")
+
+    if "v2_api_egress" not in service_blocks["api"]:
+        raise PolicyFailure("V2 API egress network attachment is required")
+    for service in ("admin", "postgres", "redis"):
+        if "v2_api_egress" in service_blocks[service]:
+            raise PolicyFailure(f"V2 {service} API-only egress attachment is prohibited")
+
+    private_network = re.search(
+        r"(?ms)^  v2_private:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)",
+        compose,
+    )
+    egress_network = re.search(
+        r"(?ms)^  v2_api_egress:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)",
+        compose,
+    )
+    if not private_network or "internal: true" not in private_network.group("body"):
+        raise PolicyFailure("V2 private network must remain internal")
+    if (
+        not egress_network
+        or "driver: bridge" not in egress_network.group("body")
+        or "internal: true" in egress_network.group("body")
+    ):
+        raise PolicyFailure("V2 API egress network boundary is invalid")
+
+    for service in ("postgres", "redis"):
+        if re.search(r"(?m)^\s{4}ports:", service_blocks[service]):
             raise PolicyFailure(f"V2 {service} Host Port publication is prohibited")
 
     runner = (repository / "scripts/db/v2_database.py").read_text(encoding="utf-8")

@@ -57,6 +57,7 @@ services:
       - v2_api_assets:/var/www/backend/storage/app/private
     networks:
       - v2_private
+      - v2_api_egress
 
   admin:
     build:
@@ -121,6 +122,8 @@ services:
 networks:
   v2_private:
     internal: true
+  v2_api_egress:
+    driver: bridge
 
 volumes:
   v2_api_assets:

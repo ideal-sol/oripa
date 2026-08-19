@@ -783,8 +783,13 @@ services:
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?required}
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?required}
+    networks:
+      - v2_private
+      - v2_api_egress
   admin:
     image: admin
+    networks:
+      - v2_private
   postgres:
     image: postgres:17-alpine
     volumes:
@@ -800,6 +805,8 @@ services:
 networks:
   v2_private:
     internal: true
+  v2_api_egress:
+    driver: bridge
 volumes:
   v2_postgres:
   v2_redis:
@@ -882,6 +889,82 @@ python3 scripts/db/v2_database.py smoke \\
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "Host Port"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_api_egress_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      - v2_api_egress\n", "", 1
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "egress.*required"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_postgres_api_egress_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "  redis:\n",
+                    "      - v2_api_egress\n  redis:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "postgres.*prohibited"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_admin_api_egress_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "  postgres:\n",
+                    "      - v2_api_egress\n  postgres:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "admin.*prohibited"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_private_network_must_remain_internal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    internal: true", "    internal: false", 1
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "missing internal: true"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_api_egress_must_not_be_internal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "  v2_api_egress:\n    driver: bridge",
+                    "  v2_api_egress:\n    driver: bridge\n    internal: true",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "egress.*invalid"):
                 policy_gate.validate_v2_database_boundary(root, paths)
 
     def test_v2_database_shared_volume_fails(self):

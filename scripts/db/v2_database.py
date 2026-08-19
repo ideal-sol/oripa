@@ -385,9 +385,29 @@ def validate_compose(
     if actual_volume_names != expected_volume_names or actual_volume_names & V1_VOLUMES:
         raise GuardFailure("V2 Volume isolation is invalid")
     networks = config.get("networks", {})
-    network = networks.get("v2_private")
-    if not isinstance(network, dict) or network.get("name") != f"{project}_v2_private":
+    if set(networks) != {"v2_private", "v2_api_egress"}:
         raise GuardFailure("V2 Network isolation is invalid")
+    private_network = networks.get("v2_private")
+    egress_network = networks.get("v2_api_egress")
+    if (
+        not isinstance(private_network, dict)
+        or private_network.get("name") != f"{project}_v2_private"
+        or private_network.get("internal") is not True
+        or not isinstance(egress_network, dict)
+        or egress_network.get("name") != f"{project}_v2_api_egress"
+        or egress_network.get("internal") is True
+        or egress_network.get("driver") != "bridge"
+    ):
+        raise GuardFailure("V2 Network isolation is invalid")
+    expected_service_networks = {
+        "api": {"v2_private", "v2_api_egress"},
+        "admin": {"v2_private"},
+        "postgres": {"v2_private"},
+        "redis": {"v2_private"},
+    }
+    for service_name, expected_networks in expected_service_networks.items():
+        if set(services[service_name].get("networks", {})) != expected_networks:
+            raise GuardFailure("V2 Network isolation is invalid")
     serialized = json.dumps(config, sort_keys=True)
     if "tenant_id" in serialized or any(name in serialized for name in V1_VOLUMES):
         raise GuardFailure("Shared V1 or tenant configuration is prohibited")
