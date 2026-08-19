@@ -34,6 +34,7 @@
 - PASS: Composer, workspace pnpm, and Legacy pnpm audits — 0 findings; Local Security Gate secret candidates — 0.
 - PASS: `git diff --check`.
 - Not run: Browser/E2E; no dedicated browser environment was used. GitHub required checks, fixed-head self-review, merge, and cleanup remain pending.
+- FAIL (superseded head `9e7e84b22b4f47669d78c4bce643794f43a92c15`): GitHub Quality Gate found three missing required fields in newly added test fixtures. Only those fixture fields were corrected; fresh-head checks are required before merge.
 
 ## Rollback
 

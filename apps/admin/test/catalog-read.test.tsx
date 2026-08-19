@@ -372,6 +372,7 @@ function mockPrizeBannerPicker() {
     items: [{
       code: "S",
       created_at: "2026-08-19T00:00:00Z",
+      description: null,
       id: RANK_ID,
       is_archived: false,
       is_visible: true,
@@ -388,7 +389,7 @@ function mockPrizeBannerPicker() {
       { id: CATEGORY_B_ID, name: "Category B" },
     ],
   });
-  vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockImplementation(async (query) => ({
+  vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockImplementation(async (query = {}) => ({
     items: query.category_id === CATEGORY_A_ID ? [banner("A")] : [banner("B")],
     next_cursor: null,
   }));
@@ -426,6 +427,7 @@ function prizeWithPresentationAsset(presentationAssetId: string): AdminCatalogPr
     presentation_asset: {
       alt_text: "既存画像",
       id: presentationAssetId,
+      is_public: true,
       media_type: "image",
       mime_type: "image/png",
       public_path: "/assets/existing.png",
