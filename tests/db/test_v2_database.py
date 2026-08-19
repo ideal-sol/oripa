@@ -68,12 +68,6 @@ class V2DatabaseGuardTest(unittest.TestCase):
                     "internal": True,
                     "ipam": {"config": [{"subnet": "192.168.61.0/24"}]},
                 },
-                "v2_api_egress": {
-                    "name": f"{project}_v2_api_egress",
-                    "internal": False,
-                    "driver": "bridge",
-                    "ipam": {"config": [{"subnet": "192.168.62.0/28"}]},
-                },
             },
             "volumes": {
                 "v2_api_assets": {"name": f"{project}_v2_api_assets"},
@@ -120,7 +114,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 
-    def test_only_api_may_join_egress_network(self):
+    def test_database_create_phase_must_remain_private_only(self):
         config = self.valid_compose_config()
         config["services"]["postgres"]["networks"]["v2_api_egress"] = {}
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
@@ -132,20 +126,19 @@ class V2DatabaseGuardTest(unittest.TestCase):
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 
-    def test_api_egress_subnet_must_not_overlap_private_network(self):
+    def test_unused_egress_network_must_not_enter_resolved_create_config(self):
         config = self.valid_compose_config()
-        config["networks"]["v2_api_egress"]["ipam"]["config"][0]["subnet"] = (
-            "192.168.61.0/28"
-        )
-        with self.assertRaisesRegex(v2_database.GuardFailure, "overlaps"):
+        config["networks"]["v2_api_egress"] = {
+            "name": f"{self.values['COMPOSE_PROJECT_NAME']}_v2_api_egress",
+            "driver": "bridge",
+        }
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 
-    def test_api_egress_subnet_must_remain_minimal(self):
+    def test_admin_create_phase_must_remain_private_only(self):
         config = self.valid_compose_config()
-        config["networks"]["v2_api_egress"]["ipam"]["config"][0]["subnet"] = (
-            "192.168.0.0/16"
-        )
-        with self.assertRaisesRegex(v2_database.GuardFailure, "subnet is invalid"):
+        config["services"]["admin"]["networks"]["v2_api_egress"] = {}
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 
     def test_unapproved_task_project_is_rejected(self):

@@ -68,6 +68,15 @@
     "resend_executed": false,
     "verification_complete_executed": false
   },
+  "local_ci_equivalent_database_smoke": {
+    "status": "PASS",
+    "migration_status": "PASS",
+    "identity_tests": "PASS",
+    "draw_load_tests": "PASS",
+    "reporting_performance_tests": "PASS",
+    "backup_restore_match": true,
+    "resource_cleanup": "PASS"
+  },
   "impact_counts": {
     "migrations_created": 0,
     "migrations_applied": 0,

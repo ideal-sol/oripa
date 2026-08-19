@@ -34,7 +34,7 @@
 - Docker Engine 25 cannot create a container with the internal fixed-IP network and external default-gateway network simultaneously. It installs the external default route first and rejects the private address.
 - The canonical procedure therefore creates API on `v2_private`, waits for health, then runs `scripts/ops/v2_api_egress.py attach`. The helper validates container identity, running state, internal/private isolation, bridge/subnet non-overlap, exact service memberships, and API-only egress attachment.
 - Admin, PostgreSQL, and Redis remain exclusively on `v2_private`; only `mig061a-v2-preview-api-1` is attached to `v2_api_egress`.
-- DB and Policy guards reject private isolation changes, internal/non-bridge/overlapping egress, and create-phase egress attachment.
+- The DB guard rejects any create-phase egress attachment. The Policy gate and guarded helper reject private isolation changes, internal/non-bridge/overlapping egress, and any non-API egress membership.
 
 ## Image
 
@@ -77,6 +77,7 @@
 ## Failure Handling and Rollback
 
 - The first image workflow failed on a transient GitHub HTTP 504 while Composer downloaded `psr/http-message`; the unchanged exact head was retried successfully without weakening checks.
+- The first closeout head failed Integration because Docker Compose removes an unused top-level network from normalized `config`; the DB guard now validates the normalized private-only create phase while Policy and the runtime helper retain the full egress boundary checks. The CI-equivalent smoke passed after this correction.
 - Previous API image remains retained. Rollback is API-only recreate with that image and `python3 scripts/ops/v2_api_egress.py detach --project mig061a-v2-preview`; no DB or Redis data operation is required.
 - Preview Deployment Lock was released after final runtime verification. Migration Allocation, Platform Integration, and Artifact Release Locks were never acquired.
 
@@ -84,6 +85,7 @@
 
 - Focused DB, Policy, and Egress suites: 188 tests PASS.
 - Policy Unit 144, Quality Unit 4, Security Unit 10, DB Unit 39, and Ops Unit 39: PASS.
+- CI-equivalent isolated V2 migration, full Identity/Draw/Reporting suites, backup/restore comparison, health checks, and task resource cleanup: PASS.
 - Local Policy, Quality, and Security Gates: PASS.
 - Composer validation and Composer/workspace pnpm/legacy pnpm audits: PASS with zero findings.
 - Canonical Compose resolution, deployment JSON parsing through Quality Gate, and `git diff --check`: PASS.
