@@ -41,6 +41,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
     {
         $capture = $this->spyOnRawMail();
         $service = app(V2UserAuthenticationService::class);
+        $verificationOutboxCount = $this->verificationOutboxCount();
 
         self::assertInstanceOf(
             V2MailEmailVerificationNotifier::class,
@@ -67,15 +68,14 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'user_id' => $user->getKey(),
             'redirect_path' => '/account',
         ]);
-        self::assertDatabaseMissing('outbox_messages', [
-            'topic' => 'identity.email-verification',
-        ]);
+        self::assertSame($verificationOutboxCount, $this->verificationOutboxCount());
     }
 
     public function test_resend_uses_direct_mail_revokes_the_previous_token_and_verifies(): void
     {
         $capture = $this->spyOnRawMail();
         $service = app(V2UserAuthenticationService::class);
+        $verificationOutboxCount = $this->verificationOutboxCount();
         $user = $service->register(
             'direct-resend@example.test',
             'valid direct mail password',
@@ -94,9 +94,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertNotNull(DB::table('user_email_verifications')
             ->where('token_hash', hash('sha256', $oldToken))
             ->value('revoked_at'));
-        self::assertDatabaseMissing('outbox_messages', [
-            'topic' => 'identity.email-verification',
-        ]);
+        self::assertSame($verificationOutboxCount, $this->verificationOutboxCount());
 
         $verified = $service->verify($user->public_id, $newToken);
 
@@ -105,6 +103,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_mail_transport_failure_rolls_back_registration_without_false_success(): void
     {
+        $verificationOutboxCount = $this->verificationOutboxCount();
         Mail::shouldReceive('raw')
             ->once()
             ->andThrow(new RuntimeException('mail transport unavailable'));
@@ -124,9 +123,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertDatabaseMissing('users', [
             'email_normalized' => 'direct-failure@example.test',
         ]);
-        self::assertDatabaseMissing('outbox_messages', [
-            'topic' => 'identity.email-verification',
-        ]);
+        self::assertSame($verificationOutboxCount, $this->verificationOutboxCount());
     }
 
     private function spyOnRawMail(): RawMailCapture
@@ -170,6 +167,13 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         );
 
         return $matches[1];
+    }
+
+    private function verificationOutboxCount(): int
+    {
+        return DB::table('outbox_messages')
+            ->where('topic', 'identity.email-verification')
+            ->count();
     }
 }
 

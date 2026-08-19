@@ -13,6 +13,7 @@
 - Register and resend now use synchronous Laravel Mail directly; no verification message is enqueued in Outbox.
 - Existing token generation and hashing, 60-minute expiry, redirect allowlist, resend limits, pending state, and verification-complete behavior remain unchanged.
 - A Mail transport exception aborts the containing registration transaction, so no user, token, or verification Outbox record is committed as a false success.
+- Direct-mail assertions compare the verification Outbox count before and after each flow, proving no new delivery dependency while preserving any pre-existing verification Outbox history.
 - Generic Outbox and persistent audit boundaries remain required. The policy gate rejects restoration of the email-verification Outbox binding.
 
 ## Runtime
