@@ -2248,11 +2248,11 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
             raise PolicyFailure(f"V2 database Compose service missing {service}")
         service_blocks[service] = block.group("body")
 
-    if "v2_api_egress" not in service_blocks["api"]:
-        raise PolicyFailure("V2 API egress network attachment is required")
-    for service in ("admin", "postgres", "redis"):
+    for service in ("api", "admin", "postgres", "redis"):
         if "v2_api_egress" in service_blocks[service]:
-            raise PolicyFailure(f"V2 {service} API-only egress attachment is prohibited")
+            raise PolicyFailure(
+                f"V2 {service} create-phase egress attachment is prohibited"
+            )
 
     private_network = re.search(
         r"(?ms)^  v2_private:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)",

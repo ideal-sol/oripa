@@ -785,7 +785,6 @@ services:
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?required}
     networks:
       - v2_private
-      - v2_api_egress
   admin:
     image: admin
     networks:
@@ -901,11 +900,33 @@ python3 scripts/db/v2_database.py smoke \\
             compose = root / "docker-compose.v2.yml"
             compose.write_text(
                 compose.read_text(encoding="utf-8").replace(
-                    "      - v2_api_egress\n", "", 1
+                    "  v2_api_egress:\n"
+                    "    driver: bridge\n"
+                    "    ipam:\n"
+                    "      config:\n"
+                    "        - subnet: ${V2_API_EGRESS_SUBNET:-192.168.62.0/28}\n",
+                    "",
+                    1,
                 ),
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(policy_gate.PolicyFailure, "egress.*required"):
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "missing v2_api_egress"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_database_api_create_phase_egress_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "  admin:\n",
+                    "      - v2_api_egress\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "api.*prohibited"):
                 policy_gate.validate_v2_database_boundary(root, paths)
 
     def test_v2_database_postgres_api_egress_fails(self):

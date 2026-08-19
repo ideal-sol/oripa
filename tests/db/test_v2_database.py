@@ -51,7 +51,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
         project = self.values["COMPOSE_PROJECT_NAME"]
         return {
             "services": {
-                "api": {"networks": {"v2_private": {}, "v2_api_egress": {}}},
+                "api": {"networks": {"v2_private": {}}},
                 "admin": {"networks": {"v2_private": {}}},
                 "postgres": {
                     "image": "postgres:17-alpine",
@@ -126,9 +126,9 @@ class V2DatabaseGuardTest(unittest.TestCase):
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 
-    def test_api_must_join_both_runtime_networks(self):
+    def test_api_create_phase_must_remain_private_only(self):
         config = self.valid_compose_config()
-        del config["services"]["api"]["networks"]["v2_api_egress"]
+        config["services"]["api"]["networks"]["v2_api_egress"] = {}
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
             self.validate_compose_config(config)
 

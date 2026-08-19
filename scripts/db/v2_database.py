@@ -422,7 +422,7 @@ def validate_compose(
         if egress_subnet.overlaps(private_subnet):
             raise GuardFailure("V2 API egress subnet overlaps the private network")
     expected_service_networks = {
-        "api": {"v2_private", "v2_api_egress"},
+        "api": {"v2_private"},
         "admin": {"v2_private"},
         "postgres": {"v2_private"},
         "redis": {"v2_private"},
