@@ -9,12 +9,12 @@ use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Contracts\V2SuspiciousRecoveryBoundary;
 use App\Domain\Identity\Services\V2ExplicitSuspiciousRecoveryBoundary;
+use App\Domain\Identity\Services\V2MailEmailVerificationNotifier;
 use App\Domain\Identity\Services\V2MfaPolicy;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
 use App\Domain\Identity\Services\V2RealmBoundary;
 use App\Domain\Identity\Services\V2SessionPolicy;
-use App\Domain\Outbox\Services\V2OutboxEmailVerificationNotifier;
 use App\Models\V2\Admin;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -32,7 +32,7 @@ final class V2AuthorizationServiceProvider extends ServiceProvider
         $this->app->singleton(V2SessionPolicy::class);
         $this->app->bind(
             V2EmailVerificationNotifier::class,
-            V2OutboxEmailVerificationNotifier::class
+            V2MailEmailVerificationNotifier::class
         );
         $this->app->bind(
             V2SecurityEventSink::class,
