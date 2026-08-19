@@ -31,6 +31,7 @@
 - PASS: Two Gachas stored `code=existing-rank`; a second identical code in one Gacha failed on `catalog_ranks_gacha_id_code_unique`.
 - PASS: With a cross-Gacha duplicate present, `down()` failed before schema or data mutation and retained the scoped constraint and both rows.
 - PASS: Task-source API Docker image build, changed PHP syntax, Policy Unit 137, Quality Unit 4, Security Unit 10, Local Policy/Quality/Security Gates, three dependency audits with zero findings, and `git diff --check`.
+- FAIL (superseded head `a0b06da62ce49788093cda7fe384eb3ffbf2eb9a`): Integration Gate found the existing Draw load fixture cloned Gachas and Prizes without cloning their now-Gacha-owned Ranks. The fixture helper now clones the same immutable Rank codes into each Gacha and updates only its expected record count; Draw Core is unchanged. CI-equivalent load verification passed with 1 test / 36 assertions.
 - Not run: Admin checks, Public/OpenAPI/Artifact checks, Browser/E2E, and repository-wide backend suite; those surfaces are unchanged and the task uses focused backend and required GitHub checks.
 
 ## Rollback

@@ -683,11 +683,13 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         unset($relation);
         $baseGacha = $fixture['gachas'][0];
         $baseVersion = $fixture['versions'][0];
+        $baseRanks = $fixture['ranks'];
         $basePrizes = $fixture['prizes'];
         $baseRelations = $fixture['gacha_prizes'];
         $baseProbability = $fixture['probability_versions'][0];
         $cloneRecordCount = 3
             + (count($baseGacha['tag_codes']) * 2)
+            + count($baseRanks)
             + count($basePrizes)
             + count($baseRelations);
         foreach ($baseProbability['stages'] as $stage) {
@@ -707,6 +709,12 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             $version['gacha_code'] = $code;
             $version['title'] = "Fixture Catalog Gacha {$number}";
             $fixture['versions'][] = $version;
+
+            foreach ($baseRanks as $index => $rank) {
+                $rank['public_id'] = $this->uuid($number, 90 + $index);
+                $rank['gacha_code'] = $code;
+                $fixture['ranks'][] = $rank;
+            }
 
             $prizeCodes = [];
             foreach ($basePrizes as $index => $prize) {
