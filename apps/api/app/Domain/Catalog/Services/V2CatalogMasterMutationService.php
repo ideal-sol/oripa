@@ -161,7 +161,15 @@ final class V2CatalogMasterMutationService
                     'sort_order' => $payload['sort_order'],
                     'is_visible' => $payload['is_visible'],
                 ];
-                if ($this->changesPublishedPresentation($row, $changes)) {
+                if (
+                    $definition['slug']
+                    && $row->slug !== $changes['slug']
+                ) {
+                    $this->assertNoPublishedReference($definition['table'], (int) $row->id);
+                } elseif (
+                    ! $definition['slug']
+                    && $this->changesPublishedPresentation($row, $changes)
+                ) {
                     $this->assertNoPublishedReference($definition['table'], (int) $row->id);
                 }
                 DB::table($definition['table'])->where('id', $row->id)->update([

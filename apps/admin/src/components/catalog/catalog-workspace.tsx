@@ -358,6 +358,7 @@ export function CatalogWorkspace({
           ) : null}
           {mutationError && [409, 412].includes(mutationError.status) ? (
             <CatalogConflictBoundary
+              error={mutationError}
               onReload={() => {
                 setMutationError(null);
                 setState({ kind: "loading" });

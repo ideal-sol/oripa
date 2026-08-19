@@ -168,6 +168,14 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_mig_063d_category_tag_presentation_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
+        }
+        self.assertEqual(policy_gate.MIG_063D_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -947,6 +955,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_08_000053_operational_gacha_inventory.php",
             "apps/api/database/migrations-v2/2026_09_09_000054_add_v2_coin_expiry_core.php",
             "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
+            "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

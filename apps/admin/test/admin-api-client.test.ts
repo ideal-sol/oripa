@@ -342,6 +342,45 @@ describe("AdminApiClient", () => {
     expect(JSON.parse(String(request?.body))).not.toHaveProperty("code", undefined);
   });
 
+  it("classifies revision, published-reference, and validation problems distinctly", async () => {
+    const problems = [
+      [
+        409,
+        "CATALOG_REVISION_CONFLICT",
+        "別の操作で更新されています。最新状態を再取得してください。",
+      ],
+      [
+        409,
+        "CATALOG_PUBLISHED_REFERENCE_CONFLICT",
+        "公開中Gachaから参照されているため、この項目は変更できません。",
+      ],
+      [422, "CATALOG_MUTATION_INVALID", "入力内容を確認してください。"],
+    ] as const;
+    const fetcher = vi.fn<typeof fetch>();
+    for (const [status, code] of problems) {
+      fetcher.mockResolvedValueOnce(jsonResponse({ code, retryable: false }, status));
+    }
+    const client = new AdminApiClient(fetcher, () => csrf);
+    const input = {
+      description: null,
+      expected_revision: 1,
+      is_visible: true,
+      name: "Cards",
+      slug: "cards",
+      sort_order: 1,
+    };
+
+    for (const [, code, message] of problems) {
+      await expect(
+        client.updateCatalogCategory(
+          "01910191-0191-7191-8191-019101910191",
+          input,
+          crypto.randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code, message });
+    }
+  });
+
   it("creates a Gacha core Draft through the dedicated same-origin mutation", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ data: { id: "01910191-0191-7191-8191-019101910199" } }, 201),
