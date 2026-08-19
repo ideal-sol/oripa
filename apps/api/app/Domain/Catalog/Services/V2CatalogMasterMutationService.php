@@ -1011,6 +1011,7 @@ final class V2CatalogMasterMutationService
                     ->max('sort_order') + 1;
                 DB::table('catalog_ranks')->insert([
                     'public_id' => $publicId,
+                    'gacha_id' => $gacha->id,
                     'code' => $payload['code'],
                     'display_name' => $payload['name'],
                     'description' => $payload['description'],

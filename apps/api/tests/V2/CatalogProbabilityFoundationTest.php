@@ -100,6 +100,17 @@ final class CatalogProbabilityFoundationTest extends TestCase
                 ->where('storage_identifier', 'fixture/catalog/gacha-main.txt')
                 ->value('checksum_sha256')
         );
+        self::assertSame(
+            ['A', 'S'],
+            DB::table('catalog_ranks')->orderBy('code')->pluck('code')->all()
+        );
+        self::assertSame(
+            1,
+            DB::table('catalog_ranks')
+                ->whereNotNull('gacha_id')
+                ->distinct()
+                ->count('gacha_id')
+        );
     }
 
     public function test_public_catalog_resolves_canonical_code_and_legacy_uuid(): void

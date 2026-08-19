@@ -24,12 +24,14 @@
   "ranks": [
     {
       "public_id": "0198a001-0000-7000-8000-000000000003",
+      "gacha_code": "fixture-catalog",
       "code": "S",
       "name": "Sランク",
       "sort_order": 10
     },
     {
       "public_id": "0198a001-0000-7000-8000-000000000004",
+      "gacha_code": "fixture-catalog",
       "code": "A",
       "name": "Aランク",
       "sort_order": 20
@@ -79,12 +81,14 @@
   ],
   "rank_assets": [
     {
+      "gacha_code": "fixture-catalog",
       "rank_code": "S",
       "asset_storage_identifier": "fixture/catalog/rank-s.txt",
       "usage_type": "video",
       "sort_order": 10
     },
     {
+      "gacha_code": "fixture-catalog",
       "rank_code": "A",
       "asset_storage_identifier": "fixture/catalog/prize-a.txt",
       "usage_type": "result_image",

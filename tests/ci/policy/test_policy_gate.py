@@ -176,6 +176,22 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_mig_063e_gacha_rank_scope_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+        }
+        self.assertEqual(policy_gate.MIG_063E_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("UNIQUE (gacha_id, code)", migration)
+        self.assertIn("catalog_ranks_gacha_id_code_unique", migration)
+        self.assertIn("catalog_ranks_unowned_code_unique", migration)
+        self.assertIn("Cannot restore global Catalog Rank code uniqueness", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+        self.assertNotIn("DELETE FROM catalog_ranks", migration)
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -956,6 +972,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_09_000054_add_v2_coin_expiry_core.php",
             "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
+            "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

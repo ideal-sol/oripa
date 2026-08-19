@@ -154,6 +154,100 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             ->assertJsonPath('data.is_visible', false);
     }
 
+    public function test_rank_codes_are_unique_inside_one_gacha_and_reusable_across_gachas(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $coreA = $this->mutate(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/gachas/core',
+            [...$this->coreInput(), 'title' => 'Rank Scope A']
+        )->assertCreated()->json('data');
+        Auth::forgetGuards();
+        $coreB = $this->mutate(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/gachas/core',
+            [...$this->coreInput(), 'title' => 'Rank Scope B']
+        )->assertCreated()->json('data');
+
+        $rankInput = [
+            'code' => 'first',
+            'name' => '1等賞',
+            'description' => 'Scoped Rank',
+            'image_asset_id' => null,
+            'video_asset_id' => null,
+            'expected_version_revision' => 1,
+        ];
+        Auth::forgetGuards();
+        $rankA = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks",
+            $rankInput,
+            'rank-scope-a-first'
+        )->assertCreated()->assertJsonPath('data.code', 'first')->json('data');
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks",
+            [...$rankInput, 'expected_version_revision' => 2],
+            'rank-scope-a-duplicate'
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_MASTER_CONFLICT');
+
+        Auth::forgetGuards();
+        $rankB = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$coreB['id']}/versions/{$coreB['current_version']['id']}/ranks",
+            $rankInput,
+            'rank-scope-b-first'
+        )->assertCreated()->assertJsonPath('data.code', 'first')->json('data');
+
+        $storedRanks = DB::table('catalog_ranks')
+            ->whereIn('public_id', [$rankA['id'], $rankB['id']])
+            ->orderBy('public_id')
+            ->get(['gacha_id', 'code']);
+        self::assertCount(2, $storedRanks);
+        self::assertSame(['first'], $storedRanks->pluck('code')->unique()->values()->all());
+        self::assertCount(2, $storedRanks->pluck('gacha_id')->unique());
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $token,
+            'PUT',
+            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks/{$rankA['id']}",
+            [
+                'code' => 'second',
+                'name' => $rankA['name'],
+                'description' => $rankA['description'],
+                'image_asset_id' => null,
+                'video_asset_id' => null,
+                'expected_revision' => $rankA['revision'],
+                'expected_version_revision' => 2,
+            ],
+            'rank-code-remains-immutable'
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_CODE_IMMUTABLE');
+        self::assertSame(
+            'first',
+            DB::table('catalog_ranks')->where('public_id', $rankA['id'])->value('code')
+        );
+        self::assertSame(
+            1,
+            DB::table('pg_constraint')
+                ->where('conname', 'catalog_ranks_gacha_id_code_unique')
+                ->count()
+        );
+        self::assertSame(
+            0,
+            DB::table('pg_constraint')
+                ->where('conname', 'catalog_ranks_code_unique')
+                ->count()
+        );
+    }
+
     public function test_operator_and_published_version_mutations_are_rejected(): void
     {
         $operator = $this->createAdminSession(V2AdminRole::Operator);
