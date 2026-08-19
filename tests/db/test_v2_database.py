@@ -47,6 +47,52 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "V2_REDIS_PASSWORD": "b" * 32,
         }
 
+    def valid_compose_config(self):
+        project = self.values["COMPOSE_PROJECT_NAME"]
+        return {
+            "services": {
+                "api": {"networks": {"v2_private": {}}},
+                "admin": {"networks": {"v2_private": {}}},
+                "postgres": {
+                    "image": "postgres:17-alpine",
+                    "networks": {"v2_private": {}},
+                },
+                "redis": {
+                    "image": "redis:7-alpine",
+                    "networks": {"v2_private": {}},
+                },
+            },
+            "networks": {
+                "v2_private": {
+                    "name": f"{project}_v2_private",
+                    "internal": True,
+                    "ipam": {"config": [{"subnet": "192.168.61.0/24"}]},
+                },
+            },
+            "volumes": {
+                "v2_api_assets": {"name": f"{project}_v2_api_assets"},
+                "v2_postgres": {"name": f"{project}_v2_postgres"},
+                "v2_redis": {"name": f"{project}_v2_redis"},
+            },
+        }
+
+    def validate_compose_config(self, config):
+        compose_file = self.repository / "docker-compose.v2.yml"
+        compose_file.write_text("services: {}\n", encoding="utf-8")
+        env_file = self.repository / "runtime.env"
+        with mock.patch.object(
+            v2_database,
+            "run",
+            return_value=__import__("json").dumps(config).encode(),
+        ):
+            return v2_database.validate_compose(
+                self.repository,
+                compose_file,
+                env_file,
+                self.values["COMPOSE_PROJECT_NAME"],
+                self.values,
+            )
+
     def test_valid_boundary_passes(self):
         v2_database.validate_project("oripa-v2-dev")
         v2_database.validate_project("mig041-v2-123456-1-source")
@@ -57,6 +103,43 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertEqual(
             path, self.repository / "apps" / "api" / "database" / "migrations-v2"
         )
+        self.assertEqual(
+            self.valid_compose_config(),
+            self.validate_compose_config(self.valid_compose_config()),
+        )
+
+    def test_private_network_must_remain_internal(self):
+        config = self.valid_compose_config()
+        config["networks"]["v2_private"]["internal"] = False
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_database_create_phase_must_remain_private_only(self):
+        config = self.valid_compose_config()
+        config["services"]["postgres"]["networks"]["v2_api_egress"] = {}
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_api_create_phase_must_remain_private_only(self):
+        config = self.valid_compose_config()
+        config["services"]["api"]["networks"]["v2_api_egress"] = {}
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_unused_egress_network_must_not_enter_resolved_create_config(self):
+        config = self.valid_compose_config()
+        config["networks"]["v2_api_egress"] = {
+            "name": f"{self.values['COMPOSE_PROJECT_NAME']}_v2_api_egress",
+            "driver": "bridge",
+        }
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_admin_create_phase_must_remain_private_only(self):
+        config = self.valid_compose_config()
+        config["services"]["admin"]["networks"]["v2_api_egress"] = {}
+        with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
 
     def test_unapproved_task_project_is_rejected(self):
         with self.assertRaisesRegex(v2_database.GuardFailure, "allowlist"):

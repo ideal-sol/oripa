@@ -11,6 +11,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 - [OIDC Baseline](oidc-baseline.md)
 - [Site Credential Boundary](site-credential-boundary.md)
 - [Provider Onboarding Checklist](provider-onboarding-checklist.md)
+- [V2 Preview API Egress Boundary](api-egress.md)
 
 Provider-neutralな構造Example:
 
