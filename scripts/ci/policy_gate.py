@@ -450,6 +450,9 @@ MIG_062L_V2_CATALOG_FILES = {
 MIG_063D_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
 }
+MIG_063E_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -502,6 +505,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_062I_V2_CATALOG_FILES,
     *MIG_062L_V2_CATALOG_FILES,
     *MIG_063D_V2_CATALOG_FILES,
+    *MIG_063E_V2_CATALOG_FILES,
 }
 MIG_062J_V2_DRAW_FILES = {
     "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
@@ -2340,6 +2344,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_09_000054_add_v2_coin_expiry_core.php",
         "2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
         "2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
+        "2026_09_12_000057_scope_v2_gacha_rank_codes.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3221,6 +3226,32 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         raise PolicyFailure(
             "required V2 Catalog files missing: " + ", ".join(missing)
         )
+
+    rank_scope_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_09_12_000057_scope_v2_gacha_rank_codes.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "catalog_ranks_gacha_id_code_unique",
+        "UNIQUE (gacha_id, code)",
+        "catalog_ranks_unowned_code_unique",
+        "catalog_ranks_code_unique",
+        "v2_catalog_guard_rank_gacha_scope",
+        "Cross-Gacha Rank association is not allowed",
+        "Cannot restore global Catalog Rank code uniqueness while duplicate codes exist",
+    ):
+        if required not in rank_scope_migration:
+            raise PolicyFailure(f"V2 Gacha Rank scope migration missing {required}")
+    for prohibited in (
+        "DELETE FROM catalog_ranks",
+        "DISABLE TRIGGER",
+        "UPDATE catalog_ranks SET code",
+    ):
+        if prohibited in rank_scope_migration:
+            raise PolicyFailure(
+                f"V2 Gacha Rank scope migration contains prohibited {prohibited}"
+            )
 
     migration = (
         repository

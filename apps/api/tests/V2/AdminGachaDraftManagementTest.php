@@ -503,13 +503,24 @@ final class AdminGachaDraftManagementTest extends TestCase
     private function createOwnedPrize(string $gachaPublicId): string
     {
         $source = DB::table('catalog_prizes')->where('public_id', self::PRIZE_ID)->firstOrFail();
+        $gachaId = DB::table('catalog_gachas')
+            ->where('public_id', $gachaPublicId)->value('id');
+        $sourceRank = DB::table('catalog_ranks')->where('id', $source->rank_id)->firstOrFail();
+        $rankValues = (array) $sourceRank;
+        unset($rankValues['id']);
+        $rankValues['public_id'] = (string) Str::uuid7();
+        $rankValues['gacha_id'] = $gachaId;
+        $rankValues['revision'] = 1;
+        $rankValues['created_at'] = now()->startOfSecond();
+        $rankValues['updated_at'] = now()->startOfSecond();
+        $rankId = DB::table('catalog_ranks')->insertGetId($rankValues);
         $publicId = (string) Str::uuid7();
         $values = (array) $source;
         unset($values['id']);
         $values['public_id'] = $publicId;
         $values['code'] = 'owned-'.str_replace('-', '', $publicId);
-        $values['gacha_id'] = DB::table('catalog_gachas')
-            ->where('public_id', $gachaPublicId)->value('id');
+        $values['gacha_id'] = $gachaId;
+        $values['rank_id'] = $rankId;
         $values['revision'] = 1;
         $values['created_at'] = now()->startOfSecond();
         $values['updated_at'] = now()->startOfSecond();
