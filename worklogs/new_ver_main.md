@@ -8602,3 +8602,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Focused Admin component 14 tests、Admin Unit suite、Admin Typecheck、Admin Lint、Admin Production Build、Policy Unit 135 tests、Quality Unit 4 tests、Security Unit 10 tests、Local Policy／Quality／Security Gate、Composer／Root pnpm／Legacy pnpm Audit各0 finding、`git diff --check`はPASSした。Migration、Domain、Admin API、Public OpenAPI、Artifact、Storefront、Preview／Productionは変更していない。Required Checks、Fresh Self-review、Squash Merge／CloseoutはFinal Head固定後に継続する。
 - 初回PR Head `9e7e84b22b4f47669d78c4bce643794f43a92c15`のGitHub Quality Gateは新Focused Test fixtureの既存generated型必須field 3件（Rank description、optional query、Asset is_public）を検出してFAILした。Application実装、API、Canonical保存方式を変更せずfixtureだけを既存型へ補正し、Focused 14 testsとAdmin TypecheckをPASSした。旧headのreview/check evidenceは無効であり、fresh headで再実行する。
 - 第二PR Head `e553ee4c5e29b57d3b12aeed607a38011f8d168d`のGitHub Quality GateはReact effect内の同期`setBannerLoading`と裸`img`のAdmin ESLint rule違反を検出してFAILした。Banner選択時／自動解決時だけloading stateを開始し、既存Admin通例のunoptimized `next/image`へ置換してFocused 14 testsと対象ESLintをPASSした。Domain、API、Migration、Canonical保存方式は不変であり、fresh headで再実行する。
+
+## OPS-009 C2 Limited Bonus Runtime Activation
+
+- `git fetch --prune`後のclean `main = origin/main@6075512ba2c248dc711e5a9e89e7f5289d1a4c41`を固定し、Issue #303、Branch `chore/OPS-009-c2-limited-bonus-runtime-activation`、専用Worktree、Risk R4で開始した。Preview Deployment Lockだけを取得し、Migration Allocation／Artifact Release／Integration Lockは取得していない。
+- 現行Payment Review APIはMIG-062W revision `dfefa07e1a905bba07a56079d02ebfbaabfafc94`、AdminはMIG-062T revision `0b1f982d1aeaee81a6e7aea648695fe48053016e`で、ともにhealthyだった。内部API／Admin health、外部Admin health、両User origin sessionは200である。
+- 現行API imageはMigration `000055`とLimited Bonus routeを持たず、DBは53 migrationsまでRan、Campaign／snapshot tableとPayment columnは不存在だった。Admin browserで既存Point Purchase一覧／編集と通常fieldを確認し、`期間限定ボーナスコイン`欄が未表示であることを実測した。
+- Preservation baselineはPoint Purchase Plans 3、Payments 0、Payment Point Grants 0、Wallets 2、Point Lots 4、Point Ledger Entries 8である。Public Point Product 2件とWallet readは200／private no-storeで、credential／response dataをRepositoryへ記録していない。

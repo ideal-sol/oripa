@@ -1,0 +1,53 @@
+{
+  "task_id": "OPS-009",
+  "risk": "R4",
+  "status": "preflight_complete_activation_pending",
+  "base_branch": "main",
+  "base_sha": "6075512ba2c248dc711e5a9e89e7f5289d1a4c41",
+  "issue": 303,
+  "target": "v2_payment_review_runtime",
+  "formal_production_release": false,
+  "evidence_path": "/var/lib/oripa-v2-evidence/OPS-009/",
+  "locks": {
+    "preview_deployment": "held",
+    "migration_allocation": "not_acquired",
+    "artifact_release": "not_acquired",
+    "integration": "not_acquired"
+  },
+  "preflight": {
+    "repository_main": "6075512ba2c248dc711e5a9e89e7f5289d1a4c41",
+    "api_revision": "dfefa07e1a905bba07a56079d02ebfbaabfafc94",
+    "api_image_id": "sha256:ff2a41240fcbd126acac61107a1e6d73af121bd8247a2734debf2367ee6bc30d",
+    "admin_revision": "0b1f982d1aeaee81a6e7aea648695fe48053016e",
+    "admin_image_id": "sha256:d640ea51684c11ea952c36001f0c1886c150551a2e9c7c61ada1a359dff9b152",
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "migration_count": 53,
+    "migration_000055": "not_present_in_runtime_image_not_applied",
+    "limited_bonus_schema_present": false,
+    "limited_bonus_route_status": 404,
+    "limited_bonus_admin_section_visible": false,
+    "point_purchase_plans": 3,
+    "payments": 0,
+    "payment_point_grants": 0,
+    "wallets": 2,
+    "point_lots": 4,
+    "point_ledger_entries": 8
+  },
+  "activation": {
+    "source_sha": null,
+    "migration_000055_before": "pending",
+    "migration_000055_after": null,
+    "api_image": null,
+    "admin_image": null
+  },
+  "smoke": {
+    "status": "pending",
+    "payment_executed": false,
+    "draw_executed": false,
+    "refund_executed": false,
+    "chargeback_executed": false,
+    "campaign_mutation_executed": false
+  },
+  "production_release": "NOT_PERFORMED"
+}
