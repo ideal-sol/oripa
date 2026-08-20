@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\V2\User;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 final class V2PublicAuthController
 {
@@ -61,18 +63,31 @@ final class V2PublicAuthController
         return $this->privateResponse(response()->json(['status' => 'accepted'], 202));
     }
 
-    public function verify(Request $request, string $userId, string $hash): JsonResponse
+    public function verify(
+        Request $request,
+        string $userId,
+        string $hash
+    ): JsonResponse|RedirectResponse
     {
         $result = $this->authentication->verify($userId, $hash);
-        $response = $this->privateResponse(response()->json([
-            'authenticated' => true,
-            'user' => [
-                'id' => $result['user']->public_id,
-                'state' => $result['user']->state->value,
-                'email_verified' => true,
-            ],
-            'redirect_path' => $result['redirect_path'],
-        ]));
+        if ($request->expectsJson()) {
+            $response = $this->privateResponse(response()->json([
+                'authenticated' => true,
+                'user' => [
+                    'id' => $result['user']->public_id,
+                    'state' => $result['user']->state->value,
+                    'email_verified' => true,
+                ],
+                'redirect_path' => $result['redirect_path'],
+            ]));
+        } else {
+            $response = new RedirectResponse(
+                $result['redirect_path'],
+                Response::HTTP_SEE_OTHER
+            );
+            $this->applyPrivateHeaders($response);
+        }
+        $response->setVary('Accept');
         $this->sessions->attachSession(
             $response,
             V2Realm::User,
@@ -470,10 +485,15 @@ final class V2PublicAuthController
 
     private function privateResponse(JsonResponse $response): JsonResponse
     {
-        $response->headers->set('Cache-Control', 'private, no-store');
-        $response->headers->set('X-Oripa-Api-Version', '2');
+        $this->applyPrivateHeaders($response);
 
         return $response;
+    }
+
+    private function applyPrivateHeaders(Response $response): void
+    {
+        $response->headers->set('Cache-Control', 'private, no-store');
+        $response->headers->set('X-Oripa-Api-Version', '2');
     }
 
     /**
