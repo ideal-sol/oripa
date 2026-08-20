@@ -17,16 +17,28 @@ return new class extends Migration
     {
         if (DB::table('catalog_gacha_publish_schedules as schedule')
             ->join(
+                'catalog_gacha_versions as version',
+                'version.id',
+                '=',
+                'schedule.gacha_version_id'
+            )
+            ->join(
                 'catalog_probability_versions as probability',
                 'probability.id',
                 '=',
                 'schedule.probability_version_id'
             )
             ->whereIn('schedule.status', ['scheduled', 'processing'])
-            ->where('probability.status', 'draft')
+            ->where(function ($query): void {
+                $query->where('probability.status', '<>', 'published')
+                    ->orWhereRaw(
+                        'version.published_probability_version_id '.
+                        'IS DISTINCT FROM schedule.probability_version_id'
+                    );
+            })
             ->exists()) {
             throw new RuntimeException(
-                'Cannot roll back MIG-068 while an internal Probability Draft is scheduled.'
+                'Cannot roll back MIG-068 while a canonical Probability selection is pending.'
             );
         }
 

@@ -31,7 +31,7 @@
 ## Verification
 
 - PASS: isolated normal application of all 59 V2 migrations; MIG-068 rollback and reapply; no `migrate:fresh` and no trigger disablement.
-- PASS: focused Catalog compatibility — 56 tests / 744 assertions, including Lifecycle canonical publish and Worker retry — 6 tests / 147 assertions.
+- PASS: focused Catalog compatibility — 56 tests / 745 assertions, including Lifecycle canonical publish, Worker retry, and active-Schedule rollback rejection — 6 tests / 148 assertions.
 - PASS: Policy Unit — 152 tests; OpenAPI Unit — 7 tests; OpenAPI bundle check — admin 215 paths, public 54 paths, webhook 1 path.
 - PASS: changed PHP syntax and `git diff --check`.
 - Not run locally: existing fork concurrency test class because it invokes prohibited `migrate:fresh`; exact-head Required Checks provide repository CI evidence.

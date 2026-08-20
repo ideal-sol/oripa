@@ -409,6 +409,19 @@ final class GachaLifecyclePresentationTest extends TestCase
             'public_id' => $scheduled['selected_probability']['id'],
             'status' => 'draft',
         ]);
+        $migration = require database_path(
+            'migrations-v2/'.
+            '2026_09_14_000059_internalize_v2_canonical_probability_publish.php'
+        );
+        try {
+            $migration->down();
+            self::fail('MIG-068 rollback must fail while a selection is pending.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString(
+                'Cannot roll back MIG-068',
+                $exception->getMessage()
+            );
+        }
 
         $changedStart = $this->databaseNow()->addHours(2);
         $input = $prepared['input'];

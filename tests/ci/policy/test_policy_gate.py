@@ -218,6 +218,14 @@ class PolicyGateTest(unittest.TestCase):
         self.assertIn("__canonical_inventory_v1", migration)
         self.assertIn("status::text NOT IN ('draft'::text, 'published'::text)", migration)
         self.assertIn("active_schedule.probability_version_id", migration)
+        self.assertIn(
+            "version.published_probability_version_id ",
+            migration,
+        )
+        self.assertIn(
+            "IS DISTINCT FROM schedule.probability_version_id",
+            migration,
+        )
         self.assertIn("Cannot roll back MIG-068", migration)
         self.assertNotIn("DISABLE TRIGGER", migration)
         self.assertNotRegex(migration, r"\b(?:UPDATE|DELETE FROM)\s+catalog_")
