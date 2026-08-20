@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: `#330`
-- PR: pending
+- PR: `#331`
 - Risk: `R4`
 - Base SHA: `79ed6ef61d8aa0e7f0d825d1e7b9962608f0e8a0`
 - Branch: `chore/OPS-013-mig-063fg-admin-runtime-activation`
@@ -42,5 +42,5 @@
 ## Current State
 
 - Preflight and exact Admin source/image verification: PASS.
-- Issue, branch, dedicated worktree, Task Policy, and initial evidence: created.
-- PR, activation-head checks/self-review, Preview Deployment Lock, Runtime activation, final checks/self-review, merge, Issue closure, and cleanup: pending.
+- Issue, branch, dedicated worktree, Draft PR `#331`, Task Policy, and initial evidence: created.
+- Activation-head checks/self-review, Preview Deployment Lock, Runtime activation, final checks/self-review, merge, Issue closure, and cleanup: pending.
