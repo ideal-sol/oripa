@@ -388,7 +388,8 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
 
         $this->expectException(QueryException::class);
         DB::statement(
-            'SET CONSTRAINTS catalog_gacha_version_prizes_inventory_capacity_check IMMEDIATE'
+            'SET CONSTRAINTS ' .
+            'catalog_gacha_version_prizes_inventory_capacity_update_check IMMEDIATE'
         );
     }
 

@@ -24,18 +24,28 @@ return new class extends Migration
             );
         }
 
-        DB::statement(
-            'DROP TRIGGER IF EXISTS catalog_gacha_versions_inventory_capacity_check '.
-            'ON catalog_gacha_versions'
-        );
-        DB::statement(
-            'DROP TRIGGER IF EXISTS catalog_gacha_version_prizes_inventory_capacity_check '.
-            'ON catalog_gacha_version_prizes'
-        );
-        DB::statement(
-            'DROP TRIGGER IF EXISTS prize_inventories_inventory_capacity_check '.
-            'ON prize_inventories'
-        );
+        foreach ([
+            'catalog_gacha_versions_inventory_capacity_insert_check' =>
+                'catalog_gacha_versions',
+            'catalog_gacha_versions_inventory_capacity_update_check' =>
+                'catalog_gacha_versions',
+            'catalog_gacha_version_prizes_inventory_capacity_insert_check' =>
+                'catalog_gacha_version_prizes',
+            'catalog_gacha_version_prizes_inventory_capacity_update_check' =>
+                'catalog_gacha_version_prizes',
+            'prize_inventories_inventory_capacity_insert_check' =>
+                'prize_inventories',
+            'prize_inventories_inventory_capacity_update_check' =>
+                'prize_inventories',
+            'catalog_gacha_versions_inventory_capacity_check' =>
+                'catalog_gacha_versions',
+            'catalog_gacha_version_prizes_inventory_capacity_check' =>
+                'catalog_gacha_version_prizes',
+            'prize_inventories_inventory_capacity_check' =>
+                'prize_inventories',
+        ] as $trigger => $table) {
+            DB::statement("DROP TRIGGER IF EXISTS {$trigger} ON {$table}");
+        }
         DB::statement(
             'DROP TRIGGER IF EXISTS catalog_gacha_version_prizes_inventory_capacity_lock '.
             'ON catalog_gacha_version_prizes'
@@ -192,21 +202,44 @@ return new class extends Migration
             'EXECUTE FUNCTION v2_catalog_lock_gacha_inventory_capacity()'
         );
         DB::statement(
-            'CREATE CONSTRAINT TRIGGER catalog_gacha_versions_inventory_capacity_check '.
-            'AFTER INSERT OR UPDATE ON catalog_gacha_versions '.
+            'CREATE CONSTRAINT TRIGGER catalog_gacha_versions_inventory_capacity_insert_check '.
+            'AFTER INSERT ON catalog_gacha_versions '.
             'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
             'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
         );
         DB::statement(
-            'CREATE CONSTRAINT TRIGGER catalog_gacha_version_prizes_inventory_capacity_check '.
-            'AFTER INSERT OR UPDATE ON catalog_gacha_version_prizes '.
+            'CREATE CONSTRAINT TRIGGER catalog_gacha_versions_inventory_capacity_update_check '.
+            'AFTER UPDATE ON catalog_gacha_versions '.
+            'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
+            'WHEN (OLD.total_count IS DISTINCT FROM NEW.total_count) '.
+            'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
+        );
+        DB::statement(
+            'CREATE CONSTRAINT TRIGGER catalog_gacha_version_prizes_inventory_capacity_insert_check '.
+            'AFTER INSERT ON catalog_gacha_version_prizes '.
             'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
             'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
         );
         DB::statement(
-            'CREATE CONSTRAINT TRIGGER prize_inventories_inventory_capacity_check '.
-            'AFTER INSERT OR UPDATE ON prize_inventories '.
+            'CREATE CONSTRAINT TRIGGER catalog_gacha_version_prizes_inventory_capacity_update_check '.
+            'AFTER UPDATE ON catalog_gacha_version_prizes '.
             'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
+            'WHEN (OLD.gacha_version_id IS DISTINCT FROM NEW.gacha_version_id '.
+            'OR OLD.initial_inventory IS DISTINCT FROM NEW.initial_inventory) '.
+            'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
+        );
+        DB::statement(
+            'CREATE CONSTRAINT TRIGGER prize_inventories_inventory_capacity_insert_check '.
+            'AFTER INSERT ON prize_inventories '.
+            'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
+            'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
+        );
+        DB::statement(
+            'CREATE CONSTRAINT TRIGGER prize_inventories_inventory_capacity_update_check '.
+            'AFTER UPDATE ON prize_inventories '.
+            'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW '.
+            'WHEN (OLD.gacha_version_prize_id IS DISTINCT FROM NEW.gacha_version_prize_id '.
+            'OR OLD.total_quantity IS DISTINCT FROM NEW.total_quantity) '.
             'EXECUTE FUNCTION v2_catalog_validate_gacha_inventory_capacity()'
         );
     }
