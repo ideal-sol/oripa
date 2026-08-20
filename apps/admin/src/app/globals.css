@@ -2586,10 +2586,20 @@ label {
   border-color: var(--forest);
 }
 
-.catalog-banner-option img {
+.catalog-banner-option img,
+.catalog-banner-option video,
+.catalog-rank-effect-empty-preview {
   height: 56px;
   object-fit: cover;
   width: 96px;
+}
+
+.catalog-rank-effect-empty-preview {
+  align-items: center;
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: center;
 }
 
 .catalog-choice-fieldset,

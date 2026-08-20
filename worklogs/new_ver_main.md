@@ -8662,3 +8662,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Verify queryはredirect正本にせず、Register／Resend時の既存exact allowlist検証を通って保存されたpathだけを使用する。外部scheme、`//evil.example/`、allowlist外pathは`INVALID_REDIRECT`、query tamperingは保存済み`/`へ固定、invalid／expired／replay token拒否を維持した。
 - Task専用空PostgreSQLへ既存57 V2 migrationsを`migrate:fresh`なしで適用し、Direct Mail＋Authentication Flow 23 tests／162 assertionsをPHP 8.4でPASSした。Policy Unit 144、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、Composer validation、Composer／workspace pnpm／legacy pnpm Audit各0 finding、PHP syntax、`git diff --check`もPASSし、Task container／networkをcleanupした。
 - Migration created、Task／Preview／Production migration applied、DB Schema、Public／Admin Contract、Artifact、Storefront、Point、Payment、Draw、Inventory、Infrastructure変更は0である。実recipientメール、新規登録／Resend runtime smoke、Browser/E2E、Preview／Productionは実行していない。Required Checks、Fresh fixed-head Self-review、Squash Merge／CleanupはFinal Head固定後に継続する。
+
+## MIG-063F Rank Presentation Asset Picker
+
+- Cleanな`main = origin/main@fa32950041e9b49091aa5dd2a5a3881baeadaf10`、Open Platform MIG Task／PRなし、shared Lock未取得を確認し、Issue #315、Branch `feat/MIG-063F-rank-presentation-asset-picker`、専用Worktree、Risk R2で開始した。Migration Allocation、Platform Integration、Artifact Release、Preview Deployment Lockは取得していない。
+- Gacha Rank create/editのランク画像と抽選演出動画は、既存Admin `rank-effects` endpointだけを候補正本とする。画像は`media_type=image`、動画は`media_type=video`だけを同endpointのcursor paginationからカード表示し、一般Presentation Assetは今回のPickerへ混在させない。
+- 既存Admin card Picker patternを再利用し、画像thumbnailまたは軽量video metadata previewとRank Effect titleを同時に表示する。Rank保存は既存`image_asset_id`／`video_asset_id`へ既存Asset IDを参照するだけで、Asset複製は0件である。
+- 既存Rankの候補解決時はselectedを復元する。Rank Effect候補に解決できない既存Asset IDはNULL化・置換・複製せず、明示的な再選択または未設定選択までそのまま保存する。
+- Focused Admin 7 tests、Admin typecheck、lint、Production build、Policy Unit 144、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、Composer／workspace pnpm／legacy pnpm Audit各0 finding、`git diff --check`はPASSした。Migration、DB Schema、Admin/Public API、OpenAPI、Artifact、Storefront、Draw／Inventory／Point／Payment、Preview／Production変更は0である。Browser/E2E、Admin full unit、repository-wide backend suiteは実行していない。
