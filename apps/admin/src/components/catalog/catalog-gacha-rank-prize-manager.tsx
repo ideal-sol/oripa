@@ -5,10 +5,10 @@ import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { PublicAssetPreview, safePublicPath } from "@/components/catalog/public-asset-preview";
+import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
-  AdminCatalogPresentationAsset,
   AdminCatalogRank,
   AdminGachaVersionPrize,
   AdminRankEffect,
@@ -37,7 +37,6 @@ export function CatalogGachaRankPrizeManager({
   const [error, setError] = useState<string | null>(null);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [prizes, setPrizes] = useState<AdminGachaVersionPrize[]>([]);
-  const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
   const [rankEffects, setRankEffects] = useState<AdminRankEffect[]>([]);
   const [versionRevision, setVersionRevision] = useState(version?.revision ?? 0);
   const [rankDialog, setRankDialog] = useState(false);
@@ -53,18 +52,13 @@ export function CatalogGachaRankPrizeManager({
     setLoadState("loading");
     setError(null);
     try {
-      const [rankResult, prizeResult, assetResult, rankEffectResult] = await Promise.all([
+      const [rankResult, prizeResult, rankEffectResult] = await Promise.all([
         client.listGachaVersionRanks(gachaId, version.id, signal),
         client.listGachaVersionPrizes(gachaId, version.id, signal),
-        client.listCatalogPresentationAssets(
-          { archive: "active", direction: "asc", limit: 100 },
-          signal,
-        ),
         listAllRankEffects(client, signal),
       ]);
       setRanks(rankResult.items);
       setPrizes(prizeResult.items);
-      setAssets(assetResult.items);
       setRankEffects(rankEffectResult);
       setVersionRevision(Math.max(rankResult.version_revision, prizeResult.version_revision));
       setLoadState("ready");
@@ -264,7 +258,7 @@ export function CatalogGachaRankPrizeManager({
       ) : null}
       {prizeDialog ? (
         <Dialog title={prizeEditing ? "景品編集" : "新規景品登録"} onClose={() => setPrizeDialog(false)}>
-          <PrizeForm assets={assets.filter((asset) => asset.media_type === "image")} busy={busy} current={prizeEditing} inputRef={firstDialogControl} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
+          <PrizeForm busy={busy} current={prizeEditing} inputRef={firstDialogControl} key={prizeEditing?.id ?? "new"} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
         </Dialog>
       ) : null}
     </section>
@@ -299,11 +293,36 @@ function RankForm({ effects, busy, current, inputRef, onCancel, onSubmit }: { ef
   </form>;
 }
 
-function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, presentationOnly, ranks }: { assets: AdminCatalogPresentationAsset[]; busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; presentationOnly: boolean; ranks: AdminCatalogRank[] }) {
-  return <form className="catalog-mutation-form" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onSubmit(event.currentTarget); }}>
+function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, presentationOnly, ranks }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; presentationOnly: boolean; ranks: AdminCatalogRank[] }) {
+  const [presentationAssetId, setPresentationAssetId] = useState(current?.presentation_asset?.id ?? null);
+  const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
+  const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
+  const [bannerPickerError, setBannerPickerError] = useState<string | null>(null);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (bannerPickerChanged && selectedBannerId === null) {
+      setBannerPickerError("選択したBanner CategoryからBannerを選択してください。");
+      return;
+    }
+    setBannerPickerError(null);
+    void onSubmit(event.currentTarget);
+  }
+
+  return <form className="catalog-mutation-form" onSubmit={submit}>
     <label>ランク<select defaultValue={current?.rank.id ?? ""} disabled={presentationOnly} name={presentationOnly ? undefined : "rank_id"} required><option disabled value="">選択してください</option>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{rank.name}</option>)}</select>{presentationOnly ? <input name="rank_id" type="hidden" value={current?.rank.id ?? ""} /> : null}</label>
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
-    <AssetSelect current={current?.presentation_asset?.id} label="サムネイル" name="presentation_asset_id" options={assets} />
+    <CatalogBannerAssetPicker
+      assetId={presentationAssetId}
+      disabled={busy}
+      onSelectionChange={(selection) => {
+        setBannerPickerChanged(selection.changed);
+        setPresentationAssetId(selection.assetId);
+        setSelectedBannerId(selection.bannerId);
+      }}
+    />
+    <input name="presentation_asset_id" type="hidden" value={presentationAssetId ?? ""} />
+    {bannerPickerError ? <p className="form-field-error" role="alert">{bannerPickerError}</p> : null}
     <div className="catalog-form-grid">
       <label>総在庫数<input defaultValue={current?.total_inventory ?? 0} min={0} name="total_inventory" required type="number" /></label>
       {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
@@ -314,10 +333,6 @@ function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, presen
     {current ? <label>在庫変更理由<textarea maxLength={500} name="inventory_reason" required /></label> : null}
     <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
   </form>;
-}
-
-function AssetSelect({ current, label, name, options }: { current?: string; label: string; name: string; options: AdminCatalogPresentationAsset[] }) {
-  return <label>{label}<select defaultValue={current ?? ""} name={name}><option value="">未設定</option>{options.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text || asset.public_path || asset.id}</option>)}</select></label>;
 }
 
 function RankPresentationAssetPicker({
