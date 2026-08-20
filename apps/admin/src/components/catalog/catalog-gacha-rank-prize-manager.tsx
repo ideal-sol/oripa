@@ -1,15 +1,17 @@
 "use client";
 
-import { Edit3, LoaderCircle, Plus, Settings2, X } from "lucide-react";
+import { Edit3, FileWarning, LoaderCircle, Plus, Settings2, X } from "lucide-react";
+import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
+import { PublicAssetPreview, safePublicPath } from "@/components/catalog/public-asset-preview";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
   AdminCatalogPresentationAsset,
   AdminCatalogRank,
   AdminGachaVersionPrize,
+  AdminRankEffect,
 } from "@/lib/admin-api/generated";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -36,6 +38,7 @@ export function CatalogGachaRankPrizeManager({
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [prizes, setPrizes] = useState<AdminGachaVersionPrize[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [rankEffects, setRankEffects] = useState<AdminRankEffect[]>([]);
   const [versionRevision, setVersionRevision] = useState(version?.revision ?? 0);
   const [rankDialog, setRankDialog] = useState(false);
   const [rankEditing, setRankEditing] = useState<AdminCatalogRank | null>(null);
@@ -50,17 +53,19 @@ export function CatalogGachaRankPrizeManager({
     setLoadState("loading");
     setError(null);
     try {
-      const [rankResult, prizeResult, assetResult] = await Promise.all([
+      const [rankResult, prizeResult, assetResult, rankEffectResult] = await Promise.all([
         client.listGachaVersionRanks(gachaId, version.id, signal),
         client.listGachaVersionPrizes(gachaId, version.id, signal),
         client.listCatalogPresentationAssets(
           { archive: "active", direction: "asc", limit: 100 },
           signal,
         ),
+        listAllRankEffects(client, signal),
       ]);
       setRanks(rankResult.items);
       setPrizes(prizeResult.items);
       setAssets(assetResult.items);
+      setRankEffects(rankEffectResult);
       setVersionRevision(Math.max(rankResult.version_revision, prizeResult.version_revision));
       setLoadState("ready");
     } catch (cause) {
@@ -92,9 +97,6 @@ export function CatalogGachaRankPrizeManager({
     );
   }
   const versionId = version.id;
-
-  const images = assets.filter((asset) => asset.media_type === "image");
-  const videos = assets.filter((asset) => asset.media_type === "video");
 
   async function submitRank(form: HTMLFormElement) {
     const data = new FormData(form);
@@ -257,12 +259,12 @@ export function CatalogGachaRankPrizeManager({
               </div>
             ))}
           </div>
-          {rankFormOpen ? <RankForm assets={{ images, videos }} busy={busy} current={rankEditing} inputRef={firstDialogControl} onCancel={() => setRankFormOpen(false)} onSubmit={submitRank} /> : null}
+          {rankFormOpen ? <RankForm effects={rankEffects} busy={busy} current={rankEditing} inputRef={firstDialogControl} onCancel={() => setRankFormOpen(false)} onSubmit={submitRank} /> : null}
         </Dialog>
       ) : null}
       {prizeDialog ? (
         <Dialog title={prizeEditing ? "景品編集" : "新規景品登録"} onClose={() => setPrizeDialog(false)}>
-          <PrizeForm assets={images} busy={busy} current={prizeEditing} inputRef={firstDialogControl} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
+          <PrizeForm assets={assets.filter((asset) => asset.media_type === "image")} busy={busy} current={prizeEditing} inputRef={firstDialogControl} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
         </Dialog>
       ) : null}
     </section>
@@ -286,13 +288,13 @@ function Dialog({ children, onClose, title }: { children: React.ReactNode; onClo
   </div>;
 }
 
-function RankForm({ assets, busy, current, inputRef, onCancel, onSubmit }: { assets: { images: AdminCatalogPresentationAsset[]; videos: AdminCatalogPresentationAsset[] }; busy: boolean; current: AdminCatalogRank | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void> }) {
+function RankForm({ effects, busy, current, inputRef, onCancel, onSubmit }: { effects: AdminRankEffect[]; busy: boolean; current: AdminCatalogRank | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void> }) {
   return <form className="catalog-mutation-form catalog-inline-form" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onSubmit(event.currentTarget); }}>
     <label>ランクキー<input defaultValue={current?.code ?? ""} disabled={current !== null} maxLength={32} name="code" pattern="[a-z][a-z0-9_-]*" ref={current ? undefined : inputRef} required /></label>
     <label>ランク表示<input defaultValue={current?.name ?? ""} maxLength={128} name="name" ref={current ? inputRef : undefined} required /></label>
     <label>説明<textarea defaultValue={current?.description ?? ""} maxLength={2000} name="description" /></label>
-    <AssetSelect current={current?.image_asset?.id} label="ランク画像" name="image_asset_id" options={assets.images} />
-    <AssetSelect current={current?.video_asset?.id} label="抽選演出動画" name="video_asset_id" options={assets.videos} />
+    <RankPresentationAssetPicker busy={busy} current={current?.image_asset ?? null} effects={effects} key={`image-${current?.image_asset?.id ?? "new"}`} label="ランク画像" mediaType="image" name="image_asset_id" />
+    <RankPresentationAssetPicker busy={busy} current={current?.video_asset ?? null} effects={effects} key={`video-${current?.video_asset?.id ?? "new"}`} label="抽選演出動画" mediaType="video" name="video_asset_id" />
     <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
   </form>;
 }
@@ -316,6 +318,90 @@ function PrizeForm({ assets, busy, current, inputRef, onCancel, onSubmit, presen
 
 function AssetSelect({ current, label, name, options }: { current?: string; label: string; name: string; options: AdminCatalogPresentationAsset[] }) {
   return <label>{label}<select defaultValue={current ?? ""} name={name}><option value="">未設定</option>{options.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text || asset.public_path || asset.id}</option>)}</select></label>;
+}
+
+function RankPresentationAssetPicker({
+  busy,
+  current,
+  effects,
+  label,
+  mediaType,
+  name,
+}: {
+  busy: boolean;
+  current: AdminCatalogRank["image_asset"];
+  effects: AdminRankEffect[];
+  label: string;
+  mediaType: "image" | "video";
+  name: string;
+}) {
+  const options = effects.filter((effect) => effect.media_type === mediaType);
+  const [selectedId, setSelectedId] = useState(current?.id ?? null);
+  const selected = options.find((effect) => effect.id === selectedId) ?? null;
+  const unavailable = selectedId !== null && selected === null;
+
+  return (
+    <fieldset className="catalog-banner-picker">
+      <legend>{label}</legend>
+      <input name={name} type="hidden" value={selectedId ?? ""} />
+      {unavailable ? (
+        <p className="catalog-banner-picker-note">
+          現在のAssetはランク演出候補として解決できません。変更しなければ既存の値は保持されます。
+        </p>
+      ) : null}
+      {options.length === 0 ? (
+        <p className="catalog-banner-picker-note">選択可能なランク演出はありません。</p>
+      ) : (
+        <div aria-label={`${label}候補`} className="catalog-banner-options">
+          <button
+            aria-pressed={selectedId === null}
+            className="catalog-banner-option"
+            disabled={busy}
+            onClick={() => setSelectedId(null)}
+            type="button"
+          >
+            <span className="catalog-rank-effect-empty-preview"><FileWarning aria-hidden="true" size={20} /></span>
+            <span>未設定</span>
+          </button>
+          {options.map((effect) => (
+            <button
+              aria-pressed={selectedId === effect.id}
+              className="catalog-banner-option"
+              disabled={busy}
+              key={effect.id}
+              onClick={() => setSelectedId(effect.id)}
+              type="button"
+            >
+              <RankPresentationAssetPreview effect={effect} />
+              <span>{effect.alt_text ?? effect.id}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
+function RankPresentationAssetPreview({ effect }: { effect: AdminRankEffect }) {
+  const path = safePublicPath(effect.content_path) ? effect.content_path : effect.public_path;
+  if (!safePublicPath(path)) {
+    return <span className="catalog-rank-effect-empty-preview"><FileWarning aria-hidden="true" size={20} /></span>;
+  }
+  if (effect.media_type === "video") {
+    return <video aria-hidden="true" muted preload="metadata" src={path} />;
+  }
+  return <Image alt="" height={56} src={path} unoptimized width={96} />;
+}
+
+async function listAllRankEffects(client: AdminApiClient, signal?: AbortSignal): Promise<AdminRankEffect[]> {
+  const effects: AdminRankEffect[] = [];
+  let cursor: string | undefined;
+  do {
+    const response = await client.listRankEffects({ archive: "active", cursor, direction: "asc", limit: 100, sort: "created_at" }, signal);
+    effects.push(...response.items);
+    cursor = response.next_cursor ?? undefined;
+  } while (cursor);
+  return effects;
 }
 
 function nullable(value: string): string | null { return value === "" ? null : value; }
