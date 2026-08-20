@@ -267,13 +267,7 @@ final class V2CatalogReadService
                 '=',
                 'gv.published_probability_version_id'
             )
-            ->join('catalog_categories as c', function ($join): void {
-                $join->on(
-                    'c.id',
-                    '=',
-                    DB::raw('COALESCE(gv.category_id, g.category_id)')
-                );
-            })
+            ->join('catalog_categories as c', 'c.id', '=', 'g.category_id')
             ->leftJoin(
                 'gacha_draw_states as ds',
                 'ds.id',

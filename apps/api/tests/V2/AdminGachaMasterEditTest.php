@@ -146,6 +146,20 @@ final class AdminGachaMasterEditTest extends TestCase
     public function test_published_master_edit_updates_current_presentation_without_new_draft(): void
     {
         $token = $this->createAdminSession();
+        $newCategoryId = (string) Str::uuid7();
+        $newCategoryInternalId = DB::table('catalog_categories')->insertGetId([
+            'public_id' => $newCategoryId,
+            'code' => 'post-publish-category',
+            'slug' => 'post-publish-category',
+            'display_name' => '公開後カテゴリ',
+            'description' => null,
+            'sort_order' => 20,
+            'is_visible' => true,
+            'revision' => 1,
+            'archived_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $before = DB::table('catalog_gacha_versions')
             ->where('public_id', self::PUBLISHED_VERSION_ID)->firstOrFail();
         $gachaRevision = (int) DB::table('catalog_gachas')
@@ -156,6 +170,7 @@ final class AdminGachaMasterEditTest extends TestCase
             'title' => '公開後の現在表示',
             'description' => '現在表示だけを更新',
             'notices' => '履歴Snapshotは変更しない',
+            'category_id' => $newCategoryId,
             'publish_end_at' => '2027-06-01T00:00:00Z',
             'expected_revision' => $gachaRevision,
             'expected_version_revision' => (int) $before->revision,
@@ -173,13 +188,24 @@ final class AdminGachaMasterEditTest extends TestCase
             ->json('data');
 
         self::assertSame('公開後の現在表示', $updated['current_version']['title']);
+        self::assertSame($newCategoryId, $updated['category']['id']);
         $published = DB::table('catalog_gacha_versions')
             ->where('public_id', self::PUBLISHED_VERSION_ID)->firstOrFail();
         self::assertSame($before->title, $published->title);
         self::assertSame($before->description, $published->description);
         self::assertSame($before->notices, $published->notices);
         self::assertSame($before->publish_end_at, $published->publish_end_at);
+        self::assertSame((int) $before->category_id, (int) $published->category_id);
         self::assertSame((int) $before->revision, (int) $published->revision);
+        self::assertSame(
+            $newCategoryInternalId,
+            (int) DB::table('catalog_gachas')
+                ->where('public_id', self::PUBLISHED_GACHA_ID)
+                ->value('category_id')
+        );
+        $this->getJson('/api/v2/gachas/'.self::PUBLISHED_GACHA_CODE)
+            ->assertOk()
+            ->assertJsonPath('data.category.id', $newCategoryId);
         self::assertSame(0, DB::table('catalog_gacha_versions')
             ->where('gacha_id', $published->gacha_id)->where('status', 'draft')->count());
 
@@ -219,6 +245,24 @@ final class AdminGachaMasterEditTest extends TestCase
                 'expected_version_revision' => (int) $version->revision,
             ],
             'mig061r-invalid-total'
+        )->assertConflict()->assertJsonPath(
+            'code',
+            'CATALOG_GACHA_POST_PUBLISH_FIELD_IMMUTABLE'
+        );
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_CODE,
+            [
+                ...$this->publishedCoreInput($version),
+                'price_points' => (int) $version->price_points + 1,
+                'daily_draw_limit' => (int) $version->daily_draw_limit + 1,
+                'expected_revision' => (int) $gacha->revision,
+                'expected_version_revision' => (int) $version->revision,
+            ],
+            'mig067-invalid-sale-conditions'
         )->assertConflict()->assertJsonPath(
             'code',
             'CATALOG_GACHA_POST_PUBLISH_FIELD_IMMUTABLE'

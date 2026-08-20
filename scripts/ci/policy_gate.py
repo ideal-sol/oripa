@@ -457,6 +457,9 @@ MIG_063D_V2_CATALOG_FILES = {
 MIG_063E_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
 }
+MIG_067_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -510,6 +513,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_062L_V2_CATALOG_FILES,
     *MIG_063D_V2_CATALOG_FILES,
     *MIG_063E_V2_CATALOG_FILES,
+    *MIG_067_V2_CATALOG_FILES,
 }
 MIG_062J_V2_DRAW_FILES = {
     "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
@@ -2498,6 +2502,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
         "2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
         "2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+        "2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3655,19 +3660,23 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         repository
         / "apps/api/app/Domain/Catalog/Services/V2ScheduledGachaPublishWorker.php"
     ).read_text(encoding="utf-8")
-    for required in ("return 0;", "final class V2ScheduledGachaPublishWorker"):
+    for required in (
+        "final class V2ScheduledGachaPublishWorker",
+        "activateClaimedGachaPublishSchedule",
+        "FOR UPDATE SKIP LOCKED",
+        "clock_timestamp()",
+        "worker_lease_expired",
+    ):
         if required not in schedule_worker:
             raise PolicyFailure(
                 f"V2 Gacha scheduled publish worker missing {required}"
             )
     for prohibited in (
-        "DB::",
-        "activateClaimedGachaPublishSchedule",
-        "->insert(",
-        "->update(",
         "->delete(",
         "forceDelete(",
         "tenant_id",
+        "DISABLE TRIGGER",
+        "return 0;",
     ):
         if prohibited in schedule_worker:
             raise PolicyFailure(

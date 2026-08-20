@@ -1635,7 +1635,11 @@ final class V2AdminCatalogReadService
                 ->orderByDesc('version_number')
                 ->first();
         }
-        $currentVersion = (string) ($row->management_status ?? 'draft') === 'draft'
+        $beforeFirstPublication = $row->first_published_at === null
+            && in_array((string) ($row->management_status ?? 'draft'), [
+                'draft', 'scheduled',
+            ], true);
+        $currentVersion = $beforeFirstPublication
             ? DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)
                 ->where('status', 'draft')
@@ -1643,13 +1647,18 @@ final class V2AdminCatalogReadService
                 ->orderByDesc('version_number')
                 ->first() ?? $lastPublishedVersion
             : $lastPublishedVersion;
-        $category = DB::table('catalog_categories')
-            ->where('id', $currentVersion?->category_id ?? $row->category_id)
-            ->firstOrFail();
         $useCurrentPresentation = $currentVersion !== null
             && $lastPublishedVersion !== null
             && (int) $currentVersion->id === (int) $lastPublishedVersion->id
-            && (string) ($row->management_status ?? 'draft') !== 'draft';
+            && ! $beforeFirstPublication;
+        $category = DB::table('catalog_categories')
+            ->where(
+                'id',
+                $useCurrentPresentation
+                    ? $row->category_id
+                    : ($currentVersion?->category_id ?? $row->category_id)
+            )
+            ->firstOrFail();
         $versionTags = $useCurrentPresentation || $currentVersion === null
             ? collect()
             : DB::table(

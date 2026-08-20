@@ -248,6 +248,151 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         );
     }
 
+    public function test_prize_inventory_total_cannot_exceed_gacha_total_count(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $core = $this->mutate(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/gachas/core',
+            [...$this->coreInput(), 'total_count' => 10]
+        )->assertCreated()->json('data');
+        $gachaId = $core['id'];
+        $versionId = $core['current_version']['id'];
+
+        Auth::forgetGuards();
+        $rank = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/ranks",
+            [
+                'code' => 'capacity',
+                'name' => 'Capacity Rank',
+                'description' => null,
+                'image_asset_id' => null,
+                'video_asset_id' => null,
+                'expected_version_revision' => 1,
+            ]
+        )->assertCreated()->json('data');
+
+        Auth::forgetGuards();
+        $prize = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes",
+            [
+                'rank_id' => $rank['id'],
+                'presentation_asset_id' => null,
+                'name' => 'Capacity Prize',
+                'total_inventory' => 10,
+                'exchange_points' => 0,
+                'cost_price' => 0,
+                'is_active' => true,
+                'expected_version_revision' => 2,
+            ]
+        )->assertCreated()->json('data');
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes",
+            [
+                'rank_id' => $rank['id'],
+                'presentation_asset_id' => null,
+                'name' => 'Over Capacity Prize',
+                'total_inventory' => 1,
+                'exchange_points' => 0,
+                'cost_price' => 0,
+                'is_active' => true,
+                'expected_version_revision' => 3,
+            ],
+            'inventory-capacity-create'
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_INVENTORY_TOTAL_CONFLICT');
+
+        Auth::forgetGuards();
+        $this->mutate(
+            $token,
+            'PUT',
+            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes/{$prize['id']}",
+            [
+                'rank_id' => $rank['id'],
+                'presentation_asset_id' => null,
+                'name' => $prize['name'],
+                'total_inventory' => 11,
+                'available_inventory' => 11,
+                'exchange_points' => 0,
+                'cost_price' => 0,
+                'is_active' => true,
+                'expected_revision' => $prize['revision'],
+                'expected_version_revision' => 3,
+                'expected_inventory_revision' => 0,
+                'inventory_reason' => 'Capacity rejection',
+            ],
+            'inventory-capacity-update'
+        )->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_INVENTORY_TOTAL_CONFLICT');
+    }
+
+    public function test_database_constraint_rejects_aggregate_prize_inventory_over_capacity(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $core = $this->mutate(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/gachas/core',
+            [...$this->coreInput(), 'total_count' => 10]
+        )->assertCreated()->json('data');
+
+        Auth::forgetGuards();
+        $rank = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$core['id']}/versions/{$core['current_version']['id']}/ranks",
+            [
+                'code' => 'database-capacity',
+                'name' => 'Database Capacity Rank',
+                'description' => null,
+                'image_asset_id' => null,
+                'video_asset_id' => null,
+                'expected_version_revision' => 1,
+            ]
+        )->assertCreated()->json('data');
+
+        Auth::forgetGuards();
+        $prize = $this->mutate(
+            $token,
+            'POST',
+            "/admin/api/v2/catalog/gachas/{$core['id']}/versions/{$core['current_version']['id']}/prizes",
+            [
+                'rank_id' => $rank['id'],
+                'presentation_asset_id' => null,
+                'name' => 'Database Capacity Prize',
+                'total_inventory' => 10,
+                'exchange_points' => 0,
+                'cost_price' => 0,
+                'is_active' => true,
+                'expected_version_revision' => 2,
+            ]
+        )->assertCreated()->json('data');
+        $relationId = (int) DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('prize.public_id', $prize['id'])
+            ->value('relation.id');
+
+        DB::table('catalog_gacha_version_prizes')->where('id', $relationId)->update([
+            'initial_inventory' => 11,
+            'updated_at' => now(),
+        ]);
+
+        $this->expectException(QueryException::class);
+        DB::statement(
+            'SET CONSTRAINTS ' .
+            'catalog_gacha_version_prizes_inventory_capacity_update_check IMMEDIATE'
+        );
+    }
+
     public function test_operator_and_published_version_mutations_are_rejected(): void
     {
         $operator = $this->createAdminSession(V2AdminRole::Operator);
