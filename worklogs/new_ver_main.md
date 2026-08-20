@@ -8697,3 +8697,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gacha Prizeは一般Presentation Asset選択を廃止し、選択Bannerが参照する既存Asset IDのみを既存`presentation_asset_id`へ保存する。Asset複製・新規Asset作成は0件で、MIG-063FのRank image/video Pickerは変更していない。
 - shared `CatalogSectionNavigation`は`null`を返して横タブだけを非表示にし、独立したAdmin Sidebar navigation／Catalog route registryは変更していない。`/catalog/presentation-assets`はshared横タブを使用しないため変更していない。
 - Focused Admin 2 files／27 tests、Admin full unit 33 files／174 tests、typecheck、lint、production build、`git diff --check`はPASSした。Migration、DB Schema、Admin/Public API、OpenAPI、generated Contract、Artifact、Storefront、Runtime／Preview／Production変更は0である。Browser/E2E、Repository全Backend Suite、runtime deployは実行していない。
+
+## STORE-SITE-034 Contact Browser-safe Mutation Boundary
+
+- Human Operator承認済みLedgerを正本としてIssue #324、Branch `feat/STORE-SITE-034-contact-browser-safe-client`、専用Worktree、Risk R3でPhase Bを再開し、Platform Integration Lockを先に取得した。Artifact Release／Preview Deployment／Migration Allocation Lockは未取得である。
+- MIG-063G merge後のclean `main = origin/main@7d2f85d2a4e2dadf993594c559f3ffc6c6add04d`へ、Phase A未commit差分11 files／494 linesをstashで保全してsafe base syncし、競合・変更消失なく同一差分を復元した。MIG-063GのAdmin-only pathとgenerated source競合は0である。
+- `createBrowserStorefrontContentContactClient()`は匿名／認証済みContact送信のSession bootstrap、CSRF Cookie読取、Header構築、Cookie credentialsをBrowser Transport内部へ閉じ込める。CallerはContact inputだけを渡し、`csrf_token`、Cookie名、Header名、bootstrap手順を扱わない。非冪等Contact POSTは`retry: false`を固定する。
+- Fresh検証でStorefront Client generated check／typecheck／lint／build／29 tests、Storefront Testkit generated check／typecheck／lint／build／38 tests／exports／network boundary、`git diff --check`をPASSした。HTTP 202、422 typed Validation、429、typed network error、anonymous first submit、authenticated submit、GET `/api/v2/auth/session`→Contact POST、自動retryなしを含む。Public OpenAPI、generated public types、Site Schema、Runtime／middleware／controller、DB／migration、Admin UI差分は0である。

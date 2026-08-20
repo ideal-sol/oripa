@@ -5,6 +5,7 @@ import {
   ApiProblemError,
   StorefrontTransportError,
   createBrowserStorefrontClient,
+  createBrowserStorefrontContentContactClient,
   createBrowserStorefrontDrawClient,
   createBrowserStorefrontPrizeShippingClient,
   createIdempotencyKey,
@@ -637,6 +638,134 @@ test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを�
   assert.equal(requests[5].method, "POST");
   assert.equal(requests[5].headers["X-XSRF-TOKEN"], "c".repeat(64));
   assert.equal(requests[5].csrf, "required");
+  assert.equal(requests[5].retry, false);
+});
+
+test("Browser Contact Clientは匿名初回送信のCSRF境界を内部化する", async () => {
+  const requests = [];
+  const csrf = "c".repeat(64);
+  const contact = createBrowserStorefrontContentContactClient({
+    ...browserConfig(async (url, init) => {
+      requests.push({ url, init });
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: false, user: null });
+      }
+      assert.equal(url, "/api/v2/contact-inquiries");
+      assert.equal(init.headers.get("X-XSRF-TOKEN"), csrf);
+      assert.equal(init.headers.get("Idempotency-Key"), null);
+      return jsonResponse(
+        {
+          receipt_code: "CNT-0123456789ABCDEFGHIJ",
+          status: "accepted",
+          received_at: "2026-08-20T00:00:00Z",
+          request_id: "request-contact-anonymous",
+        },
+        { status: 202 },
+      );
+    }),
+    cookie_reader: () => csrf,
+  });
+
+  const result = await contact.submitContact({
+    name: "Fixture User",
+    email: "fixture@example.test",
+    phone: null,
+    subject: "Fixture inquiry",
+    body: "Public-safe fixture body.",
+    website: "",
+  });
+
+  assert.equal(result.metadata.status, 202);
+  assert.equal(result.data.status, "accepted");
+  assert.deepEqual(requests.map(({ url }) => url), [
+    "/api/v2/auth/session",
+    "/api/v2/contact-inquiries",
+  ]);
+  assert.equal(requests.every(({ init }) => init.credentials === "include"), true);
+});
+
+test("Browser Contact Clientは認証済み送信とtyped errorを保持し自動再送しない", async () => {
+  for (const problem of [
+    {
+      type: "https://oripa.example/problems/invalid-request",
+      title: "The request is invalid.",
+      status: 422,
+      code: "INVALID_REQUEST",
+      request_id: "request-contact-validation",
+      retryable: false,
+      errors: { email: ["The email field must be a valid email address."] },
+    },
+    {
+      type: "https://oripa.example/problems/rate-limited",
+      title: "Too many requests.",
+      status: 429,
+      code: "RATE_LIMITED",
+      request_id: "request-contact-rate",
+      retryable: true,
+      retry_after_seconds: 3600,
+    },
+  ]) {
+    let mutationCalls = 0;
+    const contact = createBrowserStorefrontContentContactClient({
+      ...browserConfig(async (url) => {
+        if (url === "/api/v2/auth/session") {
+          return jsonResponse({
+            authenticated: true,
+            user: {
+              id: "0198a001-0000-7000-8000-000000000501",
+              state: "active",
+              email_verified: true,
+            },
+          });
+        }
+        mutationCalls += 1;
+        return jsonResponse(problem, {
+          status: problem.status,
+          headers: { "Content-Type": "application/problem+json" },
+        });
+      }),
+      cookie_reader: () => "d".repeat(64),
+    });
+
+    await assert.rejects(
+      contact.submitContact({
+        name: "Fixture User",
+        email: "fixture@example.test",
+        phone: null,
+        subject: "Fixture inquiry",
+        body: "Public-safe fixture body.",
+        website: "",
+      }),
+      (error) =>
+        error instanceof ApiProblemError
+        && error.code === problem.code
+        && error.status === problem.status,
+    );
+    assert.equal(mutationCalls, 1);
+  }
+
+  const contact = createBrowserStorefrontContentContactClient({
+    ...browserConfig(async (url) => {
+      if (url === "/api/v2/auth/session") {
+        return jsonResponse({ authenticated: true, user: null });
+      }
+      throw new TypeError("synthetic contact transport failure");
+    }),
+    cookie_reader: () => "e".repeat(64),
+  });
+  await assert.rejects(
+    contact.submitContact({
+      name: "Fixture User",
+      email: "fixture@example.test",
+      phone: null,
+      subject: "Fixture inquiry",
+      body: "Public-safe fixture body.",
+      website: "",
+    }),
+    (error) =>
+      error instanceof StorefrontTransportError
+      && error.code === "NETWORK_ERROR",
+  );
 });
 
 test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡す", async () => {

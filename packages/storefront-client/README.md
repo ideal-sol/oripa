@@ -87,6 +87,34 @@ Shipping成功後は`getShippingRequest`または`getPrize`、Point交換成功�
 Canonical状態を再取得する。既知の拒否は`isFulfillmentProblemError`、未知Codeは汎用
 `ApiProblemError`として扱う。
 
+Browser Contact Facadeの`createBrowserStorefrontContentContactClient`は、匿名または
+認証済みの問い合わせ送信前にCanonicalなSession bootstrapを行い、CSRF Cookie読取、
+XSRF Header構築、`credentials: include`をClient内部へ閉じ込める。Callerは
+`csrf_token`、Cookie名、Header名、bootstrap手順を扱わない。Contact mutationは
+Idempotency未対応のため自動再試行せず、HTTP 202 Receipt、Validation Problem Details、
+429、transport errorを既存の型付きResponse／Error境界で返す。
+
+```ts
+import {
+  createBrowserStorefrontContentContactClient,
+} from "@oripa/storefront-client/browser";
+
+const contact = createBrowserStorefrontContentContactClient({
+  base_url: "/api/v2",
+  site_version: "1.0.0",
+  default_timeout_ms: 10_000,
+});
+
+await contact.submitContact({
+  name: "Example User",
+  email: "example@example.test",
+  phone: null,
+  subject: "お問い合わせ",
+  body: "Public-safe example body.",
+  website: "",
+});
+```
+
 ## Entry Points
 
 ```text
