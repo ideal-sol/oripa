@@ -34,10 +34,19 @@
 - Record image evidence on a fixed activation head, pass required checks and fresh self-review, then recreate only API with `--no-build --no-deps` and guarded private-first egress attachment.
 - Perform only read-only health, source/config, database, Redis, DNS/HTTPS, Public API, and error-window checks.
 
+## Canonical Preview Image
+
+- Exact Application head `8c14b513393f4cecea70a1516b2ebc2624944450` passed all five Required Checks while Draft PR `#329` remained open.
+- Trusted `main` control ref dispatched Canonical Preview Image Build Run `32349836316`; the GitHub-hosted `ubuntu-24.04` amd64 run completed successfully. No Preview-host build occurred.
+- Verified Artifact `9399533827` has outer/GitHub digest `sha256:e37ee4389aea14c626505620510c447882e694bfe8d1a1b064a06b170d9e1c62` and manifest SHA-256 `65ffc234b488e82e71dae3a1cbe566e62e7c62cf7d8627e60e00167f4c20f046`.
+- Loaded API image is `oripa-v2-api:preview-OPS-012-8c14b513393f`, image ID `sha256:4bfbb204539e3e1e329c18c489e80382b70dcb6ce5c1bead1ad476f59b23280e`, `linux/amd64`, OCI revision `8c14b513393f4cecea70a1516b2ebc2624944450`.
+- Application-head and SEC-012 merged `main` API trees both equal `5636f9d8353402897b57a7f0731d0b91ccb251fe`. Image readback verified 836 tracked API blobs byte-for-byte with only the canonical six runtime scaffold exclusions.
+- The pipeline produced its standard Admin image, but it is not deployed or recreated. No Contract/Artifact publication or Repository Application change occurred.
+
 ## Current State
 
 - Issue, branch, dedicated worktree, open Draft PR `#329`, Task Policy, and initial evidence exist.
-- Preview image build, activation gate, Runtime activation, verification, closeout checks, merge, Issue closure, and cleanup are pending.
+- Canonical Preview image build and API-tree verification are complete. Activation-head checks/self-review, Runtime activation, verification, closeout checks, merge, Issue closure, and cleanup are pending.
 - Migrations created/applied: `0 / 0`.
 - Application, API/OpenAPI, database schema, auth semantics, Point, Payment, Draw, inventory, Admin, Contract, Artifact, Storefront, MIG-063F/MIG-063G Runtime, Task ⑤, and Production changes: `0`.
 
