@@ -965,8 +965,8 @@ SITE_SCHEMA_DEV_DEPENDENCY_VERSIONS = {
     "typescript-eslint": "8.65.0",
 }
 STOREFRONT_TESTKIT_DEPENDENCY_VERSIONS = {
-    "@oripa/site-schema": "workspace:2.0.0-alpha.23",
-    "@oripa/storefront-client": "workspace:2.0.0-alpha.23",
+    "@oripa/site-schema": "workspace:2.0.0-alpha.24",
+    "@oripa/storefront-client": "workspace:2.0.0-alpha.24",
 }
 STOREFRONT_TESTKIT_DEV_DEPENDENCY_VERSIONS = {
     "eslint": "9.39.4",
@@ -1758,7 +1758,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-client",
-        "version": "2.0.0-alpha.23",
+        "version": "2.0.0-alpha.24",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -1897,7 +1897,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/site-schema",
-        "version": "2.0.0-alpha.23",
+        "version": "2.0.0-alpha.24",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2015,7 +2015,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     }
     if identity != {
         "name": "@oripa/storefront-testkit",
-        "version": "2.0.0-alpha.23",
+        "version": "2.0.0-alpha.24",
         "private": True,
         "type": "module",
         "sideEffects": False,
@@ -2056,8 +2056,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         )
     if package.get("oripaCompatibility") != {
         "family": 2,
-        "storefrontClientVersion": "2.0.0-alpha.23",
-        "siteSchemaVersion": "2.0.0-alpha.23",
+        "storefrontClientVersion": "2.0.0-alpha.24",
+        "siteSchemaVersion": "2.0.0-alpha.24",
         "publicApiOperationCount": 54,
     }:
         raise PolicyFailure(
