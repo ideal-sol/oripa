@@ -147,6 +147,56 @@ final class AuthenticationFlowTest extends TestCase
         }
     }
 
+    public function test_bodyless_http_logout_revokes_session_and_preserves_response_cookies(): void
+    {
+        $user = User::query()->create([
+            'email_display' => 'logout@example.test',
+            'email_normalized' => 'logout@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid logout password'),
+            'state' => V2UserState::Active,
+        ]);
+        $session = app(V2SessionManager::class)->issue(V2Realm::User, $user->getKey());
+        $csrf = str_repeat('c', 64);
+
+        $response = $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->withUnencryptedCookie('__Host-oripa_user_session', $session['token'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->post('/api/v2/auth/logout');
+
+        $response->assertNoContent();
+        self::assertStringContainsString(
+            'private',
+            (string) $response->headers->get('Cache-Control')
+        );
+        self::assertNotNull(DB::table('user_sessions')
+            ->where('session_id_hash', hash('sha256', $session['token']))
+            ->value('revoked_at'));
+
+        $cookies = collect($response->headers->getCookies());
+        $sessionCookie = $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
+        );
+        $csrfCookie = $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_xsrf'
+        );
+        self::assertNotNull($sessionCookie);
+        self::assertSame('', $sessionCookie->getValue());
+        self::assertTrue($sessionCookie->isHttpOnly());
+        self::assertTrue($sessionCookie->isSecure());
+        self::assertNotNull($csrfCookie);
+        self::assertNotSame($csrf, $csrfCookie->getValue());
+        self::assertFalse($csrfCookie->isHttpOnly());
+        self::assertTrue($csrfCookie->isSecure());
+    }
+
     public function test_registration_rate_limit_returns_stable_retryable_problem_code(): void
     {
         config(['v2_identity.rate_limits.register_ip' => [1, 3600]]);
