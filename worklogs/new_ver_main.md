@@ -8678,3 +8678,9 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Source Closeout後にOPS-010のAPI専用egress境界を維持してimmutable API imageをbuildし、active V2 API serviceだけを更新する。実recipientメール、新規登録runtime smoke、Resend、Verification Completeは実行しない。
 - Task専用PostgreSQLへ既存57 migrationsを通常applyし、Direct Email Verification＋Authentication Flow 23 tests／166 assertionsをPHP 8.4でPASSした。初回は`phpunit.xml`のcanonical `oripa_test`とTask DB名不一致により0 assertionで環境FAILしたため、Task DBをcanonical test名で再作成し、Application変更なしでPASSした。
 - Policy Unit 144、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、Composer validation、Composer／workspace pnpm／legacy pnpm Audit各0 finding、変更PHP syntax、`git diff --check`をPASSした。Required 5 Checks、fresh fixed-head Self-review、Source Merge、Runtime Activation、cleanupはFinal Head固定後に継続する。
+
+## OPS-011 MIG-066 Runtime Activation
+
+- Cleanな`main = origin/main@f79f1301300b3f518a2ab983010e9efb197a781d`を固定し、Issue #319、Branch `chore/OPS-011-mig-066-runtime-activation`、専用Worktree、Risk R4で開始した。Preview Deployment Lockだけを取得し、Migration Allocation／Platform Integration／Artifact Release Lockは取得していない。
+- Active APIはOPS-010 image、OCI revision `238eacbce382f4daa4464a70790b63eb6a1ad84a`でhealthyである。`v2_private internal:true`、API-only `v2_api_egress`、Admin／PostgreSQL／Redis private-onlyを確認した。MIG-066 merged mainのAPI treeは`8e159ce7db4b4545ff14f7751979ef20f42ec575`で、source allowlist `["/", "/mypage"]`、MIG-065 Browser HTTP 303実装、`V2MailEmailVerificationNotifier` bindingを含む。
+- Application code、Migration、Contract／Artifact／Storefront、Admin／DB／Redis、Productionは変更せず、open PR exact headのCanonical Preview Image BuildとAPI-only Runtime Activationだけを行う。実recipientメール、新規登録、Resend、Verification Complete、Task⑤は実行しない。
