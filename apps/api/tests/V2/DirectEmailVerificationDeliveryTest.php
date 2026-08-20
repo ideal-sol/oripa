@@ -5,6 +5,7 @@ namespace Tests\V2;
 use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2UserState;
+use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2MailEmailVerificationNotifier;
 use App\Domain\Identity\Services\V2UserAuthenticationService;
 use Illuminate\Mail\Message;
@@ -59,7 +60,11 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertSame('direct-register@example.test', $capture->messages[0]['to']);
         self::assertSame('メールアドレス確認', $capture->messages[0]['subject']);
         self::assertMatchesRegularExpression(
-            '#/api/v2/auth/email/verify/'.preg_quote($user->public_id, '#').'/[a-f0-9]{64}\\?redirect=%2Faccount#',
+            '#https://storefront\.example\.test/api/v2/auth/email/verify/'.preg_quote($user->public_id, '#').'/[a-f0-9]{64}\\?redirect=%2Faccount#',
+            $capture->messages[0]['body']
+        );
+        self::assertStringNotContainsString(
+            "URL:\n/api/v2/auth/email/verify/",
             $capture->messages[0]['body']
         );
         self::assertStringContainsString('This link expires in 60 minutes.', $capture->messages[0]['body']);
@@ -99,6 +104,150 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $verified = $service->verify($user->public_id, $newToken);
 
         self::assertSame(V2UserState::Active, $verified['user']->state);
+    }
+
+    public function test_browser_verification_redirects_to_the_stored_path_with_session_and_csrf(): void
+    {
+        $capture = $this->spyOnRawMail();
+        $user = app(V2UserAuthenticationService::class)->register(
+            'browser-verification@example.test',
+            'valid browser verification password',
+            '/',
+            '192.0.2.143'
+        );
+        $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
+
+        $response = $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->get($this->requestTarget($url));
+
+        $response
+            ->assertStatus(303)
+            ->assertRedirect('/');
+        self::assertStringContainsString(
+            'Accept',
+            (string) $response->headers->get('Vary')
+        );
+        self::assertSame(V2UserState::Active, $user->refresh()->state);
+        $cookies = collect($response->headers->getCookies());
+        $session = $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
+        );
+        $csrf = $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_xsrf'
+        );
+        self::assertNotNull($session);
+        self::assertNotNull($csrf);
+        self::assertTrue($session->isSecure());
+        self::assertTrue($session->isHttpOnly());
+        self::assertTrue($csrf->isSecure());
+        self::assertFalse($csrf->isHttpOnly());
+        self::assertDatabaseHas('user_sessions', [
+            'session_id_hash' => hash('sha256', $session->getValue()),
+        ]);
+    }
+
+    public function test_json_verification_preserves_the_existing_response_and_cookies(): void
+    {
+        $capture = $this->spyOnRawMail();
+        $user = app(V2UserAuthenticationService::class)->register(
+            'json-verification@example.test',
+            'valid json verification password',
+            '/account',
+            '192.0.2.144'
+        );
+        $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
+
+        $response = $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->getJson($this->requestTarget($url));
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('authenticated', true)
+            ->assertJsonPath('user.id', $user->public_id)
+            ->assertJsonPath('user.state', V2UserState::Active->value)
+            ->assertJsonPath('user.email_verified', true)
+            ->assertJsonPath('redirect_path', '/account');
+        self::assertStringContainsString(
+            'Accept',
+            (string) $response->headers->get('Vary')
+        );
+        $cookies = collect($response->headers->getCookies());
+        self::assertNotNull($cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
+        ));
+        self::assertNotNull($cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_xsrf'
+        ));
+    }
+
+    public function test_external_and_unallowlisted_verification_redirects_remain_rejected(): void
+    {
+        $service = app(V2UserAuthenticationService::class);
+        foreach ([
+            'https://evil.example/',
+            '//evil.example/',
+            '/not-allowlisted',
+        ] as $index => $redirectPath) {
+            try {
+                $service->register(
+                    'redirect-rejection-'.$index.'@example.test',
+                    'valid redirect rejection password',
+                    $redirectPath,
+                    '192.0.2.'.(150 + $index)
+                );
+                self::fail('An unsafe verification redirect must be rejected.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('INVALID_REDIRECT', $exception->errorCode);
+            }
+        }
+    }
+
+    public function test_verification_query_cannot_override_the_stored_redirect(): void
+    {
+        $capture = $this->spyOnRawMail();
+        app(V2UserAuthenticationService::class)->register(
+            'redirect-tampering@example.test',
+            'valid redirect tampering password',
+            '/',
+            '192.0.2.145'
+        );
+        $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->get($path.'?redirect='.rawurlencode('//evil.example/'))
+            ->assertStatus(303)
+            ->assertRedirect('/');
+    }
+
+    public function test_invalid_verification_token_remains_rejected(): void
+    {
+        $capture = $this->spyOnRawMail();
+        $user = app(V2UserAuthenticationService::class)->register(
+            'invalid-token@example.test',
+            'valid invalid token password',
+            '/',
+            '192.0.2.146'
+        );
+        $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $invalidPath = preg_replace(
+            '#/[a-f0-9]{64}$#',
+            '/'.str_repeat('0', 64),
+            $path
+        );
+        self::assertIsString($invalidPath);
+
+        $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->getJson($invalidPath)
+            ->assertStatus(410)
+            ->assertJsonPath('code', 'INVALID_VERIFICATION_LINK');
+
+        self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
     }
 
     public function test_mail_transport_failure_rolls_back_registration_without_false_success(): void
@@ -167,6 +316,27 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         );
 
         return $matches[1];
+    }
+
+    private function verificationUrlFromBody(string $body): string
+    {
+        self::assertMatchesRegularExpression(
+            '#https://storefront\.example\.test/api/v2/auth/email/verify/[0-9a-f-]{36}/[a-f0-9]{64}\\?redirect=[^\\s]+#',
+            $body
+        );
+        preg_match(
+            '#https://storefront\.example\.test/api/v2/auth/email/verify/[0-9a-f-]{36}/[a-f0-9]{64}\\?redirect=[^\\s]+#',
+            $body,
+            $matches
+        );
+
+        return $matches[0];
+    }
+
+    private function requestTarget(string $url): string
+    {
+        return (string) parse_url($url, PHP_URL_PATH)
+            .'?'.(string) parse_url($url, PHP_URL_QUERY);
     }
 
     private function verificationOutboxCount(): int
