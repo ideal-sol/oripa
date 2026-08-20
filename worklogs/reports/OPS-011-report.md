@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: `#319`
-- PR: pending
+- PR: `#320`
 - Risk: `R4`
 - Base SHA: `f79f1301300b3f518a2ab983010e9efb197a781d`
 - Branch: `chore/OPS-011-mig-066-runtime-activation`
