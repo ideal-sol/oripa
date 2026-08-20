@@ -8670,3 +8670,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 既存Admin card Picker patternを再利用し、画像thumbnailまたは軽量video metadata previewとRank Effect titleを同時に表示する。Rank保存は既存`image_asset_id`／`video_asset_id`へ既存Asset IDを参照するだけで、Asset複製は0件である。
 - 既存Rankの候補解決時はselectedを復元する。Rank Effect候補に解決できない既存Asset IDはNULL化・置換・複製せず、明示的な再選択または未設定選択までそのまま保存する。
 - Focused Admin 7 tests、Admin typecheck、lint、Production build、Policy Unit 144、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、Composer／workspace pnpm／legacy pnpm Audit各0 finding、`git diff --check`はPASSした。Migration、DB Schema、Admin/Public API、OpenAPI、Artifact、Storefront、Draw／Inventory／Point／Payment、Preview／Production変更は0である。Browser/E2E、Admin full unit、repository-wide backend suiteは実行していない。
+
+## MIG-066 Email Verification `/mypage` Redirect Activation
+
+- Cleanな`main = origin/main@3699526536c6ecaee8e09aa5da5a28d3b1d744a1`、Issue #317、Branch `fix/MIG-066-email-verification-mypage-redirect`、専用Worktree、Risk R4で開始した。Platform Integration LockとPreview Deployment Lockを取得し、Migration Allocation／Artifact Release Lockは取得していない。
+- Email Verificationの既存exact safe redirect allowlistへ`/mypage`を追加し、`/`を維持する。既存validation、MIG-065 Browser HTTP 303、Session／CSRF Cookie、JSON Client semanticsは変更しない。Migration、DB Schema、Public／Admin Contract、Artifact、Storefront変更は0である。
+- Source Closeout後にOPS-010のAPI専用egress境界を維持してimmutable API imageをbuildし、active V2 API serviceだけを更新する。実recipientメール、新規登録runtime smoke、Resend、Verification Completeは実行しない。
+- Task専用PostgreSQLへ既存57 migrationsを通常applyし、Direct Email Verification＋Authentication Flow 23 tests／166 assertionsをPHP 8.4でPASSした。初回は`phpunit.xml`のcanonical `oripa_test`とTask DB名不一致により0 assertionで環境FAILしたため、Task DBをcanonical test名で再作成し、Application変更なしでPASSした。
+- Policy Unit 144、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、Composer validation、Composer／workspace pnpm／legacy pnpm Audit各0 finding、変更PHP syntax、`git diff --check`をPASSした。Required 5 Checks、fresh fixed-head Self-review、Source Merge、Runtime Activation、cleanupはFinal Head固定後に継続する。

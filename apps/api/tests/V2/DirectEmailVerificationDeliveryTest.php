@@ -24,7 +24,6 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         config([
             'cache.default' => 'array',
             'v2_identity.transactions.store' => 'array',
-            'v2_identity.email_verification.redirect_allowlist' => ['/', '/account'],
             'v2_identity.origins.user' => 'https://storefront.example.test',
         ]);
         Cache::store('array')->clear();
@@ -52,7 +51,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $user = $service->register(
             'direct-register@example.test',
             'valid direct mail password',
-            '/account',
+            '/mypage',
             '192.0.2.140'
         );
 
@@ -60,7 +59,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertSame('direct-register@example.test', $capture->messages[0]['to']);
         self::assertSame('メールアドレス確認', $capture->messages[0]['subject']);
         self::assertMatchesRegularExpression(
-            '#https://storefront\.example\.test/api/v2/auth/email/verify/'.preg_quote($user->public_id, '#').'/[a-f0-9]{64}\\?redirect=%2Faccount#',
+            '#https://storefront\.example\.test/api/v2/auth/email/verify/'.preg_quote($user->public_id, '#').'/[a-f0-9]{64}\\?redirect=%2Fmypage#',
             $capture->messages[0]['body']
         );
         self::assertStringNotContainsString(
@@ -71,7 +70,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertSame(V2UserState::PendingVerification, $user->state);
         self::assertDatabaseHas('user_email_verifications', [
             'user_id' => $user->getKey(),
-            'redirect_path' => '/account',
+            'redirect_path' => '/mypage',
         ]);
         self::assertSame($verificationOutboxCount, $this->verificationOutboxCount());
     }
@@ -90,7 +89,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $this->assertRawMailWasSent($capture, 1);
         $oldToken = $this->tokenFromBody($capture->messages[0]['body'], $user->public_id);
 
-        $service->resend($user->public_id, '/account');
+        $service->resend($user->public_id, '/mypage');
 
         $this->assertRawMailWasSent($capture, 2);
         self::assertSame('direct-resend@example.test', $capture->messages[1]['to']);
@@ -112,7 +111,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $user = app(V2UserAuthenticationService::class)->register(
             'browser-verification@example.test',
             'valid browser verification password',
-            '/',
+            '/mypage',
             '192.0.2.143'
         );
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
@@ -123,7 +122,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
         $response
             ->assertStatus(303)
-            ->assertRedirect('/');
+            ->assertRedirect('/mypage');
         self::assertStringContainsString(
             'Accept',
             (string) $response->headers->get('Vary')
@@ -153,7 +152,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $user = app(V2UserAuthenticationService::class)->register(
             'json-verification@example.test',
             'valid json verification password',
-            '/account',
+            '/mypage',
             '192.0.2.144'
         );
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
@@ -168,7 +167,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             ->assertJsonPath('user.id', $user->public_id)
             ->assertJsonPath('user.state', V2UserState::Active->value)
             ->assertJsonPath('user.email_verified', true)
-            ->assertJsonPath('redirect_path', '/account');
+            ->assertJsonPath('redirect_path', '/mypage');
         self::assertStringContainsString(
             'Accept',
             (string) $response->headers->get('Vary')
@@ -182,13 +181,21 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         ));
     }
 
-    public function test_external_and_unallowlisted_verification_redirects_remain_rejected(): void
+    public function test_safe_redirect_allowlist_is_exact_and_closed(): void
     {
+        self::assertSame(
+            ['/', '/mypage'],
+            config('v2_identity.email_verification.redirect_allowlist')
+        );
+
         $service = app(V2UserAuthenticationService::class);
         foreach ([
+            '/not-allowlisted',
             'https://evil.example/',
             '//evil.example/',
-            '/not-allowlisted',
+            'mypage',
+            '/mypage/*',
+            '/mypage?next=%2Fnot-allowlisted',
         ] as $index => $redirectPath) {
             try {
                 $service->register(
