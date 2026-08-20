@@ -5,7 +5,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { PublicAssetPreview, safePublicPath } from "@/components/catalog/public-asset-preview";
-import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-banner-asset-picker";
+import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
