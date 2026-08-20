@@ -8697,3 +8697,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Gacha Prizeは一般Presentation Asset選択を廃止し、選択Bannerが参照する既存Asset IDのみを既存`presentation_asset_id`へ保存する。Asset複製・新規Asset作成は0件で、MIG-063FのRank image/video Pickerは変更していない。
 - shared `CatalogSectionNavigation`は`null`を返して横タブだけを非表示にし、独立したAdmin Sidebar navigation／Catalog route registryは変更していない。`/catalog/presentation-assets`はshared横タブを使用しないため変更していない。
 - Focused Admin 2 files／27 tests、Admin full unit 33 files／174 tests、typecheck、lint、production build、`git diff --check`はPASSした。Migration、DB Schema、Admin/Public API、OpenAPI、generated Contract、Artifact、Storefront、Runtime／Preview／Production変更は0である。Browser/E2E、Repository全Backend Suite、runtime deployは実行していない。
+
+## SEC-012 Bodyless Logout Browser Security Fix
+
+- Cleanな`main = origin/main@7d2f85d2a4e2dadf993594c559f3ffc6c6add04d`、Issue #325、Branch `fix/SEC-012-bodyless-logout-browser-security`、専用Worktree、Risk R4で開始した。STORE-SITE-034が非重複package scopeのPlatform Integration Lockを保持しているためSEC-012はShared Lockを取得せず、Migration／Artifact／Preview共有資源を変更していない。
+- `EnforceV2BrowserSecurity`のJSON media-type例外はroute name `v2.public.auth.logout`かつraw bodyが厳密に空の場合だけとした。cross-site拒否は例外判定前、Origin／CSRF検証は例外判定後の既存順序を維持し、URI文字列例外や全POST緩和は行っていない。
+- Task専用PostgreSQLへ既存57 V2 migrationsを通常applyし、PHP 8.4のBrowser Security＋Authentication Flow 24 tests／147 assertionsを警告なしでPASSした。canonical bodyless HTTP Logout 204、session revoke、session Cookie expiry、CSRF Cookie rotation、private cache semantics、invalid Origin、missing／invalid CSRF、cross-site typed Problem Details、Logout／Login／既存Contact Mutationのnon-JSON body 415を確認した。
+- 変更PHP syntax、Composer validation、Policy Unit 144、Quality Unit 4、Security Unit 10、Local Quality Gate、`git diff --check`、Allowed Paths、high-confidence secret scanをPASSした。Public／Admin OpenAPI、Storefront Client、Site Schema、Testkit、generated Contract／Artifact、Migration／DB Schema、Admin、Payment、Point、Draw、Storefront Repository、Production変更は0である。Task Docker DB／Redis／networkはcleanupした。
+- SEC-012 Policyにはdeployment evidence path、Canonical Preview image build operation、Preview Deployment Lock authorityがないためRuntime Activationは実行しない。Source Closeout後、OPS-010/011境界を維持する別R4 OPS Runtime Activation TaskをFail Closedで要求する。

@@ -26,7 +26,10 @@ final class EnforceV2BrowserSecurity
             if ($request->headers->get('Sec-Fetch-Site') === 'cross-site') {
                 throw new V2AuthenticationException('CSRF_TOKEN_MISMATCH', 403);
             }
-            if (! str_starts_with((string) $request->headers->get('Content-Type'), 'application/json')) {
+            if (
+                ! $this->isBodylessPublicLogout($request)
+                && ! str_starts_with((string) $request->headers->get('Content-Type'), 'application/json')
+            ) {
                 throw new V2AuthenticationException(
                     'UNSUPPORTED_MEDIA_TYPE',
                     415,
@@ -38,6 +41,12 @@ final class EnforceV2BrowserSecurity
         }
 
         return $next($request);
+    }
+
+    private function isBodylessPublicLogout(Request $request): bool
+    {
+        return $request->route()?->getName() === 'v2.public.auth.logout'
+            && $request->getContent() === '';
     }
 
     private function assertOrigin(Request $request, V2Realm $realm): void
