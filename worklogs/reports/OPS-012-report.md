@@ -3,6 +3,7 @@
 ## Task
 
 - Issue: `#328`
+- PR: `#329`
 - Risk: `R4`
 - Base SHA: `ee5299633a7325fd91198537ac3bd429233293fb`
 - Branch: `chore/OPS-012-sec-012-runtime-activation`
@@ -35,7 +36,7 @@
 
 ## Current State
 
-- Issue, branch, dedicated worktree, Task Policy, and initial evidence exist.
+- Issue, branch, dedicated worktree, open Draft PR `#329`, Task Policy, and initial evidence exist.
 - Preview image build, activation gate, Runtime activation, verification, closeout checks, merge, Issue closure, and cleanup are pending.
 - Migrations created/applied: `0 / 0`.
 - Application, API/OpenAPI, database schema, auth semantics, Point, Payment, Draw, inventory, Admin, Contract, Artifact, Storefront, MIG-063F/MIG-063G Runtime, Task ⑤, and Production changes: `0`.

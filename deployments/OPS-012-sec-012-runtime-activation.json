@@ -1,11 +1,11 @@
 {
   "task_id": "OPS-012",
   "risk": "R4",
-  "status": "planned",
+  "status": "preview_image_build_pending",
   "base_branch": "main",
   "base_sha": "ee5299633a7325fd91198537ac3bd429233293fb",
   "issue": 328,
-  "pull_request": null,
+  "pull_request": 329,
   "task_policy_sha256": "d93274b7425dd3caefdbb92632320d8cc6647406589b8f13fff96bb2e7b1745c",
   "target": "v2_preview_api_sec_012_runtime",
   "formal_production_release": false,
