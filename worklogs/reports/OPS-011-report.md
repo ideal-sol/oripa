@@ -45,6 +45,30 @@
 
 ## Current state
 
-- Preview image build and Application-tree verification are complete. Activation-head Required Checks, fresh self-review, Runtime activation/verification, closeout checks, merge, Issue closure, and cleanup remain pending.
+- Preview image build, Application-tree verification, activation-head Required Checks/fresh self-review, and Runtime activation/verification are complete. Closeout-head checks/self-review, merge, Issue closure, and cleanup remain pending.
 - Migrations created/applied: `0 / 0`.
 - Application, API/OpenAPI, database schema, auth semantics, Point, Payment, Draw, inventory, Admin, Contract, Artifact, Storefront, and Production changes: `0`.
+
+## Activation
+
+- Activation evidence head `ea5d844cf5b0ad6f0c6b60861ed13036bf76b64d` passed the latest Required 5 Checks and fresh fixed-head self-review comment `#issuecomment-5351455304` before Runtime mutation.
+- Canonical Compose used the existing root-only DB/runtime and Mail environment sources plus the retained OPS-009 network/Admin override and the exact OPS-011 API image override. Compose resolution passed without displaying values.
+- Only API was recreated with `--force-recreate --no-build --no-deps`. It started private-only, became healthy, then `scripts/ops/v2_api_egress.py attach --project mig061a-v2-preview --subnet 192.168.62.0/28` attached only API to egress.
+- Active API is `oripa-v2-api:preview-OPS-011-0d8697294449`, image ID `sha256:d075d82d5649a010f0c056d39067830de2e8a734b89d3adc2a6212165c22a28a`, OCI revision `0d86972944491bdd3e9716787381e439848d606f`, container `6308d31e53a438625d7ea5a74540a24c30072a3d696f8b400ae4850bc67057e4`.
+- Admin, PostgreSQL, and Redis container IDs/start times were unchanged and all remain exclusively on `v2_private`. That network remains `internal: true`; only API joins the non-internal `v2_api_egress` `/28`.
+
+## Runtime verification
+
+- Runtime source inspection confirms JSON negotiation plus Browser `RedirectResponse` with `Response::HTTP_SEE_OTHER`, Session attachment, and CSRF rotation. No verification request or completion was executed.
+- Runtime allowlist is exactly `["/", "/mypage"]` and `V2EmailVerificationNotifier` resolves to `App\\Domain\\Identity\\Services\\V2MailEmailVerificationNotifier`.
+- Mailgun-required configuration is non-empty without displaying values. API Docker/internal health is healthy/200; PostgreSQL and Redis probes pass.
+- API-container Mailgun DNS passes. HTTPS/TLS returns HTTP 200 with certificate verify result 0. Public API Session returns 200.
+- Activation-window API and Nginx HTTP 500/502/504 counts are both zero.
+- The first read-only Laravel inspection attempted unavailable production `tinker`, then a direct bootstrap without `vendor/autoload.php`; both failed without Runtime mutation. The corrected autoloaded Laravel bootstrap produced the PASS evidence above. No mail flow was invoked.
+- Real recipient email, new registration, Resend, Verification Complete, Browser/E2E, Payment, Point mutation, Draw, Refund, Chargeback, and Production were not executed.
+
+## Gate notes and rollback
+
+- An early manually dispatched Application-head CI run hit an existing one-second Admin Session fixture boundary while the unchanged PR-native exact-head run passed. On the activation evidence head, the first PR-native Quality run hit an unrelated time-sensitive Gacha lifecycle test while local Quality passed; an unchanged exact-head rerun passed all five gates. No test or Application change was made and latest-run evaluation is green.
+- Previous OPS-010 API image and ID remain retained. Rollback is API-only recreate with the OPS-010 override followed by the same guarded private-first/API-only egress attach; no database or Redis operation is required.
+- Preview Deployment Lock was released after all Runtime checks passed. Migration Allocation, Platform Integration, and Artifact Release Locks were never acquired.
