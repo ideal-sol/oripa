@@ -1,5 +1,11 @@
 # Release Process
 
+Package-only Storefront contract releases follow
+[`storefront-contract-artifact.md`](storefront-contract-artifact.md). Their
+bundle, Platform/Application, OpenAPI, and package versions are independently
+recorded and fail-closed validated; they do not weaken the full Platform bundle
+gate.
+
 ## Principles
 
 - `main`から直接Releaseしない。

@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "compatibility_family": 2,
+  "channel": "alpha",
+  "immutable_history": [
+    {
+      "bundle_version": "2.0.0-alpha.21",
+      "manifest_sha256": "ac5f051c6171d40f5ed1a0039b7103a8e5917dd90da871fead91b9f8b1aed115",
+      "source_commit": "1a53ba630264258291cb72e84707e488782cbc08",
+      "handoff_status": "released"
+    },
+    {
+      "bundle_version": "2.0.0-alpha.22",
+      "manifest_sha256": "fcda62708350fab1249bdb0b6ab2fab8440ca89b2681edf8d587e60c27027d9c",
+      "source_commit": "1ee95268b145713e5df31dfe7f4b1c8158df7414",
+      "handoff_status": "retired"
+    },
+    {
+      "bundle_version": "2.0.0-alpha.23",
+      "manifest_sha256": "556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe",
+      "source_commit": "633b41f347083c82028229d6e238842118635feb",
+      "handoff_status": "released"
+    }
+  ],
+  "latest_immutable": {
+    "bundle_version": "2.0.0-alpha.23",
+    "manifest_sha256": "556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe",
+    "source_commit": "633b41f347083c82028229d6e238842118635feb",
+    "public_openapi": {
+      "version": "2.0.0-alpha.23",
+      "sha256": "5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043"
+    },
+    "packages": {
+      "@oripa/storefront-client": {
+        "version": "2.0.0-alpha.23",
+        "sha256": "28a7b3558329eed9c608f828948befe2034e86c0add1511bd48db1ed437f58d9"
+      },
+      "@oripa/site-schema": {
+        "version": "2.0.0-alpha.23",
+        "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
+        "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd"
+      },
+      "@oripa/storefront-testkit": {
+        "version": "2.0.0-alpha.23",
+        "sha256": "dc0bf6c16af439bf5a364955e8add936e8842096ca295a136a0f15a86e4102b0"
+      }
+    }
+  },
+  "candidate": {
+    "bundle_version": "2.0.0-alpha.24",
+    "predecessor_bundle_version": "2.0.0-alpha.23",
+    "release_mode": "package-only",
+    "platform_version": "2.0.0-alpha.23",
+    "application_versions": {
+      "workspace": "2.0.0-alpha.23",
+      "admin": "2.0.0-alpha.23"
+    },
+    "contract_versions": {
+      "public": "2.0.0-alpha.23",
+      "admin": "2.0.0-alpha.23",
+      "webhook": "2.0.0-alpha.23"
+    },
+    "packages": {
+      "@oripa/storefront-client": {
+        "version": "2.0.0-alpha.24",
+        "disposition": "publish",
+        "minimum_public_api_contract": "2.0.0-alpha.23"
+      },
+      "@oripa/site-schema": {
+        "version": "2.0.0-alpha.23",
+        "disposition": "reference",
+        "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
+        "source_bundle_version": "2.0.0-alpha.23",
+        "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd"
+      },
+      "@oripa/storefront-testkit": {
+        "version": "2.0.0-alpha.24",
+        "disposition": "publish",
+        "storefront_client_version": "2.0.0-alpha.24",
+        "site_schema_version": "2.0.0-alpha.23"
+      }
+    }
+  }
+}

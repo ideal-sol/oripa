@@ -192,102 +192,16 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
           pnpm install --frozen-lockfile
-          pnpm --filter @oripa/storefront-client build
-          pnpm --filter @oripa/site-schema build
-          pnpm --filter @oripa/storefront-testkit build
           output="$RUNNER_TEMP/storefront-contract"
-          mkdir -p "$output"
-          pnpm --filter @oripa/storefront-client pack --pack-destination "$output"
-          pnpm --filter @oripa/site-schema pack --pack-destination "$output"
-          pnpm --filter @oripa/storefront-testkit pack --pack-destination "$output"
-          cp openapi/bundled/public.openapi.json "$output/public.openapi.json"
-          OUTPUT_DIRECTORY="$output" python3 - <<'PY'
-          import datetime as dt
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import subprocess
-          import tarfile
-
-          output = Path(os.environ["OUTPUT_DIRECTORY"])
-          source = os.environ["INPUT_HEAD_SHA"]
-          task = os.environ["INPUT_TASK_ID"]
-          expected = {
-              "@oripa/storefront-client": "oripa-storefront-client",
-              "@oripa/storefront-testkit": "oripa-storefront-testkit",
-              "@oripa/site-schema": "oripa-site-schema",
-          }
-          package_rows = []
-          version = None
-          for name, prefix in expected.items():
-              matches = list(output.glob(prefix + "-*.tgz"))
-              if len(matches) != 1:
-                  raise SystemExit("unexpected package artifact inventory")
-              path = matches[0]
-              with tarfile.open(path, "r:gz") as archive:
-                  member = archive.extractfile("package/package.json")
-                  if member is None:
-                      raise SystemExit("package manifest missing")
-                  package = json.load(member)
-              if package.get("name") != name:
-                  raise SystemExit("package identity mismatch")
-              if version is None:
-                  version = package.get("version")
-              if package.get("version") != version:
-                  raise SystemExit("package version mismatch")
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              change = (
-                  "package release only; site manifest schema remains 2.0.0-alpha.1"
-                  if name == "@oripa/site-schema" else "non-breaking additive"
-              )
-              package_rows.append({
-                  "name": name,
-                  "version": version,
-                  "file": path.name,
-                  "sha256": digest,
-                  "browser_compatible": True,
-                  "change": change,
-              })
-          openapi = output / "public.openapi.json"
-          openapi_digest = hashlib.sha256(openapi.read_bytes()).hexdigest()
-          created = subprocess.check_output(
-              ["git", "show", "-s", "--format=%cI", source], text=True
-          ).strip()
-          generated = dt.datetime.fromisoformat(created).astimezone(dt.timezone.utc)
-          manifest = {
-              "task_id": task,
-              "generated_at": generated.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-              "source_commit": source,
-              "public_openapi": {
-                  "file": openapi.name,
-                  "sha256": openapi_digest,
-                  "compatibility_family": 2,
-                  "breaking_change": False,
-              },
-              "packages": package_rows,
-              "toolchain": {"node": "22.22.3", "pnpm": "10.12.1"},
-              "installation": {
-                  "registry_publish_performed": False,
-                  "workspace_dependency_required": False,
-                  "consumer_resolution": "pin all three private package versions to the supplied tarballs; pnpm consumers use overrides for storefront-testkit transitive resolution",
-              },
-          }
-          (output / "artifact-manifest.json").write_text(
-              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-          )
-          checksums = sorted(
-              [(row["file"], row["sha256"]) for row in package_rows]
-              + [(openapi.name, openapi_digest)]
-          )
-          (output / "SHA256SUMS").write_text(
-              "".join(f"{digest}  {filename}\n" for filename, digest in checksums),
-              encoding="ascii",
-          )
-          PY
-          cd "$output"
-          sha256sum --check SHA256SUMS
-          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 6
+          python3 scripts/release/storefront_contract_artifact.py validate-source \
+            --repository .
+          python3 scripts/release/storefront_contract_artifact.py build \
+            --repository . \
+            --source-commit "$INPUT_HEAD_SHA" \
+            --output "$output"
+          python3 scripts/release/storefront_contract_artifact.py verify \
+            --repository . \
+            --output "$output"
 
       - name: Upload the verified Storefront contract artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

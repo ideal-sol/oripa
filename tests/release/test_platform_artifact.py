@@ -102,6 +102,14 @@ class PlatformArtifactTest(unittest.TestCase):
             with self.assertRaisesRegex(platform_artifact.ReleaseError, "reproducibility"):
                 platform_artifact.compare_bundles(first, second)
 
+    def test_full_platform_bundle_rejects_package_only_component_versions(self):
+        source = platform_artifact.validate_source(Path(__file__).resolve().parents[2])
+        with self.assertRaisesRegex(
+            platform_artifact.ReleaseError,
+            "full Platform bundle requires monoversion",
+        ):
+            platform_artifact.require_platform_bundle_monoversion(source)
+
     def test_docker_archive_verification_follows_extensionless_config_blob(self):
         with tempfile.TemporaryDirectory() as temporary:
             archive_path = Path(temporary) / "image.tar.gz"
