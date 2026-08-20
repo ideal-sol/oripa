@@ -71,6 +71,11 @@ set `retry: false`, preserving the existing non-idempotent mutation semantics.
   network-boundary check, and `git diff --check`: PASS.
 - Public OpenAPI, generated public types, Site Schema, and Runtime source diff:
   zero.
+- Initial GitHub Policy Gate rejected the Human-approved Platform Task ID
+  `STORE-SITE-034`. The Task ID validator now additively accepts only the
+  `STORE-SITE-<digits>` Contract Lane form alongside every existing form;
+  malformed and unrelated `STORE-*` forms remain rejected. No task ID
+  substitution was used.
 - Laravel targeted Runtime tests: NOT RUN because `apps/api/vendor/autoload.php`
   is absent in this worktree; the read-only audit inspected existing focused
   Runtime tests and implementation.
