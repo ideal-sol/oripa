@@ -67,10 +67,10 @@ describe("Gacha lifecycle editing", () => {
     const { unmount } = renderForm(gacha("scheduled", "2099-08-01T00:00:00Z"));
 
     await screen.findByRole("option", { name: "Category A" });
-    expect(screen.getByLabelText("カテゴリ")).toBeEnabled();
+    await waitFor(() => expect(screen.getByLabelText("カテゴリ")).toBeEnabled());
     expect(screen.getByLabelText("消費ポイント")).toBeEnabled();
     expect(screen.getByLabelText(/1日規定回数/u)).toBeEnabled();
-    expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled();
+    await waitFor(() => expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled());
     expect(screen.getByRole("option", { name: "予約取消（下書きへ戻す）" }))
       .toBeVisible();
     expect(screen.queryByRole("option", { name: "販売停止" })).not.toBeInTheDocument();

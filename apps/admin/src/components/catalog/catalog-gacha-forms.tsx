@@ -98,7 +98,8 @@ export function CatalogGachaCoreForm({
   const postPublished = mode === "edit" && current?.first_published_at != null;
   const scheduled = current?.publication_status === "scheduled";
   const scheduledStartReached = scheduled
-    && Date.parse(current?.current_version?.publish_start_at ?? "") <= (currentTime ?? Date.now());
+    && (currentTime === null
+      || Date.parse(current?.current_version?.publish_start_at ?? "") <= currentTime);
   const dirty = draft.thumbnailFile !== null || JSON.stringify({
     ...draft,
     thumbnailFile: null,
