@@ -206,6 +206,30 @@ class PolicyGateTest(unittest.TestCase):
         self.assertIn("DEFERRABLE INITIALLY DEFERRED", migration)
         self.assertNotIn("DISABLE TRIGGER", migration)
 
+    def test_mig_068_canonical_probability_publish_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
+        }
+        self.assertEqual(policy_gate.MIG_068_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("__canonical_inventory_v1", migration)
+        self.assertIn("status::text NOT IN ('draft'::text, 'published'::text)", migration)
+        self.assertIn("active_schedule.probability_version_id", migration)
+        self.assertIn(
+            "version.published_probability_version_id ",
+            migration,
+        )
+        self.assertIn(
+            "IS DISTINCT FROM schedule.probability_version_id",
+            migration,
+        )
+        self.assertIn("Cannot roll back MIG-068", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+        self.assertNotRegex(migration, r"\b(?:UPDATE|DELETE FROM)\s+catalog_")
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -1155,6 +1179,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
             "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
             "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
+            "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

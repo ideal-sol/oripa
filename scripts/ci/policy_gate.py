@@ -460,6 +460,9 @@ MIG_063E_V2_CATALOG_FILES = {
 MIG_067_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
 }
+MIG_068_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
+}
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
@@ -514,6 +517,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_063D_V2_CATALOG_FILES,
     *MIG_063E_V2_CATALOG_FILES,
     *MIG_067_V2_CATALOG_FILES,
+    *MIG_068_V2_CATALOG_FILES,
 }
 MIG_062J_V2_DRAW_FILES = {
     "apps/api/database/migrations-v2/2026_09_01_000046_allow_v2_partial_remaining_draw_execution.php",
@@ -2503,6 +2507,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
         "2026_09_12_000057_scope_v2_gacha_rank_codes.php",
         "2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
+        "2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

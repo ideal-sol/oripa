@@ -203,10 +203,15 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->assertJsonPath('data.publishable', false)
             ->json('data');
 
-        self::assertContains(
+        self::assertNotContains(
             'GACHA_PROBABILITY_NOT_SELECTED',
             $response['validation_codes']
         );
+        self::assertContains(
+            'GACHA_INITIAL_PUBLICATION_ALREADY_COMMITTED',
+            $response['validation_codes']
+        );
+        self::assertNull($response['selected_probability']);
         self::assertSame(
             (array) $gachaBefore,
             (array) DB::table('catalog_gachas')->where('id', $gachaBefore->id)
