@@ -34,8 +34,17 @@
 - Record image evidence on a fixed activation head, pass the required checks and fresh self-review, then recreate only API with `--no-build --no-deps` and guarded private-first egress attachment.
 - Perform only read-only health, source/config, database, Redis, DNS/HTTPS, Public API, and error-window checks.
 
+## Canonical Preview image
+
+- Exact Application head `0d86972944491bdd3e9716787381e439848d606f` passed the latest Required 5 Checks. A simultaneous manually dispatched run hit an existing one-second admin-session fixture boundary, while the unchanged PR-native exact-head run completed all five checks successfully; no Application or test change was made.
+- Trusted `main` control ref dispatched Canonical Preview Image Build Run `32330746391` for open PR `#320` and the exact Application head. The GitHub-hosted `ubuntu-24.04` amd64 run completed successfully; no Preview-host build occurred.
+- Verified Artifact `9393004181` has outer/GitHub digest `sha256:1ce7d4f31615a812d8218e5a22a67ab16a3b22970e9e5d00824af66a860b438e` and manifest SHA-256 `6ffe11761d9a529d01d4901bd8c8b63aef0c30462642e4ee755b50e1f5d4ee21`.
+- Loaded API image is `oripa-v2-api:preview-OPS-011-0d8697294449`, image ID `sha256:d075d82d5649a010f0c056d39067830de2e8a734b89d3adc2a6212165c22a28a`, `linux/amd64`, OCI revision `0d86972944491bdd3e9716787381e439848d606f`.
+- Application-head API tree and merged MIG-066 `main` API tree both equal `8e159ce7db4b4545ff14f7751979ef20f42ec575`. Image readback verified 836 tracked API blobs byte-for-byte; the only six exclusions are the exact runtime `.gitkeep` scaffold files intentionally removed or chmodded by `.dockerignore` and the canonical Dockerfile.
+- The pipeline produced its standard Admin image, but Admin is not deployed or recreated. No Contract/Artifact publication or Repository change occurred.
+
 ## Current state
 
-- Preview image build, activation, Runtime verification, Required Checks, self-review, merge, Issue closure, and cleanup are not yet complete.
+- Preview image build and Application-tree verification are complete. Activation-head Required Checks, fresh self-review, Runtime activation/verification, closeout checks, merge, Issue closure, and cleanup remain pending.
 - Migrations created/applied: `0 / 0`.
 - Application, API/OpenAPI, database schema, auth semantics, Point, Payment, Draw, inventory, Admin, Contract, Artifact, Storefront, and Production changes: `0`.
