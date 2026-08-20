@@ -7,10 +7,10 @@
 - Storefront Task: `SITE-034`
 - Branch: `feat/STORE-SITE-034-contact-browser-safe-client`
 - Worktree: `/var/www/oripa-worktrees/STORE-SITE-034-contact-browser-safe-client`
-- Base SHA: `ee5299633a7325fd91198537ac3bd429233293fb`
+- Base SHA: `09f6292306873821733b340ee432dea307219143`
 - Risk: `R3`
 - Phase: `B` artifact release
-- Artifact Version: blocked before allocation
+- Artifact Version: `2.0.0-alpha.24`
 
 The initially created Platform Issue `#323` incorrectly used `SITE-034` as the
 Platform Task ID. It was closed before Phase A validation and is not the formal
@@ -81,6 +81,10 @@ set `retry: false`, preserving the existing non-idempotent mutation semantics.
   The task branch was synchronised again through the governed two-parent base
   sync. The only conflict was the append-only Platform Worklog; both task
   sections were retained. The prior checks and self-review are superseded.
+- GOV-016 merged to `main@09f6292306873821733b340ee432dea307219143`
+  and established the canonical package-only alpha.24 release model. The clean
+  task head was synchronized again by a conflict-free two-parent merge; its net
+  change remains the same 14 approved STORE-SITE-034 paths.
 - Laravel targeted Runtime tests: NOT RUN because `apps/api/vendor/autoload.php`
   is absent in this worktree; the read-only audit inspected existing focused
   Runtime tests and implementation.
@@ -102,23 +106,22 @@ MIG-063G changes Admin Catalog UI paths only. It does not change Public OpenAPI,
 generated contracts, Storefront Client, Site Schema, Testkit, Artifact inputs,
 or Contact／CSRF／Browser transport sources.
 
-Platform Integration and Artifact Release Locks were acquired by
-`STORE-SITE-034` in that order and released in reverse order after the Artifact
-version blocker was confirmed. Preview Deployment Lock was never acquired.
-Runtime activation and Preview Deployment remain out of scope.
+Platform Integration Lock is held by `STORE-SITE-034` for latest-main
+integration and fresh exact-head validation. Artifact Release Lock remains
+unacquired until Required 5 Checks and Fresh Self-review pass. Preview
+Deployment Lock is not required. Runtime activation and Preview Deployment
+remain out of scope.
 
-## Artifact Blocker
+## Artifact Release Model
 
-- Canonical latest package Artifact is `2.0.0-alpha.23`; its package identities
-  cannot be reused for changed Client／Testkit bytes because immutable package
-  versions must not change content.
-- Advancing only the three Storefront package identities to alpha.24 fails the
-  canonical `platform_artifact.py validate-source` gate, which currently
-  requires Workspace, Admin, Platform, all three packages, and all OpenAPI
-  surface versions to equal the whole-Platform release version.
-- Advancing the coupled whole-Platform release metadata would exceed the
-  Human-approved STORE-SITE-034 scope and touch prohibited OpenAPI／Site Schema
-  release surfaces. No validator bypass, same-version reissue, Artifact upload,
-  Runtime activation, or Preview deployment was performed.
-- Formal Artifact issuance requires a Human-approved canonical package-only
-  version path or a separately scoped Platform release-version task.
+- GOV-016 fixes bundle version `2.0.0-alpha.24` as the exact next immutable
+  package-only release after alpha.23.
+- Published packages are Storefront Client alpha.24 and Storefront Testkit
+  alpha.24. Site Schema alpha.23 is referenced by immutable digest／source tree
+  and is neither repacked nor included.
+- Platform／Application and Public／Admin／Webhook OpenAPI remain alpha.23. The
+  Client minimum Public API Contract remains alpha.23 and Testkit resolves
+  Client alpha.24 plus Site Schema alpha.23.
+- `storefront_contract_artifact.py validate-source` passes after latest-main
+  synchronization. Formal workflow issuance remains gated by fresh Required 5,
+  exact-head Self-review, and Artifact Release Lock acquisition.

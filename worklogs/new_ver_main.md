@@ -8708,6 +8708,7 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 最初のexact-head Required 5 Checks／Fresh Self-review後にSEC-012が`main@ee5299633a7325fd91198537ac3bd429233293fb`へmergeされたため、Artifact Lock取得前に二親safe base syncを再実施した。競合はappend-only `worklogs/new_ver_main.md`だけで両Task記録を保持し、Contract／generated source競合は0である。旧check／review evidenceは無効化してfresh再実行する。
 - Latest-main Integration Head `772a869be0c4749ee33a973c1da82d551e6dda85`のRequired 5 Checks／Fresh Self-review PASS後、Canonical latest Artifact `2.0.0-alpha.23`をreadbackしてArtifact Release Lockを二番目に取得した。Package-only alpha.24候補はcanonical whole-Platform source validatorがWorkspace／Admin／Platform／OpenAPIをalpha.23へ固定しているためQuality GateでFail Closedとなった。
 - 同じalpha.23 package identityで変更済みClient／Testkitを再発行することはimmutable version invariantに反し、whole-Platform alpha.24化は明示scope外である。候補version metadataは取り消し、Artifact未発行のまま両Shared Lockを逆順解放した。Public OpenAPI／generated public types／Site Schema／Runtimeの変更は0であり、正式なpackage-only version pathまたは別Platform release-version scopeのHuman判断までPhase Bを停止する。
+- GOV-016 closeout後、local／origin／GitHub `main@09f6292306873821733b340ee432dea307219143`、Issue #324／PR #326、専用branch／worktree、Shared Locks none、competing Task none、latest immutable alpha.23とcanonical package-only candidate alpha.24をFresh Gateで一致確認した。Platform Integration Lockを取得し、既存exact headをGOV-016 mainへconflict-free two-parent safe syncした。net差分は承認済み14 pathsのままで、Client／Testkit alpha.24、Site Schema／Platform／Application／OpenAPI alpha.23参照のcanonical source validationをPASSした。
 
 ## SEC-012 Bodyless Logout Browser Security Fix
 
