@@ -55,8 +55,8 @@ inventory. Full Platform artifact build still requires monoversion.
 - Client generate/typecheck/lint/build and 27 tests: PASS.
 - Site Schema generate/typecheck/lint/build and 10 tests: PASS.
 - Testkit generate/typecheck/lint/build, 34 tests, exports, network guard: PASS.
-- Release Unit 19 tests: PASS.
-- Policy Unit 145 tests: PASS.
+- Release Unit 20 tests: PASS.
+- Policy Unit 146 tests: PASS.
 - Security Unit 10 tests: PASS.
 - Local Policy, Quality, and Security Gates: PASS.
 - Composer, workspace pnpm, and legacy pnpm fresh audits: 0 findings.
@@ -65,6 +65,9 @@ inventory. Full Platform artifact build still requires monoversion.
   repackage, digest mismatch, file inventory, and full Platform mixed-version
   regressions: PASS.
 - Python compile and `git diff --check`: PASS.
+- Synthetic merge of GOV-016 head and untouched STORE-SITE-034 exact head
+  `a90858895062b0205a125e344a9d595d31a7e298`: conflict-free; package-only
+  source validation and Policy Gate PASS.
 - GitHub Required 5 and fresh fixed-head self-review: pending final head.
 
 ## Scope
