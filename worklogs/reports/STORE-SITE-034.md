@@ -7,7 +7,7 @@
 - Storefront Task: `SITE-034`
 - Branch: `feat/STORE-SITE-034-contact-browser-safe-client`
 - Worktree: `/var/www/oripa-worktrees/STORE-SITE-034-contact-browser-safe-client`
-- Base SHA: `7d2f85d2a4e2dadf993594c559f3ffc6c6add04d`
+- Base SHA: `ee5299633a7325fd91198537ac3bd429233293fb`
 - Risk: `R3`
 - Phase: `B` integration
 
@@ -76,6 +76,10 @@ set `retry: false`, preserving the existing non-idempotent mutation semantics.
   `STORE-SITE-<digits>` Contract Lane form alongside every existing form;
   malformed and unrelated `STORE-*` forms remain rejected. No task ID
   substitution was used.
+- After the first exact-head checks and self-review passed, SEC-012 moved `main`.
+  The task branch was synchronised again through the governed two-parent base
+  sync. The only conflict was the append-only Platform Worklog; both task
+  sections were retained. The prior checks and self-review are superseded.
 - Laravel targeted Runtime tests: NOT RUN because `apps/api/vendor/autoload.php`
   is absent in this worktree; the read-only audit inspected existing focused
   Runtime tests and implementation.
