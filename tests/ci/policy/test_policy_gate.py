@@ -2041,7 +2041,7 @@ packages:
             json.dumps(
                 {
                     "name": "@oripa/site-schema",
-                    "version": "2.0.0-alpha.24",
+                    "version": "2.0.0-alpha.23",
                     "private": True,
                     "description": "Fixture Alpha",
                     "license": "UNLICENSED",
@@ -2181,7 +2181,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.24",
+                    "version": "2.0.0-alpha.23",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",

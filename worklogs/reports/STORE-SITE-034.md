@@ -10,7 +10,7 @@
 - Base SHA: `ee5299633a7325fd91198537ac3bd429233293fb`
 - Risk: `R3`
 - Phase: `B` artifact release
-- Artifact Version: `2.0.0-alpha.24`
+- Artifact Version: blocked before allocation
 
 The initially created Platform Issue `#323` incorrectly used `SITE-034` as the
 Platform Task ID. It was closed before Phase A validation and is not the formal
@@ -90,9 +90,7 @@ set `retry: false`, preserving the existing non-idempotent mutation semantics.
 
 - Public OpenAPI semantics: none.
 - Generated public types: none.
-- Site Manifest Schema semantics／generated types: none. Artifact package
-  identity and README only advance to `2.0.0-alpha.24`; Schema Version remains
-  `2.0.0-alpha.1` and its canonical JSON content is unchanged.
+- Site Manifest Schema semantics／generated types／package identity: none.
 - Runtime／middleware／controller: none.
 - Database／migration: none created, none applied.
 - Contact request／response／error semantics: unchanged.
@@ -104,25 +102,23 @@ MIG-063G changes Admin Catalog UI paths only. It does not change Public OpenAPI,
 generated contracts, Storefront Client, Site Schema, Testkit, Artifact inputs,
 or Contact／CSRF／Browser transport sources.
 
-Platform Integration and Artifact Release Locks are held by `STORE-SITE-034` in
-that order. Preview Deployment Lock remains unacquired. Artifact allocation
-started only after the Integration head satisfied the required checks and
-exact-head fresh self-review. Runtime activation and Preview Deployment remain
-out of scope.
+Platform Integration and Artifact Release Locks were acquired by
+`STORE-SITE-034` in that order and released in reverse order after the Artifact
+version blocker was confirmed. Preview Deployment Lock was never acquired.
+Runtime activation and Preview Deployment remain out of scope.
 
-## Artifact Preflight
+## Artifact Blocker
 
-- After canonical `2.0.0-alpha.23` readback and ordered Artifact Release Lock
-  acquisition, `2.0.0-alpha.24` was allocated without a competing allocation.
-- Storefront Client, Site Schema package, and Storefront Testkit identities are
-  synchronised to `2.0.0-alpha.24`; the Client minimum Public API Contract stays
-  `2.0.0-alpha.23` because Public OpenAPI is unchanged.
-- Frozen offline workspace install and a separate tarball consumer install with
-  exact overrides pass. The consumer resolves all three packages to alpha.24
-  and imports the Browser Contact API, Contact fixture, and Site Schema API.
-- Local package build／pack, archive inventory, package identity, dependency
-  resolution, Site Schema check, and Public OpenAPI check pass. Canonical Public
-  OpenAPI SHA-256 remains
-  `5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043`.
-- Formal exact-head GitHub Artifact issuance and immutable readback remain
-  pending the versioned source head Required Checks and Fresh Self-review.
+- Canonical latest package Artifact is `2.0.0-alpha.23`; its package identities
+  cannot be reused for changed Client／Testkit bytes because immutable package
+  versions must not change content.
+- Advancing only the three Storefront package identities to alpha.24 fails the
+  canonical `platform_artifact.py validate-source` gate, which currently
+  requires Workspace, Admin, Platform, all three packages, and all OpenAPI
+  surface versions to equal the whole-Platform release version.
+- Advancing the coupled whole-Platform release metadata would exceed the
+  Human-approved STORE-SITE-034 scope and touch prohibited OpenAPI／Site Schema
+  release surfaces. No validator bypass, same-version reissue, Artifact upload,
+  Runtime activation, or Preview deployment was performed.
+- Formal Artifact issuance requires a Human-approved canonical package-only
+  version path or a separately scoped Platform release-version task.

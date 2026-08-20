@@ -112,10 +112,10 @@ importers:
   packages/storefront-testkit:
     dependencies:
       '@oripa/site-schema':
-        specifier: workspace:2.0.0-alpha.24
+        specifier: workspace:2.0.0-alpha.23
         version: link:../site-schema
       '@oripa/storefront-client':
-        specifier: workspace:2.0.0-alpha.24
+        specifier: workspace:2.0.0-alpha.23
         version: link:../storefront-client
     devDependencies:
       eslint:

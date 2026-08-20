@@ -67,7 +67,7 @@ Design、Draw／Point／Payment判断、Laravel／OpenAPI実装、V1 Codeを含�
 
 ## Status
 
-Package Versionは`2.0.0-alpha.24`、Site Manifest Schema Versionは引き続き
+Package Versionは`2.0.0-alpha.23`、Site Manifest Schema Versionは引き続き
 `2.0.0-alpha.1`である。Package Publish前かつProduction利用不可。
 Current User Point Readを採用するSiteは既存`required_capabilities`へ
 `user-point.read.v2`を宣言できる。Current User Draw History Readを採用するSiteは
