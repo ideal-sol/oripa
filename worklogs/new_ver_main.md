@@ -8689,3 +8689,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - Activation Evidence Head `ea5d844cf5b0ad6f0c6b60861ed13036bf76b64d`のRequired 5 latest checksとfresh fixed-head self-reviewを先にPASSした。Canonical Composeの既存root-only env sourceとOPS-009 network/Admin override、OPS-011 API image overrideだけを使用し、API serviceだけを`--force-recreate --no-build --no-deps`で更新した。private-only起動／healthy後にguarded helperで`192.168.62.0/28` egressへAPIだけをattachした。
 - Active APIはimage `oripa-v2-api:preview-OPS-011-0d8697294449`、ID `sha256:d075d82d5649a010f0c056d39067830de2e8a734b89d3adc2a6212165c22a28a`、OCI revision `0d86972944491bdd3e9716787381e439848d606f`である。`v2_private internal:true`、API-only egress、Admin／PostgreSQL／Redis private-onlyを維持し、後3 serviceのcontainer ID／start timeは不変である。
 - Runtime read-only確認でBrowser HTTP 303実装、Session／CSRF付与、allowlist `["/", "/mypage"]`、`V2MailEmailVerificationNotifier`、Mailgun config configured、API health、DB／Redis、DNS、HTTPS 200／certificate verify 0、Public API 200、activation window 500／502／504 0をPASSした。実recipientメール、新規登録、Resend、Verification Completeは実行していない。Preview Deployment Lockを解放し、他Shared Lockは取得していない。
+
+## MIG-063G Gacha Prize Banner Picker / Catalog Navigation Cleanup
+
+- Cleanな`main = origin/main@b29213213d99562649548e8980e49ac6d85199ec`、Open Platform Taskなし、shared Lock未取得を確認し、Issue #321、Branch `feat/MIG-063G-gacha-prize-banner-picker-nav-cleanup`、専用Worktree、Risk R2で開始した。Migration Allocation、Platform Integration、Artifact Release、Preview Deployment Lockは取得していない。
+- Banner Category／Bannerのcursor pagination、画像preview、title、既存Asset一意復元、unresolved Asset保持、Category切替時のselection clearを`CatalogBannerAssetPicker`へ共通化し、単独PrizeのMIG-063C UIとGacha Prize create/editで同一実装を使用する。
+- Gacha Prizeは一般Presentation Asset選択を廃止し、選択Bannerが参照する既存Asset IDのみを既存`presentation_asset_id`へ保存する。Asset複製・新規Asset作成は0件で、MIG-063FのRank image/video Pickerは変更していない。
+- shared `CatalogSectionNavigation`は`null`を返して横タブだけを非表示にし、独立したAdmin Sidebar navigation／Catalog route registryは変更していない。`/catalog/presentation-assets`はshared横タブを使用しないため変更していない。
+- Focused Admin 2 files／27 tests、Admin full unit 33 files／174 tests、typecheck、lint、production build、`git diff --check`はPASSした。Migration、DB Schema、Admin/Public API、OpenAPI、generated Contract、Artifact、Storefront、Runtime／Preview／Production変更は0である。Browser/E2E、Repository全Backend Suite、runtime deployは実行していない。

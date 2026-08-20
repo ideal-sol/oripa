@@ -58,17 +58,11 @@ export function CatalogPrizeAssetMutationForm({
   );
   const [draft, setDraft] = useState(initial);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
-  const [bannerCategories, setBannerCategories] = useState<AdminBannerCategory[]>([]);
-  const [bannerCategoryId, setBannerCategoryId] = useState("");
-  const [banners, setBanners] = useState<AdminManagedBanner[]>([]);
   const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
-  const [bannerLoading, setBannerLoading] = useState(false);
   const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
-  const [bannerResolution, setBannerResolution] = useState<"idle" | "unresolved">("idle");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
-  const bannerPickerChangedRef = useRef(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
   useEffect(() => {
@@ -78,58 +72,16 @@ export function CatalogPrizeAssetMutationForm({
     if (resource !== "prizes") return;
     const controller = new AbortController();
     const client = new AdminApiClient();
-    Promise.all([
-      client.listCatalogRanks(
-        { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
-        controller.signal,
-      ),
-      client.listBannerCategories(controller.signal),
-    ])
-      .then(async ([rankResponse, categoryResponse]) => {
+    client.listCatalogRanks(
+      { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
+      controller.signal,
+    )
+      .then((rankResponse) => {
         setRanks(rankResponse.items.filter((item) => !item.is_archived));
-        setBannerCategories(categoryResponse.items);
-
-        const presentationAssetId = initial.kind === "prize"
-          ? initial.presentationAssetId
-          : null;
-        if (mode !== "edit" || presentationAssetId === null) return;
-
-        const candidates = (
-          await Promise.all(
-            categoryResponse.items.map(async (category) =>
-              listAllBannersForCategory(client, category.id, controller.signal),
-            ),
-          )
-        ).flat();
-        const matches = candidates.filter((banner) => banner.asset.id === presentationAssetId);
-        if (controller.signal.aborted || bannerPickerChangedRef.current) return;
-        if (matches.length === 1) {
-          setBannerLoading(true);
-          setBannerCategoryId(matches[0].category.id);
-          setSelectedBannerId(matches[0].id);
-          setBanners(candidates.filter((banner) => banner.category.id === matches[0].category.id));
-          return;
-        }
-        setBannerResolution("unresolved");
       })
       .catch(() => setError("選択肢を取得できませんでした。"));
     return () => controller.abort();
-  }, [initial, mode, resource]);
-  useEffect(() => {
-    if (resource !== "prizes" || !bannerCategoryId) return;
-    const controller = new AbortController();
-    listAllBannersForCategory(new AdminApiClient(), bannerCategoryId, controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setBanners(items);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("バナー候補を取得できませんでした。");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setBannerLoading(false);
-      });
-    return () => controller.abort();
-  }, [bannerCategoryId, resource]);
+  }, [resource]);
   useEffect(() => {
     if (!dirty) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -161,27 +113,6 @@ export function CatalogPrizeAssetMutationForm({
   function cancel() {
     if (dirty && !window.confirm("未保存の変更を破棄しますか。")) return;
     onCancel();
-  }
-
-  function selectBannerCategory(categoryId: string) {
-    setBannerLoading(Boolean(categoryId));
-    setBannerCategoryId(categoryId);
-    setSelectedBannerId(null);
-    bannerPickerChangedRef.current = true;
-    setBannerPickerChanged(true);
-    setBannerResolution("idle");
-    if (draft.kind === "prize") {
-      setDraft({ ...draft, presentationAssetId: null });
-    }
-  }
-
-  function selectBanner(banner: AdminManagedBanner) {
-    setSelectedBannerId(banner.id);
-    bannerPickerChangedRef.current = true;
-    setBannerPickerChanged(true);
-    if (draft.kind === "prize") {
-      setDraft({ ...draft, presentationAssetId: banner.asset.id });
-    }
   }
 
   return (
@@ -241,49 +172,15 @@ export function CatalogPrizeAssetMutationForm({
                   ))}
                 </select>
               </label>
-              <label>
-                Banner Category
-                <select
-                  onChange={(event) => selectBannerCategory(event.target.value)}
-                  value={bannerCategoryId}
-                >
-                  <option value="">選択してください</option>
-                  {bannerCategories.map((category) => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
-              </label>
-              <fieldset className="catalog-banner-picker">
-                <legend>Banner</legend>
-                {bannerResolution === "unresolved" ? (
-                  <p className="catalog-banner-picker-note">
-                    既存のPresentation Assetに対応するBannerを一意に特定できませんでした。
-                    変更しなければ既存の値は保持されます。
-                  </p>
-                ) : null}
-                {!bannerCategoryId ? (
-                  <p className="catalog-banner-picker-note">先にBanner Categoryを選択してください。</p>
-                ) : bannerLoading ? (
-                  <p className="catalog-banner-picker-note">Banner候補を取得しています。</p>
-                ) : banners.length === 0 ? (
-                  <p className="catalog-banner-picker-note">このCategoryに選択可能なBannerはありません。</p>
-                ) : (
-                  <div aria-label="Banner候補" className="catalog-banner-options">
-                    {banners.map((banner) => (
-                      <button
-                        aria-pressed={selectedBannerId === banner.id}
-                        className="catalog-banner-option"
-                        key={banner.id}
-                        onClick={() => selectBanner(banner)}
-                        type="button"
-                      >
-                        <Image alt="" height={56} src={banner.asset.public_url} unoptimized width={96} />
-                        <span>{banner.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </fieldset>
+              <CatalogBannerAssetPicker
+                assetId={draft.presentationAssetId}
+                disabled={submitting}
+                onSelectionChange={(selection) => {
+                  setBannerPickerChanged(selection.changed);
+                  setSelectedBannerId(selection.bannerId);
+                  setDraft({ ...draft, presentationAssetId: selection.assetId });
+                }}
+              />
               <label>
                 名称
                 <input
@@ -467,6 +364,145 @@ function trimDraft(draft: CatalogPrizeAssetDraft): CatalogPrizeAssetDraft {
   return draft.kind === "prize"
     ? { ...draft, name: draft.name.trim(), description: draft.description?.trim() || null }
     : { ...draft, altText: draft.altText?.trim() || null };
+}
+
+export function CatalogBannerAssetPicker({
+  assetId,
+  disabled = false,
+  onSelectionChange,
+}: {
+  assetId: string | null;
+  disabled?: boolean;
+  onSelectionChange: (selection: {
+    assetId: string | null;
+    bannerId: string | null;
+    changed: boolean;
+  }) => void;
+}) {
+  const [categories, setCategories] = useState<AdminBannerCategory[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [banners, setBanners] = useState<AdminManagedBanner[]>([]);
+  const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resolution, setResolution] = useState<"idle" | "unresolved">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const selectionChanged = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const client = new AdminApiClient();
+    client.listBannerCategories(controller.signal)
+      .then(async (response) => {
+        setCategories(response.items);
+        if (assetId === null || selectionChanged.current) return;
+
+        const candidates = (
+          await Promise.all(
+            response.items.map((category) =>
+              listAllBannersForCategory(client, category.id, controller.signal),
+            ),
+          )
+        ).flat();
+        const matches = candidates.filter((banner) => banner.asset.id === assetId);
+        if (controller.signal.aborted || selectionChanged.current) return;
+        if (matches.length === 1) {
+          setLoading(true);
+          setCategoryId(matches[0].category.id);
+          setSelectedBannerId(matches[0].id);
+          setBanners(candidates.filter((banner) => banner.category.id === matches[0].category.id));
+          return;
+        }
+        setResolution("unresolved");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError("選択肢を取得できませんでした。");
+      });
+    return () => controller.abort();
+  }, [assetId]);
+
+  useEffect(() => {
+    if (!categoryId) return;
+    const controller = new AbortController();
+    listAllBannersForCategory(new AdminApiClient(), categoryId, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) setBanners(items);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError("バナー候補を取得できませんでした。");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [categoryId]);
+
+  function selectCategory(nextCategoryId: string) {
+    selectionChanged.current = true;
+    setCategoryId(nextCategoryId);
+    setBanners([]);
+    setSelectedBannerId(null);
+    setLoading(Boolean(nextCategoryId));
+    setResolution("idle");
+    setError(null);
+    onSelectionChange({ assetId: null, bannerId: null, changed: true });
+  }
+
+  function selectBanner(banner: AdminManagedBanner) {
+    selectionChanged.current = true;
+    setSelectedBannerId(banner.id);
+    onSelectionChange({ assetId: banner.asset.id, bannerId: banner.id, changed: true });
+  }
+
+  return (
+    <>
+      <label>
+        Banner Category
+        <select
+          disabled={disabled}
+          onChange={(event) => selectCategory(event.target.value)}
+          value={categoryId}
+        >
+          <option value="">選択してください</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </select>
+      </label>
+      <fieldset className="catalog-banner-picker">
+        <legend>Banner</legend>
+        {resolution === "unresolved" ? (
+          <p className="catalog-banner-picker-note">
+            既存のPresentation Assetに対応するBannerを一意に特定できませんでした。
+            変更しなければ既存の値は保持されます。
+          </p>
+        ) : null}
+        {!categoryId ? (
+          <p className="catalog-banner-picker-note">先にBanner Categoryを選択してください。</p>
+        ) : loading ? (
+          <p className="catalog-banner-picker-note">Banner候補を取得しています。</p>
+        ) : banners.length === 0 ? (
+          <p className="catalog-banner-picker-note">このCategoryに選択可能なBannerはありません。</p>
+        ) : (
+          <div aria-label="Banner候補" className="catalog-banner-options">
+            {banners.map((banner) => (
+              <button
+                aria-pressed={selectedBannerId === banner.id}
+                className="catalog-banner-option"
+                disabled={disabled}
+                key={banner.id}
+                onClick={() => selectBanner(banner)}
+                type="button"
+              >
+                <Image alt="" height={56} src={banner.asset.public_url} unoptimized width={96} />
+                <span>{banner.title}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {error ? <p className="form-field-error" role="alert">{error}</p> : null}
+      </fieldset>
+    </>
+  );
 }
 
 async function listAllBannersForCategory(

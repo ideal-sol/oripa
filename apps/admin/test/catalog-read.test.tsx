@@ -42,13 +42,12 @@ describe("Admin Catalog read components", () => {
     expect(navigationItem("catalog").implementation).toBe("available");
   });
 
-  it("renders section navigation and marks the active section", () => {
+  it("keeps Catalog routes registered while hiding the shared section navigation", () => {
     render(<CatalogSectionNavigation active="prizes" />);
-    expect(screen.getByRole("link", { name: "Prize" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Presentation Asset" })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "Catalog分類" })).not.toBeInTheDocument();
+    expect(navigationItem("gachas").path).toBe("/catalog/gachas");
+    expect(navigationItem("categories").path).toBe("/catalog/categories");
+    expect(navigationItem("prizes").path).toBe("/catalog/prizes");
   });
 
   it("previews only public same-origin image and video paths", () => {
