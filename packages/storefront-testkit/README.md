@@ -81,7 +81,8 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Versionは`2.0.0-alpha.23`。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Point商品一覧／
+Package Versionは`2.0.0-alpha.24`。参照するStorefront Clientは`2.0.0-alpha.24`、
+Site SchemaとPublic OpenAPI Contractは`2.0.0-alpha.23`。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Point商品一覧／
 Eligibility／CTA、Gacha Catalogの販売状態／Eligibility／表示制御、User Prize Presentation、LINE Friend Stateの未連携／友だち追加待ち／確認済みPresentationとTyped Problem、型付きDraw／Fulfillment Problem Contract、
 残口数に合わせた端数Draw Fixture、Current User Draw Historyの複数／空履歴・Stable Ordering・Cursor continuation・Typed Problem、Current User Pointの正数／0残高、加算／減算／空履歴、
 Stable Ordering、Cursor continuation、Typed Problem Fixtureを含む非公開AlphaでありProduction利用不可。

@@ -569,6 +569,36 @@ class PolicyGateTest(unittest.TestCase):
             paths = self.make_release_foundation(root)
             policy_gate.validate_release_artifact_foundation(root, paths)
 
+    def test_storefront_release_governance_protects_alpha_23(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "manifests/storefront-contract-releases.json"
+            target.parent.mkdir(parents=True)
+            value = json.loads(
+                (ROOT / "manifests/storefront-contract-releases.json").read_text()
+            )
+            value["latest_immutable"]["manifest_sha256"] = "0" * 64
+            target.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "alpha.23 identity changed"
+            ):
+                policy_gate.storefront_release_governance(root)
+
+    def test_storefront_release_governance_protects_alpha_23_package_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "manifests/storefront-contract-releases.json"
+            target.parent.mkdir(parents=True)
+            value = json.loads(
+                (ROOT / "manifests/storefront-contract-releases.json").read_text()
+            )
+            value["latest_immutable"]["packages"]["@oripa/site-schema"]["sha256"] = "0" * 64
+            target.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "alpha.23 identity changed"
+            ):
+                policy_gate.storefront_release_governance(root)
+
     def test_release_artifact_floating_base_image_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1897,10 +1927,13 @@ python3 scripts/db/v2_database.py smoke \\
 
     def make_workspace(self, root):
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
+        paths.add("manifests/storefront-contract-releases.json")
         for relative in paths:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            if relative.endswith("README.md"):
+            if relative == "manifests/storefront-contract-releases.json":
+                shutil.copy2(ROOT / relative, path)
+            elif relative.endswith("README.md"):
                 path.write_text(
                     """# Fixture
 
@@ -2151,7 +2184,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.23",
+                    "version": "2.0.0-alpha.24",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",

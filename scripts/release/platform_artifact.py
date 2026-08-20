@@ -32,6 +32,7 @@ PACKAGE_PATHS = {
     "@oripa/site-schema": "packages/site-schema",
     "@oripa/storefront-testkit": "packages/storefront-testkit",
 }
+STOREFRONT_RELEASE_GOVERNANCE = "manifests/storefront-contract-releases.json"
 CONTRACT_PATHS = {
     "public": "openapi/bundled/public.openapi.json",
     "admin": "openapi/bundled/admin.openapi.json",
@@ -254,6 +255,15 @@ def load_json(path: Path) -> dict:
 
 
 def validate_source(repository: Path) -> dict:
+    release_governance = load_json(repository / STOREFRONT_RELEASE_GOVERNANCE)
+    candidate = release_governance.get("candidate")
+    if not isinstance(candidate, dict):
+        raise ReleaseError("Storefront release governance candidate is missing")
+    application_versions = candidate.get("application_versions")
+    package_versions = candidate.get("packages")
+    contract_versions = candidate.get("contract_versions")
+    if not isinstance(application_versions, dict) or not isinstance(package_versions, dict) or not isinstance(contract_versions, dict):
+        raise ReleaseError("Storefront release governance version inventory is invalid")
     versions = {
         "workspace": load_json(repository / "package.json").get("version"),
         "admin": load_json(repository / "apps/admin/package.json").get("version"),
@@ -261,7 +271,16 @@ def validate_source(repository: Path) -> dict:
     }
     for name, relative in PACKAGE_PATHS.items():
         versions[name] = load_json(repository / relative / "package.json").get("version")
-    invalid = sorted(name for name, version in versions.items() if version != PLATFORM_VERSION)
+    expected_versions = {
+        "workspace": application_versions.get("workspace"),
+        "admin": application_versions.get("admin"),
+        "platform": candidate.get("platform_version"),
+        **{
+            name: details.get("version") if isinstance(details, dict) else None
+            for name, details in package_versions.items()
+        },
+    }
+    invalid = sorted(name for name, version in versions.items() if version != expected_versions.get(name))
     if invalid:
         raise ReleaseError("version mismatch: " + ", ".join(invalid))
 
@@ -276,7 +295,7 @@ def validate_source(repository: Path) -> dict:
     for surface, relative in CONTRACT_PATHS.items():
         document = load_json(repository / relative)
         version = document.get("info", {}).get("version")
-        if version != PLATFORM_VERSION:
+        if version != contract_versions.get(surface):
             raise ReleaseError(f"{surface} contract version mismatch")
         contracts[surface] = {
             "version": version,
@@ -293,10 +312,20 @@ def validate_source(repository: Path) -> dict:
     return {
         "version": PLATFORM_VERSION,
         "tag": RELEASE_TAG,
+        "component_versions": versions,
         "contracts": contracts,
         "migration_count": len(migrations),
         "migration_set_sha256": content_set_checksum(migrations),
     }
+
+
+def require_platform_bundle_monoversion(source: dict) -> None:
+    versions = source.get("component_versions", {})
+    invalid = sorted(name for name, version in versions.items() if version != PLATFORM_VERSION)
+    if invalid:
+        raise ReleaseError(
+            "full Platform bundle requires monoversion: " + ", ".join(invalid)
+        )
 
 
 def package_asset_name(package_name: str) -> str:
@@ -760,6 +789,7 @@ def build_bundle(repository: Path, source_commit: str, output: Path, test_eviden
         raise ReleaseError("output path already exists")
     epoch, created = source_metadata(repository, source_commit)
     source = validate_source(repository)
+    require_platform_bundle_monoversion(source)
     test_evidence = load_json(test_evidence_path)
     assets = output / "assets"
     assets.mkdir(parents=True)
