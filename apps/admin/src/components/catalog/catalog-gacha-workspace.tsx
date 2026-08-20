@@ -24,7 +24,6 @@ import {
   type GachaCoreDraft,
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
-import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
 import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
 import { CatalogGachaQaGuaranteeManager } from "@/components/catalog/catalog-gacha-qa-guarantee-manager";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
@@ -57,6 +56,7 @@ type ViewState =
   | {
       kind: "gacha";
       gacha: AdminCatalogGacha;
+      currentVersion: AdminCatalogGachaVersion | null;
       publishedVersion: AdminCatalogGachaVersion | null;
       versions: AdminCatalogGachaVersion[];
       versionsNextCursor: string | null;
@@ -322,6 +322,7 @@ export function CatalogGachaWorkspace({
             : {
                 kind: "gacha",
                 gacha: result.data,
+                currentVersion: state.kind === "gacha" ? state.currentVersion : null,
                 publishedVersion: state.kind === "gacha" ? state.publishedVersion : null,
                 versions: state.kind === "gacha" ? state.versions : [],
                 versionsNextCursor:
@@ -394,7 +395,7 @@ export function CatalogGachaWorkspace({
           <div className="workspace">
             <CatalogBreadcrumb detail="基本情報を編集" section={section} />
             <AdminPageHeader
-              description="全基本項目を編集中データへ保存します。公開済み内容は変更しません。"
+              description="基本情報、Rank、景品をこの画面で管理します。"
               eyebrow="ガチャ管理"
               title="ガチャ編集"
             />
@@ -406,12 +407,21 @@ export function CatalogGachaWorkspace({
               />
             ) : null}
             {state.kind === "gacha" ? (
-              <CatalogGachaCoreForm
-                current={state.gacha}
-                mode="edit"
-                onCancel={() => router.push(`/catalog/gachas/${gachaIdentifier(state.gacha)}`)}
-                onSubmit={submitCore}
-              />
+              <>
+                <CatalogGachaCoreForm
+                  current={state.gacha}
+                  mode="edit"
+                  onCancel={() => router.push(`/catalog/gachas/${gachaIdentifier(state.gacha)}`)}
+                  onSubmit={submitCore}
+                />
+                <CatalogGachaRankPrizeManager
+                  canManage={canManage}
+                  gachaId={gachaIdentifier(state.gacha)}
+                  heading="Rank"
+                  presentationOnly={state.gacha.first_published_at !== null}
+                  version={state.currentVersion}
+                />
+              </>
             ) : null}
             {mutationError ? (
               <CatalogApiErrorBoundary
@@ -551,11 +561,7 @@ export function CatalogGachaWorkspace({
             />
           ) : null}
           {state.kind === "version" ? (
-            <VersionDetail
-              gachaId={gachaIdentifier(state.gacha)}
-              onCanonical={(version) => setState({ ...state, version })}
-              version={state.version}
-            />
+            <VersionDetail version={state.version} />
           ) : null}
           {formMode === "create-version" || formMode === "edit-version" ? (
             <CatalogGachaVersionForm
@@ -899,15 +905,7 @@ function dailyLimitLabel(limit?: number): string {
   return limit === undefined ? "未設定" : limit === 0 ? "無制限" : `${limit.toLocaleString()}回`;
 }
 
-function VersionDetail({
-  gachaId,
-  onCanonical,
-  version,
-}: {
-  gachaId: string;
-  onCanonical: (version: AdminCatalogGachaVersion) => void;
-  version: AdminCatalogGachaVersion;
-}) {
+function VersionDetail({ version }: { version: AdminCatalogGachaVersion }) {
   return (
     <div className="catalog-gacha-version-layout">
       <section className="catalog-detail catalog-gacha-detail">
@@ -927,14 +925,6 @@ function VersionDetail({
             value={version.presentation_asset?.alt_text ?? "未設定"}
           />
           <Detail
-            label="抽選確率"
-            value={
-              version.published_probability_version
-                ? `v${version.published_probability_version.version_number}（選択済み）`
-                : "未設定"
-            }
-          />
-          <Detail
             label="景品"
             value={version.prizes
               .map(
@@ -945,18 +935,7 @@ function VersionDetail({
           />
           <Detail label="リビジョン" value={String(version.revision)} />
         </dl>
-        <Link
-          className="secondary-button catalog-probability-link"
-          href={`/catalog/gachas/${gachaId}/versions/${version.id}/probability-versions`}
-        >
-          抽選確率を編集
-        </Link>
       </section>
-      <GachaPublishPreflightPanel
-        gachaId={gachaId}
-        onCanonical={onCanonical}
-        version={version}
-      />
     </div>
   );
 }
@@ -1009,6 +988,9 @@ async function loadState(
     },
     signal,
   );
+  const currentVersion = gacha.current_version
+    ? (await client.getCatalogGachaVersion(gachaId, gacha.current_version.id, signal)).data
+    : null;
   const publishedVersion = gacha.published_version
     ? (await client.getCatalogGachaVersion(
         gachaId,
@@ -1019,6 +1001,7 @@ async function loadState(
   return {
     kind: "gacha",
     gacha,
+    currentVersion,
     publishedVersion,
     versions: versions.items,
     versionsNextCursor: versions.next_cursor,

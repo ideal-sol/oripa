@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CatalogGachaCoreForm } from "@/components/catalog/catalog-gacha-forms";
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminCatalogGacha } from "@/lib/admin-api/generated";
 
 const CATEGORY_ID = "01910191-0191-7191-8191-019101910191";
@@ -50,7 +50,7 @@ describe("Gacha lifecycle editing", () => {
     renderForm(gacha("published", "2026-08-01T00:00:00Z"));
 
     await screen.findByRole("option", { name: "Category A" });
-    expect(screen.getByLabelText("カテゴリ")).toBeDisabled();
+    expect(screen.getByLabelText("カテゴリ")).toBeEnabled();
     expect(screen.getByLabelText("消費ポイント")).toBeDisabled();
     expect(screen.getByLabelText("総口数")).toBeDisabled();
     expect(screen.getByLabelText(/1日規定回数/u)).toBeDisabled();
@@ -67,13 +67,19 @@ describe("Gacha lifecycle editing", () => {
     const { unmount } = renderForm(gacha("scheduled", "2099-08-01T00:00:00Z"));
 
     await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByLabelText("カテゴリ")).toBeEnabled();
+    expect(screen.getByLabelText("消費ポイント")).toBeEnabled();
+    expect(screen.getByLabelText(/1日規定回数/u)).toBeEnabled();
     expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled();
     expect(screen.getByRole("option", { name: "予約取消（下書きへ戻す）" }))
       .toBeVisible();
     expect(screen.queryByRole("option", { name: "販売停止" })).not.toBeInTheDocument();
 
     unmount();
-    renderForm(gacha("scheduled", "2020-08-01T00:00:00Z"));
+    renderForm({
+      ...gacha("scheduled", "2020-08-01T00:00:00Z"),
+      first_published_at: "2020-08-01T00:00:00Z",
+    });
     await screen.findByRole("option", { name: "Category A" });
     expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeDisabled();
     expect(screen.queryByRole("option", { name: "予約取消（下書きへ戻す）" }))
@@ -90,6 +96,45 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getAllByRole("option", { name: "非公開" })).toHaveLength(1);
     expect(screen.queryByRole("option", { name: "公開" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "予約公開" })).not.toBeInTheDocument();
+  });
+
+  it("keeps every core field editable for a Draft", async () => {
+    renderForm(gacha("draft", "2026-08-01T00:00:00Z"));
+
+    await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByLabelText("カテゴリ")).toBeEnabled();
+    expect(screen.getByLabelText("消費ポイント")).toBeEnabled();
+    expect(screen.getByLabelText("総口数")).toBeEnabled();
+    expect(screen.getByLabelText(/1日規定回数/u)).toBeEnabled();
+    expect(screen.getByLabelText("会員ランク")).toBeEnabled();
+    expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "5回" })).toBeEnabled();
+  });
+
+  it("shows mapped publish errors without Request ID or internal code", async () => {
+    const submit = vi.fn().mockRejectedValue(new AdminApiError(
+      422,
+      "CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT",
+      "01910191-0191-7191-8191-019101910199",
+      null,
+      false,
+    ));
+    render(
+      <CatalogGachaCoreForm
+        current={gacha("published", "2026-08-01T00:00:00Z")}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/公開に必要な景品が不足/u)).toBeVisible();
+    expect(screen.queryByText(/Request ID/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT")).not.toBeInTheDocument();
   });
 });
 
@@ -138,7 +183,7 @@ function gacha(
       total_count: 100,
       version_number: 1,
     },
-    first_published_at: publishStartAt,
+    first_published_at: publicationStatus === "published" ? publishStartAt : null,
     has_draw_history: false,
     id: "01910191-0191-7191-8191-019101910195",
     is_archived: false,

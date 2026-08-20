@@ -8765,3 +8765,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - stable Problem Codeとして入力不足、景品不足、Lifecycle不正、Inventory／capacity不整合、内部publish failureを分離した。既存Probability tables／API／Published Version／snapshot／Draw結果／Inventory／Ledger／Audit履歴は削除・更新せず、Public／Admin OpenAPI、generated Contract、Storefront、Admin UI、Point／Payment／Refundは変更していない。
 - 新規Migration `2026_09_14_000059_internalize_v2_canonical_probability_publish.php`はMIG-067 schedule guardへ予約中の内部Canonical Draftだけを加算許可し、processing中のVersion publish時だけpin済みProbability選択を許可する。既存Migration改変、trigger disable、historical data rewriteは0。Task専用PostgreSQLへ全59 migrationsを通常applyし、`000059` rollback／reapplyをPASSした。Shared Preview／Productionへは適用していない。
 - Focused Catalog 56 tests／745 assertions、追加Worker retryとactive Schedule rollback拒否を含むLifecycle 6 tests／148 assertions、Policy Unit 152、OpenAPI Unit 7、OpenAPI 3-surface bundle check、変更PHP syntax、`git diff --check`をPASSした。既存test imageに`.env`がないwarningのみでFAILは0。`migrate:fresh`を内包する既存fork concurrency classは禁止に従いlocal未実行とし、Required Checks／fresh fixed-head self-review／merge／cleanupはFinal Head固定後に継続する。
+
+## MIG-069 Canonical Gacha Admin UI Integration
+
+- Cleanな`main = origin/main@4d3eb24ec5450088bd2df6b8cfe1bc1b06173ddd`、Issue `#338`、Branch `fix/MIG-069-canonical-gacha-admin-ui`、専用Worktree、Risk `R3`で開始した。Migration Allocation／Platform Integration／Artifact Release／Preview Deployment Lockは取得していない。
+- ガチャ編集画面は基本情報フォーム、Rank、景品の順へ統合し、MIG-067の公開後WhitelistをUIで維持する。Probability／Preflightの通常導線は非表示化するが、Legacy API／compatibility codeは削除しない。
+- 景品の総在庫入力は総口数から他景品と当該フォーム値を一度ずつ差し引いた残りを表示し、負値はUI保存を拒否する。Backendのcapacity制約、正規在庫補正、audit semanticsは変更しない。
+- 保存済み景品Previewはcanonical `presentation_asset_id`を使用し、public pathがない場合も既存の認証済みcontent endpointで表示する。Asset複製・新規Asset作成は0件である。
