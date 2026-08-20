@@ -11,7 +11,7 @@ final class RunV2GachaScheduledPublishWorker extends Command
         {--worker= : Stable non-secret worker identity}
         {--limit= : Maximum schedules to claim once}';
 
-    protected $description = 'Compatibility no-op; scheduled publication is time-evaluated';
+    protected $description = 'Activate due V2 Gacha Publish Schedules';
 
     public function handle(V2ScheduledGachaPublishWorker $worker): int
     {

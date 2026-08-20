@@ -192,6 +192,20 @@ class PolicyGateTest(unittest.TestCase):
         self.assertNotIn("DISABLE TRIGGER", migration)
         self.assertNotIn("DELETE FROM catalog_ranks", migration)
 
+    def test_mig_067_gacha_lifecycle_inventory_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
+        }
+        self.assertEqual(policy_gate.MIG_067_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("Scheduled Gacha must remain unpublished before start", migration)
+        self.assertIn("Aggregate Gacha Prize inventory cannot exceed total count", migration)
+        self.assertIn("DEFERRABLE INITIALLY DEFERRED", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -1140,6 +1154,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
             "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+            "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1445,10 +1460,10 @@ python3 scripts/db/v2_database.py smoke \\
             )
             worker.write_text(
                 worker.read_text(encoding="utf-8")
-                + "\n<?php DB::table('catalog_gachas')->update([]);\n",
+                + "\n<?php DB::table('catalog_gachas')->forceDelete();\n",
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited DB::"):
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited forceDelete"):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
 
     def test_v2_catalog_tenant_id_fails(self):
