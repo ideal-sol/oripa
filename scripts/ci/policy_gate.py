@@ -15,7 +15,7 @@ from typing import Iterable
 
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
-TASK_ID = re.compile(r"^[A-Z]+-[0-9]+[A-Z]?$")
+TASK_ID = re.compile(r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+)$")
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
     r"(?:/[A-Za-z0-9_.-]+)*"

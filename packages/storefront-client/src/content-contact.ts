@@ -13,6 +13,13 @@ export interface ContentListQuery {
 
 export interface ContactSubmissionOptions {
   csrf_token: string;
+  signal?: AbortSignal;
+  timeout_ms?: number;
+}
+
+export interface BrowserContactSubmissionOptions {
+  signal?: AbortSignal;
+  timeout_ms?: number;
 }
 
 export interface StorefrontContentContactClient {
@@ -30,6 +37,24 @@ export interface StorefrontContentContactClient {
   submitContact(
     input: Schemas["CreateContactInquiryRequest"],
     options: ContactSubmissionOptions,
+  ): Promise<StorefrontResponse<Schemas["ContactInquiryReceipt"]>>;
+}
+
+export interface BrowserStorefrontContentContactClient {
+  listBanners(): Promise<StorefrontResponse<Schemas["ContentBannerCollection"]>>;
+  listNotices(
+    query?: ContentListQuery,
+  ): Promise<StorefrontResponse<Schemas["ContentNoticeCollection"]>>;
+  getNotice(id: string): Promise<StorefrontResponse<Schemas["ContentNotice"]>>;
+  getStaticPage(
+    slug: string,
+  ): Promise<StorefrontResponse<Schemas["ContentStaticPage"]>>;
+  listFooterPages(): Promise<
+    StorefrontResponse<Schemas["ContentFooterPageCollection"]>
+  >;
+  submitContact(
+    input: Schemas["CreateContactInquiryRequest"],
+    options?: BrowserContactSubmissionOptions,
   ): Promise<StorefrontResponse<Schemas["ContactInquiryReceipt"]>>;
 }
 
@@ -86,6 +111,39 @@ export function createStorefrontContentContactClient(
         body: input,
         headers: csrf(options.csrf_token),
         csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
+      }),
+  };
+}
+
+export function createCsrfManagedStorefrontContentContactClient(
+  transport: StorefrontTransport,
+): BrowserStorefrontContentContactClient {
+  return {
+    listBanners: () => transport.request({ path: "/content/banners" }),
+    listNotices: (query = {}) =>
+      transport.request({ path: `/content/notices${queryString(query)}` }),
+    getNotice: (id) =>
+      transport.request({
+        path: `/content/notices/${segment(id, "notice_id")}`,
+      }),
+    getStaticPage: (slug) =>
+      transport.request({
+        path: `/content/pages/${segment(slug, "slug")}`,
+      }),
+    listFooterPages: () =>
+      transport.request({ path: "/content/footer-pages" }),
+    submitContact: (input, options = {}) =>
+      transport.request({
+        path: "/contact-inquiries",
+        method: "POST",
+        body: input,
+        csrf: "required",
+        signal: options.signal,
+        timeout_ms: options.timeout_ms,
+        retry: false,
       }),
   };
 }

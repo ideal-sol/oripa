@@ -641,6 +641,36 @@ class PolicyGateTest(unittest.TestCase):
         policy_gate.validate_workflow_text("fixture.yml", data["workflow"])
         policy_gate.validate_dangerous_paths(data["tracked_paths"])
 
+    def test_contract_lane_task_id_with_multiple_segments_passes(self):
+        data = fixture("positive.json")
+        body = data["pr_body"].replace("GOV-008", "STORE-SITE-034")
+        policy_gate.validate_pr_body(
+            body,
+            "[STORE-SITE-034] Browser-safe Contact Client Contract",
+            data["changed_paths"],
+            data["base_sha"],
+        )
+
+    def test_existing_task_id_pattern_remains_accepted(self):
+        self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("GOV-008"))
+        self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("MIG-063B"))
+
+    def test_malformed_store_site_task_ids_are_rejected(self):
+        for task_id in (
+            "STORE-SITE",
+            "STORE-SITE-",
+            "STORE-SITE-ABC",
+            "STORE-SITE-034A",
+            "STORE-SITE--034",
+        ):
+            with self.subTest(task_id=task_id):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(task_id))
+
+    def test_unrelated_store_task_ids_are_rejected(self):
+        for task_id in ("STORE-CONTACT-034", "STORE-OTHER-034", "STORE-034-EXTRA"):
+            with self.subTest(task_id=task_id):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(task_id))
+
     def test_pull_request_scope_sections_stop_at_the_next_heading(self):
         data = fixture("positive.json")
         body = (

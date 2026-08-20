@@ -20,6 +20,8 @@ OwnerはPlatform Codex。親[`AGENTS.md`](../AGENTS.md)に従う。
 - Public-safeなSite Manifest、Compatibility、Response Metadata Fixture
 - Browser／Server／Public Surface／Site CompatibilityのBoundary Assertion
 - Anonymous／Authenticated Session、Pending Registration、Accepted ResponseのAuth Fixture
+- Contact input／202 Receipt／Validation／429のPublic-safe Fixture
+- Anonymous first submit／Authenticated submit／CSRF bootstrap／typed transport error検証
 
 認証Fixtureは実Credential、Cookie、Token、PIIを含めず、Public OpenAPIの型に
 compile-timeで適合する。架空Endpointや認証判断は提供しない。
@@ -66,8 +68,9 @@ pnpm testkit:network:check
 
 Unit TestはMockの決定性、Queue、Problem Details、Network Error、Abort／Timeout、
 Browser Credentials／Version Header、Authorization非付与、Server GET／HEAD、
-Public Surface、Site Schema／Compatibility、Export Surfaceを明示的にAssertion
-する。
+Public Surface、Site Schema／Compatibility、Export Surfaceに加え、Contactの匿名初回
+送信、認証済み送信、CSRF bootstrap、HTTP 202、Validation、429、自動再送なしを明示的に
+Assertionする。
 
 ## Allowed Scope
 

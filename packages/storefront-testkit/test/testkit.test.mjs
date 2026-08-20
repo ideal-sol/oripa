@@ -5,6 +5,7 @@ import {
   ApiProblemError,
   StorefrontTransportError,
   createBrowserStorefrontClient,
+  createBrowserStorefrontContentContactClient,
 } from "@oripa/storefront-client/browser";
 import {
   createServerStorefrontClient,
@@ -19,6 +20,8 @@ import {
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
   PUBLIC_AUTH_FIXTURE,
+  PUBLIC_CONTACT_FIXTURE,
+  PUBLIC_CONTACT_PROBLEM_FIXTURES,
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
   PUBLIC_GACHA_PRESENTATION_FIXTURE,
@@ -318,6 +321,111 @@ test("Identity Recovery FixtureはToken、Code、Full PIIを公開しない", ()
     /"(?:password|token|verification_code|full_email|full_phone|secret)"\s*:/i,
   );
   assert.doesNotMatch(serialized, /@[a-z0-9.-]+|\+819[0-9]{9}/i);
+});
+
+function browserContactClient(mock, authenticated, csrf = "a".repeat(64)) {
+  mock.enqueueJson(
+    { method: "GET", url: "/api/v2/auth/session" },
+    {
+      body: authenticated
+        ? PUBLIC_AUTH_FIXTURE.authenticated_session
+        : PUBLIC_AUTH_FIXTURE.anonymous_session,
+    },
+  );
+  return createBrowserStorefrontContentContactClient({
+    base_url: "/api/v2",
+    site_version: SITE_VERSION,
+    client_version: CLIENT_VERSION,
+    default_timeout_ms: 500,
+    fetch: mock.fetch,
+    cookie_reader: () => csrf,
+  });
+}
+
+test("Contact Testkitはanonymous first submit／bootstrap／202を固定する", async () => {
+  const mock = createMockFetch();
+  const client = browserContactClient(mock, false);
+  mock.enqueueJson(
+    { method: "POST", url: "/api/v2/contact-inquiries" },
+    {
+      body: PUBLIC_CONTACT_FIXTURE.receipt,
+      status: 202,
+      headers: { "X-Request-Id": PUBLIC_CONTACT_FIXTURE.receipt.request_id },
+    },
+  );
+  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input);
+
+  assert.equal(response.metadata.status, 202);
+  assert.deepEqual(response.data, PUBLIC_CONTACT_FIXTURE.receipt);
+  assert.deepEqual(mock.requests.map(({ method, url }) => ({ method, url })), [
+    { method: "GET", url: "/api/v2/auth/session" },
+    { method: "POST", url: "/api/v2/contact-inquiries" },
+  ]);
+  assert.equal(mock.requests[1].headers["x-xsrf-token"], "a".repeat(64));
+  assert.equal(mock.requests[1].headers["idempotency-key"], undefined);
+  assert.deepEqual(JSON.parse(mock.requests[1].body), PUBLIC_CONTACT_FIXTURE.input);
+  assertBrowserRequestBoundary(mock.requests[1], {
+    client_version: CLIENT_VERSION,
+    site_version: SITE_VERSION,
+  });
+  mock.assertExhausted();
+});
+
+test("Contact Testkitはauthenticated submitを同じBrowser境界で固定する", async () => {
+  const mock = createMockFetch();
+  const client = browserContactClient(mock, true, "b".repeat(64));
+  mock.enqueueJson(
+    { method: "POST", url: "/api/v2/contact-inquiries" },
+    { body: PUBLIC_CONTACT_FIXTURE.receipt, status: 202 },
+  );
+  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input);
+
+  assert.equal(response.data.status, "accepted");
+  assert.equal(mock.requests[1].headers["x-xsrf-token"], "b".repeat(64));
+  assert.equal(mock.requests.every(({ credentials }) => credentials === "include"), true);
+  mock.assertExhausted();
+});
+
+test("Contact Testkitはvalidation Problem Detailsと429をtyped errorへ変換する", async () => {
+  for (const problem of Object.values(PUBLIC_CONTACT_PROBLEM_FIXTURES)) {
+    const mock = createMockFetch();
+    const client = browserContactClient(mock, false);
+    mock.enqueueProblem(
+      { method: "POST", url: "/api/v2/contact-inquiries" },
+      problem,
+    );
+    await assert.rejects(
+      client.submitContact(PUBLIC_CONTACT_FIXTURE.input),
+      (error) => {
+        assertProblemDetails(error);
+        assert.equal(error.code, problem.code);
+        assert.equal(error.status, problem.status);
+        if (problem.status === 422) {
+          assert.deepEqual(error.errors, problem.errors);
+        }
+        if (problem.status === 429) {
+          assert.equal(error.retry_after_seconds, 3600);
+        }
+        return true;
+      },
+    );
+    assert.equal(mock.requests.length, 2);
+    mock.assertExhausted();
+  }
+});
+
+test("Contact Testkitはtransport errorをtyped errorへ変換し再送しない", async () => {
+  const mock = createMockFetch();
+  const client = browserContactClient(mock, true);
+  mock.enqueueNetworkError({ method: "POST", url: "/api/v2/contact-inquiries" });
+  await assert.rejects(
+    client.submitContact(PUBLIC_CONTACT_FIXTURE.input),
+    (error) =>
+      error instanceof StorefrontTransportError
+      && error.code === "NETWORK_ERROR",
+  );
+  assert.equal(mock.requests.length, 2);
+  mock.assertExhausted();
 });
 
 const SITE_VERSION = "1.0.0-alpha.1";
@@ -778,6 +886,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PLATFORM_COMPATIBILITY_FIXTURE",
     "PUBLIC_AUTH_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
+    "PUBLIC_CONTACT_FIXTURE",
+    "PUBLIC_CONTACT_PROBLEM_FIXTURES",
     "PUBLIC_CONTENT_FIXTURE",
     "PUBLIC_CONTRACT_FIXTURE",
     "PUBLIC_DRAW_FIXTURE",

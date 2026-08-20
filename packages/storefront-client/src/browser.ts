@@ -24,6 +24,10 @@ import {
   createCsrfManagedStorefrontPrizeShippingClient,
   type BrowserStorefrontPrizeShippingClient,
 } from "./prize-shipping.js";
+import {
+  createCsrfManagedStorefrontContentContactClient,
+  type BrowserStorefrontContentContactClient,
+} from "./content-contact.js";
 import type {
   BrowserStorefrontClientConfig,
   CsrfInitializer,
@@ -65,6 +69,10 @@ export type {
   BrowserStorefrontPrizeShippingClient,
   FulfillmentMutationRetrySemantics,
 } from "./prize-shipping.js";
+export type {
+  BrowserContactSubmissionOptions,
+  BrowserStorefrontContentContactClient,
+} from "./content-contact.js";
 
 function readDocumentCookie(name: string): string | undefined {
   if (typeof document === "undefined") {
@@ -151,6 +159,14 @@ export function createBrowserStorefrontPrizeShippingClient(
   configuration: BrowserStorefrontClientConfig,
 ): BrowserStorefrontPrizeShippingClient {
   return createCsrfManagedStorefrontPrizeShippingClient(
+    createBrowserStorefrontClient(configuration),
+  );
+}
+
+export function createBrowserStorefrontContentContactClient(
+  configuration: BrowserStorefrontClientConfig,
+): BrowserStorefrontContentContactClient {
+  return createCsrfManagedStorefrontContentContactClient(
     createBrowserStorefrontClient(configuration),
   );
 }

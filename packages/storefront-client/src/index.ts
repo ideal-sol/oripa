@@ -33,6 +33,7 @@ export {
 } from "./prize-shipping.js";
 export {
   createStorefrontContentContactClient,
+  createCsrfManagedStorefrontContentContactClient,
 } from "./content-contact.js";
 export {
   createStorefrontIdentityClient,
@@ -68,6 +69,8 @@ export type {
   StorefrontPrizeShippingClient,
 } from "./prize-shipping.js";
 export type {
+  BrowserContactSubmissionOptions,
+  BrowserStorefrontContentContactClient,
   ContactSubmissionOptions,
   ContentListQuery,
   StorefrontContentContactClient,

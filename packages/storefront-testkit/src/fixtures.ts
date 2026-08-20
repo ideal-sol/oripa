@@ -148,6 +148,52 @@ export const PUBLIC_TOP_BANNERS_FIXTURE = Object.freeze({
   };
 });
 
+export const PUBLIC_CONTACT_FIXTURE = Object.freeze({
+  input: {
+    name: "Fixture User",
+    email: "fixture@example.test",
+    phone: null,
+    subject: "Fixture inquiry",
+    body: "Public-safe fixture body.",
+    website: "",
+  },
+  receipt: {
+    receipt_code: "CNT-0123456789ABCDEFGHIJ",
+    status: "accepted",
+    received_at: "2026-08-20T00:00:00Z",
+    request_id: "request-contact-receipt-001",
+  },
+} as const satisfies {
+  input: PublicComponents["schemas"]["CreateContactInquiryRequest"];
+  receipt: PublicComponents["schemas"]["ContactInquiryReceipt"];
+});
+
+export const PUBLIC_CONTACT_PROBLEM_FIXTURES = Object.freeze({
+  validation: {
+    type: "https://oripa.example/problems/invalid-request",
+    title: "The request is invalid.",
+    status: 422,
+    code: "INVALID_REQUEST",
+    request_id: "request-contact-validation-001",
+    retryable: false,
+    errors: {
+      email: ["The email field must be a valid email address."],
+    },
+  },
+  rate_limited: {
+    type: "https://oripa.example/problems/rate-limited",
+    title: "Too many requests.",
+    status: 429,
+    code: "RATE_LIMITED",
+    request_id: "request-contact-rate-001",
+    retryable: true,
+    retry_after_seconds: 3600,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["ProblemDetails"]
+>);
+
 const allUsersPointProduct = {
   id: "0198a001-0000-7000-8000-000000000321",
   title: "スタンダード1000ポイント",
