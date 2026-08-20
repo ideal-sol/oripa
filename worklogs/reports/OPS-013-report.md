@@ -39,8 +39,30 @@
 
 - Retain `oripa-v2-admin:preview-OPS-009-d8374dc91824`. Rollback is Admin-only recreate with the unchanged Compose/network configuration; no API, PostgreSQL, Redis, migration, database, Asset, or egress operation is required.
 
+## Activation
+
+- Activation evidence head `c0cc47fbaab37ff97df1c8a685277a909f5f4ddc` passed all five Required Checks and fresh fixed-head self-review `#issuecomment-5354341728` before Runtime mutation.
+- OPS-013 acquired only the Preview Deployment Lock. Migration Allocation, Platform Integration, and Artifact Release Locks were not acquired.
+- The already-loaded OPS-012 Admin image was re-verified and reused. No artifact download, image load, Preview-host build, GitHub image build dispatch, or image generation occurred under OPS-013.
+- Canonical Compose used the existing environment sources, retained OPS-009 network/fixed Admin configuration, retained exact OPS-012 API override, and exact OPS-013 Admin image override.
+- Only Admin was recreated with `--force-recreate --no-build --no-deps admin`.
+- Active Admin is `oripa-v2-admin:preview-OPS-012-8c14b513393f`, image ID `sha256:d7d028c1f3f4ab9d8362c87e0d131edae7f3e16c17704af6440b2531728d3109`, OCI revision `8c14b513393f4cecea70a1516b2ebc2624944450`, container `9fda202bd6957d75bedbe8448d03ea8b58fea10e260edaed369f39f593a2f58f`.
+
+## Runtime Verification
+
+- Admin Docker health and internal `/api/health` returned healthy/200. API Docker health and loopback `/api/health` returned 200 with Application, PostgreSQL, Redis, and storage all `ok`.
+- An attempted Admin host-loopback request to default port `3611` returned curl exit `7`; the Runtime intentionally publishes no Admin host port. The internal health probe is PASS and the unreachable host probe confirms the private-only boundary rather than a health defect.
+- API container `b45a77e01564ae0ae1ad4b17a96316484697aea79a790e4914a9f3ebd97f5fd0` / start `2026-08-20T09:01:44.933731056Z`, PostgreSQL `9fed3dbad313b85c4ddafa0f4767fe3059a3cd47de511d7e45fd5664c15f892` / `2026-08-12T01:25:13.299493406Z`, and Redis `8bb6e8c4eacc9e7ff1d2647bf7c285fb314e4dd1a729ab45c8903c7a2ef0a334` / `2026-08-12T01:25:14.413361412Z` are unchanged.
+- `mig061a-v2-preview_v2_private` remains `internal:true` with API, Admin, PostgreSQL, and Redis. Only API joins non-internal `mig061a-v2-preview_v2_api_egress` at `192.168.62.0/28`.
+- Source readback confirms Rank image/video `rank-effects` pickers and their canonical `image_asset_id` / `video_asset_id`, Gacha Prize `CatalogBannerAssetPicker` and hidden `presentation_asset_id`, and `CatalogSectionNavigation` returning `null`.
+- Stopped-container bundle readback found `ランク画像`, `抽選演出動画`, `Banner Category`, and Banner-to-existing-Presentation-Asset text in both server and static JavaScript chunks. The removed `catalog-tabs` class has zero JavaScript bundle matches. The temporary readback container was removed.
+- Activation-window Admin, API, and Nginx HTTP 500/502/504 counts are all zero.
+- Browser/E2E and real Admin operations were not executed. Final UI operation remains human-side as requested.
+- New image builds, migrations created/applied, database/Asset mutations, Contract changes, Artifact publication, Storefront, Production, and Task ⑤ changes are all zero.
+- Preview Deployment Lock was released after Runtime verification.
+
 ## Current State
 
-- Preflight and exact Admin source/image verification: PASS.
-- Issue, branch, dedicated worktree, Draft PR `#331`, Task Policy, and initial evidence: created.
-- Activation-head checks/self-review, Preview Deployment Lock, Runtime activation, final checks/self-review, merge, Issue closure, and cleanup: pending.
+- Preflight, exact Admin source/image verification, activation-head checks/self-review, Admin-only Runtime activation, read-only Runtime/bundle verification, and Preview Deployment Lock release: PASS.
+- Issue, branch, dedicated worktree, Draft PR `#331`, Task Policy, initial evidence, and Runtime evidence: created.
+- Final checks/self-review, merge, Issue closure, and branch/worktree/task-resource cleanup: pending.
