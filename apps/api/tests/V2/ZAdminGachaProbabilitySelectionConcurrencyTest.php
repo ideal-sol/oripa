@@ -384,6 +384,22 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                         ->value('id'))
                     ->count()
             );
+            $probabilityIds = DB::table('catalog_probability_versions')
+                ->where('gacha_version_id', $version->id)
+                ->pluck('id');
+            self::assertCount(1, $probabilityIds);
+            self::assertSame(
+                (int) $probabilityIds->first(),
+                (int) DB::table('catalog_gacha_versions')
+                    ->where('id', $version->id)
+                    ->value('published_probability_version_id')
+            );
+            self::assertSame(
+                (int) $probabilityIds->first(),
+                (int) DB::table('gacha_draw_states')
+                    ->where('id', $gacha->active_draw_state_id)
+                    ->value('probability_version_id')
+            );
             self::assertSame(
                 1,
                 DB::table('outbox_messages')
@@ -781,7 +797,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                 'expected_version_revision' => 1,
             ]
         )['data'];
-        $prize = $service->createGachaDraftPrize(
+        $service->createGachaDraftPrize(
             $context,
             $core['id'],
             $versionId,
@@ -797,66 +813,13 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
                 'expected_version_revision' => 2,
             ]
         )['data'];
-        $probability = $service->createProbabilityDraft(
-            $context,
-            $core['id'],
-            $versionId,
-            'gacha-initial-publish-concurrency-probability',
-            []
-        )['data'];
-        $probability = $service->replaceProbabilityEntries(
-            $context,
-            $core['id'],
-            $versionId,
-            $probability['id'],
-            'gacha-initial-publish-concurrency-probability-entries',
-            [
-                'expected_revision' => $probability['revision'],
-                'stages' => [[
-                    'code' => 'default',
-                    'name' => 'Default',
-                    'min_draw_number' => 1,
-                    'max_draw_number' => null,
-                    'entries' => [[
-                        'result_type' => 'prize',
-                        'prize_id' => $prize['id'],
-                        'point_amount' => null,
-                        'probability_ppm' => 900_000,
-                    ]],
-                    'minimum_guarantee' => [
-                        'result_type' => 'prize',
-                        'prize_id' => $prize['id'],
-                        'point_amount' => null,
-                        'probability_ppm' => 100_000,
-                    ],
-                ]],
-            ]
-        )['data'];
-        $probability = $service->publishProbabilityDraft(
-            $context,
-            $core['id'],
-            $versionId,
-            $probability['id'],
-            'gacha-initial-publish-concurrency-probability-publish',
-            ['expected_revision' => $probability['revision']]
-        )['data'];
         $versionRevision = (int) DB::table('catalog_gacha_versions')
             ->where('public_id', $versionId)->value('revision');
-        $selected = $service->selectPublishedProbability(
-            $context,
-            $core['id'],
-            $versionId,
-            'gacha-initial-publish-concurrency-probability-select',
-            [
-                'expected_revision' => $versionRevision,
-                'probability_version_id' => $probability['id'],
-            ]
-        )['data'];
 
         return [
             'gacha_id' => (string) $core['id'],
             'version_id' => $versionId,
-            'version_revision' => (int) $selected['revision'],
+            'version_revision' => $versionRevision,
         ];
     }
 

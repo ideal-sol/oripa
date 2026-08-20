@@ -60,6 +60,39 @@ final class GachaLifecyclePresentationTest extends TestCase
             ->where('prize_id', DB::table('catalog_prizes')
                 ->where('public_id', $prepared['prize_id'])->value('id'))
             ->firstOrFail();
+        $probability = DB::table('catalog_probability_versions')
+            ->where('gacha_version_id', $versionSnapshot->id)
+            ->firstOrFail();
+        self::assertSame('published', $probability->status);
+        self::assertSame(
+            (int) $probability->id,
+            (int) $versionSnapshot->published_probability_version_id
+        );
+        self::assertSame(
+            (int) $probability->id,
+            (int) DB::table('gacha_draw_states')
+                ->where('id', $drawStateId)
+                ->value('probability_version_id')
+        );
+        self::assertDatabaseHas('catalog_probability_stages', [
+            'probability_version_id' => $probability->id,
+            'code' => '__canonical_inventory_v1',
+        ]);
+        $stageId = DB::table('catalog_probability_stages')
+            ->where('probability_version_id', $probability->id)
+            ->value('id');
+        self::assertSame(
+            1000000,
+            (int) DB::table('catalog_probability_entries')
+                ->where('probability_stage_id', $stageId)
+                ->sum('probability_ppm')
+        );
+        self::assertDatabaseHas('catalog_minimum_guarantees', [
+            'probability_stage_id' => $stageId,
+            'result_type' => 'point_back',
+            'point_amount' => 0,
+            'probability_ppm' => 0,
+        ]);
 
         $input = $prepared['input'];
         $input['title'] = '現在表示タイトル';
@@ -190,6 +223,7 @@ final class GachaLifecyclePresentationTest extends TestCase
         $stateCountBefore = DB::table('gacha_draw_states')->count();
         $inventoryCountBefore = DB::table('prize_inventories')->count();
         $idempotencyCountBefore = DB::table('idempotency_records')->count();
+        $probabilityCountBefore = DB::table('catalog_probability_versions')->count();
         DB::unprepared(<<<'SQL'
             CREATE FUNCTION v2_test_reject_initial_gacha_publish_outbox()
             RETURNS trigger
@@ -262,6 +296,90 @@ final class GachaLifecyclePresentationTest extends TestCase
             $idempotencyCountBefore,
             DB::table('idempotency_records')->count()
         );
+        self::assertSame(
+            $probabilityCountBefore,
+            DB::table('catalog_probability_versions')->count()
+        );
+    }
+
+    public function test_initial_publish_returns_stable_prize_and_internal_problem_codes(): void
+    {
+        $token = $this->createAdminSession();
+        $empty = $this->prepareGacha(
+            $token,
+            'lifecycle-empty-inventory',
+            $this->databaseNow()->subMinute()
+        );
+        $emptyVersionId = DB::table('catalog_gacha_versions')
+            ->where('public_id', $empty['version_id'])->value('id');
+        DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $emptyVersionId)
+            ->update(['initial_inventory' => 0]);
+        $emptyGachaRevision = (int) DB::table('catalog_gachas')
+            ->where('public_id', $empty['gacha_id'])->value('revision');
+        $this->mutate(
+            $token,
+            'POST',
+            $this->versionRoot($empty).'/publish',
+            [
+                'expected_revision' => $empty['version_revision'],
+                'expected_gacha_revision' => $emptyGachaRevision,
+            ],
+            'lifecycle-empty-inventory-publish'
+        )->assertUnprocessable()
+            ->assertJsonPath(
+                'code',
+                'CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT'
+            );
+
+        $prepared = $this->prepareGacha(
+            $token,
+            'lifecycle-internal-failure',
+            $this->databaseNow()->subMinute()
+        );
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION v2_test_reject_canonical_probability_insert()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RAISE EXCEPTION 'synthetic canonical Probability failure';
+            END;
+            $$
+        SQL);
+        DB::statement(
+            'CREATE TRIGGER v2_test_reject_canonical_probability_insert '.
+            'BEFORE INSERT ON catalog_probability_versions FOR EACH ROW '.
+            'EXECUTE FUNCTION v2_test_reject_canonical_probability_insert()'
+        );
+        try {
+            $gachaRevision = (int) DB::table('catalog_gachas')
+                ->where('public_id', $prepared['gacha_id'])->value('revision');
+            $this->mutate(
+                $token,
+                'POST',
+                $this->versionRoot($prepared).'/publish',
+                [
+                    'expected_revision' => $prepared['version_revision'],
+                    'expected_gacha_revision' => $gachaRevision,
+                ],
+                'lifecycle-internal-failure-publish'
+            )->assertStatus(500)
+                ->assertJsonPath(
+                    'code',
+                    'CATALOG_GACHA_PUBLISH_INTERNAL_FAILURE'
+                );
+        } finally {
+            DB::statement(
+                'DROP TRIGGER IF EXISTS '.
+                'v2_test_reject_canonical_probability_insert '.
+                'ON catalog_probability_versions'
+            );
+            DB::statement(
+                'DROP FUNCTION IF EXISTS '.
+                'v2_test_reject_canonical_probability_insert()'
+            );
+        }
     }
 
     public function test_initial_schedule_can_be_changed_and_cancelled_before_start(): void
@@ -285,6 +403,11 @@ final class GachaLifecyclePresentationTest extends TestCase
             'public_id' => $prepared['version_id'],
             'status' => 'draft',
             'published_at' => null,
+            'published_probability_version_id' => null,
+        ]);
+        self::assertDatabaseHas('catalog_probability_versions', [
+            'public_id' => $scheduled['selected_probability']['id'],
+            'status' => 'draft',
         ]);
 
         $changedStart = $this->databaseNow()->addHours(2);
@@ -310,6 +433,12 @@ final class GachaLifecyclePresentationTest extends TestCase
         $revisedSchedule = DB::table('catalog_gacha_publish_schedules')
             ->where('public_id', $scheduled['id'])->firstOrFail();
         self::assertSame('scheduled', $revisedSchedule->status);
+        self::assertSame(
+            $scheduled['selected_probability']['id'],
+            DB::table('catalog_probability_versions')
+                ->where('id', $revisedSchedule->probability_version_id)
+                ->value('public_id')
+        );
         self::assertSame(
             $changedStart->utc()->toIso8601ZuluString(),
             CarbonImmutable::parse((string) $revisedSchedule->scheduled_for)
@@ -346,7 +475,18 @@ final class GachaLifecyclePresentationTest extends TestCase
             'lifecycle-clock',
             $this->databaseNow()->addSeconds(2)
         );
-        $this->schedule($token, $prepared, 'lifecycle-clock-schedule');
+        $scheduled = $this->schedule(
+            $token,
+            $prepared,
+            'lifecycle-clock-schedule'
+        );
+        $probabilityId = (int) DB::table('catalog_probability_versions')
+            ->where('public_id', $scheduled['selected_probability']['id'])
+            ->value('id');
+        self::assertDatabaseHas('catalog_probability_versions', [
+            'id' => $probabilityId,
+            'status' => 'draft',
+        ]);
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
         self::assertSame(
@@ -374,6 +514,22 @@ final class GachaLifecyclePresentationTest extends TestCase
             'gacha_id' => $scheduledGacha->id,
             'status' => 'completed',
         ]);
+        $publishedVersion = DB::table('catalog_gacha_versions')
+            ->where('public_id', $prepared['version_id'])->firstOrFail();
+        self::assertSame(
+            $probabilityId,
+            (int) $publishedVersion->published_probability_version_id
+        );
+        self::assertDatabaseHas('catalog_probability_versions', [
+            'id' => $probabilityId,
+            'status' => 'published',
+        ]);
+        self::assertSame(
+            1,
+            DB::table('catalog_probability_versions')
+                ->where('gacha_version_id', $publishedVersion->id)
+                ->count()
+        );
         $drawStateId = (int) $scheduledGacha->active_draw_state_id;
         $currentStart = (string) $scheduledGacha->current_publish_start_at;
 
@@ -422,6 +578,94 @@ final class GachaLifecyclePresentationTest extends TestCase
             CarbonImmutable::parse($currentStart)->utc()->toIso8601ZuluString(),
             CarbonImmutable::parse((string) $paused->current_publish_start_at)
                 ->utc()->toIso8601ZuluString()
+        );
+    }
+
+    public function test_due_worker_retries_internal_publish_without_duplicate_metadata(): void
+    {
+        config(['v2_catalog.scheduled_publish.retry_base_seconds' => 1]);
+        $token = $this->createAdminSession();
+        $prepared = $this->prepareGacha(
+            $token,
+            'lifecycle-worker-retry',
+            $this->databaseNow()->addSeconds(2)
+        );
+        $scheduled = $this->schedule(
+            $token,
+            $prepared,
+            'lifecycle-worker-retry-schedule'
+        );
+        $probabilityId = (int) DB::table('catalog_probability_versions')
+            ->where('public_id', $scheduled['selected_probability']['id'])
+            ->value('id');
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION v2_test_reject_canonical_probability_publish()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF NEW.status = 'published' THEN
+                    RAISE EXCEPTION 'synthetic canonical Probability publish failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+        SQL);
+        DB::statement(
+            'CREATE TRIGGER v2_test_reject_canonical_probability_publish '.
+            'BEFORE UPDATE ON catalog_probability_versions FOR EACH ROW '.
+            'EXECUTE FUNCTION v2_test_reject_canonical_probability_publish()'
+        );
+        sleep(3);
+        try {
+            self::assertSame(
+                1,
+                app(V2ScheduledGachaPublishWorker::class)
+                    ->run('lifecycle-retry-worker')
+            );
+        } finally {
+            DB::statement(
+                'DROP TRIGGER IF EXISTS '.
+                'v2_test_reject_canonical_probability_publish '.
+                'ON catalog_probability_versions'
+            );
+            DB::statement(
+                'DROP FUNCTION IF EXISTS '.
+                'v2_test_reject_canonical_probability_publish()'
+            );
+        }
+        self::assertDatabaseHas('catalog_gacha_publish_schedules', [
+            'public_id' => $scheduled['id'],
+            'status' => 'scheduled',
+            'attempts' => 1,
+            'failure_code' => null,
+        ]);
+        self::assertDatabaseHas('catalog_probability_versions', [
+            'id' => $probabilityId,
+            'status' => 'draft',
+        ]);
+        sleep(2);
+        self::assertSame(
+            1,
+            app(V2ScheduledGachaPublishWorker::class)
+                ->run('lifecycle-retry-worker')
+        );
+        self::assertDatabaseHas('catalog_gacha_publish_schedules', [
+            'public_id' => $scheduled['id'],
+            'status' => 'completed',
+            'attempts' => 2,
+        ]);
+        self::assertDatabaseHas('catalog_probability_versions', [
+            'id' => $probabilityId,
+            'status' => 'published',
+        ]);
+        $versionId = DB::table('catalog_gacha_versions')
+            ->where('public_id', $prepared['version_id'])->value('id');
+        self::assertSame(
+            1,
+            DB::table('catalog_probability_versions')
+                ->where('gacha_version_id', $versionId)
+                ->count()
         );
     }
 
@@ -474,66 +718,15 @@ final class GachaLifecyclePresentationTest extends TestCase
             'is_active' => true,
             'expected_version_revision' => 2,
         ], $slug.'-prize')->assertCreated()->json('data');
-        $probability = $this->mutate(
-            $token,
-            'POST',
-            $root.'/probability-versions',
-            [],
-            $slug.'-probability'
-        )->assertCreated()->json('data');
-        $saved = $this->mutate(
-            $token,
-            'PUT',
-            $root.'/probability-versions/'.$probability['id'].'/entries',
-            [
-                'expected_revision' => $probability['revision'],
-                'stages' => [[
-                    'code' => 'default',
-                    'name' => '通常',
-                    'min_draw_number' => 1,
-                    'max_draw_number' => null,
-                    'entries' => [[
-                        'result_type' => 'prize',
-                        'prize_id' => $prize['id'],
-                        'point_amount' => null,
-                        'probability_ppm' => 600_000,
-                    ]],
-                    'minimum_guarantee' => [
-                        'result_type' => 'prize',
-                        'prize_id' => $prize['id'],
-                        'point_amount' => null,
-                        'probability_ppm' => 400_000,
-                    ],
-                ]],
-            ],
-            $slug.'-probability-entries'
-        )->assertOk()->json('data');
-        $publishedProbability = $this->mutate(
-            $token,
-            'POST',
-            $root.'/probability-versions/'.$probability['id'].'/publish',
-            ['expected_revision' => $saved['revision']],
-            $slug.'-probability-publish'
-        )->assertOk()->json('data');
         $versionRevision = (int) DB::table('catalog_gacha_versions')
             ->where('public_id', $core['current_version']['id'])->value('revision');
-        $selected = $this->mutate(
-            $token,
-            'PUT',
-            $root.'/probability-selection',
-            [
-                'expected_revision' => $versionRevision,
-                'probability_version_id' => $publishedProbability['id'],
-            ],
-            $slug.'-probability-select'
-        )->assertOk()->json('data');
 
         return [
             'gacha_id' => $core['id'],
             'public_code' => $core['public_code'],
             'slug' => $core['slug'],
             'version_id' => $core['current_version']['id'],
-            'version_revision' => $selected['revision'],
+            'version_revision' => $versionRevision,
             'prize_id' => $prize['id'],
             'rank_id' => $rank['id'],
             'input' => $input,
@@ -556,6 +749,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             $preflight['publishable'],
             json_encode($preflight['blocking_reasons'], JSON_THROW_ON_ERROR)
         );
+        self::assertNull($preflight['selected_probability']);
 
         return $this->mutate(
             $token,
@@ -589,6 +783,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             $preflight['publishable'],
             json_encode($preflight['blocking_reasons'], JSON_THROW_ON_ERROR)
         );
+        self::assertNull($preflight['selected_probability']);
 
         return $this->mutate(
             $token,

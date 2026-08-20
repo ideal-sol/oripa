@@ -158,7 +158,8 @@ final class V2ScheduledGachaPublishWorker
             ) {
                 return;
             }
-            $permanent = $exception instanceof V2CatalogException;
+            $permanent = $exception instanceof V2CatalogException
+                && $exception->status < 500;
             $terminal = $permanent
                 || (int) $schedule->attempts >= $this->maximumAttempts();
             $failureCode = $this->failureCode($exception);

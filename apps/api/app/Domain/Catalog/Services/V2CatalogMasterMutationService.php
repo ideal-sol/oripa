@@ -22,6 +22,8 @@ use Normalizer;
 
 final class V2CatalogMasterMutationService
 {
+    private const CANONICAL_PROBABILITY_STAGE_CODE = '__canonical_inventory_v1';
+
     private const GACHA_SALES_PAUSE_REASONS = [
         'operations_review',
         'inventory_review',
@@ -1976,17 +1978,16 @@ final class V2CatalogMasterMutationService
                     $payload['scheduled_for']
                 );
                 if (! $preflight['publishable']) {
-                    throw $this->gachaScheduleException();
+                    throw $this->gachaPublishProblemException($preflight, true);
                 }
-                $probability = DB::table('catalog_probability_versions')
-                    ->where('id', $version->published_probability_version_id)
-                    ->lockForUpdate()
-                    ->first();
-                if (
-                    $probability === null
-                    || ! $this->publishedProbabilitySnapshotIsValid($probability)
-                ) {
-                    throw $this->gachaScheduleException();
+                try {
+                    $probability = $this->prepareCanonicalProbabilityMetadata(
+                        $version
+                    );
+                } catch (V2CatalogException $exception) {
+                    throw $exception;
+                } catch (\Throwable) {
+                    throw $this->canonicalProbabilityInternalException();
                 }
                 if (
                     DB::table('catalog_gacha_publish_schedules')
@@ -5590,10 +5591,20 @@ final class V2CatalogMasterMutationService
                 'The initial Publish Schedule can no longer be revised.'
             );
         }
+        try {
+            $probability = $this->prepareCanonicalProbabilityMetadata(
+                $version,
+                (int) $schedule->probability_version_id
+            );
+        } catch (V2CatalogException $exception) {
+            throw $exception;
+        } catch (\Throwable) {
+            throw $this->canonicalProbabilityInternalException();
+        }
         DB::table('catalog_gacha_publish_schedules')
             ->where('id', $schedule->id)->update([
                 'gacha_version_id' => $version->id,
-                'probability_version_id' => $version->published_probability_version_id,
+                'probability_version_id' => $probability->id,
                 'scheduled_for' => $effectiveStart->toIso8601String(),
                 'next_attempt_at' => $effectiveStart->toIso8601String(),
                 'expected_gacha_revision' => (int) $gacha->revision,
@@ -5998,6 +6009,222 @@ final class V2CatalogMasterMutationService
         return hash_equals($version->snapshot_sha256, $checksum);
     }
 
+    /** @return array<int, array<string, mixed>> */
+    private function canonicalProbabilityStructure(object $gachaVersion): array
+    {
+        $relations = DB::select(<<<'SQL'
+            WITH inventory AS (
+                SELECT relation.id,
+                       relation.sort_order,
+                       relation.initial_inventory,
+                       prize.public_id AS prize_public_id
+                FROM catalog_gacha_version_prizes AS relation
+                INNER JOIN catalog_prizes AS prize ON prize.id = relation.prize_id
+                WHERE relation.gacha_version_id = ?
+                  AND relation.is_visible = TRUE
+                  AND prize.archived_at IS NULL
+            ), weighted AS (
+                SELECT inventory.*,
+                       SUM(initial_inventory) OVER () AS total_inventory,
+                       initial_inventory::numeric * 1000000
+                           / NULLIF(SUM(initial_inventory) OVER (), 0) AS raw_ppm
+                FROM inventory
+            ), apportioned AS (
+                SELECT weighted.*,
+                       FLOOR(raw_ppm)::bigint AS base_ppm
+                FROM weighted
+            ), ranked AS (
+                SELECT apportioned.*,
+                       SUM(base_ppm) OVER () AS assigned_ppm,
+                       ROW_NUMBER() OVER (
+                           ORDER BY (raw_ppm - base_ppm) DESC, sort_order, id
+                       ) AS remainder_rank
+                FROM apportioned
+            )
+            SELECT id,
+                   prize_public_id,
+                   sort_order,
+                   base_ppm + CASE
+                       WHEN remainder_rank <= 1000000 - assigned_ppm THEN 1
+                       ELSE 0
+                   END AS probability_ppm
+            FROM ranked
+            ORDER BY sort_order, id
+            SQL, [(int) $gachaVersion->id]);
+        if ($relations === [] || array_sum(array_map(
+            static fn (object $relation): int => (int) $relation->probability_ppm,
+            $relations
+        )) !== 1000000) {
+            throw $this->canonicalProbabilityInternalException();
+        }
+
+        return [[
+            'code' => self::CANONICAL_PROBABILITY_STAGE_CODE,
+            'name' => 'Canonical remaining inventory metadata',
+            'condition_type' => 'sold_count',
+            'min_draw_number' => 1,
+            'max_draw_number' => null,
+            'sort_order' => 1,
+            'entries' => array_map(
+                static fn (object $relation): array => [
+                    'result_type' => 'prize',
+                    'prize_id' => $relation->prize_public_id,
+                    'point_amount' => null,
+                    'probability_ppm' => (int) $relation->probability_ppm,
+                    'sort_order' => (int) $relation->sort_order,
+                    'gacha_version_prize_id' => (int) $relation->id,
+                    'prize_public_id' => $relation->prize_public_id,
+                ],
+                $relations
+            ),
+            'minimum_guarantee' => [
+                'result_type' => 'point_back',
+                'prize_id' => null,
+                'point_amount' => 0,
+                'probability_ppm' => 0,
+                'gacha_version_prize_id' => null,
+                'prize_public_id' => null,
+            ],
+        ]];
+    }
+
+    private function prepareCanonicalProbabilityMetadata(
+        object $gachaVersion,
+        ?int $pinnedProbabilityVersionId = null
+    ): object {
+        $pinnedCandidate = null;
+        if ($pinnedProbabilityVersionId !== null) {
+            $pinnedCandidate = DB::table('catalog_probability_versions')
+                ->where('id', $pinnedProbabilityVersionId)
+                ->lockForUpdate()
+                ->first();
+        }
+        $selectedCandidate = null;
+        if ($gachaVersion->published_probability_version_id !== null) {
+            $selectedCandidate = DB::table('catalog_probability_versions')
+                ->where('id', $gachaVersion->published_probability_version_id)
+                ->lockForUpdate()
+                ->first();
+        }
+        foreach (
+            $pinnedCandidate === null
+                ? [$selectedCandidate]
+                : [$pinnedCandidate]
+            as $candidate
+        ) {
+            if (
+                $candidate !== null
+                && (int) $candidate->gacha_version_id === (int) $gachaVersion->id
+                && $this->publishedProbabilitySnapshotIsValid($candidate)
+            ) {
+                return $candidate;
+            }
+        }
+        $canonicalDraft = null;
+        if (
+            $pinnedCandidate !== null
+            && (int) $pinnedCandidate->gacha_version_id === (int) $gachaVersion->id
+            && $pinnedCandidate->status === 'draft'
+            && $pinnedCandidate->archived_at === null
+            && DB::table('catalog_probability_stages')
+                ->where('probability_version_id', $pinnedCandidate->id)
+                ->where('code', self::CANONICAL_PROBABILITY_STAGE_CODE)
+                ->exists()
+        ) {
+            $canonicalDraft = $pinnedCandidate;
+        }
+        if ($canonicalDraft === null) {
+            foreach (DB::table('catalog_probability_versions')
+                ->where('gacha_version_id', $gachaVersion->id)
+                ->where('status', 'published')
+                ->whereNull('archived_at')
+                ->orderByDesc('version_number')
+                ->lockForUpdate()
+                ->get() as $candidate) {
+                if ($this->publishedProbabilitySnapshotIsValid($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+        if ($canonicalDraft === null) {
+            $canonicalDraft = DB::table('catalog_probability_versions as version')
+                ->where('version.gacha_version_id', $gachaVersion->id)
+                ->where('version.status', 'draft')
+                ->whereNull('version.archived_at')
+                ->whereExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('catalog_probability_stages as stage')
+                        ->whereColumn('stage.probability_version_id', 'version.id')
+                        ->where('stage.code', self::CANONICAL_PROBABILITY_STAGE_CODE);
+                })
+                ->orderByDesc('version.version_number')
+                ->lockForUpdate()
+                ->first(['version.*']);
+        }
+
+        $structure = $this->canonicalProbabilityStructure($gachaVersion);
+        $checksum = $this->probabilityChecksum($structure);
+        if ($canonicalDraft === null) {
+            return $this->insertProbabilityDraft($gachaVersion, null, $structure);
+        }
+        if (! hash_equals((string) $canonicalDraft->snapshot_sha256, $checksum)) {
+            $this->replaceProbabilityStructure((int) $canonicalDraft->id, $structure);
+            DB::table('catalog_probability_versions')
+                ->where('id', $canonicalDraft->id)
+                ->update([
+                    'snapshot_sha256' => $checksum,
+                    'revision' => (int) $canonicalDraft->revision + 1,
+                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+                ]);
+            $canonicalDraft = DB::table('catalog_probability_versions')
+                ->where('id', $canonicalDraft->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+        }
+
+        return $canonicalDraft;
+    }
+
+    private function publishCanonicalProbabilityMetadata(
+        object $gachaVersion,
+        ?int $pinnedProbabilityVersionId = null
+    ): object {
+        $probability = $this->prepareCanonicalProbabilityMetadata(
+            $gachaVersion,
+            $pinnedProbabilityVersionId
+        );
+        if (
+            $pinnedProbabilityVersionId !== null
+            && (int) $probability->id !== $pinnedProbabilityVersionId
+        ) {
+            throw $this->canonicalProbabilityInternalException();
+        }
+        if ($probability->status === 'published') {
+            return $probability;
+        }
+        try {
+            $checksum = $this->validateProbabilityForPublish(
+                $probability,
+                $gachaVersion
+            );
+        } catch (\Throwable) {
+            throw $this->canonicalProbabilityInternalException();
+        }
+        DB::table('catalog_probability_versions')
+            ->where('id', $probability->id)
+            ->update([
+                'status' => 'published',
+                'snapshot_sha256' => $checksum,
+                'published_at' => DB::raw('CURRENT_TIMESTAMP'),
+                'revision' => (int) $probability->revision + 1,
+                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+            ]);
+
+        return DB::table('catalog_probability_versions')
+            ->where('id', $probability->id)
+            ->firstOrFail();
+    }
+
     /**
      * @return array{
      *   id: string,
@@ -6131,6 +6358,7 @@ final class V2CatalogMasterMutationService
             ->where('relation.gacha_version_id', $version->id)
             ->get([
                 'relation.is_visible as prize_is_visible',
+                'relation.initial_inventory',
                 'prize.archived_at as prize_archived_at',
                 'rank.is_visible as rank_is_visible',
                 'rank.archived_at as rank_archived_at',
@@ -6140,6 +6368,19 @@ final class V2CatalogMasterMutationService
             ]);
         if ($prizeRelations->isEmpty()) {
             $block('GACHA_PRIZE_REQUIRED', 'At least one Prize is required.');
+        }
+        $initialInventory = (int) $prizeRelations->sum('initial_inventory');
+        if ($prizeRelations->isNotEmpty() && $initialInventory <= 0) {
+            $block(
+                'GACHA_PRIZE_INVENTORY_EMPTY',
+                'At least one Prize must have available initial inventory.'
+            );
+        }
+        if ($initialInventory > (int) $version->total_count) {
+            $block(
+                'GACHA_INVENTORY_CAPACITY_INVALID',
+                'Aggregate Prize inventory cannot exceed the Gacha total count.'
+            );
         }
         foreach ($prizeRelations as $relation) {
             if (
@@ -6192,19 +6433,14 @@ final class V2CatalogMasterMutationService
             : DB::table('catalog_probability_versions')
                 ->where('id', $version->published_probability_version_id)
                 ->first();
-        if ($probability === null) {
-            $block(
-                'GACHA_PROBABILITY_NOT_SELECTED',
-                'A Published Probability Snapshot must be selected.'
-            );
-        } elseif (
-            (int) $probability->gacha_version_id !== (int) $version->id
-            || ! $this->publishedProbabilitySnapshotIsValid($probability)
+        if (
+            $probability !== null
+            && (
+                (int) $probability->gacha_version_id !== (int) $version->id
+                || ! $this->publishedProbabilitySnapshotIsValid($probability)
+            )
         ) {
-            $block(
-                'GACHA_PROBABILITY_SNAPSHOT_INVALID',
-                'The selected Probability Snapshot is incomplete or invalid.'
-            );
+            $probability = null;
         }
 
         $publishable = $blockingReasons === [];
@@ -6282,8 +6518,6 @@ final class V2CatalogMasterMutationService
                 $version === null
                 || (int) $version->revision !==
                     (int) $schedule->expected_version_revision
-                || (int) $version->published_probability_version_id !==
-                    (int) $schedule->probability_version_id
             ) {
                 throw $this->gachaScheduleException();
             }
@@ -6292,7 +6526,8 @@ final class V2CatalogMasterMutationService
                 (string) $schedule->request_id,
                 $gacha,
                 (string) $version->public_id,
-                (int) $schedule->expected_version_revision
+                (int) $schedule->expected_version_revision,
+                (int) $schedule->probability_version_id
             );
             DB::table('catalog_gacha_publish_schedules')
                 ->where('id', $schedule->id)
@@ -6967,7 +7202,8 @@ final class V2CatalogMasterMutationService
         string $requestId,
         object $gacha,
         string $gachaVersionPublicId,
-        int $expectedRevision
+        int $expectedRevision,
+        ?int $pinnedProbabilityVersionId = null
     ): array {
         $databaseNow = $this->databaseNow();
         if (
@@ -6975,11 +7211,7 @@ final class V2CatalogMasterMutationService
             && CarbonImmutable::parse((string) $gacha->first_published_at)
                 ->lessThanOrEqualTo($databaseNow)
         ) {
-            throw new V2CatalogException(
-                'CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID',
-                422,
-                'A Gacha that has been published cannot create another Draw State.'
-            );
+            throw $this->gachaPublishLifecycleException();
         }
         $previousVersion = $gacha->published_version_id === null
             ? null
@@ -7002,15 +7234,6 @@ final class V2CatalogMasterMutationService
                 'The Catalog record has changed.'
             );
         }
-        $probability = $version->published_probability_version_id === null
-            ? null
-            : DB::table('catalog_probability_versions')
-                ->where('id', $version->published_probability_version_id)
-                ->lockForUpdate()
-                ->first();
-        if ($probability === null) {
-            throw $this->gachaPublishException();
-        }
         $preflight = $this->gachaPublishPreflight(
             $requestId,
             $gacha,
@@ -7018,7 +7241,11 @@ final class V2CatalogMasterMutationService
         );
         if (
             ! ($preflight['publishable'] ?? false)
-            || CarbonImmutable::parse(
+        ) {
+            throw $this->gachaPublishProblemException($preflight, false);
+        }
+        if (
+            CarbonImmutable::parse(
                 (string) $version->publish_start_at
             )->greaterThan($databaseNow)
             || (
@@ -7026,13 +7253,23 @@ final class V2CatalogMasterMutationService
                 && CarbonImmutable::parse((string) $version->publish_end_at)
                     ->lessThanOrEqualTo($databaseNow)
             )
-            || ! $this->publishedProbabilitySnapshotIsValid($probability)
         ) {
-            throw $this->gachaPublishException();
+            throw $this->gachaPublishLifecycleException();
+        }
+        try {
+            $probability = $this->publishCanonicalProbabilityMetadata(
+                $version,
+                $pinnedProbabilityVersionId
+            );
+        } catch (V2CatalogException $exception) {
+            throw $exception;
+        } catch (\Throwable) {
+            throw $this->canonicalProbabilityInternalException();
         }
 
         DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
             'status' => 'published',
+            'published_probability_version_id' => $probability->id,
             'published_at' => DB::raw('CURRENT_TIMESTAMP'),
             'revision' => (int) $version->revision + 1,
             'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
@@ -7055,7 +7292,7 @@ final class V2CatalogMasterMutationService
             ->orderBy('id')
             ->get(['id', 'initial_inventory']);
         if ($inventoryRelations->isEmpty()) {
-            throw $this->gachaPublishException();
+            throw $this->gachaPublishPrizeException();
         }
         $remainingCount = 0;
         foreach ($inventoryRelations as $relation) {
@@ -7082,7 +7319,7 @@ final class V2CatalogMasterMutationService
                 $inventory->gacha_draw_state_id !== null
                 || (int) $inventory->awarded_count !== 0
             ) {
-                throw $this->gachaPublishException();
+                throw $this->gachaPublishInventoryException();
             }
             DB::table('prize_inventories')->where('id', $inventory->id)->update([
                 'gacha_draw_state_id' => $drawStateId,
@@ -7091,13 +7328,8 @@ final class V2CatalogMasterMutationService
             ]);
             $remainingCount += (int) $inventory->available_quantity;
         }
-        if ($remainingCount === 0) {
-            DB::table('gacha_draw_states')->where('id', $drawStateId)->update([
-                'status' => 'sold_out',
-                'sold_out_at' => DB::raw('CURRENT_TIMESTAMP'),
-                'lock_version' => 1,
-                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-            ]);
+        if ($remainingCount <= 0 || $remainingCount > (int) $version->total_count) {
+            throw $this->gachaPublishInventoryException();
         }
         DB::table('catalog_gachas')->where('id', $gacha->id)->update([
             'state' => 'active',
@@ -7234,6 +7466,79 @@ final class V2CatalogMasterMutationService
             'CATALOG_GACHA_PUBLISH_INVALID',
             422,
             'The Gacha Draft cannot be published immediately.'
+        );
+    }
+
+    /** @param array<string, mixed> $preflight */
+    private function gachaPublishProblemException(
+        array $preflight,
+        bool $scheduled
+    ): V2CatalogException {
+        $codes = array_column($preflight['blocking_reasons'] ?? [], 'code');
+        if (array_intersect($codes, ['GACHA_INVENTORY_CAPACITY_INVALID'])) {
+            return $this->gachaPublishInventoryException();
+        }
+        if (array_intersect($codes, [
+            'GACHA_PRIZE_REQUIRED',
+            'GACHA_PRIZE_INVENTORY_EMPTY',
+            'GACHA_PRIZE_RELATION_INVALID',
+        ])) {
+            return $this->gachaPublishPrizeException();
+        }
+        if (array_intersect($codes, [
+            'GACHA_MASTER_NOT_ACTIVE',
+            'GACHA_INITIAL_PUBLICATION_ALREADY_COMMITTED',
+            'GACHA_VERSION_NOT_DRAFT',
+            'GACHA_VERSION_ARCHIVED',
+            'GACHA_SCHEDULE_NOT_FUTURE',
+            'GACHA_SCHEDULE_OUTSIDE_PUBLICATION_PERIOD',
+            'GACHA_ACTIVE_SCHEDULE_EXISTS',
+        ])) {
+            return $this->gachaPublishLifecycleException();
+        }
+
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_INPUT_REQUIRED',
+            422,
+            $scheduled
+                ? 'Required Gacha input is incomplete for scheduled Publish.'
+                : 'Required Gacha input is incomplete for immediate Publish.'
+        );
+    }
+
+    private function gachaPublishPrizeException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT',
+            422,
+            'Publish requires a valid Prize with available inventory.'
+        );
+    }
+
+    private function gachaPublishLifecycleException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_LIFECYCLE_INVALID',
+            422,
+            'The Gacha lifecycle does not allow Publish.'
+        );
+    }
+
+    private function gachaPublishInventoryException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_INVENTORY_INVALID',
+            422,
+            'Prize inventory is inconsistent with Gacha capacity.'
+        );
+    }
+
+    private function canonicalProbabilityInternalException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_PUBLISH_INTERNAL_FAILURE',
+            500,
+            'Canonical Publish metadata could not be prepared safely.'
         );
     }
 
