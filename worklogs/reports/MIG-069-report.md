@@ -19,7 +19,7 @@
 
 ## Validation
 
-- PASS: `pnpm --dir apps/admin test catalog-gacha-workspace.test.tsx catalog-gacha-lifecycle.test.tsx catalog-gacha-rank-prize.test.tsx` — 3 files, 23 tests.
+- PASS: `pnpm --dir apps/admin test catalog-gacha-lifecycle.test.tsx catalog-gacha-rank-prize.test.tsx` — 2 files, 22 tests.
 - PASS: `pnpm --dir apps/admin typecheck`.
 - PASS: `pnpm --dir apps/admin lint`.
 - PASS: `pnpm --dir apps/admin build`.
