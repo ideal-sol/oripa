@@ -15,14 +15,13 @@ function assetContentPath(id: string): string {
 
 export function PublicAssetPreview({
   asset,
+  allowAuthenticatedContent = false,
 }: {
   asset: AdminCatalogAssetReference | null;
+  allowAuthenticatedContent?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  if (
-    !asset ||
-    failed
-  ) {
+  if (!asset || failed || (!safePublicPath(asset.public_path) && !allowAuthenticatedContent)) {
     return (
       <div className="asset-fallback" role="img" aria-label="Previewなし">
         <FileWarning size={22} aria-hidden="true" />

@@ -247,7 +247,7 @@ export function CatalogGachaRankPrizeManager({
               <tr key={prize.id}>
                 <td>{prize.rank.name}</td>
                 <td>{prize.name}</td>
-                <td><PublicAssetPreview asset={prize.presentation_asset} /></td>
+                <td><PublicAssetPreview allowAuthenticatedContent asset={prize.presentation_asset} /></td>
                 <td>{(prize.total_inventory ?? 0).toLocaleString()}</td>
                 <td>{(prize.available_inventory ?? 0).toLocaleString()}</td>
                 <td>{prize.exchange_points.toLocaleString()}</td>
