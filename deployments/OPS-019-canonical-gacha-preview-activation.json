@@ -2,12 +2,12 @@
   "schema_version": 1,
   "task_id": "OPS-019",
   "risk": "R4",
-  "status": "pre_activation_verified",
+  "status": "activation_verified",
   "issue": 350,
   "pull_request": 351,
   "base_sha": "9e8e644c1302b3257f1076a829a4aba6198fd0b9",
-  "recorded_at": "2026-08-21T10:35:21Z",
-  "activation_source": "PENDING_FIXED_HEAD",
+  "recorded_at": "2026-08-21T11:48:28Z",
+  "activation_source": "ba17d719767346569bb2e60ae9e733103848f8e6",
   "stage_0": {
     "result": "PASS",
     "local_origin_github_main_equal": true,
@@ -36,9 +36,11 @@
     "task_clone_full_order": "PASS_BATCH_27",
     "task_clone_capacity_violations_after": 0,
     "exact_mismatch_fail_closed": "PASS_NO_LEDGER_OR_CAPACITY_CHANGE",
+    "live_batch": 27,
+    "live_capacity_violations_after": 0,
     "published_guard_restored": true,
     "draft_guard_restored": true,
-    "live_applied": false
+    "live_applied": true
   },
   "history_verification": {
     "fingerprinted_row_types": 17,
@@ -67,6 +69,24 @@
     "redis_health": "PASS",
     "restart_counts": {"api": 0, "admin": 0, "postgresql": 0, "redis": 0}
   },
+  "runtime_after": {
+    "artifact_run": 32476998489,
+    "artifact_id": 9444761948,
+    "image_source": "NEW_CANONICAL_GITHUB_BUILD",
+    "api_image": "oripa-v2-api:preview-OPS-019-ba17d7197673",
+    "api_image_id": "sha256:93520320ce3f9e002ca0d22b94e84a71b4b2369eff74e3d0377e98eea33c3d91",
+    "api_revision": "ba17d719767346569bb2e60ae9e733103848f8e6",
+    "api_started_at": "2026-08-21T11:34:29.358113187Z",
+    "admin_image": "oripa-v2-admin:preview-OPS-019-ba17d7197673",
+    "admin_image_id": "sha256:be401f20f95d4d848d78d43c13ef9a105e5f1224a9959edd62f014d1c6ac1181",
+    "admin_revision": "ba17d719767346569bb2e60ae9e733103848f8e6",
+    "admin_started_at": "2026-08-21T11:34:55.589762804Z",
+    "api_health": "PASS_200",
+    "admin_health": "PASS_200",
+    "postgresql_health": "PASS",
+    "redis_health": "PASS",
+    "restart_counts": {"api": 0, "admin": 0, "postgresql": 0, "redis": 0}
+  },
   "network": {
     "v2_private_internal": true,
     "api_only_egress": true,
@@ -76,16 +96,39 @@
   "rollback_candidates": {
     "api": "oripa-v2-api:preview-OPS-017-dbc5cbec574c",
     "admin": "oripa-v2-admin:preview-OPS-012-8c14b513393f",
-    "database_backup": "PENDING_MUTABLE_WINDOW",
+    "database_backup": "/var/lib/oripa-v2-evidence/OPS-019/ops019-pre-activation.dump",
     "migration_down": "FAIL_CLOSED_HISTORY_PROTECTION"
   },
-  "runtime_activation": "PENDING",
-  "read_only_smoke": "PENDING",
-  "human_browser_verification": "PENDING",
+  "runtime_activation": "PASS_API_THEN_ADMIN",
+  "read_only_smoke": {
+    "api_health": 200,
+    "api_session": 200,
+    "api_gacha_list": 200,
+    "api_gacha_detail": 200,
+    "api_gacha_by_slug": 200,
+    "admin_health": 200,
+    "admin_session_endpoint": 200,
+    "admin_bundle_canonical_sections": "PASS",
+    "admin_authenticated_browser": "NOT_RUN_STALE_EXISTING_TEST_CREDENTIAL_401",
+    "probability_preflight_normal_ui_hidden": "PASS_SOURCE_AND_BUNDLE",
+    "request_id_internal_code_normal_ui_hidden": "PASS_SOURCE_AND_BUNDLE",
+    "thumbnail_preview": "PASS_SOURCE_AND_BUNDLE",
+    "storefront_production": 200,
+    "storefront_preview": 200,
+    "storefront_api_sessions": 200,
+    "api_admin_runtime_errors": 0,
+    "http_500_502_504": 0
+  },
+  "human_browser_verification": "REQUIRED_FOR_AUTHENTICATED_ADMIN_AND_MUTATION_SCENARIOS",
+  "locks": {
+    "preview_deployment_lock": "ACQUIRED_AND_RELEASED",
+    "os_lock": "ACQUIRED_AND_RELEASED"
+  },
+  "rollback_performed": false,
   "production_changes": 0,
   "storefront_changes": 0,
   "payment_coin_draw_semantics_changes": 0,
   "environment_nginx_network_changes": 0,
   "secret_transcript_exposure": 0,
-  "remaining_blocker": "REQUIRED_CHECKS_IMAGE_BUILD_AND_MUTABLE_WINDOW"
+  "remaining_blocker": "NONE_FOR_ACTIVATION_CLOSEOUT"
 }
