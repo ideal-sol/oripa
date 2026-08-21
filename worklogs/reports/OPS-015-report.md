@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: `#342`
-- PR: pending
+- PR: `#343`
 - Risk: `R4`
 - Base: `25047b47dcefaffff20b453cf607f393dbb8f786`
 - Branch: `chore/OPS-015-shared-preview-migrations-56-57`

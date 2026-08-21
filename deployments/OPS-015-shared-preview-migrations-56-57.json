@@ -1,7 +1,7 @@
 {
   "task_id": "OPS-015",
   "issue": 342,
-  "pull_request": null,
+  "pull_request": 343,
   "risk": "R4",
   "status": "blocked_credential_rotation",
   "base_branch": "main",
