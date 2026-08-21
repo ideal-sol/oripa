@@ -206,6 +206,35 @@ class PolicyGateTest(unittest.TestCase):
         self.assertIn("DEFERRABLE INITIALLY DEFERRED", migration)
         self.assertNotIn("DISABLE TRIGGER", migration)
 
+    def test_ops_019_preview_capacity_reconciliation_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_12_000060_reconcile_preview_gacha_capacity.php",
+            "apps/api/tests/V2/GachaCapacityForwardReconciliationTest.php",
+        }
+        self.assertEqual(policy_gate.OPS_019_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+
+        migration_path = next(
+            path for path in expected if "migrations-v2" in path
+        )
+        migration = (ROOT / migration_path).read_text(encoding="utf-8")
+        for required in (
+            "(id, gacha_id) IN ((8, 10), (9, 10), (10, 10), (11, 11), (12, 12))",
+            "OLD.total_count = 9",
+            "NEW.total_count = 18",
+            "to_jsonb(NEW) - 'total_count'",
+            "pg_get_functiondef",
+            "Catalog guards were not restored exactly",
+        ):
+            self.assertIn(required, migration)
+        for prohibited in (
+            "DISABLE TRIGGER",
+            "ENABLE TRIGGER",
+            "SET session_replication_role",
+            "DELETE FROM",
+        ):
+            self.assertNotIn(prohibited, migration)
+
     def test_mig_068_canonical_probability_publish_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
@@ -1178,6 +1207,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
             "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+            "apps/api/database/migrations-v2/2026_09_12_000060_reconcile_preview_gacha_capacity.php",
             "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
             "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
         }

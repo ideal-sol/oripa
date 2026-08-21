@@ -457,6 +457,10 @@ MIG_063D_V2_CATALOG_FILES = {
 MIG_063E_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_12_000057_scope_v2_gacha_rank_codes.php",
 }
+OPS_019_V2_CATALOG_FILES = {
+    "apps/api/database/migrations-v2/2026_09_12_000060_reconcile_preview_gacha_capacity.php",
+    "apps/api/tests/V2/GachaCapacityForwardReconciliationTest.php",
+}
 MIG_067_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
 }
@@ -516,6 +520,7 @@ V2_CATALOG_REQUIRED_FILES = {
     *MIG_062L_V2_CATALOG_FILES,
     *MIG_063D_V2_CATALOG_FILES,
     *MIG_063E_V2_CATALOG_FILES,
+    *OPS_019_V2_CATALOG_FILES,
     *MIG_067_V2_CATALOG_FILES,
     *MIG_068_V2_CATALOG_FILES,
 }
@@ -2506,6 +2511,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
         "2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
         "2026_09_12_000057_scope_v2_gacha_rank_codes.php",
+        "2026_09_12_000060_reconcile_preview_gacha_capacity.php",
         "2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
         "2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
     ]
