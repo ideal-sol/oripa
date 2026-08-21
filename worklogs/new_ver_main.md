@@ -8788,3 +8788,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - read-only ledgerは55 migrations、latest batch 26、最終`000055`で、`000056`／`000057`／`000058`／`000059`はすべてPendingだった。`000057`のmulti-Gacha owner、適用後same-Gacha code重複、unowned code重複の各fail-closed候補は0件である。
 - 16対象tableの適用前後row count／ordered full-row fingerprintは完全一致し、既存Gacha 9、Category 6、Tag 3、Rank 11、Audit 1272を含むbusiness/history dataを保持した。unexpected retrospective mutation 0、History rewrite 0である。
 - `000056`／`000057`のMigration適用、batch割当、rollback、`000058`／`000059`、Runtime Build／Deploy、API／Admin image変更、Storefront／Production／Payment、Nginx／env／network変更は0。rotation完了を正本で確認した別Taskが`000056`／`000057`のみを適用するまでCanonical Gacha Runtime Activationは開始不可である。
+
+## OPS-016 Shared Preview Runtime Credential Rotation
+
+- `git fetch --prune`後、clean local／origin／GitHub `main@2a017ff0bcdf70ca63a512fe44f15fb620fbac22`、idleな全Task lane、Shared Locks none、freeなPreview OS lock、healthyかつrestart 0のAPI／Admin／PostgreSQL／Redisを確認し、Issue #344、専用branch／worktree、Risk R4で開始した。
+- OPS-014 transcriptのkey名だけを照合し、canonical rotation対象を`V2_APP_KEY`、`V2_DB_PASSWORD`、`V2_REDIS_PASSWORD`、`V2_AUDIT_HMAC_KEY`、`V2_PII_CORRELATION_KEY`、`MAILGUN_SECRET`と特定した。Laravel暗号化Data、Audit hash chain、PII correlationを保持する安全なversioned rotation手順と承認済みMailgun provider操作／Preview専用境界が正本にないため、明示Rotation Gateをmutation前にFail Closedした。
+- credential変更、新規値生成、temporary secret file、service recreate、Runtime／DB／business mutation、Migration、Application、Artifact、Storefront、Production、Nginx／DNS／network変更は0。Preview Deployment Lockは取得せず、OS lockはfreeのままである。
+- API health 200（DB／Redis含む）、Public session 200、Admin health 200、PostgreSQL／Redis healthy、restart loopなし、全restart count 0、HTTP 500／502／504 0、private/internalとAPI-only egress境界維持を確認した。
+- OPS-015 unexpected fields 5件はCanonical Compose／Applicationが参照するactive Runtime fieldであり、削除せずguardも変更していない。root-onlyとRepository証跡はrotation未完了、remaining exposed canonical credentials 6、`000056`／`000057` Activation開始不可を明示する。
+- Preflightの広域root-only evidence検索で既露出値をOPS-016 transcriptへ意図せず再表示した。値はTask FileへCopy／保存していないが、zero transcript displayは主張せず、rotation blocker継続として記録する。
