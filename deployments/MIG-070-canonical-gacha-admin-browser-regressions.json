@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "task_id": "MIG-070",
+  "risk": "R4",
+  "status": "activation_verified",
+  "issue": 352,
+  "pull_request": 353,
+  "base_sha": "8b8b39fe221d7030cfd2aaf788f0b8f3994ea4c7",
+  "recorded_at": "2026-08-21T14:16:00Z",
+  "activation_source": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34",
+  "stage_0": {
+    "result": "PASS_SOURCE_ONLY_API_ADMIN_REGRESSIONS",
+    "ops_019_ancestor": true,
+    "migration_required": false,
+    "public_contract_change": false,
+    "storefront_change": false,
+    "payment_coin_draw_core_change": false,
+    "historical_data_rewrite": false,
+    "production_change": false,
+    "security_boundary_weakened": false
+  },
+  "root_causes": {
+    "lifecycle_save": {
+      "database_code": "P0001",
+      "database_message": "Public and Draw activation pointers require one Revision update",
+      "stable_problem_codes": [
+        "CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID",
+        "CATALOG_GACHA_SCHEDULE_CONFLICT"
+      ],
+      "cause": "The Draft core update incremented catalog_gachas.revision before canonical activation incremented it again; the deferred MIG-067 activation guard rejected the two-revision transaction. The QueryException bypassed catalog Problem mapping and became the generic Japanese fallback."
+    },
+    "prize_thumbnail": {
+      "canonical_value": "catalog_prizes.presentation_asset_id and catalog_gacha_version_prizes.presentation_asset_id",
+      "save_api": "PASS_ALREADY_CANONICAL",
+      "list_api": "PASS_PRESENTATION_ASSET_RETURNED",
+      "cause": "Authenticated Admin rendering preferred the public /api/v2 content path. Admin Nginx proxies only /admin/api/, so the otherwise saved canonical asset was requested from the wrong runtime and rendered as no preview."
+    },
+    "banner_preview": {
+      "save_api": "UNCHANGED_PASS",
+      "cause": "The selected-file preview used a blob object URL while the Admin image CSP permits self and data sources but not blob sources."
+    }
+  },
+  "fixes": {
+    "lifecycle_save": "Initial Draft-to-Published updates defer the sole catalog_gachas revision mutation to canonical activation while carrying the edited category; stable lifecycle Problem codes map to the approved Japanese message without exposing request or internal codes.",
+    "prize_thumbnail": "Authenticated asset previews always use the existing Admin content endpoint and reset failure state by asset id; create/update continue reusing existing canonical assets.",
+    "banner_preview": "Selected local files are read as data URLs with FileReader; upload and create semantics are unchanged."
+  },
+  "verification": {
+    "api_focused": "PASS_16_TESTS_266_ASSERTIONS",
+    "admin_focused": "PASS_4_FILES_45_TESTS",
+    "php_syntax": "PASS",
+    "admin_typecheck": "PASS",
+    "admin_lint": "PASS",
+    "admin_production_build": "PASS",
+    "git_diff_check": "PASS",
+    "required_checks_on_activation_source": "PASS_ALL_FIVE",
+    "source_self_review": "https://github.com/ideal-sol/oripa/pull/353#issuecomment-5370801305"
+  },
+  "build": {
+    "workflow_run_id": 32489913072,
+    "artifact_id": 9449448240,
+    "artifact_digest": "sha256:435fbfffb670b01efe57a1939d9840629fecc91b117b113a4c87ff5e70383778",
+    "manifest_sha256": "934ceeec785c5160c854f8ff0a7640892ddf7af4e5bc31c8f680d7572ffd9141",
+    "platform": "linux/amd64",
+    "preview_host_builds": 0
+  },
+  "runtime_before": {
+    "api_image": "oripa-v2-api:preview-OPS-019-ba17d7197673",
+    "api_revision": "ba17d719767346569bb2e60ae9e733103848f8e6",
+    "admin_image": "oripa-v2-admin:preview-OPS-019-ba17d7197673",
+    "admin_revision": "ba17d719767346569bb2e60ae9e733103848f8e6"
+  },
+  "runtime_after": {
+    "api_image": "oripa-v2-api:preview-MIG-070-2b55452abc4c",
+    "api_image_id": "sha256:e372e1e5b32f2e9fecdedbac138d53caa8516acc611aa6235bd90d66db74dd75",
+    "api_revision": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34",
+    "admin_image": "oripa-v2-admin:preview-MIG-070-2b55452abc4c",
+    "admin_image_id": "sha256:40224e5b15237d7e8d27623278193bdc6ee1fd228fa817bb8c0a2480139ac2b4",
+    "admin_revision": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34",
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "postgresql_health": "PASS_UNCHANGED",
+    "redis_health": "PASS_UNCHANGED",
+    "restart_counts": {"api": 0, "admin": 0, "postgresql": 0, "redis": 0}
+  },
+  "database": {
+    "migration_count_before": 60,
+    "migration_count_after": 60,
+    "latest_batch_before": 27,
+    "latest_batch_after": 27,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "historical_rewrite": 0
+  },
+  "acceptance": {
+    "public_gacha_list_http": 200,
+    "admin_root_http": 200,
+    "admin_session_http": 200,
+    "authenticated_asset_endpoint_anonymous_http": 401,
+    "wrong_public_asset_path_on_admin_http": 404,
+    "banner_runtime_file_reader": true,
+    "banner_runtime_create_object_url": false,
+    "probability_preflight_normal_ui": "PASS_SOURCE_AND_FOCUSED_TEST",
+    "request_id_internal_code_normal_ui": "PASS_SOURCE_AND_FOCUSED_TEST",
+    "authenticated_browser_mutations": "NOT_RUN_NO_SAFE_EXISTING_AUTHENTICATED_SESSION",
+    "http_500_502_504": 0,
+    "runtime_errors": 0
+  },
+  "locks": {
+    "preview_deployment_lock": "ACQUIRED_AND_RELEASED",
+    "os_lock": "ACQUIRED_AND_RELEASED"
+  },
+  "rollback_performed": false,
+  "storefront_changes": 0,
+  "production_changes": 0,
+  "environment_nginx_network_changes": 0,
+  "remaining_blocker": "NONE_FOR_SOURCE_RUNTIME_CLOSEOUT_HUMAN_BROWSER_MUTATION_ACCEPTANCE_REMAINS"
+}
