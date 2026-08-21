@@ -1,0 +1,96 @@
+{
+  "task_id": "OPS-015",
+  "issue": 342,
+  "pull_request": 343,
+  "risk": "R4",
+  "status": "blocked_credential_rotation",
+  "base_branch": "main",
+  "base_sha": "25047b47dcefaffff20b453cf607f393dbb8f786",
+  "formal_production_release": false,
+  "evidence_path": "/var/lib/oripa-v2-evidence/OPS-015/",
+  "task_policy_sha256": "e83f51aa4b6b20926a1a87bc83cbd568acac4d70cd9171609ed73e2ad388c367",
+  "locks": {
+    "migration_allocation": "not_acquired",
+    "platform_integration": "not_acquired",
+    "artifact_release": "not_acquired",
+    "preview_deployment": "not_acquired",
+    "os_preview_lock_preflight": "free"
+  },
+  "candidate": {
+    "local_main": "25047b47dcefaffff20b453cf607f393dbb8f786",
+    "origin_main": "25047b47dcefaffff20b453cf607f393dbb8f786",
+    "github_main": "25047b47dcefaffff20b453cf607f393dbb8f786"
+  },
+  "credential_rotation_gate": {
+    "ops_014_rotation_completion_confirmed": false,
+    "credential_values_read_or_recorded": false,
+    "preview_env_metadata_predates_exposure": true,
+    "database_write_authorized": false,
+    "result": "FAIL_CLOSED"
+  },
+  "migration_preflight": {
+    "database": "oripa_v2_mig061a",
+    "schema": "public",
+    "ledger_count": 55,
+    "latest_batch": 26,
+    "latest_migration": "2026_09_10_000055_add_v2_limited_bonus_domain_core",
+    "migration_000056": "pending",
+    "migration_000057": "pending",
+    "migration_000058": "pending",
+    "migration_000059": "pending",
+    "migration_000056_existing_data_guard": "PASS_NO_DATA_REWRITE",
+    "migration_000057_multi_gacha_rank_owner_groups": 0,
+    "migration_000057_projected_same_gacha_code_duplicate_groups": 0,
+    "migration_000057_unowned_duplicate_code_groups": 0
+  },
+  "activation": {
+    "migration_000056": "NOT_APPLIED",
+    "migration_000056_batch": null,
+    "migration_000057": "NOT_APPLIED",
+    "migration_000057_batch": null,
+    "migration_000058": "PENDING",
+    "migration_000059": "PENDING",
+    "rollback": "NOT_REQUIRED"
+  },
+  "preservation": {
+    "business_tables_compared": 16,
+    "row_counts_equal": true,
+    "ordered_row_fingerprints_equal": true,
+    "gacha_category_tag_rank_preserved": true,
+    "unexpected_retrospective_business_mutation": 0,
+    "history_rewrite": 0
+  },
+  "runtime": {
+    "api_image_change": false,
+    "admin_image_change": false,
+    "runtime_build": false,
+    "runtime_activation": false,
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "postgresql_health": "PASS",
+    "redis_health": "PASS",
+    "restart_count_changes": 0
+  },
+  "scope_non_changes": {
+    "storefront": true,
+    "production": true,
+    "payment": true,
+    "nginx": true,
+    "network": true,
+    "runtime_environment": true,
+    "application_source": true,
+    "existing_migrations": true
+  },
+  "validation": {
+    "policy_unit": "PASS_152",
+    "quality_unit": "PASS_4",
+    "security_unit": "PASS_10",
+    "local_policy_gate": "PASS",
+    "local_quality_gate": "PASS",
+    "local_security_gate": "PASS",
+    "composer_findings": 0,
+    "workspace_pnpm_findings": 0,
+    "legacy_pnpm_findings": 0,
+    "git_diff_check": "PASS"
+  }
+}
