@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-018",
+  "risk": "R4",
+  "issue": 348,
+  "pull_request": 349,
+  "base_sha": "0819b1c0933af0ef45552a87a55a4f89cdac234d",
+  "recorded_at": "2026-08-21T08:17:50Z",
+  "provider_revoked_at": "2026-08-21T08:15:00Z",
+  "human_decision": {
+    "shared_mailgun_domain": true,
+    "preview_production_shared_credential": true,
+    "production_credential_rotation_approved": true
+  },
+  "credential": {
+    "key": "MAILGUN_SECRET",
+    "result": "ROTATED",
+    "type": "MAILGUN_API_CREDENTIAL",
+    "scope_behavior": "DOMAIN_READ_CAPABLE",
+    "provider_exact_subtype": "UNVERIFIED",
+    "provider_side_rotation": "COMPLETE",
+    "old_credential_revocation": "PASS_EXPECTED_AUTHENTICATION_REJECTION",
+    "secret_transcript_exposure": 0
+  },
+  "canonical_sources": {
+    "preview": "/var/www/oripa/.env",
+    "production_backend": "/var/www/oripa/backend/.env",
+    "ownership_mode": "root:root 0600",
+    "canonical_shape": "PASS",
+    "preview_reflection": "PASS",
+    "production_reflection": "PASS"
+  },
+  "consumers": {
+    "shared_preview_api": "RUNNING_NEW_CREDENTIAL",
+    "production_backend": "RUNNING_NEW_CREDENTIAL",
+    "production_queue": "CREATED_NOT_RUNNING_NEW_CREDENTIAL",
+    "production_scheduler": "CREATED_NOT_RUNNING_NEW_CREDENTIAL",
+    "all_existing_consumers_migrated": true
+  },
+  "preview_runtime": {
+    "api_recreated": true,
+    "admin_recreated": false,
+    "postgresql_recreated": false,
+    "redis_recreated": false,
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "postgresql_health": "PASS",
+    "redis_health": "PASS",
+    "restart_loop": false,
+    "authentication_pre_revocation": "PASS",
+    "actual_send_pre_revocation": "PASS",
+    "authentication_post_revocation": "PASS",
+    "actual_send_post_revocation": "PASS"
+  },
+  "production_runtime": {
+    "backend_recreated": true,
+    "frontend_recreated": false,
+    "postgresql_recreated": false,
+    "redis_recreated": false,
+    "backend_health": "PASS",
+    "restart_loop": false,
+    "authentication_pre_revocation": "PASS",
+    "actual_send_pre_revocation": "PASS",
+    "authentication_post_revocation": "PASS",
+    "actual_send_post_revocation": "PASS",
+    "authorized_change": "MAILGUN_CREDENTIAL_ONLY"
+  },
+  "gateway_errors": {
+    "500": 0,
+    "502": 0,
+    "504": 0
+  },
+  "rollback": {
+    "pre_revocation_old_candidate": "PROTECTED_AND_VERIFIED",
+    "pre_revocation_new_candidate": "PROTECTED_AND_VERIFIED",
+    "post_revocation_secret_copies": "REMOVED",
+    "old_credential_reuse": "PROHIBITED_AFTER_REVOCATION"
+  },
+  "business_mutation_count": 0,
+  "migrations_created": 0,
+  "migrations_applied": 0,
+  "database_changes": 0,
+  "storefront_changes": 0,
+  "unrelated_production_changes": 0,
+  "payment_point_coin_draw_changes": 0,
+  "local_validation": {
+    "policy_unit": "PASS_152_TESTS",
+    "quality_unit": "PASS_4_TESTS",
+    "security_unit": "PASS_10_TESTS",
+    "policy_gate": "PASS",
+    "quality_gate": "PASS",
+    "security_gate": "PASS_ZERO_FINDINGS",
+    "composer_audit": "PASS_ZERO_FINDINGS",
+    "workspace_pnpm_audit": "PASS_ZERO_FINDINGS",
+    "legacy_pnpm_audit": "PASS_ZERO_FINDINGS",
+    "json_parse": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "remaining_exposed_credentials": 0,
+  "migration_activation_000056_000059": "READY_AFTER_OPS018_MERGE_AND_CLOSEOUT",
+  "api_admin_runtime_activation": "READY_AFTER_OPS018_MERGE_AND_CLOSEOUT",
+  "root_only_evidence": "/var/lib/oripa-v2-evidence/OPS-018/rotation-evidence.json"
+}
