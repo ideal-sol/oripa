@@ -1,0 +1,76 @@
+{
+  "task_id": "OPS-016",
+  "issue": 344,
+  "pull_request": 345,
+  "risk": "R4",
+  "status": "blocked_rotation_semantics",
+  "base_branch": "main",
+  "base_sha": "2a017ff0bcdf70ca63a512fe44f15fb620fbac22",
+  "formal_production_release": false,
+  "evidence_path": "/var/lib/oripa-v2-evidence/OPS-016/rotation-evidence.json",
+  "rotation": {
+    "evaluated_at": "2026-08-21T03:21:01Z",
+    "credential_keys": [
+      "V2_APP_KEY",
+      "V2_DB_PASSWORD",
+      "V2_REDIS_PASSWORD",
+      "V2_AUDIT_HMAC_KEY",
+      "V2_PII_CORRELATION_KEY",
+      "MAILGUN_SECRET"
+    ],
+    "preview_only_confirmed": false,
+    "result": "FAIL_CLOSED",
+    "credential_changed": false,
+    "remaining_exposed_credentials": 6
+  },
+  "canonical_sources": [
+    "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env",
+    "/var/www/oripa/.env"
+  ],
+  "env_shape": {
+    "result": "PASS_ACTIVE_RUNTIME_FIELDS_RETAINED",
+    "unexpected_fields_are_obsolete": false,
+    "guard_changed": false,
+    "runtime_env_changed": false
+  },
+  "runtime": {
+    "api_health": "PASS",
+    "api_database_redis": "PASS",
+    "admin_health": "PASS",
+    "postgresql_health": "PASS",
+    "redis_health": "PASS",
+    "restart_count": 0,
+    "http_500_502_504": 0,
+    "dependent_services_recreated": false
+  },
+  "locks": {
+    "preview_deployment": "not_acquired_fail_closed_before_mutation",
+    "os_preview_lock_preflight": "free",
+    "os_preview_lock_acquired": false
+  },
+  "scope_non_changes": {
+    "migrations_000056_000059": true,
+    "database_schema_and_business_data": true,
+    "application": true,
+    "artifact": true,
+    "production": true,
+    "storefront": true,
+    "nginx_dns_network": true,
+    "payment_coin_draw": true
+  },
+  "migration_activation_ready": false,
+  "remaining_blocker": "safe complete rotation semantics and approved Preview-only Mailgun provider rotation are not established",
+  "validation": {
+    "policy_unit": "PASS_152",
+    "quality_unit": "PASS_4",
+    "security_unit": "PASS_10",
+    "local_policy_gate": "PASS",
+    "local_quality_gate": "PASS",
+    "local_security_gate": "PASS",
+    "composer_findings": 0,
+    "workspace_pnpm_findings": 0,
+    "legacy_pnpm_findings": 0,
+    "secret_candidates": 0,
+    "git_diff_check": "PASS"
+  }
+}
