@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "task_id": "MIG-071",
+  "risk": "R4",
+  "status": "activation_verified",
+  "issue": 354,
+  "pull_request": 355,
+  "base_sha": "0cfff7d9c20ae28ff11e6ab55398d85ce5560419",
+  "recorded_at": "2026-08-21T16:12:35Z",
+  "activation_source": "66825e5a58f815155fd009deb36b8eb8b173d2b2",
+  "stage_0": {
+    "result": "PASS_EXISTING_LIFECYCLE_REGRESSION",
+    "migration_required": false,
+    "public_contract_change": false,
+    "storefront_change": false,
+    "payment_coin_draw_core_change": false,
+    "historical_data_rewrite": false,
+    "production_change": false,
+    "security_boundary_weakened": false
+  },
+  "root_cause": {
+    "management_status": "unpublished",
+    "endpoint": "PUT /admin/api/v2/catalog/gachas/{id}",
+    "database_code": "P0001",
+    "database_message": "Public and Draw activation pointers require one Revision update",
+    "cause": "The full current-presentation update and required pause transition queued deferred activation trigger events before the final pointer-clearing update. At commit, those earlier events compared their OLD revisions with the final multi-revision row and rejected both Published and Sales-paused unpublish transactions.",
+    "test_gap": "The existing lifecycle test used an outer transaction and did not force deferred activation constraint evaluation after unpublish.",
+    "generic_japanese_reason": "The commit-time QueryException did not carry the stable invalid-transition Problem Code handled by the Admin mapping, so the normal generic Japanese fallback was displayed."
+  },
+  "fix": {
+    "published_to_unpublished": "The required persisted pause remains intact. Pending presentation and pause row events are validated before the terminal activation-pointer change, then deferred validation is restored for the final one-revision deactivation update.",
+    "sales_paused_to_unpublished": "The pending presentation row event is validated before the terminal activation-pointer change, then deferred validation is restored for the final one-revision deactivation update.",
+    "terminal_republish": "unpublished -> published remains rejected with CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID.",
+    "database_guards": "MIG-067 activation and public-deactivation guards are unchanged and not weakened.",
+    "problem_code_mapping": "No source mapping change was required; the existing invalid-transition code maps to the approved Japanese message and hides Request ID/internal code."
+  },
+  "verification": {
+    "api_focused": "PASS_9_TESTS_216_ASSERTIONS",
+    "admin_focused": "PASS_1_FILE_6_TESTS",
+    "admin_suite_incidental": "PASS_33_FILES_184_TESTS",
+    "php_syntax": "PASS",
+    "git_diff_check": "PASS",
+    "required_checks_on_activation_source": "PASS_ALL_FIVE",
+    "source_self_review": "https://github.com/ideal-sol/oripa/pull/355#issuecomment-5372227179"
+  },
+  "build": {
+    "workflow_run_id": 32500569379,
+    "artifact_id": 9453458501,
+    "artifact_digest": "sha256:c7fee2fa9050b4bbb78edf351a23d9cce5e220369bcb455b7e72ed0ff3903240",
+    "manifest_sha256": "9cc2a358fbefc1df9e735c07690119e988d1e61b7b030e8b0683e90f615336bb",
+    "platform": "linux/amd64",
+    "preview_host_builds": 0
+  },
+  "runtime_before": {
+    "api_image": "oripa-v2-api:preview-MIG-070-2b55452abc4c",
+    "api_image_id": "sha256:e372e1e5b32f2e9fecdedbac138d53caa8516acc611aa6235bd90d66db74dd75",
+    "api_revision": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34",
+    "admin_image": "oripa-v2-admin:preview-MIG-070-2b55452abc4c",
+    "admin_image_id": "sha256:40224e5b15237d7e8d27623278193bdc6ee1fd228fa817bb8c0a2480139ac2b4",
+    "admin_revision": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34"
+  },
+  "runtime_after": {
+    "api_image": "oripa-v2-api:preview-MIG-071-66825e5a58f8",
+    "api_image_id": "sha256:29e0f2b6ce58374c24740dd13025ba2d5b0be8b744c55195a888e1a166fea5ba",
+    "api_revision": "66825e5a58f815155fd009deb36b8eb8b173d2b2",
+    "api_started_at": "2026-08-21T16:08:54.388155837Z",
+    "admin_image": "oripa-v2-admin:preview-MIG-070-2b55452abc4c",
+    "admin_image_id": "sha256:40224e5b15237d7e8d27623278193bdc6ee1fd228fa817bb8c0a2480139ac2b4",
+    "admin_revision": "2b55452abc4c1e43948ce0de4accd6c23e6c9e34",
+    "admin_started_at": "2026-08-21T14:10:09.669833401Z",
+    "api_health": "PASS",
+    "admin_health": "PASS_UNCHANGED",
+    "postgresql_health": "PASS_UNCHANGED",
+    "redis_health": "PASS_UNCHANGED",
+    "restart_counts": {"api": 0, "admin": 0, "postgresql": 0, "redis": 0},
+    "network_boundary_unchanged": true
+  },
+  "database": {
+    "migration_count_before": 60,
+    "migration_count_after": 60,
+    "latest_batch_before": 27,
+    "latest_batch_after": 27,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "business_data_mutation": 0,
+    "historical_rewrite": 0
+  },
+  "acceptance": {
+    "api_health_http": 200,
+    "public_gacha_list_http": 200,
+    "admin_session_anonymous_http": 200,
+    "runtime_source_marker": "PASS",
+    "published_to_unpublished_browser": "NOT_RUN_NO_SAFE_EXISTING_AUTHENTICATED_SESSION",
+    "sales_paused_to_unpublished_browser": "NOT_RUN_NO_SAFE_EXISTING_AUTHENTICATED_SESSION",
+    "unpublished_to_published_browser": "NOT_RUN_NO_SAFE_EXISTING_AUTHENTICATED_SESSION",
+    "existing_transition_regression": "PASS_SOURCE_FOCUSED_TESTS",
+    "request_id_internal_code_normal_ui": "PASS_SOURCE_FOCUSED_TEST",
+    "http_500_502_504": 0,
+    "runtime_errors": 0
+  },
+  "locks": {
+    "preview_deployment_lock": "ACQUIRED_AND_RELEASED",
+    "os_lock": "ACQUIRED_AND_RELEASED"
+  },
+  "rollback_performed": false,
+  "storefront_changes": 0,
+  "production_changes": 0,
+  "environment_nginx_network_changes": 0,
+  "remaining_blocker": "NONE_FOR_SOURCE_RUNTIME_CLOSEOUT_HUMAN_BROWSER_TRANSITION_ACCEPTANCE_REMAINS"
+}
