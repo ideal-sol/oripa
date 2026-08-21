@@ -21,7 +21,6 @@ import {
   type ReactNode,
   type RefObject,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -80,7 +79,7 @@ function BannerManagement() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const previewUrl = useObjectUrl(draft.file);
+  const previewUrl = useLocalImagePreview(draft.file);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -254,7 +253,7 @@ function CategoryDialog({ onClose, onCreated }: { onClose: () => void; onCreated
 }
 
 function EditDialog({ banner, categories, onClose, onSaved }: { banner: AdminManagedBanner; categories: AdminBannerCategory[]; onClose: () => void; onSaved: () => void }) {
-  const [draft, setDraft] = useState<BannerDraft>({ categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(onClose); const preview = useObjectUrl(draft.file) ?? banner.asset.public_url;
+  const [draft, setDraft] = useState<BannerDraft>({ categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(onClose); const preview = useLocalImagePreview(draft.file) ?? banner.asset.public_url;
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (draft.showOnTop && !draft.linkUrl.trim()) { setError("トップ表示時はクリック先URLを入力してください。"); return; } setBusy(true); setError(null); try { const client = new AdminApiClient(); const assetId = draft.file ? (await client.uploadBannerAsset(await fileInput(draft.file), crypto.randomUUID())).id : null; await client.updateManagedBanner(banner.id, { asset_id: assetId, category_id: draft.categoryId, link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null, show_on_top: draft.showOnTop, title: draft.title.normalize("NFC").trim() }, crypto.randomUUID()); onSaved(); } catch (reason) { setError(bannerError(reason)); setBusy(false); } }
   return <Dialog closeRef={close} id="banner-edit-title" onClose={onClose} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}<div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : "更新"}</button></div></form></Dialog>;
 }
@@ -276,7 +275,26 @@ function useDialogFocus(onClose: () => void) {
   return close;
 }
 
-function useObjectUrl(file: File | null): string | null { const url = useMemo(() => file ? URL.createObjectURL(file) : null, [file]); useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]); return url; }
+function useLocalImagePreview(file: File | null): string | null {
+  const [preview, setPreview] = useState<{
+    file: File;
+    source: string | null;
+  } | null>(null);
+  useEffect(() => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      setPreview({
+        file,
+        source: typeof reader.result === "string" ? reader.result : null,
+      });
+    });
+    reader.addEventListener("error", () => setPreview({ file, source: null }));
+    reader.readAsDataURL(file);
+    return () => reader.abort();
+  }, [file]);
+  return file && preview?.file === file ? preview.source : null;
+}
 function StatusBadge({ status }: { status: AdminManagedBanner["status"] }) { return <span className={`status-badge status-${status === "published" ? "active" : "neutral"}`}>{status === "published" ? "Published" : "Draft"}</span>; }
 async function fileInput(file: File) { const content = new Uint8Array(await file.arrayBuffer()); let binary = ""; for (const byte of content) binary += String.fromCharCode(byte); return { content_base64: btoa(binary), file_name: file.name, mime_type: file.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp" }; }
 function formatJst(value: string): string { return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date(value)); }

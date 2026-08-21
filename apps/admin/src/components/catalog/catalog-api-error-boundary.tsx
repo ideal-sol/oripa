@@ -45,6 +45,8 @@ export function catalogProblemMessage(error: AdminApiError): string {
     case "CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT":
       return "公開に必要な景品が不足しています。Rankごとの景品登録状況を確認してください。";
     case "CATALOG_GACHA_PUBLISH_LIFECYCLE_INVALID":
+    case "CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID":
+    case "CATALOG_GACHA_SCHEDULE_CONFLICT":
       return "現在の状態では指定した操作を実行できません。状態を確認してから再度お試しください。";
     case "CATALOG_GACHA_PUBLISH_INVENTORY_INVALID":
       return "景品在庫とガチャの総口数の整合性を確認してください。";

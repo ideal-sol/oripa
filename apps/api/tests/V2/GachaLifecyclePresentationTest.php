@@ -41,6 +41,92 @@ final class GachaLifecyclePresentationTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_core_update_commits_initial_publish_with_state_only_and_other_changes(): void
+    {
+        $token = $this->createAdminSession();
+        foreach ([false, true] as $changesPresentation) {
+            $slug = $changesPresentation
+                ? 'lifecycle-core-publish-with-presentation'
+                : 'lifecycle-core-publish-state-only';
+            $prepared = $this->prepareGacha(
+                $token,
+                $slug,
+                $this->databaseNow()->subMinute()
+            );
+            $gachaBefore = DB::table('catalog_gachas')
+                ->where('public_id', $prepared['gacha_id'])->firstOrFail();
+            $input = $prepared['input'];
+            if ($changesPresentation) {
+                $input['title'] = '状態と同時に更新したタイトル';
+            }
+
+            $response = $this->updateGacha(
+                $token,
+                $prepared['gacha_id'],
+                $input,
+                'published',
+                $slug.'-update'
+            )->assertOk()
+                ->assertJsonPath('data.publication_status', 'published');
+            if ($changesPresentation) {
+                $response->assertJsonPath(
+                    'data.current_version.title',
+                    '状態と同時に更新したタイトル'
+                );
+            }
+            $this->assertActivationConstraintIsValid();
+
+            $gachaAfter = DB::table('catalog_gachas')
+                ->where('public_id', $prepared['gacha_id'])->firstOrFail();
+            self::assertSame(
+                (int) $gachaBefore->revision + 1,
+                (int) $gachaAfter->revision
+            );
+            self::assertNotNull($gachaAfter->published_version_id);
+            self::assertNotNull($gachaAfter->active_draw_state_id);
+        }
+    }
+
+    public function test_core_update_without_management_transition_remains_valid(): void
+    {
+        $token = $this->createAdminSession();
+        $prepared = $this->prepareGacha(
+            $token,
+            'lifecycle-core-presentation-only',
+            $this->databaseNow()->subMinute()
+        );
+        $gacha = DB::table('catalog_gachas')
+            ->where('public_id', $prepared['gacha_id'])->firstOrFail();
+        $version = DB::table('catalog_gacha_versions')
+            ->where('public_id', $prepared['version_id'])->firstOrFail();
+
+        $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'],
+            [
+                ...$prepared['input'],
+                'title' => '状態変更なしの更新タイトル',
+                'expected_revision' => (int) $gacha->revision,
+                'expected_version_revision' => (int) $version->revision,
+            ],
+            'lifecycle-core-presentation-only-update'
+        )->assertOk()
+            ->assertJsonPath('data.publication_status', 'draft')
+            ->assertJsonPath(
+                'data.current_version.title',
+                '状態変更なしの更新タイトル'
+            );
+        $this->assertActivationConstraintIsValid();
+
+        self::assertSame(
+            (int) $gacha->revision + 1,
+            (int) DB::table('catalog_gachas')
+                ->where('public_id', $prepared['gacha_id'])
+                ->value('revision')
+        );
+    }
+
     public function test_initial_publish_uses_one_draw_state_and_current_overlay(): void
     {
         $token = $this->createAdminSession();
@@ -909,6 +995,16 @@ final class GachaLifecyclePresentationTest extends TestCase
     {
         return CarbonImmutable::parse(
             DB::selectOne('SELECT STATEMENT_TIMESTAMP() AS value')->value
+        );
+    }
+
+    private function assertActivationConstraintIsValid(): void
+    {
+        DB::statement(
+            'SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE'
+        );
+        DB::statement(
+            'SET CONSTRAINTS catalog_gachas_validate_activation DEFERRED'
         );
     }
 

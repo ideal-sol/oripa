@@ -25,7 +25,8 @@ vi.mock("@/components/permissions/permission-provider", () => ({
   }),
 }));
 vi.mock("next/image", () => ({
-  default: (properties: React.ImgHTMLAttributes<HTMLImageElement>) =>
+  default: ({ unoptimized: _unoptimized, ...properties }:
+    React.ImgHTMLAttributes<HTMLImageElement> & { unoptimized?: boolean }) =>
     createElement("img", { alt: properties.alt ?? "", ...properties }),
 }));
 
@@ -48,6 +49,64 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Banner management", () => {
+  it("previews changed local files without a blob URL and preserves registration", async () => {
+    const upload = vi.spyOn(AdminApiClient.prototype, "uploadBannerAsset")
+      .mockResolvedValue({
+        byte_size: 12,
+        id: uuid("6"),
+        idempotent_replay: false,
+        mime_type: "image/png",
+        public_url: `/api/v2/content/assets/${uuid("6")}`,
+      });
+    const create = vi.spyOn(AdminApiClient.prototype, "createManagedBanner")
+      .mockResolvedValue({ ...banner(), idempotent_replay: false });
+    render(<BannerManagementWorkspace />);
+
+    await screen.findByText("メインバナー");
+    fireEvent.change(screen.getByLabelText("カテゴリ"), {
+      target: { value: category.id },
+    });
+    fireEvent.change(screen.getByLabelText("タイトル"), {
+      target: { value: "Preview Banner" },
+    });
+    const firstFile = new File(["first-image"], "first.png", { type: "image/png" });
+    Object.defineProperty(firstFile, "arrayBuffer", {
+      value: vi.fn().mockResolvedValue(new TextEncoder().encode("first-image").buffer),
+    });
+    fireEvent.change(screen.getByLabelText("画像"), {
+      target: { files: [firstFile] },
+    });
+
+    const preview = await screen.findByAltText("登録するバナー画像のプレビュー");
+    await waitFor(() => expect(preview.getAttribute("src")).toMatch(/^data:image\/png;base64,/u));
+    const firstSource = preview.getAttribute("src");
+    expect(firstSource).not.toMatch(/^blob:/u);
+
+    const secondFile = new File(["second-image"], "second.png", { type: "image/png" });
+    Object.defineProperty(secondFile, "arrayBuffer", {
+      value: vi.fn().mockResolvedValue(new TextEncoder().encode("second-image").buffer),
+    });
+    fireEvent.change(screen.getByLabelText("画像"), {
+      target: { files: [secondFile] },
+    });
+    await waitFor(() => expect(
+      screen.getByAltText("登録するバナー画像のプレビュー").getAttribute("src"),
+    ).not.toBe(firstSource));
+    expect(screen.getByAltText("登録するバナー画像のプレビュー").getAttribute("src"))
+      .toMatch(/^data:image\/png;base64,/u);
+
+    fireEvent.submit(
+      screen.getByRole("button", { name: "バナー登録" }).closest("form")!,
+    );
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      asset_id: uuid("6"),
+      category_id: category.id,
+      title: "Preview Banner",
+    });
+  });
+
   it("renders registration, exact list columns, category filter, and public URL actions", async () => {
     const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners");
     render(<BannerManagementWorkspace />);

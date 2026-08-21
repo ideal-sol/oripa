@@ -20,8 +20,11 @@ export function PublicAssetPreview({
   asset: AdminCatalogAssetReference | null;
   allowAuthenticatedContent?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
-  if (!asset || failed || (!safePublicPath(asset.public_path) && !allowAuthenticatedContent)) {
+  const [failedAssetId, setFailedAssetId] = useState<string | null>(null);
+  const publicPath = asset && safePublicPath(asset.public_path)
+    ? asset.public_path
+    : null;
+  if (!asset || failedAssetId === asset.id || (!allowAuthenticatedContent && !publicPath)) {
     return (
       <div className="asset-fallback" role="img" aria-label="Previewなし">
         <FileWarning size={22} aria-hidden="true" />
@@ -29,16 +32,16 @@ export function PublicAssetPreview({
       </div>
     );
   }
-  const source = safePublicPath(asset.public_path)
-    ? asset.public_path
-    : assetContentPath(asset.id);
+  const source = allowAuthenticatedContent
+    ? assetContentPath(asset.id)
+    : publicPath!;
   if (asset.media_type === "video") {
     return (
       <video
         aria-label={asset.alt_text ?? "Presentation video"}
         className="asset-preview"
         controls
-        onError={() => setFailed(true)}
+        onError={() => setFailedAssetId(asset.id)}
         preload="metadata"
         src={source}
       />
@@ -50,7 +53,7 @@ export function PublicAssetPreview({
     <img
       alt={asset.alt_text ?? ""}
       className="asset-preview"
-      onError={() => setFailed(true)}
+      onError={() => setFailedAssetId(asset.id)}
       src={source}
     />
   );
