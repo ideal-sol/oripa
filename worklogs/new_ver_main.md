@@ -8772,3 +8772,11 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - ガチャ編集画面は基本情報フォーム、Rank、景品の順へ統合し、MIG-067の公開後WhitelistをUIで維持する。Probability／Preflightの通常導線は非表示化するが、Legacy API／compatibility codeは削除しない。
 - 景品の総在庫入力は総口数から他景品と当該フォーム値を一度ずつ差し引いた残りを表示し、負値はUI保存を拒否する。Backendのcapacity制約、正規在庫補正、audit semanticsは変更しない。
 - 保存済み景品Previewはcanonical `presentation_asset_id`を使用し、public pathがない場合も既存の認証済みcontent endpointで表示する。Asset複製・新規Asset作成は0件である。
+
+## OPS-014 Canonical Gacha Preview Runtime Activation
+
+- `git fetch --prune`後、clean local／origin／GitHub `main`と確認済みcandidateはすべて`d01a3ca7511691a729a781959ab715ddd0d43f7a`で完全一致し、後続Platform commitは0。未使用Task ID `OPS-014`、Issue #340、Branch `chore/OPS-014-canonical-gacha-runtime-activation`、専用Worktree、Risk R4で開始した。
+- Shared Task lane／Shared Locks／Storefront laneはidle、Preview Deployment OS lockはfree、API／Admin／PostgreSQL／Redisはhealthyかつrestart 0、Resource Gateはdisk 22 GiB、available memory 3393 MiB、swap 5420 MiBでPASSした。Preview Deployment Lockはまだ取得していない。
+- Shared Preview migration ledgerは55件、latest batch 26、最終`000055`であり、`000056`／`000057`／`000058`／`000059`はすべてPendingだった。明示継続条件の`000056`／`000057` Ranを満たさないためMigration GateをFail Closedし、`000058`／`000059`適用、Canonical Preview Image Build、artifact download/load、API／Admin activation、business mutation、rollbackを一切実行していない。
+- Active API／Adminは既存OPS-012 imageとOCI revisionを維持し、DB row count／fingerprintはroot-only evidenceへ保存した。Storefront、Production、Payment／Coin／Refund、Draw Core、Public Contract／Artifact、Nginx／DNS／TLS、network境界、runtime env、Legacy Probability物理record、Application sourceの変更は0。Post-Activation SmokeとHuman Browser VerificationはActivation未実行のため全項目NOT RUNである。
+- Draft PR #341を作成し、Policy Unit 152、Quality Unit 4、Security Unit 10、Local Policy／Quality／Security Gate、fresh Composer／workspace pnpm／legacy pnpm audit各0 finding、deployment JSON parse、exact scope、`git diff --check`をPASSした。最終evidence headでRequired 5 Checksとfresh fixed-head self-reviewを要求する。
