@@ -3525,6 +3525,12 @@ final class V2CatalogMasterMutationService
             ]);
             $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
         }
+        DB::statement(
+            'SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE'
+        );
+        DB::statement(
+            'SET CONSTRAINTS catalog_gachas_validate_activation DEFERRED'
+        );
         $unpublishContext = $this->lockGachaSalesContext($gacha);
         $preflight = $this->gachaUnpublishPreflightResult(
             $context->requestId,
