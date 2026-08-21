@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { PublicAssetPreview, safePublicPath } from "@/components/catalog/public-asset-preview";
+import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
@@ -39,7 +40,6 @@ export function CatalogGachaRankPrizeManager({
   const [prizes, setPrizes] = useState<AdminGachaVersionPrize[]>([]);
   const [rankEffects, setRankEffects] = useState<AdminRankEffect[]>([]);
   const [versionRevision, setVersionRevision] = useState(version?.revision ?? 0);
-  const [rankDialog, setRankDialog] = useState(false);
   const [rankEditing, setRankEditing] = useState<AdminCatalogRank | null>(null);
   const [rankFormOpen, setRankFormOpen] = useState(false);
   const [prizeEditing, setPrizeEditing] = useState<AdminGachaVersionPrize | null>(null);
@@ -79,8 +79,8 @@ export function CatalogGachaRankPrizeManager({
   }, [gachaId, version?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (rankDialog || prizeDialog) firstDialogControl.current?.focus();
-  }, [rankDialog, prizeDialog, rankFormOpen]);
+    if (rankFormOpen || prizeDialog) firstDialogControl.current?.focus();
+  }, [prizeDialog, rankFormOpen]);
 
   if (!version) {
     return (
@@ -185,8 +185,8 @@ export function CatalogGachaRankPrizeManager({
           <h2 id={headingId}>{heading}</h2>
         </div>
         {canManage && !presentationOnly ? (
-          <button className="secondary-button" onClick={() => setRankDialog(true)} type="button">
-            <Settings2 aria-hidden="true" size={17} /> ランク設定
+          <button className="secondary-button" onClick={() => { setRankEditing(null); setRankFormOpen(true); }} type="button">
+            <Settings2 aria-hidden="true" size={17} /> Rank追加
           </button>
         ) : null}
       </header>
@@ -195,7 +195,36 @@ export function CatalogGachaRankPrizeManager({
       ) : null}
       {error ? <p className="form-field-error" role="alert">{error}</p> : null}
       <div className="catalog-prize-heading">
-        <h3>景品一覧</h3>
+        <h3>Rank一覧</h3>
+      </div>
+      {loadState === "ready" && ranks.length === 0 ? (
+        <p className="catalog-version-empty">登録済みRankはありません。</p>
+      ) : null}
+      {ranks.length > 0 ? (
+        <div className="catalog-table-wrap">
+          <table className="catalog-table">
+            <thead><tr><th>Rank</th><th>キー</th><th>説明</th><th>編集</th></tr></thead>
+            <tbody>{ranks.map((rank) => (
+              <tr key={rank.id}>
+                <td>{rank.name}</td>
+                <td><code>{rank.code}</code></td>
+                <td>{rank.description || "-"}</td>
+                <td>{canManage && !presentationOnly ? (
+                  <button
+                    aria-label={`${rank.name}を編集`}
+                    className="icon-button"
+                    onClick={() => { setRankEditing(rank); setRankFormOpen(true); }}
+                    title="編集"
+                    type="button"
+                  ><Edit3 aria-hidden="true" size={16} /></button>
+                ) : "-"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ) : null}
+      <div className="catalog-prize-heading">
+        <h3>景品</h3>
         {canManage && !presentationOnly ? (
           <button
             className="primary-button"
@@ -203,7 +232,7 @@ export function CatalogGachaRankPrizeManager({
             onClick={() => { setPrizeEditing(null); setPrizeDialog(true); }}
             type="button"
           >
-            <Plus aria-hidden="true" size={17} /> 新規景品登録
+            <Plus aria-hidden="true" size={17} /> 景品追加
           </button>
         ) : null}
       </div>
@@ -218,7 +247,7 @@ export function CatalogGachaRankPrizeManager({
               <tr key={prize.id}>
                 <td>{prize.rank.name}</td>
                 <td>{prize.name}</td>
-                <td><PublicAssetPreview asset={prize.presentation_asset} /></td>
+                <td><PublicAssetPreview allowAuthenticatedContent asset={prize.presentation_asset} /></td>
                 <td>{(prize.total_inventory ?? 0).toLocaleString()}</td>
                 <td>{(prize.available_inventory ?? 0).toLocaleString()}</td>
                 <td>{prize.exchange_points.toLocaleString()}</td>
@@ -239,26 +268,14 @@ export function CatalogGachaRankPrizeManager({
         </div>
       ) : null}
 
-      {rankDialog ? (
-        <Dialog title="ランク設定" onClose={() => { setRankDialog(false); setRankFormOpen(false); }}>
-          <div className="catalog-rank-list">
-            <div className="catalog-prize-heading">
-              <h3>登録済みランク</h3>
-              <button className="primary-button" onClick={() => { setRankEditing(null); setRankFormOpen(true); }} type="button"><Plus aria-hidden="true" size={16} /> 追加</button>
-            </div>
-            {ranks.length === 0 ? <p className="catalog-version-empty">登録済みランクはありません。</p> : ranks.map((rank) => (
-              <div className="catalog-rank-row" key={rank.id}>
-                <div><strong>{rank.name}</strong><code>{rank.code}</code><p>{rank.description || "説明未設定"}</p></div>
-                <button aria-label={`${rank.name}を編集`} className="icon-button" onClick={() => { setRankEditing(rank); setRankFormOpen(true); }} type="button"><Edit3 aria-hidden="true" size={16} /></button>
-              </div>
-            ))}
-          </div>
-          {rankFormOpen ? <RankForm effects={rankEffects} busy={busy} current={rankEditing} inputRef={firstDialogControl} onCancel={() => setRankFormOpen(false)} onSubmit={submitRank} /> : null}
+      {rankFormOpen ? (
+        <Dialog title={rankEditing ? "Rank編集" : "Rank追加"} onClose={() => { setRankEditing(null); setRankFormOpen(false); }}>
+          <RankForm effects={rankEffects} busy={busy} current={rankEditing} inputRef={firstDialogControl} onCancel={() => { setRankEditing(null); setRankFormOpen(false); }} onSubmit={submitRank} />
         </Dialog>
       ) : null}
       {prizeDialog ? (
         <Dialog title={prizeEditing ? "景品編集" : "新規景品登録"} onClose={() => setPrizeDialog(false)}>
-          <PrizeForm busy={busy} current={prizeEditing} inputRef={firstDialogControl} key={prizeEditing?.id ?? "new"} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} ranks={ranks} />
+          <PrizeForm busy={busy} current={prizeEditing} inputRef={firstDialogControl} key={prizeEditing?.id ?? "new"} onCancel={() => setPrizeDialog(false)} onSubmit={submitPrize} presentationOnly={presentationOnly} prizes={prizes} ranks={ranks} totalCount={version.total_count} />
         </Dialog>
       ) : null}
     </section>
@@ -293,16 +310,25 @@ function RankForm({ effects, busy, current, inputRef, onCancel, onSubmit }: { ef
   </form>;
 }
 
-function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, presentationOnly, ranks }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; presentationOnly: boolean; ranks: AdminCatalogRank[] }) {
+function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, presentationOnly, prizes, ranks, totalCount }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; presentationOnly: boolean; prizes: AdminGachaVersionPrize[]; ranks: AdminCatalogRank[]; totalCount: number }) {
   const [presentationAssetId, setPresentationAssetId] = useState(current?.presentation_asset?.id ?? null);
   const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
   const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
   const [bannerPickerError, setBannerPickerError] = useState<string | null>(null);
+  const [totalInventory, setTotalInventory] = useState(current?.total_inventory ?? 0);
+  const otherPrizeInventory = prizes
+    .filter((prize) => prize.id !== current?.id)
+    .reduce((total, prize) => total + prize.total_inventory, 0);
+  const remainingTotalCount = totalCount - otherPrizeInventory - totalInventory;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (bannerPickerChanged && selectedBannerId === null) {
       setBannerPickerError("選択したBanner CategoryからBannerを選択してください。");
+      return;
+    }
+    if (remainingTotalCount < 0) {
+      setBannerPickerError("景品の総在庫数がガチャの総口数を超えています。総在庫数を減らしてください。");
       return;
     }
     setBannerPickerError(null);
@@ -324,14 +350,15 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, presentationOn
     <input name="presentation_asset_id" type="hidden" value={presentationAssetId ?? ""} />
     {bannerPickerError ? <p className="form-field-error" role="alert">{bannerPickerError}</p> : null}
     <div className="catalog-form-grid">
-      <label>総在庫数<input defaultValue={current?.total_inventory ?? 0} min={0} name="total_inventory" required type="number" /></label>
+      <label>総在庫数<input aria-label="総在庫数" min={0} name="total_inventory" onChange={(event) => setTotalInventory(Number(event.target.value))} required type="number" value={totalInventory} /><span className="field-hint">（総口数残り{remainingTotalCount.toLocaleString()}）</span></label>
       {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
       <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" readOnly={presentationOnly} required type="number" /></label>
       <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" readOnly={presentationOnly} required type="number" /></label>
       <label>状態<select defaultValue={String(current?.is_visible ?? true)} disabled={presentationOnly} name={presentationOnly ? undefined : "is_active"}><option value="true">有効</option><option value="false">無効</option></select>{presentationOnly ? <input name="is_active" type="hidden" value={String(current?.is_visible ?? true)} /> : null}</label>
     </div>
-    {current ? <label>在庫変更理由<textarea maxLength={500} name="inventory_reason" required /></label> : null}
-    <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
+    {remainingTotalCount < 0 ? <p className="form-field-error" role="alert">景品の総在庫数がガチャの総口数を超えています。総在庫数を減らしてください。</p> : null}
+    {current ? <label>変更理由<textarea maxLength={500} name="inventory_reason" required /></label> : null}
+    <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy || remainingTotalCount < 0} type="submit">{busy ? "保存中" : "保存"}</button></div>
   </form>;
 }
 
@@ -421,4 +448,4 @@ async function listAllRankEffects(client: AdminApiClient, signal?: AbortSignal):
 
 function nullable(value: string): string | null { return value === "" ? null : value; }
 function formatJst(value: string): string { return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(new Date(value)); }
-function errorMessage(cause: unknown): string { return cause instanceof AdminApiError ? `${cause.code}（${cause.status}）` : "通信に失敗しました。"; }
+function errorMessage(cause: unknown): string { return cause instanceof AdminApiError ? catalogProblemMessage(cause) : "通信に失敗しました。"; }

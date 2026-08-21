@@ -3,7 +3,8 @@
 import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import type {
   AdminCatalogAssetReference,
@@ -97,8 +98,8 @@ export function CatalogGachaCoreForm({
   const postPublished = mode === "edit" && current?.first_published_at != null;
   const scheduled = current?.publication_status === "scheduled";
   const scheduledStartReached = scheduled
-    && currentTime !== null
-    && Date.parse(current?.current_version?.publish_start_at ?? "") <= currentTime;
+    && (currentTime === null
+      || Date.parse(current?.current_version?.publish_start_at ?? "") <= currentTime);
   const dirty = draft.thumbnailFile !== null || JSON.stringify({
     ...draft,
     thumbnailFile: null,
@@ -182,8 +183,12 @@ export function CatalogGachaCoreForm({
         tagIds: [...draft.tagIds].sort(),
         title: draft.title.normalize("NFC").trim(),
       });
-    } catch {
-      setErrors({ form: `${mode === "create" ? "登録" : "保存"}できませんでした。入力内容を確認してください。` });
+    } catch (cause) {
+      setErrors({
+        form: cause instanceof AdminApiError
+          ? catalogProblemMessage(cause)
+          : `${mode === "create" ? "登録" : "保存"}できませんでした。入力内容を確認してください。`,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +205,7 @@ export function CatalogGachaCoreForm({
         <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
         <FieldError message={errors.title} />
         <div className="catalog-form-grid">
-          <label>カテゴリ<select disabled={postPublished} required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <GachaThumbnailField
             current={current?.current_version?.presentation_asset ?? null}
             onChange={(thumbnailFile) => setDraft({ ...draft, thumbnailFile })}

@@ -9,18 +9,19 @@ function safePublicPath(path: string | null): path is string {
   return path !== null && path.startsWith("/") && !path.startsWith("//");
 }
 
+function assetContentPath(id: string): string {
+  return `/admin/api/v2/catalog/presentation-assets/${id}/content`;
+}
+
 export function PublicAssetPreview({
   asset,
+  allowAuthenticatedContent = false,
 }: {
   asset: AdminCatalogAssetReference | null;
+  allowAuthenticatedContent?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  if (
-    !asset ||
-    !asset.is_public ||
-    !safePublicPath(asset.public_path) ||
-    failed
-  ) {
+  if (!asset || failed || (!safePublicPath(asset.public_path) && !allowAuthenticatedContent)) {
     return (
       <div className="asset-fallback" role="img" aria-label="Previewなし">
         <FileWarning size={22} aria-hidden="true" />
@@ -28,6 +29,9 @@ export function PublicAssetPreview({
       </div>
     );
   }
+  const source = safePublicPath(asset.public_path)
+    ? asset.public_path
+    : assetContentPath(asset.id);
   if (asset.media_type === "video") {
     return (
       <video
@@ -36,7 +40,7 @@ export function PublicAssetPreview({
         controls
         onError={() => setFailed(true)}
         preload="metadata"
-        src={asset.public_path}
+        src={source}
       />
     );
   }
@@ -47,7 +51,7 @@ export function PublicAssetPreview({
       alt={asset.alt_text ?? ""}
       className="asset-preview"
       onError={() => setFailed(true)}
-      src={asset.public_path}
+      src={source}
     />
   );
 }
