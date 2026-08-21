@@ -127,6 +127,124 @@ final class GachaLifecyclePresentationTest extends TestCase
         );
     }
 
+    public function test_core_update_commits_terminal_unpublish_from_published_and_paused(): void
+    {
+        $token = $this->createAdminSession();
+        foreach (['published', 'sales_paused'] as $sourceStatus) {
+            $slug = 'lifecycle-unpublish-'.$sourceStatus;
+            $prepared = $this->prepareGacha(
+                $token,
+                $slug,
+                $this->databaseNow()->subMinute()
+            );
+            $this->publish($token, $prepared, $slug.'-publish');
+            $this->assertActivationConstraintIsValid();
+            if ($sourceStatus === 'sales_paused') {
+                $this->updateGacha(
+                    $token,
+                    $prepared['gacha_id'],
+                    $prepared['input'],
+                    'sales_paused',
+                    $slug.'-pause'
+                )->assertOk();
+            }
+
+            $gachaBefore = DB::table('catalog_gachas')
+                ->where('public_id', $prepared['gacha_id'])->firstOrFail();
+            $drawStateBefore = DB::table('gacha_draw_states')
+                ->where('id', $gachaBefore->active_draw_state_id)->firstOrFail();
+            $inventoryBefore = DB::table('prize_inventories')
+                ->where('gacha_draw_state_id', $drawStateBefore->id)
+                ->orderBy('id')
+                ->pluck('available_quantity', 'id')
+                ->all();
+            $historyCountsBefore = collect([
+                'draw_requests',
+                'draw_results',
+                'user_prizes',
+                'user_prize_status_histories',
+            ])->mapWithKeys(
+                static fn (string $table): array => [
+                    $table => DB::table($table)->count(),
+                ]
+            )->all();
+            $input = $prepared['input'];
+            if ($sourceStatus === 'sales_paused') {
+                $input['title'] = '販売停止から非公開と同時に更新したタイトル';
+            }
+
+            $response = $this->updateGacha(
+                $token,
+                $prepared['gacha_id'],
+                $input,
+                'unpublished',
+                $slug.'-unpublish'
+            )->assertOk()
+                ->assertJsonPath('data.publication_status', 'unpublished')
+                ->assertJsonPath('data.published_version', null);
+            if ($sourceStatus === 'sales_paused') {
+                $response->assertJsonPath(
+                    'data.current_version.title',
+                    '販売停止から非公開と同時に更新したタイトル'
+                );
+            }
+            $this->assertActivationConstraintIsValid();
+
+            $gachaAfter = DB::table('catalog_gachas')
+                ->where('id', $gachaBefore->id)->firstOrFail();
+            self::assertSame(
+                (int) $gachaBefore->revision
+                    + ($sourceStatus === 'published' ? 3 : 2),
+                (int) $gachaAfter->revision
+            );
+            self::assertSame('unpublished', $gachaAfter->management_status);
+            self::assertTrue((bool) $gachaAfter->sales_paused);
+            self::assertNull($gachaAfter->published_version_id);
+            self::assertNull($gachaAfter->active_draw_state_id);
+            self::assertSame(
+                (int) $drawStateBefore->sold_count,
+                (int) DB::table('gacha_draw_states')
+                    ->where('id', $drawStateBefore->id)
+                    ->value('sold_count')
+            );
+            self::assertSame(
+                'closed',
+                DB::table('gacha_draw_states')
+                    ->where('id', $drawStateBefore->id)
+                    ->value('status')
+            );
+            self::assertSame(
+                $inventoryBefore,
+                DB::table('prize_inventories')
+                    ->where('gacha_draw_state_id', $drawStateBefore->id)
+                    ->orderBy('id')
+                    ->pluck('available_quantity', 'id')
+                    ->all()
+            );
+            self::assertSame(
+                $historyCountsBefore,
+                collect(array_keys($historyCountsBefore))->mapWithKeys(
+                    static fn (string $table): array => [
+                        $table => DB::table($table)->count(),
+                    ]
+                )->all()
+            );
+
+            $this->updateGacha(
+                $token,
+                $prepared['gacha_id'],
+                $input,
+                'published',
+                $slug.'-terminal-republish'
+            )->assertUnprocessable()
+                ->assertJsonPath(
+                    'code',
+                    'CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID'
+                );
+            $this->assertActivationConstraintIsValid();
+        }
+    }
+
     public function test_initial_publish_uses_one_draw_state_and_current_overlay(): void
     {
         $token = $this->createAdminSession();
@@ -136,6 +254,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             $this->databaseNow()->subMinute()
         );
         $published = $this->publish($token, $prepared, 'lifecycle-immediate-publish');
+        $this->assertActivationConstraintIsValid();
         $drawStateId = (int) DB::table('catalog_gachas')
             ->where('public_id', $prepared['gacha_id'])
             ->value('active_draw_state_id');
