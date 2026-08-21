@@ -4,10 +4,10 @@
   "risk": "R4",
   "status": "pre_activation_verified",
   "issue": 350,
-  "pull_request": null,
+  "pull_request": 351,
   "base_sha": "9e8e644c1302b3257f1076a829a4aba6198fd0b9",
   "recorded_at": "2026-08-21T10:35:21Z",
-  "activation_source": null,
+  "activation_source": "PENDING_FIXED_HEAD",
   "stage_0": {
     "result": "PASS",
     "local_origin_github_main_equal": true,

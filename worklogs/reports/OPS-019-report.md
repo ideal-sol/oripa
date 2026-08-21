@@ -3,7 +3,7 @@
 ## Task
 
 - Issue: `#350`
-- Pull Request: pending
+- Pull Request: `#351`
 - Risk: `R4`
 - Base SHA: `9e8e644c1302b3257f1076a829a4aba6198fd0b9`
 - Branch: `chore/OPS-019-canonical-gacha-preview-activation`
