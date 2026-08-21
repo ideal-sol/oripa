@@ -259,6 +259,18 @@ class PolicyGateTest(unittest.TestCase):
         self.assertNotIn("DISABLE TRIGGER", migration)
         self.assertNotRegex(migration, r"\b(?:UPDATE|DELETE FROM)\s+catalog_")
 
+    def test_mig_072_unpublished_draft_restore_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
+        }
+        self.assertEqual(policy_gate.MIG_072_V2_CATALOG_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("NOT IN ('unpublished', 'draft')", migration)
+        self.assertIn("First publication history is immutable", migration)
+        self.assertIn("Cannot roll back MIG-072", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
             "apps/api/app/Domain/Identity/Exceptions/V2UserTagException.php",
@@ -1210,6 +1222,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_12_000060_reconcile_preview_gacha_capacity.php",
             "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
             "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
+            "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

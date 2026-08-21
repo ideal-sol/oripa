@@ -218,7 +218,7 @@ export function CatalogGachaCoreForm({
           <NumberField disabled={postPublished} label="消費ポイント" min={1} onChange={(pricePoints) => setDraft({ ...draft, pricePoints })} value={draft.pricePoints} />
           <NumberField disabled={postPublished} label="総口数" min={1} onChange={(totalCount) => setDraft({ ...draft, totalCount })} value={draft.totalCount} />
           <NumberField disabled={postPublished} label="1日規定回数（0は無制限・JST 0時リセット）" min={0} onChange={(dailyDrawLimit) => setDraft({ ...draft, dailyDrawLimit })} value={draft.dailyDrawLimit} />
-          {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}>{managementStatusOptions(current?.publication_status, scheduledStartReached).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {mode === "create" ? <label>状態<input disabled value="下書き" /></label> : <label>状態<select value={draft.managementStatus} onChange={(event) => setDraft({ ...draft, managementStatus: event.target.value as GachaCoreDraft["managementStatus"] })}>{managementStatusOptions(current?.publication_status, scheduledStartReached, current?.first_published_at != null).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
         </div>
         <FieldError message={errors.price ?? errors.total ?? errors.daily} />
         <fieldset className="catalog-choice-fieldset">
@@ -882,6 +882,7 @@ function DateTimeField({
 function managementStatusOptions(
   status?: AdminCatalogGacha["publication_status"],
   scheduledStartReached = false,
+  hasPublishedHistory = false,
 ): Array<{ label: string; value: GachaCoreDraft["managementStatus"] }> {
   switch (status) {
     case "scheduled":
@@ -908,12 +909,18 @@ function managementStatusOptions(
         { label: "非公開", value: "unpublished" },
       ];
     case "unpublished":
-      return [{ label: "非公開", value: "unpublished" }];
+      return [
+        { label: "非公開", value: "unpublished" },
+        { label: "下書きへ戻す", value: "draft" },
+      ];
     default:
       return [
         { label: "下書き", value: "draft" },
-        { label: "予約公開", value: "scheduled" },
+        ...(hasPublishedHistory
+          ? []
+          : [{ label: "予約公開", value: "scheduled" as const }]),
         { label: "公開", value: "published" },
+        { label: "非公開", value: "unpublished" },
       ];
   }
 }
