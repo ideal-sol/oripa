@@ -326,7 +326,11 @@ describe("Gacha Rank and Prize manager", () => {
       ...prize,
       id: "01910191-0191-7191-8191-019101910203",
       name: "Banner景品",
-      presentation_asset: { ...asset, id: BANNER_A_ASSET_ID, is_public: false, public_path: null },
+      presentation_asset: {
+        ...asset,
+        id: BANNER_A_ASSET_ID,
+        public_path: `/api/v2/content/assets/${BANNER_A_ASSET_ID}`,
+      },
     };
     vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes")
       .mockResolvedValueOnce({ items: [], version_revision: 3 })
@@ -353,8 +357,22 @@ describe("Gacha Rank and Prize manager", () => {
   });
 
   it("refreshes the preview from the updated canonical presentation Asset", async () => {
-    const current = { ...prize, presentation_asset: { ...asset, id: BANNER_A_ASSET_ID, is_public: false, public_path: null } };
-    const updated = { ...current, presentation_asset: { ...asset, id: BANNER_B_ASSET_ID, is_public: false, public_path: null } };
+    const current = {
+      ...prize,
+      presentation_asset: {
+        ...asset,
+        id: BANNER_A_ASSET_ID,
+        public_path: `/api/v2/content/assets/${BANNER_A_ASSET_ID}`,
+      },
+    };
+    const updated = {
+      ...current,
+      presentation_asset: {
+        ...asset,
+        id: BANNER_B_ASSET_ID,
+        public_path: `/api/v2/content/assets/${BANNER_B_ASSET_ID}`,
+      },
+    };
     vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes")
       .mockResolvedValueOnce({ items: [current], version_revision: 3 })
       .mockResolvedValue({ items: [updated], version_revision: 4 });

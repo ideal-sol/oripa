@@ -136,6 +136,33 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.queryByText(/Request ID/u)).not.toBeInTheDocument();
     expect(screen.queryByText("CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT")).not.toBeInTheDocument();
   });
+
+  it("shows a mapped lifecycle error without Request ID or internal code", async () => {
+    const submit = vi.fn().mockRejectedValue(new AdminApiError(
+      422,
+      "CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID",
+      "01910191-0191-7191-8191-019101910199",
+      null,
+      false,
+    ));
+    render(
+      <CatalogGachaCoreForm
+        current={gacha("draft", "2026-08-01T00:00:00Z")}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/現在の状態では指定した操作/u)).toBeVisible();
+    expect(screen.queryByText(/Request ID/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID"))
+      .not.toBeInTheDocument();
+  });
 });
 
 function renderForm(current: AdminCatalogGacha) {

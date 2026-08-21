@@ -53,6 +53,7 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         )->assertCreated()->json('data');
         $gachaId = $core['id'];
         $versionId = $core['current_version']['id'];
+        $assetCountBefore = DB::table('catalog_presentation_assets')->count();
 
         Auth::forgetGuards();
         $rank = $this->mutate(
@@ -114,7 +115,28 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             ]
         )->assertCreated()
             ->assertJsonPath('data.cost_price', 5000)
+            ->assertJsonPath(
+                'data.presentation_asset.id',
+                self::PRIZE_ASSET_ID
+            )
             ->json('data');
+
+        $prizeAssetId = DB::table('catalog_presentation_assets')
+            ->where('public_id', self::PRIZE_ASSET_ID)->value('id');
+        $storedPrizeId = DB::table('catalog_prizes')
+            ->where('public_id', $prize['id'])->value('id');
+        self::assertSame(
+            (int) $prizeAssetId,
+            (int) DB::table('catalog_prizes')
+                ->where('id', $storedPrizeId)
+                ->value('presentation_asset_id')
+        );
+        self::assertSame(
+            (int) $prizeAssetId,
+            (int) DB::table('catalog_gacha_version_prizes')
+                ->where('prize_id', $storedPrizeId)
+                ->value('presentation_asset_id')
+        );
 
         Auth::forgetGuards();
         $this->asAdmin($token)
@@ -127,6 +149,10 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             ->assertJsonPath('items.0.awarded_inventory', 0)
             ->assertJsonPath('items.0.withdrawn_inventory', 0)
             ->assertJsonPath('items.0.inventory_revision', 0)
+            ->assertJsonPath(
+                'items.0.presentation_asset.id',
+                self::PRIZE_ASSET_ID
+            )
             ->assertJsonMissingPath('items.0.internal_id');
 
         Auth::forgetGuards();
@@ -136,7 +162,7 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes/{$prize['id']}",
             [
                 'rank_id' => $rank['id'],
-                'presentation_asset_id' => self::PRIZE_ASSET_ID,
+                'presentation_asset_id' => self::IMAGE_ASSET_ID,
                 'name' => 'SS景品 改訂',
                 'total_inventory' => 12,
                 'available_inventory' => 12,
@@ -151,7 +177,39 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         )->assertOk()
             ->assertJsonPath('data.name', 'SS景品 改訂')
             ->assertJsonPath('data.cost_price', 5200)
-            ->assertJsonPath('data.is_visible', false);
+            ->assertJsonPath('data.is_visible', false)
+            ->assertJsonPath(
+                'data.presentation_asset.id',
+                self::IMAGE_ASSET_ID
+            );
+
+        $updatedAssetId = DB::table('catalog_presentation_assets')
+            ->where('public_id', self::IMAGE_ASSET_ID)->value('id');
+        self::assertSame(
+            (int) $updatedAssetId,
+            (int) DB::table('catalog_prizes')
+                ->where('id', $storedPrizeId)
+                ->value('presentation_asset_id')
+        );
+        self::assertSame(
+            (int) $updatedAssetId,
+            (int) DB::table('catalog_gacha_version_prizes')
+                ->where('prize_id', $storedPrizeId)
+                ->value('presentation_asset_id')
+        );
+
+        Auth::forgetGuards();
+        $this->asAdmin($token)
+            ->getJson("/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes")
+            ->assertOk()
+            ->assertJsonPath(
+                'items.0.presentation_asset.id',
+                self::IMAGE_ASSET_ID
+            );
+        self::assertSame(
+            $assetCountBefore,
+            DB::table('catalog_presentation_assets')->count()
+        );
     }
 
     public function test_rank_codes_are_unique_inside_one_gacha_and_reusable_across_gachas(): void

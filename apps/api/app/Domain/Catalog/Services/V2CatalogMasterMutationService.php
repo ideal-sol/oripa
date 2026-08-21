@@ -501,6 +501,10 @@ final class V2CatalogMasterMutationService
                     (int) $version->id,
                     $payload['total_count']
                 );
+                $publishesInitialDraft =
+                    $payload['management_status'] === 'published'
+                    && (string) $row->management_status === 'draft'
+                    && $row->first_published_at === null;
                 if (
                     (string) $row->management_status === 'scheduled'
                     && CarbonImmutable::parse((string) $payload['publish_start_at'])
@@ -512,13 +516,15 @@ final class V2CatalogMasterMutationService
                         'A scheduled first publication must remain in the future.'
                     );
                 }
-                DB::table('catalog_gachas')->where('id', $row->id)->update([
-                    ...((string) $row->management_status === 'scheduled' ? [
-                        'scheduled_start_at' => $payload['publish_start_at'],
-                    ] : []),
-                    'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
-                ]);
+                if (! $publishesInitialDraft) {
+                    DB::table('catalog_gachas')->where('id', $row->id)->update([
+                        ...((string) $row->management_status === 'scheduled' ? [
+                            'scheduled_start_at' => $payload['publish_start_at'],
+                        ] : []),
+                        'revision' => (int) $row->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+                }
                 DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
                     'category_id' => $category->id,
                     'title' => $payload['title'],
@@ -551,7 +557,10 @@ final class V2CatalogMasterMutationService
                         $context,
                         $admin,
                         $publicId,
-                        $payload['management_status']
+                        $payload['management_status'],
+                        $publishesInitialDraft
+                            ? (int) $category->id
+                            : null
                     );
                 }
 
@@ -3343,7 +3352,8 @@ final class V2CatalogMasterMutationService
         V2AdminAuthorizationContext $context,
         Admin $admin,
         string $gachaPublicId,
-        string $target
+        string $target,
+        ?int $activationCategoryId = null
     ): void {
         $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
         $current = (string) ($gacha->management_status ?? 'draft');
@@ -3430,7 +3440,9 @@ final class V2CatalogMasterMutationService
                 $context->requestId,
                 $gacha,
                 (string) $version->public_id,
-                (int) $version->revision
+                (int) $version->revision,
+                null,
+                $activationCategoryId
             );
             return;
         }
@@ -7203,7 +7215,8 @@ final class V2CatalogMasterMutationService
         object $gacha,
         string $gachaVersionPublicId,
         int $expectedRevision,
-        ?int $pinnedProbabilityVersionId = null
+        ?int $pinnedProbabilityVersionId = null,
+        ?int $activationCategoryId = null
     ): array {
         $databaseNow = $this->databaseNow();
         if (
@@ -7332,6 +7345,9 @@ final class V2CatalogMasterMutationService
             throw $this->gachaPublishInventoryException();
         }
         DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+            ...($activationCategoryId === null ? [] : [
+                'category_id' => $activationCategoryId,
+            ]),
             'state' => 'active',
             'published_version_id' => $version->id,
             'active_draw_state_id' => $drawStateId,
