@@ -276,21 +276,24 @@ function useDialogFocus(onClose: () => void) {
 }
 
 function useLocalImagePreview(file: File | null): string | null {
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    file: File;
+    source: string | null;
+  } | null>(null);
   useEffect(() => {
-    if (!file) {
-      setPreview(null);
-      return;
-    }
+    if (!file) return;
     const reader = new FileReader();
     reader.addEventListener("load", () => {
-      setPreview(typeof reader.result === "string" ? reader.result : null);
+      setPreview({
+        file,
+        source: typeof reader.result === "string" ? reader.result : null,
+      });
     });
-    reader.addEventListener("error", () => setPreview(null));
+    reader.addEventListener("error", () => setPreview({ file, source: null }));
     reader.readAsDataURL(file);
     return () => reader.abort();
   }, [file]);
-  return preview;
+  return file && preview?.file === file ? preview.source : null;
 }
 function StatusBadge({ status }: { status: AdminManagedBanner["status"] }) { return <span className={`status-badge status-${status === "published" ? "active" : "neutral"}`}>{status === "published" ? "Published" : "Draft"}</span>; }
 async function fileInput(file: File) { const content = new Uint8Array(await file.arrayBuffer()); let binary = ""; for (const byte of content) binary += String.fromCharCode(byte); return { content_base64: btoa(binary), file_name: file.name, mime_type: file.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp" }; }

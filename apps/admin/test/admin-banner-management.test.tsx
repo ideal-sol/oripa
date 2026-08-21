@@ -89,8 +89,11 @@ describe("Banner management", () => {
     fireEvent.change(screen.getByLabelText("画像"), {
       target: { files: [secondFile] },
     });
-    await waitFor(() => expect(preview.getAttribute("src")).not.toBe(firstSource));
-    expect(preview.getAttribute("src")).toMatch(/^data:image\/png;base64,/u);
+    await waitFor(() => expect(
+      screen.getByAltText("登録するバナー画像のプレビュー").getAttribute("src"),
+    ).not.toBe(firstSource));
+    expect(screen.getByAltText("登録するバナー画像のプレビュー").getAttribute("src"))
+      .toMatch(/^data:image\/png;base64,/u);
 
     fireEvent.submit(
       screen.getByRole("button", { name: "バナー登録" }).closest("form")!,
