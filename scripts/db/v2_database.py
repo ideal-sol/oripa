@@ -658,6 +658,9 @@ def run_identity_tests(
         + prefix
         + [
             "api",
+            "php",
+            "-d",
+            "memory_limit=512M",
             "vendor/bin/phpunit",
             "--configuration",
             "phpunit.v2.xml",

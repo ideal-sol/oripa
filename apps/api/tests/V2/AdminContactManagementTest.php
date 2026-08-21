@@ -29,6 +29,7 @@ final class AdminContactManagementTest extends TestCase
             'app.key' => 'base64:'.base64_encode(str_repeat('c', 32)),
             'v2_content_contact.contact_hmac_key' =>
                 'base64:'.base64_encode(str_repeat('h', 32)),
+            'v2_content_contact.contact_previous_hmac_keys' => [],
             'v2_content_contact.contact_retention_days' => 365,
             'v2_identity.fresh_mfa.minutes' => 5,
             'v2_identity.rate_limits.contact_ip' => [20, 3600],
@@ -39,6 +40,37 @@ final class AdminContactManagementTest extends TestCase
             'v2_audit.business_timezone' => 'Asia/Tokyo',
         ]);
         Cache::store('array')->clear();
+    }
+
+    public function test_email_filter_reads_previous_correlation_key_and_new_rows_use_active_key(): void
+    {
+        $old = 'base64:'.base64_encode(str_repeat('o', 32));
+        $new = 'base64:'.base64_encode(str_repeat('n', 32));
+        config([
+            'v2_content_contact.contact_hmac_key' => $old,
+            'v2_content_contact.contact_previous_hmac_keys' => [],
+        ]);
+        $historical = $this->submit('rotation@example.test', 'Historical inquiry');
+        config([
+            'v2_content_contact.contact_hmac_key' => $new,
+            'v2_content_contact.contact_previous_hmac_keys' => [$old],
+        ]);
+
+        $filtered = app(V2ContentContactAdminService::class)->contactList(
+            $this->context(V2AdminRole::Operator),
+            null,
+            20,
+            null,
+            'ROTATION@example.test'
+        );
+        self::assertSame([$historical], array_column($filtered['items'], 'id'));
+
+        $current = $this->submit('current@example.test', 'Current inquiry');
+        $historicalHash = DB::table('contact_inquiries')
+            ->where('public_id', $historical)->value('email_correlation_hash');
+        $currentHash = DB::table('contact_inquiries')
+            ->where('public_id', $current)->value('email_correlation_hash');
+        self::assertNotSame($historicalHash, $currentHash);
     }
 
     protected function tearDown(): void

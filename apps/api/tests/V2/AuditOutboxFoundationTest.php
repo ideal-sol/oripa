@@ -64,6 +64,28 @@ final class AuditOutboxFoundationTest extends TestCase
         $second->save();
     }
 
+    public function test_audit_key_version_rotation_preserves_historical_verification(): void
+    {
+        DB::beginTransaction();
+        try {
+            $audit = app(V2AuditLogService::class);
+            $historical = $audit->record('test.audit.before_rotation');
+            config([
+                'v2_audit.active_hmac_key_version' => 'v2',
+                'v2_audit.hmac_keys.v2' => 'base64:'.base64_encode(str_repeat('b', 32)),
+            ]);
+            $current = $audit->record('test.audit.after_rotation');
+
+            self::assertSame('v1', $historical->hmac_key_version);
+            self::assertSame('v2', $current->hmac_key_version);
+            self::assertSame($historical->record_hash, $current->previous_hash);
+            self::assertTrue(app(V2AuditChainVerifier::class)->verify());
+        } finally {
+            DB::rollBack();
+            config(['v2_audit.active_hmac_key_version' => 'v1']);
+        }
+    }
+
     public function test_database_rejects_audit_update_delete_and_truncate(): void
     {
         $record = app(V2AuditLogService::class)->record('test.audit.immutable');

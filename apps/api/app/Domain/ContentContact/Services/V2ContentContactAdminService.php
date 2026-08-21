@@ -13,6 +13,7 @@ use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\ValueObjects\V2IdempotencyClaim;
 use App\Models\V2\Admin;
+use App\Support\V2HmacKeyring;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
@@ -43,7 +44,8 @@ final class V2ContentContactAdminService
         private readonly V2ContentHtmlSanitizer $sanitizer,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
-        private readonly V2OutboxService $outbox
+        private readonly V2OutboxService $outbox,
+        private readonly V2HmacKeyring $keyring
     ) {
     }
 
@@ -1139,18 +1141,18 @@ final class V2ContentContactAdminService
         if ($status !== null && ! array_key_exists($status, self::CONTACT_TRANSITIONS)) {
             throw $this->invalid('CONTACT_FILTER_INVALID');
         }
-        $emailHash = null;
+        $emailHashes = null;
         if ($email !== null && trim($email) !== '') {
             $normalizedEmail = $this->emails->normalize(trim($email));
             if (filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
                 throw $this->invalid('CONTACT_FILTER_INVALID');
             }
-            $emailHash = $this->contactEmailCorrelation($normalizedEmail);
+            $emailHashes = $this->contactEmailCorrelations($normalizedEmail);
         }
         $rows = DB::table('contact_inquiries')
             ->when($status !== null, fn (Builder $query) => $query->where('status', $status))
-            ->when($emailHash !== null, fn (Builder $query) =>
-                $query->where('email_correlation_hash', $emailHash))
+            ->when($emailHashes !== null, fn (Builder $query) =>
+                $query->whereIn('email_correlation_hash', $emailHashes))
             ->when($after !== null, fn (Builder $query) => $query->where('id', '<', $after))
             ->orderByDesc('id')->limit($limit + 1)->get();
         $hasMore = $rows->count() > $limit;
@@ -2150,18 +2152,15 @@ final class V2ContentContactAdminService
         );
     }
 
-    private function contactEmailCorrelation(string $email): string
+    /** @return list<string> */
+    private function contactEmailCorrelations(string $email): array
     {
-        $encoded = config('v2_content_contact.contact_hmac_key');
-        if (! is_string($encoded) || ! str_starts_with($encoded, 'base64:')) {
-            throw new \RuntimeException('Contact correlation key is unavailable.');
-        }
-        $key = base64_decode(substr($encoded, 7), true);
-        if (! is_string($key) || strlen($key) < 32) {
-            throw new \RuntimeException('Contact correlation key is invalid.');
-        }
-
-        return hash_hmac('sha256', $email, $key);
+        return $this->keyring->hashes(
+            'v2_content_contact.contact_hmac_key',
+            'v2_content_contact.contact_previous_hmac_keys',
+            $email,
+            'Contact correlation key'
+        );
     }
 
     /** @return array{string, string, string} */

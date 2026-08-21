@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Models\V2\ContactInquiry;
 use App\Models\V2\User;
+use App\Support\V2HmacKeyring;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,8 @@ final class V2ContactService
         private readonly V2EmailNormalizer $emails,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2AuditLogService $audit,
-        private readonly V2OutboxService $outbox
+        private readonly V2OutboxService $outbox,
+        private readonly V2HmacKeyring $keyring
     ) {
     }
 
@@ -188,16 +190,11 @@ final class V2ContactService
 
     private function correlation(string $email): string
     {
-        $encoded = config('v2_content_contact.contact_hmac_key');
-        if (! is_string($encoded) || ! str_starts_with($encoded, 'base64:')) {
-            throw new RuntimeException('Contact correlation key is unavailable.');
-        }
-        $key = base64_decode(substr($encoded, 7), true);
-        if (! is_string($key) || strlen($key) < 32) {
-            throw new RuntimeException('Contact correlation key is invalid.');
-        }
-
-        return hash_hmac('sha256', $email, $key);
+        return $this->keyring->activeHash(
+            'v2_content_contact.contact_hmac_key',
+            $email,
+            'Contact correlation key'
+        );
     }
 
     private function auditRejected(string $requestId, string $reason): void

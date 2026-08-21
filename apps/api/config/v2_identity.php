@@ -59,6 +59,9 @@ return [
         'maximum_attempts' => 5,
         'code_digits' => 6,
         'phone_hmac_key' => env('V2_PII_CORRELATION_KEY'),
+        'phone_hmac_previous_keys' => array_values(array_filter(
+            explode(',', (string) env('V2_PII_CORRELATION_PREVIOUS_KEYS', ''))
+        )),
     ],
 
     'user_fresh_auth' => [
