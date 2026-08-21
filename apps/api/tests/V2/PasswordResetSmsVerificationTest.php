@@ -37,6 +37,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             'v2_identity.origins.user' => 'https://storefront.example.test',
             'v2_identity.sms_verification.phone_hmac_key' =>
                 'base64:'.base64_encode(str_repeat('p', 32)),
+            'v2_identity.sms_verification.phone_hmac_previous_keys' => [],
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
         ]);
@@ -251,6 +252,44 @@ final class PasswordResetSmsVerificationTest extends TestCase
             'session_id_hash' => hash('sha256', $verified['session']['token']),
             'revoked_at' => null,
         ]);
+    }
+
+    public function test_phone_ownership_lookup_rejects_previous_key_match_after_rotation(): void
+    {
+        $old = 'base64:'.base64_encode(str_repeat('o', 32));
+        $new = 'base64:'.base64_encode(str_repeat('n', 32));
+        config([
+            'v2_identity.sms_verification.phone_hmac_key' => $old,
+            'v2_identity.sms_verification.phone_hmac_previous_keys' => [],
+        ]);
+        $first = $this->user('rotation-phone-first@example.test');
+        [$firstRequest] = $this->authenticatedRequest($first);
+        $service = app(V2SmsVerificationService::class);
+        $service->send($first, $firstRequest, '+819077778888', '192.0.2.90');
+        $challenge = SmsVerificationChallenge::query()
+            ->where('user_id', $first->getKey())->sole();
+        $service->verify(
+            $first,
+            $firstRequest,
+            $challenge->public_id,
+            $this->decryptedOutbox(
+                'identity.sms-verification',
+                $challenge->public_id
+            )['verification_code']
+        );
+
+        config([
+            'v2_identity.sms_verification.phone_hmac_key' => $new,
+            'v2_identity.sms_verification.phone_hmac_previous_keys' => [$old],
+        ]);
+        $second = $this->user('rotation-phone-second@example.test');
+        [$secondRequest] = $this->authenticatedRequest($second);
+        try {
+            $service->send($second, $secondRequest, '+819077778888', '192.0.2.91');
+            self::fail('A previous-key phone ownership match must remain unavailable.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
+        }
     }
 
     public function test_sms_resend_revokes_old_challenge_preserves_failures_and_rejects_replay(): void

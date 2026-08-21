@@ -151,10 +151,10 @@ final class V2SmsVerificationService
                 return null;
             }
 
-            $this->releaseWithdrawnOwnerOrReject(
-                $challenge->phone_hmac,
-                (int) $user->getKey()
+            $phoneHashes = $this->correlation->hashes(
+                Crypt::decryptString($challenge->phone_ciphertext)
             );
+            $this->releaseWithdrawnOwnerOrReject($phoneHashes, (int) $user->getKey());
             $now = now()->startOfSecond();
             $existing = UserPhoneNumber::query()
                 ->where('user_id', $user->getKey())
@@ -162,7 +162,7 @@ final class V2SmsVerificationService
                 ->first();
             $changed = $existing !== null
                 && $existing->verified_at !== null
-                && ! hash_equals($existing->phone_hmac, $challenge->phone_hmac);
+                && ! $this->matchesHash($existing->phone_hmac, $phoneHashes);
             UserPhoneNumber::query()->updateOrCreate(
                 ['user_id' => $user->getKey()],
                 [
@@ -240,17 +240,19 @@ final class V2SmsVerificationService
             ]);
             throw $exception;
         }
-        $phoneHmac = $this->correlation->hash($normalized);
+        $phoneHashes = $this->correlation->hashes($normalized);
+        $phoneHmac = $phoneHashes[0];
         $code = sprintf('%06d', random_int(0, 999999));
 
         return DB::transaction(function () use (
             $user,
             $normalized,
+            $phoneHashes,
             $phoneHmac,
             $code,
             $resend
         ): array {
-            $this->releaseWithdrawnOwnerOrReject($phoneHmac, (int) $user->getKey());
+            $this->releaseWithdrawnOwnerOrReject($phoneHashes, (int) $user->getKey());
             $old = SmsVerificationChallenge::query()
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
@@ -268,7 +270,10 @@ final class V2SmsVerificationService
                 ->whereNull('revoked_at')
                 ->lockForUpdate()
                 ->first();
-            if ($currentPhone !== null && hash_equals($currentPhone->phone_hmac, $phoneHmac)) {
+            if (
+                $currentPhone !== null
+                && $this->matchesHash($currentPhone->phone_hmac, $phoneHashes)
+            ) {
                 throw new V2AuthenticationException(
                     'PHONE_ALREADY_VERIFIED',
                     409,
@@ -324,10 +329,11 @@ final class V2SmsVerificationService
         }, 3);
     }
 
-    private function releaseWithdrawnOwnerOrReject(string $phoneHmac, int $userId): void
+    /** @param list<string> $phoneHashes */
+    private function releaseWithdrawnOwnerOrReject(array $phoneHashes, int $userId): void
     {
         $holder = UserPhoneNumber::query()
-            ->where('phone_hmac', $phoneHmac)
+            ->whereIn('phone_hmac', $phoneHashes)
             ->where('user_id', '<>', $userId)
             ->whereNotNull('verified_at')
             ->whereNull('revoked_at')
@@ -353,6 +359,18 @@ final class V2SmsVerificationService
             409,
             'The phone number cannot be verified.'
         );
+    }
+
+    /** @param list<string> $candidates */
+    private function matchesHash(string $stored, array $candidates): bool
+    {
+        foreach ($candidates as $candidate) {
+            if (hash_equals($stored, $candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function assertFresh(Request $request, User $user): void

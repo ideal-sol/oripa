@@ -8797,3 +8797,10 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - API health 200（DB／Redis含む）、Public session 200、Admin health 200、PostgreSQL／Redis healthy、restart loopなし、全restart count 0、HTTP 500／502／504 0、private/internalとAPI-only egress境界維持を確認した。
 - OPS-015 unexpected fields 5件はCanonical Compose／Applicationが参照するactive Runtime fieldであり、削除せずguardも変更していない。root-onlyとRepository証跡はrotation未完了、remaining exposed canonical credentials 6、`000056`／`000057` Activation開始不可を明示する。
 - Preflightの広域root-only evidence検索で既露出値をOPS-016 transcriptへ意図せず再表示した。値はTask FileへCopy／保存していないが、zero transcript displayは主張せず、rotation blocker継続として記録する。
+
+## OPS-017 Shared Preview Credential Remediation
+
+- clean local／origin／GitHub `main@a75a88f113ab29a7af5c55cdf4f51bb7c2812629`、idleな全Task lane、Shared Locks none、freeなPreview OS lock、healthyなAPI／Admin／PostgreSQL／Redisを確認し、Issue #346、専用branch／worktree、Risk R4で開始した。canonical sourceはroot-owned mode `0600`の2ファイルで、対象6 keyは値を表示せず存在だけを確認した。
+- 永続依存はAudit v1 record 1286、Contact 1、Shipping Address 1、Shipping Request 2、Admin TOTP 1、Outbox 145である。User Phone、SMS Challenge、Payment Provider Event、Audit Daily Digestは0。履歴値、ciphertext、HMAC、hash、digestは出力していない。
+- Laravel 13 native previous-key decrypt、既存`hmac_key_version`によるAudit key選択、PII active-write／previous-key lookupを最小互換方式として実装した。historical row rewrite、schema変更、Migration `000056`〜`000059`変更、Provider推測は0。Canonical Runtime guardは開発／CI専用の厳密schemaであり、OPS-015のactive Runtime fieldsを取り込む根拠がないため変更していない。
+- Task専用PostgreSQL／RedisでLaravel native encryption、Audit version rollover、Contact previous correlation、Phone ownership previous correlationを含むfocused 32 tests／179 assertionsをPASSした。Shared Preview rotation、service recreate、business mutation、Production／Storefront変更はまだ実行していない。

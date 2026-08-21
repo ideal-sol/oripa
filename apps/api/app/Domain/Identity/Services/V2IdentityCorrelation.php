@@ -2,22 +2,32 @@
 
 namespace App\Domain\Identity\Services;
 
-use RuntimeException;
+use App\Support\V2HmacKeyring;
 use SensitiveParameter;
 
 final class V2IdentityCorrelation
 {
+    public function __construct(private readonly V2HmacKeyring $keyring)
+    {
+    }
+
     public function hash(#[SensitiveParameter] string $value): string
     {
-        $encoded = config('v2_identity.sms_verification.phone_hmac_key');
-        if (! is_string($encoded) || ! str_starts_with($encoded, 'base64:')) {
-            throw new RuntimeException('Identity correlation key is unavailable.');
-        }
-        $key = base64_decode(substr($encoded, 7), true);
-        if (! is_string($key) || strlen($key) < 32) {
-            throw new RuntimeException('Identity correlation key is invalid.');
-        }
+        return $this->keyring->activeHash(
+            'v2_identity.sms_verification.phone_hmac_key',
+            $value,
+            'Identity correlation key'
+        );
+    }
 
-        return hash_hmac('sha256', $value, $key);
+    /** @return list<string> */
+    public function hashes(#[SensitiveParameter] string $value): array
+    {
+        return $this->keyring->hashes(
+            'v2_identity.sms_verification.phone_hmac_key',
+            'v2_identity.sms_verification.phone_hmac_previous_keys',
+            $value,
+            'Identity correlation key'
+        );
     }
 }
