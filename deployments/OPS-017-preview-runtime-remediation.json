@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-017",
+  "risk": "R4",
+  "issue": 346,
+  "pull_request": 347,
+  "recorded_at": "2026-08-21T05:49:29Z",
+  "rotated_at": "2026-08-21T05:44:38Z",
+  "application_source_head": "dbc5cbec574c00725c3209c922c05dbcc78b52c6",
+  "canonical_sources": {
+    "MAILGUN_SECRET": "/var/www/oripa/.env",
+    "V2_APP_KEY": "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env",
+    "V2_AUDIT_HMAC_KEY": "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env",
+    "V2_DB_PASSWORD": "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env",
+    "V2_PII_CORRELATION_KEY": "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env",
+    "V2_REDIS_PASSWORD": "/var/lib/oripa-v2-evidence/MIG-061A/v2-preview.env"
+  },
+  "credentials": {
+    "MAILGUN_SECRET": "BLOCKED",
+    "V2_APP_KEY": "ROTATED",
+    "V2_AUDIT_HMAC_KEY": "ROTATED",
+    "V2_DB_PASSWORD": "ROTATED",
+    "V2_PII_CORRELATION_KEY": "ROTATED",
+    "V2_REDIS_PASSWORD": "ROTATED"
+  },
+  "compatibility": {
+    "application_encryption": "Laravel native previous-key read with active-key write",
+    "audit_hmac": "Persisted key version selects v1 or v2 verification key; v2 is active for future writes",
+    "pii_correlation": "Active-key write with explicit previous-key lookup candidates",
+    "historical_row_rewrite": false
+  },
+  "runtime": {
+    "dependent_services_recreated": [
+      "api",
+      "postgres",
+      "redis"
+    ],
+    "admin_recreated": false,
+    "health": {
+      "admin": "PASS",
+      "api": "PASS",
+      "api_to_database": "PASS",
+      "api_to_redis": "PASS",
+      "postgresql": "PASS",
+      "redis": "PASS"
+    },
+    "restart_count": {
+      "admin": 0,
+      "api": 0,
+      "postgresql": 0,
+      "redis": 0
+    },
+    "gateway_errors": {
+      "500": 0,
+      "502": 0,
+      "504": 0
+    },
+    "network_boundary": "API-only egress and private-only Admin/PostgreSQL/Redis preserved"
+  },
+  "historical_read_only_verification": {
+    "application_ciphertext": "PASS",
+    "audit_chain": "PASS",
+    "contact_correlation": "PASS",
+    "shipping_correlation": "PASS",
+    "business_mutation_count": 0,
+    "history_rewrite_count": 0
+  },
+  "mailgun_non_secret_verification": {
+    "configuration": "PASS",
+    "dns": "PASS",
+    "https": "PASS",
+    "message_sent": false,
+    "provider_rotation": "BLOCKED"
+  },
+  "canonical_guard_changed": false,
+  "migrations_created": 0,
+  "shared_preview_migrations_applied": 0,
+  "production_changes": 0,
+  "storefront_changes": 0,
+  "temporary_secret_files": 0,
+  "rollback_candidate_retained": true,
+  "preview_deployment_lock": {
+    "acquired": true,
+    "released": true
+  },
+  "remaining_exposed_credentials": [
+    "MAILGUN_SECRET"
+  ],
+  "remaining_blocker": {
+    "direct_cause": "No approved callable provider rotation method or authoritative Preview-only Mailgun account boundary; Production sharing cannot be excluded.",
+    "minimum_resolution": "An authorized provider operator must prove a Preview-only account boundary, rotate the provider credential, and update the canonical Preview source without exposing the value.",
+    "separate_task_required": "The unresolved operation is external-provider and possible Production credential authority, not repository or Preview Runtime implementation work."
+  },
+  "migration_activation_000056_000057": "BLOCKED"
+}
