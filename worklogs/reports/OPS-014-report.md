@@ -3,6 +3,7 @@
 ## Task
 
 - Issue: `#340`
+- PR: `#341`
 - Risk: `R4`
 - Base/candidate: `d01a3ca7511691a729a781959ab715ddd0d43f7a`
 - Branch: `chore/OPS-014-canonical-gacha-runtime-activation`
@@ -54,6 +55,14 @@
 - Restart loop: none; all four restart counts are `0`.
 - Post-activation smoke, Admin login/session, Gacha list/detail, basic information, Rank, prizes, thumbnail preview, Probability/Preflight visibility, and console/runtime error checks: **NOT RUN** because activation was blocked before migration.
 - HTTP 500/502/504 post-activation count: **NOT APPLICABLE**. Preflight current Nginx log count is `0`.
+
+## Closeout Validation
+
+- PASS: Policy Unit 152 tests, Quality Unit 4 tests, and Security Unit 10 tests.
+- PASS: local `policy-gate`, `quality-gate`, and `security-gate`.
+- PASS: fresh Composer, workspace pnpm, and legacy pnpm audits with zero findings.
+- PASS: deployment JSON parse, exact allowed-path review, `git diff --check`, binary/submodule review, and high-confidence secret scan.
+- Required five GitHub checks and fresh fixed-head self-review are required on the final evidence head before squash merge.
 
 ## Human Browser Verification Remaining
 

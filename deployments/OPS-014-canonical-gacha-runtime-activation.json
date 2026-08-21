@@ -1,6 +1,7 @@
 {
   "task_id": "OPS-014",
   "issue": 340,
+  "pull_request": 341,
   "risk": "R4",
   "status": "blocked_preflight",
   "base_branch": "main",
@@ -90,5 +91,16 @@
     "legacy_probability_physical_removal": true,
     "application_source": true
   },
-  "post_activation_smoke": "NOT_RUN_ACTIVATION_BLOCKED"
+  "post_activation_smoke": "NOT_RUN_ACTIVATION_BLOCKED",
+  "validation": {
+    "policy_unit": "PASS_152",
+    "quality_unit": "PASS_4",
+    "security_unit": "PASS_10",
+    "local_policy_gate": "PASS",
+    "local_quality_gate": "PASS",
+    "local_security_gate": "PASS",
+    "composer_findings": 0,
+    "workspace_pnpm_findings": 0,
+    "legacy_pnpm_findings": 0
+  }
 }
