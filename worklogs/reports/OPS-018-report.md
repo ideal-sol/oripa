@@ -68,7 +68,8 @@ After OPS-018 merge and closeout evidence, `000056` through `000059` plus the co
 - Local Policy, Quality, and Security Gates: PASS; dependency findings and secret candidates are 0.
 - Composer, workspace pnpm, and legacy pnpm audits: PASS with 0 findings.
 - JSON parse and `git diff --check`: PASS.
-- Required 5 Checks and fresh fixed-head self-review: pending final evidence head.
+- Required 5 Checks and fresh fixed-head self-review: PASS at reviewed head `60fed67bc627f0c493db45da4bbe5833bb1ac04c`, with no SEV-0/SEV-1 findings.
+- The first merge attempt was fail-closed because an earlier superseded workflow left PR mergeability `unstable`; a documentation-only successor head must repeat all Required 5 Checks and fresh fixed-head self-review before merge.
 - Full Backend/Frontend/Browser/E2E suites: NOT RUN because this Task changes only operational evidence and Mailgun Runtime credential state; executed Runtime sends and health checks are the behavioral verification.
 
 ## Rollback

@@ -96,6 +96,15 @@
     "json_parse": "PASS",
     "git_diff_check": "PASS"
   },
+  "github_validation": {
+    "reviewed_head": "60fed67bc627f0c493db45da4bbe5833bb1ac04c",
+    "required_checks": "PASS",
+    "fresh_self_review": "PASS",
+    "sev_0": 0,
+    "sev_1": 0,
+    "initial_merge_state": "UNSTABLE_DUE_TO_SUPERSEDED_EARLIER_CHECK_RUN",
+    "closeout_action": "FRESH_SUCCESSOR_HEAD_REQUIRED"
+  },
   "remaining_exposed_credentials": 0,
   "migration_activation_000056_000059": "READY_AFTER_OPS018_MERGE_AND_CLOSEOUT",
   "api_admin_runtime_activation": "READY_AFTER_OPS018_MERGE_AND_CLOSEOUT",
