@@ -20,5 +20,6 @@
 
 - Isolated PostgreSQL V2 `migrate:fresh`: all `62` migrations PASS; migration `000062` rollback/reapply PASS.
 - Focused API lifecycle: `13` tests / `284` assertions PASS, covering Draft unpublish/restore/publish, Published and paused direct unpublish, legacy invalid snapshot and sold-out Draw compatibility, direct republish rejection, pause/resume, revision constraints, immutable Published fields, stable problem code, and unchanged Draw/Inventory/User Prize history.
+- Focused Admin API unpublish preflight/guard regression: `2` tests / `19` assertions PASS, retaining permission, Fresh Auth, OCC, controlled metadata, and resume rejection while expecting direct Published preflight readiness.
 - Focused Admin lifecycle: `1` file / `8` tests PASS. Admin typecheck, lint, production build, changed PHP syntax, focused migration-policy unit, and `git diff --check` PASS.
 - Required Checks, exact-head self-review, Shared Preview activation, exact five-record mutation, acceptance, and closeout are pending.
