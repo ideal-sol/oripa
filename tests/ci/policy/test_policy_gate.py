@@ -262,14 +262,25 @@ class PolicyGateTest(unittest.TestCase):
     def test_mig_072_unpublished_draft_restore_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
+            "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
         }
         self.assertEqual(policy_gate.MIG_072_V2_CATALOG_FILES, expected)
         self.assertTrue(expected.issubset(policy_gate.V2_CATALOG_REQUIRED_FILES))
-        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
-        self.assertIn("NOT IN ('unpublished', 'draft')", migration)
-        self.assertIn("First publication history is immutable", migration)
-        self.assertIn("Cannot roll back MIG-072", migration)
-        self.assertNotIn("DISABLE TRIGGER", migration)
+        restore_migration = (
+            ROOT
+            / "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php"
+        ).read_text(encoding="utf-8")
+        self.assertIn("NOT IN ('unpublished', 'draft')", restore_migration)
+        self.assertIn("First publication history is immutable", restore_migration)
+        self.assertIn("Cannot roll back MIG-072", restore_migration)
+        direct_deactivation = (
+            ROOT
+            / "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php"
+        ).read_text(encoding="utf-8")
+        self.assertIn("NEW.sales_paused IS DISTINCT FROM OLD.sales_paused", direct_deactivation)
+        self.assertIn("NEW.sold_count IS DISTINCT FROM OLD.sold_count", direct_deactivation)
+        self.assertNotIn("UPDATE catalog_gachas", direct_deactivation)
+        self.assertNotIn("DISABLE TRIGGER", restore_migration + direct_deactivation)
 
     def test_mig_062b_user_tag_paths_are_registered_exactly(self):
         expected_identity = {
@@ -1223,6 +1234,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
             "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
             "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
+            "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

@@ -469,6 +469,7 @@ MIG_068_V2_CATALOG_FILES = {
 }
 MIG_072_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
+    "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
 }
 V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
@@ -2519,6 +2520,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_13_000058_canonicalize_v2_gacha_lifecycle_inventory_capacity.php",
         "2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
         "2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
+        "2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

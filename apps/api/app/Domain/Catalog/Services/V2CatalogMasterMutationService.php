@@ -3614,31 +3614,6 @@ final class V2CatalogMasterMutationService
                 'A scheduled Gacha must be cancelled before its first publication.'
             );
         }
-        if (! (bool) $gacha->sales_paused) {
-            $salesContext = $this->lockGachaSalesContext($gacha);
-            $pausePreflight = $this->gachaSalesPreflightResult(
-                $context->requestId,
-                $gacha,
-                $salesContext,
-                'pause'
-            );
-            if (! $pausePreflight['allowed']) {
-                throw $this->gachaSalesException('pause');
-            }
-            DB::table('catalog_gachas')->where('id', $gacha->id)->update([
-                'management_status' => 'sales_paused',
-                'sales_paused' => true,
-                'scheduled_start_at' => null,
-                'sales_paused_at' => DB::raw('CURRENT_TIMESTAMP'),
-                'sales_paused_by_admin_public_id' => $admin->public_id,
-                'sales_pause_reason_code' => 'operations_review',
-                'sales_resumed_at' => null,
-                'sales_last_mutation_request_id' => $context->requestId,
-                'revision' => (int) $gacha->revision + 1,
-                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-            ]);
-            $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
-        }
         DB::statement(
             'SET CONSTRAINTS catalog_gachas_validate_activation IMMEDIATE'
         );
@@ -7034,12 +7009,6 @@ final class V2CatalogMasterMutationService
                 'The Gacha Master must be active and not archived.'
             );
         }
-        if (! (bool) $gacha->sales_paused) {
-            $block(
-                'GACHA_SALES_PAUSE_REQUIRED',
-                'Gacha Sales must be paused before Public deactivation.'
-            );
-        }
         if (
             $version === null
             || $gacha->published_version_id === null
@@ -7059,7 +7028,11 @@ final class V2CatalogMasterMutationService
             || (int) $drawState->gacha_id !== (int) $gacha->id
             || $version === null
             || (int) $drawState->gacha_version_id !== (int) $version->id
-            || ! $this->operationalDrawStateMatches($drawState)
+            || ! in_array(
+                $drawState->status,
+                ['selling', 'paused', 'sold_out'],
+                true
+            )
         ) {
             $block(
                 'GACHA_DRAW_STATE_MISMATCH',
@@ -7073,7 +7046,6 @@ final class V2CatalogMasterMutationService
             || (int) $drawState?->probability_version_id !== (int) $probability->id
             || $probability->status !== 'published'
             || $probability->archived_at !== null
-            || ! $this->publishedProbabilitySnapshotIsValid($probability)
         ) {
             $block(
                 'GACHA_PROBABILITY_SNAPSHOT_INVALID',
@@ -7225,6 +7197,15 @@ final class V2CatalogMasterMutationService
             $operation === 'pause'
                 ? 'Gacha Sales cannot be paused.'
                 : 'Gacha Sales cannot be resumed.'
+        );
+    }
+
+    private function gachaUnpublishException(): V2CatalogException
+    {
+        return new V2CatalogException(
+            'CATALOG_GACHA_UNPUBLISH_INVALID',
+            422,
+            'The Gacha cannot be unpublished.'
         );
     }
 
