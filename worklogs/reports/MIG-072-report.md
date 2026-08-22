@@ -1,0 +1,25 @@
+# MIG-072 Gacha Draft / Unpublished Lifecycle Final Fix
+
+## Task
+
+- Issue `#356`, Risk `R4`, Base `094199a5e3f64918a854943811ee6895f4105d8b`.
+- Branch `fix/MIG-072-gacha-draft-unpublished-lifecycle`, dedicated worktree `/var/www/oripa-worktrees/MIG-072`.
+
+## Root Cause and Fix
+
+- Application lifecycle mapping, Canonical Publish preflight/activation, and the PostgreSQL lifecycle guard all treated `unpublished` as terminal. This blocked both `draft -> unpublished` support and the newly approved `unpublished -> draft` restoration path.
+- The application now permits `draft -> unpublished`, clones the latest immutable Published Version when a previously published Gacha returns to Draft, and permits Canonical Publish from that restored Draft while preserving the original `first_published_at` and prior history.
+- Direct `unpublished -> published` remains rejected with `CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID`. Published sale/economic fields remain immutable in a restored Draft; presentation fields retain the existing Published edit whitelist.
+- Migration `000061` narrows the PostgreSQL guard to allow only `unpublished -> draft`; every other existing lifecycle, pointer, schedule, and first-publication invariant remains intact. Its rollback fails closed once restoration data exists.
+- Admin status choices now expose `draft -> unpublished` and `unpublished -> draft`, keep restored Draft publishable, and do not offer another schedule after publication history exists.
+- Shared Preview reproduction showed a second, legacy-data-specific blocker: terminal deactivation still forced the sales-pause preflight, recomputed a canonical Probability hash for historical QA snapshots, rejected `sold_out` draw states with zero available inventory, and then called a missing stable-exception helper. PostgreSQL migration `000028` also required a paused source revision, making direct terminal deactivation impossible without rewriting sales fields.
+- The terminal path now validates immutable structural references only, accepts active `selling`, `paused`, or `sold_out` Draw states, preserves Probability, sales, sold-count, Draw, Inventory, User Prize, and history data, and emits stable `CATALOG_GACHA_UNPUBLISH_INVALID` / `CATALOG_GACHA_UNPUBLISH_CONFLICT` problems. Admin maps both codes to a specific Japanese message without exposing Request ID or internal code.
+- Migration `000062` removes only the paused-source prerequisite from the existing deferred guard. It retains the one-revision, immutable sales/sold-count/identity/history, active-master, schedule, Published Version, and Draw-reference checks and performs no data rewrite.
+
+## Focused Verification
+
+- Isolated PostgreSQL V2 `migrate:fresh`: all `62` migrations PASS; migration `000062` rollback/reapply PASS.
+- Focused API lifecycle: `13` tests / `284` assertions PASS, covering Draft unpublish/restore/publish, Published and paused direct unpublish, legacy invalid snapshot and sold-out Draw compatibility, direct republish rejection, pause/resume, revision constraints, immutable Published fields, stable problem code, and unchanged Draw/Inventory/User Prize history.
+- Focused Admin API unpublish preflight/guard regression: `2` tests / `19` assertions PASS, retaining permission, Fresh Auth, OCC, controlled metadata, and resume rejection while expecting direct Published preflight readiness.
+- Focused Admin lifecycle: `1` file / `8` tests PASS. Admin typecheck, lint, production build, changed PHP syntax, focused migration-policy unit, and `git diff --check` PASS.
+- Required Checks, exact-head self-review, Shared Preview activation, exact five-record mutation, acceptance, and closeout are pending.

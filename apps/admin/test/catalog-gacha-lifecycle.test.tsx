@@ -89,11 +89,12 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getByRole("option", { name: "販売停止" })).toBeVisible();
   });
 
-  it("keeps unpublished terminal in the management selector", async () => {
+  it("allows an unpublished Gacha to return only to Draft", async () => {
     renderForm(gacha("unpublished", "2026-08-01T00:00:00Z"));
 
     await screen.findByRole("option", { name: "Category A" });
     expect(screen.getAllByRole("option", { name: "非公開" })).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "下書きへ戻す" })).toBeVisible();
     expect(screen.queryByRole("option", { name: "公開" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "予約公開" })).not.toBeInTheDocument();
   });
@@ -109,6 +110,23 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getByLabelText("会員ランク")).toBeEnabled();
     expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "5回" })).toBeEnabled();
+    expect(screen.getByRole("option", { name: "非公開" })).toBeVisible();
+  });
+
+  it("keeps restored Draft publishable under the published edit whitelist", async () => {
+    renderForm({
+      ...gacha("draft", "2026-08-01T00:00:00Z"),
+      first_published_at: "2026-08-01T00:00:00Z",
+    });
+
+    await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByRole("option", { name: "公開" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "非公開" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: "予約公開" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("消費ポイント")).toBeDisabled();
+    expect(screen.getByLabelText("総口数")).toBeDisabled();
+    expect(screen.getByLabelText("ガチャタイトル")).toBeEnabled();
+    expect(screen.getByLabelText("終了日時（Asia/Tokyo）")).toBeEnabled();
   });
 
   it("shows mapped publish errors without Request ID or internal code", async () => {
@@ -161,6 +179,34 @@ describe("Gacha lifecycle editing", () => {
     expect(await screen.findByText(/現在の状態では指定した操作/u)).toBeVisible();
     expect(screen.queryByText(/Request ID/u)).not.toBeInTheDocument();
     expect(screen.queryByText("CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID"))
+      .not.toBeInTheDocument();
+  });
+
+  it("shows a mapped unpublish error without Request ID or internal code", async () => {
+    const submit = vi.fn().mockRejectedValue(new AdminApiError(
+      422,
+      "CATALOG_GACHA_UNPUBLISH_INVALID",
+      "01910191-0191-7191-8191-019101910199",
+      null,
+      false,
+    ));
+    render(
+      <CatalogGachaCoreForm
+        current={gacha("published", "2026-08-01T00:00:00Z")}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/現在の状態ではガチャを非公開にできません/u))
+      .toBeVisible();
+    expect(screen.queryByText(/Request ID/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("CATALOG_GACHA_UNPUBLISH_INVALID"))
       .not.toBeInTheDocument();
   });
 });

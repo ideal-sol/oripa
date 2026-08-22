@@ -1203,7 +1203,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         ]);
     }
 
-    public function test_unpublish_requires_pause_permission_fresh_mfa_occ_and_no_schedule(): void
+    public function test_unpublish_requires_permission_fresh_mfa_occ_and_no_schedule(): void
     {
         $root = '/admin/api/v2/catalog/gachas/'.self::GACHA_ID;
         $owner = $this->createAdminSession(V2AdminRole::Owner);
@@ -1226,10 +1226,10 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ['expected_gacha_revision' => (int) $gacha->revision],
             'gacha-unpublish-not-paused'
         )->assertOk()
-            ->assertJsonPath('data.allowed', false)
+            ->assertJsonPath('data.allowed', true)
             ->assertJsonPath(
                 'data.validation_codes.0',
-                'GACHA_SALES_PAUSE_REQUIRED'
+                'GACHA_UNPUBLISH_READY'
             );
 
         DB::table('admin_sessions')->update([
@@ -1313,7 +1313,9 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'revision' => (int) $gacha->revision + 1,
             ]);
             DB::rollBack();
-            self::fail('Unpaused direct deactivation must be rejected.');
+            self::fail(
+                'Deactivation without controlled metadata must be rejected.'
+            );
         } catch (QueryException $exception) {
             DB::rollBack();
             self::assertSame('P0001', $exception->errorInfo[0]);
