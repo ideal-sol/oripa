@@ -11,7 +11,7 @@ import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-ro
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
-import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
+import { initialListFilter, type PageSearchParams } from "@/lib/admin-api/client";
 
 export const metadata: Metadata = { title: "カタログ参照" };
 

@@ -167,6 +167,19 @@ import {
   type WebauthnRegistration,
 } from "./generated";
 
+export type PageSearchParams = Record<string, string | string[] | undefined>;
+
+export function initialListFilter<T extends string>(
+  value: string | string[] | undefined,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate && allowed.includes(candidate as T)
+    ? candidate as T
+    : fallback;
+}
+
 const ADMIN_CSRF_COOKIE = "__Host-oripa_admin_xsrf";
 const REQUEST_TIMEOUT_MS = 10_000;
 

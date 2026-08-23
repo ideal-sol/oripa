@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageManagementWorkspace } from "@/components/pages/page-management-workspace";
-import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
+import { initialListFilter, type PageSearchParams } from "@/lib/admin-api/client";
 
 export const metadata: Metadata = { title: "ページ設定" };
 

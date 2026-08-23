@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { BannerManagementWorkspace } from "@/components/banners/banner-management-workspace";
-import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
+import { initialListFilter, type PageSearchParams } from "@/lib/admin-api/client";
 
 export const metadata: Metadata = { title: "バナー管理" };
 

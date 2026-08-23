@@ -3,12 +3,32 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AdminApiClient,
   AdminApiError,
+  initialListFilter,
   readAdminCsrfCookie,
 } from "@/lib/admin-api/client";
 
 const csrf = "a".repeat(64);
 
 describe("AdminApiClient", () => {
+  it("uses the canonical list default without an explicit query", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter(undefined, allowed, "published,draft")).toBe("published,draft");
+  });
+
+  it("prefers a canonical list query without persisting prior state", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter("draft", allowed, "published,draft")).toBe("draft");
+    expect(initialListFilter(undefined, allowed, "published,draft")).toBe("published,draft");
+  });
+
+  it("falls back to the list default for unknown query values", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter("unknown", allowed, "published,draft")).toBe("published,draft");
+  });
+
   it("uses only the same-origin Admin API with cookie credentials and CSRF", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({

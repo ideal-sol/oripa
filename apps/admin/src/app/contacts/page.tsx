@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { ContactManagementWorkspace } from "@/components/contacts/contact-management-workspace";
-import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
+import { initialListFilter, type PageSearchParams } from "@/lib/admin-api/client";
 
 export const metadata: Metadata = { title: "お問い合わせ" };
 

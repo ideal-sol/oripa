@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { PointPurchaseManagementWorkspace } from "@/components/point-purchases/point-purchase-management-workspace";
-import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
+import { initialListFilter, type PageSearchParams } from "@/lib/admin-api/client";
 
 export const metadata: Metadata = { title: "ポイント購入 一覧" };
 
