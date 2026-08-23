@@ -124,12 +124,23 @@ describe("Banner management", () => {
     expect(screen.getByText(
       "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
     )).toBeVisible();
+    expect(screen.getByLabelText("状態")).toHaveValue("published");
+    expect(list).toHaveBeenCalledWith(
+      { category_id: undefined, cursor: undefined, status: "published" },
+      expect.any(AbortSignal),
+    );
 
     fireEvent.change(screen.getByLabelText("カテゴリ絞り込み"), {
       target: { value: category.id },
     });
     await waitFor(() => expect(list).toHaveBeenLastCalledWith(
-      { category_id: category.id, cursor: undefined },
+      { category_id: category.id, cursor: undefined, status: "published" },
+      expect.any(AbortSignal),
+    ));
+
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "draft" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { category_id: category.id, cursor: undefined, status: "draft" },
       expect.any(AbortSignal),
     ));
 

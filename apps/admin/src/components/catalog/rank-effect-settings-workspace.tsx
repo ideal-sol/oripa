@@ -27,26 +27,29 @@ type RankSelection = Record<string, { selected: boolean; sortOrder: string }>;
 
 export function RankEffectSettingsWorkspace({
   id,
+  initialVisibility = "visible",
   mode,
 }: {
   id?: string;
+  initialVisibility?: "all" | "hidden" | "visible";
   mode: Mode;
 }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="catalog.read">
-        <RankEffectWorkspace id={id} mode={mode} />
+        <RankEffectWorkspace id={id} initialVisibility={initialVisibility} mode={mode} />
       </ProtectedAdminRoute>
     </AdminShell>
   );
 }
 
-function RankEffectWorkspace({ id, mode }: { id?: string; mode: Mode }) {
+function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; initialVisibility: "all" | "hidden" | "visible"; mode: Mode }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const { hasPermission } = usePermissions();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [cursor, setCursor] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [visibility, setVisibility] = useState(initialVisibility);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,7 +59,7 @@ function RankEffectWorkspace({ id, mode }: { id?: string; mode: Mode }) {
           direction: "desc",
           limit: 20,
           sort: "created_at",
-          visibility: "all",
+          visibility,
         }, controller.signal).then((result) => ({
           kind: "list" as const,
           items: result.items,
@@ -83,7 +86,7 @@ function RankEffectWorkspace({ id, mode }: { id?: string; mode: Mode }) {
       }
     });
     return () => controller.abort();
-  }, [client, cursor, id, mode, reload]);
+  }, [client, cursor, id, mode, reload, visibility]);
 
   const retry = useCallback(() => {
     setState({ kind: "loading" });
@@ -112,6 +115,16 @@ function RankEffectWorkspace({ id, mode }: { id?: string; mode: Mode }) {
         eyebrow="Settings"
         title={mode === "list" ? "ランク演出" : mode === "create" ? "ランク演出登録" : "ランク演出編集"}
       />
+      {mode === "list" ? (
+        <label className="announcement-filter">
+          状態
+          <select value={visibility} onChange={(event) => { setState({ kind: "loading" }); setVisibility(event.target.value as typeof visibility); setCursor(null); }}>
+            <option value="visible">有効</option>
+            <option value="hidden">無効</option>
+            <option value="all">すべて</option>
+          </select>
+        </label>
+      ) : null}
       {state.kind === "loading" ? <RankEffectState loading message="ランク演出を読み込んでいます。" /> : null}
       {state.kind === "error" ? <RankEffectState error message={state.message} retry={retry} /> : null}
       {state.kind === "list" ? (

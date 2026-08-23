@@ -65,16 +65,18 @@ const INITIAL_DRAFT: Draft = {
 
 export function AnnouncementManagementWorkspace({
   announcementId,
+  initialStatus = "published,draft",
   mode,
 }: {
   announcementId?: string;
+  initialStatus?: "all" | "archived" | "draft" | "published" | "published,draft";
   mode: Mode;
 }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission={mode === "list" ? "content.read" : "content.manage"}>
         {mode === "list" ? (
-          <AnnouncementList />
+          <AnnouncementList initialStatus={initialStatus} />
         ) : (
           <AnnouncementEditor announcementId={announcementId} mode={mode} />
         )}
@@ -83,7 +85,7 @@ export function AnnouncementManagementWorkspace({
   );
 }
 
-function AnnouncementList() {
+function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived" | "draft" | "published" | "published,draft" }) {
   const { permissions } = usePermissions();
   const canManage = permissions.has("content.manage");
   const [items, setItems] = useState<AdminContentSummary[]>([]);
@@ -95,12 +97,13 @@ function AnnouncementList() {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [preview, setPreview] = useState<AdminContentPreview | null>(null);
+  const [status, setStatus] = useState(initialStatus);
 
   useEffect(() => {
     const controller = new AbortController();
     const client = new AdminApiClient();
     Promise.all([
-      client.listContentNotices(cursor, controller.signal),
+      client.listContentNotices({ cursor, status: status === "all" ? undefined : status }, controller.signal),
       client.listCatalogPresentationAssets(
         { direction: "asc", limit: 100, media_type: "image", sort: "created_at" },
         controller.signal,
@@ -118,7 +121,7 @@ function AnnouncementList() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [cursor, reload]);
+  }, [cursor, reload, status]);
 
   const assetPaths = useMemo(
     () => new Map(assets.map((asset) => [asset.id, asset.public_path])),
@@ -140,6 +143,17 @@ function AnnouncementList() {
           ) : null
         }
       />
+
+      <label className="announcement-filter">
+        公開状態
+        <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>
+          <option value="published,draft">公開 + 下書き</option>
+          <option value="published">公開</option>
+          <option value="draft">下書き</option>
+          <option value="archived">アーカイブ</option>
+          <option value="all">すべて</option>
+        </select>
+      </label>
 
       {error ? (
         <section className="module-state is-error" role="alert">

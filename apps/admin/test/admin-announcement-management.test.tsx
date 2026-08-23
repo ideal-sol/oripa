@@ -55,10 +55,15 @@ describe("Announcement management", () => {
       "公開開始日時", "公開終了日時", "更新日時", "プレビュー", "編集",
     ]);
     expect(screen.getByText(noticeId)).toBeVisible();
-    expect(screen.getByText("公開")).toBeVisible();
+    expect(screen.getAllByText("公開")).toHaveLength(2);
     expect(screen.getByText("お知らせ")).toBeVisible();
     expect(screen.getByRole("link", { name: "運用のお知らせを編集" }))
       .toHaveAttribute("href", `/announcements/${noticeId}`);
+    expect(screen.getByLabelText("公開状態")).toHaveValue("published,draft");
+    expect(list).toHaveBeenCalledWith(
+      { cursor: undefined, status: "published,draft" },
+      expect.any(AbortSignal),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "運用のお知らせをプレビュー" }));
     const dialog = screen.getByRole("dialog", { name: "運用のお知らせ" });
@@ -66,7 +71,16 @@ describe("Announcement management", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "プレビューを閉じる" }));
 
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
-    await waitFor(() => expect(list).toHaveBeenLastCalledWith("opaque-next", expect.any(AbortSignal)));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { cursor: "opaque-next", status: "published,draft" },
+      expect.any(AbortSignal),
+    ));
+
+    fireEvent.change(screen.getByLabelText("公開状態"), { target: { value: "archived" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { cursor: undefined, status: "archived" },
+      expect.any(AbortSignal),
+    ));
   });
 
   it("previews sanitized server output and creates a published notice once", async () => {

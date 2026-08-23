@@ -11,17 +11,23 @@ import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-ro
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
+import { initialListFilter, type PageSearchParams } from "@/lib/list-filter";
 
 export const metadata: Metadata = { title: "カタログ参照" };
 
 export default async function CatalogResourcePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ segments: string[] }>;
+  searchParams: Promise<PageSearchParams>;
 }) {
   const { segments } = await params;
+  const query = await searchParams;
   if (segments[0] === "gachas") {
-    if (segments.length === 1) return <CatalogGachaWorkspace />;
+    if (segments.length === 1) {
+      return <CatalogGachaWorkspace initialStatus={initialListFilter(query.status, ["published,draft", "published", "draft", "sales_paused", "unpublished", "all"] as const, "published,draft")} />;
+    }
     if (segments.length === 2) {
       return (
         <CatalogGachaWorkspace
@@ -73,7 +79,9 @@ export default async function CatalogResourcePage({
     notFound();
   }
   if (segments[0] === "presentation-assets") {
-    if (segments.length === 1) return <RankEffectSettingsWorkspace mode="list" />;
+    if (segments.length === 1) {
+      return <RankEffectSettingsWorkspace initialVisibility={initialListFilter(query.visibility, ["all", "visible", "hidden"] as const, "visible")} mode="list" />;
+    }
     if (segments.length === 2 && segments[1] === "new") {
       return <RankEffectSettingsWorkspace mode="create" />;
     }

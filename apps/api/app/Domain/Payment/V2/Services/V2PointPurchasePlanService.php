@@ -27,7 +27,8 @@ final class V2PointPurchasePlanService
     public function listing(
         V2AdminAuthorizationContext $context,
         ?string $cursor,
-        int $limit = 20
+        int $limit = 20,
+        ?string $status = null
     ): array {
         $this->authorization->authorizePermission(
             $context,
@@ -38,6 +39,9 @@ final class V2PointPurchasePlanService
         if ($limit < 1 || $limit > 100) {
             throw $this->invalid('The page size is invalid.');
         }
+        if ($status !== null && ! in_array($status, ['draft', 'published'], true)) {
+            throw $this->invalid('The purchase plan status is invalid.');
+        }
         [$afterSort, $afterId] = $this->decodeCursor($cursor);
         $latest = DB::table('point_purchase_plans')
             ->selectRaw('code, MAX(version_no) AS version_no')
@@ -47,6 +51,9 @@ final class V2PointPurchasePlanService
                 ->on('latest.code', '=', 'plan.code')
                 ->on('latest.version_no', '=', 'plan.version_no'))
             ->leftJoin('user_tags as target_tag', 'target_tag.id', '=', 'plan.target_user_tag_id');
+        if ($status !== null) {
+            $query->where('plan.status', $status);
+        }
         if ($afterId !== null) {
             $query->where(fn ($next) => $next
                 ->where('plan.sort_order', '>', $afterSort)

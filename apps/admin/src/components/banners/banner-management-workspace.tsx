@@ -48,23 +48,24 @@ const EMPTY_DRAFT: BannerDraft = {
   title: "",
 };
 
-export function BannerManagementWorkspace() {
+export function BannerManagementWorkspace({ initialStatus = "published" }: { initialStatus?: "all" | "draft" | "published" }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="content.read">
-        <BannerManagement />
+        <BannerManagement initialStatus={initialStatus} />
       </ProtectedAdminRoute>
     </AdminShell>
   );
 }
 
-function BannerManagement() {
+function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | "published" }) {
   const { permissions } = usePermissions();
   const canManage = permissions.has("content.manage");
   const canPublish = permissions.has("content.publish");
   const [categories, setCategories] = useState<AdminBannerCategory[]>([]);
   const [items, setItems] = useState<AdminManagedBanner[]>([]);
   const [filterCategory, setFilterCategory] = useState("");
+  const [status, setStatus] = useState(initialStatus);
   const [cursor, setCursor] = useState<string>();
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -87,7 +88,7 @@ function BannerManagement() {
     Promise.all([
       client.listBannerCategories(controller.signal),
       client.listManagedBanners(
-        { category_id: filterCategory || undefined, cursor },
+        { category_id: filterCategory || undefined, cursor, status: status === "all" ? undefined : status },
         controller.signal,
       ),
     ])
@@ -104,7 +105,7 @@ function BannerManagement() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [cursor, filterCategory, reload]);
+  }, [cursor, filterCategory, reload, status]);
 
   async function submitBanner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -200,6 +201,14 @@ function BannerManagement() {
       <section className="announcement-table-section" aria-label="バナー一覧">
         {publishError ? <div className="form-error" role="alert">{publishError}</div> : null}
         <div className="announcement-form-grid">
+          <label>
+            状態
+            <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>
+              <option value="published">有効</option>
+              <option value="draft">無効</option>
+              <option value="all">すべて</option>
+            </select>
+          </label>
           <label>
             カテゴリ絞り込み
             <select value={filterCategory} onChange={(event) => { setLoading(true); setFilterCategory(event.target.value); setCursor(undefined); setCursorStack([]); }}>

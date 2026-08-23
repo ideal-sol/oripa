@@ -54,12 +54,14 @@ final class V2ContentContactAdminService
         V2AdminAuthorizationContext $context,
         string $type,
         ?string $cursor,
-        int $limit
+        int $limit,
+        ?string $status = null
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
         [$table, $ownerColumn] = $this->type($type);
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
+        $statuses = $this->statusFilter($status, ['draft', 'published', 'archived']);
         $latestVersions = DB::table('content_versions')
             ->select($ownerColumn)
             ->selectRaw('MAX(version_number) AS latest_version_number')
@@ -112,6 +114,7 @@ final class V2ContentContactAdminService
                     ->limit(1),
                 'latest_asset_public_id'
             )
+            ->when($statuses !== null, fn (Builder $query) => $query->whereIn('p.status', $statuses))
             ->when(
                 $after !== null,
                 fn (Builder $query) => $query->where('p.id', '<', $after)
@@ -266,11 +269,13 @@ final class V2ContentContactAdminService
     public function managedPages(
         V2AdminAuthorizationContext $context,
         ?string $cursor,
-        int $limit
+        int $limit,
+        ?string $status = null
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
+        $statuses = $this->statusFilter($status, ['draft', 'published']);
         $latest = DB::table('content_versions')->select('static_page_id')
             ->selectRaw('MAX(version_number) AS version_number')
             ->whereNotNull('static_page_id')->groupBy('static_page_id');
@@ -282,6 +287,7 @@ final class V2ContentContactAdminService
             })
             ->leftJoin('content_page_categories as category', 'category.id', '=', 'version.page_category_id')
             ->where('page.status', '<>', 'archived')
+            ->when($statuses !== null, fn (Builder $query) => $query->whereIn('page.status', $statuses))
             ->when($after !== null, fn (Builder $query) => $query->where('page.id', '<', $after))
             ->orderByDesc('page.id')->limit($limit + 1)
             ->get($this->managedPageColumns());
@@ -413,11 +419,13 @@ final class V2ContentContactAdminService
         V2AdminAuthorizationContext $context,
         ?string $cursor,
         int $limit,
-        ?string $categoryPublicId
+        ?string $categoryPublicId,
+        ?string $status = null
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
+        $statuses = $this->statusFilter($status, ['draft', 'published']);
         $categoryId = null;
         if ($categoryPublicId !== null) {
             $this->uuid($categoryPublicId, 'BANNER_CATEGORY_INVALID');
@@ -445,6 +453,7 @@ final class V2ContentContactAdminService
             })
             ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
             ->where('banner.status', '<>', 'archived')
+            ->when($statuses !== null, fn (Builder $query) => $query->whereIn('banner.status', $statuses))
             ->when($categoryId !== null, fn (Builder $query) =>
                 $query->where('version.banner_category_id', $categoryId))
             ->when($after !== null, fn (Builder $query) => $query->where('banner.id', '<', $after))
@@ -2371,6 +2380,20 @@ final class V2ContentContactAdminService
         }
 
         return $limit;
+    }
+
+    /** @param list<string> $allowed @return list<string>|null */
+    private function statusFilter(?string $status, array $allowed): ?array
+    {
+        if ($status === null) {
+            return null;
+        }
+        $statuses = array_values(array_unique(explode(',', $status)));
+        if ($statuses === [] || array_diff($statuses, $allowed) !== []) {
+            throw $this->invalid();
+        }
+
+        return $statuses;
     }
 
     private function invalid(string $code = 'CONTENT_REQUEST_INVALID'): V2ContentContactException

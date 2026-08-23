@@ -33,6 +33,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("Rank effect settings", () => {
   it("renders the V1-equivalent ordered list, preview, rank, state, and edit route", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listRankEffects");
     render(<RankEffectSettingsWorkspace mode="list" />);
     expect(await screen.findByRole("heading", { name: "ランク演出" })).toBeVisible();
     expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
@@ -48,6 +49,13 @@ describe("Rank effect settings", () => {
       "href",
       `/catalog/presentation-assets/${effect().id}/edit`,
     );
+    expect(screen.getByLabelText("状態")).toHaveValue("visible");
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ visibility: "visible" }), expect.any(AbortSignal));
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "hidden" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: undefined, visibility: "hidden" }),
+      expect.any(AbortSignal),
+    ));
   });
 
   it("edits metadata without requiring a replacement file and preserves current preview", async () => {

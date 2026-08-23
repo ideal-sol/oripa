@@ -407,6 +407,18 @@
           },
           {
             "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2125,6 +2137,26 @@
                 "disabled"
               ],
               "default": "all"
+            }
+          },
+          {
+            "name": "management_status",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "sales_paused",
+                  "unpublished"
+                ]
+              }
             }
           },
           {
@@ -4572,6 +4604,24 @@
           },
           {
             "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published"
+                ]
+              }
+            }
           }
         ],
         "responses": {
@@ -4962,6 +5012,18 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published"
+              ]
             }
           }
         ],
@@ -5431,6 +5493,25 @@
           },
           {
             "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "archived"
+                ]
+              }
+            }
           }
         ],
         "responses": {

@@ -643,7 +643,7 @@ describe("AdminApiClient", () => {
       .mockResolvedValueOnce(jsonResponse({ data: { id }, idempotent_replay: false, request_id: id }, 201));
     const client = new AdminApiClient(fetcher, () => csrf);
 
-    await client.listPointPurchasePlans();
+    await client.listPointPurchasePlans({ status: "published" });
     await client.createPointPurchasePlan({
       amount: 1000,
       audience_code: "all_users",
@@ -657,11 +657,27 @@ describe("AdminApiClient", () => {
     }, "point-purchase-create-key");
 
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      "/admin/api/v2/point-purchase-plans?limit=20",
+      "/admin/api/v2/point-purchase-plans?limit=20&status=published",
       "/admin/api/v2/point-purchase-plans",
     ]);
     expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
       .toBe("point-purchase-create-key");
+  });
+
+  it("serializes canonical multi-status Admin list filters", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockImplementation(() => Promise.resolve(jsonResponse({ items: [], next_cursor: null })));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listCatalogGachas({ management_status: "published,draft" });
+    await client.listContentNotices({ status: "published,draft" });
+    await client.listManagedPages({ status: "published,draft" });
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/catalog/gachas?management_status=published%2Cdraft",
+      "/admin/api/v2/content/notices?limit=20&status=published%2Cdraft",
+      "/admin/api/v2/page-management/pages?limit=20&status=published%2Cdraft",
+    ]);
   });
 
   it("honors AbortSignal and never reaches the transport", async () => {

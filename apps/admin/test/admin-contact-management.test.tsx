@@ -41,6 +41,11 @@ describe("Contact management", () => {
     expect(screen.getByLabelText("状態: 未対応")).toBeVisible();
     expect(screen.getByRole("link", { name: "詳細" }))
       .toHaveAttribute("href", `/contacts/${contactId}`);
+    expect(screen.getByLabelText("状態")).toHaveValue("new");
+    expect(list).toHaveBeenCalledWith(
+      { cursor: undefined, email: undefined, status: "new" },
+      expect.any(AbortSignal),
+    );
 
     fireEvent.change(screen.getByLabelText("状態"), { target: { value: "new" } });
     fireEvent.change(screen.getByLabelText("メール"), { target: { value: "user@example.test" } });
@@ -49,6 +54,25 @@ describe("Contact management", () => {
       { cursor: undefined, email: "user@example.test", status: "new" },
       expect.any(AbortSignal),
     ));
+  });
+
+  it("honors an explicit status override and keeps manual changes local", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listContactInquiries")
+      .mockResolvedValue({ items: [summary()], next_cursor: null });
+    const { unmount } = render(<ContactManagementWorkspace initialStatus="replied" mode="list" />);
+    expect(await screen.findByLabelText("状態")).toHaveValue("replied");
+    expect(list).toHaveBeenCalledWith(
+      { cursor: undefined, email: undefined, status: "replied" },
+      expect.any(AbortSignal),
+    );
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "closed" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { cursor: undefined, email: undefined, status: "closed" },
+      expect.any(AbortSignal),
+    ));
+    unmount();
+    render(<ContactManagementWorkspace mode="list" />);
+    expect(await screen.findByLabelText("状態")).toHaveValue("new");
   });
 
   it("queues one reply request and refreshes canonical detail", async () => {

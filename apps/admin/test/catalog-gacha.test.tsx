@@ -6,7 +6,7 @@ import {
   CatalogGachaMasterForm,
   CatalogGachaVersionForm,
 } from "@/components/catalog/catalog-gacha-forms";
-import { isEditableGachaVersion } from "@/components/catalog/catalog-gacha-workspace";
+import { CatalogGachaWorkspace, isEditableGachaVersion } from "@/components/catalog/catalog-gacha-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
 import { CATALOG_SECTIONS } from "@/lib/catalog/catalog-registry";
 
@@ -15,12 +15,37 @@ const TAG_ID = "01910191-0191-7191-8191-019101910192";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910193";
 const ASSET_ID = "01910191-0191-7191-8191-019101910194";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("@/components/shell/admin-shell", () => ({ AdminShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/components/permissions/protected-admin-route", () => ({ ProtectedAdminRoute: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ hasPermission: () => true, permissions: new Set(["catalog.read", "catalog.manage"]) }) }));
+vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({ expireSession: vi.fn() }) }));
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("Admin Gacha Draft management", () => {
+  it("starts with Published and Draft, allows another status, and accepts an explicit override", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listCatalogGachas")
+      .mockResolvedValue({ items: [], next_cursor: null });
+    const { unmount } = render(<CatalogGachaWorkspace />);
+    expect(await screen.findByLabelText("公開ステータス")).toHaveValue("published,draft");
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ management_status: "published,draft" }),
+      expect.any(AbortSignal),
+    );
+    fireEvent.change(screen.getByLabelText("公開ステータス"), { target: { value: "sales_paused" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ management_status: "sales_paused" }),
+      expect.any(AbortSignal),
+    ));
+    unmount();
+    render(<CatalogGachaWorkspace initialStatus="unpublished" />);
+    expect(await screen.findByLabelText("公開ステータス")).toHaveValue("unpublished");
+  });
+
   it("registers Gacha as a stable Catalog section", () => {
     const gacha = CATALOG_SECTIONS.find((section) => section.resource === "gachas");
     expect(gacha).toMatchObject({

@@ -74,11 +74,13 @@ export function CatalogGachaWorkspace({
   createMode = false,
   editMode = false,
   gachaId,
+  initialStatus = "published,draft",
   versionId,
 }: {
   createMode?: boolean;
   editMode?: boolean;
   gachaId?: string;
+  initialStatus?: "all" | "draft" | "published" | "published,draft" | "sales_paused" | "unpublished";
   versionId?: string;
 }) {
   const router = useRouter();
@@ -89,6 +91,7 @@ export function CatalogGachaWorkspace({
   const { hasPermission } = usePermissions();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [query, setQuery] = useState("");
+  const [status, setStatus] = useState(initialStatus);
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [versionCursorHistory, setVersionCursorHistory] = useState<(string | null)[]>([
@@ -115,7 +118,7 @@ export function CatalogGachaWorkspace({
     const controller = new AbortController();
     loadState(
       client,
-      { cursor: cursor ?? undefined, direction: "desc", limit: 20, q: query || undefined },
+      { cursor: cursor ?? undefined, direction: "desc", limit: 20, management_status: status === "all" ? undefined : status, q: query || undefined },
       controller.signal,
       gachaId,
       versionId,
@@ -136,6 +139,7 @@ export function CatalogGachaWorkspace({
     gachaId,
     query,
     reload,
+    status,
     versionCursor,
     versionId,
   ]);
@@ -495,6 +499,17 @@ export function CatalogGachaWorkspace({
                   placeholder="Code、Slug、Category"
                   value={query}
                 />
+              </label>
+              <label>
+                公開ステータス
+                <select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursorHistory([null]); setCursorIndex(0); }}>
+                  <option value="published,draft">公開 + 下書き</option>
+                  <option value="published">公開</option>
+                  <option value="draft">下書き</option>
+                  <option value="sales_paused">販売停止</option>
+                  <option value="unpublished">非公開</option>
+                  <option value="all">すべて</option>
+                </select>
               </label>
               <button className="secondary-button" type="submit">
                 検索

@@ -120,6 +120,30 @@ final class AdminCatalogReadTest extends TestCase
             ->assertHeader('Content-Type', 'application/problem+json');
     }
 
+    public function test_gacha_management_status_filter_uses_only_canonical_values(): void
+    {
+        DB::table('catalog_gachas')->update([
+            'management_status' => 'sales_paused',
+            'revision' => DB::raw('revision + 1'),
+        ]);
+        $token = $this->createAdminSession(V2AdminRole::Operator);
+
+        $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas?management_status=published,draft')
+            ->assertOk()
+            ->assertJsonCount(0, 'items');
+        Auth::forgetGuards();
+        $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas?management_status=sales_paused')
+            ->assertOk()
+            ->assertJsonPath('items.0.publication_status', 'sales_paused');
+        Auth::forgetGuards();
+        $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas?management_status=unknown')
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_CATALOG_QUERY');
+    }
+
     public function test_prize_and_asset_responses_do_not_expose_internal_fields(): void
     {
         $privateAssetId = (string) Str::uuid7();

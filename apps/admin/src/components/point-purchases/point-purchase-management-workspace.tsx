@@ -54,7 +54,7 @@ const EMPTY_CAMPAIGN: CampaignDraft = {
   bonusAmount: "",
 };
 
-export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode; planId?: string }) {
+export function PointPurchaseManagementWorkspace({ initialStatus = "published", mode, planId }: { initialStatus?: "all" | "draft" | "published"; mode: Mode; planId?: string }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const navigation = navigationItem(mode === "create" ? "purchase-plans-create" : "purchase-plans");
   const { permissions } = usePermissions();
@@ -70,6 +70,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
   const [busy, setBusy] = useState<"load" | "save" | null>("load");
   const [error, setError] = useState<AdminApiError | null>(null);
   const [freshMfaOpen, setFreshMfaOpen] = useState(false);
+  const [status, setStatus] = useState(initialStatus);
   const pendingKey = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -77,7 +78,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
     setError(null);
     try {
       if (mode === "list") {
-        const result = await client.listPointPurchasePlans(cursor);
+        const result = await client.listPointPurchasePlans({ cursor, status: status === "all" ? undefined : status });
         setPlans(result.items);
         setNextCursor(result.next_cursor);
       } else if (mode === "edit" && planId) {
@@ -97,7 +98,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
     } finally {
       setBusy(null);
     }
-  }, [client, cursor, mode, planId]);
+  }, [client, cursor, mode, planId, status]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0);
@@ -139,6 +140,7 @@ export function PointPurchaseManagementWorkspace({ mode, planId }: { mode: Mode;
             title={mode === "list" ? "ポイント購入商品" : mode === "create" ? "ポイント商品登録" : "ポイント商品編集"}
           />
           {error ? <ErrorNotice error={error} onRetry={load} /> : null}
+          {mode === "list" ? <label className="announcement-filter"><span>状態</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursor(undefined); setCursorHistory([]); }}><option value="published">有効</option><option value="draft">無効</option><option value="all">すべて</option></select></label> : null}
           {busy === "load" ? <Loading /> : mode === "list" ? (
             <PlanList canManage={canManage} plans={plans} />
           ) : (

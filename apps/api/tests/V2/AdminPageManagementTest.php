@@ -65,6 +65,8 @@ final class AdminPageManagementTest extends TestCase
         self::assertTrue($service->createManagedPage($context, $input, $createKey)['idempotent_replay']);
         self::assertDatabaseCount('content_static_pages', 1);
         self::assertDatabaseCount('content_versions', 1);
+        self::assertCount(1, $service->managedPages($context, null, 20, 'published')['items']);
+        self::assertCount(0, $service->managedPages($context, null, 20, 'draft')['items']);
 
         $publishedVersionId = DB::table('content_static_pages')->where('public_id', $created['id'])
             ->value('published_version_id');
@@ -82,6 +84,8 @@ final class AdminPageManagementTest extends TestCase
         self::assertNull(DB::table('content_static_pages')->where('public_id', $created['id'])
             ->value('published_version_id'));
         self::assertSame($updated['id'], $service->managedPages($context, null, 20)['items'][0]['id']);
+        self::assertCount(0, $service->managedPages($context, null, 20, 'published')['items']);
+        self::assertCount(1, $service->managedPages($context, null, 20, 'published,draft')['items']);
     }
 
     public function test_footer_defaults_to_off_and_preview_uses_canonical_sanitizer(): void

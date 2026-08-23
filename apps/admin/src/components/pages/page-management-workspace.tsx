@@ -40,17 +40,17 @@ const EMPTY_FORM: AdminManagedPageInput = {
   visibility: "hidden",
 };
 
-export function PageManagementWorkspace({ mode, pageId }: { mode: Mode; pageId?: string }) {
+export function PageManagementWorkspace({ initialStatus = "published,draft", mode, pageId }: { initialStatus?: "draft" | "published" | "published,draft"; mode: Mode; pageId?: string }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="content.read">
-        {mode === "list" ? <PageList /> : <PageForm mode={mode} pageId={pageId} />}
+        {mode === "list" ? <PageList initialStatus={initialStatus} /> : <PageForm mode={mode} pageId={pageId} />}
       </ProtectedAdminRoute>
     </AdminShell>
   );
 }
 
-function PageList() {
+function PageList({ initialStatus }: { initialStatus: "draft" | "published" | "published,draft" }) {
   const { permissions } = usePermissions();
   const canManage = permissions.has("content.manage");
   const [items, setItems] = useState<AdminManagedPage[]>([]);
@@ -60,10 +60,11 @@ function PageList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [status, setStatus] = useState(initialStatus);
 
   useEffect(() => {
     const controller = new AbortController();
-    new AdminApiClient().listManagedPages(cursor, controller.signal)
+    new AdminApiClient().listManagedPages({ cursor, status }, controller.signal)
       .then((result) => {
         setItems(result.items);
         setNextCursor(result.next_cursor);
@@ -76,7 +77,7 @@ function PageList() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [cursor, reload]);
+  }, [cursor, reload, status]);
 
   return (
     <main className="workspace announcement-workspace">
@@ -86,6 +87,14 @@ function PageList() {
           {canManage ? <Link className="primary-button" href="/settings/pages/new"><FilePlus2 aria-hidden="true" size={17} />新規追加</Link> : null}
           <button aria-label="ページ一覧を再取得" className="icon-button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} title="再取得" type="button"><RefreshCw aria-hidden="true" size={17} /></button>
         </div>
+        <label className="announcement-filter">
+          公開状態
+          <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>
+            <option value="published,draft">公開 + 下書き</option>
+            <option value="published">公開</option>
+            <option value="draft">下書き</option>
+          </select>
+        </label>
         {loading ? <State text="ページを読み込んでいます。" /> : error ? <State error text={error} /> : items.length === 0 ? <State text="登録済みのページはありません。" /> : (
           <div className="table-container">
             <table className="announcement-table">

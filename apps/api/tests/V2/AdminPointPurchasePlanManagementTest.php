@@ -65,6 +65,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'name' => '初回限定',
             'sort_order' => 20,
             'audience_code' => 'first_purchase_users',
+            'is_active' => false,
         ], (string) Str::uuid7());
         self::assertSame('all_users', $first['data']['audience_code']);
         self::assertSame('first_purchase_users', $second['data']['audience_code']);
@@ -76,6 +77,8 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         self::assertCount(1, $page['items']);
         self::assertNotNull($page['next_cursor']);
         self::assertCount(1, $service->listing($operator, $page['next_cursor'], 1)['items']);
+        self::assertCount(1, $service->listing($operator, null, 20, 'published')['items']);
+        self::assertCount(1, $service->listing($operator, null, 20, 'draft')['items']);
         self::assertArrayNotHasKey('code', $first['data']);
     }
 

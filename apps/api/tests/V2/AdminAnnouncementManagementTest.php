@@ -61,6 +61,12 @@ final class AdminAnnouncementManagementTest extends TestCase
         $list = $service->contentList($context, 'notice', null, 20);
         self::assertSame('最初のお知らせ', $list['items'][0]['latest_version']['title']);
         self::assertSame($created['versions'][0]['id'], $list['items'][0]['latest_version']['id']);
+        self::assertCount(1, $service->contentList(
+            $context, 'notice', null, 20, 'published,draft'
+        )['items']);
+        self::assertCount(0, $service->contentList(
+            $context, 'notice', null, 20, 'published'
+        )['items']);
 
         $updated = $service->createVersion(
             $context,
@@ -78,6 +84,9 @@ final class AdminAnnouncementManagementTest extends TestCase
             $updated['id']
         );
         self::assertSame('published', $published['status']);
+        self::assertCount(1, $service->contentList(
+            $context, 'notice', null, 20, 'published'
+        )['items']);
         self::assertDatabaseHas('audit_logs', [
             'action_code' => 'content.published',
             'target_public_id' => $created['id'],
