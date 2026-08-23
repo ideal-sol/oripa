@@ -20,6 +20,12 @@ event JSON directly. It does not interpolate pull request text into a shell.
 The `ci-gate` depends on policy, quality, security, and integration jobs and
 rejects failed, cancelled, or skipped dependency results.
 
+`lane_policy.py` validates the exact Lane and Application Runtime Activation
+metadata, classifies every changed path with unknown-path failure, rejects Lane
+downgrade relative to the path minimum, emits workflow outputs, and performs the
+Lite added-diff high-confidence secret scan without printing candidate values.
+Non-PR events resolve to Strict. The Required Check names do not change.
+
 ## Quality, security, and integration
 
 - `quality_gate.py` validates tracked source and structured file quality.

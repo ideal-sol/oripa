@@ -85,6 +85,33 @@ judgments remain human decisions.
 
 ## Core Invariants
 
+### Change Lanes
+
+- Every Task, Task Policy, Issue, and PR declares exactly one of `Lite Maintenance`,
+  `Standard Change`, or `Strict Change`, plus Application Runtime Activation as
+  `none`, `deferred`, or `immediate`.
+- Codex may escalate `Lite Maintenance` to `Standard Change` or `Strict Change`,
+  and may escalate `Standard Change` to `Strict Change`. Codex must never lower
+  a Lane. Missing, invalid, or unclassifiable metadata and paths fail closed.
+- `Lite Maintenance` is limited to low-risk presentation work such as wording,
+  CSS, layout, icons, display order, filter defaults, and light UI use of an
+  already accepted value or existing API. Workflow/CI, dependencies/lockfiles,
+  schema/migrations, Auth/Session/CSRF/MFA/email-verification core, Payment,
+  Coin/Point, Draw/Inventory, secrets/credentials, Production, deployment,
+  network, security boundaries, and immutable history require `Strict Change`.
+- `Standard Change` covers ordinary Admin UI logic, non-destructive API and
+  additive contract changes, and only bounded Shared Preview data maintenance
+  that satisfies the canonical Governance criteria.
+- `Strict Change` retains every current Required Check, security requirement,
+  and self-review freshness requirement. GOV-017 itself remains governed by the
+  pre-GOV-017 Strict gates through merge.
+- Lite and Standard self-review is valid while the reviewed final head remains
+  unchanged and all evidence fields pass; elapsed time alone does not expire it.
+  Strict self-review retains the configured current freshness window.
+- Ruleset bypass is prohibited for ordinary acceleration. It is limited to an
+  emergency, GitHub/CI outage, or explicit Human approval and must be separately
+  evidenced. Codex must never infer bypass authority.
+
 ### Site Isolation
 
 - Every Site has independent servers, database, Redis, object storage, secrets,
@@ -138,16 +165,17 @@ judgments remain human decisions.
 3. Re-read the finalized V2 documents relevant to the Task.
 4. Confirm Repository root, `git status`, current branch, HEAD, and Remote refs.
 5. Confirm Issue ID, Risk, base SHA, Allowed Paths, Forbidden Paths, and tests.
-6. Stop if the worktree contains an unrecognized change or the Remote moved.
-7. Work only in the dedicated task worktree; do not switch the main worktree.
-8. Do not infer undecided provider, legal, security, or accounting behavior.
-9. Do not use Production secrets, credentials, or real-user PII.
-10. Record work in `worklogs/new_ver_main.md` and the GitHub Issue/PR.
-11. Fix the PR head SHA before review and merge.
-12. Require fresh machine-readable self-review evidence for that exact head.
-13. Merge only after all available required checks and applicable local tests
+6. Confirm Lane and Application Runtime Activation before implementation.
+7. Stop if the worktree contains an unrecognized change or the Remote moved.
+8. Work only in the dedicated task worktree; do not switch the main worktree.
+9. Do not infer undecided provider, legal, security, or accounting behavior.
+10. Do not use Production secrets, credentials, or real-user PII.
+11. Record work in `worklogs/new_ver_main.md` and the GitHub Issue/PR.
+12. Fix the PR head SHA before review and merge.
+13. Require lane-valid machine-readable self-review evidence for that exact head.
+14. Merge only after all available required checks and applicable local tests
     pass with no SEV-0 or SEV-1 finding.
-14. Squash merge through the approved GitHub App wrapper, then verify `main` and
+15. Squash merge through the approved GitHub App wrapper, then verify `main` and
     clean the Remote/local task branch and dedicated worktree.
 
 The latest human decision explicitly adopts both GitHub Issue/PR records and
@@ -227,6 +255,8 @@ At completion, report:
 - PR URL, self-review evidence, check summary, merge actor, and squash SHA
 - Remote/local task branch and worktree cleanup
 - local and Remote `main` equality
+- Lane, Activation mode, Task elapsed time, CI wait time, Check rerun count,
+  Build count, Runtime Activation count, and Human wait time
 
 GitHub Approval and Code Owner Review are not required merge gates. Platform
 Codex may create a new Stable Tag or Release only after its Release Gate passes;

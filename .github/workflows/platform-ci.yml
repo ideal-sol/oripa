@@ -19,6 +19,11 @@ jobs:
     name: policy-gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      lane: ${{ steps.lane-policy.outputs.lane }}
+      lane_key: ${{ steps.lane-policy.outputs.lane_key }}
+      minimum_lane: ${{ steps.lane-policy.outputs.minimum_lane }}
+      activation: ${{ steps.lane-policy.outputs.activation }}
     steps:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -31,6 +36,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Resolve lane and activation policy
+        id: lane-policy
+        run: >-
+          python3 scripts/ci/lane_policy.py
+          --repository .
+          --event-name "${{ github.event_name }}"
+          --event-path "${{ github.event_path }}"
+          --github-output "$GITHUB_OUTPUT"
+
       - name: Test the policy gate
         run: python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
 
@@ -42,6 +56,7 @@ jobs:
 
   quality-gate:
     name: quality-gate
+    needs: policy-gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -62,6 +77,7 @@ jobs:
           node-version: "22.22.3"
 
       - name: Set up PHP
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
         with:
           php-version: "8.4"
@@ -69,44 +85,54 @@ jobs:
           coverage: none
 
       - name: Enable pinned pnpm
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
 
       - name: Verify manifests and install locked workspace dependencies
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           composer --working-dir=apps/api validate --strict --no-check-publish
           pnpm install --frozen-lockfile
           pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Run quality structure and unit checks
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
           python3 scripts/ci/quality_gate.py --repository .
 
       - name: Validate OpenAPI contracts and committed bundles
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           pnpm openapi:test
           pnpm openapi:check
 
       - name: Validate Storefront Client Alpha
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: pnpm storefront:check
 
       - name: Validate Site Schema Alpha
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: pnpm site-schema:check
 
       - name: Validate Storefront Testkit Alpha
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: pnpm testkit:check
 
       - name: Validate Platform Alpha Artifact foundation
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           pnpm release:test
           pnpm release:validate
 
       - name: Typecheck legacy frontend
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
       - name: Validate V2 Admin Auth Shell
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           pnpm admin:generate:check
           pnpm admin:typecheck
@@ -115,6 +141,7 @@ jobs:
           pnpm admin:build
 
       - name: Compare legacy frontend lint findings with the exact baseline
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           set +e
           (
@@ -129,12 +156,30 @@ jobs:
             --baseline .ci/baselines/frontend-eslint.json
 
       - name: Verify tracked generated output and whitespace
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           git diff --check
           git diff --exit-code
 
+      - name: Run Lite focused quality verification
+        if: needs.policy-gate.outputs.lane_key == 'lite'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
+          git diff --check "$BASE_SHA...HEAD"
+          if git diff --name-only "$BASE_SHA...HEAD" | grep -q '^apps/admin/'; then
+            corepack enable
+            corepack prepare pnpm@10.12.1 --activate
+            pnpm install --frozen-lockfile
+            pnpm admin:typecheck
+            pnpm admin:lint
+            pnpm admin:test
+          fi
+
   security-gate:
     name: security-gate
+    needs: policy-gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -150,11 +195,13 @@ jobs:
           python-version: "3.12"
 
       - name: Set up Node.js
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.22.3"
 
       - name: Set up PHP
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
         with:
           php-version: "8.4"
@@ -162,11 +209,13 @@ jobs:
           coverage: none
 
       - name: Enable pinned pnpm
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
 
       - name: Collect dependency audits
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           set +e
           composer --working-dir=apps/api audit --locked --format=json > "$RUNNER_TEMP/composer-audit.json"
@@ -182,6 +231,7 @@ jobs:
           echo "pnpm audit raw exit status: $pnpm_status"
 
       - name: Run security checks
+        if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
           python3 scripts/ci/security_gate.py \
@@ -191,8 +241,19 @@ jobs:
             --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json" \
             --workspace-pnpm-audit "$RUNNER_TEMP/workspace-pnpm-audit.json"
 
-  integration-gate:
-    name: integration-gate
+      - name: Run Lite diff secret scan
+        if: needs.policy-gate.outputs.lane_key == 'lite'
+        run: >-
+          python3 scripts/ci/lane_policy.py
+          --repository .
+          --event-name "${{ github.event_name }}"
+          --event-path "${{ github.event_path }}"
+          --secret-scan
+
+  integration-suite:
+    name: integration-suite
+    needs: policy-gate
+    if: needs.policy-gate.outputs.lane_key != 'lite'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     services:
@@ -338,6 +399,34 @@ jobs:
         run: |
           git diff --check
           git diff --exit-code
+
+  integration-gate:
+    name: integration-gate
+    if: always()
+    needs:
+      - policy-gate
+      - integration-suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require lane-appropriate integration verification
+        env:
+          POLICY_GATE_RESULT: ${{ needs.policy-gate.result }}
+          LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          INTEGRATION_SUITE_RESULT: ${{ needs.integration-suite.result }}
+        run: |
+          if [ "$POLICY_GATE_RESULT" != "success" ]; then
+            echo "Policy gate did not succeed"
+            exit 1
+          fi
+          if [ "$LANE_KEY" = "lite" ] && [ "$INTEGRATION_SUITE_RESULT" = "skipped" ]; then
+            echo "Lite Maintenance: full integration suite is not applicable"
+            exit 0
+          fi
+          if [ "$INTEGRATION_SUITE_RESULT" != "success" ]; then
+            echo "Lane-required integration suite did not succeed"
+            exit 1
+          fi
 
   ci-gate:
     name: ci-gate

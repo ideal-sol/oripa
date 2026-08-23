@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,15 @@ import re
 import subprocess
 import sys
 from typing import Iterable
+
+
+LANE_POLICY_SPEC = importlib.util.spec_from_file_location(
+    "oripa_lane_policy", Path(__file__).with_name("lane_policy.py")
+)
+if LANE_POLICY_SPEC is None or LANE_POLICY_SPEC.loader is None:
+    raise RuntimeError("lane policy module is unavailable")
+lane_policy = importlib.util.module_from_spec(LANE_POLICY_SPEC)
+LANE_POLICY_SPEC.loader.exec_module(lane_policy)
 
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -37,6 +47,9 @@ REQUIRED_REPOSITORY_FILES = {
     "legacy/v1-frontend/AGENTS.md",
     "legacy/v1-frontend/README.md",
     "docs/architecture/README.md",
+    "infrastructure/github-app/self_review_policy.py",
+    "infrastructure/github-app/task_policy.py",
+    "scripts/ci/lane_policy.py",
 }
 STOREFRONT_CLIENT_REQUIRED_FILES = {
     "packages/storefront-client/.gitignore",
@@ -1176,6 +1189,10 @@ def validate_pr_body(
         raise PolicyFailure("declared Changed files do not match the Git diff")
     if not all(declared_path_allowed(path, allowed) for path in actual):
         raise PolicyFailure("Git diff includes a path outside declared Allowed paths")
+    try:
+        lane_policy.validate_pr_lane(body, actual)
+    except lane_policy.LanePolicyFailure as error:
+        raise PolicyFailure(str(error)) from error
 
 
 def validate_dangerous_paths(paths: Iterable[str]) -> None:

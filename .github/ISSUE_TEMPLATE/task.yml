@@ -33,6 +33,30 @@ body:
       required: true
 
   - type: dropdown
+    id: lane
+    attributes:
+      label: Lane
+      description: Codex may escalate Lite to Standard or Strict, but may not downgrade the approved Lane.
+      options:
+        - Lite Maintenance
+        - Standard Change
+        - Strict Change
+    validations:
+      required: true
+
+  - type: dropdown
+    id: activation
+    attributes:
+      label: Application Runtime Activation
+      description: Lite defaults to deferred unless immediate verification is required.
+      options:
+        - none
+        - deferred
+        - immediate
+    validations:
+      required: true
+
+  - type: dropdown
     id: codex_role
     attributes:
       label: Responsible role
