@@ -3,6 +3,9 @@
 - Task ID:
 - Issue:
 - Risk:
+- Lane:
+- Application Runtime Activation:
+- UI Verification:
 - Codex role:
 - Base SHA:
 - Head branch:
@@ -86,6 +89,15 @@
 - Rollback procedure:
 - Production approval required:
 
+## Trial metrics
+
+- Task elapsed time:
+- CI wait time:
+- Checks rerun count:
+- Build count:
+- Runtime Activation count:
+- Human wait time:
+
 ## Known risks and limitations
 
 -
@@ -97,6 +109,8 @@
 ## Checklist
 
 - [ ] One Issue, one Branch, one Worktree and one PR were used.
+- [ ] Lane and Application Runtime Activation match the Task Policy.
+- [ ] Lane was not downgraded by Codex.
 - [ ] Only allowed paths were changed.
 - [ ] Unexpected changes were not ignored.
 - [ ] Executed and unexecuted tests are clearly separated.

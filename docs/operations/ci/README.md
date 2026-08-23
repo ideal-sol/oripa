@@ -13,6 +13,22 @@ After GOV-009, `main` and `release/**` require these exact check contexts:
 `ci-gate` uses `needs` and succeeds only when the other four jobs succeed.
 Cancelled and skipped dependency jobs are failures.
 
+GOV-017 keeps all five exact contexts and resolves Lane in `policy-gate`.
+Missing/invalid metadata, an unknown path, or a Lane below the changed-path
+minimum fails closed. Push and manual events without PR metadata use Strict.
+
+- Lite runs changed-path validation, focused quality checks, an added-diff
+  high-confidence secret scan, final-head review, and targeted UI confirmation
+  when applicable. Its `integration-gate` succeeds only after policy proves the
+  full suite is not applicable.
+- Standard runs normal quality/security CI and the full current integration
+  suite, plus Task-focused affected-domain verification.
+- Strict runs the same full quality, security, and integration work required
+  before GOV-017. The required aggregator cannot pass if that work is skipped.
+
+CodeQL and Dependency Review remain available workflows but are not Required
+Check contexts for Lite unless a higher Lane or another policy requires them.
+
 ## Quality gate
 
 The quality job validates PHP syntax, Composer manifest/lock consistency,
@@ -89,6 +105,8 @@ Request ID、Timeout／AbortSignal、Idempotency-Key、RFC 9457 Problem Details�
 ## Local reproduction
 
 ```text
+python3 -m unittest tests.ci.policy.test_lane_policy
+python3 scripts/ci/lane_policy.py --repository .
 python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
 python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
 python3 -m unittest discover -s tests/db -p 'test_*.py'

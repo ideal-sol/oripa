@@ -55,6 +55,18 @@ Platform Codex may squash merge a task PR when:
 
 GitHub Approval and Code Owner Review are not Task Merge requirements.
 
+The Task Merge Gate is Lane-aware under the canonical Governance. Every Lane
+still requires successful `policy-gate`, `quality-gate`, `security-gate`,
+`integration-gate`, and `ci-gate` contexts; a Lite context may select only its
+focused verification internally. Standard requires affected-domain focused or
+integration verification plus normal CI. Strict retains the complete pre-GOV-017
+requirements without reduction.
+
+Missing/invalid Lane or Activation, unknown paths, Lane downgrade, or a changed
+path whose minimum Lane exceeds the declared Lane blocks merge. Lite and Standard
+self-review expires on head change or failed evidence, not elapsed time alone.
+Strict retains the configured current freshness window and exact-head rule.
+
 ## Bootstrap Gate
 
 Until GOV-009 is merged:
@@ -90,6 +102,11 @@ Self-review evidence must include:
 - merge recommendation.
 
 Evidence expires if the PR head changes.
+
+Evidence includes Lane and Application Runtime Activation and matches the
+root-owned Task Policy. Lite and Standard evidence has no time-only expiry while
+the final head is unchanged. Strict evidence also satisfies the current
+freshness window.
 
 ## Defect Gate
 

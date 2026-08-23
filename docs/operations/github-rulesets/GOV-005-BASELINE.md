@@ -64,6 +64,10 @@ GOV-009 verified and configured these required checks:
 - `integration-gate`
 - `ci-gate`
 
+GOV-017 keeps these exact Required Check names. Lane-aware CI changes only the
+verified work behind a context; it does not remove a context or change the
+Ruleset to obtain faster completion.
+
 The checks are added only after all five contexts succeed on the GOV-009 PR.
 `strict_required_status_checks_policy` remains false, while all five exact
 contexts are mandatory. GOV-009 removes the Bootstrap exception.
@@ -157,7 +161,9 @@ Before each merge:
 
 ## Emergency Handling
 
-Do not bypass Rulesets or checks. If governance configuration prevents safe
+Do not use Ruleset bypass for ordinary acceleration. A bypass is eligible only
+for an emergency, a GitHub/CI outage, or explicit Human approval, and it still
+requires a dedicated bounded record. If governance configuration prevents safe
 recovery:
 
 1. stop automated merge and release operations;

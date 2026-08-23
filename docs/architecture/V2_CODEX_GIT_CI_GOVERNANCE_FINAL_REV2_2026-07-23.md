@@ -83,6 +83,67 @@ request per task:
     remove the clean task worktree and local branch.
 15. Record final evidence and continue only when the next Task is authorized.
 
+## Risk-based Change Lanes
+
+Every Task, root-owned Task Policy, Issue, and PR declares one Lane and one
+Application Runtime Activation mode. The only Lane values are `Lite Maintenance`,
+`Standard Change`, and `Strict Change`. The only Activation values are `none`,
+`deferred`, and `immediate`.
+
+Lane order is `Lite Maintenance` to `Standard Change` to `Strict Change`.
+Platform Codex may escalate when paths, domains, evidence, or uncertainty demand
+it. Platform Codex must not downgrade a Human-approved or previously escalated
+Lane. Missing or invalid Lane/Activation metadata, an unknown changed path, or a
+path whose minimum Lane exceeds the declared Lane fails closed.
+
+### Lite Maintenance
+
+Lite is limited to low-risk presentation maintenance: wording, CSS, layout,
+icons, display order, filter defaults, and light Admin UI that uses an existing
+API or a value already accepted by the Backend. Required verification is:
+
+- Lane and changed-path validation;
+- focused lint, typecheck, or test for the changed area;
+- high-confidence secret and credential scan of the added diff without value
+  readback;
+- final-head diff self-review;
+- targeted UI confirmation when UI changed.
+
+Lite does not require unrelated full integration, full security, CodeQL,
+Dependency Review, migration, runtime, or Security Baseline evidence. Lite must
+not pass if the change touches workflow/CI, dependency/lockfile, schema/migration,
+Auth/Session/CSRF/MFA/email-verification core, Payment, Coin/Point,
+Draw/Inventory, secret/credential, Production, deployment/network, a security
+boundary, or immutable history. Lite defaults to `deferred`; use `immediate`
+only when the Task requires immediate Runtime confirmation.
+
+### Standard Change
+
+Standard covers ordinary Admin UI logic, non-destructive API changes, additive
+normal contract changes, and bounded Shared Preview data maintenance described
+below. It requires focused or integration tests for the affected domain plus
+normal CI.
+
+Shared Preview data maintenance is Standard-eligible only when every condition
+passes: Shared Preview only; one exact target; few rows; named columns; before
+and after evidence; rollback available; no schema change; no trigger disable;
+no immutable-history mutation; not Auth, Payment, Coin/Point, Draw, or Inventory;
+and no PII or secret. Production, ambiguous predicates, bulk changes,
+irreversible mutation, and Core Domain data maintenance are Strict.
+
+### Strict Change
+
+Production, schema migration, Auth/Session/CSRF/MFA, Payment, Coin/Point,
+Draw/Inventory, secret/credential, security boundary, immutable history,
+destructive contract, and ambiguous or non-rollbackable database mutation remain
+Strict. Strict keeps the current Required Checks, full applicable security and
+integration requirements, and configured self-review freshness window.
+
+Required Check context names stay `policy-gate`, `quality-gate`, `security-gate`,
+`integration-gate`, and `ci-gate`. Their internal work may be Lane-aware, but a
+required context must still complete successfully. Required contexts are not
+deleted or bypassed to accelerate a Lane.
+
 ## Merge Gate
 
 Every autonomous merge requires all of the following:
@@ -124,6 +185,13 @@ The GitHub App posts a machine-readable PR comment containing:
 
 Evidence is fresh only when its head equals the current PR head and all merge
 gate fields pass.
+
+For Lite and Standard, an unchanged final head and passing evidence are the
+freshness authority; elapsed time alone does not expire evidence. Strict retains
+the current configured time window in addition to exact-head equality. A changed
+head invalidates every Lane's evidence.
+
+Evidence schema records Lane and Activation and must match the Task Policy.
 
 ## CI Bootstrap
 
@@ -246,6 +314,19 @@ Stop without merge when:
 - required migration, contract, security, or financial testing is incomplete.
 
 Never resolve a gate failure by bypass, force, deletion, or weaker validation.
+
+Ruleset bypass is not an ordinary acceleration mechanism. It may be considered
+only for an emergency, a GitHub/CI service failure, or explicit Human approval,
+and requires a separate bounded authorization and audit record. Codex must not
+infer or silently exercise bypass authority.
+
+## GOV-017 Trial
+
+The Lane policy trial begins when GOV-017 is merged and ends at the earlier of
+the first five subsequent Tasks or two weeks. Each Task records total elapsed
+time, CI wait time, Check rerun count, Build count, Runtime Activation count,
+and Human wait time. Metrics are evaluation evidence, not permission to weaken a
+gate. Sensitive readback remains limited to the minimum needed for the Lane.
 
 ## Audit and Completion
 
