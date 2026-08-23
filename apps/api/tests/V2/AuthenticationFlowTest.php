@@ -27,6 +27,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use OTPHP\TOTP;
 use SensitiveParameter;
 use Symfony\Component\HttpFoundation\Response;
@@ -144,6 +145,161 @@ final class AuthenticationFlowTest extends TestCase
             self::fail('An expired verification link must fail.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('VERIFICATION_LINK_EXPIRED', $exception->errorCode);
+        }
+    }
+
+    public function test_closed_user_email_reregistration_creates_an_isolated_new_identity(): void
+    {
+        $service = app(V2UserAuthenticationService::class);
+        $oldUser = $service->register(
+            'closed-reuse@example.test',
+            'valid old identity password',
+            '/mypage',
+            '192.0.2.22'
+        );
+        $oldToken = $this->notifier->messages[0]['token'];
+        $oldVerification = DB::table('user_email_verifications')
+            ->where('user_id', $oldUser->getKey())
+            ->first();
+        self::assertNotNull($oldVerification);
+        $oldAuthenticated = $service->verify($oldUser->public_id, $oldToken);
+        DB::table('wallets')->insert([
+            'user_id' => $oldUser->getKey(),
+            'paid_balance' => 1200,
+            'free_balance' => 300,
+        ]);
+        DB::table('payments')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $oldUser->getKey(),
+            'provider_code' => 'synthetic',
+            'status' => 'succeeded',
+            'amount' => 1200,
+            'currency' => 'JPY',
+            'paid_point_amount' => 1200,
+            'free_point_amount' => 0,
+            'plan_name_snapshot' => 'Synthetic plan',
+            'plan_code_snapshot' => 'synthetic-plan',
+            'succeeded_at' => now(),
+        ]);
+        DB::table('shipping_addresses')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $oldUser->getKey(),
+            'recipient_name_ciphertext' => 'synthetic-ciphertext',
+            'postal_code_ciphertext' => 'synthetic-ciphertext',
+            'prefecture_ciphertext' => 'synthetic-ciphertext',
+            'city_ciphertext' => 'synthetic-ciphertext',
+            'street_ciphertext' => 'synthetic-ciphertext',
+            'phone_number_ciphertext' => 'synthetic-ciphertext',
+            'correlation_hash' => hash('sha256', 'synthetic-address'),
+        ]);
+        DB::table('users')->where('id', $oldUser->getKey())->update([
+            'state' => V2UserState::Closed->value,
+        ]);
+        $oldUnusedToken = app(V2SecureToken::class)->generate();
+        DB::table('user_email_verifications')->insert([
+            'user_id' => $oldUser->getKey(),
+            'token_hash' => app(V2SecureToken::class)->hash($oldUnusedToken),
+            'redirect_path' => '/mypage',
+            'expires_at' => now()->addMinutes(60),
+            'created_at' => now(),
+        ]);
+        DB::table('user_sessions')
+            ->where('user_id', $oldUser->getKey())
+            ->whereNull('revoked_at')
+            ->update(['revoked_at' => now()]);
+
+        $newUser = $service->register(
+            'CLOSED-REUSE@example.test',
+            'valid new identity password',
+            '/mypage',
+            '192.0.2.23'
+        );
+        $newToken = $this->notifier->messages[1]['token'];
+
+        self::assertNotSame($oldUser->getKey(), $newUser->getKey());
+        self::assertNotSame($oldUser->public_id, $newUser->public_id);
+        self::assertNotSame($oldToken, $newToken);
+        self::assertNotSame($oldUnusedToken, $newToken);
+        self::assertDatabaseHas('user_email_verifications', [
+            'user_id' => $newUser->getKey(),
+            'token_hash' => hash('sha256', $newToken),
+        ]);
+        try {
+            $service->verify($newUser->public_id, $oldUnusedToken);
+            self::fail('The closed User verification token must not verify the new User.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('INVALID_VERIFICATION_LINK', $exception->errorCode);
+        }
+
+        $newAuthenticated = $service->verify($newUser->public_id, $newToken);
+
+        self::assertSame(V2UserState::Closed, $oldUser->refresh()->state);
+        self::assertSame(V2UserState::Active, $newAuthenticated['user']->state);
+        self::assertNotSame(
+            $oldAuthenticated['session']['token'],
+            $newAuthenticated['session']['token']
+        );
+        self::assertNotNull(DB::table('user_sessions')
+            ->where('user_id', $oldUser->getKey())
+            ->value('revoked_at'));
+        self::assertDatabaseHas('user_sessions', [
+            'user_id' => $newUser->getKey(),
+            'session_id_hash' => hash('sha256', $newAuthenticated['session']['token']),
+        ]);
+        self::assertDatabaseHas('wallets', [
+            'user_id' => $oldUser->getKey(),
+            'paid_balance' => 1200,
+            'free_balance' => 300,
+        ]);
+        self::assertDatabaseHas('payments', ['user_id' => $oldUser->getKey()]);
+        self::assertDatabaseHas('shipping_addresses', ['user_id' => $oldUser->getKey()]);
+        self::assertDatabaseMissing('wallets', ['user_id' => $newUser->getKey()]);
+        self::assertDatabaseMissing('payments', ['user_id' => $newUser->getKey()]);
+        self::assertDatabaseMissing('draw_requests', ['user_id' => $newUser->getKey()]);
+        self::assertDatabaseMissing('user_prizes', ['user_id' => $newUser->getKey()]);
+        self::assertDatabaseMissing('shipping_addresses', ['user_id' => $newUser->getKey()]);
+        self::assertDatabaseHas('user_email_verifications', [
+            'id' => $oldVerification->id,
+            'user_id' => $oldUser->getKey(),
+        ]);
+        self::assertDatabaseHas('user_email_verifications', [
+            'user_id' => $oldUser->getKey(),
+            'token_hash' => app(V2SecureToken::class)->hash($oldUnusedToken),
+            'used_at' => null,
+        ]);
+    }
+
+    public function test_non_closed_verified_email_states_remain_claimed(): void
+    {
+        foreach ([
+            V2UserState::Active,
+            V2UserState::Restricted,
+            V2UserState::Suspended,
+            V2UserState::Anonymized,
+        ] as $index => $state) {
+            $email = 'claimed-'.$index.'@example.test';
+            User::query()->create([
+                'email_display' => $email,
+                'email_normalized' => $email,
+                'email_verified_at' => now(),
+                'password_hash' => app(V2PasswordPolicy::class)->hash('valid claimed password'),
+                'state' => $state,
+            ]);
+            $candidate = app(V2UserAuthenticationService::class)->register(
+                $email,
+                'valid candidate password',
+                '/',
+                '192.0.2.'.(24 + $index)
+            );
+            $token = $this->notifier->messages[$index]['token'];
+
+            try {
+                app(V2UserAuthenticationService::class)->verify($candidate->public_id, $token);
+                self::fail('A non-closed verified email owner must retain the claim.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('EMAIL_ALREADY_CLAIMED', $exception->errorCode);
+            }
+            self::assertSame(V2UserState::PendingVerification, $candidate->refresh()->state);
         }
     }
 

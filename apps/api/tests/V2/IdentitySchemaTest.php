@@ -85,6 +85,48 @@ final class IdentitySchemaTest extends TestCase
         }
     }
 
+    public function test_only_closed_verified_user_email_is_reusable(): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $closed = $this->insertUser('closed-reuse@example.test', true, 'closed');
+            $replacement = $this->insertUser('closed-reuse@example.test');
+            DB::table('users')->where('id', $replacement)->update([
+                'email_verified_at' => now(),
+                'state' => 'active',
+            ]);
+
+            self::assertSame('closed', DB::table('users')->where('id', $closed)->value('state'));
+            self::assertSame('active', DB::table('users')->where('id', $replacement)->value('state'));
+
+            $migration = require database_path(
+                'migrations-v2/2026_09_17_000063_allow_v2_closed_user_email_reregistration.php'
+            );
+            try {
+                DB::transaction(fn () => $migration->down());
+                self::fail('Rollback must fail closed after a closed email has been reused.');
+            } catch (QueryException) {
+                self::assertTrue(true);
+            }
+            $indexDefinition = DB::table('pg_indexes')
+                ->where('schemaname', 'public')
+                ->where('indexname', 'users_verified_email_unique')
+                ->value('indexdef');
+            self::assertIsString($indexDefinition);
+            self::assertStringContainsString("'closed'", $indexDefinition);
+
+            try {
+                DB::table('users')->where('id', $closed)->update(['state' => 'active']);
+                self::fail('A closed identity cannot reclaim an email owned by its replacement.');
+            } catch (QueryException) {
+                self::assertTrue(true);
+            }
+        } finally {
+            DB::rollBack();
+        }
+    }
+
     public function test_user_and_admin_can_use_same_email_but_admin_email_is_unique(): void
     {
         DB::beginTransaction();
