@@ -23,6 +23,7 @@ afterEach(() => { vi.restoreAllMocks(); push.mockReset(); });
 
 describe("Page management", () => {
   it("renders the V1-based list order and page visibility", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listManagedPages");
     render(<PageManagementWorkspace mode="list" />);
     expect(await screen.findByText("ご利用ガイド")).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
@@ -31,6 +32,16 @@ describe("Page management", () => {
     expect(screen.getByText("表示（20）")).toBeVisible();
     expect(screen.getByText("/guide")).toBeVisible();
     expect(screen.getByRole("link", { name: "ご利用ガイドを編集" })).toHaveAttribute("href", `/settings/pages/${managedPage().id}`);
+    expect(screen.getByLabelText("公開状態")).toHaveValue("published,draft");
+    expect(list).toHaveBeenCalledWith(
+      { cursor: undefined, status: "published,draft" },
+      expect.any(AbortSignal),
+    );
+    fireEvent.change(screen.getByLabelText("公開状態"), { target: { value: "draft" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { cursor: undefined, status: "draft" },
+      expect.any(AbortSignal),
+    ));
   });
 
   it("creates a visible category and immediately selects it", async () => {

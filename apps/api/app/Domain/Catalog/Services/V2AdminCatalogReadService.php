@@ -161,6 +161,14 @@ final class V2AdminCatalogReadService
         if ($state !== 'all') {
             $query->where('gacha.state', $state);
         }
+        $managementStatuses = $this->enumList(
+            $filters,
+            'management_status',
+            ['draft', 'published', 'sales_paused', 'unpublished']
+        );
+        if ($managementStatuses !== null) {
+            $query->whereIn('gacha.management_status', $managementStatuses);
+        }
         $archive = $this->enum(
             $filters,
             'archive',
@@ -1447,6 +1455,21 @@ final class V2AdminCatalogReadService
         }
 
         return $value;
+    }
+
+    /** @param array<string, mixed> $filters @param list<string> $allowed @return list<string>|null */
+    private function enumList(array $filters, string $key, array $allowed): ?array
+    {
+        $value = $this->optionalString($filters, $key, 128);
+        if ($value === null) {
+            return null;
+        }
+        $values = array_values(array_unique(explode(',', $value)));
+        if ($values === [] || array_diff($values, $allowed) !== []) {
+            throw $this->invalidQuery();
+        }
+
+        return $values;
     }
 
     /** @param array<string, mixed> $filters */

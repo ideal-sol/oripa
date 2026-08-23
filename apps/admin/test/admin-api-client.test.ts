@@ -3,12 +3,32 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AdminApiClient,
   AdminApiError,
+  initialListFilter,
   readAdminCsrfCookie,
 } from "@/lib/admin-api/client";
 
 const csrf = "a".repeat(64);
 
 describe("AdminApiClient", () => {
+  it("uses the canonical list default without an explicit query", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter(undefined, allowed, "published,draft")).toBe("published,draft");
+  });
+
+  it("prefers a canonical list query without persisting prior state", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter("draft", allowed, "published,draft")).toBe("draft");
+    expect(initialListFilter(undefined, allowed, "published,draft")).toBe("published,draft");
+  });
+
+  it("falls back to the list default for unknown query values", () => {
+    const allowed = ["published,draft", "published", "draft"] as const;
+
+    expect(initialListFilter("unknown", allowed, "published,draft")).toBe("published,draft");
+  });
+
   it("uses only the same-origin Admin API with cookie credentials and CSRF", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({
@@ -643,7 +663,7 @@ describe("AdminApiClient", () => {
       .mockResolvedValueOnce(jsonResponse({ data: { id }, idempotent_replay: false, request_id: id }, 201));
     const client = new AdminApiClient(fetcher, () => csrf);
 
-    await client.listPointPurchasePlans();
+    await client.listPointPurchasePlans({ status: "published" });
     await client.createPointPurchasePlan({
       amount: 1000,
       audience_code: "all_users",
@@ -657,11 +677,27 @@ describe("AdminApiClient", () => {
     }, "point-purchase-create-key");
 
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      "/admin/api/v2/point-purchase-plans?limit=20",
+      "/admin/api/v2/point-purchase-plans?limit=20&status=published",
       "/admin/api/v2/point-purchase-plans",
     ]);
     expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Idempotency-Key"))
       .toBe("point-purchase-create-key");
+  });
+
+  it("serializes canonical multi-status Admin list filters", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockImplementation(() => Promise.resolve(jsonResponse({ items: [], next_cursor: null })));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listCatalogGachas({ management_status: "published,draft" });
+    await client.listContentNotices({ status: "published,draft" });
+    await client.listManagedPages({ status: "published,draft" });
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/catalog/gachas?management_status=published%2Cdraft",
+      "/admin/api/v2/content/notices?limit=20&status=published%2Cdraft",
+      "/admin/api/v2/page-management/pages?limit=20&status=published%2Cdraft",
+    ]);
   });
 
   it("honors AbortSignal and never reaches the transport", async () => {

@@ -40,6 +40,7 @@ afterEach(() => {
 
 describe("Point purchase management", () => {
   it("renders the V1 list columns plus audience and target tag", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listPointPurchasePlans");
     render(<PointPurchaseManagementWorkspace mode="list" />);
     expect(await screen.findByText("スタンダード")).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
@@ -51,6 +52,10 @@ describe("Point purchase management", () => {
       "href",
       `/purchase-plans/${plan().id}`,
     );
+    expect(screen.getByLabelText("状態")).toHaveValue("published");
+    expect(list).toHaveBeenCalledWith({ cursor: undefined, status: "published" });
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "draft" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ cursor: undefined, status: "draft" }));
   });
 
   it("defaults a new product to all users and no target tag", async () => {

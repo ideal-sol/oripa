@@ -92,6 +92,12 @@ final class AdminRankEffectSettingsTest extends TestCase
         self::assertSame($created['id'], $updated['id']);
         self::assertSame(8, $updated['rank_assignments'][0]['sort_order']);
         self::assertFalse($updated['is_public']);
+        Auth::forgetGuards();
+        $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?visibility=visible')
+            ->assertOk()->assertJsonCount(0, 'items');
+        Auth::forgetGuards();
+        $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?visibility=hidden')
+            ->assertOk()->assertJsonPath('items.0.id', $created['id']);
         self::assertDatabaseCount('catalog_presentation_assets', 1);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'catalog.master.created']);
         self::assertDatabaseHas('audit_logs', ['action_code' => 'catalog.master.updated']);

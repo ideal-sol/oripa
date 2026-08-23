@@ -300,6 +300,7 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
+        - {name: status, in: query, required: false, schema: {type: string, enum: [draft, published]}}
       responses:
         '200':
           description: ポイント購入商品一覧。
@@ -986,6 +987,7 @@ paths:
         - {$ref: '#/components/parameters/CatalogDirection'}
         - {name: sort, in: query, schema: {type: string, enum: [created_at, code, state], default: created_at}}
         - {name: state, in: query, schema: {type: string, enum: [all, draft, active, disabled], default: all}}
+        - {name: management_status, in: query, required: false, style: form, explode: false, schema: {type: array, uniqueItems: true, items: {type: string, enum: [draft, published, sales_paused, unpublished]}}}
         - {name: archive, in: query, schema: {type: string, enum: [all, active, archived], default: all}}
       responses:
         '200': {description: Gacha Master一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaCollection'}}}}
@@ -1941,6 +1943,7 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
+        - {name: status, in: query, required: false, style: form, explode: false, schema: {type: array, uniqueItems: true, items: {type: string, enum: [draft, published]}}}
       responses:
         '200': {description: 管理用ページ一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPageCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
@@ -2073,6 +2076,7 @@ paths:
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
         - {name: category_id, in: query, required: false, schema: {$ref: '#/components/schemas/OpaqueId'}}
+        - {name: status, in: query, required: false, schema: {type: string, enum: [draft, published]}}
       responses:
         '200': {description: 管理用バナー一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedBannerCollection'}}}}
         '400': {$ref: '#/components/responses/Problem'}
@@ -2224,7 +2228,10 @@ paths:
       x-cache-policy: no-store
       x-stability: alpha
       security: [{adminSession: []}]
-      parameters: [{$ref: '#/components/parameters/PageLimit'}, {$ref: '#/components/parameters/PageCursor'}]
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageCursor'}
+        - {name: status, in: query, required: false, style: form, explode: false, schema: {type: array, uniqueItems: true, items: {type: string, enum: [draft, published, archived]}}}
       responses:
         '200': {description: Notice一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminContentCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}

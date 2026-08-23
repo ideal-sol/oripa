@@ -8890,3 +8890,12 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 ## MIG-074 MIG-073 Final Report Alignment
 
 - clean local／origin／GitHub `main@663ec853f53d4d02e3622707f2b08162785f4e64`、open Platform Task 0、Shared Integration Lock free、GitHub Issue／Remote refs／Task Policy／worklogで未使用`MIG-074`を確認した。Issue #362、Branch `docs/MIG-074-align-mig-073-report`、専用Worktree、Lane `Lite Maintenance`、Risk R1、Activation `none`で、`MIG-073-report.md`のPre-Activation記録と本Task記録だけを整合する。Application、Migration、Contract、dependency、workflow、Infrastructure、Runtime、Secret、Production変更は0である。
+
+## MIG-075 Admin List Default Filters
+
+- `git fetch --prune`後のclean local／origin／GitHub `main@cb60e9a0775f47e810d2e7fd3b7252c265007a9d`、idleなActive Task、Shared Lockなし、freeなIntegration OS lock、GitHub Issue／Remote refs／Task Policy／worklogで`MIG-074`使用済みと`MIG-075`未使用を確認した。Issue #364、Branch `feat/MIG-075-admin-list-default-filters`、専用Worktree、Risk R4、Activation `deferred`で開始した。
+- Stage 0で対象一覧の一部にstatus queryがなく、client-side filteringではcursor pagination全体へ正しいdefaultを適用できないこと、ポイント購入のAPI／Payment Domain pathが現行Governance上Strict対象であることを確認した。Issue作成前にLaneを`Lite Maintenance`から`Strict Change`へ昇格し、API／Admin OpenAPIのadditive canonical filterだけをScopeへ追加した。DB／Migration／Dependency／Runtime／Production変更は0である。
+- 通常URLではガチャ`published,draft`、バナー`published`、お知らせ`published,draft`、ページ設定`published,draft`、ランク演出`visible`、ポイント購入`published`、お問い合わせ`new`を初期化する。URL queryのcanonical値はdefaultより優先し、画面内の手動変更はcomponent stateだけで保持する。route離脱後のfilterなし再mountではdefaultへ戻り、localStorage／sessionStorage／Cookie等への保存は追加していない。
+- ガチャは`published`／`draft`だけをdefault API queryへ送り、`sales_paused`／`unpublished`を除外する。対象APIは既存canonical statusだけをvalidationしてcursor query前に絞り込み、検索／sort／cursor pagination／件数と手動の他status選択を維持する。新Enum／Status、Public API、Storefront、DB schema、Migrationは追加していない。
+- Focused Admin 8 files／62 tests、Focused API 6 files／28 tests／360 assertions、Admin typecheck／lint、OpenAPI bundle／contract check、Admin generated contract check、changed PHP syntax、`git diff --check`をPASSした。API試験は既存PHP 8.4 imageとTask専用PostgreSQLを利用し、63件の既存V2 migrationsをTask DBだけへ適用後にcleanupした。初回は未migrate DB、次回は新fixtureのrevision不足でApplication前／DB guardで停止し、Domain guardを弱めずfixture revisionを進めて最終Focused setをPASSした。
+- Shared Preview Build／Runtime Activationは`deferred`のため実行せず、Build count 0、Activation count 0を維持する。Required 5 Checks、fresh exact-head self-review、Squash Merge、Issue close、branch／worktree／Task Policy／Integration lock cleanup、main syncはCloseoutで確定する。

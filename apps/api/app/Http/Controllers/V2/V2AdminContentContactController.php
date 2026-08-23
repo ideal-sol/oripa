@@ -96,7 +96,8 @@ final class V2AdminContentContactController
             $this->service->managedPages(
                 $context,
                 $request->query('cursor'),
-                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20))
+                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20)),
+                $request->filled('status') ? (string) $request->query('status') : null
             ));
     }
 
@@ -147,7 +148,8 @@ final class V2AdminContentContactController
                     ),
                     $request->filled('category_id')
                         ? (string) $request->query('category_id')
-                        : null
+                        : null,
+                    $request->filled('status') ? (string) $request->query('status') : null
                 )
         );
     }
@@ -311,7 +313,10 @@ final class V2AdminContentContactController
                 $context,
                 $type,
                 $request->query('cursor'),
-                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20))
+                (int) $request->query('limit', config('v2_content_contact.cursor_page_size', 20)),
+                $type === 'notice' && $request->filled('status')
+                    ? (string) $request->query('status')
+                    : null
             ));
     }
 

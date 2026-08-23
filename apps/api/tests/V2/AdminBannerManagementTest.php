@@ -128,6 +128,12 @@ final class AdminBannerManagementTest extends TestCase
         self::assertCount(1, $filtered['items']);
         self::assertSame($expectedPublicUrl, $filtered['items'][0]['asset']['public_url']);
         self::assertSame($created['id'], $filtered['items'][0]['id']);
+        self::assertCount(1, $service->managedBanners(
+            $context, null, 20, null, 'draft'
+        )['items']);
+        self::assertCount(0, $service->managedBanners(
+            $context, null, 20, null, 'published'
+        )['items']);
 
         $updated = $service->updateManagedBanner($context, $created['id'], [
             'category_id' => $category['id'],

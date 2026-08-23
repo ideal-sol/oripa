@@ -167,6 +167,19 @@ import {
   type WebauthnRegistration,
 } from "./generated";
 
+export type PageSearchParams = Record<string, string | string[] | undefined>;
+
+export function initialListFilter<T extends string>(
+  value: string | string[] | undefined,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate && allowed.includes(candidate as T)
+    ? candidate as T
+    : fallback;
+}
+
 const ADMIN_CSRF_COOKIE = "__Host-oripa_admin_xsrf";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -185,6 +198,7 @@ export interface AdminCatalogQuery {
   direction?: AdminCatalogDirection;
   limit?: number;
   media_type?: "all" | "image" | "video";
+  management_status?: "draft" | "published" | "published,draft" | "sales_paused" | "unpublished";
   q?: string;
   rank_id?: string;
   sort?: string;
@@ -209,6 +223,17 @@ export interface AdminContactQuery {
 export interface AdminBannerQuery {
   category_id?: string;
   cursor?: string;
+  status?: "draft" | "published";
+}
+
+export interface AdminContentListQuery {
+  cursor?: string;
+  status?: "archived" | "draft" | "published" | "published,draft";
+}
+
+export interface AdminPointPurchasePlanQuery {
+  cursor?: string;
+  status?: "draft" | "published";
 }
 
 export interface AdminUserPrizeQuery {
@@ -490,11 +515,12 @@ export class AdminApiClient {
   }
 
   listPointPurchasePlans(
-    cursor?: string,
+    filters: AdminPointPurchasePlanQuery = {},
     signal?: AbortSignal,
   ): Promise<AdminPointPurchasePlanCollection> {
     const query = new URLSearchParams({ limit: "20" });
-    if (cursor) query.set("cursor", cursor);
+    if (filters.cursor) query.set("cursor", filters.cursor);
+    if (filters.status) query.set("status", filters.status);
     return this.request("GET", `/point-purchase-plans?${query.toString()}`, { signal });
   }
 
@@ -517,11 +543,12 @@ export class AdminApiClient {
   }
 
   listContentNotices(
-    cursor?: string,
+    filters: AdminContentListQuery = {},
     signal?: AbortSignal,
   ): Promise<AdminContentCollection> {
     const query = new URLSearchParams({ limit: "20" });
-    if (cursor) query.set("cursor", cursor);
+    if (filters.cursor) query.set("cursor", filters.cursor);
+    if (filters.status) query.set("status", filters.status);
     return this.request("GET", `/content/notices?${query.toString()}`, { signal });
   }
 
@@ -572,6 +599,7 @@ export class AdminApiClient {
     const parameters = new URLSearchParams({ limit: "20" });
     if (query.category_id) parameters.set("category_id", query.category_id);
     if (query.cursor) parameters.set("cursor", query.cursor);
+    if (query.status) parameters.set("status", query.status);
     return this.request(
       "GET",
       `/banner-management/banners?${parameters.toString()}`,
@@ -663,9 +691,10 @@ export class AdminApiClient {
     return this.request("POST", "/page-management/categories", { body, idempotencyKey, signal });
   }
 
-  listManagedPages(cursor?: string, signal?: AbortSignal): Promise<AdminManagedPageCollection> {
+  listManagedPages(filters: AdminContentListQuery = {}, signal?: AbortSignal): Promise<AdminManagedPageCollection> {
     const parameters = new URLSearchParams({ limit: "20" });
-    if (cursor) parameters.set("cursor", cursor);
+    if (filters.cursor) parameters.set("cursor", filters.cursor);
+    if (filters.status) parameters.set("status", filters.status);
     return this.request("GET", `/page-management/pages?${parameters.toString()}`, { signal });
   }
 

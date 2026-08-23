@@ -26,7 +26,8 @@ final class V2AdminPointPurchasePlanController
             $this->service->listing(
                 $context,
                 $request->query('cursor'),
-                (int) $request->query('limit', 20)
+                (int) $request->query('limit', 20),
+                $request->filled('status') ? (string) $request->query('status') : null
             ));
     }
 

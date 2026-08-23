@@ -26,8 +26,8 @@ import type {
 
 type Mode = "list" | "detail";
 
-const STATUS_OPTIONS: Array<{ label: string; value: AdminContactStatus | "" }> = [
-  { label: "すべて", value: "" },
+const STATUS_OPTIONS: Array<{ label: string; value: AdminContactStatus | "all" }> = [
+  { label: "すべて", value: "all" },
   { label: "未対応", value: "new" },
   { label: "対応中", value: "in_progress" },
   { label: "返信済み", value: "replied" },
@@ -43,26 +43,28 @@ const NEXT_STATUS: Record<AdminContactStatus, AdminContactStatus[]> = {
 
 export function ContactManagementWorkspace({
   contactId,
+  initialStatus = "new",
   mode,
 }: {
   contactId?: string;
+  initialStatus?: AdminContactStatus | "all";
   mode: Mode;
 }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="contact.read">
-        {mode === "list" ? <ContactList /> : <ContactDetail contactId={contactId ?? ""} key={contactId} />}
+        {mode === "list" ? <ContactList initialStatus={initialStatus} /> : <ContactDetail contactId={contactId ?? ""} key={contactId} />}
       </ProtectedAdminRoute>
     </AdminShell>
   );
 }
 
-function ContactList() {
+function ContactList({ initialStatus }: { initialStatus: AdminContactStatus | "all" }) {
   const [items, setItems] = useState<AdminContactSummary[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [status, setStatus] = useState<AdminContactStatus | "">("");
+  const [status, setStatus] = useState<AdminContactStatus | "all">(initialStatus);
   const [email, setEmail] = useState("");
   const [appliedEmail, setAppliedEmail] = useState("");
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ function ContactList() {
         {
           cursor,
           email: appliedEmail || undefined,
-          status: status || undefined,
+          status: status === "all" ? undefined : status,
         },
         controller.signal,
       )
@@ -121,7 +123,7 @@ function ContactList() {
               setError(null);
               setCursor(undefined);
               setCursorStack([]);
-              setStatus(event.target.value as AdminContactStatus | "");
+              setStatus(event.target.value as AdminContactStatus | "all");
             }}
           >
             {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
