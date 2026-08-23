@@ -20,6 +20,20 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_mig_073_closed_email_reregistration_migration_is_registered_exactly(self):
+        expected = {
+            "apps/api/database/migrations-v2/2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
+        }
+        self.assertEqual(policy_gate.MIG_073_V2_IDENTITY_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        migration = (ROOT / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("state <> 'closed'", migration)
+        self.assertIn("HAVING COUNT(*) > 1", migration)
+        self.assertIn("Cannot restore verified email uniqueness", migration)
+        self.assertNotIn("DELETE FROM users", migration)
+        self.assertNotIn("UPDATE users", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+
     def test_mig_062n_admin_user_prize_paths_are_registered_exactly(self):
         expected_backend = {
             "apps/api/app/Domain/PrizeShipping/Services/V2AdminUserPrizeReadService.php",

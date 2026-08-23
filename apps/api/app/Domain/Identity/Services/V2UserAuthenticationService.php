@@ -140,7 +140,11 @@ final class V2UserAuthenticationService
                     ->where('public_id', $publicId)
                     ->lockForUpdate()
                     ->first();
-                if ($user === null || $user->email_verified_at !== null) {
+                if (
+                    $user === null
+                    || $user->email_verified_at !== null
+                    || $user->state !== V2UserState::PendingVerification
+                ) {
                     throw $this->invalidVerification();
                 }
                 $this->lockNormalizedEmail($user->email_normalized);

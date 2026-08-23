@@ -69,7 +69,22 @@ final class V2PublicAuthController
         string $hash
     ): JsonResponse|RedirectResponse
     {
-        $result = $this->authentication->verify($userId, $hash);
+        try {
+            $result = $this->authentication->verify($userId, $hash);
+        } catch (V2AuthenticationException $exception) {
+            if ($request->expectsJson()) {
+                throw $exception;
+            }
+
+            $response = new RedirectResponse(
+                '/verify-email/error',
+                Response::HTTP_SEE_OTHER
+            );
+            $this->applyPrivateHeaders($response);
+            $response->setVary('Accept');
+
+            return $response;
+        }
         if ($request->expectsJson()) {
             $response = $this->privateResponse(response()->json([
                 'authenticated' => true,

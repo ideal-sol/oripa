@@ -230,7 +230,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             ->assertRedirect('/');
     }
 
-    public function test_invalid_verification_token_remains_rejected(): void
+    public function test_invalid_verification_token_redirects_browser_and_preserves_json_problem_details(): void
     {
         $capture = $this->spyOnRawMail();
         $user = app(V2UserAuthenticationService::class)->register(
@@ -248,11 +248,25 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         );
         self::assertIsString($invalidPath);
 
+        $browser = $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->get($invalidPath)
+            ->assertStatus(303)
+            ->assertRedirect('/verify-email/error');
+        self::assertStringContainsString(
+            'Accept',
+            (string) $browser->headers->get('Vary')
+        );
+        self::assertStringNotContainsString('?', (string) $browser->headers->get('Location'));
+        self::assertStringNotContainsString('INVALID_VERIFICATION_LINK', $browser->getContent());
+
         $this
             ->withServerVariables(['HTTPS' => 'on'])
             ->getJson($invalidPath)
             ->assertStatus(410)
-            ->assertJsonPath('code', 'INVALID_VERIFICATION_LINK');
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('code', 'INVALID_VERIFICATION_LINK')
+            ->assertJsonPath('status', 410);
 
         self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
     }

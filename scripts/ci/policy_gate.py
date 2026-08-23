@@ -233,6 +233,9 @@ MIG_062K_V2_IDENTITY_FILES = {
     "apps/api/database/migrations-v2/2026_09_02_000047_add_v2_user_state_revision.php",
     "apps/api/tests/V2/AdminUserStateManagementTest.php",
 }
+MIG_073_V2_IDENTITY_FILES = {
+    "apps/api/database/migrations-v2/2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -308,6 +311,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     *MIG_061X_V2_IDENTITY_FILES,
     *MIG_062B_V2_IDENTITY_FILES,
     *MIG_062K_V2_IDENTITY_FILES,
+    *MIG_073_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -2538,6 +2542,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
         "2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
         "2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
+        "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2551,6 +2556,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "2026_08_03_000014_create_v2_password_reset_sms_verification.php",
             "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
             "2026_08_07_000018_add_line_external_identity_provider.php",
+            "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
         ]
     )
     for required in (
