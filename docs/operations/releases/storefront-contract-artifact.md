@@ -11,17 +11,18 @@ release ledger and current candidate. It does not authorize publication by
 itself. Artifact Release Lock, exact-head Required Checks, and the task release
 gate remain mandatory.
 
-## Package-only Model
+## Additive Contract Model
 
-The next bundle is `2.0.0-alpha.24` and publishes only:
+The next bundle is `2.0.0-alpha.24` and publishes:
 
 - `@oripa/storefront-client@2.0.0-alpha.24`
 - `@oripa/storefront-testkit@2.0.0-alpha.24`
 
 The bundle references, but does not rebuild or include, the immutable
-`@oripa/site-schema@2.0.0-alpha.23` tarball. Platform, Application, and Public,
-Admin, and Webhook OpenAPI remain `2.0.0-alpha.23`. The Public OpenAPI and Site
-Schema references include the exact predecessor digest/source tree.
+`@oripa/site-schema@2.0.0-alpha.23` tarball. Platform and Application remain
+`2.0.0-alpha.23`, while the additive Public, Admin, and Webhook contracts advance
+independently to `2.0.0-alpha.24`. The Public OpenAPI candidate digest and the
+Site Schema predecessor digest/source tree are machine-validated.
 
 This is not an arbitrary mismatch allowance. The validator requires:
 
@@ -29,9 +30,11 @@ This is not an arbitrary mismatch allowance. The validator requires:
 2. Every published package version to equal the bundle version.
 3. Every referenced package version, digest, source bundle, and source tree to
    equal the latest immutable evidence.
-4. Client minimum Public API and Testkit dependency/compatibility metadata to
+4. The additive Public OpenAPI version, digest, and operation count to equal the
+   governed candidate without changing the immutable predecessor evidence.
+5. Client minimum Public API and Testkit dependency/compatibility metadata to
    equal the manifest versions.
-5. The artifact inventory to contain only the published tarballs, the unchanged
+6. The artifact inventory to contain only the published tarballs, the candidate
    Public OpenAPI snapshot, the manifest, and checksums.
 
 ## Immutable Boundary
@@ -64,10 +67,10 @@ The workflow calls all three operations. There is no skip flag. Publication,
 Registry publish, Storefront installation, Runtime deployment, and Production
 deployment are separate states and are not performed by validation.
 
-## STORE-SITE-034 Resume
+## Storefront Handoff
 
-After GOV-016 merges, STORE-SITE-034 synchronizes its existing branch with the
-latest Platform `main`, reruns its exact-head Required Checks and fresh
-self-review, then acquires Artifact Release Lock before dispatching the canonical
-artifact workflow. It must use bundle/package version `2.0.0-alpha.24`; no
-STORE-side validator workaround is allowed.
+After MIG-079 merges, STORE-SITE-034 synchronizes its existing branch with the
+latest Platform `main`, consumes the additive `2.0.0-alpha.24` contract/client
+candidate, reruns its exact-head Required Checks and fresh self-review, then
+acquires Artifact Release Lock before dispatching the canonical artifact
+workflow. No STORE-side validator workaround is allowed.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and verify an immutable package-only Storefront contract artifact."""
+"""Build and verify an immutable Storefront contract artifact."""
 
 from __future__ import annotations
 
@@ -116,7 +116,8 @@ def validate_governance(value: dict) -> dict:
         raise ArtifactError("immutable existing version reissue prohibited")
     if candidate_family != latest_family or candidate_family != family or candidate_sequence != latest_sequence + 1:
         raise ArtifactError("candidate must be the next alpha bundle version")
-    if candidate.get("release_mode") != "package-only":
+    release_mode = candidate.get("release_mode")
+    if release_mode not in {"package-only", "contract-additive"}:
         raise ArtifactError("unsupported release mode")
 
     latest_packages = latest.get("packages")
@@ -167,13 +168,23 @@ def validate_governance(value: dict) -> dict:
     public = latest.get("public_openapi")
     if (
         not isinstance(public, dict)
-        or contracts["public"] != public.get("version")
         or not SHA256.fullmatch(str(public.get("sha256", "")))
     ):
         raise ArtifactError("public OpenAPI immutable reference mismatch")
     public_family, _ = alpha_identity(public.get("version"))
     if public_family != family:
         raise ArtifactError("public OpenAPI compatibility family mismatch")
+    if release_mode == "package-only":
+        if contracts["public"] != public.get("version"):
+            raise ArtifactError("public OpenAPI immutable reference mismatch")
+    elif (
+        contracts["public"] != candidate_version
+        or contracts["admin"] != candidate_version
+        or contracts["webhook"] != candidate_version
+        or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
+        or candidate.get("public_api_operation_count") != 62
+    ):
+        raise ArtifactError("additive contract candidate mismatch")
     client = candidate_packages["@oripa/storefront-client"]
     schema = candidate_packages["@oripa/site-schema"]
     testkit = candidate_packages["@oripa/storefront-testkit"]
@@ -222,9 +233,12 @@ def validate_source(repository: Path) -> dict:
         if actual != version:
             raise ArtifactError(f"{surface} contract version mismatch")
         contracts[surface] = {"version": actual, "sha256": sha256_file(path)}
-    latest_public = value["latest_immutable"]["public_openapi"]
-    if contracts["public"]["sha256"] != latest_public["sha256"]:
-        raise ArtifactError("referenced Public OpenAPI content changed")
+    if candidate["release_mode"] == "package-only":
+        expected_public_sha256 = value["latest_immutable"]["public_openapi"]["sha256"]
+    else:
+        expected_public_sha256 = candidate["public_openapi_sha256"]
+    if contracts["public"]["sha256"] != expected_public_sha256:
+        raise ArtifactError("candidate Public OpenAPI content mismatch")
 
     schema = packages["@oripa/site-schema"]
     if git_tree(repository, PACKAGE_PATHS["@oripa/site-schema"]) != schema["source_tree"]:
@@ -242,7 +256,7 @@ def validate_source(repository: Path) -> dict:
         "family": value["compatibility_family"],
         "storefrontClientVersion": packages["@oripa/storefront-client"]["version"],
         "siteSchemaVersion": schema["version"],
-        "publicApiOperationCount": 54,
+        "publicApiOperationCount": candidate.get("public_api_operation_count", 54),
     }:
         raise ArtifactError("testkit compatibility metadata mismatch")
     return {
@@ -309,7 +323,7 @@ def create_manifest(repository: Path, source_commit: str, created_at: str, asset
             "file": PUBLIC_OPENAPI_PATH.name,
             "sha256": sha256_file(public),
             "compatibility_family": value["compatibility_family"],
-            "breaking_change": False,
+        "breaking_change": False,
         },
         "packages": package_rows,
         "toolchain": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -348,7 +362,7 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     if manifest.get("schema_version") != "2.0" or manifest.get("bundle") != {
         "version": candidate["bundle_version"],
         "predecessor": candidate["predecessor_bundle_version"],
-        "release_mode": "package-only",
+        "release_mode": candidate["release_mode"],
         "immutable": True,
     }:
         raise ArtifactError("artifact manifest bundle identity mismatch")
@@ -360,9 +374,14 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     }:
         raise ArtifactError("artifact manifest Platform identity mismatch")
     public = manifest.get("public_openapi", {})
+    expected_public_sha256 = (
+        value["latest_immutable"]["public_openapi"]["sha256"]
+        if candidate["release_mode"] == "package-only"
+        else candidate["public_openapi_sha256"]
+    )
     if (
         public.get("version") != candidate["contract_versions"]["public"]
-        or public.get("sha256") != value["latest_immutable"]["public_openapi"]["sha256"]
+        or public.get("sha256") != expected_public_sha256
         or public.get("file") != PUBLIC_OPENAPI_PATH.name
         or sha256_file(output / PUBLIC_OPENAPI_PATH.name) != public.get("sha256")
     ):

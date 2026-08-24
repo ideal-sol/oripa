@@ -118,6 +118,13 @@ status、payment method、全体一覧ではUser filter、cursor paginationを�
 Session、MFA realm、`reporting.financial.read` permission、Problem Details、Auditを再利用する。
 Admin UIは実装しない。API正本は`openapi/admin/openapi.yaml`である。
 
+## Contract Artifact
+
+Canonical publicationは`docs/operations/releases/storefront-contract-artifact.md`の
+additive-contract手順に従う。MIG-079はPublic、Admin、Webhook、Storefront Client、
+Storefront Testkitを`2.0.0-alpha.24`へ進め、Platform、Application、Site Schemaは
+独立Versionのまま維持する。既存immutable releaseのdigestやsource treeは変更しない。
+
 ## Activation And Deferred Work
 
 `FINCODE_PAYMENT_ENABLED=false`が既定であり、Activation前はProvider通信をFail Closedする。
