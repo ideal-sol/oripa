@@ -54,6 +54,7 @@
       "draw.browser-mutation.v2",
       "gacha.catalog-display.v2",
       "gacha.presentation.v2",
+      "payment.fincode.v2",
       "prize.fulfillment-browser-mutation.v2",
       "user-draw-history.read.v2",
       "user-point.read.v2",

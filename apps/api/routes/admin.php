@@ -53,6 +53,7 @@ use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
 use App\Http\Controllers\V2\V2AdminMailTemplateController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
 use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
+use App\Http\Controllers\V2\V2AdminPaymentController;
 
 $v2GachaIdentifierPattern = '[A-Za-z0-9]{11}|[0-9a-fA-F-]{36}';
 
@@ -126,6 +127,10 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.users.gacha-history.index');
         Route::get('/users/{userId}/referral-history', [V2AdminUserController::class, 'referralHistory'])
             ->whereUuid('userId')->name('v2.admin.users.referral-history.index');
+        Route::get('/payments', [V2AdminPaymentController::class, 'index'])
+            ->name('v2.admin.payments.index');
+        Route::get('/users/{userId}/payments', [V2AdminPaymentController::class, 'userHistory'])
+            ->whereUuid('userId')->name('v2.admin.users.payments.index');
         Route::post('/users/{userId}/point-adjustments', V2AdminUserPointAdjustmentController::class)
             ->whereUuid('userId')->name('v2.admin.users.point-adjustments.store');
         Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])

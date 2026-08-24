@@ -1250,6 +1250,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
             "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
             "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
+            "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2367,6 +2368,7 @@ export type SiteManifest = {
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
                             "gacha.presentation.v2",
+                            "payment.fincode.v2",
                             "prize.fulfillment-browser-mutation.v2",
                             "user-draw-history.read.v2",
                             "user-point.read.v2",
@@ -2674,8 +2676,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 54",
-                    "operation_count: 52",
+                    "operation_count: 62",
+                    "operation_count: 60",
                 ),
                 encoding="utf-8",
             )

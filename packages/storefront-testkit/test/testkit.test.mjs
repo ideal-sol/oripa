@@ -703,17 +703,21 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつLINE Friend State Readを含むOperation 54件である", () => {
+test("Public OpenAPIは3.1.1かつPayment Contractを含むOperation 62件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 54);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 62);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
+    "completePaymentCardRegistration",
     "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",
+    "createPayment",
+    "createPaymentCardRegistrationIntent",
     "createShippingAddress",
     "createShippingRequest",
+    "deletePaymentCard",
     "deleteShippingAddress",
     "exchangeUserPrizes",
     "getContentNotice",
@@ -723,6 +727,7 @@ test("Public OpenAPIは3.1.1かつLINE Friend State Readを含むOperation 54件
     "getGachaBySlug",
     "getGachaPresentation",
     "getLineFriendState",
+    "getPayment",
     "getShippingAddress",
     "getShippingRequest",
     "getSmsVerificationStatus",
@@ -737,6 +742,8 @@ test("Public OpenAPIは3.1.1かつLINE Friend State Readを含むOperation 54件
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listMyPayments",
+    "listPaymentCards",
     "listPointLedgerEntries",
     "listPointProducts",
     "listShippingAddresses",
@@ -749,6 +756,7 @@ test("Public OpenAPIは3.1.1かつLINE Friend State Readを含むOperation 54件
     "requestPasswordReset",
     "resendSmsVerification",
     "resendUserEmailVerification",
+    "resumeUnpaidPayment",
     "sendSmsVerification",
     "startGoogleIdentityLink",
     "startGoogleLogin",

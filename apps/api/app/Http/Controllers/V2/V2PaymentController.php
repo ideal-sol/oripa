@@ -1,0 +1,179 @@
+<?php
+
+namespace App\Http\Controllers\V2;
+
+use App\Domain\Payment\V2\Exceptions\V2FincodeException;
+use App\Domain\Payment\V2\Services\V2FincodeCardService;
+use App\Domain\Payment\V2\Services\V2FincodePaymentService;
+use App\Domain\Reporting\Exceptions\V2ReportingException;
+use App\Models\V2\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+
+final class V2PaymentController
+{
+    public function __construct(
+        private readonly V2FincodePaymentService $payments,
+        private readonly V2FincodeCardService $cards
+    ) {
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        return $this->handle($request, function () use ($request): array {
+            $pointProductId = $request->input('point_product_id');
+            $method = $request->input('payment_method');
+            $card = $request->input('card');
+            if (! is_string($pointProductId) || ! Str::isUuid($pointProductId)
+                || ! is_string($method) || ($card !== null && ! is_array($card))) {
+                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
+            }
+
+            return $this->payments->start(
+                $this->user(),
+                $pointProductId,
+                $method,
+                $this->idempotencyKey($request),
+                $card
+            );
+        }, 201);
+    }
+
+    public function show(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->payments->show($this->user(), $paymentId));
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        return $this->handle($request, function () use ($request): array {
+            $view = $request->query('view', 'succeeded');
+            $cursor = $request->query('cursor');
+            if (! is_string($view) || ($cursor !== null && ! is_string($cursor))) {
+                throw new V2FincodeException('PAYMENT_HISTORY_QUERY_INVALID', 422, 'The history query is invalid.');
+            }
+
+            return $this->payments->history(
+                $this->user(),
+                $view,
+                $cursor,
+                (int) $request->query('limit', 20)
+            );
+        });
+    }
+
+    public function resume(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->payments->resume($this->user(), $paymentId));
+    }
+
+    public function cards(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->cards->cards($this->user()));
+    }
+
+    public function reserveCard(Request $request): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (): array => $this->cards->reserveRegistration($this->user(), $this->idempotencyKey($request)),
+            201
+        );
+    }
+
+    public function completeCard(Request $request, string $registrationIntentId): JsonResponse
+    {
+        return $this->handle($request, function () use ($request, $registrationIntentId): array {
+            $providerCardId = $request->input('provider_card_id');
+            if (! is_string($providerCardId) || ! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $providerCardId)) {
+                throw new V2FincodeException('CARD_REFERENCE_INVALID', 422, 'The card reference is invalid.');
+            }
+
+            return $this->cards->completeRegistration($this->user(), $registrationIntentId, $providerCardId);
+        });
+    }
+
+    public function deleteCard(Request $request, string $cardId): JsonResponse
+    {
+        $requestId = $this->requestId($request);
+        try {
+            $this->cards->delete($this->user(), $cardId);
+
+            return response()->json(null, 204, $this->headers($requestId));
+        } catch (V2FincodeException $exception) {
+            return $this->problem($exception, $requestId);
+        }
+    }
+
+    private function user(): User
+    {
+        $user = Auth::guard('v2_user')->user();
+        if (! $user instanceof User) {
+            throw new V2FincodeException('AUTHENTICATION_REQUIRED', 401, 'Authentication is required.');
+        }
+
+        return $user;
+    }
+
+    private function idempotencyKey(Request $request): string
+    {
+        $key = $request->header('Idempotency-Key');
+        if (! is_string($key) || $key === '' || strlen($key) > 128) {
+            throw new V2FincodeException('IDEMPOTENCY_KEY_REQUIRED', 422, 'A valid Idempotency-Key is required.');
+        }
+
+        return $key;
+    }
+
+    private function handle(Request $request, callable $callback, int $status = 200): JsonResponse
+    {
+        $requestId = $this->requestId($request);
+        try {
+            return response()->json($callback(), $status, $this->headers($requestId));
+        } catch (V2ReportingException $exception) {
+            return $this->problem(new V2FincodeException(
+                $exception->errorCode,
+                $exception->status,
+                $exception->getMessage(),
+                $exception->retryable
+            ), $requestId);
+        } catch (V2FincodeException $exception) {
+            return $this->problem($exception, $requestId);
+        }
+    }
+
+    private function problem(V2FincodeException $exception, string $requestId): JsonResponse
+    {
+        return response()->json([
+            'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
+            'title' => $exception->getMessage(),
+            'status' => $exception->status,
+            'code' => $exception->errorCode,
+            'request_id' => $requestId,
+            'retryable' => $exception->retryable,
+        ], $exception->status, [
+            ...$this->headers($requestId),
+            'Content-Type' => 'application/problem+json',
+        ]);
+    }
+
+    /** @return array<string, string> */
+    private function headers(string $requestId): array
+    {
+        return [
+            'Cache-Control' => 'private, no-store',
+            'Vary' => 'Cookie',
+            'X-Request-Id' => $requestId,
+            'X-Oripa-Api-Version' => '2',
+        ];
+    }
+
+    private function requestId(Request $request): string
+    {
+        $value = $request->header('X-Request-Id');
+
+        return is_string($value) && Str::isUuid($value) ? $value : (string) Str::uuid7();
+    }
+}

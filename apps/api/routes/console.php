@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Payment\V2\Services\V2FincodeReconciliationService;
 use App\Domain\Point\Services\PointExpirationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -16,7 +17,20 @@ Artisan::command('points:expire {--limit=1000}', function (PointExpirationServic
     return 0;
 })->purpose('Expire free point lots whose expiration time has passed.');
 
+Artisan::command('v2:fincode:reconcile-due {--limit=100}', function (V2FincodeReconciliationService $service): int {
+    $result = $service->reconcileDue((int) $this->option('limit'));
+    $this->info(sprintf(
+        'Reconciled %d/%d due fincode payments; %d failed.',
+        $result['processed'],
+        $result['selected'],
+        $result['failed'],
+    ));
+
+    return $result['failed'] === 0 ? 0 : 1;
+})->purpose('Reconcile due fincode Konbini and Virtual Account payments.');
+
 Schedule::command('points:expire')->hourly()->withoutOverlapping();
+Schedule::command('v2:fincode:reconcile-due')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('points:snapshot-balances')
     ->dailyAt('00:10')
     ->timezone(config('app.timezone', 'Asia/Tokyo'))

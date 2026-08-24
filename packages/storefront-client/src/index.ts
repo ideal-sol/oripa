@@ -21,6 +21,10 @@ export {
   createStorefrontPointProductClient,
 } from "./point-products.js";
 export {
+  createStorefrontPaymentClient,
+  createCsrfManagedStorefrontPaymentClient,
+} from "./payments.js";
+export {
   createStorefrontCurrentUserPointClient,
 } from "./points.js";
 export {
@@ -45,6 +49,15 @@ export type {
 export type {
   StorefrontPointProductClient,
 } from "./point-products.js";
+export type {
+  BrowserPaymentCsrfOptions,
+  BrowserPaymentMutationOptions,
+  BrowserStorefrontPaymentClient,
+  PaymentCsrfOptions,
+  PaymentHistoryQuery,
+  PaymentMutationOptions,
+  StorefrontPaymentClient,
+} from "./payments.js";
 export type {
   PointHistoryQuery,
   PointReadProblemCode,
