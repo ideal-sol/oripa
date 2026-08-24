@@ -1249,6 +1249,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_14_000059_internalize_v2_canonical_probability_publish.php",
             "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
             "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
+            "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2779,6 +2780,19 @@ services:
             package_path = root / "apps/admin/package.json"
             package = json.loads(package_path.read_text(encoding="utf-8"))
             package["dependencies"]["next"] = "^16.2.9"
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "exact runtime dependencies"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_tiptap_dependency_removal_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "apps/admin/package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            del package["dependencies"]["@tiptap/react"]
             package_path.write_text(json.dumps(package), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "exact runtime dependencies"

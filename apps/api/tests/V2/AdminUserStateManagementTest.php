@@ -87,6 +87,8 @@ final class AdminUserStateManagementTest extends TestCase
             'paid_balance' => 200,
             'free_balance' => 300,
         ]);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'user.closed:'.$user->public_id)->count());
     }
 
     public function test_permissions_validation_occ_transition_and_idempotency_fail_closed(): void

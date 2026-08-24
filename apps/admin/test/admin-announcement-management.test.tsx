@@ -96,9 +96,7 @@ describe("Announcement management", () => {
     fireEvent.change(screen.getByLabelText("タイトル"), {
       target: { value: "運用のお知らせ" },
     });
-    fireEvent.change(screen.getByLabelText("本文（HTML）"), {
-      target: { value: "<p>安全な本文</p><script>alert(1)</script>" },
-    });
+    setEditorHtml(screen.getByLabelText("本文（HTML）"), "<p>安全な本文</p><script>alert(1)</script>");
     fireEvent.change(screen.getByLabelText("公開状態"), {
       target: { value: "published" },
     });
@@ -121,7 +119,7 @@ describe("Announcement management", () => {
     render(<AnnouncementManagementWorkspace mode="create" />);
     await screen.findByRole("heading", { name: "お知らせ登録" });
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "期間確認" } });
-    fireEvent.change(screen.getByLabelText("本文（HTML）"), { target: { value: "<p>本文</p>" } });
+    setEditorHtml(screen.getByLabelText("本文（HTML）"), "<p>本文</p>");
     fireEvent.change(screen.getByLabelText("公開終了日時（Asia/Tokyo）"), {
       target: { value: "2020-01-01T00:00" },
     });
@@ -188,4 +186,9 @@ function previewResponse(): AdminContentPreview {
 
 function uuid(last: string): string {
   return `01910191-0191-7191-8191-01910191019${last}`;
+}
+
+function setEditorHtml(editor: HTMLElement, html: string) {
+  editor.innerHTML = html;
+  fireEvent.input(editor);
 }

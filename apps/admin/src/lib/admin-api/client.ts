@@ -99,6 +99,13 @@ import {
   type AdminManagedPageMutationResult,
   type AdminManagedPagePreview,
   type AdminManagedPagePreviewInput,
+  type AdminMailTemplate,
+  type AdminMailTemplateCollection,
+  type AdminMailTemplateMutationResult,
+  type AdminMailTemplatePreview,
+  type AdminMailTemplatePreviewInput,
+  type AdminMailTemplateUpdate,
+  type MailTemplateKey,
   type AdminAccountCreate,
   type AdminAccountCreateResponse,
   type AdminEnrollmentResult,
@@ -754,6 +761,41 @@ export class AdminApiClient {
     }
     return this.request("PUT", `/page-management/pages/${encodeURIComponent(id)}`, {
       body, idempotencyKey, signal,
+    });
+  }
+
+  listMailTemplates(signal?: AbortSignal): Promise<AdminMailTemplateCollection> {
+    return this.request("GET", "/mail-templates", { signal });
+  }
+
+  getMailTemplate(
+    key: MailTemplateKey,
+    signal?: AbortSignal,
+  ): Promise<AdminMailTemplate> {
+    return this.request("GET", `/mail-templates/${encodeURIComponent(key)}`, { signal });
+  }
+
+  updateMailTemplate(
+    key: MailTemplateKey,
+    body: AdminMailTemplateUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminMailTemplateMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "MAIL_TEMPLATE_REQUEST_INVALID", null, null, false));
+    }
+    return this.request("PUT", `/mail-templates/${encodeURIComponent(key)}`, {
+      body, idempotencyKey, signal,
+    });
+  }
+
+  previewMailTemplate(
+    key: MailTemplateKey,
+    body: AdminMailTemplatePreviewInput,
+    signal?: AbortSignal,
+  ): Promise<AdminMailTemplatePreview> {
+    return this.request("POST", `/mail-templates/${encodeURIComponent(key)}/preview`, {
+      body, signal,
     });
   }
 
@@ -2715,6 +2757,7 @@ export class AdminApiClient {
       | `/contact-inquiries${string}`
       | `/content/${string}`
       | `/identity/${string}`
+      | `/mail-templates${string}`
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
@@ -2733,6 +2776,7 @@ export class AdminApiClient {
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
+        !path.startsWith("/mail-templates") &&
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&

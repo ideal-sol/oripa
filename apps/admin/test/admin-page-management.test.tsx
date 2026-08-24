@@ -76,6 +76,9 @@ describe("Page management", () => {
   it("defaults new pages to footer off", async () => {
     render(<PageManagementWorkspace mode="create" />);
     await screen.findByRole("heading", { name: "ページ新規登録" });
+    expect(await screen.findByRole("toolbar", { name: "ページ本文の書式" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "H2" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "H1" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("フッターに表示")).not.toBeChecked();
     expect(screen.queryByLabelText("フッター表示順")).not.toBeInTheDocument();
   });

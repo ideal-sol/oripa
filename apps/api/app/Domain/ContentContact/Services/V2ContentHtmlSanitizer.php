@@ -10,8 +10,8 @@ use RuntimeException;
 final class V2ContentHtmlSanitizer
 {
     private const ALLOWED_TAGS = [
-        'p', 'h1', 'h2', 'h3', 'strong', 'em', 'ul', 'ol', 'li', 'a',
-        'table', 'thead', 'tbody', 'tr', 'th', 'td', 'br',
+        'p', 'h1', 'h2', 'h3', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'a',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td', 'br', 'hr', 'img',
     ];
 
     private const DROP_WITH_CONTENT = [
@@ -70,6 +70,11 @@ final class V2ContentHtmlSanitizer
                     continue;
                 }
                 $this->cleanAttributes($node, $tag);
+                if ($tag === 'img' && ! $node->hasAttribute('src')) {
+                    $parent->removeChild($node);
+                    $node = $next;
+                    continue;
+                }
                 $this->cleanChildren($node);
             }
             $node = $next;
@@ -80,6 +85,8 @@ final class V2ContentHtmlSanitizer
     {
         $allowed = match ($tag) {
             'a' => ['href', 'title', 'target', 'rel'],
+            'img' => ['src', 'alt', 'title'],
+            'p', 'h1', 'h2', 'h3' => ['style'],
             'td', 'th' => ['colspan', 'rowspan'],
             default => [],
         };
@@ -87,7 +94,7 @@ final class V2ContentHtmlSanitizer
             $name = strtolower($attribute->name);
             if (
                 str_starts_with($name, 'on')
-                || $name === 'style'
+                || ($name === 'style' && ! in_array($tag, ['p', 'h1', 'h2', 'h3'], true))
                 || ! in_array($name, $allowed, true)
             ) {
                 $element->removeAttributeNode($attribute);
@@ -102,6 +109,20 @@ final class V2ContentHtmlSanitizer
                 $element->removeAttribute('target');
             } else {
                 $element->setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+        if (in_array($tag, ['p', 'h1', 'h2', 'h3'], true) && $element->hasAttribute('style')) {
+            $style = strtolower(trim($element->getAttribute('style')));
+            if (! preg_match('/\Atext-align:\s*(left|center|right);?\z/', $style, $matches)) {
+                $element->removeAttribute('style');
+            } else {
+                $element->setAttribute('style', 'text-align: '.$matches[1]);
+            }
+        }
+        if ($tag === 'img' && $element->hasAttribute('src')) {
+            $src = trim($element->getAttribute('src'));
+            if (! $this->safeImageSource($src)) {
+                $element->removeAttribute('src');
             }
         }
         foreach (['colspan', 'rowspan'] as $numeric) {
@@ -125,5 +146,20 @@ final class V2ContentHtmlSanitizer
         $scheme = parse_url($href, PHP_URL_SCHEME);
 
         return is_string($scheme) && in_array(strtolower($scheme), ['http', 'https', 'mailto'], true);
+    }
+
+    private function safeImageSource(string $source): bool
+    {
+        if ($source === '' || preg_match('/[\x00-\x20]/', $source)) {
+            return false;
+        }
+        $parts = parse_url($source);
+
+        return is_array($parts)
+            && strtolower((string) ($parts['scheme'] ?? '')) === 'https'
+            && is_string($parts['host'] ?? null)
+            && $parts['host'] !== ''
+            && ! isset($parts['user'])
+            && ! isset($parts['pass']);
     }
 }

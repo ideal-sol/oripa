@@ -50,6 +50,7 @@ use App\Http\Controllers\V2\V2AdminUserTagController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
+use App\Http\Controllers\V2\V2AdminMailTemplateController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
 use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
 
@@ -359,6 +360,13 @@ Route::prefix('v2')
         Route::post('/page-management/pages/preview', [V2AdminContentContactController::class, 'previewManagedPage']);
         Route::get('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'managedPage'])->whereUuid('pageId');
         Route::put('/page-management/pages/{pageId}', [V2AdminContentContactController::class, 'updateManagedPage'])->whereUuid('pageId');
+        Route::get('/mail-templates', [V2AdminMailTemplateController::class, 'index']);
+        Route::get('/mail-templates/{templateKey}', [V2AdminMailTemplateController::class, 'show'])
+            ->where('templateKey', '[a-z][a-z0-9_]{0,63}');
+        Route::put('/mail-templates/{templateKey}', [V2AdminMailTemplateController::class, 'update'])
+            ->where('templateKey', '[a-z][a-z0-9_]{0,63}');
+        Route::post('/mail-templates/{templateKey}/preview', [V2AdminMailTemplateController::class, 'preview'])
+            ->where('templateKey', '[a-z][a-z0-9_]{0,63}');
         Route::get('/content/notices', [V2AdminContentContactController::class, 'notices']);
         Route::post('/content/notices', [V2AdminContentContactController::class, 'createNotice']);
         Route::post('/content/notices/preview', [V2AdminContentContactController::class, 'previewNotice']);

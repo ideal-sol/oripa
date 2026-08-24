@@ -96,6 +96,8 @@ final class PaymentModelFoundationTest extends TestCase
         }
         self::assertDatabaseHas('audit_logs', ['action_code' => 'payment.succeeded']);
         self::assertDatabaseHas('outbox_messages', ['event_type' => 'payment.succeeded']);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'coin.purchase.completed:'.$payment->public_id)->count());
     }
 
     public function test_browser_or_unsigned_event_cannot_succeed_payment(): void

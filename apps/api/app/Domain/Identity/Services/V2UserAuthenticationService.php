@@ -7,6 +7,7 @@ use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\User;
 use App\Models\V2\UserEmailVerification;
 use Illuminate\Database\QueryException;
@@ -23,7 +24,8 @@ final class V2UserAuthenticationService
         private readonly V2EmailVerificationNotifier $notifier,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2SessionManager $sessions,
-        private readonly V2SecurityEventSink $events
+        private readonly V2SecurityEventSink $events,
+        private readonly V2TemplateMailDeliveryService $templateMail
     ) {
     }
 
@@ -190,6 +192,12 @@ final class V2UserAuthenticationService
                     'realm' => 'user',
                     'subject_id' => $user->public_id,
                 ]);
+                $this->templateMail->schedule(
+                    'registration_completed',
+                    'registration.completed:'.$user->public_id,
+                    'user',
+                    $user->public_id
+                );
 
                 return [
                     'user' => $user,

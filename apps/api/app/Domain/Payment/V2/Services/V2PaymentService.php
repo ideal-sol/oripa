@@ -4,6 +4,7 @@ namespace App\Domain\Payment\V2\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Point\Services\V2CoinExpiryPolicy;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -31,7 +32,8 @@ final class V2PaymentService
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox,
         private readonly V2PointPurchaseEligibilityService $purchaseEligibility,
-        private readonly V2CoinExpiryPolicy $expiryPolicy
+        private readonly V2CoinExpiryPolicy $expiryPolicy,
+        private readonly V2TemplateMailDeliveryService $templateMail
     ) {
     }
 
@@ -409,6 +411,12 @@ final class V2PaymentService
                 'payment.succeeded',
                 ['payment_public_id' => $payment->public_id],
                 'payment.succeeded:'.$payment->public_id
+            );
+            $this->templateMail->schedule(
+                'coin_purchase_completed',
+                'coin.purchase.completed:'.$payment->public_id,
+                'payment',
+                $payment->public_id
             );
 
             return DB::table('payment_point_grants')

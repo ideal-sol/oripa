@@ -4,6 +4,7 @@ namespace App\Domain\PrizeShipping\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointService;
@@ -45,7 +46,8 @@ final class V2PrizeShippingService
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2PointService $points,
         private readonly V2AuditLogService $audit,
-        private readonly V2OutboxService $outbox
+        private readonly V2OutboxService $outbox,
+        private readonly V2TemplateMailDeliveryService $templateMail
     ) {
     }
 
@@ -535,6 +537,12 @@ final class V2PrizeShippingService
                 ['prize_count' => count($ids)],
                 'shipping.request.created:'.$shipping->public_id
             );
+            $this->templateMail->schedule(
+                'shipping_requested',
+                'shipping.requested:'.$shipping->public_id,
+                'shipping_request',
+                $shipping->public_id
+            );
 
                 return $response;
             },
@@ -713,6 +721,14 @@ final class V2PrizeShippingService
                 ['from_status' => $from, 'to_status' => $toStatus],
                 'shipping.status.changed:'.$shipping->public_id.':'.$toStatus
             );
+            if ($toStatus === 'shipped') {
+                $this->templateMail->schedule(
+                    'shipping_completed',
+                    'shipping.completed:'.$shipping->public_id,
+                    'shipping_request',
+                    $shipping->public_id
+                );
+            }
 
             return $this->shipping($shipping->refresh(), true, true);
         });

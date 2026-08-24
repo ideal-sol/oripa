@@ -3,13 +3,19 @@
 namespace App\Domain\Identity\Services;
 
 use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
+use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\User;
-use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 use SensitiveParameter;
+use Throwable;
 
 final class V2MailEmailVerificationNotifier implements V2EmailVerificationNotifier
 {
+    public function __construct(private readonly V2TemplateMailDeliveryService $mail)
+    {
+    }
+
     public function send(
         User $user,
         #[SensitiveParameter] string $token,
@@ -19,14 +25,20 @@ final class V2MailEmailVerificationNotifier implements V2EmailVerificationNotifi
         $url = $this->publicOrigin().'/api/v2/auth/email/verify/'.$user->public_id.'/'.$token
             .'?redirect='.rawurlencode($redirectPath);
 
-        Mail::raw(
-            "V2 email verification URL:\n{$url}\n\nThis link expires in 60 minutes.",
-            static function ($message) use ($user): void {
-                $message
-                    ->to($user->email_display)
-                    ->subject('メールアドレス確認');
-            }
-        );
+        try {
+            $this->mail->sendVerification($user->email_display, [
+                'user_name' => $user->display_name ?? '',
+                'full_name' => $user->display_name ?? '',
+                'verification_url' => $url,
+            ]);
+        } catch (Throwable) {
+            throw new V2AuthenticationException(
+                'VERIFICATION_MAIL_DELIVERY_FAILED',
+                503,
+                'The verification email could not be delivered.',
+                true
+            );
+        }
     }
 
     private function publicOrigin(): string

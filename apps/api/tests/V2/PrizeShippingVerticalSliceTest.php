@@ -502,6 +502,8 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(3, DB::table('shipping_request_items')->count());
         self::assertSame(3, DB::table('user_prizes')
             ->where('status', 'shipping_requested')->count());
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'shipping.requested:'.$first['id'])->count());
 
         $admin = $this->admin();
         $packing = $service->transitionShipping(
@@ -524,6 +526,8 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             (string) Str::uuid7()
         );
         self::assertSame('fixture-tracking-reference', $shipped['tracking_number']);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'shipping.completed:'.$first['id'])->count());
         $delivered = $service->transitionShipping(
             $admin,
             $first['id'],

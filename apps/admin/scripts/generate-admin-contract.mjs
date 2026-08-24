@@ -65,6 +65,10 @@ const operations = {
   previewManagedAdminPage: ["post", "/page-management/pages/preview"],
   getManagedAdminPage: ["get", "/page-management/pages/{page_id}"],
   updateManagedAdminPage: ["put", "/page-management/pages/{page_id}"],
+  listAdminMailTemplates: ["get", "/mail-templates"],
+  getAdminMailTemplate: ["get", "/mail-templates/{template_key}"],
+  updateAdminMailTemplate: ["put", "/mail-templates/{template_key}"],
+  previewAdminMailTemplate: ["post", "/mail-templates/{template_key}/preview"],
   uploadAdminBannerAsset: ["post", "/banner-management/assets"],
   showAdminBannerAssetContent: ["get", "/banner-management/assets/{asset_id}/content"],
   listManagedAdminBanners: ["get", "/banner-management/banners"],
@@ -444,6 +448,12 @@ const requiredSchemas = [
   "AdminManagedPageInput",
   "AdminManagedPageMutationResult",
   "AdminManagedPageCollection",
+  "AdminMailTemplate",
+  "AdminMailTemplateCollection",
+  "AdminMailTemplateUpdate",
+  "AdminMailTemplateMutationResult",
+  "AdminMailTemplatePreviewInput",
+  "AdminMailTemplatePreview",
   "AdminBannerCategoryCreate",
   "AdminBannerCategoryMutationResult",
   "AdminBannerAssetUpload",
@@ -2482,6 +2492,53 @@ export interface AdminManagedPageMutationResult extends AdminManagedPage {
 export interface AdminManagedPageCollection {
   items: AdminManagedPage[];
   next_cursor: string | null;
+}
+
+export type MailTemplateKey =
+  | "email_verification"
+  | "registration_completed"
+  | "coin_purchase_completed"
+  | "shipping_requested"
+  | "shipping_completed"
+  | "user_closed"
+  | "contact_received";
+
+export interface AdminMailTemplateVariable {
+  key: string;
+  label: string;
+  token: string;
+}
+
+export interface AdminMailTemplate {
+  key: MailTemplateKey;
+  label: string;
+  subject: string;
+  body_html: string;
+  revision: number;
+  variables: AdminMailTemplateVariable[];
+  updated_at: string;
+}
+
+export interface AdminMailTemplateCollection {
+  items: AdminMailTemplate[];
+}
+
+export interface AdminMailTemplateUpdate {
+  subject: string;
+  body_html: string;
+  expected_revision: number;
+}
+
+export interface AdminMailTemplateMutationResult extends AdminMailTemplate {
+  idempotent_replay: boolean;
+}
+
+export interface AdminMailTemplatePreviewInput {
+  body_html: string;
+}
+
+export interface AdminMailTemplatePreview {
+  body_html: string;
 }
 
 export interface AdminBannerCategoryCollection {

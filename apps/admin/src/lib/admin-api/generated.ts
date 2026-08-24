@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: b605f768c0869214080cc9bc51f5048d7d4d586e01a370f49cc50852246d6aa0
+// Contract SHA-256: cffde44383d43ba78e980753643947c41ff3968d1692e2691db3787b2e8ee606
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1907,6 +1907,53 @@ export interface AdminManagedPageMutationResult extends AdminManagedPage {
 export interface AdminManagedPageCollection {
   items: AdminManagedPage[];
   next_cursor: string | null;
+}
+
+export type MailTemplateKey =
+  | "email_verification"
+  | "registration_completed"
+  | "coin_purchase_completed"
+  | "shipping_requested"
+  | "shipping_completed"
+  | "user_closed"
+  | "contact_received";
+
+export interface AdminMailTemplateVariable {
+  key: string;
+  label: string;
+  token: string;
+}
+
+export interface AdminMailTemplate {
+  key: MailTemplateKey;
+  label: string;
+  subject: string;
+  body_html: string;
+  revision: number;
+  variables: AdminMailTemplateVariable[];
+  updated_at: string;
+}
+
+export interface AdminMailTemplateCollection {
+  items: AdminMailTemplate[];
+}
+
+export interface AdminMailTemplateUpdate {
+  subject: string;
+  body_html: string;
+  expected_revision: number;
+}
+
+export interface AdminMailTemplateMutationResult extends AdminMailTemplate {
+  idempotent_replay: boolean;
+}
+
+export interface AdminMailTemplatePreviewInput {
+  body_html: string;
+}
+
+export interface AdminMailTemplatePreview {
+  body_html: string;
 }
 
 export interface AdminBannerCategoryCollection {
