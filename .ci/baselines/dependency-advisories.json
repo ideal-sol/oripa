@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "security-owners",
-    "reason": "Re-reviewed on 2026-08-18 in SEC-011; fresh Composer, Root pnpm/V2 workspace, and Legacy pnpm canonical audits contain no findings.",
+    "reason": "Fresh Canonical Security Audit completed on 2026-08-24 in SEC-013 against main@dac28049ad41319ac49cd3afcfeaadfa37b15016; dependency, secret, Auth/Session/CSRF/MFA, mail, Admin authorization, financial/draw mutation, contract exposure, migration history, governance, and deployment/network reviews contain no findings.",
     "removal_condition": "Keep the Composer and pnpm baseline arrays empty; any future finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
-    "expires_at": "2026-08-25",
-    "tracking_task": "SEC-011"
+    "expires_at": "2026-08-31",
+    "tracking_task": "SEC-013"
   },
   "composer": [],
   "pnpm": []
