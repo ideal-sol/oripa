@@ -2785,6 +2785,19 @@ services:
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
 
+    def test_tiptap_dependency_removal_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            package_path = root / "apps/admin/package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            del package["dependencies"]["@tiptap/react"]
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "exact runtime dependencies"
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
     def test_unapproved_root_tool_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

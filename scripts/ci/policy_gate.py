@@ -838,6 +838,13 @@ MIG_062Q_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/admin-gacha-lifecycle.spec.ts",
     "apps/admin/test/catalog-gacha-lifecycle.test.tsx",
 }
+MIG_078_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/app/settings/mail/[templateKey]/page.tsx",
+    "apps/admin/src/app/settings/mail/page.tsx",
+    "apps/admin/src/components/mail/mail-template-workspace.tsx",
+    "apps/admin/src/components/rich-text/rich-text-editor.tsx",
+    "apps/admin/test/admin-mail-template-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -958,11 +965,17 @@ ADMIN_SKELETON_FILES = {
     *MIG_062M_ADMIN_SKELETON_FILES,
     *MIG_062N_ADMIN_SKELETON_FILES,
     *MIG_062Q_ADMIN_SKELETON_FILES,
+    *MIG_078_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
+    "@tiptap/extension-image": "3.30.3",
+    "@tiptap/extension-table": "3.30.3",
+    "@tiptap/extension-text-align": "3.30.3",
+    "@tiptap/react": "3.30.3",
+    "@tiptap/starter-kit": "3.30.3",
     "lucide-react": "0.468.0",
     "next": "16.2.11",
     "react": "19.2.7",
