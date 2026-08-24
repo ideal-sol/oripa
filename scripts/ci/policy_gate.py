@@ -1457,8 +1457,11 @@ def storefront_release_governance(repository: Path) -> dict:
     }
     if history[-1] != protected_history_row or len(history_versions) != len(set(history_versions)):
         raise PolicyFailure("Storefront immutable history order is invalid")
-    if not isinstance(candidate, dict) or candidate.get("release_mode") != "package-only":
-        raise PolicyFailure("Storefront package-only candidate is invalid")
+    if not isinstance(candidate, dict) or candidate.get("release_mode") not in {
+        "package-only",
+        "contract-additive",
+    }:
+        raise PolicyFailure("Storefront release candidate is invalid")
 
     alpha = re.compile(r"^(?P<family>[0-9]+)\.0\.0-alpha\.(?P<sequence>[0-9]+)$")
     latest_match = alpha.fullmatch(str(latest.get("bundle_version", "")))
@@ -1501,8 +1504,17 @@ def storefront_release_governance(repository: Path) -> dict:
     applications = candidate.get("application_versions")
     if set(contracts or {}) != {"public", "admin", "webhook"} or set(applications or {}) != {"workspace", "admin"}:
         raise PolicyFailure("Storefront Platform version inventory is invalid")
-    if contracts["public"] != latest.get("public_openapi", {}).get("version"):
-        raise PolicyFailure("Storefront Public OpenAPI reference is invalid")
+    if candidate["release_mode"] == "package-only":
+        if contracts["public"] != latest.get("public_openapi", {}).get("version"):
+            raise PolicyFailure("Storefront Public OpenAPI reference is invalid")
+    elif (
+        any(version != candidate.get("bundle_version") for version in contracts.values())
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", str(candidate.get("public_openapi_sha256", ""))
+        )
+        or candidate.get("public_api_operation_count") != 62
+    ):
+        raise PolicyFailure("Storefront additive contract candidate is invalid")
     client = packages["@oripa/storefront-client"]
     testkit = packages["@oripa/storefront-testkit"]
     if client.get("minimum_public_api_contract") != contracts["public"]:

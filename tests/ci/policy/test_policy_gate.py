@@ -703,6 +703,33 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
+    def test_storefront_release_governance_accepts_additive_alpha_24_contract(self):
+        value = policy_gate.storefront_release_governance(ROOT)
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(
+            value["candidate"]["contract_versions"],
+            {
+                "public": "2.0.0-alpha.24",
+                "admin": "2.0.0-alpha.24",
+                "webhook": "2.0.0-alpha.24",
+            },
+        )
+
+    def test_storefront_release_governance_rejects_invalid_candidate_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "manifests/storefront-contract-releases.json"
+            target.parent.mkdir(parents=True)
+            value = json.loads(
+                (ROOT / "manifests/storefront-contract-releases.json").read_text()
+            )
+            value["candidate"]["public_openapi_sha256"] = "0"
+            target.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "additive contract candidate"
+            ):
+                policy_gate.storefront_release_governance(root)
+
     def test_release_artifact_floating_base_image_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -2363,7 +2390,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.23",
+                        "minimumPublicApiContract": "2.0.0-alpha.24",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
