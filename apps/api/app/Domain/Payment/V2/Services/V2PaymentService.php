@@ -11,7 +11,6 @@ use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointTransactionRunner;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +48,8 @@ final class V2PaymentService
         int $planId,
         string $providerCode,
         ?string $providerPaymentId,
-        string $idempotencyKey
+        string $idempotencyKey,
+        ?string $paymentMethod = null
     ): object {
         $this->assertRuntimeSafe();
         $this->assertCode($providerCode, 64);
@@ -60,7 +60,8 @@ final class V2PaymentService
             $planId,
             $providerCode,
             $providerPaymentId,
-            $idempotencyKey
+            $idempotencyKey,
+            $paymentMethod
         ): object {
             $claim = $this->idempotency->claim(
                 'payment.create',
@@ -71,12 +72,22 @@ final class V2PaymentService
                     'plan_id' => $planId,
                     'provider_code' => $providerCode,
                     'provider_payment_id' => $providerPaymentId,
+                    'payment_method' => $paymentMethod,
                 ]
             );
             if ($claim->replay) {
                 return DB::table('payments')
                     ->where('public_id', $claim->record->resource_public_id)
                     ->firstOrFail();
+            }
+            DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+            if ($paymentMethod === 'konbini' && DB::table('payments')
+                ->where('user_id', $user->id)
+                ->where('payment_method', 'konbini')
+                ->whereIn('status', ['created', 'requires_action', 'processing'])
+                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->exists()) {
+                throw new V2PaymentException('KONBINI_UNPAID_LIMIT_REACHED');
             }
             $plan = DB::table('point_purchase_plans')
                 ->where('id', $planId)
@@ -103,6 +114,7 @@ final class V2PaymentService
                 'user_id' => $user->id,
                 'point_purchase_plan_id' => $plan->id,
                 'provider_code' => $providerCode,
+                'payment_method' => $paymentMethod,
                 'provider_payment_id' => $providerPaymentId,
                 'status' => 'created',
                 'amount' => $plan->amount,
@@ -134,6 +146,46 @@ final class V2PaymentService
         });
     }
 
+    public function applyProviderStartResult(
+        int $paymentId,
+        string $providerStatus,
+        string $platformStatus,
+        ?\DateTimeInterface $expiresAt = null
+    ): object {
+        if (! in_array($platformStatus, ['requires_action', 'processing', 'failed'], true)) {
+            throw new V2PaymentException('PAYMENT_STATUS_INVALID');
+        }
+
+        return $this->transactions->run(function () use (
+            $paymentId,
+            $providerStatus,
+            $platformStatus,
+            $expiresAt
+        ): object {
+            $payment = DB::table('payments')->where('id', $paymentId)
+                ->lockForUpdate()->firstOrFail();
+            if ($payment->provider_code !== 'fincode') {
+                throw new V2PaymentException('PAYMENT_PROVIDER_INVALID');
+            }
+            DB::table('payments')->where('id', $payment->id)->update([
+                'provider_status' => $providerStatus,
+                'expires_at' => $expiresAt === null
+                    ? $payment->expires_at
+                    : CarbonImmutable::parse($expiresAt->format('Y-m-d H:i:s.uP'))
+                        ->utc()->startOfSecond()->toIso8601String(),
+                'updated_at' => now(),
+            ]);
+            if ($payment->status === $platformStatus) {
+                return DB::table('payments')->where('id', $payment->id)->firstOrFail();
+            }
+            if (! in_array($platformStatus, self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
+                throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
+            }
+
+            return $this->transitionPayment($payment, $platformStatus, 'provider_api', null);
+        });
+    }
+
     /**
      * @param array<string, string> $headers
      */
@@ -155,8 +207,7 @@ final class V2PaymentService
                 unset($headers[$key]);
             }
         }
-        try {
-            DB::table('payment_provider_events')->insert([
+        DB::table('payment_provider_events')->insertOrIgnore([
                 'provider_code' => $providerCode,
                 'external_event_id' => $externalEventId,
                 'event_type' => $eventType,
@@ -174,12 +225,7 @@ final class V2PaymentService
                 'processing_status' => 'received',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
-        } catch (QueryException $error) {
-            if ($error->getCode() !== '23505') {
-                throw $error;
-            }
-        }
+        ]);
 
         $event = DB::table('payment_provider_events')
             ->where('provider_code', $providerCode)
@@ -294,10 +340,14 @@ final class V2PaymentService
             ->where('id', $operationId)->firstOrFail();
     }
 
-    public function applyVerifiedStatus(int $providerEventId, string $status): object
+    public function applyVerifiedStatus(
+        int $providerEventId,
+        string $status,
+        ?string $providerStatus = null
+    ): object
     {
         if ($status === 'succeeded') {
-            $this->confirmSucceeded($providerEventId);
+            $this->confirmSucceeded($providerEventId, $providerStatus);
 
             return DB::table('payments')
                 ->where('id', DB::table('payment_provider_events')
@@ -308,7 +358,11 @@ final class V2PaymentService
             throw new V2PaymentException('PAYMENT_STATUS_INVALID');
         }
 
-        return $this->transactions->run(function () use ($providerEventId, $status): object {
+        return $this->transactions->run(function () use (
+            $providerEventId,
+            $status,
+            $providerStatus
+        ): object {
             $event = DB::table('payment_provider_events')
                 ->where('id', $providerEventId)->lockForUpdate()->firstOrFail();
             if ($event->signature_verified_at === null || $event->payment_id === null) {
@@ -316,8 +370,15 @@ final class V2PaymentService
             }
             $payment = DB::table('payments')
                 ->where('id', $event->payment_id)->lockForUpdate()->firstOrFail();
+            if ($providerStatus !== null) {
+                DB::table('payments')->where('id', $payment->id)->update([
+                    'provider_status' => $providerStatus,
+                    'provider_confirmed_at' => now()->startOfSecond(),
+                    'updated_at' => now(),
+                ]);
+            }
             if ($payment->status === $status) {
-                return $payment;
+                return DB::table('payments')->where('id', $payment->id)->firstOrFail();
             }
             if (! in_array($status, self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
                 throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
@@ -343,9 +404,15 @@ final class V2PaymentService
         });
     }
 
-    public function confirmSucceeded(int $providerEventId): object
+    public function confirmSucceeded(
+        int $providerEventId,
+        ?string $providerStatus = null
+    ): object
     {
-        return $this->transactions->run(function () use ($providerEventId): object {
+        return $this->transactions->run(function () use (
+            $providerEventId,
+            $providerStatus
+        ): object {
             $event = DB::table('payment_provider_events')
                 ->where('id', $providerEventId)->lockForUpdate()->firstOrFail();
             if (
@@ -387,6 +454,11 @@ final class V2PaymentService
                 $succeededAt,
                 $limitedBonus
             );
+            DB::table('payments')->where('id', $payment->id)->update([
+                'provider_status' => $providerStatus ?? $payment->provider_status,
+                'provider_confirmed_at' => now()->startOfSecond(),
+                'updated_at' => now(),
+            ]);
             $grant = $this->grantPaymentPoints($succeededPayment);
             DB::table('payments')->where('id', $payment->id)->update([
                 'points_granted_at' => $grant->granted_at,

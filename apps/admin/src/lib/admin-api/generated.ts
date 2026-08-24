@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: cffde44383d43ba78e980753643947c41ff3968d1692e2691db3787b2e8ee606
+// Contract SHA-256: 08da575688eb5fc8d1a99b43500033a2e54a758df9cbf9fb878c938151527a51
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -263,6 +263,51 @@ export interface AdminUserReferralHistoryCollection {
   user_id: string;
   items: AdminUserReferralHistoryItem[];
   next_cursor: string | null;
+  request_id: string;
+}
+
+export type AdminPaymentMethod =
+  | "credit_card"
+  | "paypay"
+  | "konbini"
+  | "virtual_account";
+
+export type AdminPaymentStatus =
+  | "created"
+  | "requires_action"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | "expired";
+
+export interface AdminPayment {
+  id: string;
+  user: { id: string; display_name: string | null };
+  provider: "fincode";
+  provider_payment_reference: string;
+  method: AdminPaymentMethod;
+  status: AdminPaymentStatus;
+  provider_status: string | null;
+  amount: { amount: number; currency: "JPY" };
+  grant: {
+    paid_points: number;
+    bonus_points: number;
+    granted_at: string | null;
+  };
+  expires_at: string | null;
+  succeeded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPaymentCollection {
+  data: AdminPayment[];
+  pagination: {
+    limit: number;
+    has_more: boolean;
+    next_cursor: string | null;
+  };
   request_id: string;
 }
 

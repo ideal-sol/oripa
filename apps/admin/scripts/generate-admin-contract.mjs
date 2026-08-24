@@ -23,6 +23,8 @@ const operations = {
   getAdminSession: ["get", "/auth/session"],
   listAdminUsers: ["get", "/users"],
   getAdminUser: ["get", "/users/{user_id}"],
+  listPayments: ["get", "/payments"],
+  listUserPayments: ["get", "/users/{user_id}/payments"],
   listAdminUserPrizes: ["get", "/user-prizes"],
   getAdminUserPrize: ["get", "/user-prizes/{user_prize_id}"],
   updateAdminUserState: ["put", "/users/{user_id}/state"],
@@ -416,6 +418,10 @@ const requiredSchemas = [
   "AdminSession",
   "AdminUserCollection",
   "AdminUserDetailResponse",
+  "AdminPayment",
+  "AdminPaymentCollection",
+  "AdminPaymentMethod",
+  "AdminPaymentStatus",
   "AdminUserStateUpdate",
   "AdminUserStateMutationResult",
   "AdminUserTagCollection",
@@ -848,6 +854,51 @@ export interface AdminUserReferralHistoryCollection {
   user_id: string;
   items: AdminUserReferralHistoryItem[];
   next_cursor: string | null;
+  request_id: string;
+}
+
+export type AdminPaymentMethod =
+  | "credit_card"
+  | "paypay"
+  | "konbini"
+  | "virtual_account";
+
+export type AdminPaymentStatus =
+  | "created"
+  | "requires_action"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | "expired";
+
+export interface AdminPayment {
+  id: string;
+  user: { id: string; display_name: string | null };
+  provider: "fincode";
+  provider_payment_reference: string;
+  method: AdminPaymentMethod;
+  status: AdminPaymentStatus;
+  provider_status: string | null;
+  amount: { amount: number; currency: "JPY" };
+  grant: {
+    paid_points: number;
+    bonus_points: number;
+    granted_at: string | null;
+  };
+  expires_at: string | null;
+  succeeded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPaymentCollection {
+  data: AdminPayment[];
+  pagination: {
+    limit: number;
+    has_more: boolean;
+    next_cursor: string | null;
+  };
   request_id: string;
 }
 

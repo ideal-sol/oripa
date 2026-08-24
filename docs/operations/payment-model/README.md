@@ -2,8 +2,11 @@
 
 ## Status
 
-MIG-044で追加する非Production Alpha Foundationである。Public／Admin／Webhook API、
-実Provider Adapter、決済SDK、3D Secure、UI、Production Deploymentは含まない。
+MIG-044で追加した非Production Alpha Foundationへ、MIG-079でCanonical Provider
+`fincode`のBackend Core、Public／Admin／Webhook Contract、3D Secure境界を接続した。
+Provider有効化、Storefront／Admin UI、Production Deploymentは含まない。
+
+Provider固有の現行正本は[FINCODE.md](FINCODE.md)とする。
 
 ## Responsibility
 
@@ -74,5 +77,6 @@ V1 Migration 40件、V1 Runtime、本番DB、Redis、Storage、Archive Refは変
 
 ## Deferred Scope
 
-実Provider Adapter、署名方式、部分Refund、Provider ADR、`payment_adjustment_prize_actions`、
-Draw／Prize／Shipping、API、UI、Production Deploymentは後続Taskで実装する。
+fincode Sandbox実通信／Activation、Storefront Payment UI、Admin Payment History UI、
+Refund／Chargeback Provider接続、Production Enable／Commercial Gateは後続Taskで実装する。
+Activation前は`FINCODE_ENABLED=false`でFail Closedする。

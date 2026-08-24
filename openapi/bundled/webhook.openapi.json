@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Webhook API",
-    "version": "2.0.0-alpha.23",
+    "version": "2.0.0-alpha.24",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -59,6 +59,57 @@
             }
           },
           "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/fincode": {
+      "post": {
+        "operationId": "receiveFincodePaymentWebhook",
+        "summary": "fincode Payment Webhookを受信する",
+        "description": "Fincode-Signatureを登録済みsignatureと定数時間比較し、EventのPayment参照と pay_typeを照合した後、fincode Payment取得APIのCanonical statusを確認する。 Browser returnやWebhook payload単独ではPayment Successを確定しない。",
+        "x-idempotency": "canonical-event-fingerprint",
+        "x-rate-limit": "provider-signed-webhook",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FincodeSignature"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FincodePaymentWebhook"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "検証済みEventを処理、重複処理、または安全に無視した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FincodeWebhookAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
             "$ref": "#/components/responses/Problem"
           },
           "422": {
@@ -239,6 +290,78 @@
           }
         }
       },
+      "FincodePaymentWebhook": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "event",
+          "pay_type",
+          "status"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "order_id"
+            ]
+          },
+          {
+            "required": [
+              "id"
+            ]
+          }
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "order_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "pay_type": {
+            "enum": [
+              "Card",
+              "Paypay",
+              "Konbini",
+              "Virtualaccount"
+            ]
+          },
+          "status": {
+            "enum": [
+              "UNPROCESSED",
+              "CHECKED",
+              "AUTHORIZED",
+              "AWAITING_CUSTOMER_PAYMENT",
+              "AWAITING_PAYMENT_APPROVAL",
+              "CAPTURED",
+              "CANCELED",
+              "EXPIRED",
+              "AUTHENTICATED",
+              "FAILED"
+            ]
+          }
+        }
+      },
+      "FincodeWebhookAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receive"
+        ],
+        "properties": {
+          "receive": {
+            "const": "0"
+          }
+        }
+      },
       "ValidationErrors": {
         "type": "object",
         "additionalProperties": {
@@ -258,6 +381,16 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 255
+        }
+      },
+      "FincodeSignature": {
+        "name": "Fincode-Signature",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         }
       }
     },

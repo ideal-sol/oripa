@@ -28,6 +28,10 @@ import {
   createCsrfManagedStorefrontContentContactClient,
   type BrowserStorefrontContentContactClient,
 } from "./content-contact.js";
+import {
+  createCsrfManagedStorefrontPaymentClient,
+  type BrowserStorefrontPaymentClient,
+} from "./payments.js";
 import type {
   BrowserStorefrontClientConfig,
   CsrfInitializer,
@@ -73,6 +77,12 @@ export type {
   BrowserContactSubmissionOptions,
   BrowserStorefrontContentContactClient,
 } from "./content-contact.js";
+export type {
+  BrowserPaymentCsrfOptions,
+  BrowserPaymentMutationOptions,
+  BrowserStorefrontPaymentClient,
+  PaymentHistoryQuery,
+} from "./payments.js";
 
 function readDocumentCookie(name: string): string | undefined {
   if (typeof document === "undefined") {
@@ -167,6 +177,14 @@ export function createBrowserStorefrontContentContactClient(
   configuration: BrowserStorefrontClientConfig,
 ): BrowserStorefrontContentContactClient {
   return createCsrfManagedStorefrontContentContactClient(
+    createBrowserStorefrontClient(configuration),
+  );
+}
+
+export function createBrowserStorefrontPaymentClient(
+  configuration: BrowserStorefrontClientConfig,
+): BrowserStorefrontPaymentClient {
+  return createCsrfManagedStorefrontPaymentClient(
     createBrowserStorefrontClient(configuration),
   );
 }

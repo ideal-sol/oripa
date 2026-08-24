@@ -29,10 +29,15 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def governance(self):
         return artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
 
-    def test_declared_package_only_release_is_valid(self):
+    def test_git_utc_timestamp_is_supported(self):
+        parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
+        self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
+
+    def test_declared_additive_contract_release_is_valid(self):
         value = artifact.validate_governance(self.governance())
         self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.24")
         self.assertEqual(value["candidate"]["platform_version"], "2.0.0-alpha.23")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
         self.assertEqual(
             value["candidate"]["packages"]["@oripa/site-schema"]["disposition"],
             "reference",
@@ -74,7 +79,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(result["bundle_version"], "2.0.0-alpha.24")
         self.assertEqual(result["platform_version"], "2.0.0-alpha.23")
-        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.23")
+        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.24")
         self.assertEqual(result["packages"]["@oripa/site-schema"], "2.0.0-alpha.23")
         self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.24")
         self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.24")

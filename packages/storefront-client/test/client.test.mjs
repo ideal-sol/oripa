@@ -8,6 +8,7 @@ import {
   createBrowserStorefrontContentContactClient,
   createBrowserStorefrontDrawClient,
   createBrowserStorefrontPrizeShippingClient,
+  createBrowserStorefrontPaymentClient,
   createIdempotencyKey,
   isAuthProblemError,
   isDrawProblemError,
@@ -23,6 +24,7 @@ import {
   createStorefrontIdentityClient,
   createStorefrontCurrentUserPointClient,
   createStorefrontPointProductClient,
+  createStorefrontPaymentClient,
   createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
 
@@ -1142,4 +1144,65 @@ test("Current User Point Facadeは認証済みRead PathとCursorだけを呼ぶ"
     () => points.listPointLedgerEntries({ limit: 101 }),
     /limit must be an integer/,
   );
+});
+
+test("Payment Facadeは作成・履歴・未払い再開・カード管理Pathを固定する", async () => {
+  const requests = [];
+  const payments = createStorefrontPaymentClient({
+    request: async (options) => {
+      requests.push(options);
+      return {
+        data: {},
+        metadata: { status: 200, idempotency_replayed: false },
+      };
+    },
+  });
+  const csrfToken = "a".repeat(64);
+  await payments.startPayment(
+    { point_product_id: "plan-id", payment_method: "paypay" },
+    { csrf_token: csrfToken, idempotency_key: "start-key" },
+  );
+  await payments.getPayment("payment-id");
+  await payments.listPayments({ view: "unpaid", limit: 20, cursor: "next" });
+  await payments.resumeUnpaidPayment("payment-id", { csrf_token: csrfToken });
+  await payments.listCards();
+  await payments.createCardRegistrationIntent({
+    csrf_token: csrfToken,
+    idempotency_key: "card-intent-key",
+  });
+  await payments.completeCardRegistration(
+    "intent-id",
+    { provider_card_id: "provider-card-id" },
+    { csrf_token: csrfToken },
+  );
+  await payments.deleteCard("card-id", { csrf_token: csrfToken });
+  assert.deepEqual(requests.map(({ path }) => path), [
+    "/payments",
+    "/payments/payment-id",
+    "/me/payments?view=unpaid&limit=20&cursor=next",
+    "/payments/payment-id/resume",
+    "/me/payment-cards",
+    "/me/payment-card-registration-intents",
+    "/me/payment-card-registration-intents/intent-id/complete",
+    "/me/payment-cards/card-id",
+  ]);
+  assert.equal(requests[0].idempotency_key, "start-key");
+  assert.equal(requests[3].retry, false);
+});
+
+test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () => {
+  const calls = [];
+  const client = createBrowserStorefrontPaymentClient(browserConfig(async (url, init) => {
+    calls.push({ url, init });
+    if (url.endsWith("/sanctum/csrf-cookie")) {
+      return jsonResponse({ initialized: true });
+    }
+    return jsonResponse({ id: "payment-id" }, { status: 201 });
+  }));
+  await client.startPayment(
+    { point_product_id: "plan-id", payment_method: "virtual_account" },
+    { idempotency_key: "browser-payment-key" },
+  );
+  assert.equal(calls.at(-1).url, "/api/v2/payments");
+  assert.equal(calls.at(-1).init.headers.get("Idempotency-Key"), "browser-payment-key");
 });

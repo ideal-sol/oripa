@@ -842,10 +842,261 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** fincode Paymentを支払操作時に開始する */
+        post: operations["createPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browser return後を含む現在のPlatform Payment状態を取得する */
+        get: operations["getPayment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 有効な未払いPaymentの既存fincode redirectを再開する */
+        post: operations["resumeUnpaidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Storefront向け成功または有効未払いPayment履歴を取得する */
+        get: operations["listMyPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payment-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** fincodeに保持された登録カードの安全な表示情報を取得する */
+        get: operations["listPaymentCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payment-cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** ログインUserが所有するfincode登録カードを削除する */
+        delete: operations["deletePaymentCard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payment-card-registration-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 3DS必須のfincodeカード登録枠を予約する */
+        post: operations["createPaymentCardRegistrationIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payment-card-registration-intents/{registration_intent_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** fincodeから取得・ownership確認したカードを登録確定する */
+        post: operations["completePaymentCardRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {unknown} */
+        PaymentMethod: "credit_card" | "paypay" | "konbini" | "virtual_account";
+        /** @enum {unknown} */
+        PaymentStatus: "created" | "requires_action" | "processing" | "succeeded" | "failed" | "canceled" | "expired";
+        PaymentCreateRequest: {
+            point_product_id: components["schemas"]["OpaqueId"];
+            payment_method: components["schemas"]["PaymentMethod"];
+            card?: components["schemas"]["NewOneTimeCardSelection"] | components["schemas"]["NewSavedCardSelection"] | components["schemas"]["SavedCardSelection"];
+        };
+        NewOneTimeCardSelection: {
+            /** @constant */
+            source: "new";
+            /** @constant */
+            save: false;
+        };
+        NewSavedCardSelection: {
+            /** @constant */
+            source: "new";
+            /** @constant */
+            save: true;
+            registration_intent_id: components["schemas"]["OpaqueId"];
+            provider_card_id: string;
+        };
+        SavedCardSelection: {
+            /** @constant */
+            source: "saved";
+            card_id: components["schemas"]["OpaqueId"];
+        };
+        Payment: {
+            id: components["schemas"]["OpaqueId"];
+            method: components["schemas"]["PaymentMethod"];
+            status: components["schemas"]["PaymentStatus"];
+            amount: components["schemas"]["PointProductPrice"];
+            grant: components["schemas"]["PaymentGrant"];
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            succeeded_at: string | null;
+            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"];
+        };
+        PaymentGrant: {
+            paid_points: number;
+            bonus_points: number;
+        };
+        PaymentRedirectAction: {
+            /** @enum {unknown} */
+            type: "redirect" | "three_d_secure";
+            /** Format: uri */
+            url: string;
+        };
+        PaymentCardComponentAction: {
+            /** @constant */
+            type: "fincode_card_component";
+            payment_id: string;
+            access_id: string;
+            public_api_key: string;
+            /** @constant */
+            tds_type: "2";
+            /** Format: uri */
+            return_url: string;
+            /** Format: uri */
+            failure_url: string;
+        };
+        PaymentResume: {
+            payment_id: components["schemas"]["OpaqueId"];
+            next_action: components["schemas"]["PaymentRedirectAction"];
+        };
+        PaymentCollection: {
+            data: components["schemas"]["Payment"][];
+            pagination: components["schemas"]["PaymentCursorPagination"];
+        };
+        PaymentCursorPagination: {
+            limit: number;
+            has_more: boolean;
+            next_cursor: string | null;
+        };
+        PaymentCard: {
+            id: components["schemas"]["OpaqueId"];
+            brand: string | null;
+            last4: string;
+            expiration: {
+                month: number;
+                year: number;
+            };
+            is_expired: boolean;
+            can_pay: boolean;
+            /** Format: date-time */
+            last_used_at: string | null;
+        };
+        PaymentCardCollection: {
+            data: components["schemas"]["PaymentCard"][];
+            limits: {
+                /** @constant */
+                maximum: 3;
+                remaining: number;
+            };
+        };
+        PaymentCardRegistrationIntent: {
+            id: components["schemas"]["OpaqueId"];
+            /** Format: date-time */
+            expires_at: string;
+            provider_context: {
+                /** @constant */
+                provider: "fincode";
+                customer_id: string;
+                public_api_key: string;
+                /** @constant */
+                tds_type: "2";
+            };
+        };
+        PaymentCardRegistrationCompleteRequest: {
+            provider_card_id: string;
+        };
         ContentAsset: {
             id: components["schemas"]["OpaqueId"];
             path: string;
@@ -3138,6 +3389,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SmsVerificationStatus"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Paymentを作成し、必要な次操作を返す。到達または作成だけでは成功を意味しない。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ログインUserが所有するPayment。参照自体は状態を変更しない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    resumeUnpaidPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 新規Paymentを作成せず既存redirectを返す。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResume"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listMyPayments: {
+        parameters: {
+            query: {
+                view: "succeeded" | "unpaid";
+                limit?: components["parameters"]["CatalogLimit"];
+                cursor?: components["parameters"]["CatalogCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description succeededは成功のみ、unpaidは期限内Konbini/Virtual Accountのみ。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listPaymentCards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最大3枚。期限切れカードも表示するが利用不可。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCardCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deletePaymentCard: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                card_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cardを削除した。 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPaymentCardRegistrationIntent: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 同時Requestでも4枚目を成立させない登録Intent。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCardRegistrationIntent"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    completePaymentCardRegistration: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                registration_intent_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCardRegistrationCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description PAN/CVCを受け取らずProvider card referenceを照合して登録する。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCard"];
                 };
             };
             default: components["responses"]["Problem"];

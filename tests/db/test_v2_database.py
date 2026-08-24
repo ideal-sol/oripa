@@ -288,6 +288,15 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
+    def test_fincode_schema_inventory_is_explicit(self):
+        for table in (
+            "public.fincode_card_registration_intents",
+            "public.fincode_cards",
+            "public.fincode_customers",
+            "public.fincode_payment_attempts",
+        ):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+
     def test_catalog_schema_inventory_is_explicit(self):
         for table in (
             "public.catalog_categories",

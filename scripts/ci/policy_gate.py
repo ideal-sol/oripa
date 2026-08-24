@@ -430,11 +430,24 @@ MIG_063A_V2_PAYMENT_FILES = {
     "apps/api/tests/V2/LimitedBonusDomainCoreTest.php",
 }
 V2_PAYMENT_REQUIRED_FILES = {
+    "apps/api/app/Domain/Payment/V2/Exceptions/V2AdminPaymentReadException.php",
+    "apps/api/app/Domain/Payment/V2/Exceptions/V2FincodeException.php",
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2AdminPaymentReadService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeCardService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeClient.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodePaymentService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeWebhookService.php",
     "apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php",
+    "apps/api/app/Http/Controllers/V2/V2AdminPaymentController.php",
+    "apps/api/app/Http/Controllers/V2/V2FincodeWebhookController.php",
+    "apps/api/app/Http/Controllers/V2/V2PaymentController.php",
+    "apps/api/config/v2_fincode.php",
     "apps/api/config/v2_payment.php",
     "apps/api/database/migrations-v2/2026_07_25_000007_create_v2_payment_model_foundation.php",
+    "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
     "apps/api/tests/V2/PaymentModelFoundationTest.php",
+    "apps/api/tests/V2/FincodePaymentBackendTest.php",
     "docs/operations/payment-model/README.md",
     *MIG_061V_V2_PAYMENT_FILES,
     *MIG_062D_V2_PAYMENT_FILES,
@@ -1444,8 +1457,11 @@ def storefront_release_governance(repository: Path) -> dict:
     }
     if history[-1] != protected_history_row or len(history_versions) != len(set(history_versions)):
         raise PolicyFailure("Storefront immutable history order is invalid")
-    if not isinstance(candidate, dict) or candidate.get("release_mode") != "package-only":
-        raise PolicyFailure("Storefront package-only candidate is invalid")
+    if not isinstance(candidate, dict) or candidate.get("release_mode") not in {
+        "package-only",
+        "contract-additive",
+    }:
+        raise PolicyFailure("Storefront release candidate is invalid")
 
     alpha = re.compile(r"^(?P<family>[0-9]+)\.0\.0-alpha\.(?P<sequence>[0-9]+)$")
     latest_match = alpha.fullmatch(str(latest.get("bundle_version", "")))
@@ -1488,8 +1504,17 @@ def storefront_release_governance(repository: Path) -> dict:
     applications = candidate.get("application_versions")
     if set(contracts or {}) != {"public", "admin", "webhook"} or set(applications or {}) != {"workspace", "admin"}:
         raise PolicyFailure("Storefront Platform version inventory is invalid")
-    if contracts["public"] != latest.get("public_openapi", {}).get("version"):
-        raise PolicyFailure("Storefront Public OpenAPI reference is invalid")
+    if candidate["release_mode"] == "package-only":
+        if contracts["public"] != latest.get("public_openapi", {}).get("version"):
+            raise PolicyFailure("Storefront Public OpenAPI reference is invalid")
+    elif (
+        any(version != candidate.get("bundle_version") for version in contracts.values())
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", str(candidate.get("public_openapi_sha256", ""))
+        )
+        or candidate.get("public_api_operation_count") != 62
+    ):
+        raise PolicyFailure("Storefront additive contract candidate is invalid")
     client = packages["@oripa/storefront-client"]
     testkit = packages["@oripa/storefront-testkit"]
     if client.get("minimum_public_api_contract") != contracts["public"]:
@@ -1973,6 +1998,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
             "gacha.presentation.v2",
+            "payment.fincode.v2",
             "prize.fulfillment-browser-mutation.v2",
             "user-draw-history.read.v2",
             "user-point.read.v2",
@@ -2233,7 +2259,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "family": 2,
         "storefrontClientVersion": release_packages["@oripa/storefront-client"]["version"],
         "siteSchemaVersion": release_packages["@oripa/site-schema"]["version"],
-        "publicApiOperationCount": 54,
+        "publicApiOperationCount": 62,
     }:
         raise PolicyFailure(
             "packages/storefront-testkit/package.json: compatibility metadata is invalid"
@@ -2251,8 +2277,8 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
     for required in (
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
-        "operation_count: 54",
-        '"completeGoogleOidc","completeLineLogin","confirmPasswordReset","createContactInquiry","createDraw","createShippingAddress","createShippingRequest","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        "operation_count: 62",
+        '"completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","reauthenticateUserPassword","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -2557,6 +2583,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
         "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
         "2026_09_18_000064_add_v2_mail_templates.php",
+        "2026_09_21_000065_add_fincode_payment_backend_core.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3333,6 +3360,49 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if prohibited in service:
             raise PolicyFailure(f"V2 Payment service contains prohibited {prohibited}")
+
+    fincode_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_09_21_000065_add_fincode_payment_backend_core.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "fincode_customers",
+        "fincode_card_registration_intents",
+        "fincode_cards",
+        "fincode_payment_attempts",
+        "payment_method",
+        "provider_confirmed_at",
+    ):
+        if required not in fincode_migration:
+            raise PolicyFailure(f"fincode Payment migration missing {required}")
+    fincode_webhook = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/V2FincodeWebhookService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "webhook_signature",
+        "hash_equals",
+        "retrievePayment",
+        "CAPTURED",
+        "recordVerifiedProviderEvent",
+        "applyVerifiedStatus",
+    ):
+        if required not in fincode_webhook:
+            raise PolicyFailure(f"fincode Webhook service missing {required}")
+    fincode_payment = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/V2FincodePaymentService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "createRedirectSession",
+        "executeSavedCard",
+        "fincode_card_component",
+        "KONBINI_UNPAID_LIMIT_REACHED",
+        "UNPAID_PAYMENT_NOT_RESUMABLE",
+    ):
+        if required not in fincode_payment:
+            raise PolicyFailure(f"fincode Payment service missing {required}")
 
     limited_bonus_migration = (
         repository

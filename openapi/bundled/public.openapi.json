@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.23",
+    "version": "2.0.0-alpha.24",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2260,6 +2260,343 @@
           }
         }
       }
+    },
+    "/payments": {
+      "post": {
+        "operationId": "createPayment",
+        "summary": "fincode Paymentを支払操作時に開始する",
+        "x-idempotency": "required",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Paymentを作成し、必要な次操作を返す。到達または作成だけでは成功を意味しない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/payments/{payment_id}": {
+      "get": {
+        "operationId": "getPayment",
+        "summary": "Browser return後を含む現在のPlatform Payment状態を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ログインUserが所有するPayment。参照自体は状態を変更しない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/payments/{payment_id}/resume": {
+      "post": {
+        "operationId": "resumeUnpaidPayment",
+        "summary": "有効な未払いPaymentの既存fincode redirectを再開する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "新規Paymentを作成せず既存redirectを返す。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResume"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/payments": {
+      "get": {
+        "operationId": "listMyPayments",
+        "summary": "Storefront向け成功または有効未払いPayment履歴を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "succeeded",
+                "unpaid"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CatalogLimit"
+          },
+          {
+            "$ref": "#/components/parameters/CatalogCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "succeededは成功のみ、unpaidは期限内Konbini/Virtual Accountのみ。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/payment-cards": {
+      "get": {
+        "operationId": "listPaymentCards",
+        "summary": "fincodeに保持された登録カードの安全な表示情報を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "最大3枚。期限切れカードも表示するが利用不可。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/payment-cards/{card_id}": {
+      "delete": {
+        "operationId": "deletePaymentCard",
+        "summary": "ログインUserが所有するfincode登録カードを削除する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cardを削除した。"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registration-intents": {
+      "post": {
+        "operationId": "createPaymentCardRegistrationIntent",
+        "summary": "3DS必須のfincodeカード登録枠を予約する",
+        "x-idempotency": "required",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "同時Requestでも4枚目を成立させない登録Intent。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardRegistrationIntent"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registration-intents/{registration_intent_id}/complete": {
+      "post": {
+        "operationId": "completePaymentCardRegistration",
+        "summary": "fincodeから取得・ownership確認したカードを登録確定する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registration_intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCardRegistrationCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PAN/CVCを受け取らずProvider card referenceを照合して登録する。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCard"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2272,6 +2609,473 @@
       }
     },
     "schemas": {
+      "PaymentMethod": {
+        "enum": [
+          "credit_card",
+          "paypay",
+          "konbini",
+          "virtual_account"
+        ]
+      },
+      "PaymentStatus": {
+        "enum": [
+          "created",
+          "requires_action",
+          "processing",
+          "succeeded",
+          "failed",
+          "canceled",
+          "expired"
+        ]
+      },
+      "PaymentCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "point_product_id",
+          "payment_method"
+        ],
+        "properties": {
+          "point_product_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "payment_method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "card": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NewOneTimeCardSelection"
+              },
+              {
+                "$ref": "#/components/schemas/NewSavedCardSelection"
+              },
+              {
+                "$ref": "#/components/schemas/SavedCardSelection"
+              }
+            ]
+          }
+        }
+      },
+      "NewOneTimeCardSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "save"
+        ],
+        "properties": {
+          "source": {
+            "const": "new"
+          },
+          "save": {
+            "const": false
+          }
+        }
+      },
+      "NewSavedCardSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "save",
+          "registration_intent_id",
+          "provider_card_id"
+        ],
+        "properties": {
+          "source": {
+            "const": "new"
+          },
+          "save": {
+            "const": true
+          },
+          "registration_intent_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "provider_card_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "writeOnly": true
+          }
+        }
+      },
+      "SavedCardSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "card_id"
+        ],
+        "properties": {
+          "source": {
+            "const": "saved"
+          },
+          "card_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "method",
+          "status",
+          "amount",
+          "grant",
+          "expires_at",
+          "created_at",
+          "succeeded_at",
+          "next_action"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentStatus"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/PointProductPrice"
+          },
+          "grant": {
+            "$ref": "#/components/schemas/PaymentGrant"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "next_action": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentRedirectAction"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentCardComponentAction"
+              }
+            ]
+          }
+        }
+      },
+      "PaymentGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paid_points",
+          "bonus_points"
+        ],
+        "properties": {
+          "paid_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bonus_points": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PaymentRedirectAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "url"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "redirect",
+              "three_d_secure"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "PaymentCardComponentAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "payment_id",
+          "access_id",
+          "public_api_key",
+          "tds_type",
+          "return_url",
+          "failure_url"
+        ],
+        "properties": {
+          "type": {
+            "const": "fincode_card_component"
+          },
+          "payment_id": {
+            "type": "string",
+            "maxLength": 30
+          },
+          "access_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "public_api_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "tds_type": {
+            "const": "2"
+          },
+          "return_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "failure_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "PaymentResume": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "payment_id",
+          "next_action"
+        ],
+        "properties": {
+          "payment_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "next_action": {
+            "$ref": "#/components/schemas/PaymentRedirectAction"
+          }
+        }
+      },
+      "PaymentCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Payment"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaymentCursorPagination"
+          }
+        }
+      },
+      "PaymentCursorPagination": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "limit",
+          "has_more",
+          "next_cursor"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PaymentCard": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "brand",
+          "last4",
+          "expiration",
+          "is_expired",
+          "can_pay",
+          "last_used_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "last4": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$"
+          },
+          "expiration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "year"
+            ],
+            "properties": {
+              "month": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "year": {
+                "type": "integer",
+                "minimum": 2000,
+                "maximum": 9999
+              }
+            }
+          },
+          "is_expired": {
+            "type": "boolean"
+          },
+          "can_pay": {
+            "type": "boolean"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PaymentCardCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "limits"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/PaymentCard"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "maximum",
+              "remaining"
+            ],
+            "properties": {
+              "maximum": {
+                "const": 3
+              },
+              "remaining": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              }
+            }
+          }
+        }
+      },
+      "PaymentCardRegistrationIntent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "expires_at",
+          "provider_context"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "provider_context": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "customer_id",
+              "public_api_key",
+              "tds_type"
+            ],
+            "properties": {
+              "provider": {
+                "const": "fincode"
+              },
+              "customer_id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "public_api_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "tds_type": {
+                "const": "2"
+              }
+            }
+          }
+        }
+      },
+      "PaymentCardRegistrationCompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider_card_id"
+        ],
+        "properties": {
+          "provider_card_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "writeOnly": true
+          }
+        }
+      },
       "ContentAsset": {
         "type": "object",
         "additionalProperties": false,

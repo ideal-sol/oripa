@@ -703,6 +703,33 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
+    def test_storefront_release_governance_accepts_additive_alpha_24_contract(self):
+        value = policy_gate.storefront_release_governance(ROOT)
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(
+            value["candidate"]["contract_versions"],
+            {
+                "public": "2.0.0-alpha.24",
+                "admin": "2.0.0-alpha.24",
+                "webhook": "2.0.0-alpha.24",
+            },
+        )
+
+    def test_storefront_release_governance_rejects_invalid_candidate_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "manifests/storefront-contract-releases.json"
+            target.parent.mkdir(parents=True)
+            value = json.loads(
+                (ROOT / "manifests/storefront-contract-releases.json").read_text()
+            )
+            value["candidate"]["public_openapi_sha256"] = "0"
+            target.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "additive contract candidate"
+            ):
+                policy_gate.storefront_release_governance(root)
+
     def test_release_artifact_floating_base_image_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1250,6 +1277,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_15_000061_allow_v2_gacha_unpublished_draft_restore.php",
             "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
             "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
+            "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2362,11 +2390,12 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.23",
+                        "minimumPublicApiContract": "2.0.0-alpha.24",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
                             "gacha.presentation.v2",
+                            "payment.fincode.v2",
                             "prize.fulfillment-browser-mutation.v2",
                             "user-draw-history.read.v2",
                             "user-point.read.v2",
@@ -2674,8 +2703,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 54",
-                    "operation_count: 52",
+                    "operation_count: 62",
+                    "operation_count: 60",
                 ),
                 encoding="utf-8",
             )

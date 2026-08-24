@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.23
+  version: 2.0.0-alpha.24
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -4526,6 +4526,75 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/Problem'
+  /payments:
+    get:
+      operationId: listPayments
+      summary: 全UserのCanonical Payment履歴を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminPaymentStatus'
+        - name: payment_method
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminPaymentMethod'
+        - name: user_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+      responses:
+        '200':
+          description: succeeded、pending、expired、failed、canceledを含む全Payment状態。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPaymentCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /users/{user_id}/payments:
+    get:
+      operationId: listUserPayments
+      summary: User Detail向け対象UserのCanonical Payment履歴を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminPaymentStatus'
+        - name: payment_method
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminPaymentMethod'
+      responses:
+        '200':
+          description: 指定Userの全Payment状態。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPaymentCollection'
+        default:
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     adminSession:
@@ -4533,6 +4602,99 @@ components:
       in: cookie
       name: __Host-oripa_admin_session
   schemas:
+    AdminPaymentMethod:
+      enum: [credit_card, paypay, konbini, virtual_account]
+    AdminPaymentStatus:
+      enum: [created, requires_action, processing, succeeded, failed, canceled, expired]
+    AdminPayment:
+      type: object
+      additionalProperties: false
+      required: [id, user, provider, provider_payment_reference, method, status, provider_status, amount, grant, expires_at, succeeded_at, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        user:
+          type: object
+          additionalProperties: false
+          required: [id, display_name]
+          properties:
+            id:
+              $ref: '#/components/schemas/OpaqueId'
+            display_name:
+              type: [string, 'null']
+              maxLength: 191
+        provider:
+          const: fincode
+        provider_payment_reference:
+          type: string
+          maxLength: 64
+        method:
+          $ref: '#/components/schemas/AdminPaymentMethod'
+        status:
+          $ref: '#/components/schemas/AdminPaymentStatus'
+        provider_status:
+          type: [string, 'null']
+          maxLength: 64
+        amount:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:
+              type: integer
+              minimum: 1
+            currency:
+              const: JPY
+        grant:
+          type: object
+          additionalProperties: false
+          required: [paid_points, bonus_points, granted_at]
+          properties:
+            paid_points:
+              type: integer
+              minimum: 0
+            bonus_points:
+              type: integer
+              minimum: 0
+            granted_at:
+              type: [string, 'null']
+              format: date-time
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+        succeeded_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminPaymentCollection:
+      type: object
+      additionalProperties: false
+      required: [data, pagination, request_id]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminPayment'
+        pagination:
+          type: object
+          additionalProperties: false
+          required: [limit, has_more, next_cursor]
+          properties:
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+            has_more:
+              type: boolean
+            next_cursor:
+              type: [string, 'null']
+        request_id:
+          $ref: '#/components/schemas/OpaqueId'
     AdminPointPurchasePlan:
       type: object
       additionalProperties: false

@@ -32,6 +32,7 @@ use App\Http\Controllers\V2\V2ContentContactController;
 use App\Http\Controllers\V2\V2CurrentUserPointController;
 use App\Http\Controllers\V2\V2CurrentUserLineController;
 use App\Http\Controllers\V2\V2PointProductController;
+use App\Http\Controllers\V2\V2PaymentController;
 
 Route::prefix('v2')->group(function (): void {
     Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
@@ -98,6 +99,23 @@ Route::prefix('v2')
             ->name('v2.public.wallet.show');
         Route::get('/me/point-ledgers', [V2CurrentUserPointController::class, 'history'])
             ->name('v2.public.point-ledgers.index');
+        Route::post('/payments', [V2PaymentController::class, 'store'])
+            ->name('v2.public.payments.store');
+        Route::get('/payments/{paymentId}', [V2PaymentController::class, 'show'])
+            ->whereUuid('paymentId')->name('v2.public.payments.show');
+        Route::post('/payments/{paymentId}/resume', [V2PaymentController::class, 'resume'])
+            ->whereUuid('paymentId')->name('v2.public.payments.resume');
+        Route::get('/me/payments', [V2PaymentController::class, 'history'])
+            ->name('v2.public.payments.history');
+        Route::get('/me/payment-cards', [V2PaymentController::class, 'cards'])
+            ->name('v2.public.payment-cards.index');
+        Route::post('/me/payment-card-registration-intents', [V2PaymentController::class, 'reserveCard'])
+            ->name('v2.public.payment-card-registration-intents.store');
+        Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
+            ->whereUuid('registrationIntentId')
+            ->name('v2.public.payment-card-registration-intents.complete');
+        Route::delete('/me/payment-cards/{cardId}', [V2PaymentController::class, 'deleteCard'])
+            ->whereUuid('cardId')->name('v2.public.payment-cards.destroy');
         Route::get('/me/line-friend-state', [V2CurrentUserLineController::class, 'show'])
             ->name('v2.public.line-friend-state.show');
         Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
