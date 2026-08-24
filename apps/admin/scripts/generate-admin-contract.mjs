@@ -33,6 +33,7 @@ const operations = {
   assignAdminUserTag: ["post", "/users/{user_id}/tags/{tag_id}"],
   detachAdminUserTag: ["delete", "/users/{user_id}/tags/{tag_id}"],
   listAdminUserGachaHistory: ["get", "/users/{user_id}/gacha-history"],
+  listAdminUserReferralHistory: ["get", "/users/{user_id}/referral-history"],
   adjustAdminUserPoints: ["post", "/users/{user_id}/point-adjustments"],
   getAdminDashboardMonthlySales: [
     "get",
@@ -418,6 +419,7 @@ const requiredSchemas = [
   "AdminUserTagSetResponse",
   "AdminUserTagSetMutationResult",
   "AdminUserGachaHistoryCollection",
+  "AdminUserReferralHistoryCollection",
   "AdminUserPrizeCollection",
   "AdminUserPrizeDetailResponse",
   "AdminUserPrizeStatus",
@@ -819,6 +821,22 @@ export interface AdminUserGachaHistoryItem {
 export interface AdminUserGachaHistoryCollection {
   user_id: string;
   items: AdminUserGachaHistoryItem[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserReferralHistoryItem {
+  id: string;
+  referred_user_id: string;
+  referred_user_display_name: string | null;
+  status: "pending" | "rewarded" | "canceled";
+  referred_at: string;
+  registered_at: string;
+}
+
+export interface AdminUserReferralHistoryCollection {
+  user_id: string;
+  items: AdminUserReferralHistoryItem[];
   next_cursor: string | null;
   request_id: string;
 }

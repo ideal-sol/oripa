@@ -27,6 +27,9 @@ vi.mock("@/components/permissions/permission-provider", () => ({
   }),
 }));
 vi.mock("@/components/auth/fresh-mfa-dialog", () => ({ FreshMfaDialog: () => null }));
+vi.mock("@/components/users/admin-user-referral-history", () => ({
+  AdminUserReferralHistory: () => <section><h2>紹介履歴</h2></section>,
+}));
 
 import { AdminUserReadWorkspace } from "@/components/users/admin-user-read-workspace";
 
@@ -77,6 +80,7 @@ describe("Admin User Read workspace", () => {
 
     expect(screen.getByRole("heading", { name: "基本情報" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "コイン残高" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "紹介履歴" })).toBeVisible();
     expect(screen.getByText("合計コイン")).toBeVisible();
     expect(screen.getByText("有償コイン")).toBeVisible();
     expect(screen.getByText("ボーナスコイン")).toBeVisible();

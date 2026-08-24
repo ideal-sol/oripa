@@ -8956,6 +8956,47 @@
         }
       }
     },
+    "/users/{user_id}/referral-history": {
+      "get": {
+        "operationId": "listAdminUserReferralHistory",
+        "summary": "Userが紹介者であるReferral履歴を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "選択Userが紹介したUserだけを含むStable SortされたReferral履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserReferralHistoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/users/{user_id}/point-adjustments": {
       "post": {
         "operationId": "adjustAdminUserPoints",
@@ -20620,6 +20661,78 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AdminUserGachaHistoryItem"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminUserReferralHistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "referred_user_id",
+          "referred_user_display_name",
+          "status",
+          "referred_at",
+          "registered_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "referred_user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "referred_user_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "rewarded",
+              "canceled"
+            ]
+          },
+          "referred_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "registered_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "AdminUserReferralHistoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserReferralHistoryItem"
             }
           },
           "next_cursor": {

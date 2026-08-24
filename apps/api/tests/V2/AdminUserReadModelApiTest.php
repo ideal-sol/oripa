@@ -66,7 +66,71 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertJsonPath('user_id', $user['public_id'])
                 ->assertJsonCount(0, 'items');
             $this->assertPrivateContract($history);
+
+            $referrals = $client
+                ->getJson('/admin/api/v2/users/'.$user['public_id'].'/referral-history')
+                ->assertOk()
+                ->assertJsonPath('user_id', $user['public_id'])
+                ->assertJsonCount(0, 'items');
+            $this->assertPrivateContract($referrals);
         }
+    }
+
+    public function test_referral_history_is_referrer_only_and_cursor_paginated(): void
+    {
+        $referrer = $this->user('紹介者A');
+        $firstReferred = $this->user('紹介先B');
+        $secondReferred = $this->user('紹介先C');
+        $thirdReferred = $this->user(null);
+        $otherReferrer = $this->user('別の紹介者');
+        $otherReferred = $this->user('別の紹介先');
+
+        $this->referral($referrer['id'], $firstReferred['id'], 'pending', '2026-08-21T00:00:00Z');
+        $this->referral($referrer['id'], $secondReferred['id'], 'rewarded', '2026-08-22T00:00:00Z');
+        $this->referral($referrer['id'], $thirdReferred['id'], 'canceled', '2026-08-23T00:00:00Z');
+        $this->referral($otherReferrer['id'], $referrer['id'], 'rewarded', '2026-08-20T00:00:00Z');
+        $this->referral($otherReferrer['id'], $otherReferred['id'], 'pending', '2026-08-19T00:00:00Z');
+
+        $pointOperationCount = DB::table('point_operations')->count();
+        $referralRows = DB::table('user_referrals')->orderBy('id')->get()->toJson();
+        $client = $this->asAdmin($this->sessionToken(V2AdminRole::Operator));
+        $firstPage = $client
+            ->getJson('/admin/api/v2/users/'.$referrer['public_id'].'/referral-history?limit=2')
+            ->assertOk()
+            ->assertJsonPath('user_id', $referrer['public_id'])
+            ->assertJsonCount(2, 'items')
+            ->assertJsonPath('items.0.referred_user_id', $thirdReferred['public_id'])
+            ->assertJsonPath('items.0.referred_user_display_name', null)
+            ->assertJsonPath('items.0.status', 'canceled')
+            ->assertJsonPath('items.0.referred_at', '2026-08-23T00:00:00+00:00')
+            ->assertJsonPath('items.0.registered_at', $thirdReferred['created_at'])
+            ->assertJsonPath('items.1.referred_user_id', $secondReferred['public_id'])
+            ->assertJsonPath('items.1.status', 'rewarded');
+        $this->assertPrivateContract($firstPage);
+        $cursor = $firstPage->json('next_cursor');
+        self::assertIsString($cursor);
+
+        $secondPage = $client
+            ->getJson('/admin/api/v2/users/'.$referrer['public_id'].'/referral-history?limit=2&cursor='.urlencode($cursor))
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.referred_user_id', $firstReferred['public_id'])
+            ->assertJsonPath('next_cursor', null);
+        $this->assertPrivateContract($secondPage);
+
+        $returnedIds = collect([
+            ...$firstPage->json('items'),
+            ...$secondPage->json('items'),
+        ])->pluck('referred_user_id')->all();
+        self::assertSame([
+            $thirdReferred['public_id'],
+            $secondReferred['public_id'],
+            $firstReferred['public_id'],
+        ], $returnedIds);
+        self::assertNotContains($referrer['public_id'], $returnedIds);
+        self::assertNotContains($otherReferred['public_id'], $returnedIds);
+        self::assertSame($pointOperationCount, DB::table('point_operations')->count());
+        self::assertSame($referralRows, DB::table('user_referrals')->orderBy('id')->get()->toJson());
     }
 
     public function test_detail_returns_available_balances_and_the_next_exact_expiry_bucket(): void
@@ -106,6 +170,7 @@ final class AdminUserReadModelApiTest extends TestCase
     public function test_unauthenticated_disabled_not_found_and_invalid_cursor_fail_closed(): void
     {
         $this->getJson('/admin/api/v2/users')->assertUnauthorized();
+        $this->getJson('/admin/api/v2/users/'.Str::uuid7().'/referral-history')->assertUnauthorized();
 
         $token = $this->sessionToken(V2AdminRole::Operator);
         DB::table('admins')->where('email_normalized', 'like', 'user-read-api-%')
@@ -169,14 +234,14 @@ final class AdminUserReadModelApiTest extends TestCase
         return $token;
     }
 
-    /** @return array{id: int, public_id: string, email: string} */
-    private function user(): array
+    /** @return array{id: int, public_id: string, email: string, created_at: string} */
+    private function user(?string $displayName = '表示名'): array
     {
         $publicId = (string) Str::uuid7();
         $email = 'user-read-target-'.Str::uuid7().'@example.test';
         $userId = DB::table('users')->insertGetId([
             'public_id' => $publicId,
-            'display_name' => '表示名',
+            'display_name' => $displayName,
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
@@ -196,7 +261,35 @@ final class AdminUserReadModelApiTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        return ['id' => $userId, 'public_id' => $publicId, 'email' => $email];
+        return [
+            'id' => $userId,
+            'public_id' => $publicId,
+            'email' => $email,
+            'created_at' => now()->startOfSecond()->utc()->toIso8601String(),
+        ];
+    }
+
+    private function referral(
+        int $referrerUserId,
+        int $referredUserId,
+        string $status,
+        string $createdAt
+    ): void {
+        DB::table('user_referrals')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'referrer_user_id' => $referrerUserId,
+            'referred_user_id' => $referredUserId,
+            'referral_code' => 'LP'.Str::random(10),
+            'status' => $status,
+            'reward_enabled' => false,
+            'referrer_point_amount' => 0,
+            'referred_user_point_amount' => 0,
+            'reward_expiration_days' => 180,
+            'rewarded_at' => $status === 'rewarded' ? $createdAt : null,
+            'canceled_at' => $status === 'canceled' ? $createdAt : null,
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
+        ]);
     }
 
     private function lot(

@@ -104,22 +104,25 @@ describe("AdminApiClient", () => {
     }
   });
 
-  it("reads User list, detail, and gacha history only through public IDs", async () => {
+  it("reads User list, detail, gacha history, and referral history only through public IDs", async () => {
     const userId = "01910191-0191-7191-8191-019101910191";
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }))
       .mockResolvedValueOnce(jsonResponse({ data: { id: userId } }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null, user_id: userId }))
       .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null, user_id: userId }));
     const client = new AdminApiClient(fetcher, () => csrf);
 
     await client.listAdminUsers("djE6MTA=");
     await client.getAdminUser(userId);
     await client.listAdminUserGachaHistory(userId);
+    await client.listAdminUserReferralHistory(userId, "djE6MTA=");
 
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       "/admin/api/v2/users?limit=50&cursor=djE6MTA%3D",
       `/admin/api/v2/users/${userId}`,
       `/admin/api/v2/users/${userId}/gacha-history?limit=50`,
+      `/admin/api/v2/users/${userId}/referral-history?limit=50&cursor=djE6MTA%3D`,
     ]);
     for (const [, request] of fetcher.mock.calls) {
       expect(request?.credentials).toBe("include");

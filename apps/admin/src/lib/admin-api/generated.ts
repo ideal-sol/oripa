@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 9a90aa5e1f06edfb575c3402acdf4bf7c20e019a6f41b04906d45f6a6a5cd3cb
+// Contract SHA-256: b605f768c0869214080cc9bc51f5048d7d4d586e01a370f49cc50852246d6aa0
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -246,6 +246,22 @@ export interface AdminUserGachaHistoryItem {
 export interface AdminUserGachaHistoryCollection {
   user_id: string;
   items: AdminUserGachaHistoryItem[];
+  next_cursor: string | null;
+  request_id: string;
+}
+
+export interface AdminUserReferralHistoryItem {
+  id: string;
+  referred_user_id: string;
+  referred_user_display_name: string | null;
+  status: "pending" | "rewarded" | "canceled";
+  referred_at: string;
+  registered_at: string;
+}
+
+export interface AdminUserReferralHistoryCollection {
+  user_id: string;
+  items: AdminUserReferralHistoryItem[];
   next_cursor: string | null;
   request_id: string;
 }
