@@ -15,6 +15,7 @@ export type AdminRouteId =
   | "user-prizes"
   | "purchase-plans"
   | "purchase-plans-create"
+  | "payments"
   | "announcements"
   | "announcements-create"
   | "banners"
@@ -97,6 +98,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("user-prizes", "保有景品", "/user-prizes", "shipping.request.manage", "prize"),
   route("purchase-plans", "一覧", "/purchase-plans", "payment.plan.read", "purchase", "available"),
   route("purchase-plans-create", "登録", "/purchase-plans/new", "payment.plan.manage", "purchase", "available"),
+  route("payments", "決済履歴", "/payments", "reporting.financial.read", "purchase", "available", "none"),
   route("announcements", "一覧", "/announcements", "content.read", "announcements", "scaffold"),
   route("announcements-create", "登録", "/announcements/new", "content.manage", "announcements", "scaffold"),
   route("banners", "一覧", "/banners", "content.read", "banners", "scaffold"),
@@ -135,6 +137,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
   group("purchase", "ポイント購入", "purchase", [
     "purchase-plans",
     "purchase-plans-create",
+    "payments",
   ]),
   group("announcements", "お知らせ", "announcements", [
     "announcements",

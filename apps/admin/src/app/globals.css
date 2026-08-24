@@ -141,6 +141,164 @@
   }
 }
 
+.admin-payment-workspace,
+.admin-payment-list-section,
+.admin-payment-embedded {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-payment-filters {
+  align-items: end;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px;
+}
+
+.admin-payment-filters label {
+  color: #344054;
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 7px;
+  min-width: 190px;
+}
+
+.admin-payment-filters select {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 34px 9px 11px;
+}
+
+.admin-payment-filters select:focus-visible,
+.admin-payment-table-region:focus-visible {
+  outline: 3px solid #d1e9ff;
+  outline-offset: 2px;
+}
+
+.admin-payment-filters .text-button {
+  min-height: 42px;
+}
+
+.admin-payment-table-region {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.admin-payment-table {
+  border-collapse: collapse;
+  min-width: 940px;
+  width: 100%;
+}
+
+.admin-payment-table th,
+.admin-payment-table td {
+  border-bottom: 1px solid #eaecf0;
+  padding: 13px 16px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.admin-payment-table th {
+  background: #f9fafb;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-payment-table td {
+  color: #344054;
+  font-size: 14px;
+}
+
+.admin-payment-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-payment-table code {
+  color: #175cd3;
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.admin-payment-table td > strong + a {
+  display: block;
+  margin-top: 4px;
+}
+
+.admin-payment-pagination {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.admin-payment-status.is-created,
+.admin-payment-status.is-canceled {
+  background: #f2f4f7;
+  border-color: #d0d5dd;
+  color: #344054;
+}
+
+.admin-payment-status.is-requires_action {
+  background: #fffaeb;
+  border-color: #fedf89;
+  color: #93370d;
+}
+
+.admin-payment-status.is-processing {
+  background: #eff8ff;
+  border-color: #b2ddff;
+  color: #175cd3;
+}
+
+.admin-payment-status.is-succeeded {
+  background: #ecfdf3;
+  border-color: #abefc6;
+  color: #067647;
+}
+
+.admin-payment-status.is-failed {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: #b42318;
+}
+
+.admin-payment-status.is-expired {
+  background: #f4f3ff;
+  border-color: #d9d6fe;
+  color: #5925dc;
+}
+
+@media (max-width: 640px) {
+  .admin-payment-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-payment-filters label,
+  .admin-payment-filters button {
+    width: 100%;
+  }
+
+  .admin-payment-pagination .secondary-button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 .rich-text-field {
   color: #344054;
   display: grid;

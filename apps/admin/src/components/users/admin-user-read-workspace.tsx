@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { usePermissions } from "@/components/permissions/permission-provider";
+import { AdminPaymentHistory } from "@/components/payments/admin-payment-history";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
 import { AdminUserQaTestMode } from "@/components/users/admin-user-qa-test-mode";
@@ -186,6 +187,9 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
           <Definition label="更新日">{formatDateTime(user.updated_at)}</Definition>
         </dl>
       </section>
+      {hasPermission("reporting.financial.read") ? (
+        <AdminPaymentHistory userPublicId={user.id} />
+      ) : null}
       <AdminUserReferralHistory userPublicId={user.id} />
       <AdminUserStateManagement
         onRefresh={() => onRefresh("ユーザー状態を更新し、最新情報を再取得しました。")}

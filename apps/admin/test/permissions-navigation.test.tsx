@@ -113,6 +113,19 @@ describe("Admin permission navigation", () => {
     }
   });
 
+  it("places Payment history in Point Purchase for financial readers only", () => {
+    permissionState.permissions = new Set(["reporting.financial.read"]);
+    render(<AdminNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "ポイント購入" }));
+    expect(screen.getByRole("link", { name: "決済履歴" })).toHaveAttribute(
+      "href",
+      "/payments",
+    );
+    expect(screen.queryByRole("link", { name: "一覧" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "登録" })).toBeNull();
+  });
+
   it("blocks a direct route when its permission is absent", () => {
     render(
       <ProtectedAdminRoute permission="qa.draw.manage">

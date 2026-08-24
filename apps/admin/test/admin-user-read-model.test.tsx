@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminUserReadData } from "@/components/users/use-admin-user-read-model";
 import { AdminApiClient } from "@/lib/admin-api/client";
 import type {
+  AdminPaymentCollection,
   AdminPermissionCode,
   AdminUserReferralHistoryCollection,
 } from "@/lib/admin-api/generated";
@@ -95,11 +96,40 @@ describe("Admin User Read workspace", () => {
     expect(screen.getByText("300 コイン")).toBeVisible();
     expect(screen.getByText("2026/08/20 9:30")).toBeVisible();
     expect(screen.queryByText("ユーザー保有景品")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "決済履歴" })).toBeNull();
     expect(screen.getByRole("link", { name: "ガチャ履歴を表示" })).toHaveAttribute(
       "href",
       `/users/${uuid("1")}/gacha-history`,
     );
     expect(screen.queryByRole("button", { name: /調整|Save|保存/u })).toBeNull();
+  });
+
+  it("shows only the selected User Payment history for the canonical permission", async () => {
+    state.data = { kind: "detail", value: {
+      ...userSummary(),
+      email: "user@example.test",
+      email_verified_at: "2026-08-03T00:00:00Z",
+      state_revision: 1,
+      tag_assignment_revision: 1,
+      tags: [],
+      updated_at: "2026-08-03T01:00:00Z",
+    } };
+    permissions.add("reporting.financial.read");
+    const reader = vi.spyOn(AdminApiClient.prototype, "listAdminUserPayments")
+      .mockResolvedValue(paymentCollection(uuid("1")));
+
+    render(<AdminUserReadWorkspace mode="detail" userPublicId={uuid("1")} />);
+
+    expect(await screen.findByRole("heading", { name: "決済履歴" })).toBeVisible();
+    expect(screen.getByText("決済成功")).toBeVisible();
+    expect(screen.getByText("PayPay")).toBeVisible();
+    expect(screen.getByText(/2,000/u)).toBeVisible();
+    expect(reader).toHaveBeenCalledWith(
+      uuid("1"),
+      expect.objectContaining({ limit: 20 }),
+      expect.any(AbortSignal),
+    );
+    expect(screen.queryByRole("columnheader", { name: "User" })).toBeNull();
   });
 
   it("shows point adjustment only when the canonical permission is effective", () => {
@@ -269,6 +299,28 @@ function referralCollection(
   nextCursor: string | null = null,
 ): AdminUserReferralHistoryCollection {
   return { user_id: userId, items, next_cursor: nextCursor, request_id: uuid("9") };
+}
+
+function paymentCollection(userId: string): AdminPaymentCollection {
+  return {
+    data: [{
+      amount: { amount: 2000, currency: "JPY" },
+      created_at: "2026-08-24T15:00:00Z",
+      expires_at: null,
+      grant: { bonus_points: 200, granted_at: "2026-08-24T15:05:00Z", paid_points: 2000 },
+      id: uuid("5"),
+      method: "paypay",
+      provider: "fincode",
+      provider_payment_reference: "payment-reference-5",
+      provider_status: null,
+      status: "succeeded",
+      succeeded_at: "2026-08-24T15:00:00Z",
+      updated_at: "2026-08-24T15:05:00Z",
+      user: { display_name: "対象ユーザー", id: userId },
+    }],
+    pagination: { has_more: false, limit: 20, next_cursor: null },
+    request_id: uuid("9"),
+  };
 }
 
 function referralItem(
