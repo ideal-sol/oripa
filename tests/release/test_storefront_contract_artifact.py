@@ -29,6 +29,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def governance(self):
         return artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
 
+    def test_git_utc_timestamp_is_supported(self):
+        parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
+        self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
+
     def test_declared_additive_contract_release_is_valid(self):
         value = artifact.validate_governance(self.governance())
         self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.24")

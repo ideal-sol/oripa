@@ -56,6 +56,15 @@ def alpha_identity(version: object) -> tuple[int, int]:
     return int(match.group("family")), int(match.group("sequence"))
 
 
+def parse_git_time(value: str) -> dt.datetime:
+    try:
+        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+            dt.timezone.utc
+        )
+    except ValueError as error:
+        raise ArtifactError("source commit timestamp invalid") from error
+
+
 def run(command: list[str], *, cwd: Path, capture: bool = False) -> str:
     result = subprocess.run(
         command,
@@ -445,7 +454,7 @@ def build(repository: Path, output: Path, source_commit: str) -> None:
         assets[name] = {"file": matches[0].name, "sha256": sha256_file(matches[0]), "browser_compatible": True}
     shutil.copyfile(repository / PUBLIC_OPENAPI_PATH, output / PUBLIC_OPENAPI_PATH.name)
     created = run(["git", "show", "-s", "--format=%cI", source_commit], cwd=repository, capture=True)
-    generated = dt.datetime.fromisoformat(created).astimezone(dt.timezone.utc)
+    generated = parse_git_time(created)
     write_json(output / "artifact-manifest.json", create_manifest(repository, source_commit, generated.replace(microsecond=0).isoformat().replace("+00:00", "Z"), assets))
     write_checksums(output)
     verify_manifest(repository, output)
