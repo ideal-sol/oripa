@@ -90,6 +90,8 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.line_messaging_settings",
     "public.line_pending_follows",
     "public.line_webhook_events",
+    "public.mail_deliveries",
+    "public.mail_templates",
     "public.migrations",
     "public.outbox_messages",
     "public.password_reset_tokens",

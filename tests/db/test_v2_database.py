@@ -280,6 +280,14 @@ class V2DatabaseGuardTest(unittest.TestCase):
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
         )
 
+    def test_mail_template_schema_inventory_is_explicit(self):
+        for table in ("public.mail_deliveries", "public.mail_templates"):
+            self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)
+        self.assertEqual(
+            sorted(v2_database.EXPECTED_V2_SCHEMA_INVENTORY),
+            v2_database.EXPECTED_V2_SCHEMA_INVENTORY,
+        )
+
     def test_catalog_schema_inventory_is_explicit(self):
         for table in (
             "public.catalog_categories",
