@@ -239,11 +239,9 @@ function semanticText(value: string): boolean {
 }
 
 function semanticHtml(value: string): boolean {
-  if (/<img\b/i.test(value)) return true;
-  if (typeof document === "undefined") return semanticText(value.replace(/<[^>]*>/g, ""));
-  const container = document.createElement("div");
-  container.innerHTML = value;
-  return semanticText(container.textContent ?? "");
+  const parsed = new DOMParser().parseFromString(value, "text/html");
+  if (parsed.body.querySelector("img[src]")) return true;
+  return semanticText(parsed.body.textContent ?? "");
 }
 
 function renderMailPreview(target: Document, html: string): void {
