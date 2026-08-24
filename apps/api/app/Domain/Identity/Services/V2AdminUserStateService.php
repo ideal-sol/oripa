@@ -9,6 +9,7 @@ use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AdminUserStateException;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\User;
 use Illuminate\Support\Facades\DB;
 use Normalizer;
@@ -24,7 +25,8 @@ final class V2AdminUserStateService
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
         private readonly V2PointIdempotencyService $idempotency,
-        private readonly V2AuditLogService $audit
+        private readonly V2AuditLogService $audit,
+        private readonly V2TemplateMailDeliveryService $templateMail
     ) {
     }
 
@@ -157,6 +159,14 @@ final class V2AdminUserStateService
                     $user->public_id,
                     ['data' => $data]
                 );
+                if ($after === V2UserState::Closed) {
+                    $this->templateMail->schedule(
+                        'user_closed',
+                        'user.closed:'.$user->public_id,
+                        'user',
+                        $user->public_id
+                    );
+                }
 
                 return ['data' => $data, 'idempotent_replay' => false];
             }, 3);

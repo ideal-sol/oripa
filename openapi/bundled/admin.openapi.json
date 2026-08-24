@@ -4684,6 +4684,162 @@
         }
       }
     },
+    "/mail-templates": {
+      "get": {
+        "operationId": "listAdminMailTemplates",
+        "summary": "固定Mail Template一覧を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "固定Mail Template一覧。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailTemplateCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/mail-templates/{template_key}": {
+      "get": {
+        "operationId": "getAdminMailTemplate",
+        "summary": "固定Mail Template詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MailTemplateKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "固定Mail Template詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailTemplate"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminMailTemplate",
+        "summary": "固定Mail Templateの件名と本文を更新する",
+        "x-idempotency": "required",
+        "x-rate-limit": "critical-admin-mutation",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MailTemplateKey"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMailTemplateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新した固定Mail Template。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailTemplateMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/mail-templates/{template_key}/preview": {
+      "post": {
+        "operationId": "previewAdminMailTemplate",
+        "summary": "未保存のMail本文を固定ダミー値で安全にPreviewする",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MailTemplateKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMailTemplatePreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "実送信と同じ経路で生成した本文HTML。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailTemplatePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/page-management/pages/preview": {
       "post": {
         "operationId": "previewManagedAdminPage",
@@ -16031,6 +16187,177 @@
           }
         }
       },
+      "MailTemplateKey": {
+        "type": "string",
+        "enum": [
+          "email_verification",
+          "registration_completed",
+          "coin_purchase_completed",
+          "shipping_requested",
+          "shipping_completed",
+          "user_closed",
+          "contact_received"
+        ]
+      },
+      "AdminMailTemplateVariable": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "token"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^\\{\\{[a-z][a-z0-9_]*\\}\\}$"
+          }
+        }
+      },
+      "AdminMailTemplate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "subject",
+          "body_html",
+          "revision",
+          "variables",
+          "updated_at"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/MailTemplateKey"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "body_html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "variables": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AdminMailTemplateVariable"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminMailTemplateCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 7,
+            "maxItems": 7,
+            "items": {
+              "$ref": "#/components/schemas/AdminMailTemplate"
+            }
+          }
+        }
+      },
+      "AdminMailTemplateUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subject",
+          "body_html",
+          "expected_revision"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "body_html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminMailTemplateMutationResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminMailTemplate"
+          },
+          {
+            "type": "object",
+            "required": [
+              "idempotent_replay"
+            ],
+            "properties": {
+              "idempotent_replay": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "AdminMailTemplatePreviewInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "body_html"
+        ],
+        "properties": {
+          "body_html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "AdminMailTemplatePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "body_html"
+        ],
+        "properties": {
+          "body_html": {
+            "type": "string"
+          }
+        }
+      },
       "AdminBannerCategoryCollection": {
         "type": "object",
         "additionalProperties": false,
@@ -21839,6 +22166,14 @@
       }
     },
     "parameters": {
+      "MailTemplateKey": {
+        "name": "template_key",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/MailTemplateKey"
+        }
+      },
       "CatalogResourceId": {
         "name": "catalog_resource_id",
         "in": "path",

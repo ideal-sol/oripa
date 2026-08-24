@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, type RefObject, useEffect, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { RichTextEditor } from "@/components/rich-text/rich-text-editor";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -193,7 +194,7 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
       <form className="announcement-form" onSubmit={submit}>
         {error ? <div className="form-error" role="alert">{error}</div> : null}
         <label>タイトル<input disabled={!canManage} maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-        <label>本文内容<textarea className="admin-static-page-body" disabled={!canManage} maxLength={100000} required value={draft.body_html} onChange={(event) => setDraft({ ...draft, body_html: event.target.value })} /></label>
+        <div className="rich-text-field"><span>本文内容</span><RichTextEditor disabled={!canManage} label="ページ本文" value={draft.body_html} onChange={(body_html) => setDraft((current) => ({ ...current, body_html }))} /></div>
         <div className="announcement-form-grid">
           <label>slug<input disabled={!canManage} maxLength={128} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="guide" required value={draft.slug} onChange={(event) => setDraft({ ...draft, slug: event.target.value })} /></label>
           <label>表示状態<select disabled={!canManage} value={draft.visibility} onChange={(event) => setDraft({ ...draft, visibility: event.target.value as AdminPageVisibility })}><option value="visible">表示</option><option value="hidden">非表示</option></select></label>

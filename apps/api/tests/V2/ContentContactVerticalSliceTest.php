@@ -396,6 +396,8 @@ final class ContentContactVerticalSliceTest extends TestCase
         self::assertNotNull($row);
         self::assertNotSame($input['email'], $row->email_ciphertext);
         self::assertNotSame($input['body'], $row->body_ciphertext);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'contact.received:'.$row->public_id)->count());
         self::assertSame($input['email'], Crypt::decryptString($row->email_ciphertext));
         self::assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $row->email_correlation_hash);
         self::assertDatabaseCount('contact_status_histories', 1);

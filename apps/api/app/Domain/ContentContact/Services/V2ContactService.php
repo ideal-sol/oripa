@@ -8,6 +8,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2EmailNormalizer;
 use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\ContactInquiry;
 use App\Models\V2\User;
 use App\Support\V2HmacKeyring;
@@ -25,7 +26,8 @@ final class V2ContactService
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox,
-        private readonly V2HmacKeyring $keyring
+        private readonly V2HmacKeyring $keyring,
+        private readonly V2TemplateMailDeliveryService $templateMail
     ) {
     }
 
@@ -138,6 +140,12 @@ final class V2ContactService
                     $event.':'.$inquiry->public_id
                 );
             }
+            $this->templateMail->schedule(
+                'contact_received',
+                'contact.received:'.$inquiry->public_id,
+                'contact_inquiry',
+                $inquiry->public_id
+            );
 
             return [
                 'receipt_code' => $inquiry->receipt_code,

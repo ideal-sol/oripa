@@ -24,6 +24,7 @@ export type AdminRouteId =
   | "presentation-assets"
   | "referral-settings"
   | "line-settings"
+  | "mail-settings"
   | "catalog"
   | "prizes"
   | "qa"
@@ -105,6 +106,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("presentation-assets", "ランク演出", "/catalog/presentation-assets", "catalog.read", "catalog"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", "referral.settings.read", "settings"),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
+  route("mail-settings", "メール設定", "/settings/mail", "content.read", "settings"),
 
   // Existing direct routes remain registered even when they are not in the sidebar.
   route("catalog", "カタログ概要", "/catalog", "catalog.read", "catalog"),
@@ -145,6 +147,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "presentation-assets",
     "referral-settings",
     "line-settings",
+    "mail-settings",
   ]),
 ]);
 

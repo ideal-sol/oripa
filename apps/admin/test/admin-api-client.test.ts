@@ -83,6 +83,36 @@ describe("AdminApiClient", () => {
     expect(headers.get("Authorization")).toBeNull();
   });
 
+  it("uses typed same-origin Mail Template read, preview, and OCC update paths", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [] }))
+      .mockResolvedValueOnce(jsonResponse({ key: "shipping_requested" }))
+      .mockResolvedValueOnce(jsonResponse({ body_html: "<p>preview</p>" }))
+      .mockResolvedValueOnce(jsonResponse({ key: "shipping_requested", revision: 2 }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listMailTemplates();
+    await client.getMailTemplate("shipping_requested");
+    await client.previewMailTemplate("shipping_requested", { body_html: "<p>{{user_name}}</p>" });
+    await client.updateMailTemplate("shipping_requested", {
+      body_html: "<p>{{user_name}}</p>",
+      expected_revision: 1,
+      subject: "Subject",
+    }, "mail-template-update-key");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/mail-templates",
+      "/admin/api/v2/mail-templates/shipping_requested",
+      "/admin/api/v2/mail-templates/shipping_requested/preview",
+      "/admin/api/v2/mail-templates/shipping_requested",
+    ]);
+    expect(fetcher.mock.calls[2][1]?.method).toBe("POST");
+    expect(fetcher.mock.calls[3][1]?.method).toBe("PUT");
+    expect(new Headers(fetcher.mock.calls[3][1]?.headers).get("Idempotency-Key"))
+      .toBe("mail-template-update-key");
+    expect(new Headers(fetcher.mock.calls[3][1]?.headers).get("X-XSRF-TOKEN")).toBe(csrf);
+  });
+
   it("reads only the typed same-origin Dashboard reporting surface", async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ days: [], month: "2026-08", summary: {} }))

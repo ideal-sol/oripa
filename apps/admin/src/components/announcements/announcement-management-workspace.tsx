@@ -24,6 +24,7 @@ import {
 } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { RichTextEditor } from "@/components/rich-text/rich-text-editor";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -328,7 +329,7 @@ function AnnouncementEditor({ announcementId, mode }: { announcementId?: string;
         <h2 ref={heading} tabIndex={-1}>掲載内容</h2>
         <label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
         <FieldError message={fieldErrors.title} />
-        <label>本文（HTML）<textarea required rows={12} value={draft.bodyHtml} onChange={(event) => setDraft({ ...draft, bodyHtml: event.target.value })} /></label>
+        <div className="rich-text-field"><span>本文</span><RichTextEditor label="本文（HTML）" value={draft.bodyHtml} onChange={(bodyHtml) => setDraft((current) => ({ ...current, bodyHtml }))} /></div>
         <FieldError message={fieldErrors.body} />
         <label>サムネイル<select value={draft.assetId} onChange={(event) => setDraft({ ...draft, assetId: event.target.value })}><option value="">未設定</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text ?? asset.public_path ?? asset.id}</option>)}</select></label>
         <label className="check-row"><input checked={draft.isImportant} onChange={(event) => setDraft({ ...draft, isImportant: event.target.checked })} type="checkbox" /><span>トップのお知らせ一覧で重要表示する</span></label>

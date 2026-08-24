@@ -78,7 +78,7 @@ describe("Admin sidebar hierarchy", () => {
       ["お知らせ", ["一覧", "登録"]],
       ["バナー", ["一覧", "登録"]],
       ["お問い合わせ", ["一覧"]],
-      ["各種設定", ["ページ設定", "ランク演出", "紹介ポイント設定", "LINE設定"]],
+      ["各種設定", ["ページ設定", "ランク演出", "紹介ポイント設定", "LINE設定", "メール設定"]],
     ]);
     for (const [parent, labels] of expectedChildren) {
       const button = screen.getByRole("button", { name: parent });

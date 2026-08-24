@@ -141,6 +141,109 @@
   }
 }
 
+.rich-text-field {
+  color: #344054;
+  display: grid;
+  font-size: 14px;
+  gap: 7px;
+}
+
+.rich-text-field > span {
+  font-weight: 600;
+}
+
+.rich-text-editor {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.rich-text-editor:focus-within {
+  border-color: #175cd3;
+  box-shadow: 0 0 0 3px #d1e9ff;
+}
+
+.rich-text-editor.is-disabled {
+  background: #f2f4f7;
+}
+
+.rich-text-editor.is-loading {
+  min-height: 220px;
+}
+
+.rich-text-toolbar {
+  align-items: center;
+  background: #f9fafb;
+  border-bottom: 1px solid #e4e7ec;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px;
+}
+
+.rich-text-toolbar button {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.rich-text-toolbar button.is-active {
+  background: #eff8ff;
+  border-color: #2e90fa;
+  color: #175cd3;
+}
+
+.rich-text-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.rich-text-editor-content {
+  color: #101828;
+  min-height: 260px;
+  outline: none;
+  overflow-wrap: anywhere;
+  padding: 14px;
+}
+
+.rich-text-editor-content > :first-child { margin-top: 0; }
+.rich-text-editor-content > :last-child { margin-bottom: 0; }
+.rich-text-editor-content img { height: auto; max-width: 100%; }
+.rich-text-editor-content hr { border: 0; border-top: 1px solid #d0d5dd; margin: 20px 0; }
+.rich-text-editor-content table { border-collapse: collapse; width: 100%; }
+.rich-text-editor-content td,
+.rich-text-editor-content th { border: 1px solid #d0d5dd; padding: 7px; }
+
+.mail-template-workspace {
+  width: 100%;
+}
+
+.mail-template-table {
+  min-width: 820px;
+}
+
+.mail-template-form {
+  max-width: 980px;
+}
+
+.mail-variable-select {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-self: start;
+}
+
+.mail-variable-select select {
+  min-width: 210px;
+}
+
 .admin-user-qa-mode,
 .catalog-gacha-qa-guarantees {
   display: grid;

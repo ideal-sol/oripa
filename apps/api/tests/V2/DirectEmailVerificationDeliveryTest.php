@@ -39,7 +39,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_registration_uses_direct_mail_and_preserves_verification_semantics(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         $service = app(V2UserAuthenticationService::class);
         $verificationOutboxCount = $this->verificationOutboxCount();
 
@@ -55,18 +55,14 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             '192.0.2.140'
         );
 
-        $this->assertRawMailWasSent($capture, 1);
+        $this->assertHtmlMailWasSent($capture, 1);
         self::assertSame('direct-register@example.test', $capture->messages[0]['to']);
-        self::assertSame('メールアドレス確認', $capture->messages[0]['subject']);
+        self::assertSame('メールアドレス認証のお願い', $capture->messages[0]['subject']);
         self::assertMatchesRegularExpression(
             '#https://storefront\.example\.test/api/v2/auth/email/verify/'.preg_quote($user->public_id, '#').'/[a-f0-9]{64}\\?redirect=%2Fmypage#',
             $capture->messages[0]['body']
         );
-        self::assertStringNotContainsString(
-            "URL:\n/api/v2/auth/email/verify/",
-            $capture->messages[0]['body']
-        );
-        self::assertStringContainsString('This link expires in 60 minutes.', $capture->messages[0]['body']);
+        self::assertStringContainsString('ご登録ありがとうございます。', $capture->messages[0]['body']);
         self::assertSame(V2UserState::PendingVerification, $user->state);
         self::assertDatabaseHas('user_email_verifications', [
             'user_id' => $user->getKey(),
@@ -77,7 +73,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_resend_uses_direct_mail_revokes_the_previous_token_and_verifies(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         $service = app(V2UserAuthenticationService::class);
         $verificationOutboxCount = $this->verificationOutboxCount();
         $user = $service->register(
@@ -86,12 +82,12 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             '/',
             '192.0.2.141'
         );
-        $this->assertRawMailWasSent($capture, 1);
+        $this->assertHtmlMailWasSent($capture, 1);
         $oldToken = $this->tokenFromBody($capture->messages[0]['body'], $user->public_id);
 
         $service->resend($user->public_id, '/mypage');
 
-        $this->assertRawMailWasSent($capture, 2);
+        $this->assertHtmlMailWasSent($capture, 2);
         self::assertSame('direct-resend@example.test', $capture->messages[1]['to']);
         $newToken = $this->tokenFromBody($capture->messages[1]['body'], $user->public_id);
         self::assertNotSame($oldToken, $newToken);
@@ -103,11 +99,13 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         $verified = $service->verify($user->public_id, $newToken);
 
         self::assertSame(V2UserState::Active, $verified['user']->state);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'registration.completed:'.$user->public_id)->count());
     }
 
     public function test_browser_verification_redirects_to_the_stored_path_with_session_and_csrf(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         $user = app(V2UserAuthenticationService::class)->register(
             'browser-verification@example.test',
             'valid browser verification password',
@@ -128,6 +126,8 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             (string) $response->headers->get('Vary')
         );
         self::assertSame(V2UserState::Active, $user->refresh()->state);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'registration.completed:'.$user->public_id)->count());
         $cookies = collect($response->headers->getCookies());
         $session = $cookies->first(
             fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
@@ -148,7 +148,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_json_verification_preserves_the_existing_response_and_cookies(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         $user = app(V2UserAuthenticationService::class)->register(
             'json-verification@example.test',
             'valid json verification password',
@@ -213,7 +213,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_verification_query_cannot_override_the_stored_redirect(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         app(V2UserAuthenticationService::class)->register(
             'redirect-tampering@example.test',
             'valid redirect tampering password',
@@ -232,7 +232,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
 
     public function test_invalid_verification_token_redirects_browser_and_preserves_json_problem_details(): void
     {
-        $capture = $this->spyOnRawMail();
+        $capture = $this->spyOnHtmlMail();
         $user = app(V2UserAuthenticationService::class)->register(
             'invalid-token@example.test',
             'valid invalid token password',
@@ -274,7 +274,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
     public function test_mail_transport_failure_rolls_back_registration_without_false_success(): void
     {
         $verificationOutboxCount = $this->verificationOutboxCount();
-        Mail::shouldReceive('raw')
+        Mail::shouldReceive('html')
             ->once()
             ->andThrow(new RuntimeException('mail transport unavailable'));
 
@@ -286,8 +286,9 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
                 '192.0.2.142'
             );
             self::fail('Mail transport failure must abort registration.');
-        } catch (RuntimeException $exception) {
-            self::assertSame('mail transport unavailable', $exception->getMessage());
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('VERIFICATION_MAIL_DELIVERY_FAILED', $exception->errorCode);
+            self::assertSame(503, $exception->status);
         }
 
         self::assertDatabaseMissing('users', [
@@ -296,11 +297,11 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertSame($verificationOutboxCount, $this->verificationOutboxCount());
     }
 
-    private function spyOnRawMail(): RawMailCapture
+    private function spyOnHtmlMail(): RawMailCapture
     {
         $capture = new RawMailCapture();
         Mail::spy();
-        Mail::shouldReceive('raw')
+        Mail::shouldReceive('html')
             ->zeroOrMoreTimes()
             ->withArgs(function (string $body, callable $callback) use ($capture): bool {
                 $message = new Message(new Email());
@@ -318,9 +319,9 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         return $capture;
     }
 
-    private function assertRawMailWasSent(RawMailCapture $capture, int $expected): void
+    private function assertHtmlMailWasSent(RawMailCapture $capture, int $expected): void
     {
-        Mail::shouldHaveReceived('raw')->times($expected);
+        Mail::shouldHaveReceived('html')->times($expected);
         self::assertCount($expected, $capture->messages);
     }
 
