@@ -634,6 +634,18 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_mig_084_admin_skeleton_registration_is_exact(self):
+        expected = {
+            "apps/admin/e2e/admin-payment-history.spec.ts",
+            "apps/admin/src/app/payments/page.tsx",
+            "apps/admin/src/components/payments/admin-payment-history.tsx",
+            "apps/admin/test/admin-payment-history.test.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_084_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_061d_admin_skeleton_registration_is_exact(self):
         expected = {
             "apps/admin/e2e/admin-navigation-hierarchy.spec.ts",
