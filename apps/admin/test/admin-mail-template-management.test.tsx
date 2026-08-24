@@ -60,7 +60,7 @@ describe("Mail Template management", () => {
 
   it("inserts variables at current cursors, previews unsaved body in another tab, and saves with OCC", async () => {
     const preview = vi.spyOn(AdminApiClient.prototype, "previewMailTemplate")
-      .mockResolvedValue({ body_html: "<h2>サンプルユーザー</h2><p>景品A</p><hr><p>景品B</p>" });
+      .mockResolvedValue({ body_html: "<h2 onclick=\"bad()\">サンプルユーザー</h2><p>景品A</p><hr><p>景品B</p><script>bad()</script><img src=\"javascript:bad()\">" });
     const update = vi.spyOn(AdminApiClient.prototype, "updateMailTemplate")
       .mockImplementation(async (_key, input) => ({
         ...template("shipping_requested", "発送依頼時"),
@@ -100,6 +100,9 @@ describe("Mail Template management", () => {
     expect(preview.mock.calls[0]?.[1].body_html).toContain("{{prize_names}}");
     expect(previewDocument.body.innerHTML).toContain("サンプルユーザー");
     expect(previewDocument.body.innerHTML).toContain("<hr>");
+    expect(previewDocument.body.innerHTML).not.toContain("onclick");
+    expect(previewDocument.body.innerHTML).not.toContain("script");
+    expect(previewDocument.body.innerHTML).not.toContain("javascript:");
 
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(update).toHaveBeenCalledOnce());

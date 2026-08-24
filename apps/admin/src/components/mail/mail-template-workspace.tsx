@@ -30,6 +30,11 @@ const TEMPLATE_KEYS = new Set<MailTemplateKey>([
   "contact_received",
 ]);
 
+const PREVIEW_TAGS = new Set([
+  "a", "br", "em", "h1", "h2", "h3", "hr", "img", "li", "ol", "p", "s",
+  "strong", "table", "tbody", "td", "th", "thead", "tr", "u", "ul",
+]);
+
 export function MailTemplateWorkspace({ templateKey }: { templateKey?: string }) {
   return (
     <AdminShell>
@@ -169,9 +174,7 @@ function MailTemplateEditor({ templateKey }: { templateKey: MailTemplateKey }) {
     setError(null);
     try {
       const result = await new AdminApiClient().previewMailTemplate(key, { body_html: bodyHtml });
-      target.document.open();
-      target.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>メール本文プレビュー</title></head><body>${result.body_html}</body></html>`);
-      target.document.close();
+      renderMailPreview(target.document, result.body_html);
     } catch (reason) {
       target.close();
       setError(mailTemplateError(reason));
@@ -241,6 +244,98 @@ function semanticHtml(value: string): boolean {
   const container = document.createElement("div");
   container.innerHTML = value;
   return semanticText(container.textContent ?? "");
+}
+
+function renderMailPreview(target: Document, html: string): void {
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  const fragment = target.createDocumentFragment();
+  for (const child of Array.from(parsed.body.childNodes)) {
+    const previewNode = createPreviewNode(target, child);
+    if (previewNode) fragment.append(previewNode);
+  }
+  const referrer = target.createElement("meta");
+  referrer.name = "referrer";
+  referrer.content = "no-referrer";
+  target.documentElement.lang = "ja";
+  target.head.replaceChildren(referrer);
+  target.title = "メール本文プレビュー";
+  target.body.replaceChildren(fragment);
+}
+
+function createPreviewNode(target: Document, source: Node): Node | null {
+  if (source.nodeType === Node.TEXT_NODE) return target.createTextNode(source.textContent ?? "");
+  if (!(source instanceof Element)) return null;
+  const tag = source.tagName.toLowerCase();
+  if (!PREVIEW_TAGS.has(tag)) return null;
+  const element = target.createElement(tag);
+
+  if (tag === "a") copyPreviewLinkAttributes(source, element);
+  if (tag === "img" && !copyPreviewImageAttributes(source, element)) return null;
+  if (["p", "h1", "h2", "h3"].includes(tag)) copyPreviewAlignment(source, element);
+  if (["td", "th"].includes(tag)) copyPreviewTableAttributes(source, element);
+
+  for (const child of Array.from(source.childNodes)) {
+    const previewNode = createPreviewNode(target, child);
+    if (previewNode) element.append(previewNode);
+  }
+  return element;
+}
+
+function copyPreviewLinkAttributes(source: Element, target: HTMLElement): void {
+  const href = source.getAttribute("href")?.trim();
+  if (href && isSafePreviewHref(href)) target.setAttribute("href", href);
+  const title = source.getAttribute("title");
+  if (title) target.setAttribute("title", title);
+  if (source.getAttribute("target") === "_blank") {
+    target.setAttribute("target", "_blank");
+    target.setAttribute("rel", "noopener noreferrer");
+  }
+}
+
+function copyPreviewImageAttributes(source: Element, target: HTMLElement): boolean {
+  const sourceUrl = source.getAttribute("src")?.trim();
+  if (!sourceUrl || !isSafePreviewImage(sourceUrl)) return false;
+  target.setAttribute("src", sourceUrl);
+  for (const attribute of ["alt", "title"]) {
+    const value = source.getAttribute(attribute);
+    if (value) target.setAttribute(attribute, value);
+  }
+  return true;
+}
+
+function copyPreviewAlignment(source: Element, target: HTMLElement): void {
+  const alignment = source.getAttribute("style")?.trim().match(/^text-align:\s*(left|center|right);?$/iu)?.[1];
+  if (alignment) target.style.textAlign = alignment;
+}
+
+function copyPreviewTableAttributes(source: Element, target: HTMLElement): void {
+  for (const attribute of ["colspan", "rowspan"]) {
+    const value = source.getAttribute(attribute);
+    if (value && /^[1-9][0-9]?$/u.test(value)) target.setAttribute(attribute, value);
+  }
+}
+
+function isSafePreviewHref(value: string): boolean {
+  if (/[\u0000-\u0020]/u.test(value)) return false;
+  if (value.startsWith("/") || value.startsWith("#")) return !value.startsWith("//");
+  try {
+    return ["http:", "https:", "mailto:"].includes(new URL(value).protocol.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function isSafePreviewImage(value: string): boolean {
+  if (/[\u0000-\u0020]/u.test(value)) return false;
+  try {
+    const image = new URL(value);
+    return image.protocol.toLowerCase() === "https:"
+      && image.hostname !== ""
+      && image.username === ""
+      && image.password === "";
+  } catch {
+    return false;
+  }
 }
 
 function formatJst(value: string): string {
