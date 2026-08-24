@@ -56,6 +56,6 @@
     "testkit:typecheck": "pnpm --filter @oripa/storefront-testkit typecheck"
   },
   "devDependencies": {
-    "@redocly/cli": "2.40.0"
+    "@redocly/cli": "2.46.2"
   }
 }
