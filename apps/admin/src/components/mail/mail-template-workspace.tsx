@@ -167,7 +167,6 @@ function MailTemplateEditor({ templateKey }: { templateKey: MailTemplateKey }) {
       setError("プレビュー用の別タブを開けませんでした。Popup設定を確認してください。");
       return;
     }
-    target.opener = null;
     target.document.title = "メール本文プレビュー - 読み込み中";
     target.document.body.textContent = "プレビューを生成しています。";
     setPreviewing(true);

@@ -95,7 +95,6 @@ describe("Mail Template management", () => {
     fireEvent.click(screen.getByRole("button", { name: "プレビュー" }));
     await waitFor(() => expect(preview).toHaveBeenCalledOnce());
     expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
-    expect(previewWindow.opener).toBeNull();
     expect(preview.mock.calls[0]?.[0]).toBe("shipping_requested");
     expect(preview.mock.calls[0]?.[1].body_html).toContain("{{prize_names}}");
     expect(previewDocument.body.innerHTML).toContain("サンプルユーザー");
