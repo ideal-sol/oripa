@@ -2,7 +2,14 @@
 
 import { ArrowLeft, Coins, Eye, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -17,8 +24,11 @@ import {
 import type {
   AdminUserDetail,
   AdminUserGachaHistoryItem,
+  AdminUserReferralHistoryCollection,
+  AdminUserReferralHistoryItem,
   AdminUserSummary,
 } from "@/lib/admin-api/generated";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 
 const number = new Intl.NumberFormat("ja-JP");
 const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
@@ -26,6 +36,15 @@ const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
   timeStyle: "short",
   timeZone: "Asia/Tokyo",
 });
+
+interface ReferralHistoryState {
+  userId: string;
+  items: AdminUserReferralHistoryItem[];
+  nextCursor: string | null;
+  error: string | null;
+  loading: boolean;
+  loadingMore: boolean;
+}
 
 export function AdminUserReadWorkspace({
   mode,
@@ -167,6 +186,7 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
           <Definition label="更新日">{formatDateTime(user.updated_at)}</Definition>
         </dl>
       </section>
+      <AdminUserReferralHistory userPublicId={user.id} />
       <AdminUserStateManagement
         onRefresh={() => onRefresh("ユーザー状態を更新し、最新情報を再取得しました。")}
         user={user}
@@ -229,6 +249,130 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
         </Link>
       </section>
     </div>
+  );
+}
+
+export function AdminUserReferralHistory({ userPublicId }: { userPublicId: string }) {
+  const client = useMemo(() => new AdminApiClient(), []);
+  const activeUserId = useRef(userPublicId);
+  const loadMoreController = useRef<AbortController | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [state, setState] = useState<ReferralHistoryState>(() => emptyReferralState(userPublicId));
+  activeUserId.current = userPublicId;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadMoreController.current?.abort();
+    setState(emptyReferralState(userPublicId));
+    void client.listAdminUserReferralHistory(userPublicId, undefined, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted && activeUserId.current === userPublicId) {
+          setState(loadedReferralState(userPublicId, response));
+        }
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted && activeUserId.current === userPublicId) {
+          setState({
+            ...emptyReferralState(userPublicId),
+            error: referralErrorMessage(reason),
+            loading: false,
+          });
+        }
+      });
+    return () => {
+      controller.abort();
+      loadMoreController.current?.abort();
+    };
+  }, [client, revision, userPublicId]);
+
+  const current = state.userId === userPublicId ? state : emptyReferralState(userPublicId);
+  const loadMore = useCallback(async () => {
+    if (!current.nextCursor || current.loadingMore) return;
+    const controller = new AbortController();
+    loadMoreController.current?.abort();
+    loadMoreController.current = controller;
+    setState((value) => value.userId === userPublicId
+      ? { ...value, error: null, loadingMore: true }
+      : value);
+    try {
+      const response = await client.listAdminUserReferralHistory(
+        userPublicId,
+        current.nextCursor,
+        controller.signal,
+      );
+      if (controller.signal.aborted || activeUserId.current !== userPublicId) return;
+      setState((value) => value.userId === userPublicId ? {
+        ...loadedReferralState(userPublicId, response),
+        items: [...value.items, ...response.items],
+      } : value);
+    } catch (reason: unknown) {
+      if (controller.signal.aborted || activeUserId.current !== userPublicId) return;
+      setState((value) => value.userId === userPublicId
+        ? { ...value, error: referralErrorMessage(reason), loadingMore: false }
+        : value);
+    }
+  }, [client, current.loadingMore, current.nextCursor, userPublicId]);
+
+  return (
+    <section className="admin-user-summary" aria-labelledby="user-referral-history-heading">
+      <div className="admin-user-section-heading">
+        <div>
+          <h2 id="user-referral-history-heading">紹介履歴</h2>
+          <p>このユーザーが紹介したユーザーを新しい順に表示します。</p>
+        </div>
+      </div>
+      {current.loading ? <State message="紹介履歴を読み込んでいます。" /> : null}
+      {!current.loading && current.error ? (
+        <State
+          error
+          message={current.error}
+          retry={() => setRevision((value) => value + 1)}
+        />
+      ) : null}
+      {!current.loading && !current.error && current.items.length === 0 ? (
+        <State message="紹介履歴はありません。" />
+      ) : null}
+      {!current.loading && current.items.length > 0 ? (
+        <>
+          <div className="admin-user-table-region" tabIndex={0}>
+            <table className="admin-user-table">
+              <thead>
+                <tr>
+                  {[
+                    "紹介されたUser ID",
+                    "ユーザー名",
+                    "Referral状態",
+                    "紹介日時",
+                    "登録日時",
+                  ].map((label) => <th key={label} scope="col">{label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {current.items.map((item) => (
+                  <tr key={item.id}>
+                    <td><PublicId value={item.referred_user_id} /></td>
+                    <td>{item.referred_user_display_name ?? "未設定"}</td>
+                    <td><Status value={item.status} /></td>
+                    <td>{formatDateTime(item.referred_at)}</td>
+                    <td>{formatDateTime(item.registered_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {current.nextCursor ? (
+            <button
+              className="secondary-button admin-user-load-more"
+              disabled={current.loadingMore}
+              onClick={() => void loadMore()}
+              type="button"
+            >
+              {current.loadingMore ? "読み込み中" : "次の50件を表示"}
+            </button>
+          ) : null}
+        </>
+      ) : null}
+    </section>
   );
 }
 
@@ -312,6 +456,38 @@ function formatDateTime(value: string): string {
   return tokyoDateTime.format(new Date(value));
 }
 
+function emptyReferralState(userId: string): ReferralHistoryState {
+  return {
+    userId,
+    items: [],
+    nextCursor: null,
+    error: null,
+    loading: true,
+    loadingMore: false,
+  };
+}
+
+function loadedReferralState(
+  userId: string,
+  response: AdminUserReferralHistoryCollection,
+): ReferralHistoryState {
+  return {
+    userId,
+    items: response.items,
+    nextCursor: response.next_cursor,
+    error: null,
+    loading: false,
+    loadingMore: false,
+  };
+}
+
+function referralErrorMessage(reason: unknown): string {
+  if (reason instanceof AdminApiError && reason.status === 404) {
+    return "指定されたユーザーは存在しません。";
+  }
+  return reason instanceof Error ? reason.message : "紹介履歴を取得できませんでした。";
+}
+
 function statusLabel(value: string): string {
   const labels: Record<string, string> = {
     active: "有効",
@@ -323,9 +499,11 @@ function statusLabel(value: string): string {
     exchange_processing: "交換処理中",
     expired: "期限切れ",
     hold: "保留",
+    pending: "未確定",
     packing: "梱包中",
     pending_verification: "確認待ち",
     restricted: "制限中",
+    rewarded: "付与済み",
     return_requested: "返送依頼中",
     returned: "返送済み",
     shipped: "発送済み",

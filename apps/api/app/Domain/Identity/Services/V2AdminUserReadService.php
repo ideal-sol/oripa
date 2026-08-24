@@ -237,6 +237,53 @@ final class V2AdminUserReadService
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function referralHistory(
+        V2AdminAuthorizationContext $context,
+        string $userPublicId,
+        ?string $cursor,
+        int $limit = self::DEFAULT_LIMIT
+    ): array {
+        $userId = DB::table('users')
+            ->where('public_id', $userPublicId)
+            ->value('id');
+        if (! is_numeric($userId)) {
+            throw $this->notFound();
+        }
+        $query = DB::table('user_referrals as referral')
+            ->join('users as referred_user', 'referred_user.id', '=', 'referral.referred_user_id')
+            ->where('referral.referrer_user_id', (int) $userId)
+            ->whereColumn('referral.referred_user_id', '<>', 'referral.referrer_user_id')
+            ->orderByDesc('referral.id')
+            ->select([
+                'referral.id',
+                'referral.public_id',
+                'referral.status',
+                'referral.created_at',
+                'referred_user.public_id as referred_user_public_id',
+                'referred_user.display_name as referred_user_display_name',
+                'referred_user.created_at as referred_user_created_at',
+            ]);
+        $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
+            'id' => (string) $row->public_id,
+            'referred_user_id' => (string) $row->referred_user_public_id,
+            'referred_user_display_name' => $row->referred_user_display_name === null
+                ? null
+                : (string) $row->referred_user_display_name,
+            'status' => (string) $row->status,
+            'referred_at' => $this->timestamp($row->created_at),
+            'registered_at' => $this->timestamp($row->referred_user_created_at),
+        ], 'referral.id');
+
+        $this->auditView($context, 'admin.user.referral_history.viewed', $userPublicId);
+
+        return [
+            'user_id' => $userPublicId,
+            ...$page,
+            'request_id' => $context->requestId,
+        ];
+    }
+
     /**
      * @param callable(object): array<string, mixed> $transform
      * @return array{items: array<int, array<string, mixed>>, next_cursor: ?string}

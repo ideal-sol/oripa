@@ -145,6 +145,7 @@ import {
   type AdminUserStateMutationResult,
   type AdminUserStateUpdate,
   type AdminUserGachaHistoryCollection,
+  type AdminUserReferralHistoryCollection,
   type AdminUserPrizeCollection,
   type AdminUserPrizeDetailResponse,
   type AdminUserPrizeStatus,
@@ -429,6 +430,25 @@ export class AdminApiClient {
     return this.request(
       "GET",
       `/users/${encodeURIComponent(userId)}/gacha-history?${parameters.toString()}`,
+      { signal },
+    );
+  }
+
+  listAdminUserReferralHistory(
+    userId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<AdminUserReferralHistoryCollection> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (cursor) parameters.set("cursor", cursor);
+    return this.request(
+      "GET",
+      `/users/${encodeURIComponent(userId)}/referral-history?${parameters.toString()}`,
       { signal },
     );
   }

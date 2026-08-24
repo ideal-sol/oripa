@@ -47,6 +47,16 @@ final class V2AdminUserController
         ));
     }
 
+    public function referralHistory(Request $request, string $userId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->users->referralHistory(
+            $this->context($request),
+            $userId,
+            $this->stringQuery($request, 'cursor'),
+            $this->limit($request)
+        ));
+    }
+
     private function context(Request $request): V2AdminAuthorizationContext
     {
         return $this->authorization->context($request, $this->requestId($request));

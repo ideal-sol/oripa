@@ -123,6 +123,8 @@ Route::prefix('v2')
             ->whereUuid('userId')->whereUuid('tagId')->name('v2.admin.users.tags.detach');
         Route::get('/users/{userId}/gacha-history', [V2AdminUserController::class, 'gachaHistory'])
             ->whereUuid('userId')->name('v2.admin.users.gacha-history.index');
+        Route::get('/users/{userId}/referral-history', [V2AdminUserController::class, 'referralHistory'])
+            ->whereUuid('userId')->name('v2.admin.users.referral-history.index');
         Route::post('/users/{userId}/point-adjustments', V2AdminUserPointAdjustmentController::class)
             ->whereUuid('userId')->name('v2.admin.users.point-adjustments.store');
         Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])
