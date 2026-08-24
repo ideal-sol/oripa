@@ -858,6 +858,12 @@ MIG_078_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/rich-text/rich-text-editor.tsx",
     "apps/admin/test/admin-mail-template-management.test.tsx",
 }
+MIG_084_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-payment-history.spec.ts",
+    "apps/admin/src/app/payments/page.tsx",
+    "apps/admin/src/components/payments/admin-payment-history.tsx",
+    "apps/admin/test/admin-payment-history.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -979,6 +985,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062N_ADMIN_SKELETON_FILES,
     *MIG_062Q_ADMIN_SKELETON_FILES,
     *MIG_078_ADMIN_SKELETON_FILES,
+    *MIG_084_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",

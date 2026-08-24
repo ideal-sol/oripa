@@ -125,6 +125,9 @@ import {
   type AdminPointPurchasePlanMutationResult,
   type AdminPointPurchasePlanResponse,
   type AdminPointPurchasePlanUpdate,
+  type AdminPaymentCollection,
+  type AdminPaymentMethod,
+  type AdminPaymentStatus,
   type AdminMfaVerifyRequest,
   type AdminManagedBannerCollection,
   type AdminManagedBannerCreate,
@@ -188,6 +191,28 @@ export function initialListFilter<T extends string>(
     : fallback;
 }
 
+export const ADMIN_PAYMENT_STATUS_FILTERS = [
+  "all",
+  "created",
+  "requires_action",
+  "processing",
+  "succeeded",
+  "failed",
+  "canceled",
+  "expired",
+] as const;
+
+export const ADMIN_PAYMENT_METHOD_FILTERS = [
+  "all",
+  "credit_card",
+  "paypay",
+  "konbini",
+  "virtual_account",
+] as const;
+
+export type AdminPaymentStatusFilter = typeof ADMIN_PAYMENT_STATUS_FILTERS[number];
+export type AdminPaymentMethodFilter = typeof ADMIN_PAYMENT_METHOD_FILTERS[number];
+
 const ADMIN_CSRF_COOKIE = "__Host-oripa_admin_xsrf";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -242,6 +267,13 @@ export interface AdminContentListQuery {
 export interface AdminPointPurchasePlanQuery {
   cursor?: string;
   status?: "draft" | "published";
+}
+
+export interface AdminPaymentQuery {
+  cursor?: string;
+  limit?: number;
+  payment_method?: AdminPaymentMethod;
+  status?: AdminPaymentStatus;
 }
 
 export interface AdminUserPrizeQuery {
@@ -457,6 +489,30 @@ export class AdminApiClient {
       "GET",
       `/users/${encodeURIComponent(userId)}/referral-history?${parameters.toString()}`,
       { signal },
+    );
+  }
+
+  listAdminPayments(
+    query: AdminPaymentQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminPaymentCollection> {
+    return this.paymentHistory("/payments", query, signal);
+  }
+
+  listAdminUserPayments(
+    userId: string,
+    query: AdminPaymentQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminPaymentCollection> {
+    if (!isOpaqueId(userId)) {
+      return Promise.reject(
+        new AdminApiError(404, "ADMIN_USER_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.paymentHistory(
+      `/users/${encodeURIComponent(userId)}/payments`,
+      query,
+      signal,
     );
   }
 
@@ -2758,6 +2814,7 @@ export class AdminApiClient {
       | `/content/${string}`
       | `/identity/${string}`
       | `/mail-templates${string}`
+      | `/payments${string}`
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
@@ -2777,6 +2834,8 @@ export class AdminApiClient {
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
         !path.startsWith("/mail-templates") &&
+        path !== "/payments" &&
+        !path.startsWith("/payments?") &&
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
@@ -2871,6 +2930,20 @@ export class AdminApiClient {
       if (value !== undefined) {
         parameters.set(name, String(value));
       }
+    }
+    return this.request("GET", `${path}?${parameters.toString()}`, { signal });
+  }
+
+  private paymentHistory(
+    path: "/payments" | `/users/${string}/payments`,
+    query: AdminPaymentQuery,
+    signal?: AbortSignal,
+  ): Promise<AdminPaymentCollection> {
+    const parameters = new URLSearchParams({ limit: String(query.limit ?? 20) });
+    if (query.cursor) parameters.set("cursor", query.cursor);
+    if (query.status) parameters.set("status", query.status);
+    if (query.payment_method) {
+      parameters.set("payment_method", query.payment_method);
     }
     return this.request("GET", `${path}?${parameters.toString()}`, { signal });
   }

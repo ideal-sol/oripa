@@ -162,6 +162,36 @@ describe("AdminApiClient", () => {
     }
   });
 
+  it("reads all-user and user-specific Payment history with canonical filters", async () => {
+    const userId = "01910191-0191-7191-8191-019101910191";
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: [], pagination: { next_cursor: null } }))
+      .mockResolvedValueOnce(jsonResponse({ data: [], pagination: { next_cursor: null } }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+
+    await client.listAdminPayments({
+      cursor: "djE6MTA=",
+      limit: 20,
+      payment_method: "konbini",
+      status: "processing",
+    });
+    await client.listAdminUserPayments(userId, {
+      payment_method: "credit_card",
+      status: "succeeded",
+    });
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/admin/api/v2/payments?limit=20&cursor=djE6MTA%3D&status=processing&payment_method=konbini",
+      `/admin/api/v2/users/${userId}/payments?limit=20&status=succeeded&payment_method=credit_card`,
+    ]);
+    for (const [, request] of fetcher.mock.calls) {
+      expect(request?.credentials).toBe("include");
+      expect(request?.cache).toBe("no-store");
+      expect(new Headers(request?.headers).get("Authorization")).toBeNull();
+      expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBeNull();
+    }
+  });
+
   it("reads global User Prize list and detail with typed filters and public IDs", async () => {
     const userPrizeId = "01910191-0191-7191-8191-019101910195";
     const fetcher = vi.fn<typeof fetch>()
@@ -199,6 +229,10 @@ describe("AdminApiClient", () => {
       status: 404,
     });
     await expect(client.listAdminUserGachaHistory("../internal")).rejects.toMatchObject({
+      code: "ADMIN_USER_NOT_FOUND",
+      status: 404,
+    });
+    await expect(client.listAdminUserPayments("../internal")).rejects.toMatchObject({
       code: "ADMIN_USER_NOT_FOUND",
       status: 404,
     });
