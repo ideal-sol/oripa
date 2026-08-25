@@ -183,6 +183,12 @@ Konbini／Virtual Accountの期限内未払いは`getPayment`で状態を読み�
 durable URLとして扱わず、resumeは新規Payment、fincode Session、支払情報、Virtual Accountを
 作成せずProvider status再照会も行わない。Credit Card／PayPayにはresumeを使用しない。
 
+購入履歴詳細は既存`getPayment(paymentId)`の`payment.grant`を使用する。`paid_points`は確定した
+有償コイン、`bonus_points`は期間限定分を含まない通常無償ボーナス、
+`limited_bonus_points`はPayment成功時に適用・確定した期間限定ボーナス（適用なしは0）、
+`total_points`は3fieldのCanonical合計である。過去実績を現在のPointProductやCampaignから
+再計算しない。
+
 ## Origins
 
 - Local: `V2_PUBLIC_ORIGIN`へLocal Storefrontの正確なHTTPS Originを設定する。Secure

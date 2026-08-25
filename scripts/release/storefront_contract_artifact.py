@@ -280,7 +280,7 @@ def validate_governance(value: dict) -> dict:
             or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
             or candidate.get("public_openapi_sha256") == public["sha256"]
             or not isinstance(candidate.get("public_api_operation_count"), int)
-            or candidate["public_api_operation_count"] <= public["operation_count"]
+            or candidate["public_api_operation_count"] < public["operation_count"]
         ):
             raise ArtifactError("additive contract candidate mismatch")
     client = candidate_packages["@oripa/storefront-client"]

@@ -16,6 +16,7 @@ use App\Domain\Payment\V2\Services\V2FincodeWebhookService;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use App\Http\Controllers\V2\V2PaymentController;
 use App\Models\V2\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -210,6 +211,12 @@ final class FincodePaymentBackendTest extends TestCase
             $read = $service->show($owner, $payment['id']);
             self::assertSame($status, $read['status']);
             self::assertSame($plan->public_id, $read['point_product_id']);
+            self::assertSame([
+                'paid_points' => 1000,
+                'bonus_points' => 100,
+                'limited_bonus_points' => 0,
+                'total_points' => 1100,
+            ], $read['grant']);
         }
 
         foreach ([(string) Str::uuid7(), 'malformed'] as $unknown) {
@@ -336,6 +343,66 @@ final class FincodePaymentBackendTest extends TestCase
         ], JSON_THROW_ON_ERROR);
         self::assertSame('ignored', $webhooks->process($delayed, 'test-webhook-signature')['status']);
         self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
+    }
+
+    public function test_payment_grant_breakdown_uses_success_snapshots_after_product_campaign_and_clock_changes(): void
+    {
+        $this->fakeFincode('CAPTURED', '10000');
+        $user = $this->user('grant-history');
+        $plan = $this->plan(10000, 10000, 1000);
+        $campaignId = DB::table('point_purchase_plan_limited_bonus_campaigns')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'point_purchase_plan_id' => $plan->id,
+            'is_enabled' => true,
+            'starts_at' => '2026-08-24 00:00:00+00',
+            'ends_at' => '2026-08-25 00:00:00+00',
+            'bonus_point_amount' => 2000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $plan->public_id,
+            'paypay',
+            'grant-history'
+        );
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $raw = json_encode([
+            'event' => 'payments.paypay.complete',
+            'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Paypay',
+            'status' => 'CAPTURED',
+            'transaction_date' => '2026/08/24 12:00:00.000',
+        ], JSON_THROW_ON_ERROR);
+        app(V2FincodeWebhookService::class)->process($raw, 'test-webhook-signature');
+
+        DB::table('point_purchase_plans')->where('id', $plan->id)->update([
+            'name' => 'Changed Product',
+        ]);
+        DB::table('point_purchase_plan_limited_bonus_campaigns')->where('id', $campaignId)->update([
+            'is_enabled' => false,
+            'starts_at' => '2030-01-01 00:00:00+00',
+            'ends_at' => '2030-01-02 00:00:00+00',
+            'bonus_point_amount' => 9999,
+            'updated_at' => now(),
+        ]);
+        Carbon::setTestNow('2031-01-01 00:00:00+00');
+        try {
+            $expected = [
+                'paid_points' => 10000,
+                'bonus_points' => 1000,
+                'limited_bonus_points' => 2000,
+                'total_points' => 13000,
+            ];
+            self::assertSame($expected, app(V2FincodePaymentService::class)
+                ->show($user, $payment['id'])['grant']);
+            self::assertSame($expected, app(V2FincodePaymentService::class)
+                ->history($user, 'succeeded', null, 20)['data'][0]['grant']);
+            self::assertSame(13000, (int) DB::table('point_lots')
+                ->where('user_id', $user->id)->sum('granted_amount'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_all_four_canonical_successes_grant_coin_exactly_once(): void
@@ -489,6 +556,18 @@ final class FincodePaymentBackendTest extends TestCase
         $unpaid = app(V2FincodePaymentService::class)->history($user, 'unpaid', null, 20);
         self::assertSame([$created['CAPTURED']], array_column($succeeded['data'], 'id'));
         self::assertSame([$created['AWAITING_CUSTOMER_PAYMENT']], array_column($unpaid['data'], 'id'));
+        self::assertSame([
+            'paid_points' => 1000,
+            'bonus_points' => 100,
+            'limited_bonus_points' => 0,
+            'total_points' => 1100,
+        ], $succeeded['data'][0]['grant']);
+        self::assertSame([
+            'paid_points' => 1000,
+            'bonus_points' => 100,
+            'limited_bonus_points' => 0,
+            'total_points' => 1100,
+        ], $unpaid['data'][0]['grant']);
         self::assertSame($created['AWAITING_CUSTOMER_PAYMENT'], app(V2FincodePaymentService::class)
             ->resume($user, $created['AWAITING_CUSTOMER_PAYMENT'])['payment_id']);
     }
@@ -800,16 +879,20 @@ final class FincodePaymentBackendTest extends TestCase
         });
     }
 
-    private function plan(): object
+    private function plan(
+        int $amount = 1000,
+        int $paidPointAmount = 1000,
+        int $freePointAmount = 100,
+    ): object
     {
         $id = DB::table('point_purchase_plans')->insertGetId([
             'public_id' => (string) Str::uuid7(),
             'code' => 'fincode-'.Str::uuid(),
             'version_no' => 1,
             'name' => 'fincode Test Plan',
-            'amount' => 1000,
-            'paid_point_amount' => 1000,
-            'free_point_amount' => 100,
+            'amount' => $amount,
+            'paid_point_amount' => $paidPointAmount,
+            'free_point_amount' => $freePointAmount,
             'currency' => 'JPY',
             'status' => 'published',
             'published_at' => now(),

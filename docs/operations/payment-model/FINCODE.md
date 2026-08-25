@@ -11,6 +11,27 @@ Provider parameter、status、event、3D Secure、Redirect仕様は常にfincode
 [OpenAPI](https://github.com/fincode-byGMO/fincode-mcp/blob/main/packages/fincode-mcp-docs/fincode-openapi.yml)
 を優先し、Repository実装と不一致ならFail Closedする。
 
+## Canonical Payment Grant
+
+購入後の実績表示は`getPayment(paymentId)`の`Payment.grant`を正本とし、次の4fieldを返す。
+
+```text
+paid_points
+bonus_points
+limited_bonus_points
+total_points
+```
+
+`paid_points`はPayment作成時にsnapshotされ成功時に実際に付与された有償コイン、
+`bonus_points`は期間限定分を含まない通常無償ボーナス、`limited_bonus_points`は成功時刻と
+Payment固有Campaign snapshotから確定して`payments.limited_bonus_point_amount`へ保存された
+期間限定ボーナス（適用なしは0）である。`total_points`は3fieldのCanonical合計である。
+
+成功済みPaymentの実績は`payment_point_grants`、Point Operation／Lotsとの既存transaction境界で
+確定し、現在のPointProduct、Campaign、現在時刻から再計算しない。Campaign終了・変更や
+PointProductの変更可能field更新後も同じ値を返す。購入前表示は引き続き現在のPointProduct
+Contractを使用し、購入後のHistorical Authorityと混同しない。
+
 ## Supported Methods
 
 Canonical Providerは`fincode`、初期対応は`credit_card`、`paypay`、`konbini`、
