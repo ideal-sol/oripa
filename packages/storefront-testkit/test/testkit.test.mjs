@@ -40,6 +40,7 @@ import {
   PUBLIC_POINT_BALANCE_FIXTURES,
   PUBLIC_POINT_HISTORY_FIXTURES,
   PUBLIC_POINT_READ_PROBLEM_FIXTURES,
+  PUBLIC_PAYMENT_GRANT_FIXTURES,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
@@ -775,6 +776,27 @@ test("Public OpenAPIは3.1.1かつPayment Return Contractを含むOperation 64�
   assert.match(PUBLIC_CONTRACT_FIXTURE.bundle_sha256, /^[0-9a-f]{64}$/);
 });
 
+test("Payment Grant Fixtureは通常・期間限定・Canonical合計を分離する", () => {
+  assert.deepEqual(PUBLIC_PAYMENT_GRANT_FIXTURES.without_limited_bonus, {
+    paid_points: 10000,
+    bonus_points: 1000,
+    limited_bonus_points: 0,
+    total_points: 11000,
+  });
+  assert.deepEqual(PUBLIC_PAYMENT_GRANT_FIXTURES.limited_bonus_applied, {
+    paid_points: 10000,
+    bonus_points: 1000,
+    limited_bonus_points: 2000,
+    total_points: 13000,
+  });
+  for (const grant of Object.values(PUBLIC_PAYMENT_GRANT_FIXTURES)) {
+    assert.equal(
+      grant.total_points,
+      grant.paid_points + grant.bonus_points + grant.limited_bonus_points,
+    );
+  }
+});
+
 test("External Identity FixtureはProvider Subject／Token／Secretを公開しない", () => {
   assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.start.provider, "google");
   assert.equal(PUBLIC_EXTERNAL_IDENTITY_FIXTURE.line_start.provider, "line");
@@ -913,6 +935,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
     "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
+    "PUBLIC_PAYMENT_GRANT_FIXTURES",
     "PUBLIC_POINT_BALANCE_FIXTURES",
     "PUBLIC_POINT_HISTORY_FIXTURES",
     "PUBLIC_POINT_PRODUCT_FIXTURES",

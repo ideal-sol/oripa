@@ -66,7 +66,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.26");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.27");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -1152,7 +1152,16 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
     request: async (options) => {
       requests.push(options);
       return {
-        data: {},
+        data: options.path === "/payments/payment-id"
+          ? {
+              grant: {
+                paid_points: 10000,
+                bonus_points: 1000,
+                limited_bonus_points: 2000,
+                total_points: 13000,
+              },
+            }
+          : {},
         metadata: { status: 200, idempotency_replayed: false },
       };
     },
@@ -1162,7 +1171,7 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
     { point_product_id: "plan-id", payment_method: "paypay" },
     { csrf_token: csrfToken, idempotency_key: "start-key" },
   );
-  await payments.getPayment("payment-id");
+  const payment = await payments.getPayment("payment-id");
   await payments.listPayments({ view: "unpaid", limit: 20, cursor: "next" });
   await payments.resumeUnpaidPayment("payment-id", { csrf_token: csrfToken });
   await payments.listCards();
@@ -1188,6 +1197,12 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
   ]);
   assert.equal(requests[0].idempotency_key, "start-key");
   assert.equal(requests[3].retry, false);
+  assert.deepEqual(payment.data.grant, {
+    paid_points: 10000,
+    bonus_points: 1000,
+    limited_bonus_points: 2000,
+    total_points: 13000,
+  });
 });
 
 test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () => {

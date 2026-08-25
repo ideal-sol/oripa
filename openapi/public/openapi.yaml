@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.25
+  version: 2.0.0-alpha.26
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1789,14 +1789,25 @@ components:
     PaymentGrant:
       type: object
       additionalProperties: false
-      required: [paid_points, bonus_points]
+      required: [paid_points, bonus_points, limited_bonus_points, total_points]
+      x-oripa-response-required-additions: [limited_bonus_points, total_points]
       properties:
         paid_points:
           type: integer
           minimum: 0
+          description: 対象Paymentで実際に確定した有償コイン数。現在のPointProductから再計算しない。
         bonus_points:
           type: integer
           minimum: 0
+          description: 対象Paymentで実際に確定した通常無償ボーナスコイン数。期間限定Bonusを含めない。
+        limited_bonus_points:
+          type: integer
+          minimum: 0
+          description: Payment成功時に適用・確定した期間限定ボーナスコイン数。適用なしは0で、現在のCampaignから再計算しない。
+        total_points:
+          type: integer
+          minimum: 0
+          description: paid_points、bonus_points、limited_bonus_pointsのCanonical合計。
     PaymentRedirectAction:
       type: object
       additionalProperties: false

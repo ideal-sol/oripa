@@ -715,17 +715,18 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_released_additive_alpha_26_bundle(self):
+    def test_storefront_release_governance_accepts_released_additive_alpha_27_bundle(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.26")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.27")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertIsNone(value["candidate"])
+        self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 64)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
             {
-                "public": "2.0.0-alpha.25",
-                "admin": "2.0.0-alpha.25",
-                "webhook": "2.0.0-alpha.25",
+                "public": "2.0.0-alpha.26",
+                "admin": "2.0.0-alpha.26",
+                "webhook": "2.0.0-alpha.26",
             },
         )
 
@@ -2366,7 +2367,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.26",
+                    "version": "2.0.0-alpha.27",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2404,7 +2405,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.25",
+                        "minimumPublicApiContract": "2.0.0-alpha.26",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
