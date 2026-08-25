@@ -51,25 +51,36 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             "release_state": "pending",
             "bundle_version": "2.0.0-alpha.27",
             "predecessor_bundle_version": latest["bundle_version"],
-            "release_mode": "package-only",
+            "release_mode": "contract-additive",
             "platform_version": latest["platform_version"],
             "application_versions": latest["application_versions"],
-            "contract_versions": latest["contract_versions"],
-            "public_openapi_sha256": latest["public_openapi"]["sha256"],
+            "contract_versions": {
+                "public": "2.0.0-alpha.26",
+                "admin": "2.0.0-alpha.26",
+                "webhook": "2.0.0-alpha.26",
+            },
+            "public_openapi_sha256": artifact.sha256_file(
+                ROOT / artifact.PUBLIC_OPENAPI_PATH
+            ),
             "public_api_operation_count": latest["public_openapi"]["operation_count"],
             "packages": packages,
         }
+        packages["@oripa/storefront-client"]["minimum_public_api_contract"] = (
+            "2.0.0-alpha.26"
+        )
         return value
 
     def test_git_utc_timestamp_is_supported(self):
         parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
         self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
 
-    def test_released_additive_contract_bundle_is_valid(self):
+    def test_pending_schema_additive_contract_bundle_is_valid(self):
         value = artifact.validate_governance(self.governance())
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.26")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.27")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(value["candidate"]["public_api_operation_count"], 64)
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertEqual(
             value["latest_immutable"]["packages"]["@oripa/site-schema"]["version"],
@@ -108,15 +119,33 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         ):
             artifact.validate_governance(value)
 
+    def test_schema_only_additive_contract_keeps_operation_count(self):
+        value = artifact.validate_governance(self.next_candidate_governance())
+        self.assertEqual(
+            value["candidate"]["public_api_operation_count"],
+            value["latest_immutable"]["public_openapi"]["operation_count"],
+        )
+
+    def test_contract_candidate_cannot_reduce_operation_count(self):
+        value = self.next_candidate_governance()
+        value["candidate"]["public_api_operation_count"] -= 1
+        value["candidate"]["packages"]["@oripa/storefront-testkit"][
+            "public_api_operation_count"
+        ] -= 1
+        with self.assertRaisesRegex(
+            artifact.ArtifactError, "additive contract candidate mismatch"
+        ):
+            artifact.validate_governance(value)
+
     def test_source_versions_preserve_independent_platform_contract_and_schema(self):
         result = artifact.validate_source(ROOT)
-        self.assertEqual(result["bundle_version"], "2.0.0-alpha.26")
-        self.assertEqual(result["release_state"], "released")
+        self.assertEqual(result["bundle_version"], "2.0.0-alpha.27")
+        self.assertEqual(result["release_state"], "pending")
         self.assertEqual(result["platform_version"], "2.0.0-alpha.23")
-        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.25")
+        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.26")
         self.assertEqual(result["packages"]["@oripa/site-schema"], "2.0.0-alpha.23")
-        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.26")
-        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.26")
+        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.27")
+        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.27")
 
     def valid_output(self, output: Path) -> dict:
         governance = self.next_candidate_governance()
@@ -146,11 +175,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         artifact.write_checksums(output)
         return governance
 
-    def test_settled_release_has_no_publishable_candidate(self):
-        with self.assertRaisesRegex(
-            artifact.ArtifactError, "no pending Storefront artifact candidate"
-        ):
-            artifact.pending_candidate(ROOT)
+    def test_pending_candidate_is_alpha_27(self):
+        self.assertEqual(
+            artifact.pending_candidate(ROOT)["bundle_version"],
+            "2.0.0-alpha.27",
+        )
 
     def test_release_manifest_and_file_inventory_are_consistent(self):
         with tempfile.TemporaryDirectory() as temporary:

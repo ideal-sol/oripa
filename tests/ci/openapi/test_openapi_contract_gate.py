@@ -82,6 +82,86 @@ class OpenApiContractGateTest(unittest.TestCase):
             findings,
         )
 
+    def test_explicit_response_only_required_addition_is_additive(self):
+        previous = {
+            "paths": {
+                "/resources": {
+                    "get": {
+                        "operationId": "listResources",
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"$ref": "#/components/schemas/Resource"}
+                                    }
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "Resource": {
+                        "type": "object",
+                        "required": ["id"],
+                        "properties": {"id": {"type": "string"}},
+                    }
+                }
+            },
+        }
+        current = json.loads(json.dumps(previous))
+        current["components"]["schemas"]["Resource"].update({
+            "required": ["id", "total"],
+            "x-oripa-response-required-additions": ["total"],
+        })
+        current["components"]["schemas"]["Resource"]["properties"]["total"] = {
+            "type": "integer"
+        }
+
+        self.assertEqual([], openapi_contract_gate.breaking_changes(previous, current))
+
+    def test_request_schema_cannot_waive_required_addition(self):
+        previous = {
+            "paths": {
+                "/resources": {
+                    "post": {
+                        "operationId": "createResource",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/Resource"}
+                                }
+                            }
+                        },
+                        "responses": {"201": {"description": "Created"}},
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "Resource": {
+                        "type": "object",
+                        "required": ["id"],
+                        "properties": {"id": {"type": "string"}},
+                    }
+                }
+            },
+        }
+        current = json.loads(json.dumps(previous))
+        current["components"]["schemas"]["Resource"].update({
+            "required": ["id", "total"],
+            "x-oripa-response-required-additions": ["total"],
+        })
+        current["components"]["schemas"]["Resource"]["properties"]["total"] = {
+            "type": "integer"
+        }
+
+        self.assertIn(
+            "components.schemas.Resource: required field added: total",
+            openapi_contract_gate.breaking_changes(previous, current),
+        )
+
     def test_public_internal_field_leak_fails(self):
         document = {
             "openapi": "3.1.1",

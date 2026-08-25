@@ -9,6 +9,24 @@ export {
   PUBLIC_CONTRACT_FIXTURE,
 } from "./generated/public-contract.js";
 
+export const PUBLIC_PAYMENT_GRANT_FIXTURES = Object.freeze({
+  without_limited_bonus: {
+    paid_points: 10000,
+    bonus_points: 1000,
+    limited_bonus_points: 0,
+    total_points: 11000,
+  },
+  limited_bonus_applied: {
+    paid_points: 10000,
+    bonus_points: 1000,
+    limited_bonus_points: 2000,
+    total_points: 13000,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PaymentGrant"]
+>);
+
 export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
   {
     schema_version: "2.0.0-alpha.1",

@@ -1078,8 +1078,14 @@ export interface components {
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         PaymentGrant: {
+            /** @description 対象Paymentで実際に確定した有償コイン数。現在のPointProductから再計算しない。 */
             paid_points: number;
+            /** @description 対象Paymentで実際に確定した通常無償ボーナスコイン数。期間限定Bonusを含めない。 */
             bonus_points: number;
+            /** @description Payment成功時に適用・確定した期間限定ボーナスコイン数。適用なしは0で、現在のCampaignから再計算しない。 */
+            limited_bonus_points: number;
+            /** @description paid_points、bonus_points、limited_bonus_pointsのCanonical合計。 */
+            total_points: number;
         };
         PaymentRedirectAction: {
             /** @enum {unknown} */

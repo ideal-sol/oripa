@@ -183,15 +183,21 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
     return operation_ids
 
 
-def compare_schema(previous: Any, current: Any, location: str) -> list[str]:
+def compare_schema(
+    previous: Any,
+    current: Any,
+    location: str,
+    allowed_required_additions: set[str] | None = None,
+) -> list[str]:
     findings: list[str] = []
     if not isinstance(previous, dict) or not isinstance(current, dict):
         return findings
+    allowed_required_additions = allowed_required_additions or set()
     if previous.get("type") != current.get("type"):
         findings.append(f"{location}: type changed")
     previous_required = set(previous.get("required", []))
     current_required = set(current.get("required", []))
-    for field in sorted(current_required - previous_required):
+    for field in sorted(current_required - previous_required - allowed_required_additions):
         findings.append(f"{location}: required field added: {field}")
     previous_properties = previous.get("properties", {})
     current_properties = current.get("properties", {})
@@ -242,6 +248,51 @@ def numeric_range_covers_enum(previous_enum: set[Any], current: dict[str, Any]) 
     return True
 
 
+def referenced_schema_names(value: Any) -> set[str]:
+    names: set[str] = set()
+    if isinstance(value, dict):
+        reference = value.get("$ref")
+        prefix = "#/components/schemas/"
+        if isinstance(reference, str) and reference.startswith(prefix):
+            names.add(reference.removeprefix(prefix))
+        for nested in value.values():
+            names.update(referenced_schema_names(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            names.update(referenced_schema_names(nested))
+    return names
+
+
+def schema_usage(document: dict[str, Any], usage: str) -> set[str]:
+    schemas = document.get("components", {}).get("schemas", {})
+    paths = document.get("paths", {})
+    if not isinstance(schemas, dict) or not isinstance(paths, dict):
+        return set()
+    roots: set[str] = set()
+    for path_item in paths.values():
+        if not isinstance(path_item, dict):
+            continue
+        if usage == "request":
+            roots.update(referenced_schema_names(path_item.get("parameters", [])))
+        for method in HTTP_METHODS & set(path_item):
+            operation = path_item.get(method)
+            if not isinstance(operation, dict):
+                continue
+            if usage == "request":
+                roots.update(referenced_schema_names(operation.get("parameters", [])))
+                roots.update(referenced_schema_names(operation.get("requestBody", {})))
+            else:
+                roots.update(referenced_schema_names(operation.get("responses", {})))
+    reachable = set(roots)
+    pending = list(roots)
+    while pending:
+        nested = referenced_schema_names(schemas.get(pending.pop(), {}))
+        for referenced in nested - reachable:
+            reachable.add(referenced)
+            pending.append(referenced)
+    return reachable
+
+
 def breaking_changes(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
     findings: list[str] = []
     previous_paths = previous.get("paths", {})
@@ -278,14 +329,26 @@ def breaking_changes(previous: dict[str, Any], current: dict[str, Any]) -> list[
     old_schemas = previous.get("components", {}).get("schemas", {})
     new_schemas = current.get("components", {}).get("schemas", {})
     if isinstance(old_schemas, dict) and isinstance(new_schemas, dict):
+        request_schemas = schema_usage(current, "request")
+        response_schemas = schema_usage(current, "response")
         for name in sorted(set(old_schemas) - set(new_schemas)):
             findings.append(f"components.schemas.{name}: schema removed")
         for name in sorted(set(old_schemas) & set(new_schemas)):
+            marker = new_schemas[name].get("x-oripa-response-required-additions", [])
+            allowed_required_additions = (
+                set(marker)
+                if isinstance(marker, list)
+                and all(isinstance(field, str) for field in marker)
+                and name in response_schemas
+                and name not in request_schemas
+                else set()
+            )
             findings.extend(
                 compare_schema(
                     old_schemas[name],
                     new_schemas[name],
                     f"components.schemas.{name}",
+                    allowed_required_additions,
                 )
             )
     return findings

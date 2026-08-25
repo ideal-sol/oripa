@@ -385,6 +385,9 @@ final class V2FincodePaymentService
                 ];
             }
         }
+        $paidPoints = (int) $payment->paid_point_amount;
+        $bonusPoints = (int) $payment->free_point_amount;
+        $limitedBonusPoints = (int) ($payment->limited_bonus_point_amount ?? 0);
 
         return [
             'id' => $payment->public_id,
@@ -393,8 +396,10 @@ final class V2FincodePaymentService
             'status' => $payment->status,
             'amount' => ['amount' => (int) $payment->amount, 'currency' => $payment->currency],
             'grant' => [
-                'paid_points' => (int) $payment->paid_point_amount,
-                'bonus_points' => (int) $payment->free_point_amount,
+                'paid_points' => $paidPoints,
+                'bonus_points' => $bonusPoints,
+                'limited_bonus_points' => $limitedBonusPoints,
+                'total_points' => $paidPoints + $bonusPoints + $limitedBonusPoints,
             ],
             'expires_at' => $payment->expires_at === null
                 ? null
