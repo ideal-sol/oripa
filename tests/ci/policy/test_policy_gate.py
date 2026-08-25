@@ -715,17 +715,17 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_released_additive_alpha_25_bundle(self):
+    def test_storefront_release_governance_accepts_released_additive_alpha_26_bundle(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.26")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertIsNone(value["candidate"])
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
             {
-                "public": "2.0.0-alpha.24",
-                "admin": "2.0.0-alpha.24",
-                "webhook": "2.0.0-alpha.24",
+                "public": "2.0.0-alpha.25",
+                "admin": "2.0.0-alpha.25",
+                "webhook": "2.0.0-alpha.25",
             },
         )
 
@@ -2366,7 +2366,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.25",
+                    "version": "2.0.0-alpha.26",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2404,7 +2404,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.24",
+                        "minimumPublicApiContract": "2.0.0-alpha.25",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -2717,7 +2717,7 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 62",
+                    "operation_count: 64",
                     "operation_count: 60",
                 ),
                 encoding="utf-8",

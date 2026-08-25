@@ -15,7 +15,7 @@ export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
     site_version: "1.0.0-alpha.1",
     compatibility: {
       family: 2,
-      storefront_client_version: "2.0.0-alpha.24",
+      storefront_client_version: "2.0.0-alpha.26",
       required_capabilities: [],
     },
     public: {

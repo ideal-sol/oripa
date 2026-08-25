@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.24
+  version: 2.0.0-alpha.25
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1441,12 +1441,76 @@ paths:
                 $ref: '#/components/schemas/Payment'
         default:
           $ref: '#/components/responses/Problem'
+  /payment-returns/fincode/normal:
+    post:
+      operationId: normalizeFincodePaymentReturn
+      summary: fincodeの正常POST ReturnをCanonical Storefront GETへ正規化する
+      description: Browser payloadをPayment成功Authorityとして使用せず、Platform生成済みのpidだけを固定Storefront URLへ移す。
+      x-idempotency: safe
+      x-rate-limit: provider-browser-return
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: pid
+          in: query
+          required: true
+          description: PlatformがReturn URLへ設定したCanonical Public Opaque Payment.id。Storefront Request入力ではない。
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+      responses:
+        '303':
+          description: GET `/points/purchase/thanks?pid={Payment.id}`へ正規化する。Payment状態は変更しない。
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
+  /payment-returns/fincode/failure:
+    post:
+      operationId: normalizeFincodePaymentFailureReturn
+      summary: fincodeのfailure/cancel POST Returnを購入商品GETへ正規化する
+      description: Browser payloadを無視し、PlatformがpidからPaymentとPointProductの対応を再解決する。Browser routeはstatus Authorityではない。
+      x-idempotency: safe
+      x-rate-limit: provider-browser-return
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: pid
+          in: query
+          required: true
+          description: PlatformがReturn URLへ設定したCanonical Public Opaque Payment.id。Storefront Request入力ではない。
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+      responses:
+        '303':
+          description: GET `/points/purchase/{PointProduct.id}?pid={Payment.id}`へ正規化する。Payment状態は変更しない。
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
   /payments/{payment_id}:
     get:
       operationId: getPayment
       summary: Browser return後を含む現在のPlatform Payment状態を取得する
+      description: >-
+        Canonical Payment stateと表示情報だけを返すread。Provider statusの強制再照会、Paymentまたは
+        fincode Sessionの作成、Coin Grant、Provider通知処理の代替は行わない。missing、unknown、other-user、
+        ownership不成立は存在差を開示しない共通not-found-or-forbidden境界とする。
       x-idempotency: safe
       x-rate-limit: authenticated-read
+      x-oripa-polling:
+        applies_to: [credit_card, paypay]
+        initial_read: immediate
+        poll_while: [created, requires_action, processing]
+        terminal_stop: [succeeded, failed, canceled, expired]
+        recommended_interval_seconds: 2
+        maximum_automatic_wait_seconds: 30
+        rate_limited: Retry-After header or retry_after_seconds takes precedence
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -1463,13 +1527,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Payment'
+                $ref: '#/components/schemas/PaymentDetail'
         default:
           $ref: '#/components/responses/Problem'
   /payments/{payment_id}/resume:
     post:
       operationId: resumeUnpaidPayment
       summary: 有効な未払いPaymentの既存fincode redirectを再開する
+      description: >-
+        所有する期限内processing状態のKonbiniまたはVirtual Accountだけを対象に、暗号化保存済みの
+        既存fincode Redirect URLを返す。新規Payment、新規fincode Session、新規支払情報または
+        Virtual Accountを作成せず、Provider status再照会にも使用しない。
       x-idempotency: safe
       x-rate-limit: payment-create
       x-cache-policy: no-store
@@ -1485,7 +1553,7 @@ paths:
         - $ref: '#/components/parameters/XsrfToken'
       responses:
         '200':
-          description: 新規Paymentを作成せず既存redirectを返す。
+          description: User action時に既存Paymentと既存Provider redirectを返す。ページload時の自動呼出しは要求しない。
           content:
             application/json:
               schema:
@@ -1629,10 +1697,13 @@ components:
     PaymentCreateRequest:
       type: object
       additionalProperties: false
+      description: Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。
       required: [point_product_id, payment_method]
       properties:
         point_product_id:
-          $ref: '#/components/schemas/OpaqueId'
+          allOf:
+            - $ref: '#/components/schemas/OpaqueId'
+          description: Canonical Public Opaque PointProduct.id。failure/cancel時の固定購入ページ相関にも使用する。
         payment_method:
           $ref: '#/components/schemas/PaymentMethod'
         card:
@@ -1680,7 +1751,13 @@ components:
       required: [id, method, status, amount, grant, expires_at, created_at, succeeded_at, next_action]
       properties:
         id:
-          $ref: '#/components/schemas/OpaqueId'
+          allOf:
+            - $ref: '#/components/schemas/OpaqueId'
+          description: Canonical Public Opaque Payment.id。正常Browser ReturnのpidとgetPayment相関に使用する。
+        point_product_id:
+          allOf:
+            - $ref: '#/components/schemas/OpaqueId'
+          description: 購入対象のCanonical Public Opaque PointProduct.id。valid Paymentのterminal non-success時は`/points/purchase/{point_product_id}?pid={Payment.id}`へ戻す。
         method:
           $ref: '#/components/schemas/PaymentMethod'
         status:
@@ -1699,10 +1776,16 @@ components:
           type: [string, 'null']
           format: date-time
         next_action:
+          description: Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/PaymentRedirectAction'
             - $ref: '#/components/schemas/PaymentCardComponentAction'
+    PaymentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          required: [point_product_id]
     PaymentGrant:
       type: object
       additionalProperties: false
@@ -1746,9 +1829,11 @@ components:
         return_url:
           type: string
           format: uri
+          description: Platform生成のfincode POST Return handler URL。最終的に303でthanks?pid={Payment.id}へ遷移する。
         failure_url:
           type: string
           format: uri
+          description: Platform生成のfincode POST Return handler URL。最終的に303で`/points/purchase/{PointProduct.id}?pid={Payment.id}`へ遷移する。
     PaymentResume:
       type: object
       additionalProperties: false

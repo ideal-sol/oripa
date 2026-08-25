@@ -703,9 +703,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつPayment Contractを含むOperation 62件である", () => {
+test("Public OpenAPIは3.1.1かつPayment Return Contractを含むOperation 64件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 62);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 64);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -751,6 +751,8 @@ test("Public OpenAPIは3.1.1かつPayment Contractを含むOperation 62件であ
     "listUserPrizes",
     "loginUser",
     "logoutUser",
+    "normalizeFincodePaymentFailureReturn",
+    "normalizeFincodePaymentReturn",
     "reauthenticateUserPassword",
     "registerUser",
     "requestPasswordReset",

@@ -35,8 +35,8 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Package Versionは`2.0.0-alpha.24`、Public OpenAPI Contract Versionは
-`2.0.0-alpha.23`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Package Versionは`2.0.0-alpha.26`、Public OpenAPI Contract Versionは
+`2.0.0-alpha.25`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 
@@ -166,6 +166,22 @@ Errorは`ApiProblemError`と`isAuthProblemError`で扱う。主要Codeは
 `INVALID_REDIRECT`、`UNSUPPORTED_MEDIA_TYPE`として型付きで判別できる。
 HTTP 401は未認証／期限切れ、403はCSRF／Email未認証、422はValidation、429は
 Rate Limitとして、Statusだけで分岐しない。
+
+## Payment Return Handoff
+
+Canonical normal returnは`/points/purchase/thanks?pid={Payment.id}`、failure／cancelは
+`/points/purchase/{PointProduct.id}?pid={Payment.id}`である。両方の`pid`はPlatform生成の
+Canonical Public Opaque `Payment.id`で、Storefrontは即時`getPayment(pid)`を実行する。
+Browser routeはstatus Authorityではなく、`succeeded`なら完了、`failed`／`canceled`／
+`expired`なら商品購入ページ、`created`／`requires_action`／`processing`なら2秒間隔かつ
+最大30秒を目安にpollする。429では`Retry-After` headerまたはProblem Detailsの
+`retry_after_seconds`を2秒より優先する。Client transportはGETのNetwork Errorと
+502／503／504だけを限定retryし、429を自動retryしないため、Payment pollingとは別責任である。
+
+Konbini／Virtual Accountの期限内未払いは`getPayment`で状態を読み、User action時だけ
+`resumeUnpaidPayment(pid)`で保存済み既存redirectを再取得する。`getPayment().next_action.url`を
+durable URLとして扱わず、resumeは新規Payment、fincode Session、支払情報、Virtual Accountを
+作成せずProvider status再照会も行わない。Credit Card／PayPayにはresumeを使用しない。
 
 ## Origins
 

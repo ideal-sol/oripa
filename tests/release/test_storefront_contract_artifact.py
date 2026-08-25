@@ -35,23 +35,23 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         latest = value["latest_immutable"]
         packages = copy.deepcopy(latest["packages"])
         packages["@oripa/storefront-client"].update(
-            {"version": "2.0.0-alpha.26", "disposition": "publish"}
+            {"version": "2.0.0-alpha.27", "disposition": "publish"}
         )
         packages["@oripa/storefront-client"].pop("sha256")
         packages["@oripa/site-schema"]["disposition"] = "reference"
         packages["@oripa/storefront-testkit"].update(
             {
-                "version": "2.0.0-alpha.26",
+                "version": "2.0.0-alpha.27",
                 "disposition": "publish",
-                "storefront_client_version": "2.0.0-alpha.26",
+                "storefront_client_version": "2.0.0-alpha.27",
             }
         )
         packages["@oripa/storefront-testkit"].pop("sha256")
         value["candidate"] = {
             "release_state": "pending",
-            "bundle_version": "2.0.0-alpha.26",
+            "bundle_version": "2.0.0-alpha.27",
             "predecessor_bundle_version": latest["bundle_version"],
-            "release_mode": "contract-additive",
+            "release_mode": "package-only",
             "platform_version": latest["platform_version"],
             "application_versions": latest["application_versions"],
             "contract_versions": latest["contract_versions"],
@@ -67,7 +67,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_released_additive_contract_bundle_is_valid(self):
         value = artifact.validate_governance(self.governance())
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.26")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertIsNone(value["candidate"])
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
@@ -76,15 +76,15 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             "2.0.0-alpha.23",
         )
 
-    def test_existing_alpha_25_bundle_reissue_is_rejected(self):
+    def test_existing_alpha_26_bundle_reissue_is_rejected(self):
         value = self.next_candidate_governance()
-        value["candidate"]["bundle_version"] = "2.0.0-alpha.25"
+        value["candidate"]["bundle_version"] = "2.0.0-alpha.26"
         with self.assertRaisesRegex(
             artifact.ArtifactError, "immutable existing version reissue prohibited"
         ):
             artifact.validate_governance(value)
 
-    def test_latest_alpha_25_evidence_must_match_immutable_history(self):
+    def test_latest_alpha_26_evidence_must_match_immutable_history(self):
         value = copy.deepcopy(self.governance())
         value["latest_immutable"]["source_commit"] = "0" * 40
         with self.assertRaisesRegex(artifact.ArtifactError, "latest immutable release mismatch"):
@@ -93,7 +93,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def test_arbitrary_published_package_mismatch_is_rejected(self):
         value = self.next_candidate_governance()
         value["candidate"]["packages"]["@oripa/storefront-client"]["version"] = (
-            "2.0.0-alpha.27"
+            "2.0.0-alpha.28"
         )
         with self.assertRaisesRegex(
             artifact.ArtifactError, "published package version must equal bundle version"
@@ -110,13 +110,13 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_source_versions_preserve_independent_platform_contract_and_schema(self):
         result = artifact.validate_source(ROOT)
-        self.assertEqual(result["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(result["bundle_version"], "2.0.0-alpha.26")
         self.assertEqual(result["release_state"], "released")
         self.assertEqual(result["platform_version"], "2.0.0-alpha.23")
-        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.24")
+        self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.25")
         self.assertEqual(result["packages"]["@oripa/site-schema"], "2.0.0-alpha.23")
-        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.25")
-        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.25")
+        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.26")
+        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.26")
 
     def valid_output(self, output: Path) -> dict:
         governance = self.next_candidate_governance()

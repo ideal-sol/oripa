@@ -221,8 +221,8 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
             'v2_fincode.secret_api_key' => 'test-secret-not-production',
             'v2_fincode.public_api_key' => 'test-public-key',
             'v2_fincode.webhook_signature' => 'test-webhook-signature',
-            'v2_fincode.success_url' => 'https://luxe-pack.biz/points/purchase/thanks',
-            'v2_fincode.cancel_url' => 'https://luxe-pack.biz/points',
+            'v2_fincode.platform_origin' => 'https://api.luxe-pack.biz',
+            'v2_fincode.storefront_origin' => 'https://luxe-pack.biz',
         ]);
     }
 
