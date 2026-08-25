@@ -14,6 +14,7 @@ use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodeReconciliationService;
 use App\Domain\Payment\V2\Services\V2FincodeWebhookService;
 use App\Domain\Payment\V2\Services\V2PaymentService;
+use App\Http\Controllers\V2\V2PaymentController;
 use App\Models\V2\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Factory;
@@ -40,8 +41,8 @@ final class FincodePaymentBackendTest extends TestCase
             'v2_fincode.secret_api_key' => 'test-secret-not-production',
             'v2_fincode.public_api_key' => 'test-public-key',
             'v2_fincode.webhook_signature' => 'test-webhook-signature',
-            'v2_fincode.success_url' => 'https://luxe-pack.biz/points/purchase/thanks',
-            'v2_fincode.cancel_url' => 'https://luxe-pack.biz/points',
+            'v2_fincode.platform_origin' => 'https://api.luxe-pack.biz',
+            'v2_fincode.storefront_origin' => 'https://luxe-pack.biz',
         ]);
     }
 
@@ -53,13 +54,15 @@ final class FincodePaymentBackendTest extends TestCase
         $methods = ['credit_card', 'paypay', 'konbini', 'virtual_account'];
         $responses = [];
         foreach ($methods as $method) {
+            $plan = $this->plan();
             $responses[$method] = $service->start(
                 $user,
-                $this->plan()->public_id,
+                $plan->public_id,
                 $method,
                 'start-'.$method,
                 $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null
             );
+            self::assertSame($plan->public_id, $responses[$method]['point_product_id']);
         }
         self::assertSame('fincode_card_component', $responses['credit_card']['next_action']['type']);
         self::assertSame('redirect', $responses['paypay']['next_action']['type']);
@@ -75,6 +78,222 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame($first['id'], $replay['id']);
         self::assertSame($sent, Http::recorded()->count());
         self::assertSame(5, DB::table('fincode_payment_attempts')->count());
+    }
+
+    public function test_platform_generates_canonical_return_urls_for_all_payment_methods(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('return-url');
+        $plan = $this->plan();
+        $service = app(V2FincodePaymentService::class);
+
+        $card = $service->start(
+            $user,
+            $plan->public_id,
+            'credit_card',
+            'return-url-card',
+            ['source' => 'new', 'save' => false]
+        );
+        self::assertSame(
+            'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/normal?pid='.$card['id'],
+            $card['next_action']['return_url']
+        );
+        self::assertSame(
+            'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$card['id'],
+            $card['next_action']['failure_url']
+        );
+
+        foreach (['paypay', 'konbini', 'virtual_account'] as $method) {
+            $payment = $service->start($user, $plan->public_id, $method, 'return-url-'.$method);
+            Http::assertSent(function (Request $request) use ($payment, $plan): bool {
+                if ($request->method() !== 'POST' || ! str_ends_with($request->url(), '/v1/sessions')) {
+                    return false;
+                }
+                $data = $request->data();
+
+                return ($data['success_url'] ?? null)
+                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/normal?pid='.$payment['id']
+                    && ($data['cancel_url'] ?? null)
+                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id'];
+            });
+        }
+    }
+
+    public function test_fincode_post_returns_are_normalized_to_safe_storefront_gets_without_mutation(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('return-handler');
+        $plan = $this->plan();
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $plan->public_id,
+            'paypay',
+            'return-handler'
+        );
+        $before = DB::table('payments')->where('public_id', $payment['id'])->value('status');
+
+        $normalReturn = $this->post('/api/v2/payment-returns/fincode/normal?pid='.$payment['id'], [
+            'status' => 'CAPTURED',
+            'access_id' => 'must-not-be-forwarded',
+        ]);
+        $normalReturn->assertStatus(303)
+            ->assertHeader('Location', 'https://luxe-pack.biz/points/purchase/thanks?pid='.$payment['id'])
+            ->assertHeader('Referrer-Policy', 'no-referrer');
+        self::assertStringContainsString('no-store', (string) $normalReturn->headers->get('Cache-Control'));
+
+        $this->post('/api/v2/payment-returns/fincode/failure?pid='.$payment['id'], [
+            'redirect_url' => 'https://evil.example.test',
+        ])->assertStatus(303)
+            ->assertHeader(
+                'Location',
+                'https://luxe-pack.biz/points/purchase/'.$plan->public_id.'?pid='.$payment['id']
+            );
+
+        $this->post('/api/v2/payment-returns/fincode/normal?pid=malformed')
+            ->assertStatus(303)
+            ->assertHeader('Location', 'https://luxe-pack.biz/points');
+        $this->post('/api/v2/payment-returns/fincode/normal?pid='.(string) Str::uuid7())
+            ->assertStatus(303)
+            ->assertHeader('Location', 'https://luxe-pack.biz/points');
+        $this->post('/api/v2/payment-returns/fincode/failure')
+            ->assertStatus(303)
+            ->assertHeader('Location', 'https://luxe-pack.biz/points');
+        $this->post('/api/v2/payment-returns/fincode/failure?pid='.(string) Str::uuid7())
+            ->assertStatus(303)
+            ->assertHeader('Location', 'https://luxe-pack.biz/points');
+
+        self::assertSame($before, DB::table('payments')->where('public_id', $payment['id'])->value('status'));
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+    }
+
+    public function test_payment_creation_rejects_storefront_return_overrides(): void
+    {
+        foreach ([
+            'return_url',
+            'success_url',
+            'failure_url',
+            'cancel_url',
+            'pid',
+            'payment_id',
+            'product_id',
+            'production_id',
+        ] as $field) {
+            $request = \Illuminate\Http\Request::create('/api/v2/payments', 'POST', [
+                'point_product_id' => (string) Str::uuid7(),
+                'payment_method' => 'paypay',
+                $field => $field === 'pid' ? (string) Str::uuid7() : 'https://evil.example.test',
+            ]);
+            $response = app(V2PaymentController::class)->store($request);
+
+            self::assertSame(422, $response->getStatusCode());
+            self::assertSame('PAYMENT_RETURN_OVERRIDE_FORBIDDEN', $response->getData(true)['code']);
+        }
+        self::assertSame(0, DB::table('payments')->count());
+    }
+
+    public function test_get_payment_has_common_ownership_boundary_and_canonical_polling_states(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('payment-owner');
+        $other = $this->user('payment-other');
+        $plan = $this->plan();
+        $payment = app(V2FincodePaymentService::class)->start(
+            $owner,
+            $plan->public_id,
+            'paypay',
+            'payment-polling'
+        );
+        $service = app(V2FincodePaymentService::class);
+
+        foreach (['created', 'requires_action', 'processing', 'succeeded', 'failed', 'canceled', 'expired'] as $status) {
+            DB::table('payments')->where('public_id', $payment['id'])->update(['status' => $status]);
+            $read = $service->show($owner, $payment['id']);
+            self::assertSame($status, $read['status']);
+            self::assertSame($plan->public_id, $read['point_product_id']);
+        }
+
+        foreach ([(string) Str::uuid7(), 'malformed'] as $unknown) {
+            try {
+                $service->show($owner, $unknown);
+                self::fail('Unknown payment must not be disclosed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('PAYMENT_NOT_FOUND', $exception->errorCode);
+                self::assertSame(404, $exception->status);
+            }
+        }
+        try {
+            $service->show($other, $payment['id']);
+            self::fail('Other-user payment must not be disclosed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('PAYMENT_NOT_FOUND', $exception->errorCode);
+            self::assertSame(404, $exception->status);
+        }
+    }
+
+    public function test_unpaid_resume_reuses_existing_redirect_without_new_payment_or_provider_session(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('resume-owner');
+        $other = $this->user('resume-other');
+        $plan = $this->plan();
+        $service = app(V2FincodePaymentService::class);
+
+        foreach (['konbini', 'virtual_account'] as $method) {
+            $payment = $service->start($owner, $plan->public_id, $method, 'resume-'.$method);
+            DB::table('payments')->where('public_id', $payment['id'])->update([
+                'status' => 'processing',
+                'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
+                'expires_at' => now()->addDay(),
+            ]);
+            $expectedUrl = $payment['next_action']['url'];
+            self::assertSame('processing', $service->show($owner, $payment['id'])['status']);
+            self::assertNull($service->show($owner, $payment['id'])['next_action']);
+            $paymentCount = DB::table('payments')->count();
+            $providerCallCount = Http::recorded()->count();
+
+            $resumed = $service->resume($owner, $payment['id']);
+
+            self::assertSame($expectedUrl, $resumed['next_action']['url']);
+            self::assertSame($paymentCount, DB::table('payments')->count());
+            self::assertSame($providerCallCount, Http::recorded()->count());
+            try {
+                $service->resume($other, $payment['id']);
+                self::fail('Other-user unpaid payment must not be resumable.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+            }
+        }
+
+        foreach (['credit_card', 'paypay'] as $method) {
+            $payment = $service->start(
+                $owner,
+                $plan->public_id,
+                $method,
+                'resume-unsupported-'.$method,
+                $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null
+            );
+            try {
+                $service->resume($owner, $payment['id']);
+                self::fail('Card and PayPay must not use unpaid resume.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+            }
+        }
+
+        $terminal = $service->start($owner, $plan->public_id, 'virtual_account', 'resume-terminal');
+        foreach (['succeeded', 'expired', 'failed', 'canceled'] as $status) {
+            DB::table('payments')->where('public_id', $terminal['id'])->update([
+                'status' => $status,
+                'provider_status' => strtoupper($status),
+                'expires_at' => now()->addDay(),
+            ]);
+            try {
+                $service->resume($owner, $terminal['id']);
+                self::fail('Terminal payment must not be resumable.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+            }
+        }
     }
 
     public function test_browser_read_does_not_grant_and_duplicate_webhook_grants_coin_and_mail_once(): void

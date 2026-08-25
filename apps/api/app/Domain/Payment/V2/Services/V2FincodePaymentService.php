@@ -26,6 +26,7 @@ final class V2FincodePaymentService
         private readonly V2PaymentService $payments,
         private readonly V2FincodeClient $client,
         private readonly V2FincodeCardService $cards,
+        private readonly V2FincodeReturnUrl $returns,
         private readonly V2ReportingCursor $cursor
     ) {
     }
@@ -42,10 +43,11 @@ final class V2FincodePaymentService
         if ($payType === null) {
             throw new V2FincodeException('PAYMENT_METHOD_UNSUPPORTED', 422, 'The payment method is unsupported.');
         }
-        $planId = DB::table('point_purchase_plans')
+        $plan = DB::table('point_purchase_plans')
             ->where('public_id', $pointProductId)
-            ->value('id');
-        if (! is_int($planId)) {
+            ->select(['id', 'public_id'])
+            ->first();
+        if ($plan === null) {
             throw new V2FincodeException('POINT_PRODUCT_NOT_FOUND', 404, 'The point product was not found.');
         }
         $ownedCard = $method === 'credit_card'
@@ -55,7 +57,7 @@ final class V2FincodePaymentService
         try {
             $payment = $this->payments->createPayment(
                 $user->id,
-                $planId,
+                (int) $plan->id,
                 'fincode',
                 $orderId,
                 $idempotencyKey,
@@ -73,6 +75,8 @@ final class V2FincodePaymentService
         }
 
         try {
+            $normalReturnUrl = $this->returns->providerNormal($payment->public_id);
+            $failureReturnUrl = $this->returns->providerFailure($payment->public_id);
             if ($method === 'credit_card') {
                 $response = $this->client->createCardPayment(
                     $payment->provider_payment_id,
@@ -87,6 +91,8 @@ final class V2FincodePaymentService
                         $accessId,
                         $ownedCard->provider_customer_id,
                         $ownedCard->provider_card_id,
+                        $normalReturnUrl,
+                        $failureReturnUrl,
                         $attempt->provider_execute_idempotency_key
                     );
                     $nextUrl = $this->optionalActionUrl($executed['acs_url'] ?? null);
@@ -112,6 +118,8 @@ final class V2FincodePaymentService
                     $payment->provider_payment_id,
                     $payType,
                     (int) $payment->amount,
+                    $normalReturnUrl,
+                    $failureReturnUrl,
                     $attempt->provider_idempotency_key
                 );
                 $redirectUrl = $this->requiredHttpsUrl($response, 'link_url');
@@ -341,9 +349,15 @@ final class V2FincodePaymentService
         bool $includeNextAction,
         ?int $expectedUserId = null
     ): array {
-        $query = DB::table('payments')->where('public_id', $paymentPublicId);
+        if (! Str::isUuid($paymentPublicId)) {
+            throw new V2FincodeException('PAYMENT_NOT_FOUND', 404, 'The payment was not found.');
+        }
+        $query = DB::table('payments as payment')
+            ->join('point_purchase_plans as point_product', 'point_product.id', '=', 'payment.point_purchase_plan_id')
+            ->select(['payment.*', 'point_product.public_id as point_product_public_id'])
+            ->where('payment.public_id', $paymentPublicId);
         if ($expectedUserId !== null) {
-            $query->where('user_id', $expectedUserId);
+            $query->where('payment.user_id', $expectedUserId);
         }
         $payment = $query->first();
         if ($payment === null) {
@@ -359,8 +373,8 @@ final class V2FincodePaymentService
                     'access_id' => $attempt->provider_access_id,
                     'public_api_key' => $this->publicApiKey(),
                     'tds_type' => '2',
-                    'return_url' => (string) config('v2_fincode.success_url'),
-                    'failure_url' => (string) config('v2_fincode.cancel_url'),
+                    'return_url' => $this->returns->providerNormal($payment->public_id),
+                    'failure_url' => $this->returns->providerFailure($payment->public_id),
                 ];
             } elseif ($attempt->redirect_url_ciphertext !== null) {
                 $nextAction = [
@@ -374,6 +388,7 @@ final class V2FincodePaymentService
 
         return [
             'id' => $payment->public_id,
+            'point_product_id' => $payment->point_product_public_id,
             'method' => $payment->payment_method,
             'status' => $payment->status,
             'amount' => ['amount' => (int) $payment->amount, 'currency' => $payment->currency],

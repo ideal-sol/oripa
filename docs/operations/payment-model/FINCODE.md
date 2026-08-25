@@ -18,9 +18,70 @@ Canonical Providerは`fincode`、初期対応は`credit_card`、`paypay`、`konb
 PayPay、Konbini、Virtual Accountはfincode Redirect Paymentを使用し、Userが支払操作を
 確定した時だけ`POST /v1/sessions`を呼ぶ。
 
-正常Returnはconfigured Storefront originの`/points/purchase/thanks`、Cancelは固定
-`https://luxe-pack.biz/points`とする。RequestからReturn URLを受け取らずOpen Redirectを
-作らない。Browser Returnとサンクスページ到達はPayment Success Authorityではない。
+## Canonical Browser Return
+
+4方式共通のnormal returnは次である。
+
+```text
+/points/purchase/thanks?pid={Payment.id}
+```
+
+failure／cancel returnは次である。
+
+```text
+/points/purchase/{PointProduct.id}?pid={Payment.id}
+```
+
+`pid`はCanonical Public Opaque `Payment.id`、path segmentはPayment作成時の
+`point_product_id`と同一のCanonical Public Opaque `PointProduct.id`である。Storefrontの
+実Route `/points/purchase/[productId]`が要求するIDもこの`PointProduct.id`であり、
+`production_id`等の新規IDは設けない。`point_product_id`は購入対象を選ぶCanonical Request
+fieldとしてだけ受け付け、Return先を別値へ差し替える入力として扱わない。
+
+Return URLはPlatformがallowlisted canonical Platform／Storefront origin、固定path、作成済み
+PaymentとそのPointProductからだけ生成する。Storefront Requestの`return_url`、`success_url`、
+`failure_url`、`cancel_url`、`pid`、`payment_id`、`product_id`、`production_id`は拒否し、
+Open Redirectを作らない。URLにはPublic Payment／Product ID以外のProvider ID、DB ID、User ID、
+PII、Secret、access ID、token、credential、raw statusを含めない。
+
+fincode公式OpenAPIのreadbackでは、Card 3DSの`return_url`／`return_url_on_failure`と、PayPay、
+Konbini、Virtual Accountで使用する`POST /v1/sessions`の`success_url`／`cancel_url`はBrowserを
+HTTP POSTで遷移させ、URL上限は256文字である。query付きURLを禁止する記載はない。このため
+Provider POSTはPublic APIのnon-mutating Return Handlerで受け、POST bodyとProvider raw値を
+無視してPayment／PointProductのCanonical mappingを再解決し、HTTP 303で上記Storefront GETへ
+正規化する。未知・malformedな`pid`またはmapping不成立時は`/points`へ戻す。HandlerはPayment
+status、Coin、User business stateを変更せず、Webhookを代替しない。
+
+公式OpenAPIにはper-request Return URLに対するDashboard domain allowlist要件は記載されて
+いない。後続Sandbox Integrationでは、HTTPSで外部到達可能なPlatform callback originと
+configured Storefront originを確認し、Provider側に別途domain登録が要求される場合だけ登録する。
+本TaskではSandbox／Provider設定を変更しない。
+
+Browserのnormal／failure／cancel routeはnavigation hintであり、Payment status Authorityでは
+ない。Storefrontはどちらから戻っても`pid`を即時`getPayment(pid)`へ渡し、Platformが
+Authenticated UserとPayment ownershipを検証したCanonical `Payment.status`を優先する。
+failure routeでも`succeeded`なら正常完了へ進み、`failed`／`canceled`／`expired`なら商品購入
+ページで非成功表示を行う。`created`／`requires_action`／`processing`なら確定済みpolling境界へ
+入る。missing、malformed、unknown、other-user、ownership不成立は存在差を開示しない共通Errorと
+し、Storefrontは「決済情報を確認できませんでした」相当と`/points`導線を表示する。
+
+CardとPayPayはReturn直後に`getPayment(pid)`を1回実行し、`created`、`requires_action`、
+`processing`の間だけ推奨2秒間隔、最大30秒で自動pollしてよい。`succeeded`、`failed`、
+`canceled`、`expired`を取得したら即時停止する。30秒後も未確定なら自動pollを停止し、無限
+loadingではなく確認遅延を示す安全な待機状態へ移る。429では`Retry-After` headerまたは
+Problem Detailsの`retry_after_seconds`があれば2秒より優先し、指定前に再pollしない。現行
+OpenAPIの分類は`authenticated-read`で、RepositoryにgetPayment専用の数値上限は定義されて
+いないため数値を推測しない。Client transport retryはGETのNetwork Errorと502／503／504に
+限定され、429は自動retryしない。Storefront Payment pollingとは別責任である。
+
+Konbiniは支払情報発行、Virtual Accountは振込先発行が成功したnormal returnでは通常
+`processing`／未払いであり、failureとして扱わず入金後だけCoinを付与する。thanks page reloadでも
+`getPayment(pid)`で状態を再取得し、期限内未払いならUser action時に
+`resumeUnpaidPayment(pid)`を呼ぶ。`getPayment().next_action.url`をdurable resume URLとして
+依存しない。resumeはownership、方式、`processing`、`AWAITING_CUSTOMER_PAYMENT`、期限、保存済み
+redirectを検証して暗号化保存済みの既存URLを返すだけで、新規Payment、fincode Session、
+Konbini支払情報、Virtual Accountを作らずProvider APIも呼ばない。Card／PayPay、terminal、
+期限切れ、other-user、invalid Paymentはresumeできない。
 
 ## Card Boundary
 
@@ -104,11 +165,12 @@ reconciliation requiredで停止する。
 
 ## Public Contract
 
-Public APIはPayment開始、状態参照、成功／未払い履歴、既存未払いRedirect再開、カード一覧・
+Public APIはPayment開始、Platform生成ReturnのPOST→303正規化、状態参照、成功／未払い履歴、既存未払いRedirect再開、カード一覧・
 削除・登録Intent・登録完了を提供する。成功履歴は`succeeded`だけ、未払い履歴は期限内かつ
 `AWAITING_CUSTOMER_PAYMENT`のKonbini／Virtual Accountだけを返す。expired、failed、canceledは
-Storefront履歴に出さない。未払い再開は暗号化保存した既存Redirect URLを返し、新規Paymentを
-作らない。API正本は`openapi/public/openapi.yaml`、薄いClientは
+Storefront履歴に出さない。`getPayment`はCanonical state／presentationのreadでありProvider
+再照会、Session作成、Coin Grant、Webhook代替を行わない。未払い再開は暗号化保存した既存
+Redirect URLを返し、新規PaymentやProvider Sessionを作らない。API正本は`openapi/public/openapi.yaml`、薄いClientは
 `packages/storefront-client/src/payments.ts`である。
 
 ## Admin Contract
@@ -121,11 +183,10 @@ Admin UIは実装しない。API正本は`openapi/admin/openapi.yaml`である�
 ## Contract Artifact
 
 Canonical publicationは`docs/operations/releases/storefront-contract-artifact.md`の
-additive-contract手順に従う。Public、Admin、Webhook Payment ContractはCanonical
-`2.0.0-alpha.24`を維持し、既存package-only `2.0.0-alpha.24`とのcollisionを避けるため
-Storefront Client／Testkit bundleだけをimmutable `2.0.0-alpha.25`として正式発行した。
-Platform、Application、Site Schemaは独立Versionのまま維持し、既存immutable releaseの
-Manifest、tarball、digest、source treeを変更しない。
+additive-contract手順に従う。既存immutable `2.0.0-alpha.25`は変更せず、Public Contract、
+Storefront Client、Testkitのbyte変更を次の未使用`2.0.0-alpha.26` candidateとして発行する。
+Public OpenAPI Contract versionは`2.0.0-alpha.25`、Admin／Webhook Contractは既存versionを
+維持する。Platform、Application、Site Schemaも独立Versionのままである。
 
 ## Activation And Deferred Work
 

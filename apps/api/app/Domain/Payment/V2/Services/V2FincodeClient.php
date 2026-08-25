@@ -57,6 +57,8 @@ final class V2FincodeClient
         string $accessId,
         string $customerId,
         string $cardId,
+        string $returnUrl,
+        string $failureUrl,
         string $idempotencyKey
     ): array {
         return $this->request('put', '/v1/payments/'.rawurlencode($orderId), [
@@ -65,8 +67,8 @@ final class V2FincodeClient
             'customer_id' => $customerId,
             'card_id' => $cardId,
             'method' => '1',
-            'return_url' => $this->successUrl(),
-            'return_url_on_failure' => $this->cancelUrl(),
+            'return_url' => $returnUrl,
+            'return_url_on_failure' => $failureUrl,
         ], $idempotencyKey);
     }
 
@@ -75,11 +77,13 @@ final class V2FincodeClient
         string $orderId,
         string $payType,
         int $amount,
+        string $successUrl,
+        string $cancelUrl,
         string $idempotencyKey
     ): array {
         $payload = [
-            'success_url' => $this->successUrl(),
-            'cancel_url' => $this->cancelUrl(),
+            'success_url' => $successUrl,
+            'cancel_url' => $cancelUrl,
             'transaction' => [
                 'id' => $orderId,
                 'pay_type' => [$payType],
@@ -238,30 +242,6 @@ final class V2FincodeClient
     private function baseUrl(): string
     {
         return (string) config('v2_fincode.base_url');
-    }
-
-    private function successUrl(): string
-    {
-        return $this->configuredUrl('success_url');
-    }
-
-    private function cancelUrl(): string
-    {
-        return $this->configuredUrl('cancel_url');
-    }
-
-    private function configuredUrl(string $key): string
-    {
-        $url = config('v2_fincode.'.$key);
-        if (! is_string($url) || filter_var($url, FILTER_VALIDATE_URL) === false) {
-            throw new V2FincodeException(
-                'FINCODE_RETURN_URL_INVALID',
-                503,
-                'The payment return URL is unavailable.'
-            );
-        }
-
-        return $url;
     }
 
     private function secret(#[SensitiveParameter] string $secret): string

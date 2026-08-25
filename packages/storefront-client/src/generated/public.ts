@@ -859,6 +859,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payment-returns/fincode/normal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * fincodeの正常POST ReturnをCanonical Storefront GETへ正規化する
+         * @description Browser payloadをPayment成功Authorityとして使用せず、Platform生成済みのpidだけを固定Storefront URLへ移す。
+         */
+        post: operations["normalizeFincodePaymentReturn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payment-returns/fincode/failure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * fincodeのfailure/cancel POST Returnを購入商品GETへ正規化する
+         * @description Browser payloadを無視し、PlatformがpidからPaymentとPointProductの対応を再解決する。Browser routeはstatus Authorityではない。
+         */
+        post: operations["normalizeFincodePaymentFailureReturn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments/{payment_id}": {
         parameters: {
             query?: never;
@@ -866,7 +906,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Browser return後を含む現在のPlatform Payment状態を取得する */
+        /**
+         * Browser return後を含む現在のPlatform Payment状態を取得する
+         * @description Canonical Payment stateと表示情報だけを返すread。Provider statusの強制再照会、Paymentまたは fincode Sessionの作成、Coin Grant、Provider通知処理の代替は行わない。missing、unknown、other-user、 ownership不成立は存在差を開示しない共通not-found-or-forbidden境界とする。
+         */
         get: operations["getPayment"];
         put?: never;
         post?: never;
@@ -885,7 +928,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 有効な未払いPaymentの既存fincode redirectを再開する */
+        /**
+         * 有効な未払いPaymentの既存fincode redirectを再開する
+         * @description 所有する期限内processing状態のKonbiniまたはVirtual Accountだけを対象に、暗号化保存済みの 既存fincode Redirect URLを返す。新規Payment、新規fincode Session、新規支払情報または Virtual Accountを作成せず、Provider status再照会にも使用しない。
+         */
         post: operations["resumeUnpaidPayment"];
         delete?: never;
         options?: never;
@@ -986,7 +1032,9 @@ export interface components {
         PaymentMethod: "credit_card" | "paypay" | "konbini" | "virtual_account";
         /** @enum {unknown} */
         PaymentStatus: "created" | "requires_action" | "processing" | "succeeded" | "failed" | "canceled" | "expired";
+        /** @description Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。 */
         PaymentCreateRequest: {
+            /** @description Canonical Public Opaque PointProduct.id。failure/cancel時の固定購入ページ相関にも使用する。 */
             point_product_id: components["schemas"]["OpaqueId"];
             payment_method: components["schemas"]["PaymentMethod"];
             card?: components["schemas"]["NewOneTimeCardSelection"] | components["schemas"]["NewSavedCardSelection"] | components["schemas"]["SavedCardSelection"];
@@ -1011,7 +1059,10 @@ export interface components {
             card_id: components["schemas"]["OpaqueId"];
         };
         Payment: {
+            /** @description Canonical Public Opaque Payment.id。正常Browser ReturnのpidとgetPayment相関に使用する。 */
             id: components["schemas"]["OpaqueId"];
+            /** @description 購入対象のCanonical Public Opaque PointProduct.id。valid Paymentのterminal non-success時は`/points/purchase/{point_product_id}?pid={Payment.id}`へ戻す。 */
+            point_product_id?: components["schemas"]["OpaqueId"];
             method: components["schemas"]["PaymentMethod"];
             status: components["schemas"]["PaymentStatus"];
             amount: components["schemas"]["PointProductPrice"];
@@ -1022,8 +1073,10 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             succeeded_at: string | null;
+            /** @description Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。 */
             next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"];
         };
+        PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         PaymentGrant: {
             paid_points: number;
             bonus_points: number;
@@ -1042,9 +1095,15 @@ export interface components {
             public_api_key: string;
             /** @constant */
             tds_type: "2";
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Platform生成のfincode POST Return handler URL。最終的に303でthanks?pid={Payment.id}へ遷移する。
+             */
             return_url: string;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Platform生成のfincode POST Return handler URL。最終的に303で`/points/purchase/{PointProduct.id}?pid={Payment.id}`へ遷移する。
+             */
             failure_url: string;
         };
         PaymentResume: {
@@ -3422,6 +3481,50 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    normalizeFincodePaymentReturn: {
+        parameters: {
+            query: {
+                /** @description PlatformがReturn URLへ設定したCanonical Public Opaque Payment.id。Storefront Request入力ではない。 */
+                pid: components["schemas"]["OpaqueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description GET `/points/purchase/thanks?pid={Payment.id}`へ正規化する。Payment状態は変更しない。 */
+            303: {
+                headers: {
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    normalizeFincodePaymentFailureReturn: {
+        parameters: {
+            query: {
+                /** @description PlatformがReturn URLへ設定したCanonical Public Opaque Payment.id。Storefront Request入力ではない。 */
+                pid: components["schemas"]["OpaqueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description GET `/points/purchase/{PointProduct.id}?pid={Payment.id}`へ正規化する。Payment状態は変更しない。 */
+            303: {
+                headers: {
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getPayment: {
         parameters: {
             query?: never;
@@ -3439,7 +3542,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Payment"];
+                    "application/json": components["schemas"]["PaymentDetail"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -3458,7 +3561,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 新規Paymentを作成せず既存redirectを返す。 */
+            /** @description User action時に既存Paymentと既存Provider redirectを返す。ページload時の自動呼出しは要求しない。 */
             200: {
                 headers: {
                     [name: string]: unknown;

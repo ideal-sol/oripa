@@ -33,8 +33,13 @@ use App\Http\Controllers\V2\V2CurrentUserPointController;
 use App\Http\Controllers\V2\V2CurrentUserLineController;
 use App\Http\Controllers\V2\V2PointProductController;
 use App\Http\Controllers\V2\V2PaymentController;
+use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::post('/payment-returns/fincode/normal', [V2FincodeReturnController::class, 'normal'])
+        ->name('v2.public.payment-returns.fincode.normal');
+    Route::post('/payment-returns/fincode/failure', [V2FincodeReturnController::class, 'failure'])
+        ->name('v2.public.payment-returns.fincode.failure');
     Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
         ->name('v2.public.content.banners');
     Route::get('/content/assets/{assetId}', [V2ContentContactController::class, 'assetContent'])
@@ -102,9 +107,9 @@ Route::prefix('v2')
         Route::post('/payments', [V2PaymentController::class, 'store'])
             ->name('v2.public.payments.store');
         Route::get('/payments/{paymentId}', [V2PaymentController::class, 'show'])
-            ->whereUuid('paymentId')->name('v2.public.payments.show');
+            ->name('v2.public.payments.show');
         Route::post('/payments/{paymentId}/resume', [V2PaymentController::class, 'resume'])
-            ->whereUuid('paymentId')->name('v2.public.payments.resume');
+            ->name('v2.public.payments.resume');
         Route::get('/me/payments', [V2PaymentController::class, 'history'])
             ->name('v2.public.payments.history');
         Route::get('/me/payment-cards', [V2PaymentController::class, 'cards'])
