@@ -25,9 +25,10 @@ Payment source also used alpha.24 package labels but differs in OpenAPI, package
 inventory, capabilities, exports, and operation count. It is therefore a version
 collision, not the same Artifact.
 
-## Payment Release Boundary
+## Payment Release
 
-The next unused bundle is `2.0.0-alpha.25` and publishes:
+The canonical additive bundle `2.0.0-alpha.25` was published from source
+`c1b55e8cc4e23b40c82372e739bc162604a53f2a` and contains:
 
 - `@oripa/storefront-client@2.0.0-alpha.25`
 - `@oripa/storefront-testkit@2.0.0-alpha.25`
@@ -37,6 +38,17 @@ It references, but does not rebuild or include, immutable
 The Public, Admin, and Webhook Payment contracts remain their canonical alpha.24
 document versions. Advancing the package bundle does not rewrite unchanged
 contract or Site Schema versions.
+
+Canonical readback fixed these SHA-256 values:
+
+- Manifest: `b9fcc89c4bcc97bcc86de0ef0613e283d0f90181f6b04167d6cb9a8bca2c4c21`
+- Client: `881eacd845613d9976696d7fbcba68abf05bc2e19d6abf1ce211b7f13202be21`
+- Testkit: `22e29b26c7daf608c2fbeeef85d6e8494ff8ff57c0efb1649209dc14d4f9205c`
+- Public OpenAPI: `38761cf884c93b2a3f9b16c6718b88079a7c2c299d2335235609746f9b9b9397`
+- `SHA256SUMS`: `fb68da2e7a3751459f393bc48d327e83d037bcca35d258eae08998ca0c26713f`
+
+The ledger records alpha.25 as `latest_immutable` and clears `candidate` to
+prevent a same-version second publication.
 
 The validator requires:
 

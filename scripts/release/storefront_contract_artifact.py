@@ -196,11 +196,7 @@ def validate_governance(value: dict) -> dict:
     validate_immutable_release(latest)
     latest_version = latest.get("bundle_version")
     latest_family, latest_sequence = alpha_identity(latest_version)
-    if (
-        latest_version != history_versions[-1]
-        or latest.get("manifest_sha256") != history[-1].get("manifest_sha256")
-        or latest.get("source_commit") != history[-1].get("source_commit")
-    ):
+    if latest != history[-1]:
         raise ArtifactError("latest immutable release mismatch")
     if candidate is None:
         return value
@@ -312,6 +308,35 @@ def pending_candidate(repository: Path) -> dict:
     if not isinstance(candidate, dict):
         raise ArtifactError("no pending Storefront artifact candidate")
     return candidate
+
+
+def verification_target(value: dict) -> dict:
+    candidate = value.get("candidate")
+    if isinstance(candidate, dict):
+        return candidate
+    latest = value["latest_immutable"]
+    history = value["immutable_history"]
+    packages = {
+        name: {
+            **details,
+            "disposition": "reference" if name == "@oripa/site-schema" else "publish",
+        }
+        for name, details in latest["packages"].items()
+    }
+    return {
+        "release_state": "released",
+        "bundle_version": latest["bundle_version"],
+        "predecessor_bundle_version": history[-2]["bundle_version"],
+        "release_mode": latest["release_mode"],
+        "platform_version": latest["platform_version"],
+        "application_versions": latest["application_versions"],
+        "contract_versions": latest["contract_versions"],
+        "public_openapi_sha256": latest["public_openapi"]["sha256"],
+        "public_api_operation_count": latest["public_openapi"]["operation_count"],
+        "packages": packages,
+        "source_commit": latest["source_commit"],
+        "manifest_sha256": latest["manifest_sha256"],
+    }
 
 
 def git_tree(repository: Path, relative: Path) -> str:
@@ -486,7 +511,7 @@ def verify_checksums(output: Path) -> set[str]:
 
 def verify_manifest(repository: Path, output: Path) -> dict:
     value = governance(repository)
-    candidate = pending_candidate(repository)
+    candidate = verification_target(value)
     manifest = load_json(output / "artifact-manifest.json")
     if manifest.get("schema_version") != "2.0" or manifest.get("bundle") != {
         "version": candidate["bundle_version"],
@@ -495,7 +520,10 @@ def verify_manifest(repository: Path, output: Path) -> dict:
         "immutable": True,
     }:
         raise ArtifactError("artifact manifest bundle identity mismatch")
-    if not FULL_SHA.fullmatch(str(manifest.get("source_commit", ""))):
+    if not FULL_SHA.fullmatch(str(manifest.get("source_commit", ""))) or (
+        candidate.get("source_commit") is not None
+        and manifest.get("source_commit") != candidate["source_commit"]
+    ):
         raise ArtifactError("artifact manifest source commit invalid")
     if manifest.get("platform") != {
         "version": candidate["platform_version"],
@@ -503,11 +531,7 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     }:
         raise ArtifactError("artifact manifest Platform identity mismatch")
     public = manifest.get("public_openapi", {})
-    expected_public_sha256 = (
-        value["latest_immutable"]["public_openapi"]["sha256"]
-        if candidate["release_mode"] == "package-only"
-        else candidate["public_openapi_sha256"]
-    )
+    expected_public_sha256 = candidate["public_openapi_sha256"]
     if (
         public.get("version") != candidate["contract_versions"]["public"]
         or public.get("sha256") != expected_public_sha256
@@ -527,7 +551,12 @@ def verify_manifest(repository: Path, output: Path) -> dict:
             raise ArtifactError(f"{row['name']}: artifact package version mismatch")
         if details["disposition"] == "publish":
             path = output / str(row.get("file", ""))
-            if row.get("disposition") != "published" or not path.is_file() or sha256_file(path) != row.get("sha256"):
+            if (
+                row.get("disposition") != "published"
+                or not path.is_file()
+                or sha256_file(path) != row.get("sha256")
+                or (details.get("sha256") is not None and row.get("sha256") != details["sha256"])
+            ):
                 raise ArtifactError(f"{row['name']}: published package mismatch")
             package = read_package_manifest(path)
             if package.get("name") != row["name"] or package.get("version") != row["version"]:
@@ -557,6 +586,8 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     checksum_files = verify_checksums(output)
     if checksum_files != expected_files - {"artifact-manifest.json", "SHA256SUMS"}:
         raise ArtifactError("checksum inventory incomplete")
+    if candidate.get("manifest_sha256") is not None and sha256_file(output / "artifact-manifest.json") != candidate["manifest_sha256"]:
+        raise ArtifactError("artifact manifest immutable digest mismatch")
     return manifest
 
 
