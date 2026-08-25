@@ -79,6 +79,89 @@ def run(command: list[str], *, cwd: Path, capture: bool = False) -> str:
     return result.stdout.strip() if capture else ""
 
 
+def validate_immutable_release(value: dict) -> None:
+    required = {
+        "bundle_version",
+        "manifest_sha256",
+        "source_commit",
+        "handoff_status",
+        "release_mode",
+        "platform_version",
+        "application_versions",
+        "contract_versions",
+        "public_openapi",
+        "packages",
+    }
+    if set(value) != required or value["handoff_status"] != "released":
+        raise ArtifactError("immutable release record invalid")
+    alpha_identity(value["bundle_version"])
+    if (
+        not SHA256.fullmatch(str(value["manifest_sha256"]))
+        or not FULL_SHA.fullmatch(str(value["source_commit"]))
+        or value["release_mode"] not in {"package-only", "contract-additive"}
+    ):
+        raise ArtifactError("immutable release evidence invalid")
+    if set(value["application_versions"]) != {"workspace", "admin"} or set(
+        value["contract_versions"]
+    ) != {"public", "admin", "webhook"}:
+        raise ArtifactError("immutable release version inventory invalid")
+    public = value["public_openapi"]
+    if (
+        set(public) != {"version", "sha256", "operation_count"}
+        or not SHA256.fullmatch(str(public["sha256"]))
+        or not isinstance(public["operation_count"], int)
+        or public["operation_count"] <= 0
+    ):
+        raise ArtifactError("immutable Public OpenAPI evidence invalid")
+    for version in [
+        value["platform_version"],
+        *value["application_versions"].values(),
+        *value["contract_versions"].values(),
+        public["version"],
+    ]:
+        alpha_identity(version)
+    packages = value["packages"]
+    if set(packages) != set(PACKAGE_PATHS):
+        raise ArtifactError("immutable package inventory mismatch")
+    for name, package in packages.items():
+        alpha_identity(package.get("version"))
+        if not SHA256.fullmatch(str(package.get("sha256", ""))):
+            raise ArtifactError(f"{name}: immutable package digest invalid")
+    client = packages["@oripa/storefront-client"]
+    schema = packages["@oripa/site-schema"]
+    testkit = packages["@oripa/storefront-testkit"]
+    capabilities = client.get("required_capabilities")
+    if (
+        not isinstance(capabilities, list)
+        or capabilities != sorted(set(capabilities))
+        or client.get("minimum_public_api_contract") != public["version"]
+        or not FULL_SHA.fullmatch(str(schema.get("source_tree", "")))
+        or not alpha_identity(schema.get("source_bundle_version"))
+        or testkit.get("storefront_client_version") != client["version"]
+        or testkit.get("site_schema_version") != schema["version"]
+        or testkit.get("public_api_operation_count") != public["operation_count"]
+    ):
+        raise ArtifactError("immutable package compatibility metadata invalid")
+
+
+def release_source(value: dict) -> dict:
+    candidate = value.get("candidate")
+    if isinstance(candidate, dict):
+        return candidate
+    latest = value["latest_immutable"]
+    return {
+        "release_state": "released",
+        "bundle_version": latest["bundle_version"],
+        "release_mode": latest["release_mode"],
+        "platform_version": latest["platform_version"],
+        "application_versions": latest["application_versions"],
+        "contract_versions": latest["contract_versions"],
+        "public_openapi_sha256": latest["public_openapi"]["sha256"],
+        "public_api_operation_count": latest["public_openapi"]["operation_count"],
+        "packages": latest["packages"],
+    }
+
+
 def validate_governance(value: dict) -> dict:
     required = {
         "schema_version",
@@ -88,7 +171,7 @@ def validate_governance(value: dict) -> dict:
         "latest_immutable",
         "candidate",
     }
-    if set(value) != required or value.get("schema_version") != "1.0":
+    if set(value) != required or value.get("schema_version") != "2.0":
         raise ArtifactError("release governance schema mismatch")
     family = value.get("compatibility_family")
     if family != 2 or value.get("channel") != "alpha":
@@ -97,7 +180,7 @@ def validate_governance(value: dict) -> dict:
     history = value.get("immutable_history")
     latest = value.get("latest_immutable")
     candidate = value.get("candidate")
-    if not isinstance(history, list) or not history or not isinstance(latest, dict) or not isinstance(candidate, dict):
+    if not isinstance(history, list) or not history or not isinstance(latest, dict):
         raise ArtifactError("release governance records missing")
     history_versions = [row.get("bundle_version") for row in history if isinstance(row, dict)]
     if len(history_versions) != len(history) or len(set(history_versions)) != len(history_versions):
@@ -110,16 +193,18 @@ def validate_governance(value: dict) -> dict:
         ):
             raise ArtifactError("immutable history evidence invalid")
 
+    validate_immutable_release(latest)
     latest_version = latest.get("bundle_version")
-    candidate_version = candidate.get("bundle_version")
     latest_family, latest_sequence = alpha_identity(latest_version)
+    if latest != history[-1]:
+        raise ArtifactError("latest immutable release mismatch")
+    if candidate is None:
+        return value
+    if not isinstance(candidate, dict) or candidate.get("release_state") != "pending":
+        raise ArtifactError("release candidate state invalid")
+    candidate_version = candidate.get("bundle_version")
     candidate_family, candidate_sequence = alpha_identity(candidate_version)
-    if (
-        latest_version != history_versions[-1]
-        or latest.get("manifest_sha256") != history[-1].get("manifest_sha256")
-        or latest.get("source_commit") != history[-1].get("source_commit")
-        or candidate.get("predecessor_bundle_version") != latest_version
-    ):
+    if candidate.get("predecessor_bundle_version") != latest_version:
         raise ArtifactError("candidate predecessor mismatch")
     if candidate_version in history_versions or candidate_sequence <= latest_sequence:
         raise ArtifactError("immutable existing version reissue prohibited")
@@ -129,7 +214,7 @@ def validate_governance(value: dict) -> dict:
     if release_mode not in {"package-only", "contract-additive"}:
         raise ArtifactError("unsupported release mode")
 
-    latest_packages = latest.get("packages")
+    latest_packages = latest["packages"]
     candidate_packages = candidate.get("packages")
     if set(latest_packages or {}) != set(PACKAGE_PATHS) or set(candidate_packages or {}) != set(PACKAGE_PATHS):
         raise ArtifactError("package inventory mismatch")
@@ -157,7 +242,7 @@ def validate_governance(value: dict) -> dict:
             if (
                 current.get("version") != previous.get("version")
                 or current.get("sha256") != previous.get("sha256")
-                or current.get("source_bundle_version") != latest_version
+                or current.get("source_bundle_version") != previous.get("source_bundle_version")
                 or current.get("source_tree") != previous.get("source_tree")
             ):
                 raise ArtifactError(f"{name}: immutable package reference mismatch")
@@ -174,7 +259,7 @@ def validate_governance(value: dict) -> dict:
         component_family, _ = alpha_identity(version)
         if component_family != family:
             raise ArtifactError("component compatibility family mismatch")
-    public = latest.get("public_openapi")
+    public = latest["public_openapi"]
     if (
         not isinstance(public, dict)
         or not SHA256.fullmatch(str(public.get("sha256", "")))
@@ -186,22 +271,29 @@ def validate_governance(value: dict) -> dict:
     if release_mode == "package-only":
         if contracts["public"] != public.get("version"):
             raise ArtifactError("public OpenAPI immutable reference mismatch")
-    elif (
-        contracts["public"] != candidate_version
-        or contracts["admin"] != candidate_version
-        or contracts["webhook"] != candidate_version
-        or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
-        or candidate.get("public_api_operation_count") != 62
-    ):
-        raise ArtifactError("additive contract candidate mismatch")
+    else:
+        public_family, public_sequence = alpha_identity(public["version"])
+        contract_versions = {alpha_identity(version) for version in contracts.values()}
+        if (
+            len(contract_versions) != 1
+            or contract_versions != {(public_family, public_sequence + 1)}
+            or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
+            or candidate.get("public_openapi_sha256") == public["sha256"]
+            or not isinstance(candidate.get("public_api_operation_count"), int)
+            or candidate["public_api_operation_count"] <= public["operation_count"]
+        ):
+            raise ArtifactError("additive contract candidate mismatch")
     client = candidate_packages["@oripa/storefront-client"]
     schema = candidate_packages["@oripa/site-schema"]
     testkit = candidate_packages["@oripa/storefront-testkit"]
     if client.get("minimum_public_api_contract") != contracts["public"]:
         raise ArtifactError("client Public API compatibility mismatch")
     if (
-        testkit.get("storefront_client_version") != client.get("version")
+        client.get("required_capabilities") != sorted(set(client.get("required_capabilities", [])))
+        or "payment.fincode.v2" not in client.get("required_capabilities", [])
+        or testkit.get("storefront_client_version") != client.get("version")
         or testkit.get("site_schema_version") != schema.get("version")
+        or testkit.get("public_api_operation_count") != candidate.get("public_api_operation_count")
     ):
         raise ArtifactError("testkit package compatibility mismatch")
     return value
@@ -211,22 +303,58 @@ def governance(repository: Path) -> dict:
     return validate_governance(load_json(repository / GOVERNANCE_PATH))
 
 
+def pending_candidate(repository: Path) -> dict:
+    candidate = governance(repository).get("candidate")
+    if not isinstance(candidate, dict):
+        raise ArtifactError("no pending Storefront artifact candidate")
+    return candidate
+
+
+def verification_target(value: dict) -> dict:
+    candidate = value.get("candidate")
+    if isinstance(candidate, dict):
+        return candidate
+    latest = value["latest_immutable"]
+    history = value["immutable_history"]
+    packages = {
+        name: {
+            **details,
+            "disposition": "reference" if name == "@oripa/site-schema" else "publish",
+        }
+        for name, details in latest["packages"].items()
+    }
+    return {
+        "release_state": "released",
+        "bundle_version": latest["bundle_version"],
+        "predecessor_bundle_version": history[-2]["bundle_version"],
+        "release_mode": latest["release_mode"],
+        "platform_version": latest["platform_version"],
+        "application_versions": latest["application_versions"],
+        "contract_versions": latest["contract_versions"],
+        "public_openapi_sha256": latest["public_openapi"]["sha256"],
+        "public_api_operation_count": latest["public_openapi"]["operation_count"],
+        "packages": packages,
+        "source_commit": latest["source_commit"],
+        "manifest_sha256": latest["manifest_sha256"],
+    }
+
+
 def git_tree(repository: Path, relative: Path) -> str:
     return run(["git", "rev-parse", f"HEAD:{relative.as_posix()}"], cwd=repository, capture=True)
 
 
 def validate_source(repository: Path) -> dict:
     value = governance(repository)
-    candidate = value["candidate"]
-    packages = candidate["packages"]
+    source = release_source(value)
+    packages = source["packages"]
     source_versions = {
         "workspace": load_json(repository / "package.json").get("version"),
         "admin": load_json(repository / "apps/admin/package.json").get("version"),
         "platform": load_json(repository / "packages/platform/package.json").get("version"),
     }
     expected_versions = {
-        **candidate["application_versions"],
-        "platform": candidate["platform_version"],
+        **source["application_versions"],
+        "platform": source["platform_version"],
     }
     if source_versions != expected_versions:
         raise ArtifactError("Platform/Application version mismatch")
@@ -236,16 +364,13 @@ def validate_source(repository: Path) -> dict:
             raise ArtifactError(f"{name}: source package version mismatch")
 
     contracts = {}
-    for surface, version in candidate["contract_versions"].items():
+    for surface, version in source["contract_versions"].items():
         path = repository / "openapi" / "bundled" / f"{surface}.openapi.json"
         actual = load_json(path).get("info", {}).get("version")
         if actual != version:
             raise ArtifactError(f"{surface} contract version mismatch")
         contracts[surface] = {"version": actual, "sha256": sha256_file(path)}
-    if candidate["release_mode"] == "package-only":
-        expected_public_sha256 = value["latest_immutable"]["public_openapi"]["sha256"]
-    else:
-        expected_public_sha256 = candidate["public_openapi_sha256"]
+    expected_public_sha256 = source["public_openapi_sha256"]
     if contracts["public"]["sha256"] != expected_public_sha256:
         raise ArtifactError("candidate Public OpenAPI content mismatch")
 
@@ -265,13 +390,14 @@ def validate_source(repository: Path) -> dict:
         "family": value["compatibility_family"],
         "storefrontClientVersion": packages["@oripa/storefront-client"]["version"],
         "siteSchemaVersion": schema["version"],
-        "publicApiOperationCount": candidate.get("public_api_operation_count", 54),
+        "publicApiOperationCount": source["public_api_operation_count"],
     }:
         raise ArtifactError("testkit compatibility metadata mismatch")
     return {
-        "bundle_version": candidate["bundle_version"],
-        "release_mode": candidate["release_mode"],
-        "platform_version": candidate["platform_version"],
+        "bundle_version": source["bundle_version"],
+        "release_state": source["release_state"],
+        "release_mode": source["release_mode"],
+        "platform_version": source["platform_version"],
         "contracts": contracts,
         "packages": {name: details["version"] for name, details in packages.items()},
     }
@@ -297,11 +423,28 @@ def write_json(path: Path, value: object) -> None:
 
 def create_manifest(repository: Path, source_commit: str, created_at: str, assets: dict[str, dict]) -> dict:
     value = governance(repository)
-    candidate = value["candidate"]
+    candidate = pending_candidate(repository)
     package_rows = []
     for name, details in candidate["packages"].items():
         if details["disposition"] == "publish":
-            row = {"name": name, "version": details["version"], "disposition": "published", **assets[name]}
+            compatibility = {
+                key: details[key]
+                for key in (
+                    "minimum_public_api_contract",
+                    "required_capabilities",
+                    "storefront_client_version",
+                    "site_schema_version",
+                    "public_api_operation_count",
+                )
+                if key in details
+            }
+            row = {
+                "name": name,
+                "version": details["version"],
+                "disposition": "published",
+                **assets[name],
+                **compatibility,
+            }
         else:
             row = {
                 "name": name,
@@ -309,6 +452,7 @@ def create_manifest(repository: Path, source_commit: str, created_at: str, asset
                 "disposition": "referenced",
                 "sha256": details["sha256"],
                 "source_bundle_version": details["source_bundle_version"],
+                "source_tree": details["source_tree"],
             }
         package_rows.append(row)
     public = repository / PUBLIC_OPENAPI_PATH
@@ -332,7 +476,8 @@ def create_manifest(repository: Path, source_commit: str, created_at: str, asset
             "file": PUBLIC_OPENAPI_PATH.name,
             "sha256": sha256_file(public),
             "compatibility_family": value["compatibility_family"],
-        "breaking_change": False,
+            "operation_count": candidate["public_api_operation_count"],
+            "breaking_change": False,
         },
         "packages": package_rows,
         "toolchain": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -366,7 +511,7 @@ def verify_checksums(output: Path) -> set[str]:
 
 def verify_manifest(repository: Path, output: Path) -> dict:
     value = governance(repository)
-    candidate = value["candidate"]
+    candidate = verification_target(value)
     manifest = load_json(output / "artifact-manifest.json")
     if manifest.get("schema_version") != "2.0" or manifest.get("bundle") != {
         "version": candidate["bundle_version"],
@@ -375,7 +520,10 @@ def verify_manifest(repository: Path, output: Path) -> dict:
         "immutable": True,
     }:
         raise ArtifactError("artifact manifest bundle identity mismatch")
-    if not FULL_SHA.fullmatch(str(manifest.get("source_commit", ""))):
+    if not FULL_SHA.fullmatch(str(manifest.get("source_commit", ""))) or (
+        candidate.get("source_commit") is not None
+        and manifest.get("source_commit") != candidate["source_commit"]
+    ):
         raise ArtifactError("artifact manifest source commit invalid")
     if manifest.get("platform") != {
         "version": candidate["platform_version"],
@@ -383,15 +531,12 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     }:
         raise ArtifactError("artifact manifest Platform identity mismatch")
     public = manifest.get("public_openapi", {})
-    expected_public_sha256 = (
-        value["latest_immutable"]["public_openapi"]["sha256"]
-        if candidate["release_mode"] == "package-only"
-        else candidate["public_openapi_sha256"]
-    )
+    expected_public_sha256 = candidate["public_openapi_sha256"]
     if (
         public.get("version") != candidate["contract_versions"]["public"]
         or public.get("sha256") != expected_public_sha256
         or public.get("file") != PUBLIC_OPENAPI_PATH.name
+        or public.get("operation_count") != candidate["public_api_operation_count"]
         or sha256_file(output / PUBLIC_OPENAPI_PATH.name) != public.get("sha256")
     ):
         raise ArtifactError("artifact manifest Public OpenAPI mismatch")
@@ -406,11 +551,25 @@ def verify_manifest(repository: Path, output: Path) -> dict:
             raise ArtifactError(f"{row['name']}: artifact package version mismatch")
         if details["disposition"] == "publish":
             path = output / str(row.get("file", ""))
-            if row.get("disposition") != "published" or not path.is_file() or sha256_file(path) != row.get("sha256"):
+            if (
+                row.get("disposition") != "published"
+                or not path.is_file()
+                or sha256_file(path) != row.get("sha256")
+                or (details.get("sha256") is not None and row.get("sha256") != details["sha256"])
+            ):
                 raise ArtifactError(f"{row['name']}: published package mismatch")
             package = read_package_manifest(path)
             if package.get("name") != row["name"] or package.get("version") != row["version"]:
                 raise ArtifactError(f"{row['name']}: tarball identity mismatch")
+            for key in (
+                "minimum_public_api_contract",
+                "required_capabilities",
+                "storefront_client_version",
+                "site_schema_version",
+                "public_api_operation_count",
+            ):
+                if key in details and row.get(key) != details[key]:
+                    raise ArtifactError(f"{row['name']}: compatibility metadata mismatch")
             expected_files.add(path.name)
         elif row != {
             "name": row["name"],
@@ -418,6 +577,7 @@ def verify_manifest(repository: Path, output: Path) -> dict:
             "disposition": "referenced",
             "sha256": details["sha256"],
             "source_bundle_version": details["source_bundle_version"],
+            "source_tree": details["source_tree"],
         }:
             raise ArtifactError(f"{row['name']}: referenced package mismatch")
     actual_files = {path.name for path in output.iterdir() if path.is_file()}
@@ -426,6 +586,8 @@ def verify_manifest(repository: Path, output: Path) -> dict:
     checksum_files = verify_checksums(output)
     if checksum_files != expected_files - {"artifact-manifest.json", "SHA256SUMS"}:
         raise ArtifactError("checksum inventory incomplete")
+    if candidate.get("manifest_sha256") is not None and sha256_file(output / "artifact-manifest.json") != candidate["manifest_sha256"]:
+        raise ArtifactError("artifact manifest immutable digest mismatch")
     return manifest
 
 
@@ -435,7 +597,7 @@ def build(repository: Path, output: Path, source_commit: str) -> None:
     if not FULL_SHA.fullmatch(source_commit) or run(["git", "rev-parse", "HEAD"], cwd=repository, capture=True) != source_commit:
         raise ArtifactError("source commit does not match HEAD")
     validate_source(repository)
-    candidate = governance(repository)["candidate"]
+    candidate = pending_candidate(repository)
     output.mkdir(parents=True)
     assets = {}
     run(["pnpm", "--filter", "@oripa/site-schema", "build"], cwd=repository)
@@ -465,6 +627,8 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="operation", required=True)
     validate = subparsers.add_parser("validate-source")
     validate.add_argument("--repository", required=True, type=Path)
+    candidate = subparsers.add_parser("candidate-version")
+    candidate.add_argument("--repository", required=True, type=Path)
     build_parser = subparsers.add_parser("build")
     build_parser.add_argument("--repository", required=True, type=Path)
     build_parser.add_argument("--output", required=True, type=Path)
@@ -481,6 +645,9 @@ def main() -> int:
         repository = arguments.repository.resolve()
         if arguments.operation == "validate-source":
             print(json.dumps(validate_source(repository), sort_keys=True))
+        elif arguments.operation == "candidate-version":
+            candidate = governance(repository).get("candidate")
+            print(candidate["bundle_version"] if isinstance(candidate, dict) else "")
         elif arguments.operation == "build":
             build(repository, arguments.output.resolve(), arguments.source_commit)
         else:

@@ -1,6 +1,6 @@
 {
   "name": "@oripa/storefront-client",
-  "version": "2.0.0-alpha.24",
+  "version": "2.0.0-alpha.25",
   "private": true,
   "description": "Public API v2向けの薄い型付きStorefront Client Alpha。",
   "license": "UNLICENSED",

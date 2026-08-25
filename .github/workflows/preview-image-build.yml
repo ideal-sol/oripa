@@ -183,7 +183,19 @@ jobs:
         with:
           node-version: "22.22.3"
 
+      - name: Detect a pending Storefront contract artifact
+        id: storefront-contract-candidate
+        run: |
+          version="$(python3 scripts/release/storefront_contract_artifact.py candidate-version --repository .)"
+          if [ -n "$version" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and verify the immutable Storefront contract artifact
+        if: steps.storefront-contract-candidate.outputs.present == 'true'
         env:
           INPUT_TASK_ID: ${{ inputs.task_id }}
           INPUT_HEAD_SHA: ${{ inputs.head_sha }}
@@ -204,6 +216,7 @@ jobs:
             --output "$output"
 
       - name: Upload the verified Storefront contract artifact
+        if: steps.storefront-contract-candidate.outputs.present == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: oripa-storefront-contract-${{ inputs.task_id }}-${{ inputs.head_sha }}

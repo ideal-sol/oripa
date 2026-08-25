@@ -685,7 +685,7 @@ class PolicyGateTest(unittest.TestCase):
             paths = self.make_release_foundation(root)
             policy_gate.validate_release_artifact_foundation(root, paths)
 
-    def test_storefront_release_governance_protects_alpha_23(self):
+    def test_storefront_release_governance_rejects_latest_manifest_tamper(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "manifests/storefront-contract-releases.json"
@@ -696,11 +696,11 @@ class PolicyGateTest(unittest.TestCase):
             value["latest_immutable"]["manifest_sha256"] = "0" * 64
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
-                policy_gate.PolicyFailure, "alpha.23 identity changed"
+                policy_gate.PolicyFailure, "release governance is invalid"
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_protects_alpha_23_package_digest(self):
+    def test_storefront_release_governance_rejects_latest_package_tamper(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "manifests/storefront-contract-releases.json"
@@ -711,15 +711,17 @@ class PolicyGateTest(unittest.TestCase):
             value["latest_immutable"]["packages"]["@oripa/site-schema"]["sha256"] = "0" * 64
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
-                policy_gate.PolicyFailure, "alpha.23 identity changed"
+                policy_gate.PolicyFailure, "release governance is invalid"
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_additive_alpha_24_contract(self):
+    def test_storefront_release_governance_accepts_released_additive_alpha_25_bundle(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
+        self.assertIsNone(value["candidate"])
         self.assertEqual(
-            value["candidate"]["contract_versions"],
+            value["latest_immutable"]["contract_versions"],
             {
                 "public": "2.0.0-alpha.24",
                 "admin": "2.0.0-alpha.24",
@@ -727,7 +729,7 @@ class PolicyGateTest(unittest.TestCase):
             },
         )
 
-    def test_storefront_release_governance_rejects_invalid_candidate_digest(self):
+    def test_storefront_release_governance_rejects_released_public_digest_tamper(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "manifests/storefront-contract-releases.json"
@@ -735,10 +737,10 @@ class PolicyGateTest(unittest.TestCase):
             value = json.loads(
                 (ROOT / "manifests/storefront-contract-releases.json").read_text()
             )
-            value["candidate"]["public_openapi_sha256"] = "0"
+            value["latest_immutable"]["public_openapi"]["sha256"] = "0"
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
-                policy_gate.PolicyFailure, "additive contract candidate"
+                policy_gate.PolicyFailure, "release governance is invalid"
             ):
                 policy_gate.storefront_release_governance(root)
 
@@ -2364,7 +2366,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.24",
+                    "version": "2.0.0-alpha.25",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
