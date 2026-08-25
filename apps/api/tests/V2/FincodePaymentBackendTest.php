@@ -20,6 +20,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -39,8 +40,8 @@ final class FincodePaymentBackendTest extends TestCase
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_fincode.enabled' => true,
             'v2_fincode.base_url' => 'https://api.test.fincode.jp',
-            'v2_fincode.secret_api_key' => 'test-secret-not-production',
-            'v2_fincode.public_api_key' => 'test-public-key',
+            'v2_fincode.secret_api_key' => 'm_test_secret-not-production',
+            'v2_fincode.public_api_key' => 'p_test_public-key',
             'v2_fincode.webhook_signature' => 'test-webhook-signature',
             'v2_fincode.platform_origin' => 'https://api.luxe-pack.biz',
             'v2_fincode.storefront_origin' => 'https://luxe-pack.biz',
@@ -66,6 +67,8 @@ final class FincodePaymentBackendTest extends TestCase
             self::assertSame($plan->public_id, $responses[$method]['point_product_id']);
         }
         self::assertSame('fincode_card_component', $responses['credit_card']['next_action']['type']);
+        self::assertSame('p_test_public-key', $responses['credit_card']['next_action']['public_api_key']);
+        self::assertFalse($responses['credit_card']['next_action']['is_live_mode']);
         self::assertSame('redirect', $responses['paypay']['next_action']['type']);
         self::assertSame('redirect', $responses['konbini']['next_action']['type']);
         self::assertSame('redirect', $responses['virtual_account']['next_action']['type']);
@@ -79,6 +82,105 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame($first['id'], $replay['id']);
         self::assertSame($sent, Http::recorded()->count());
         self::assertSame(5, DB::table('fincode_payment_attempts')->count());
+    }
+
+    public function test_card_ui_bootstrap_is_authenticated_read_only_and_exposes_only_public_environment(): void
+    {
+        Http::fake();
+        $user = $this->user('card-ui-bootstrap');
+        $tables = [
+            'payments',
+            'fincode_payment_attempts',
+            'fincode_card_registration_intents',
+            'fincode_cards',
+            'payment_point_grants',
+            'point_operations',
+            'point_ledger_entries',
+        ];
+        $before = collect($tables)->mapWithKeys(
+            fn (string $table): array => [$table => DB::table($table)->count()]
+        )->all();
+
+        Auth::guard('v2_user')->setUser($user);
+        $response = $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+            ->assertOk()
+            ->assertExactJson([
+                'provider' => 'fincode',
+                'public_api_key' => 'p_test_public-key',
+                'is_live_mode' => false,
+            ])
+            ->assertHeader('Vary', 'Cookie');
+        self::assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        self::assertSame($before, collect($tables)->mapWithKeys(
+            fn (string $table): array => [$table => DB::table($table)->count()]
+        )->all());
+        self::assertCount(0, Http::recorded());
+
+        $serialized = $response->getContent();
+        self::assertIsString($serialized);
+        self::assertStringNotContainsString('m_test_secret-not-production', $serialized);
+        self::assertStringNotContainsString('test-webhook-signature', $serialized);
+        foreach (['secret', 'token', 'credential', 'customer_id', 'card_id', 'user_id'] as $prohibited) {
+            self::assertStringNotContainsString($prohibited, $serialized);
+        }
+
+        Auth::forgetGuards();
+        $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+            ->assertUnauthorized()
+            ->assertJsonPath('code', 'AUTHENTICATION_REQUIRED');
+    }
+
+    public function test_card_ui_bootstrap_fails_closed_for_unavailable_or_inconsistent_configuration(): void
+    {
+        Http::fake();
+        Auth::guard('v2_user')->setUser($this->user('card-ui-bootstrap-invalid'));
+        $valid = [
+            'v2_fincode.enabled' => true,
+            'v2_fincode.base_url' => 'https://api.test.fincode.jp',
+            'v2_fincode.secret_api_key' => 'm_test_secret-not-production',
+            'v2_fincode.public_api_key' => 'p_test_public-key',
+            'v2_fincode.webhook_signature' => 'webhook-signature-fixture',
+            'v2_fincode.timeout_seconds' => 10,
+        ];
+        $cases = [
+            [['v2_fincode.enabled' => false], 'FINCODE_ACTIVATION_DEFERRED'],
+            [['v2_fincode.public_api_key' => null], 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE'],
+            [['v2_fincode.public_api_key' => 'p_prod_public-key'], 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE'],
+            [['v2_fincode.secret_api_key' => null], 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE'],
+            [['v2_fincode.webhook_signature' => null], 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE'],
+            [['v2_fincode.base_url' => 'https://invalid.example.test'], 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE'],
+        ];
+
+        foreach ($cases as [$overrides, $code]) {
+            config([...$valid, ...$overrides]);
+            $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+                ->assertStatus(503)
+                ->assertHeader('Content-Type', 'application/problem+json')
+                ->assertJsonPath('code', $code)
+                ->assertJsonPath('retryable', false);
+        }
+
+        config([...$valid, 'v2_fincode.public_api_key' => 'p_prod_public-key']);
+        try {
+            app(V2FincodePaymentService::class)->start(
+                $this->user('card-ui-start-invalid'),
+                $this->plan()->public_id,
+                'credit_card',
+                'card-ui-start-invalid',
+                ['source' => 'new', 'save' => false]
+            );
+            self::fail('startPayment must fail before mutation when the provider environment is inconsistent.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE', $exception->errorCode);
+        }
+
+        self::assertCount(0, Http::recorded());
+        self::assertSame(0, DB::table('payments')->count());
+        self::assertSame(0, DB::table('fincode_payment_attempts')->count());
+        self::assertSame(0, DB::table('fincode_card_registration_intents')->count());
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
     }
 
     public function test_platform_generates_canonical_return_urls_for_all_payment_methods(): void

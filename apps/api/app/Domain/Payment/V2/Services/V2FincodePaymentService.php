@@ -26,6 +26,7 @@ final class V2FincodePaymentService
         private readonly V2PaymentService $payments,
         private readonly V2FincodeClient $client,
         private readonly V2FincodeCardService $cards,
+        private readonly V2FincodePublicConfiguration $configuration,
         private readonly V2FincodeReturnUrl $returns,
         private readonly V2ReportingCursor $cursor
     ) {
@@ -43,6 +44,7 @@ final class V2FincodePaymentService
         if ($payType === null) {
             throw new V2FincodeException('PAYMENT_METHOD_UNSUPPORTED', 422, 'The payment method is unsupported.');
         }
+        $this->configuration->bootstrap();
         $plan = DB::table('point_purchase_plans')
             ->where('public_id', $pointProductId)
             ->select(['id', 'public_id'])
@@ -367,11 +369,13 @@ final class V2FincodePaymentService
         $nextAction = null;
         if ($includeNextAction && $payment->status === 'requires_action' && $attempt !== null) {
             if ($payment->payment_method === 'credit_card' && $attempt->fincode_card_id === null) {
+                $bootstrap = $this->configuration->bootstrap();
                 $nextAction = [
                     'type' => 'fincode_card_component',
                     'payment_id' => $payment->provider_payment_id,
                     'access_id' => $attempt->provider_access_id,
-                    'public_api_key' => $this->publicApiKey(),
+                    'public_api_key' => $bootstrap['public_api_key'],
+                    'is_live_mode' => $bootstrap['is_live_mode'],
                     'tds_type' => '2',
                     'return_url' => $this->returns->providerNormal($payment->public_id),
                     'failure_url' => $this->returns->providerFailure($payment->public_id),
@@ -533,17 +537,4 @@ final class V2FincodePaymentService
         return 'o'.substr(hash('sha256', $fingerprint), 0, 26);
     }
 
-    private function publicApiKey(): string
-    {
-        $key = config('v2_fincode.public_api_key');
-        if (! is_string($key) || $key === '' || strlen($key) > 512) {
-            throw new V2FincodeException(
-                'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE',
-                503,
-                'The payment provider public configuration is unavailable.'
-            );
-        }
-
-        return $key;
-    }
 }

@@ -66,7 +66,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.27");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.28");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -1146,7 +1146,7 @@ test("Current User Point Facadeは認証済みRead PathとCursorだけを呼ぶ"
   );
 });
 
-test("Payment Facadeは作成・履歴・未払い再開・カード管理Pathを固定する", async () => {
+test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード管理Pathを固定する", async () => {
   const requests = [];
   const payments = createStorefrontPaymentClient({
     request: async (options) => {
@@ -1167,6 +1167,7 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
     },
   });
   const csrfToken = "a".repeat(64);
+  await payments.getPaymentCardUiBootstrap();
   await payments.startPayment(
     { point_product_id: "plan-id", payment_method: "paypay" },
     { csrf_token: csrfToken, idempotency_key: "start-key" },
@@ -1186,6 +1187,7 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
   );
   await payments.deleteCard("card-id", { csrf_token: csrfToken });
   assert.deepEqual(requests.map(({ path }) => path), [
+    "/me/payment-card-ui-bootstrap",
     "/payments",
     "/payments/payment-id",
     "/me/payments?view=unpaid&limit=20&cursor=next",
@@ -1195,8 +1197,10 @@ test("Payment Facadeは作成・履歴・未払い再開・カード管理Path�
     "/me/payment-card-registration-intents/intent-id/complete",
     "/me/payment-cards/card-id",
   ]);
-  assert.equal(requests[0].idempotency_key, "start-key");
-  assert.equal(requests[3].retry, false);
+  assert.equal(requests[0].method, undefined);
+  assert.equal(requests[0].csrf, undefined);
+  assert.equal(requests[1].idempotency_key, "start-key");
+  assert.equal(requests[4].retry, false);
   assert.deepEqual(payment.data.grant, {
     paid_points: 10000,
     bonus_points: 1000,
@@ -1214,6 +1218,9 @@ test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () 
     }
     return jsonResponse({ id: "payment-id" }, { status: 201 });
   }));
+  await client.getPaymentCardUiBootstrap();
+  assert.equal(calls.at(-1).url, "/api/v2/me/payment-card-ui-bootstrap");
+  assert.equal(calls.at(-1).init.method, "GET");
   await client.startPayment(
     { point_product_id: "plan-id", payment_method: "virtual_account" },
     { idempotency_key: "browser-payment-key" },

@@ -97,6 +97,30 @@ The ledger records alpha.27 as `latest_immutable` and clears `candidate`, so a
 same-version rebuild is rejected. Storefront exact-pin adoption is GO and
 Runtime Activation remains deferred.
 
+## Card UI Bootstrap Release
+
+MIG-089 published additive bundle `2.0.0-alpha.28` from exact Source Commit
+`06681c689eaba3458adb935753de128a4d12d57d`. It contains Client and Testkit
+alpha.28, Public OpenAPI alpha.27 with 65 operations, and references unchanged
+Site Schema alpha.23. Platform and Application remain alpha.23; Admin and
+Webhook changes are version metadata only.
+
+Canonical Workflow Run `32867602180`, Artifact `9570886895`, Manifest, and
+`SHA256SUMS` readback fixed these SHA-256 values:
+
+- GitHub outer Artifact: `7af368e92be29c396f77cab5f25e336ecdbc147067d2fbd1000ba3561a9fd339`
+- Manifest: `2b9299baa5816a1ff65af147178bb76574411dbcaeda13d5242a32e38bfab6fa`
+- Client: `7be14c543a1a1d69ad85af0549ddedce275ad86828c4e99dc90b6fc0af6a0a00`
+- Testkit: `8bc1cd287d15a61c94694034b9ac5280f4b2e4f296d8a6de836ad64550bf0e94`
+- Public OpenAPI: `41ebdddbd7c4edeedd36ad3810b2afa564495aa2d1c3e48a187f44c85deb85da`
+- `SHA256SUMS`: `8e5d113274d4897d07c66ec613c6d1049e2b7fcdc5fa6b4441c69bda782d9349`
+
+Compatibility is `contract-additive`, Public OpenAPI `breaking_change` is
+false, and existing operations remain unchanged. The ledger records alpha.28
+as `latest_immutable` and clears `candidate`, so a same-version rebuild is
+rejected. Storefront exact-pin adoption is GO; Runtime Activation and Provider
+Browser E2E remain deferred.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.

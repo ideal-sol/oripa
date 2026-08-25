@@ -41,6 +41,7 @@ import {
   PUBLIC_POINT_HISTORY_FIXTURES,
   PUBLIC_POINT_READ_PROBLEM_FIXTURES,
   PUBLIC_PAYMENT_GRANT_FIXTURES,
+  PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
@@ -68,6 +69,19 @@ test("Public Auth FixtureはCookie Session状態をCredentialなしで表現す�
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_AUTH_FIXTURE),
     /password|token|cookie|session_id|secret/i,
+  );
+});
+
+test("Payment Card UI Bootstrap FixtureはPublic KeyとCanonical environmentだけを公開する", () => {
+  assert.deepEqual(PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES.sandbox, {
+    provider: "fincode",
+    public_api_key: "p_test_public-safe-fixture",
+    is_live_mode: false,
+  });
+  assert.equal(PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES.live.is_live_mode, true);
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES),
+    /secret|webhook|token|credential|customer_id|card_id|user_id/i,
   );
 });
 
@@ -704,9 +718,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつPayment Return Contractを含むOperation 64件である", () => {
+test("Public OpenAPIは3.1.1かつPayment Card UI Bootstrapを含むOperation 65件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 64);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 65);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "completeGoogleOidc",
     "completeLineLogin",
@@ -729,6 +743,7 @@ test("Public OpenAPIは3.1.1かつPayment Return Contractを含むOperation 64�
     "getGachaPresentation",
     "getLineFriendState",
     "getPayment",
+    "getPaymentCardUiBootstrap",
     "getShippingAddress",
     "getShippingRequest",
     "getSmsVerificationStatus",
@@ -935,6 +950,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
     "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
+    "PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES",
     "PUBLIC_PAYMENT_GRANT_FIXTURES",
     "PUBLIC_POINT_BALANCE_FIXTURES",
     "PUBLIC_POINT_HISTORY_FIXTURES",

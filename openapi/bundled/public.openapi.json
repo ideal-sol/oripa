@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.26",
+    "version": "2.0.0-alpha.27",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2568,6 +2568,37 @@
         }
       }
     },
+    "/me/payment-card-ui-bootstrap": {
+      "get": {
+        "operationId": "getPaymentCardUiBootstrap",
+        "summary": "Payment作成前にfincode Card UIのPublic設定を取得する",
+        "description": "Card UIの初期化とmountに必要なPublic設定だけを返すread。Payment、Provider Session、 Registration Intent、Card、Coinを作成せず、Provider mutationまたはProvider通信を行わない。 無効化、未設定、またはenvironment不整合時は空値を返さずProblem DetailsでFail Closedする。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "公式fincode SDKのinitFincodeに渡すCanonical Public設定。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardUiBootstrap"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/me/payment-cards/{card_id}": {
       "delete": {
         "operationId": "deletePaymentCard",
@@ -2973,9 +3004,13 @@
           "payment_id",
           "access_id",
           "public_api_key",
+          "is_live_mode",
           "tds_type",
           "return_url",
           "failure_url"
+        ],
+        "x-oripa-response-required-additions": [
+          "is_live_mode"
         ],
         "properties": {
           "type": {
@@ -2993,6 +3028,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512
+          },
+          "is_live_mode": {
+            "type": "boolean",
+            "description": "Bootstrapのis_live_modeと同一でなければStorefrontはPayment実行を停止する。"
           },
           "tds_type": {
             "const": "2"
@@ -3163,6 +3202,30 @@
                 "maximum": 3
               }
             }
+          }
+        }
+      },
+      "PaymentCardUiBootstrap": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "public_api_key",
+          "is_live_mode"
+        ],
+        "properties": {
+          "provider": {
+            "const": "fincode"
+          },
+          "public_api_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "fincode Browser SDKへ渡すPublic API Key。Secret API Keyではない。"
+          },
+          "is_live_mode": {
+            "type": "boolean",
+            "description": "fincode initFincodeのisLiveModeへそのまま渡すCanonical environment。"
           }
         }
       },

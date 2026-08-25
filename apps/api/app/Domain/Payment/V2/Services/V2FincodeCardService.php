@@ -12,8 +12,10 @@ final class V2FincodeCardService
 {
     private const MAX_CARDS = 3;
 
-    public function __construct(private readonly V2FincodeClient $client)
-    {
+    public function __construct(
+        private readonly V2FincodeClient $client,
+        private readonly V2FincodePublicConfiguration $configuration
+    ) {
     }
 
     /** @return array<string, mixed> */
@@ -38,6 +40,7 @@ final class V2FincodeCardService
     /** @return array<string, mixed> */
     public function reserveRegistration(User $user, string $idempotencyKey): array
     {
+        $bootstrap = $this->configuration->bootstrap();
         $customer = $this->customer($user);
         $keyHash = hash('sha256', $idempotencyKey);
 
@@ -98,7 +101,7 @@ final class V2FincodeCardService
             'provider_context' => [
                 'provider' => 'fincode',
                 'customer_id' => $customer->provider_customer_id,
-                'public_api_key' => $this->publicApiKey(),
+                'public_api_key' => $bootstrap['public_api_key'],
                 'tds_type' => '2',
             ],
         ];
@@ -373,17 +376,4 @@ final class V2FincodeCardService
             ->isPast();
     }
 
-    private function publicApiKey(): string
-    {
-        $key = config('v2_fincode.public_api_key');
-        if (! is_string($key) || $key === '' || strlen($key) > 512) {
-            throw new V2FincodeException(
-                'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE',
-                503,
-                'The payment provider public configuration is unavailable.'
-            );
-        }
-
-        return $key;
-    }
 }

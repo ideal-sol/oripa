@@ -37,6 +37,9 @@ export interface BrowserPaymentCsrfOptions {
 }
 
 export interface StorefrontPaymentClient {
+  getPaymentCardUiBootstrap(): Promise<
+    StorefrontResponse<Schemas["PaymentCardUiBootstrap"]>
+  >;
   startPayment(
     input: Schemas["PaymentCreateRequest"],
     options: PaymentMutationOptions,
@@ -62,6 +65,9 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  getPaymentCardUiBootstrap(): Promise<
+    StorefrontResponse<Schemas["PaymentCardUiBootstrap"]>
+  >;
   startPayment(
     input: Schemas["PaymentCreateRequest"],
     options: BrowserPaymentMutationOptions,
@@ -124,6 +130,9 @@ export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    getPaymentCardUiBootstrap: () => transport.request({
+      path: "/me/payment-card-ui-bootstrap",
+    }),
     startPayment: (input, options) => transport.request({
       path: "/payments",
       method: "POST",
@@ -185,6 +194,9 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    getPaymentCardUiBootstrap: () => transport.request({
+      path: "/me/payment-card-ui-bootstrap",
+    }),
     startPayment: (input, options) => transport.request({
       path: "/payments",
       method: "POST",

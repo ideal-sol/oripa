@@ -973,6 +973,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/payment-card-ui-bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment作成前にfincode Card UIのPublic設定を取得する
+         * @description Card UIの初期化とmountに必要なPublic設定だけを返すread。Payment、Provider Session、 Registration Intent、Card、Coinを作成せず、Provider mutationまたはProvider通信を行わない。 無効化、未設定、またはenvironment不整合時は空値を返さずProblem DetailsでFail Closedする。
+         */
+        get: operations["getPaymentCardUiBootstrap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/payment-cards/{card_id}": {
         parameters: {
             query?: never;
@@ -1099,6 +1119,8 @@ export interface components {
             payment_id: string;
             access_id: string;
             public_api_key: string;
+            /** @description Bootstrapのis_live_modeと同一でなければStorefrontはPayment実行を停止する。 */
+            is_live_mode: boolean;
             /** @constant */
             tds_type: "2";
             /**
@@ -1145,6 +1167,14 @@ export interface components {
                 maximum: 3;
                 remaining: number;
             };
+        };
+        PaymentCardUiBootstrap: {
+            /** @constant */
+            provider: "fincode";
+            /** @description fincode Browser SDKへ渡すPublic API Key。Secret API Keyではない。 */
+            public_api_key: string;
+            /** @description fincode initFincodeのisLiveModeへそのまま渡すCanonical environment。 */
+            is_live_mode: boolean;
         };
         PaymentCardRegistrationIntent: {
             id: components["schemas"]["OpaqueId"];
@@ -3620,6 +3650,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentCardCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getPaymentCardUiBootstrap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公式fincode SDKのinitFincodeに渡すCanonical Public設定。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCardUiBootstrap"];
                 };
             };
             default: components["responses"]["Problem"];

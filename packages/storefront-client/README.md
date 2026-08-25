@@ -169,6 +169,17 @@ Rate Limitとして、Statusだけで分岐しない。
 
 ## Payment Return Handoff
 
+Credit Card選択時は購入操作より先に`getPaymentCardUiBootstrap()`を呼び、返された
+`public_api_key`と`is_live_mode`を公式`initFincode`へ渡してCard UIをcreate／mountする。
+このGETはPayment、Provider Session、Registration Intent、Card、Coinを作成せず、CSRFまたは
+Idempotency-Keyを要求しない。購入操作時に初めて`startPayment()`を呼び、新規Cardの
+`next_action.public_api_key`／`is_live_mode`がBootstrapと一致しなければ実行を停止する。
+
+保存せず購入はBootstrap→mount→`startPayment(source=new, save=false)`、保存して購入は
+Bootstrap→mount→`createCardRegistrationIntent()`→fincode `registerCard()`→
+`startPayment(source=new, save=true, registration_intent_id, provider_card_id)`である。購入Flowは
+`completeCardRegistration()`を別途呼ばず、同methodは購入を伴わない独立Card登録だけに使う。
+
 Canonical normal returnは`/points/purchase/thanks?pid={Payment.id}`、failure／cancelは
 `/points/purchase/{PointProduct.id}?pid={Payment.id}`である。両方の`pid`はPlatform生成の
 Canonical Public Opaque `Payment.id`で、Storefrontは即時`getPayment(pid)`を実行する。
