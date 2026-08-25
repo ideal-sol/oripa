@@ -3,51 +3,52 @@
 ## Authority
 
 The finalized Package Version Compatibility Policy is authoritative. Core
-components share compatibility family major `2`; component Minor/Patch and
-OpenAPI document versions are independently managed and recorded in a manifest.
+components share compatibility family major `2`; package bundle, OpenAPI
+document, Platform, Application, and Site Schema versions remain independently
+recorded in the release ledger and Artifact Manifest.
 
 `manifests/storefront-contract-releases.json` is the machine-readable Alpha
-release ledger and current candidate. It does not authorize publication by
-itself. Artifact Release Lock, exact-head Required Checks, and the task release
-gate remain mandatory.
+release ledger. It records complete immutable history, the latest immutable
+release, and either one pending next-version candidate or `null` after release.
+The ledger never authorizes publication by itself. Artifact Release Lock,
+exact-head Required Checks, and the task release gate remain mandatory.
 
-## Additive Contract Model
+## Immutable Alpha 24
 
-The next bundle is `2.0.0-alpha.24` and publishes:
+STORE-SITE-034 adopted the canonical package-only `2.0.0-alpha.24` Artifact from
+source `209252d9fcbad42090677f5a7bece52c5a5d3597`. It contains Client/Testkit
+alpha.24, references Site Schema alpha.23, and retains Public OpenAPI alpha.23
+with 54 operations. Its Manifest and file digests are fixed in the ledger.
 
-- `@oripa/storefront-client@2.0.0-alpha.24`
-- `@oripa/storefront-testkit@2.0.0-alpha.24`
+Never rebuild, overwrite, replace, delete, or re-upload this version. The MIG-079
+Payment source also used alpha.24 package labels but differs in OpenAPI, package
+inventory, capabilities, exports, and operation count. It is therefore a version
+collision, not the same Artifact.
 
-The bundle references, but does not rebuild or include, the immutable
-`@oripa/site-schema@2.0.0-alpha.23` tarball. Platform and Application remain
-`2.0.0-alpha.23`, while the additive Public, Admin, and Webhook contracts advance
-independently to `2.0.0-alpha.24`. The Public OpenAPI candidate digest and the
-Site Schema predecessor digest/source tree are machine-validated.
+## Payment Release Boundary
 
-This is not an arbitrary mismatch allowance. The validator requires:
+The next unused bundle is `2.0.0-alpha.25` and publishes:
 
-1. The bundle to be the next Alpha sequence after the latest immutable bundle.
-2. Every published package version to equal the bundle version.
-3. Every referenced package version, digest, source bundle, and source tree to
-   equal the latest immutable evidence.
-4. The additive Public OpenAPI version, digest, and operation count to equal the
-   governed candidate without changing the immutable predecessor evidence.
-5. Client minimum Public API and Testkit dependency/compatibility metadata to
-   equal the manifest versions.
-6. The artifact inventory to contain only the published tarballs, the candidate
-   Public OpenAPI snapshot, the manifest, and checksums.
+- `@oripa/storefront-client@2.0.0-alpha.25`
+- `@oripa/storefront-testkit@2.0.0-alpha.25`
 
-## Immutable Boundary
+It references, but does not rebuild or include, immutable
+`@oripa/site-schema@2.0.0-alpha.23`. Platform and Application remain alpha.23.
+The Public, Admin, and Webhook Payment contracts remain their canonical alpha.24
+document versions. Advancing the package bundle does not rewrite unchanged
+contract or Site Schema versions.
 
-`2.0.0-alpha.21`, retired `2.0.0-alpha.22`, and latest handoff
-`2.0.0-alpha.23` remain immutable. The validator rejects a candidate bundle or
-published package version at or below the current high-water mark. Referenced
-`alpha.23` Site Schema is never repacked into the new artifact.
+The validator requires:
 
-Do not modify, overwrite, delete, or re-upload an existing Artifact. A failed
-candidate receives a new version after a separate governed allocation.
+1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.
+2. Published package versions to equal that bundle version.
+3. Referenced Site Schema version, digest, source bundle, and source tree to match immutable evidence.
+4. Public OpenAPI digest and operation count to match the declared additive contract.
+5. Client minimum Public API, required capabilities, Testkit dependencies, and operation count to match.
+6. The Artifact inventory to contain only Client, Testkit, Public OpenAPI, Manifest, and checksums.
+7. A settled ledger with `candidate: null` to reject a second publication attempt.
 
-## Validation
+## Validation And Publication
 
 ```bash
 python3 scripts/release/storefront_contract_artifact.py validate-source \
@@ -63,14 +64,21 @@ python3 scripts/release/storefront_contract_artifact.py verify \
   --output <artifact-path>
 ```
 
-The workflow calls all three operations. There is no skip flag. Publication,
-Registry publish, Storefront installation, Runtime deployment, and Production
-deployment are separate states and are not performed by validation.
+The canonical workflow detects whether a pending candidate exists. It builds and
+uploads exactly one candidate from an approved exact head. Once release evidence
+is reconciled into immutable history and `candidate` becomes `null`, later
+workflow runs skip Storefront Artifact creation instead of republishing the same
+version.
+
+Publication, Registry publication, Storefront adoption, Runtime deployment,
+Migration application, Provider integration, and Production remain separate
+states. A released Artifact is read back from the canonical GitHub Artifact,
+rehashed, and compared with its Manifest and `SHA256SUMS` before GO.
 
 ## Storefront Handoff
 
-After MIG-079 merges, STORE-SITE-034 synchronizes its existing branch with the
-latest Platform `main`, consumes the additive `2.0.0-alpha.24` contract/client
-candidate, reruns its exact-head Required Checks and fresh self-review, then
-acquires Artifact Release Lock before dispatching the canonical artifact
-workflow. No STORE-side validator workaround is allowed.
+Storefront adoption pins the formally released immutable Artifact by exact
+tarball and digest. It must preserve predecessor alpha.24 and rerun Site-specific
+compatibility checks. Runtime activation is not required for exact-pin Artifact
+adoption; Provider Browser E2E remains HOLD until the Payment Backend source and
+Migration `000065` are active in the target Runtime.

@@ -35,7 +35,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_declared_additive_contract_release_is_valid(self):
         value = artifact.validate_governance(self.governance())
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.24")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.24")
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.25")
         self.assertEqual(value["candidate"]["platform_version"], "2.0.0-alpha.23")
         self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
         self.assertEqual(
@@ -43,24 +44,24 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             "reference",
         )
 
-    def test_existing_alpha_23_bundle_reissue_is_rejected(self):
+    def test_existing_alpha_24_bundle_reissue_is_rejected(self):
         value = copy.deepcopy(self.governance())
-        value["candidate"]["bundle_version"] = "2.0.0-alpha.23"
+        value["candidate"]["bundle_version"] = "2.0.0-alpha.24"
         with self.assertRaisesRegex(
             artifact.ArtifactError, "immutable existing version reissue prohibited"
         ):
             artifact.validate_governance(value)
 
-    def test_latest_alpha_23_evidence_must_match_immutable_history(self):
+    def test_latest_alpha_24_evidence_must_match_immutable_history(self):
         value = copy.deepcopy(self.governance())
         value["latest_immutable"]["source_commit"] = "0" * 40
-        with self.assertRaisesRegex(artifact.ArtifactError, "candidate predecessor mismatch"):
+        with self.assertRaisesRegex(artifact.ArtifactError, "latest immutable release mismatch"):
             artifact.validate_governance(value)
 
     def test_arbitrary_published_package_mismatch_is_rejected(self):
         value = copy.deepcopy(self.governance())
         value["candidate"]["packages"]["@oripa/storefront-client"]["version"] = (
-            "2.0.0-alpha.25"
+            "2.0.0-alpha.26"
         )
         with self.assertRaisesRegex(
             artifact.ArtifactError, "published package version must equal bundle version"
@@ -77,12 +78,13 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_source_versions_preserve_independent_platform_contract_and_schema(self):
         result = artifact.validate_source(ROOT)
-        self.assertEqual(result["bundle_version"], "2.0.0-alpha.24")
+        self.assertEqual(result["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(result["release_state"], "pending")
         self.assertEqual(result["platform_version"], "2.0.0-alpha.23")
         self.assertEqual(result["contracts"]["public"]["version"], "2.0.0-alpha.24")
         self.assertEqual(result["packages"]["@oripa/site-schema"], "2.0.0-alpha.23")
-        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.24")
-        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.24")
+        self.assertEqual(result["packages"]["@oripa/storefront-client"], "2.0.0-alpha.25")
+        self.assertEqual(result["packages"]["@oripa/storefront-testkit"], "2.0.0-alpha.25")
 
     def valid_output(self, output: Path) -> None:
         governance = artifact.governance(ROOT)
@@ -141,6 +143,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_workflow_invokes_validator_build_and_verify_without_skip(self):
         workflow = (ROOT / ".github/workflows/preview-image-build.yml").read_text()
+        self.assertIn("storefront_contract_artifact.py candidate-version", workflow)
+        self.assertIn("storefront-contract-candidate.outputs.present == 'true'", workflow)
         self.assertIn("storefront_contract_artifact.py validate-source", workflow)
         self.assertIn("storefront_contract_artifact.py build", workflow)
         self.assertIn("storefront_contract_artifact.py verify", workflow)

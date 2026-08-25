@@ -254,14 +254,27 @@ def load_json(path: Path) -> dict:
     return value
 
 
+def storefront_release_source(release_governance: dict) -> dict:
+    candidate = release_governance.get("candidate")
+    if isinstance(candidate, dict):
+        return candidate
+    latest = release_governance.get("latest_immutable")
+    if not isinstance(latest, dict):
+        raise ReleaseError("Storefront release governance source is missing")
+    return {
+        "platform_version": latest.get("platform_version"),
+        "application_versions": latest.get("application_versions"),
+        "contract_versions": latest.get("contract_versions"),
+        "packages": latest.get("packages"),
+    }
+
+
 def validate_source(repository: Path) -> dict:
     release_governance = load_json(repository / STOREFRONT_RELEASE_GOVERNANCE)
-    candidate = release_governance.get("candidate")
-    if not isinstance(candidate, dict):
-        raise ReleaseError("Storefront release governance candidate is missing")
-    application_versions = candidate.get("application_versions")
-    package_versions = candidate.get("packages")
-    contract_versions = candidate.get("contract_versions")
+    source = storefront_release_source(release_governance)
+    application_versions = source.get("application_versions")
+    package_versions = source.get("packages")
+    contract_versions = source.get("contract_versions")
     if not isinstance(application_versions, dict) or not isinstance(package_versions, dict) or not isinstance(contract_versions, dict):
         raise ReleaseError("Storefront release governance version inventory is invalid")
     versions = {
@@ -274,7 +287,7 @@ def validate_source(repository: Path) -> dict:
     expected_versions = {
         "workspace": application_versions.get("workspace"),
         "admin": application_versions.get("admin"),
-        "platform": candidate.get("platform_version"),
+        "platform": source.get("platform_version"),
         **{
             name: details.get("version") if isinstance(details, dict) else None
             for name, details in package_versions.items()

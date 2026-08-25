@@ -121,9 +121,11 @@ Admin UIは実装しない。API正本は`openapi/admin/openapi.yaml`である�
 ## Contract Artifact
 
 Canonical publicationは`docs/operations/releases/storefront-contract-artifact.md`の
-additive-contract手順に従う。MIG-079はPublic、Admin、Webhook、Storefront Client、
-Storefront Testkitを`2.0.0-alpha.24`へ進め、Platform、Application、Site Schemaは
-独立Versionのまま維持する。既存immutable releaseのdigestやsource treeは変更しない。
+additive-contract手順に従う。Public、Admin、Webhook Payment ContractはCanonical
+`2.0.0-alpha.24`を維持し、既存package-only `2.0.0-alpha.24`とのcollisionを避けるため
+Storefront Client／Testkit bundleだけを次のimmutable `2.0.0-alpha.25`として発行する。
+Platform、Application、Site Schemaは独立Versionのまま維持し、既存immutable releaseの
+Manifest、tarball、digest、source treeを変更しない。
 
 ## Activation And Deferred Work
 

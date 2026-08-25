@@ -21,6 +21,18 @@ SPEC.loader.exec_module(platform_artifact)
 
 
 class PlatformArtifactTest(unittest.TestCase):
+    def test_settled_storefront_release_uses_latest_immutable_source(self):
+        source = platform_artifact.storefront_release_source({
+            "candidate": None,
+            "latest_immutable": {
+                "platform_version": "2.0.0-alpha.23",
+                "application_versions": {"workspace": "2.0.0-alpha.23", "admin": "2.0.0-alpha.23"},
+                "contract_versions": {"public": "2.0.0-alpha.24", "admin": "2.0.0-alpha.24", "webhook": "2.0.0-alpha.24"},
+                "packages": {"@oripa/storefront-client": {"version": "2.0.0-alpha.25"}},
+            },
+        })
+        self.assertEqual(source["packages"]["@oripa/storefront-client"]["version"], "2.0.0-alpha.25")
+
     def test_content_set_checksum_is_path_independent(self):
         with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
             first = Path(first_dir)

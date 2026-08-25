@@ -23,6 +23,15 @@ if LANE_POLICY_SPEC is None or LANE_POLICY_SPEC.loader is None:
 lane_policy = importlib.util.module_from_spec(LANE_POLICY_SPEC)
 LANE_POLICY_SPEC.loader.exec_module(lane_policy)
 
+STOREFRONT_ARTIFACT_SPEC = importlib.util.spec_from_file_location(
+    "oripa_storefront_contract_artifact",
+    Path(__file__).resolve().parents[1] / "release" / "storefront_contract_artifact.py",
+)
+if STOREFRONT_ARTIFACT_SPEC is None or STOREFRONT_ARTIFACT_SPEC.loader is None:
+    raise RuntimeError("Storefront artifact policy module is unavailable")
+storefront_artifact = importlib.util.module_from_spec(STOREFRONT_ARTIFACT_SPEC)
+STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
+
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+)$")
@@ -1413,129 +1422,71 @@ def load_json(repository: Path, relative: str) -> dict:
 
 def storefront_release_governance(repository: Path) -> dict:
     value = load_json(repository, "manifests/storefront-contract-releases.json")
-    if set(value) != {
-        "schema_version",
-        "compatibility_family",
-        "channel",
-        "immutable_history",
-        "latest_immutable",
-        "candidate",
-    } or value.get("schema_version") != "1.0":
-        raise PolicyFailure("Storefront release governance schema is invalid")
-    latest = value.get("latest_immutable")
-    candidate = value.get("candidate")
-    history = value.get("immutable_history")
-    protected_alpha_23 = {
-        "bundle_version": "2.0.0-alpha.23",
-        "manifest_sha256": "556eaf59e9c5128cb9b93cf9000a5aee3ff4eb56f86ee8bc549c392d55bd77fe",
-        "source_commit": "633b41f347083c82028229d6e238842118635feb",
+    try:
+        storefront_artifact.validate_governance(value)
+    except storefront_artifact.ArtifactError as error:
+        raise PolicyFailure(f"Storefront release governance is invalid: {error}") from error
+    alpha_24 = next(
+        (row for row in value["immutable_history"] if row.get("bundle_version") == "2.0.0-alpha.24"),
+        None,
+    )
+    if not isinstance(alpha_24, dict) or {
+        "manifest_sha256": alpha_24.get("manifest_sha256"),
+        "source_commit": alpha_24.get("source_commit"),
+        "handoff_status": alpha_24.get("handoff_status"),
+        "release_mode": alpha_24.get("release_mode"),
+        "public_openapi": alpha_24.get("public_openapi"),
+        "client": (alpha_24.get("packages") or {}).get("@oripa/storefront-client"),
+        "schema": (alpha_24.get("packages") or {}).get("@oripa/site-schema"),
+        "testkit": (alpha_24.get("packages") or {}).get("@oripa/storefront-testkit"),
+    } != {
+        "manifest_sha256": "f71edc9e1c9e9215381d01b00ca066ff8bd2678e8cad92d28fce5981145aad94",
+        "source_commit": "209252d9fcbad42090677f5a7bece52c5a5d3597",
+        "handoff_status": "released",
+        "release_mode": "package-only",
         "public_openapi": {
             "version": "2.0.0-alpha.23",
             "sha256": "5c735fe26514d5bfb47b3515ead108bf473fd5e1f81e0936b7e1986290904043",
+            "operation_count": 54,
         },
-        "packages": {
-            "@oripa/storefront-client": {
-                "version": "2.0.0-alpha.23",
-                "sha256": "28a7b3558329eed9c608f828948befe2034e86c0add1511bd48db1ed437f58d9",
-            },
-            "@oripa/site-schema": {
-                "version": "2.0.0-alpha.23",
-                "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
-                "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
-            },
-            "@oripa/storefront-testkit": {
-                "version": "2.0.0-alpha.23",
-                "sha256": "dc0bf6c16af439bf5a364955e8add936e8842096ca295a136a0f15a86e4102b0",
-            },
+        "client": {
+            "version": "2.0.0-alpha.24",
+            "sha256": "fbe156fbbc9f27a07e4017cc9bea3a9cdcd71aa2943e03fb48236bb48bbda259",
+            "minimum_public_api_contract": "2.0.0-alpha.23",
+            "required_capabilities": [
+                "draw.browser-mutation.v2",
+                "gacha.catalog-display.v2",
+                "gacha.presentation.v2",
+                "prize.fulfillment-browser-mutation.v2",
+                "user-draw-history.read.v2",
+                "user-point.read.v2",
+                "user-prize.presentation.v2",
+            ],
         },
-    }
-    if latest != protected_alpha_23:
-        raise PolicyFailure("immutable Storefront alpha.23 identity changed")
-    if not isinstance(history, list) or not history or any(
-        not isinstance(row, dict) for row in history
-    ):
-        raise PolicyFailure("Storefront immutable history is invalid")
-    history_versions = [row.get("bundle_version") for row in history]
-    protected_history_row = {
-        "bundle_version": protected_alpha_23["bundle_version"],
-        "manifest_sha256": protected_alpha_23["manifest_sha256"],
-        "source_commit": protected_alpha_23["source_commit"],
-        "handoff_status": "released",
-    }
-    if history[-1] != protected_history_row or len(history_versions) != len(set(history_versions)):
-        raise PolicyFailure("Storefront immutable history order is invalid")
-    if not isinstance(candidate, dict) or candidate.get("release_mode") not in {
-        "package-only",
-        "contract-additive",
+        "schema": {
+            "version": "2.0.0-alpha.23",
+            "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
+            "source_bundle_version": "2.0.0-alpha.23",
+            "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
+        },
+        "testkit": {
+            "version": "2.0.0-alpha.24",
+            "sha256": "3dc1c3488342846580a2a75372f5d9fff8a510b29d1fad2db468e7276b9efc78",
+            "storefront_client_version": "2.0.0-alpha.24",
+            "site_schema_version": "2.0.0-alpha.23",
+            "public_api_operation_count": 54,
+        },
     }:
-        raise PolicyFailure("Storefront release candidate is invalid")
-
-    alpha = re.compile(r"^(?P<family>[0-9]+)\.0\.0-alpha\.(?P<sequence>[0-9]+)$")
-    latest_match = alpha.fullmatch(str(latest.get("bundle_version", "")))
-    candidate_match = alpha.fullmatch(str(candidate.get("bundle_version", "")))
-    if (
-        latest_match is None
-        or candidate_match is None
-        or candidate.get("predecessor_bundle_version") != latest.get("bundle_version")
-        or candidate.get("bundle_version") in history_versions
-        or candidate_match.group("family") != latest_match.group("family")
-        or int(candidate_match.group("sequence")) != int(latest_match.group("sequence")) + 1
-    ):
-        raise PolicyFailure("Storefront immutable bundle progression is invalid")
-    latest_packages = latest.get("packages")
-    packages = candidate.get("packages")
-    expected_packages = {
-        "@oripa/storefront-client",
-        "@oripa/site-schema",
-        "@oripa/storefront-testkit",
-    }
-    if set(latest_packages or {}) != expected_packages or set(packages or {}) != expected_packages:
-        raise PolicyFailure("Storefront package release inventory is invalid")
-    publish = {name for name, details in packages.items() if details.get("disposition") == "publish"}
-    if publish != {"@oripa/storefront-client", "@oripa/storefront-testkit"}:
-        raise PolicyFailure("Storefront package-only publish set is invalid")
-    for name in publish:
-        if packages[name].get("version") != candidate.get("bundle_version"):
-            raise PolicyFailure(f"{name}: published version must equal bundle version")
-    schema = packages["@oripa/site-schema"]
-    previous_schema = latest_packages["@oripa/site-schema"]
-    if (
-        schema.get("disposition") != "reference"
-        or schema.get("version") != previous_schema.get("version")
-        or schema.get("sha256") != previous_schema.get("sha256")
-        or schema.get("source_tree") != previous_schema.get("source_tree")
-        or schema.get("source_bundle_version") != latest.get("bundle_version")
-    ):
-        raise PolicyFailure("Storefront Site Schema immutable reference is invalid")
-    contracts = candidate.get("contract_versions")
-    applications = candidate.get("application_versions")
-    if set(contracts or {}) != {"public", "admin", "webhook"} or set(applications or {}) != {"workspace", "admin"}:
-        raise PolicyFailure("Storefront Platform version inventory is invalid")
-    if candidate["release_mode"] == "package-only":
-        if contracts["public"] != latest.get("public_openapi", {}).get("version"):
-            raise PolicyFailure("Storefront Public OpenAPI reference is invalid")
-    elif (
-        any(version != candidate.get("bundle_version") for version in contracts.values())
-        or not re.fullmatch(
-            r"[0-9a-f]{64}", str(candidate.get("public_openapi_sha256", ""))
-        )
-        or candidate.get("public_api_operation_count") != 62
-    ):
-        raise PolicyFailure("Storefront additive contract candidate is invalid")
-    client = packages["@oripa/storefront-client"]
-    testkit = packages["@oripa/storefront-testkit"]
-    if client.get("minimum_public_api_contract") != contracts["public"]:
-        raise PolicyFailure("Storefront Client compatibility reference is invalid")
-    if (
-        testkit.get("storefront_client_version") != client.get("version")
-        or testkit.get("site_schema_version") != schema.get("version")
-    ):
-        raise PolicyFailure("Storefront Testkit compatibility reference is invalid")
+        raise PolicyFailure("immutable Storefront alpha.24 identity changed")
     return value
 
 
+def storefront_release_source(repository: Path) -> dict:
+    return storefront_artifact.release_source(storefront_release_governance(repository))
+
+
 def validate_workspace_configuration(repository: Path) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     package = load_json(repository, "package.json")
     if package.get("name") != "@oripa/platform-workspace":
         raise PolicyFailure("package.json: workspace name is invalid")
@@ -1646,7 +1597,7 @@ def validate_exact_dependency_versions(
 
 
 def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     path_set = set(paths)
     actual = {path for path in path_set if path.startswith("apps/admin/")}
     unexpected = sorted(actual - ADMIN_SKELETON_FILES)
@@ -1909,7 +1860,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
 
 
 def validate_package_skeletons(repository: Path) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     for relative, expected_name in PACKAGE_SKELETONS.items():
         package = load_json(repository, relative)
         if (
@@ -1938,7 +1889,7 @@ def validate_package_skeletons(repository: Path) -> None:
 
 
 def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     path_set = set(paths)
     missing = sorted(STOREFRONT_CLIENT_REQUIRED_FILES - path_set)
     if missing:
@@ -2081,7 +2032,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
 
 
 def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     path_set = set(paths)
     missing = sorted(SITE_SCHEMA_REQUIRED_FILES - path_set)
     if missing:
@@ -2200,7 +2151,7 @@ def validate_site_schema(repository: Path, paths: Iterable[str]) -> None:
 
 
 def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
-    release = storefront_release_governance(repository)["candidate"]
+    release = storefront_release_source(repository)
     release_packages = release["packages"]
     path_set = set(paths)
     missing = sorted(STOREFRONT_TESTKIT_REQUIRED_FILES - path_set)
