@@ -29,6 +29,16 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   });
   await installApi(page, paymentRequests);
 
+  await page.goto("/payments");
+  await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
+  await expect(page.getByLabel("支払方法")).toHaveValue("all");
+  expect(paymentRequests.some((request) => {
+    const url = new URL(request, "http://admin.test");
+    return url.pathname === "/admin/api/v2/payments"
+      && url.searchParams.get("status") === "succeeded"
+      && url.searchParams.get("payment_method") === null;
+  })).toBe(true);
+
   await page.goto("/payments?status=processing&payment_method=konbini");
   await expect(page.getByRole("heading", { name: "決済履歴", level: 1 })).toBeVisible();
   await expect(page.getByLabel("決済状態")).toHaveValue("processing");
@@ -45,6 +55,12 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   })).toBe(true);
 
   await page.getByRole("button", { name: "条件を解除" }).click();
+  await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
+  await expect(page.getByLabel("支払方法")).toHaveValue("all");
+  await expect(page.getByRole("region", { name: "決済履歴一覧" })
+    .getByText("決済成功", { exact: true })).toBeVisible();
+
+  await page.getByLabel("決済状態").selectOption("all");
   const allTable = page.getByRole("region", { name: "決済履歴一覧" });
   await expect(allTable.getByRole("row")).toHaveCount(8);
   for (const label of [
@@ -65,6 +81,7 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   await expect(allTable.getByText("￥1,004")).toBeVisible();
   await expect(allTable.getByText("2026/08/25 0:00").first()).toBeVisible();
 
+  await page.getByRole("button", { name: "条件を解除" }).click();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByRole("status")).toContainText("決済履歴を読み込んでいます");
   await expect(page.getByText("別ユーザー")).toBeVisible();
@@ -90,10 +107,10 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
     `/admin/api/v2/payments?user_id=${targetUserId}`,
   ))).toBe(false);
 
-  await page.getByRole("button", { name: "ポイント購入" }).click();
-  await page.getByRole("link", { name: "決済履歴" }).click();
+  await page.getByRole("button", { name: "決済" }).click();
+  await page.getByRole("link", { name: "決済状況" }).click();
   await expect(page).toHaveURL(/\/payments$/u);
-  await expect(page.getByLabel("決済状態")).toHaveValue("all");
+  await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
   await expect(page.getByLabel("支払方法")).toHaveValue("all");
 
   expect(await page.locator("body").textContent()).not.toMatch(/PAN|CVC|Secret/u);
@@ -147,7 +164,7 @@ async function installApi(page: Page, paymentRequests: string[]): Promise<void> 
       if (url.searchParams.get("cursor") === "next-payment-page") {
         await new Promise((resolve) => setTimeout(resolve, 100));
         return json(route, paymentCollection([
-          payment(8, "created", "credit_card", otherUserId, "別ユーザー"),
+          payment(8, "succeeded", "credit_card", otherUserId, "別ユーザー"),
         ]));
       }
       const filtered = allPayments().filter((item) => (
@@ -155,9 +172,13 @@ async function installApi(page: Page, paymentRequests: string[]): Promise<void> 
         && (!url.searchParams.get("payment_method")
           || item.method === url.searchParams.get("payment_method"))
       ));
-      return json(route, paymentCollection(filtered, filtered.length === 7
-        ? "next-payment-page"
-        : null));
+      return json(route, paymentCollection(
+        filtered,
+        url.searchParams.get("status") === "succeeded"
+          && url.searchParams.get("payment_method") === null
+          ? "next-payment-page"
+          : null,
+      ));
     }
     return route.fulfill({ status: 404 });
   });

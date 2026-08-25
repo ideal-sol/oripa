@@ -61,6 +61,7 @@ describe("Admin sidebar hierarchy", () => {
       "ダッシュボード",
       expect.stringContaining("ユーザー"),
       expect.stringContaining("ガチャ"),
+      expect.stringContaining("決済"),
       expect.stringContaining("配送"),
       "保有景品",
       expect.stringContaining("ポイント購入"),
@@ -73,8 +74,9 @@ describe("Admin sidebar hierarchy", () => {
     const expectedChildren = new Map([
       ["ユーザー", ["一覧", "会員タグ", "履歴"]],
       ["ガチャ", ["一覧", "登録", "シミュレーション", "カテゴリ", "タグ", "履歴"]],
+      ["決済", ["決済状況"]],
       ["配送", ["一覧"]],
-      ["ポイント購入", ["一覧", "登録", "決済履歴"]],
+      ["ポイント購入", ["一覧", "登録"]],
       ["お知らせ", ["一覧", "登録"]],
       ["バナー", ["一覧", "登録"]],
       ["お問い合わせ", ["一覧"]],
@@ -141,6 +143,11 @@ describe("Admin sidebar hierarchy", () => {
     const purchaseGroup = document.getElementById("admin-nav-purchase")!;
     expect(within(purchaseGroup).getByRole("link", { name: "一覧" })).toBeVisible();
     expect(within(purchaseGroup).getByRole("link", { name: "登録" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "決済" }));
+    expect(screen.getByRole("link", { name: "決済状況" })).toHaveAttribute(
+      "href",
+      "/payments",
+    );
     fireEvent.click(screen.getByRole("button", { name: "各種設定" }));
     expect(screen.getByRole("link", { name: "紹介ポイント設定" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "ガチャ" }));

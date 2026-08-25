@@ -18,6 +18,8 @@ const ownerPermissions = [
   "point.adjustment.request",
   "point.adjustment.free.approve",
   "point.adjustment.paid.approve",
+  "payment.plan.read",
+  "payment.plan.manage",
   "catalog.read",
   "catalog.manage",
   "catalog.publish",
@@ -42,6 +44,7 @@ const groups = [
     "/catalog/tags",
     "/catalog/gachas/history",
   ]],
+  ["決済", ["/payments"]],
   ["配送", ["/shipping"]],
   ["ポイント購入", ["/purchase-plans", "/purchase-plans/new"]],
   ["お知らせ", ["/announcements", "/announcements/new"]],
@@ -78,7 +81,6 @@ test("Owner navigates the approved hierarchy and every route returns 200", async
     "href",
     "/user-prizes",
   );
-
   for (const [groupName, paths] of groups) {
     const button = navigation.getByRole("button", { name: groupName, exact: true });
     await button.click();
@@ -112,6 +114,29 @@ test("Owner navigates the approved hierarchy and every route returns 200", async
     "true",
   );
   expect(consoleErrors).toEqual([]);
+});
+
+test("Payment navigation follows Gacha and opens Payment status", async ({ page }) => {
+  await page.goto("/");
+  const navigation = page.getByRole("navigation", { name: "管理ナビゲーション" });
+  const paymentGroup = navigation.getByRole("button", { name: "決済", exact: true });
+  await expect(paymentGroup).toBeVisible();
+  const topLevelLabels = (await navigation.locator(".nav-parent").allTextContents())
+    .map((label) => label.trim());
+  const gachaIndex = topLevelLabels.indexOf("ガチャ");
+  expect(topLevelLabels.slice(gachaIndex, gachaIndex + 3)).toEqual([
+    "ガチャ",
+    "決済",
+    "配送",
+  ]);
+
+  await paymentGroup.click();
+  const paymentStatus = navigation.getByRole("link", { name: "決済状況" });
+  await expect(paymentStatus).toHaveAttribute("href", "/payments");
+  await paymentStatus.click();
+  await expect(page).toHaveURL(/\/payments$/u);
+  await expect(paymentGroup).toHaveAttribute("aria-expanded", "true");
+  await expect(paymentStatus).toHaveAttribute("aria-current", "page");
 });
 
 test("mobile drawer closes on navigation and restores focus on Escape", async ({
