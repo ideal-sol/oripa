@@ -184,7 +184,12 @@ Admin UIは実装しない。API正本は`openapi/admin/openapi.yaml`である�
 
 Canonical publicationは`docs/operations/releases/storefront-contract-artifact.md`の
 additive-contract手順に従う。既存immutable `2.0.0-alpha.25`は変更せず、Public Contract、
-Storefront Client、Testkitのbyte変更を次の未使用`2.0.0-alpha.26` candidateとして発行する。
+Storefront Client、Testkitのbyte変更をimmutable `2.0.0-alpha.26`としてSource Commit
+`2dd1c7dbcf83b78f5d07fe3d965f9982d1f2fd05`から正式発行した。Manifest SHA-256は
+`05ad837c3f4ebbf5875e4aed846d28df750c366cc5f4e3d8589799deea659e2e`、Clientは
+`80ebe7172fd4ca86fbcebe545cb2b18dfe4c3a76ccf9ad770b5291dd82225b3d`、Testkitは
+`ca62c03bddc6a3a263f5853f512f0b085756744c23ab563365b0e6d7c8e53fde`、Public OpenAPIは
+`888df7d36606aa05b599859ae27a0cd4343123d46cbbe9f4355f2f9fd649a6e5`である。
 Public OpenAPI Contract versionは`2.0.0-alpha.25`、Admin／Webhook Contractは既存versionを
 維持する。Platform、Application、Site Schemaも独立Versionのままである。
 

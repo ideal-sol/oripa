@@ -47,8 +47,30 @@ Canonical readback fixed these SHA-256 values:
 - Public OpenAPI: `38761cf884c93b2a3f9b16c6718b88079a7c2c299d2335235609746f9b9b9397`
 - `SHA256SUMS`: `fb68da2e7a3751459f393bc48d327e83d037bcca35d258eae08998ca0c26713f`
 
-The ledger records alpha.25 as `latest_immutable` and clears `candidate` to
-prevent a same-version second publication.
+Alpha.25 remains immutable history and is never overwritten or republished.
+
+## Payment Return Correlation Release
+
+MIG-087 published the additive bundle `2.0.0-alpha.26` from exact Source Commit
+`2dd1c7dbcf83b78f5d07fe3d965f9982d1f2fd05`. It contains Client and Testkit
+alpha.26, Public OpenAPI alpha.25 with 64 operations, and references unchanged
+Site Schema alpha.23. Platform and Application remain alpha.23; Admin and
+Webhook changes are version metadata only.
+
+Canonical Workflow Run `32821950630`, Artifact `9553537412`, Manifest, and
+`SHA256SUMS` readback fixed these SHA-256 values:
+
+- GitHub outer Artifact: `c1e7936ecec21dd80cd3395911c568ded060d3616b7eed20654582e47964a7eb`
+- Manifest: `05ad837c3f4ebbf5875e4aed846d28df750c366cc5f4e3d8589799deea659e2e`
+- Client: `80ebe7172fd4ca86fbcebe545cb2b18dfe4c3a76ccf9ad770b5291dd82225b3d`
+- Testkit: `ca62c03bddc6a3a263f5853f512f0b085756744c23ab563365b0e6d7c8e53fde`
+- Public OpenAPI: `888df7d36606aa05b599859ae27a0cd4343123d46cbbe9f4355f2f9fd649a6e5`
+- `SHA256SUMS`: `6344d997fc77962e7891d2dee7a41b1f4f2e138c552b1548b060cbfe03f371a9`
+
+Compatibility is contract-additive and Public OpenAPI `breaking_change` is
+false. The ledger records alpha.26 as `latest_immutable` and clears `candidate`;
+exact-pin adoption is GO, while Runtime Activation and Provider Browser E2E
+remain deferred.
 
 The validator requires:
 
@@ -90,7 +112,15 @@ rehashed, and compared with its Manifest and `SHA256SUMS` before GO.
 ## Storefront Handoff
 
 Storefront adoption pins the formally released immutable Artifact by exact
-tarball and digest. It must preserve predecessor alpha.24 and rerun Site-specific
-compatibility checks. Runtime activation is not required for exact-pin Artifact
-adoption; Provider Browser E2E remains HOLD until the Payment Backend source and
-Migration `000065` are active in the target Runtime.
+tarball and digest. It must preserve predecessor alpha.25 and rerun Site-specific
+compatibility checks. Canonical normal return is
+`/points/purchase/thanks?pid={Payment.id}` and failure/cancel return is
+`/points/purchase/{PointProduct.id}?pid={Payment.id}`. Storefront always uses
+ownership-checked `getPayment(pid)` as status authority. Card and PayPay may poll
+`created`/`requires_action`/`processing` every 2 seconds for at most 30 seconds,
+respecting `Retry-After` or `retry_after_seconds`. Konbini and Virtual Account
+read state with `getPayment` and resume an eligible existing redirect only after
+User action through `resumeUnpaidPayment`; they do not treat `next_action.url` as
+durable. Runtime activation is not required for exact-pin Artifact adoption;
+Provider Browser E2E remains HOLD until the Payment Backend source and Migration
+`000065` are active in the target Runtime.

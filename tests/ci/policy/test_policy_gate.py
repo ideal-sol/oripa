@@ -715,14 +715,13 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_pending_additive_alpha_26_candidate(self):
+    def test_storefront_release_governance_accepts_released_additive_alpha_26_bundle(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.25")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.26")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.26")
-        self.assertEqual(value["candidate"]["release_state"], "pending")
+        self.assertIsNone(value["candidate"])
         self.assertEqual(
-            value["candidate"]["contract_versions"],
+            value["latest_immutable"]["contract_versions"],
             {
                 "public": "2.0.0-alpha.25",
                 "admin": "2.0.0-alpha.25",
