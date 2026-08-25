@@ -72,6 +72,31 @@ false. The ledger records alpha.26 as `latest_immutable` and clears `candidate`;
 exact-pin adoption is GO, while Runtime Activation and Provider Browser E2E
 remain deferred.
 
+## Payment Grant Breakdown Release
+
+MIG-088 published the additive bundle `2.0.0-alpha.27` from exact Source Commit
+`856990ddeab266ee394d5e2750b689fb8211322b`. It contains Client and Testkit
+alpha.27, Public OpenAPI alpha.26 with 64 operations, and references unchanged
+Site Schema alpha.23. Platform and Application remain alpha.23; Admin and
+Webhook changes are version metadata only.
+
+Canonical Workflow Run `32833825150`, Artifact `9557923243`, Manifest, and
+`SHA256SUMS` readback fixed these SHA-256 values:
+
+- GitHub outer Artifact: `4b18a02767e44af7d9bc69690e2ba37133c7ad535a453a92d60c0ca02da46b10`
+- Manifest: `a6b12bd35dfae03179baaa2981c6e90e483ba88a3f9245633510c49f2ea13283`
+- Client: `31f3bc55a87150600a06c6abd2569835f67ee361f80cc1004082479fd851534f`
+- Testkit: `32559b9c56e17fd86327b3ecf8311d878eb5ecb0d5344457c7e8ad8941f7ef57`
+- Public OpenAPI: `cb4f6b8eae034776f5efcba12d7f2b1a2b2cec18a6103ad1208d24e8458f3333`
+- `SHA256SUMS`: `31dad542a3f8b1423e84451f2dc8bffb3626d8145ab70c76a4b50da2c6eb4dd4`
+
+Compatibility is contract-additive and Public OpenAPI `breaking_change` is
+false. Public `PaymentGrant` adds the required Historical values
+`limited_bonus_points` and `total_points`; existing operations remain unchanged.
+The ledger records alpha.27 as `latest_immutable` and clears `candidate`, so a
+same-version rebuild is rejected. Storefront exact-pin adoption is GO and
+Runtime Activation remains deferred.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.
