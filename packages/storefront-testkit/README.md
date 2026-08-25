@@ -84,11 +84,13 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Package Versionは`2.0.0-alpha.27`。参照するStorefront Clientは`2.0.0-alpha.27`、
-Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.26`。
+Package Versionは`2.0.0-alpha.28`。参照するStorefront Clientは`2.0.0-alpha.28`、
+Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.27`。
 Payment Grant Fixtureは確定した`paid_points`、通常`bonus_points`、期間限定
 `limited_bonus_points`、3field合計`total_points`を表し、現在の商品・Campaignから
-Historical実績を再計算しない。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Point商品一覧／
+Historical実績を再計算しない。Payment Card UI Bootstrap FixtureはPublic-safeなfincode
+`public_api_key`と`is_live_mode`だけをsandbox／live別に提供し、Secret、Webhook、token、
+credential、内部IDを含まない。トップ表示対象／対象外Banner、Footer表示対象／対象外Static Page、Point商品一覧／
 Eligibility／CTA、Gacha Catalogの販売状態／Eligibility／表示制御、User Prize Presentation、LINE Friend Stateの未連携／友だち追加待ち／確認済みPresentationとTyped Problem、型付きDraw／Fulfillment Problem Contract、
 残口数に合わせた端数Draw Fixture、Current User Draw Historyの複数／空履歴・Stable Ordering・Cursor continuation・Typed Problem、Current User Pointの正数／0残高、加算／減算／空履歴、
 Stable Ordering、Cursor continuation、Typed Problem Fixtureを含む非公開AlphaでありProduction利用不可。

@@ -114,6 +114,8 @@ Route::prefix('v2')
             ->name('v2.public.payments.history');
         Route::get('/me/payment-cards', [V2PaymentController::class, 'cards'])
             ->name('v2.public.payment-cards.index');
+        Route::get('/me/payment-card-ui-bootstrap', [V2PaymentController::class, 'cardUiBootstrap'])
+            ->name('v2.public.payment-card-ui-bootstrap.show');
         Route::post('/me/payment-card-registration-intents', [V2PaymentController::class, 'reserveCard'])
             ->name('v2.public.payment-card-registration-intents.store');
         Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\V2;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
+use App\Domain\Payment\V2\Services\V2FincodePublicConfiguration;
 use App\Domain\Reporting\Exceptions\V2ReportingException;
 use App\Models\V2\User;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +17,8 @@ final class V2PaymentController
 {
     public function __construct(
         private readonly V2FincodePaymentService $payments,
-        private readonly V2FincodeCardService $cards
+        private readonly V2FincodeCardService $cards,
+        private readonly V2FincodePublicConfiguration $configuration
     ) {
     }
 
@@ -104,6 +106,15 @@ final class V2PaymentController
     public function cards(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->cards->cards($this->user()));
+    }
+
+    public function cardUiBootstrap(Request $request): JsonResponse
+    {
+        return $this->handle($request, function (): array {
+            $this->user();
+
+            return $this->configuration->bootstrap();
+        });
     }
 
     public function reserveCard(Request $request): JsonResponse

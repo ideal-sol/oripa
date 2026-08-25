@@ -97,6 +97,21 @@ The ledger records alpha.27 as `latest_immutable` and clears `candidate`, so a
 same-version rebuild is rejected. Storefront exact-pin adoption is GO and
 Runtime Activation remains deferred.
 
+## Card UI Bootstrap Candidate
+
+MIG-089 allocates the next unused additive bundle `2.0.0-alpha.28` without
+changing immutable alpha.27. The pending source contains Client and Testkit
+alpha.28, Public OpenAPI alpha.27 with 65 operations, and references unchanged
+Site Schema alpha.23. Platform and Application remain alpha.23; Admin and
+Webhook changes are version metadata only.
+
+Publication remains pending until the exact source head passes Required Checks
+and the Artifact Release Lock is acquired. Canonical publication must build and
+verify the five-file inventory, Manifest, `SHA256SUMS`, package compatibility,
+immutable upload, and readback before the ledger can be settled. Runtime,
+Provider, Storefront repository, credential, and Production mutation remain
+deferred and outside this candidate.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.

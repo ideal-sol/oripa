@@ -27,6 +27,22 @@ export const PUBLIC_PAYMENT_GRANT_FIXTURES = Object.freeze({
   PublicComponents["schemas"]["PaymentGrant"]
 >);
 
+export const PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES = Object.freeze({
+  sandbox: {
+    provider: "fincode",
+    public_api_key: "p_test_public-safe-fixture",
+    is_live_mode: false,
+  },
+  live: {
+    provider: "fincode",
+    public_api_key: "p_prod_public-safe-fixture",
+    is_live_mode: true,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PaymentCardUiBootstrap"]
+>);
+
 export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
   {
     schema_version: "2.0.0-alpha.1",

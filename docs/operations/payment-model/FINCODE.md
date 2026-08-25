@@ -120,6 +120,42 @@ User、Customer、Card所有関係とfincode取得結果のCustomer／Card refer
 今回限りのカード、保存して購入、登録済みカードを区別する。登録Intentはfincode Customer
 reference、Public API Key、`tds_type=2`だけを返し、Secret API Keyは返さない。
 
+Card UI表示は`GET /api/v2/me/payment-card-ui-bootstrap`を正本とする。Authenticated Userだけが
+取得でき、responseは`provider=fincode`、Public API Key、`is_live_mode`の3fieldだけである。
+Payment、Provider Session、Registration Intent、fincode Customer／Card、Coinを作成せず、
+Provider通信、CSRF mutation semantics、Idempotency-Keyを使用しない。Payment無効化、Public Key
+未設定、Secret／Webhook readiness不足、test／production keyとendpointまたはApplication environmentの
+不整合は空値で継続せずCanonical Problem DetailsでFail Closedする。
+
+StorefrontのCard UI表示は次の順序である。
+
+```text
+Credit Card選択
+→ getPaymentCardUiBootstrap()
+→ initFincode(public_api_key, is_live_mode)
+→ FincodeUI create / mount
+→ mount成功
+→ 購入操作可能
+```
+
+Storefrontは`ui.getFormData()`でPAN／CVCを取得・監視せず、undocumented iframe event／messageを
+使用しない。Card入力validationは公式fincode SDKのsubmit時validationへ委任する。Card入力中に
+別Payment Methodへ切替またはページ離脱する場合はCard UIをdestroy／unmountして入力を破棄し、
+Backend mutationとcleanup APIは0とする。再選択時は空のCard UIをmountする。
+
+保存せず購入はBootstrap／mount後の購入操作で初めて
+`startPayment(source=new, save=false)`を呼び、`Payment.next_action`からfincode
+`executePayment`／3DS2へ進む。保存して購入は購入操作時に
+`createPaymentCardRegistrationIntent()`、fincode `registerCard()`、返されたProvider Card IDを使う
+`startPayment(source=new, save=true, registration_intent_id, provider_card_id)`の順であり、Platformが
+同じ購入Flow内でregistrationをcompleteしてPayment／3DS2へ進む。購入Flowは
+`completePaymentCardRegistration()`を別途呼ばない。同operationは購入を伴わない独立Card登録Flowだけを
+担当する。
+
+Bootstrapとnew-card `Payment.next_action`は同じvalidated configuration authorityからPublic Keyと
+`is_live_mode`を返す。Storefrontは両方の完全一致を確認でき、不一致時にenvironmentを推測・補正せず
+Payment実行を停止する。
+
 ## Mandatory 3D Secure
 
 全Credit Card Paymentは登録時の`POST /v1/payments`へ`tds_type=2`かつ`tds2_type=2`
