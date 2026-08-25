@@ -34,7 +34,7 @@ describe("Admin Payment History", () => {
     vi.spyOn(AdminApiClient.prototype, "listAdminPayments")
       .mockResolvedValue(collection(statuses.map((status, index) => payment(index + 1, status))));
 
-    render(<AdminPaymentHistory />);
+    render(<AdminPaymentHistory initialStatus="all" />);
 
     const rows = (await screen.findAllByRole("row")).slice(1);
     expect(rows).toHaveLength(7);
@@ -60,7 +60,76 @@ describe("Admin Payment History", () => {
     }
   });
 
-  it("uses explicit filters, resets to all states, and reports filter-empty separately", async () => {
+  it("defaults the all-User list to succeeded across all methods", async () => {
+    const reader = vi.spyOn(AdminApiClient.prototype, "listAdminPayments")
+      .mockResolvedValue(collection([payment(4, "succeeded")]));
+
+    render(<AdminPaymentHistory />);
+
+    expect(await screen.findByText("決済成功")).toBeVisible();
+    expect(screen.getByLabelText("決済状態")).toHaveValue("succeeded");
+    expect(screen.getByLabelText("支払方法")).toHaveValue("all");
+    expect(reader).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_method: undefined, status: "succeeded" }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("exposes the canonical required status and method filters", async () => {
+    const reader = vi.spyOn(AdminApiClient.prototype, "listAdminPayments")
+      .mockResolvedValue(collection([]));
+
+    render(<AdminPaymentHistory />);
+    await screen.findByRole("heading", { name: "決済履歴はありません" });
+
+    expect(within(screen.getByLabelText("決済状態")).getAllByRole("option").map((option) => ({
+      label: option.textContent,
+      value: (option as HTMLOptionElement).value,
+    }))).toEqual([
+      { label: "すべて", value: "all" },
+      { label: "作成済み", value: "created" },
+      { label: "支払操作待ち", value: "requires_action" },
+      { label: "未払い", value: "processing" },
+      { label: "決済成功", value: "succeeded" },
+      { label: "失敗", value: "failed" },
+      { label: "キャンセル", value: "canceled" },
+      { label: "期限切れ", value: "expired" },
+    ]);
+    expect(within(screen.getByLabelText("支払方法")).getAllByRole("option").map((option) => ({
+      label: option.textContent,
+      value: (option as HTMLOptionElement).value,
+    }))).toEqual([
+      { label: "すべて", value: "all" },
+      { label: "クレジットカード", value: "credit_card" },
+      { label: "PayPay", value: "paypay" },
+      { label: "コンビニ決済", value: "konbini" },
+      { label: "銀行振込", value: "virtual_account" },
+    ]);
+
+    for (const status of ["processing", "expired", "failed", "canceled", "succeeded"] as const) {
+      fireEvent.change(screen.getByLabelText("決済状態"), { target: { value: status } });
+      await waitFor(() => expect(reader).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status }),
+        expect.any(AbortSignal),
+      ));
+    }
+    for (const paymentMethod of [
+      "credit_card",
+      "paypay",
+      "konbini",
+      "virtual_account",
+    ] as const) {
+      fireEvent.change(screen.getByLabelText("支払方法"), {
+        target: { value: paymentMethod },
+      });
+      await waitFor(() => expect(reader).toHaveBeenLastCalledWith(
+        expect.objectContaining({ payment_method: paymentMethod, status: "succeeded" }),
+        expect.any(AbortSignal),
+      ));
+    }
+  });
+
+  it("uses explicit filters, resets to succeeded and all methods, and reports empty data", async () => {
     const reader = vi.spyOn(AdminApiClient.prototype, "listAdminPayments")
       .mockResolvedValue(collection([]));
 
@@ -83,10 +152,10 @@ describe("Admin Payment History", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "条件を解除" }));
     await waitFor(() => expect(reader).toHaveBeenLastCalledWith(
-      expect.objectContaining({ payment_method: undefined, status: undefined }),
+      expect.objectContaining({ payment_method: undefined, status: "succeeded" }),
       expect.any(AbortSignal),
     ));
-    expect(screen.getByLabelText("決済状態")).toHaveValue("all");
+    expect(screen.getByLabelText("決済状態")).toHaveValue("succeeded");
     expect(screen.getByLabelText("支払方法")).toHaveValue("all");
     expect(await screen.findByRole("heading", { name: "決済履歴はありません" })).toBeVisible();
   });
@@ -97,7 +166,7 @@ describe("Admin Payment History", () => {
       .mockResolvedValueOnce(collection([payment(1, "succeeded")], "next-cursor"))
       .mockReturnValueOnce(nextPage.promise);
 
-    render(<AdminPaymentHistory />);
+    render(<AdminPaymentHistory initialStatus="all" />);
     fireEvent.click(await screen.findByRole("button", { name: "次へ" }));
 
     expect(screen.getByRole("status")).toHaveTextContent("決済履歴を読み込んでいます");
@@ -148,7 +217,7 @@ describe("Admin Payment History", () => {
     expect(allReader).toHaveBeenCalledOnce();
     expect(userReader).toHaveBeenCalledWith(
       uuid("9"),
-      expect.objectContaining({ limit: 20 }),
+      expect.objectContaining({ limit: 20, status: undefined }),
       expect.any(AbortSignal),
     );
     expect(screen.queryByRole("columnheader", { name: "User" })).toBeNull();

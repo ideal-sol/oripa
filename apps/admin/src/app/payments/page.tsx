@@ -30,7 +30,7 @@ export default async function AdminPaymentHistoryPage({
           initialStatus={initialListFilter(
             query.status,
             ADMIN_PAYMENT_STATUS_FILTERS,
-            "all",
+            "succeeded",
           )}
         />
       </ProtectedAdminRoute>

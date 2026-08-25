@@ -56,7 +56,7 @@ const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
 
 export function AdminPaymentHistory({
   initialMethod = "all",
-  initialStatus = "all",
+  initialStatus,
   userPublicId,
 }: {
   initialMethod?: AdminPaymentMethodFilter;
@@ -64,7 +64,9 @@ export function AdminPaymentHistory({
   userPublicId?: string;
 }) {
   const client = useMemo(() => new AdminApiClient(), []);
-  const [status, setStatus] = useState<AdminPaymentStatusFilter>(initialStatus);
+  const [status, setStatus] = useState<AdminPaymentStatusFilter>(
+    initialStatus ?? (userPublicId ? "all" : "succeeded"),
+  );
   const [method, setMethod] = useState<AdminPaymentMethodFilter>(initialMethod);
   const [items, setItems] = useState<AdminPayment[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
@@ -151,7 +153,7 @@ export function AdminPaymentHistory({
             onClick={() => {
               beginLoad();
               resetCursor();
-              setStatus("all");
+              setStatus("succeeded");
               setMethod("all");
               setReload((value) => value + 1);
             }}
@@ -184,7 +186,7 @@ export function AdminPaymentHistory({
         </section>
       ) : items.length === 0 ? (
         <section className="module-state">
-          <h2>{status === "all" && method === "all"
+          <h2>{(userPublicId || (status === "succeeded" && method === "all"))
             ? "決済履歴はありません"
             : "検索条件に一致する決済はありません"}</h2>
           <p>Canonical Payment履歴を変更せず表示しています。</p>
