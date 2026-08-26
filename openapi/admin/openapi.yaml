@@ -3767,6 +3767,29 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
+        - name: user_id
+          in: query
+          required: false
+          description: Canonical Public User IDの完全一致。
+          schema: {$ref: '#/components/schemas/OpaqueId'}
+        - name: status
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/AdminUserState'
+              - type: string
+                const: all
+        - name: date_from
+          in: query
+          required: false
+          description: JSTの登録日開始日。
+          schema: {type: string, format: date}
+        - name: date_to
+          in: query
+          required: false
+          description: JSTの登録日終了日。
+          schema: {type: string, format: date}
       responses:
         '200':
           description: Stable SortされたUser一覧。
@@ -8306,7 +8329,7 @@ components:
           enum: [confirmed, registered]
     AdminUserState:
       type: string
-      enum: [pending_verification, active, restricted, suspended, closed, anonymized]
+      enum: [pending_verification, verification_failed, active, restricted, suspended, closed, anonymized]
     AdminUserPointBalance:
       type: object
       additionalProperties: false

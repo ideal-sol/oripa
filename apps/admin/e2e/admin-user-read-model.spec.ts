@@ -73,6 +73,59 @@ test("mobile User tables remain inside a keyboard-scrollable region", async ({ p
   await expect(trigger).toBeFocused();
 });
 
+test("User filters honor explicit query, cursor conditions, reset, and route defaults", async ({ page }) => {
+  await page.unroute(/\/admin\/api\/v2\/.*$/u);
+  const queries: URLSearchParams[] = [];
+  await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/auth/session")) return json(route, adminSession());
+    if (url.pathname.endsWith("/auth/permissions")) {
+      return json(route, { permissions: [], request_id: uuid("9"), role: "operator" });
+    }
+    if (url.pathname.endsWith("/users")) {
+      queries.push(new URLSearchParams(url.searchParams));
+      const failed = url.searchParams.get("status") === "verification_failed";
+      const hasCursor = url.searchParams.has("cursor");
+      return json(route, {
+        items: hasCursor ? [] : [{
+          ...userSummary(),
+          display_name: failed ? "認証失敗ユーザー" : "有効ユーザー",
+          status: failed ? "verification_failed" : "active",
+        }],
+        next_cursor: failed && !hasCursor ? "djE6MTA=" : null,
+        request_id: uuid("9"),
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+
+  await page.goto(`/users?status=verification_failed&user_id=${userId}&date_from=2026-08-01&date_to=2026-08-31`);
+  await expect(page.getByLabel("状態")).toHaveValue("verification_failed");
+  await expect(page.getByLabel("User ID")).toHaveValue(userId);
+  await expect(page.getByText("認証失敗ユーザー")).toBeVisible();
+  await page.getByRole("button", { name: "次の50件を表示" }).click();
+  await expect.poll(() => queries.length).toBe(2);
+  for (const query of queries.slice(0, 2)) {
+    expect(query.get("status")).toBe("verification_failed");
+    expect(query.get("user_id")).toBe(userId);
+    expect(query.get("date_from")).toBe("2026-08-01");
+    expect(query.get("date_to")).toBe("2026-08-31");
+  }
+  expect(queries[1].get("cursor")).toBe("djE6MTA=");
+
+  await page.getByRole("button", { name: "条件を解除" }).click();
+  await expect(page.getByLabel("状態")).toHaveValue("active");
+  await expect(page.getByLabel("User ID")).toHaveValue("");
+  await expect(page.getByText("有効ユーザー")).toBeVisible();
+  expect(queries.at(-1)?.get("status")).toBe("active");
+  expect(queries.at(-1)?.has("user_id")).toBe(false);
+
+  await page.goto("/");
+  await page.goto("/users");
+  await expect(page.getByLabel("状態")).toHaveValue("active");
+  expect(queries.at(-1)?.get("status")).toBe("active");
+});
+
 test("Admin changes User state and the detail refetches canonical state", async ({ page }) => {
   await page.unroute(/\/admin\/api\/v2\/.*$/u);
   let state = "active";

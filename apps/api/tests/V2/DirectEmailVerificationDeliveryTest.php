@@ -271,6 +271,39 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
         self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
     }
 
+    public function test_expired_verification_preserves_browser_and_json_failure_semantics(): void
+    {
+        $capture = $this->spyOnHtmlMail();
+        $user = app(V2UserAuthenticationService::class)->register(
+            'expired-browser@example.test',
+            'valid expired browser password',
+            '/',
+            '192.0.2.147'
+        );
+        $path = (string) parse_url(
+            $this->verificationUrlFromBody($capture->messages[0]['body']),
+            PHP_URL_PATH
+        );
+        $this->travel(61)->minutes();
+        self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
+
+        $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->get($path)
+            ->assertStatus(303)
+            ->assertRedirect('/verify-email/error');
+        self::assertSame(V2UserState::VerificationFailed, $user->refresh()->state);
+
+        $this
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->getJson($path)
+            ->assertStatus(410)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('code', 'VERIFICATION_LINK_EXPIRED')
+            ->assertJsonPath('status', 410);
+        self::assertSame(2, $user->refresh()->state_revision);
+    }
+
     public function test_mail_transport_failure_rolls_back_registration_without_false_success(): void
     {
         $verificationOutboxCount = $this->verificationOutboxCount();

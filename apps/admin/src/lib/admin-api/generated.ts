@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: ef61d3698bd5cf20bf509b891a51a7c85b50ab03049ab2e26ffed81e7208a6a2
+// Contract SHA-256: 9f304823fe076b669912bacacbc925db5fca4d403f6a42cc7c7a278d3f3c17eb
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -106,6 +106,7 @@ export interface AdminSession {
 
 export type AdminUserState =
   | "pending_verification"
+  | "verification_failed"
   | "active"
   | "restricted"
   | "suspended"

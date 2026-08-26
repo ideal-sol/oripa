@@ -18,10 +18,11 @@ const state = {
   retry: vi.fn(),
 };
 const permissions = new Set<AdminPermissionCode>();
+const readModel = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/users/use-admin-user-read-model", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/components/users/use-admin-user-read-model")>();
-  return { ...original, useAdminUserReadModel: () => state };
+  return { ...original, useAdminUserReadModel: readModel };
 });
 vi.mock("@/components/permissions/permission-provider", () => ({
   usePermissions: () => ({
@@ -48,6 +49,8 @@ describe("Admin User Read workspace", () => {
     state.loadingMore = false;
     state.loadMore.mockClear();
     state.retry.mockClear();
+    readModel.mockClear();
+    readModel.mockImplementation(() => state);
     permissions.clear();
   });
 
@@ -71,6 +74,51 @@ describe("Admin User Read workspace", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "次の50件を表示" }));
     expect(state.loadMore).toHaveBeenCalledOnce();
+  });
+
+  it("uses active defaults, applies explicit compound filters, and resets canonically", () => {
+    state.data = { kind: "list", value: {
+      items: [{ ...userSummary(), status: "verification_failed" }],
+      next_cursor: null,
+      request_id: uuid("9"),
+    } };
+    render(<AdminUserReadWorkspace mode="list" />);
+
+    expect(screen.getByLabelText("状態")).toHaveValue("active");
+    expect(screen.getAllByText("認証失敗")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("User ID"), { target: { value: uuid("1") } });
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "verification_failed" } });
+    fireEvent.change(screen.getByLabelText("登録日（開始）"), { target: { value: "2026-08-01" } });
+    fireEvent.change(screen.getByLabelText("登録日（終了）"), { target: { value: "2026-08-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "検索" }));
+
+    expect(readModel.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      listFilters: {
+        date_from: "2026-08-01",
+        date_to: "2026-08-31",
+        status: "verification_failed",
+        user_id: uuid("1"),
+      },
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "条件を解除" }));
+    expect(screen.getByLabelText("状態")).toHaveValue("active");
+    expect(screen.getByLabelText("User ID")).toHaveValue("");
+    expect(readModel.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      listFilters: {
+        date_from: undefined,
+        date_to: undefined,
+        status: "active",
+        user_id: undefined,
+      },
+    }));
+  });
+
+  it("rejects an inverted registration date range before loading", () => {
+    render(<AdminUserReadWorkspace mode="list" />);
+    fireEvent.change(screen.getByLabelText("登録日（開始）"), { target: { value: "2026-08-31" } });
+    fireEvent.change(screen.getByLabelText("登録日（終了）"), { target: { value: "2026-08-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "検索" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("開始日は終了日以前");
   });
 
   it("renders V2 detail without owned prizes and links to the separate history route", () => {

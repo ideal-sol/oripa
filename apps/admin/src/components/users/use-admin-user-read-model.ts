@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import type { AdminUserQuery } from "@/lib/admin-api/client";
 import type {
   AdminUserCollection,
   AdminUserDetail,
@@ -17,8 +18,10 @@ export type AdminUserReadData =
 
 export function useAdminUserReadModel({
   mode,
+  listFilters,
   userPublicId,
 }: {
+  listFilters?: AdminUserQuery;
   mode: AdminUserReadMode;
   userPublicId?: string;
 }) {
@@ -31,7 +34,7 @@ export function useAdminUserReadModel({
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(client, mode, userPublicId, controller.signal)
+    void load(client, mode, userPublicId, listFilters, controller.signal)
       .then((next) => {
         if (!controller.signal.aborted) setData(next);
       })
@@ -45,7 +48,13 @@ export function useAdminUserReadModel({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [client, mode, revision, userPublicId]);
+  }, [
+    client,
+    listFilters,
+    mode,
+    revision,
+    userPublicId,
+  ]);
 
   const retry = useCallback(() => {
     setData(null);
@@ -61,7 +70,7 @@ export function useAdminUserReadModel({
     setError(null);
     try {
       if (data.kind === "list") {
-        const next = await client.listAdminUsers(cursor);
+        const next = await client.listAdminUsers({ ...listFilters, cursor });
         setData({
           kind: "list",
           value: { ...next, items: [...data.value.items, ...next.items] },
@@ -78,7 +87,7 @@ export function useAdminUserReadModel({
     } finally {
       setLoadingMore(false);
     }
-  }, [client, data, loadingMore, userPublicId]);
+  }, [client, data, listFilters, loadingMore, userPublicId]);
 
   return { data, error, loadMore, loading, loadingMore, retry };
 }
@@ -87,10 +96,11 @@ async function load(
   client: AdminApiClient,
   mode: AdminUserReadMode,
   userPublicId: string | undefined,
+  listFilters: AdminUserQuery | undefined,
   signal: AbortSignal,
 ): Promise<AdminUserReadData> {
   if (mode === "list") {
-    return { kind: "list", value: await client.listAdminUsers(undefined, signal) };
+    return { kind: "list", value: await client.listAdminUsers(listFilters, signal) };
   }
   if (!userPublicId) throw new Error("ユーザーIDが必要です。");
   if (mode === "detail") {

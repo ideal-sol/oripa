@@ -974,9 +974,42 @@
 
 .admin-user-status.is-closed,
 .admin-user-status.is-canceled,
+.admin-user-status.is-verification_failed,
 .admin-user-status.is-expired {
   background: #fef3f2;
   color: #b42318;
+}
+
+.admin-user-filters {
+  align-items: end;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(150px, 1fr)) auto;
+  padding: 16px;
+}
+
+.admin-user-filters label { display: grid; gap: 7px; }
+.admin-user-filters label > span { color: #344054; font-size: 13px; font-weight: 600; }
+.admin-user-filters input,
+.admin-user-filters select {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  min-height: 42px;
+  padding: 9px 11px;
+  width: 100%;
+}
+.admin-user-filter-actions { align-items: center; display: flex; gap: 8px; }
+.admin-user-filter-error { color: #b42318; grid-column: 1 / -1; margin: 0; }
+
+@media (max-width: 900px) {
+  .admin-user-filters { grid-template-columns: 1fr; }
+  .admin-user-filter-actions,
+  .admin-user-filter-actions button { width: 100%; }
 }
 
 .admin-user-state {

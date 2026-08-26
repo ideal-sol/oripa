@@ -213,6 +213,27 @@ export const ADMIN_PAYMENT_METHOD_FILTERS = [
 export type AdminPaymentStatusFilter = typeof ADMIN_PAYMENT_STATUS_FILTERS[number];
 export type AdminPaymentMethodFilter = typeof ADMIN_PAYMENT_METHOD_FILTERS[number];
 
+export const ADMIN_USER_STATUS_FILTERS = [
+  "all",
+  "pending_verification",
+  "verification_failed",
+  "active",
+  "restricted",
+  "suspended",
+  "closed",
+  "anonymized",
+] as const;
+
+export type AdminUserStatusFilter = typeof ADMIN_USER_STATUS_FILTERS[number];
+
+export interface AdminUserQuery {
+  cursor?: string;
+  date_from?: string;
+  date_to?: string;
+  status?: AdminUserStatusFilter;
+  user_id?: string;
+}
+
 const ADMIN_CSRF_COOKIE = "__Host-oripa_admin_xsrf";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -330,11 +351,15 @@ export class AdminApiClient {
   }
 
   listAdminUsers(
-    cursor?: string,
+    query: AdminUserQuery = {},
     signal?: AbortSignal,
   ): Promise<AdminUserCollection> {
     const parameters = new URLSearchParams({ limit: "50" });
-    if (cursor) parameters.set("cursor", cursor);
+    if (query.cursor) parameters.set("cursor", query.cursor);
+    if (query.date_from) parameters.set("date_from", query.date_from);
+    if (query.date_to) parameters.set("date_to", query.date_to);
+    if (query.status) parameters.set("status", query.status);
+    if (query.user_id) parameters.set("user_id", query.user_id);
     return this.request("GET", `/users?${parameters.toString()}`, { signal });
   }
 

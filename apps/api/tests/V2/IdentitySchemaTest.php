@@ -85,6 +85,34 @@ final class IdentitySchemaTest extends TestCase
         }
     }
 
+    public function test_verification_failed_state_constraint_is_additive_and_rollback_fails_closed(): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $userId = $this->insertUser(
+                'verification-failed@example.test',
+                false,
+                V2UserState::VerificationFailed->value
+            );
+            self::assertSame(
+                V2UserState::VerificationFailed->value,
+                DB::table('users')->where('id', $userId)->value('state')
+            );
+            $migration = require database_path(
+                'migrations-v2/2026_09_22_000066_add_v2_verification_failed_user_state.php'
+            );
+            try {
+                $migration->down();
+                self::fail('Rollback must fail closed while verification-failure history exists.');
+            } catch (\RuntimeException $exception) {
+                self::assertStringContainsString('verification_failed', $exception->getMessage());
+            }
+        } finally {
+            DB::rollBack();
+        }
+    }
+
     public function test_only_closed_verified_user_email_is_reusable(): void
     {
         DB::beginTransaction();
