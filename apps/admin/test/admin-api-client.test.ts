@@ -143,13 +143,19 @@ describe("AdminApiClient", () => {
       .mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null, user_id: userId }));
     const client = new AdminApiClient(fetcher, () => csrf);
 
-    await client.listAdminUsers("djE6MTA=");
+    await client.listAdminUsers({
+      cursor: "djE6MTA=",
+      date_from: "2026-08-01",
+      date_to: "2026-08-31",
+      status: "verification_failed",
+      user_id: userId,
+    });
     await client.getAdminUser(userId);
     await client.listAdminUserGachaHistory(userId);
     await client.listAdminUserReferralHistory(userId, "djE6MTA=");
 
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      "/admin/api/v2/users?limit=50&cursor=djE6MTA%3D",
+      `/admin/api/v2/users?limit=50&cursor=djE6MTA%3D&date_from=2026-08-01&date_to=2026-08-31&status=verification_failed&user_id=${userId}`,
       `/admin/api/v2/users/${userId}`,
       `/admin/api/v2/users/${userId}/gacha-history?limit=50`,
       `/admin/api/v2/users/${userId}/referral-history?limit=50&cursor=djE6MTA%3D`,

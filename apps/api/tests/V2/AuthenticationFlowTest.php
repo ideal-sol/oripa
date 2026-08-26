@@ -139,6 +139,7 @@ final class AuthenticationFlowTest extends TestCase
             ->where('token_hash', hash('sha256', $old))
             ->value('revoked_at'));
         $this->travel(61)->minutes();
+        self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
 
         try {
             $service->verify($user->public_id, $new);
@@ -146,6 +147,61 @@ final class AuthenticationFlowTest extends TestCase
         } catch (V2AuthenticationException $exception) {
             self::assertSame('VERIFICATION_LINK_EXPIRED', $exception->errorCode);
         }
+        self::assertSame(V2UserState::VerificationFailed, $user->refresh()->state);
+        self::assertSame(2, $user->state_revision);
+        self::assertCount(1, array_filter(
+            $this->events->records,
+            fn (array $record): bool => $record['event'] === 'verification_failure'
+        ));
+
+        try {
+            $service->verify($user->public_id, $new);
+            self::fail('Repeated expired verification must fail idempotently.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('VERIFICATION_LINK_EXPIRED', $exception->errorCode);
+        }
+        self::assertSame(2, $user->refresh()->state_revision);
+        self::assertCount(1, array_filter(
+            $this->events->records,
+            fn (array $record): bool => $record['event'] === 'verification_failure'
+        ));
+
+        $service->resend($user->public_id, '/');
+        $replacement = $this->notifier->messages[2]['token'];
+        $verified = $service->verify($user->public_id, $replacement);
+        self::assertSame(V2UserState::Active, $verified['user']->state);
+        self::assertSame(3, $verified['user']->state_revision);
+    }
+
+    public function test_invalid_verification_inputs_never_change_user_state(): void
+    {
+        $service = app(V2UserAuthenticationService::class);
+        $user = $service->register(
+            'invalid-verification@example.test',
+            'valid invalid verification password',
+            '/',
+            '192.0.2.29'
+        );
+        $token = $this->notifier->messages[0]['token'];
+
+        foreach ([
+            [$user->public_id, 'malformed'],
+            [$user->public_id, str_repeat('0', 64)],
+            [(string) Str::uuid7(), $token],
+        ] as [$publicId, $candidate]) {
+            try {
+                $service->verify($publicId, $candidate);
+                self::fail('Invalid verification input must fail.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('INVALID_VERIFICATION_LINK', $exception->errorCode);
+            }
+            self::assertSame(V2UserState::PendingVerification, $user->refresh()->state);
+            self::assertSame(1, $user->state_revision);
+        }
+        self::assertCount(0, array_filter(
+            $this->events->records,
+            fn (array $record): bool => $record['event'] === 'verification_failure'
+        ));
     }
 
     public function test_closed_user_email_reregistration_creates_an_isolated_new_identity(): void

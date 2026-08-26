@@ -4,11 +4,13 @@ namespace App\Domain\Identity\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
+use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AdminUserReadException;
 use App\Domain\Reporting\Services\V2ReportingCursor;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final class V2AdminUserReadService
 {
@@ -26,8 +28,13 @@ final class V2AdminUserReadService
     public function users(
         V2AdminAuthorizationContext $context,
         ?string $cursor,
-        int $limit = self::DEFAULT_LIMIT
+        int $limit = self::DEFAULT_LIMIT,
+        ?string $userId = null,
+        ?string $status = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null
     ): array {
+        $filters = $this->userFilters($userId, $status, $dateFrom, $dateTo);
         $operationAt = CarbonImmutable::now()->startOfSecond();
         $query = DB::table('users')
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
@@ -60,6 +67,26 @@ final class V2AdminUserReadService
                 'available_points.paid_balance as available_paid_balance',
                 'available_points.free_balance as available_free_balance',
             ]);
+        if ($filters['user_id'] !== null) {
+            $query->where('users.public_id', $filters['user_id']);
+        }
+        if ($filters['status'] !== null && $filters['status'] !== 'all') {
+            $query->where('users.state', $filters['status']);
+        }
+        if ($filters['date_from'] !== null) {
+            $query->where(
+                'users.created_at',
+                '>=',
+                $filters['date_from']->utc()->toIso8601String()
+            );
+        }
+        if ($filters['date_to'] !== null) {
+            $query->where(
+                'users.created_at',
+                '<',
+                $filters['date_to']->addDay()->utc()->toIso8601String()
+            );
+        }
         $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
             'id' => (string) $row->public_id,
             'display_name' => $row->display_name === null
@@ -73,6 +100,65 @@ final class V2AdminUserReadService
         $this->auditView($context, 'admin.user.list.viewed');
 
         return [...$page, 'request_id' => $context->requestId];
+    }
+
+    /**
+     * @return array{user_id: ?string, status: ?string, date_from: ?CarbonImmutable, date_to: ?CarbonImmutable}
+     */
+    private function userFilters(
+        ?string $userId,
+        ?string $status,
+        ?string $dateFrom,
+        ?string $dateTo
+    ): array {
+        if ($userId !== null && ! Str::isUuid($userId)) {
+            throw $this->invalidQuery();
+        }
+        $states = array_map(
+            fn (V2UserState $state): string => $state->value,
+            V2UserState::cases()
+        );
+        if ($status !== null && ! in_array($status, ['all', ...$states], true)) {
+            throw $this->invalidQuery();
+        }
+        $from = $this->jstDate($dateFrom);
+        $to = $this->jstDate($dateTo);
+        if ($from !== null && $to !== null && $to->lessThan($from)) {
+            throw $this->invalidQuery();
+        }
+
+        return [
+            'user_id' => $userId,
+            'status' => $status,
+            'date_from' => $from,
+            'date_to' => $to,
+        ];
+    }
+
+    private function jstDate(?string $value): ?CarbonImmutable
+    {
+        if ($value === null) {
+            return null;
+        }
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, 'Asia/Tokyo');
+        } catch (\Throwable) {
+            throw $this->invalidQuery();
+        }
+        if ($date->format('Y-m-d') !== $value) {
+            throw $this->invalidQuery();
+        }
+
+        return $date;
+    }
+
+    private function invalidQuery(): V2AdminUserReadException
+    {
+        return new V2AdminUserReadException(
+            'ADMIN_USER_QUERY_INVALID',
+            422,
+            'The User query is invalid.'
+        );
     }
 
     /** @return array<string, mixed> */

@@ -167,6 +167,54 @@ final class AdminUserReadModelApiTest extends TestCase
         }
     }
 
+    public function test_user_filters_are_server_side_and_cursor_stable(): void
+    {
+        $activeFirst = $this->user('有効A', 'active', '2026-08-20T14:59:59Z');
+        $activeSecond = $this->user('有効B', 'active', '2026-08-20T15:00:00Z');
+        $failed = $this->user('認証失敗', 'verification_failed', '2026-08-21T03:00:00Z');
+        $this->user('停止', 'suspended', '2026-08-21T03:00:00Z');
+        $client = $this->asAdmin($this->sessionToken(V2AdminRole::Operator));
+
+        $client->getJson('/admin/api/v2/users?status=verification_failed')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $failed['public_id'])
+            ->assertJsonPath('items.0.status', 'verification_failed');
+        $client->getJson('/admin/api/v2/users?user_id='.$activeFirst['public_id'])
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $activeFirst['public_id']);
+        $client->getJson('/admin/api/v2/users?status=active&date_from=2026-08-21&date_to=2026-08-21')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $activeSecond['public_id']);
+        $client->getJson('/admin/api/v2/users?user_id='.$failed['public_id'].'&status=verification_failed&date_from=2026-08-21&date_to=2026-08-21')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $failed['public_id']);
+
+        $firstPage = $client->getJson('/admin/api/v2/users?status=active&limit=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'items');
+        $cursor = $firstPage->json('next_cursor');
+        self::assertIsString($cursor);
+        $client->getJson('/admin/api/v2/users?status=active&limit=1&cursor='.urlencode($cursor))
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.status', 'active');
+
+        foreach ([
+            'user_id=partial-id',
+            'status=unknown',
+            'date_from=2026-02-30',
+            'date_from=2026-08-22&date_to=2026-08-21',
+        ] as $query) {
+            $client->getJson('/admin/api/v2/users?'.$query)
+                ->assertStatus(422)
+                ->assertJsonPath('code', 'ADMIN_USER_QUERY_INVALID');
+        }
+    }
+
     public function test_unauthenticated_disabled_not_found_and_invalid_cursor_fail_closed(): void
     {
         $this->getJson('/admin/api/v2/users')->assertUnauthorized();
@@ -235,20 +283,25 @@ final class AdminUserReadModelApiTest extends TestCase
     }
 
     /** @return array{id: int, public_id: string, email: string, created_at: string} */
-    private function user(?string $displayName = '表示名'): array
+    private function user(
+        ?string $displayName = '表示名',
+        string $state = 'active',
+        ?string $createdAt = null
+    ): array
     {
         $publicId = (string) Str::uuid7();
         $email = 'user-read-target-'.Str::uuid7().'@example.test';
+        $createdAt ??= now()->startOfSecond()->toIso8601String();
         $userId = DB::table('users')->insertGetId([
             'public_id' => $publicId,
             'display_name' => $displayName,
             'email_display' => $email,
             'email_normalized' => $email,
-            'email_verified_at' => now(),
+            'email_verified_at' => $state === 'verification_failed' ? null : now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
-            'state' => 'active',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'state' => $state,
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
         ]);
         DB::table('wallets')->insert([
             'user_id' => $userId,
@@ -265,7 +318,7 @@ final class AdminUserReadModelApiTest extends TestCase
             'id' => $userId,
             'public_id' => $publicId,
             'email' => $email,
-            'created_at' => now()->startOfSecond()->utc()->toIso8601String(),
+            'created_at' => CarbonImmutable::parse($createdAt)->utc()->toIso8601String(),
         ];
     }
 

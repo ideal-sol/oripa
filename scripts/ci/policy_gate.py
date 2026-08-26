@@ -258,6 +258,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Domain/Identity/Services/V2RealmBoundary.php",
     "apps/api/app/Domain/Identity/Services/V2SessionPolicy.php",
     "apps/api/app/Domain/Identity/Services/V2UserAuthenticationService.php",
+    "apps/api/database/migrations-v2/2026_09_22_000066_add_v2_verification_failed_user_state.php",
     "apps/api/app/Domain/Identity/Services/V2AdminAuthenticationService.php",
     "apps/api/app/Domain/Identity/Services/V2AdminAuthenticationPolicyService.php",
     "apps/api/app/Domain/Identity/Services/V2TotpService.php",
@@ -2542,6 +2543,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
         "2026_09_18_000064_add_v2_mail_templates.php",
         "2026_09_21_000065_add_fincode_payment_backend_core.php",
+        "2026_09_22_000066_add_v2_verification_failed_user_state.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

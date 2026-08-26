@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, Coins, Eye, RotateCcw } from "lucide-react";
+import { ArrowLeft, Coins, Eye, RotateCcw, Search } from "lucide-react";
 import Link from "next/link";
 import {
+  type FormEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -30,6 +31,11 @@ import type {
   AdminUserSummary,
 } from "@/lib/admin-api/generated";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import {
+  ADMIN_USER_STATUS_FILTERS,
+  type AdminUserQuery,
+  type AdminUserStatusFilter,
+} from "@/lib/admin-api/client";
 
 const number = new Intl.NumberFormat("ja-JP");
 const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
@@ -48,13 +54,19 @@ interface ReferralHistoryState {
 }
 
 export function AdminUserReadWorkspace({
+  initialFilters,
   mode,
   userPublicId,
 }: {
+  initialFilters?: AdminUserQuery;
   mode: AdminUserReadMode;
   userPublicId?: string;
 }) {
-  const state = useAdminUserReadModel({ mode, userPublicId });
+  const initial = useMemo(() => listFilters(initialFilters), [initialFilters]);
+  const [draftFilters, setDraftFilters] = useState(initial);
+  const [appliedFilters, setAppliedFilters] = useState(initial);
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const state = useAdminUserReadModel({ listFilters: appliedFilters, mode, userPublicId });
   const [notice, setNotice] = useState<string | null>(null);
   const title = mode === "list"
     ? "ユーザー一覧"
@@ -80,6 +92,33 @@ export function AdminUserReadWorkspace({
           </Link>
         ) : undefined}
       />
+      {mode === "list" ? (
+        <UserFilters
+          draft={draftFilters}
+          error={filterError}
+          onChange={setDraftFilters}
+          onReset={() => {
+            const reset = listFilters();
+            setDraftFilters(reset);
+            setAppliedFilters(reset);
+            setFilterError(null);
+          }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (draftFilters.date_from
+              && draftFilters.date_to
+              && draftFilters.date_to < draftFilters.date_from) {
+              setFilterError("登録日の開始日は終了日以前を指定してください。");
+              return;
+            }
+            setFilterError(null);
+            setAppliedFilters({
+              ...draftFilters,
+              user_id: draftFilters.user_id?.trim() || undefined,
+            });
+          }}
+        />
+      ) : null}
       {notice ? <p className="admin-user-adjustment-success" role="status">{notice}</p> : null}
       {state.loading ? (
         <State message="ユーザー情報を読み込んでいます。" />
@@ -116,6 +155,87 @@ export function AdminUserReadWorkspace({
         ) : null}
     </section>
   );
+}
+
+function UserFilters({
+  draft,
+  error,
+  onChange,
+  onReset,
+  onSubmit,
+}: {
+  draft: AdminUserQuery;
+  error: string | null;
+  onChange: (filters: AdminUserQuery) => void;
+  onReset: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form aria-label="ユーザー検索フィルター" className="admin-user-filters" onSubmit={onSubmit}>
+      <label>
+        <span>User ID</span>
+        <input
+          aria-label="User ID"
+          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          value={draft.user_id ?? ""}
+          onChange={(event) => onChange({ ...draft, user_id: event.target.value })}
+        />
+      </label>
+      <label>
+        <span>状態</span>
+        <select
+          aria-label="状態"
+          value={draft.status ?? "active"}
+          onChange={(event) => onChange({
+            ...draft,
+            status: event.target.value as AdminUserStatusFilter,
+          })}
+        >
+          {ADMIN_USER_STATUS_FILTERS.map((status) => (
+            <option key={status} value={status}>{userStatusLabel(status)}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>登録日（開始）</span>
+        <input
+          aria-label="登録日（開始）"
+          type="date"
+          value={draft.date_from ?? ""}
+          onChange={(event) => onChange({ ...draft, date_from: event.target.value })}
+        />
+      </label>
+      <label>
+        <span>登録日（終了）</span>
+        <input
+          aria-label="登録日（終了）"
+          type="date"
+          value={draft.date_to ?? ""}
+          onChange={(event) => onChange({ ...draft, date_to: event.target.value })}
+        />
+      </label>
+      <div className="admin-user-filter-actions">
+        <button className="secondary-button" type="submit">
+          <Search aria-hidden="true" size={16} />検索
+        </button>
+        <button className="text-button" onClick={onReset} type="button">条件を解除</button>
+      </div>
+      {error ? <p className="admin-user-filter-error" role="alert">{error}</p> : null}
+    </form>
+  );
+}
+
+function listFilters(filters?: AdminUserQuery): AdminUserQuery {
+  return {
+    date_from: filters?.date_from || undefined,
+    date_to: filters?.date_to || undefined,
+    status: filters?.status ?? "active",
+    user_id: filters?.user_id || undefined,
+  };
+}
+
+function userStatusLabel(value: AdminUserStatusFilter): string {
+  return value === "all" ? "すべて" : statusLabel(value);
 }
 
 function UserList({ items }: { items: AdminUserSummary[] }) {
@@ -506,6 +626,7 @@ function statusLabel(value: string): string {
     pending: "未確定",
     packing: "梱包中",
     pending_verification: "確認待ち",
+    verification_failed: "認証失敗",
     restricted: "制限中",
     rewarded: "付与済み",
     return_requested: "返送依頼中",

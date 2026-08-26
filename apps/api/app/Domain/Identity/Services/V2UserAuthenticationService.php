@@ -96,7 +96,10 @@ final class V2UserAuthenticationService
         $this->assertRedirectAllowed($redirectPath);
         $user = User::query()
             ->where('public_id', $publicId)
-            ->where('state', V2UserState::PendingVerification->value)
+            ->whereIn('state', [
+                V2UserState::PendingVerification->value,
+                V2UserState::VerificationFailed->value,
+            ])
             ->whereNull('email_verified_at')
             ->first();
         if ($user === null) {
@@ -137,7 +140,7 @@ final class V2UserAuthenticationService
     public function verify(string $publicId, #[SensitiveParameter] string $token): array
     {
         try {
-            return DB::transaction(function () use ($publicId, $token): array {
+            $result = DB::transaction(function () use ($publicId, $token): array {
                 $user = User::query()
                     ->where('public_id', $publicId)
                     ->lockForUpdate()
@@ -145,7 +148,10 @@ final class V2UserAuthenticationService
                 if (
                     $user === null
                     || $user->email_verified_at !== null
-                    || $user->state !== V2UserState::PendingVerification
+                    || ! in_array($user->state, [
+                        V2UserState::PendingVerification,
+                        V2UserState::VerificationFailed,
+                    ], true)
                 ) {
                     throw $this->invalidVerification();
                 }
@@ -163,16 +169,26 @@ final class V2UserAuthenticationService
                     throw $this->invalidVerification();
                 }
                 if (! $verification->expires_at->isFuture()) {
-                    throw new V2AuthenticationException(
-                        'VERIFICATION_LINK_EXPIRED',
-                        410,
-                        'The email verification link has expired.'
-                    );
+                    if ($user->state === V2UserState::PendingVerification) {
+                        $user->forceFill([
+                            'state' => V2UserState::VerificationFailed,
+                            'state_revision' => $user->state_revision + 1,
+                            'updated_at' => now()->startOfSecond(),
+                        ])->save();
+                        $this->events->record('verification_failure', [
+                            'realm' => 'user',
+                            'subject_id' => $user->public_id,
+                            'reason' => 'expired',
+                        ]);
+                    }
+
+                    return ['failure' => 'expired'];
                 }
 
                 $user->forceFill([
                     'email_verified_at' => now(),
                     'state' => V2UserState::Active,
+                    'state_revision' => $user->state_revision + 1,
                 ])->save();
                 $verification->forceFill(['used_at' => now()])->save();
                 UserEmailVerification::query()
@@ -185,7 +201,10 @@ final class V2UserAuthenticationService
                     ->where('email_normalized', $user->email_normalized)
                     ->whereKeyNot($user->getKey())
                     ->whereNull('email_verified_at')
-                    ->where('state', V2UserState::PendingVerification->value)
+                    ->whereIn('state', [
+                        V2UserState::PendingVerification->value,
+                        V2UserState::VerificationFailed->value,
+                    ])
                     ->update(['state' => V2UserState::Closed->value]);
                 $session = $this->sessions->issue(V2Realm::User, (int) $user->getKey());
                 $this->events->record('verification_success', [
@@ -216,6 +235,15 @@ final class V2UserAuthenticationService
                 'The email address is already verified by another account.'
             );
         }
+        if (($result['failure'] ?? null) === 'expired') {
+            throw new V2AuthenticationException(
+                'VERIFICATION_LINK_EXPIRED',
+                410,
+                'The email verification link has expired.'
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -239,7 +267,10 @@ final class V2UserAuthenticationService
             $pendingPasswordMatches = User::query()
                 ->where('email_normalized', $normalized)
                 ->whereNull('email_verified_at')
-                ->where('state', V2UserState::PendingVerification->value)
+                ->whereIn('state', [
+                    V2UserState::PendingVerification->value,
+                    V2UserState::VerificationFailed->value,
+                ])
                 ->where('password_login_enabled', true)
                 ->get()
                 ->contains(fn (User $candidate): bool => $this->passwordPolicy->verify(

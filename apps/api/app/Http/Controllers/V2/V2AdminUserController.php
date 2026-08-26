@@ -25,7 +25,11 @@ final class V2AdminUserController
         return $this->handle($request, fn (): array => $this->users->users(
             $this->context($request),
             $this->stringQuery($request, 'cursor'),
-            $this->limit($request)
+            $this->limit($request),
+            $this->stringQuery($request, 'user_id'),
+            $this->stringQuery($request, 'status'),
+            $this->stringQuery($request, 'date_from'),
+            $this->stringQuery($request, 'date_to')
         ));
     }
 

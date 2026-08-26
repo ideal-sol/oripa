@@ -697,6 +697,7 @@ export interface AdminSession {
 
 export type AdminUserState =
   | "pending_verification"
+  | "verification_failed"
   | "active"
   | "restricted"
   | "suspended"
