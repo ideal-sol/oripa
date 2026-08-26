@@ -1766,7 +1766,7 @@ export interface AdminRankEffectRankAssignmentInput {
 export interface AdminRankEffectCreate {
   title: string;
   asset_type: "image" | "video";
-  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name: string;
   mime_type: string;
@@ -1777,7 +1777,7 @@ export interface AdminRankEffectUpdate {
   expected_revision: number;
   title: string;
   asset_type: "image" | "video";
-  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name?: string;
   mime_type?: string;

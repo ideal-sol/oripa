@@ -10,20 +10,14 @@ import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type {
-  AdminCatalogRank,
-  AdminRankEffect,
-  AdminRankEffectRankAssignmentInput,
-} from "@/lib/admin-api/generated";
+import type { AdminRankEffect } from "@/lib/admin-api/generated";
 
 type Mode = "list" | "create" | "edit";
 type LoadState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "list"; items: AdminRankEffect[]; nextCursor: string | null }
-  | { kind: "form"; ranks: AdminCatalogRank[]; effect: AdminRankEffect | null };
-
-type RankSelection = Record<string, { selected: boolean; sortOrder: string }>;
+  | { kind: "form"; effect: AdminRankEffect | null };
 
 export function RankEffectSettingsWorkspace({
   id,
@@ -65,19 +59,11 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
           items: result.items,
           nextCursor: result.next_cursor,
         }))
-      : Promise.all([
-          client.listCatalogRanks({
-            direction: "asc",
-            limit: 100,
-            sort: "sort_order",
-            visibility: "all",
-          }, controller.signal),
-          mode === "edit" && id
-            ? client.getRankEffect(id, controller.signal)
-            : Promise.resolve(null),
-        ]).then(([ranks, detail]) => ({
+      : (mode === "edit" && id
+          ? client.getRankEffect(id, controller.signal)
+          : Promise.resolve(null)
+        ).then((detail) => ({
           kind: "form" as const,
-          ranks: ranks.items,
           effect: detail?.data ?? null,
         }));
     void promise.then(setState).catch((cause: unknown) => {
@@ -111,7 +97,7 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
             <ArrowLeft aria-hidden="true" size={17} />一覧へ戻る
           </Link>
         ) : undefined}
-        description="ガチャRankへ紐付く画像・動画演出を管理します。"
+        description="ガチャRankで使用する画像・動画演出素材を管理します。"
         eyebrow="Settings"
         title={mode === "list" ? "ランク演出" : mode === "create" ? "ランク演出登録" : "ランク演出編集"}
       />
@@ -136,7 +122,7 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
         />
       ) : null}
       {state.kind === "form" ? (
-        <RankEffectForm client={client} effect={state.effect} mode={mode} ranks={state.ranks} />
+        <RankEffectForm client={client} effect={state.effect} mode={mode} />
       ) : null}
     </section>
   );
@@ -188,12 +174,10 @@ function RankEffectForm({
   client,
   effect,
   mode,
-  ranks,
 }: {
   client: AdminApiClient;
   effect: AdminRankEffect | null;
   mode: Mode;
-  ranks: AdminCatalogRank[];
 }) {
   const router = useRouter();
   const [currentEffect, setCurrentEffect] = useState(effect);
@@ -206,12 +190,6 @@ function RankEffectForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = useRef<string | null>(null);
-  const [selections, setSelections] = useState<RankSelection>(() => Object.fromEntries(
-    ranks.map((rank) => {
-      const assignment = effect?.rank_assignments.find((item) => item.rank.id === rank.id);
-      return [rank.id, { selected: Boolean(assignment), sortOrder: String(assignment?.sort_order ?? rank.sort_order) }];
-    }),
-  ));
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -230,10 +208,8 @@ function RankEffectForm({
     event.preventDefault();
     setError(null);
     setMessage(null);
-    const assignments = rankAssignments(selections);
-    const selectedRankCount = Object.values(selections).filter((value) => value.selected).length;
-    if (!title.trim() || assignments.length === 0 || assignments.length !== selectedRankCount || (!currentEffect && !file)) {
-      setError("タイトル、Rank、登録ファイルを確認してください。");
+    if (!title.trim() || (!currentEffect && !file)) {
+      setError("タイトルと登録ファイルを確認してください。");
       return;
     }
     if (file && !validFile(file, assetType)) {
@@ -252,7 +228,6 @@ function RankEffectForm({
       const common = {
         asset_type: assetType,
         is_active: active,
-        rank_assignments: assignments,
         title: title.trim(),
         ...filePayload,
       };
@@ -296,13 +271,6 @@ function RankEffectForm({
           {previewUrl ? <LocalPreview mediaType={assetType} url={previewUrl} /> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
         </div>
       </section>
-      <section className="rank-effect-form-section" aria-labelledby="rank-effect-ranks-heading">
-        <div className="rank-effect-section-heading"><div><span className="eyebrow">Rank relation</span><h2 id="rank-effect-ranks-heading">対象ランクと表示順</h2></div></div>
-        <div className="rank-effect-rank-list">{ranks.map((rank) => {
-          const value = selections[rank.id];
-          return <div className="rank-effect-rank-row" key={rank.id}><label><input checked={value.selected} onChange={(event) => setSelections({ ...selections, [rank.id]: { ...value, selected: event.target.checked } })} type="checkbox" /><span>{rank.name}</span><code>{rank.code}</code></label><label><span>表示順</span><input disabled={!value.selected} min="0" onChange={(event) => setSelections({ ...selections, [rank.id]: { ...value, sortOrder: event.target.value } })} type="number" value={value.sortOrder} /></label></div>;
-        })}</div>
-      </section>
       <div className="rank-effect-actions"><button className="primary-button" disabled={busy} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Upload aria-hidden="true" size={17} />}{busy ? "保存中" : "保存"}</button><Link className="secondary-button" href="/catalog/presentation-assets">キャンセル</Link></div>
     </form>
   );
@@ -326,10 +294,6 @@ function RankEffectBreadcrumb({ mode }: { mode: Mode }) {
 
 function RankEffectState({ error = false, loading = false, message, retry }: { error?: boolean; loading?: boolean; message: string; retry?: () => void }) {
   return <section className={`module-state ${error ? "is-error" : ""}`} role={error ? "alert" : "status"}>{loading ? <LoaderCircle aria-hidden="true" className="spin" size={22} /> : null}<p>{message}</p>{retry ? <button className="secondary-button" onClick={retry} type="button"><RotateCcw aria-hidden="true" size={16} />再試行</button> : null}</section>;
-}
-
-function rankAssignments(selections: RankSelection): AdminRankEffectRankAssignmentInput[] {
-  return Object.entries(selections).filter(([, value]) => value.selected).map(([rankId, value]) => ({ rank_id: rankId, sort_order: Number(value.sortOrder) })).filter((value) => Number.isInteger(value.sort_order) && value.sort_order >= 0);
 }
 
 function validFile(file: File, type: "image" | "video") {

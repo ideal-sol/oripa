@@ -30,7 +30,7 @@ final class AdminRankEffectSettingsTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_owner_uploads_lists_and_updates_rank_effect_without_replacing_file(): void
+    public function test_owner_uploads_without_relation_and_update_preserves_existing_relation(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
         $rank = $this->mutate($token, 'POST', '/admin/api/v2/catalog/ranks', [
@@ -45,7 +45,6 @@ final class AdminRankEffectSettingsTest extends TestCase
         $payload = [
             'title' => '当選演出',
             'asset_type' => 'image',
-            'rank_assignments' => [['rank_id' => $rank['id'], 'sort_order' => 3]],
             'is_active' => true,
             ...$this->imageInput(),
         ];
@@ -56,8 +55,7 @@ final class AdminRankEffectSettingsTest extends TestCase
             $payload,
             $key
         )->assertCreated()
-            ->assertJsonPath('data.rank_assignments.0.rank.id', $rank['id'])
-            ->assertJsonPath('data.rank_assignments.0.sort_order', 3)
+            ->assertJsonCount(0, 'data.rank_assignments')
             ->assertJsonMissingPath('data.storage_identifier')
             ->json('data');
 
@@ -70,6 +68,18 @@ final class AdminRankEffectSettingsTest extends TestCase
             $key
         )->assertCreated()->assertJsonPath('idempotent_replay', true);
         self::assertDatabaseCount('catalog_presentation_assets', 1);
+        self::assertDatabaseCount('catalog_rank_assets', 0);
+
+        $now = now()->startOfSecond();
+        DB::table('catalog_rank_assets')->insert([
+            'rank_id' => DB::table('catalog_ranks')->where('public_id', $rank['id'])->value('id'),
+            'presentation_asset_id' => DB::table('catalog_presentation_assets')
+                ->where('public_id', $created['id'])->value('id'),
+            'usage_type' => 'image',
+            'sort_order' => 3,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects')
@@ -85,12 +95,12 @@ final class AdminRankEffectSettingsTest extends TestCase
                 'expected_revision' => 1,
                 'title' => '当選演出 更新',
                 'asset_type' => 'image',
-                'rank_assignments' => [['rank_id' => $rank['id'], 'sort_order' => 8]],
                 'is_active' => false,
             ]
         )->assertOk()->json('data');
         self::assertSame($created['id'], $updated['id']);
-        self::assertSame(8, $updated['rank_assignments'][0]['sort_order']);
+        self::assertSame($rank['id'], $updated['rank_assignments'][0]['rank']['id']);
+        self::assertSame(3, $updated['rank_assignments'][0]['sort_order']);
         self::assertFalse($updated['is_public']);
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?visibility=visible')
@@ -136,19 +146,28 @@ final class AdminRankEffectSettingsTest extends TestCase
             'expected_revision' => 1,
             'title' => '画像へ差し替え',
             'asset_type' => 'image',
-            'rank_assignments' => [['rank_id' => $rank['id'], 'sort_order' => 1]],
             'is_active' => true,
             ...$this->imageInput(),
-        ])->assertOk()->assertJsonPath('data.media_type', 'image')->json('data');
+        ])->assertOk()
+            ->assertJsonPath('data.media_type', 'image')
+            ->assertJsonPath('data.rank_assignments.0.rank.id', $rank['id'])
+            ->assertJsonPath('data.rank_assignments.0.sort_order', 0)
+            ->json('data');
         self::assertNotSame($created['id'], $replacement['id']);
         self::assertDatabaseHas('catalog_presentation_assets', ['public_id' => $created['id']]);
         self::assertDatabaseCount('catalog_presentation_assets', 2);
+        self::assertDatabaseCount('catalog_rank_assets', 1);
+        self::assertDatabaseHas('catalog_rank_assets', [
+            'presentation_asset_id' => DB::table('catalog_presentation_assets')
+                ->where('public_id', $replacement['id'])->value('id'),
+            'sort_order' => 0,
+            'usage_type' => 'image',
+        ]);
 
         Auth::forgetGuards();
         $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects', [
             'title' => '不正Asset',
             'asset_type' => 'image',
-            'rank_assignments' => [['rank_id' => $rank['id'], 'sort_order' => 0]],
             'is_active' => true,
             'file_name' => 'bad.svg',
             'mime_type' => 'image/svg+xml',
@@ -162,10 +181,6 @@ final class AdminRankEffectSettingsTest extends TestCase
         $this->mutate($operator, 'POST', '/admin/api/v2/catalog/rank-effects', [
             'title' => '拒否',
             'asset_type' => 'image',
-            'rank_assignments' => [[
-                'rank_id' => (string) Str::uuid7(),
-                'sort_order' => 0,
-            ]],
             'is_active' => true,
             ...$this->imageInput(),
         ])->assertForbidden();

@@ -5308,7 +5308,7 @@ components:
     AdminRankEffectCreate:
       type: object
       additionalProperties: false
-      required: [title, asset_type, rank_assignments, is_active, file_name, mime_type, content_base64]
+      required: [title, asset_type, is_active, file_name, mime_type, content_base64]
       properties:
         title: {type: string, minLength: 1, maxLength: 191}
         asset_type: {type: string, enum: [image, video]}
@@ -5320,7 +5320,7 @@ components:
     AdminRankEffectUpdate:
       type: object
       additionalProperties: false
-      required: [expected_revision, title, asset_type, rank_assignments, is_active]
+      required: [expected_revision, title, asset_type, is_active]
       properties:
         expected_revision: {type: integer, minimum: 1}
         title: {type: string, minLength: 1, maxLength: 191}
@@ -5446,7 +5446,7 @@ components:
           required: [content_path, rank_assignments]
           properties:
             content_path: {type: string, pattern: '^/(?!/)', maxLength: 512}
-            rank_assignments: {type: array, minItems: 1, items: {$ref: '#/components/schemas/AdminRankEffectRankAssignment'}}
+            rank_assignments: {type: array, items: {$ref: '#/components/schemas/AdminRankEffectRankAssignment'}}
     AdminGachaVersionRankCollection:
       type: object
       additionalProperties: false
