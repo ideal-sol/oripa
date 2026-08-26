@@ -11987,7 +11987,6 @@
         "required": [
           "title",
           "asset_type",
-          "rank_assignments",
           "is_active",
           "file_name",
           "mime_type",
@@ -12039,7 +12038,6 @@
           "expected_revision",
           "title",
           "asset_type",
-          "rank_assignments",
           "is_active"
         ],
         "properties": {
@@ -12448,7 +12446,6 @@
               },
               "rank_assignments": {
                 "type": "array",
-                "minItems": 1,
                 "items": {
                   "$ref": "#/components/schemas/AdminRankEffectRankAssignment"
                 }

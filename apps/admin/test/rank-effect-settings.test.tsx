@@ -22,10 +22,6 @@ beforeEach(() => {
     items: [effect()],
     next_cursor: null,
   });
-  vi.spyOn(AdminApiClient.prototype, "listCatalogRanks").mockResolvedValue({
-    items: [rank()],
-    next_cursor: null,
-  });
   vi.spyOn(AdminApiClient.prototype, "getRankEffect").mockResolvedValue({ data: effect() });
 });
 
@@ -66,6 +62,8 @@ describe("Rank effect settings", () => {
     expect(screen.getByLabelText("タイトル")).toHaveValue("当選演出");
     expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toBeVisible();
     expect(screen.getByLabelText("ファイル差し替え（任意）")).not.toBeRequired();
+    expect(screen.queryByText("Rank relation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "対象ランクと表示順" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "更新演出" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith(
@@ -73,11 +71,11 @@ describe("Rank effect settings", () => {
       expect.objectContaining({
         asset_type: "image",
         expected_revision: 1,
-        rank_assignments: [{ rank_id: rank().id, sort_order: 4 }],
         title: "更新演出",
       }),
       expect.any(String),
     ));
+    expect(update.mock.calls[0][1]).not.toHaveProperty("rank_assignments");
     expect(await screen.findByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
       "src",
       effect().content_path,
@@ -97,6 +95,8 @@ describe("Rank effect settings", () => {
     expect(screen.getByLabelText("ファイル")).toBeRequired();
     expect(screen.getByLabelText("画像")).toBeChecked();
     expect(screen.getByLabelText("動画")).not.toBeChecked();
+    expect(screen.queryByText("Rank relation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "対象ランクと表示順" })).not.toBeInTheDocument();
     expect(screen.queryByText(/バナー/u)).not.toBeInTheDocument();
   });
 });

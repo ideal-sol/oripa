@@ -694,7 +694,7 @@ final class V2CatalogMasterMutationService
                     $this->replaceRankEffectAssignments(
                         (int) $row->id,
                         $payload['asset_type'],
-                        $payload['rank_assignments']
+                        $payload['rank_assignments'] ?? []
                     );
 
                     return $row;
@@ -737,6 +737,12 @@ final class V2CatalogMasterMutationService
                     if (! in_array($current->media_type, ['image', 'video'], true)) {
                         throw $this->validationException();
                     }
+                    $rankAssignments = $payload['rank_assignments'];
+                    if ($payload['file'] !== null && $rankAssignments === null) {
+                        $rankAssignments = $this->existingRankEffectAssignments(
+                            (int) $current->id
+                        );
+                    }
 
                     if ($payload['file'] === null) {
                         if ($current->media_type !== $payload['asset_type']) {
@@ -756,11 +762,13 @@ final class V2CatalogMasterMutationService
                             ->whereIn('usage_type', ['image', 'video'])
                             ->delete();
                     }
-                    $this->replaceRankEffectAssignments(
-                        (int) $row->id,
-                        $payload['asset_type'],
-                        $payload['rank_assignments']
-                    );
+                    if ($rankAssignments !== null) {
+                        $this->replaceRankEffectAssignments(
+                            (int) $row->id,
+                            $payload['asset_type'],
+                            $rankAssignments
+                        );
+                    }
 
                     return $this->find(
                         'catalog_presentation_assets',
@@ -4026,7 +4034,7 @@ final class V2CatalogMasterMutationService
             'title', 'asset_type', 'rank_assignments', 'is_active',
             'file_name', 'mime_type', 'content_base64',
         ];
-        $required = ['title', 'asset_type', 'rank_assignments', 'is_active'];
+        $required = ['title', 'asset_type', 'is_active'];
         if ($updating) {
             array_unshift($allowed, 'expected_revision');
             array_unshift($required, 'expected_revision');
@@ -4046,25 +4054,28 @@ final class V2CatalogMasterMutationService
         if (! is_string($assetType) || ! in_array($assetType, ['image', 'video'], true)) {
             throw $this->validationException();
         }
-        if (! is_array($input['rank_assignments']) || $input['rank_assignments'] === []) {
-            throw $this->validationException();
-        }
-        $rankAssignments = [];
-        $rankIds = [];
-        foreach ($input['rank_assignments'] as $assignment) {
-            if (! is_array($assignment)) {
+        $rankAssignments = null;
+        if (array_key_exists('rank_assignments', $input)) {
+            if (! is_array($input['rank_assignments']) || $input['rank_assignments'] === []) {
                 throw $this->validationException();
             }
-            $this->assertFields($assignment, ['rank_id', 'sort_order'], ['rank_id', 'sort_order']);
-            $rankId = $this->uuid($assignment['rank_id']);
-            if (isset($rankIds[$rankId])) {
-                throw $this->validationException();
+            $rankAssignments = [];
+            $rankIds = [];
+            foreach ($input['rank_assignments'] as $assignment) {
+                if (! is_array($assignment)) {
+                    throw $this->validationException();
+                }
+                $this->assertFields($assignment, ['rank_id', 'sort_order'], ['rank_id', 'sort_order']);
+                $rankId = $this->uuid($assignment['rank_id']);
+                if (isset($rankIds[$rankId])) {
+                    throw $this->validationException();
+                }
+                $rankIds[$rankId] = true;
+                $rankAssignments[] = [
+                    'rank_id' => $rankId,
+                    'sort_order' => $this->sortOrder($assignment['sort_order']),
+                ];
             }
-            $rankIds[$rankId] = true;
-            $rankAssignments[] = [
-                'rank_id' => $rankId,
-                'sort_order' => $this->sortOrder($assignment['sort_order']),
-            ];
         }
 
         $file = count($fileFields) === 3
@@ -4163,6 +4174,23 @@ final class V2CatalogMasterMutationService
                 'updated_at' => $now,
             ]);
         }
+    }
+
+    /** @return list<array{rank_id: string, sort_order: int}> */
+    private function existingRankEffectAssignments(int $assetId): array
+    {
+        return DB::table('catalog_rank_assets as relation')
+            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->where('relation.presentation_asset_id', $assetId)
+            ->whereIn('relation.usage_type', ['image', 'video'])
+            ->orderBy('relation.sort_order')
+            ->orderBy('rank.public_id')
+            ->lockForUpdate()
+            ->get(['rank.public_id', 'relation.sort_order'])
+            ->map(fn (object $relation): array => [
+                'rank_id' => $relation->public_id,
+                'sort_order' => (int) $relation->sort_order,
+            ])->values()->all();
     }
 
     /** @return array<string, mixed> */

@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: a70f0fa7e2803e26c7428ca481171a7fe34b209da739a6749f16bd46f79f5110
+// Contract SHA-256: ef61d3698bd5cf20bf509b891a51a7c85b50ab03049ab2e26ffed81e7208a6a2
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1175,7 +1175,7 @@ export interface AdminRankEffectRankAssignmentInput {
 export interface AdminRankEffectCreate {
   title: string;
   asset_type: "image" | "video";
-  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name: string;
   mime_type: string;
@@ -1186,7 +1186,7 @@ export interface AdminRankEffectUpdate {
   expected_revision: number;
   title: string;
   asset_type: "image" | "video";
-  rank_assignments: AdminRankEffectRankAssignmentInput[];
+  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name?: string;
   mime_type?: string;
