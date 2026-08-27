@@ -159,6 +159,8 @@
     "quality_gate": 98384702499,
     "integration_gate": 98386832977,
     "ci_gate": 98386846911,
+    "initial_evidence_head": "a57ce0181b43cbe8275f416e2336e19f2e62c51c",
+    "initial_evidence_head_result": "FAIL_PR_EXPECTED_HEAD_METADATA_RACE",
     "rerun_count": 0
   },
   "resource_gate_after": {
