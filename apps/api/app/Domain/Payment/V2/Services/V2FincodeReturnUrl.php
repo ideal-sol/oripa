@@ -79,6 +79,23 @@ final class V2FincodeReturnUrl
     private function origin(string $key): string
     {
         $origin = config('v2_fincode.'.$key);
+        $authority = $this->authority($origin);
+        if ($authority === null) {
+            throw $this->invalid();
+        }
+        $adminAuthority = $this->authority(config('v2_fincode.admin_origin'), true);
+        if ($adminAuthority !== null && $authority === $adminAuthority) {
+            throw $this->invalid();
+        }
+
+        return $authority;
+    }
+
+    private function authority(mixed $origin, bool $optional = false): ?string
+    {
+        if ($optional && ($origin === null || $origin === '')) {
+            return null;
+        }
         if (! is_string($origin) || filter_var($origin, FILTER_VALIDATE_URL) === false) {
             throw $this->invalid();
         }

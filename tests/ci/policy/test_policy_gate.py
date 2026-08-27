@@ -2524,6 +2524,8 @@ services:
   api:
     environment:
       V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}
+      FINCODE_PLATFORM_ORIGIN: ${FINCODE_PLATFORM_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
+      FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
     healthcheck:
       test: health
   admin:
@@ -2534,6 +2536,16 @@ services:
   redis:
     image: redis:7-alpine
 """,
+            encoding="utf-8",
+        )
+        fincode = root / "apps/api/config/v2_fincode.php"
+        fincode.parent.mkdir(parents=True, exist_ok=True)
+        fincode.write_text(
+            "<?php\nreturn [\n"
+            "    'platform_origin' => env('FINCODE_PLATFORM_ORIGIN', ''),\n"
+            "    'storefront_origin' => env('FINCODE_STOREFRONT_ORIGIN', ''),\n"
+            "    'admin_origin' => env('V2_ADMIN_ORIGIN', ''),\n"
+            "];\n",
             encoding="utf-8",
         )
         semantic_version = {
@@ -2990,6 +3002,51 @@ services:
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "V2_PUBLIC_ORIGIN"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_without_fincode_platform_origin_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      FINCODE_PLATFORM_ORIGIN: ${FINCODE_PLATFORM_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}\n",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "FINCODE_PLATFORM_ORIGIN"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_fincode_origin_cannot_use_admin_origin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN",
+                    "V2_ADMIN_ORIGIN:-${V2_PUBLIC_ORIGIN",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited value"):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_fincode_config_cannot_use_generic_app_origin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            fincode = root / "apps/api/config/v2_fincode.php"
+            fincode.write_text(
+                fincode.read_text(encoding="utf-8").replace(
+                    "env('FINCODE_PLATFORM_ORIGIN', '')",
+                    "env('APP_URL', '')",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "FINCODE_PLATFORM_ORIGIN"):
                 policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_api_application_layout_passes(self):

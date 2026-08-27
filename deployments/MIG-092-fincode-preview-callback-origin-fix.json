@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "task_id": "MIG-092",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation_mode": "immediate",
+  "status": "runtime_acceptance_complete_final_gates_pending",
+  "issue": 395,
+  "pull_request": 396,
+  "base_sha": "b1ff701d2b356860542fecd6749933f5817bd31a",
+  "final_head": null,
+  "merge_sha": null,
+  "recorded_at": "2026-08-27T07:22:32Z",
+  "origins": {
+    "preview_platform": "https://test.luxe-pack.biz",
+    "preview_storefront": "https://test.luxe-pack.biz",
+    "admin_separated": true,
+    "generic_app_origin_reused": false
+  },
+  "runtime_before": {
+    "source_revision": "6cc5e8d5c5194ebf122f8d819f2fa6c54fd1cf12",
+    "api_image": "oripa-v2-api:preview-OPS-020-6cc5e8d5c519",
+    "api_health": "PASS",
+    "admin_health": "PASS",
+    "database_health": "PASS",
+    "redis_health": "PASS"
+  },
+  "stage_0": {
+    "result": "PASS_BLOCKERS_REPRODUCED",
+    "root_free_bytes": 22838824960,
+    "root_free_gib": 21.27,
+    "webhook_external_before": "NGINX_404",
+    "platform_origin_before": "ADMIN_COUPLED",
+    "storefront_origin_before": "ADMIN_COUPLED"
+  },
+  "implementation": {
+    "explicit_platform_origin": "FINCODE_PLATFORM_ORIGIN",
+    "explicit_storefront_origin": "FINCODE_STOREFRONT_ORIGIN",
+    "webhook_route": "exact_post_only",
+    "webhook_path": "/webhooks/v2/fincode",
+    "webhook_verification_changed": false,
+    "storefront_source_changed": false,
+    "migration_created": 0
+  },
+  "local_verification": {
+    "fincode_payment_backend": "PASS_23_TESTS_241_ASSERTIONS",
+    "preview_nginx_unit": "PASS_4_TESTS",
+    "policy_unit": "PASS_162_TESTS",
+    "local_policy_gate": "PASS",
+    "compose_config": "PASS",
+    "php_syntax": "PASS",
+    "diff_check": "PASS",
+    "pre_activation_nginx_readback": "EXPECTED_EXACT_ROUTE_MISSING"
+  },
+  "activation": {
+    "application_source_head": "42a70d8efde5b8818b1bcec59ecf2af82f862b6e",
+    "required_checks": {
+      "policy_gate": 98434565899,
+      "quality_gate": 98434622536,
+      "security_gate": 98434621939,
+      "integration_gate": 98435563928,
+      "ci_gate": 98435588668
+    },
+    "first_build": {
+      "workflow_run": 33047814811,
+      "artifact": 9636426427,
+      "result": "NOT_USED_NONCANONICAL_TASK_BRANCH_REF"
+    },
+    "canonical_build": {
+      "workflow_run": 33048184569,
+      "artifact": 9636581132,
+      "artifact_digest": "sha256:3e06b6a7f3bda5eb129c6dbcb6401b04a695b0fe5bbc5821d49461fa6067eec5",
+      "manifest_sha256": "65769d60ca1257fd982418c80ff93d80eb2e4dbeceff5a5ac33f77b8bb31d38e",
+      "result": "PASS_VERIFIED_LOADED"
+    },
+    "build_dispatch_count": 2,
+    "canonical_build_count": 1,
+    "api": "PASS_ONE_RECREATE",
+    "nginx": "PASS_ONE_RELOAD",
+    "admin": "NOT_REQUIRED",
+    "storefront": "PROHIBITED",
+    "database": "UNCHANGED",
+    "redis": "UNCHANGED",
+    "api_image": "oripa-v2-api:preview-MIG-092-42a70d8efde5",
+    "api_image_id": "sha256:3188f9046e18ae33e4cff09cce4bebd3b700e037f707ee61173382496e121cbc",
+    "admin_image_unchanged": "oripa-v2-admin:preview-OPS-020-6cc5e8d5c519"
+  },
+  "runtime_acceptance": {
+    "api_health": "PASS_APP_DB_REDIS_STORAGE",
+    "admin_health": "PASS",
+    "restart_counts": {
+      "api": 0,
+      "admin": 0,
+      "postgresql": 0,
+      "redis": 0
+    },
+    "migration_ledger": "PASS_66_LATEST_000066",
+    "webhook_external": "PASS_API_401_PROBLEM_JSON_NOT_NGINX_404",
+    "return_normal_external": "PASS_303_CANONICAL_STOREFRONT",
+    "return_failure_external": "PASS_303_CANONICAL_STOREFRONT",
+    "other_webhook_surface": "UNCHANGED_404",
+    "nginx_500_502_504": 0,
+    "production_vhost_sha256_unchanged": "82beef1a07bf16084a5cee87c0d7ef6d507b258d30d9fd5dd421b5c1719078df",
+    "database_container_unchanged": true,
+    "redis_container_unchanged": true,
+    "payments": 0,
+    "payment_point_grants": 0
+  },
+  "resource_gate_after": {
+    "result": "PASS",
+    "root_free_bytes": 22261661696,
+    "root_free_gib": 20.73
+  },
+  "safety": {
+    "fincode_credential_mutation": 0,
+    "payment_enable_mutation": 0,
+    "provider_communication": 0,
+    "production_mutation": 0,
+    "business_mutation": 0,
+    "secret_value_readback": 0
+  },
+  "ops_021_restart": "GO_STAGE_0_FROM_START"
+}

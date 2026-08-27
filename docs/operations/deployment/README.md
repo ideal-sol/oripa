@@ -13,6 +13,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 - [Provider Onboarding Checklist](provider-onboarding-checklist.md)
 - [V2 Preview API Egress Boundary](api-egress.md)
 - [Shared Preview Credential Rotation](preview-credential-rotation.md)
+- [Shared Preview fincode Callbacks](preview-fincode-callbacks.md)
 
 Provider-neutralな構造Example:
 

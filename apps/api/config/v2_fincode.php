@@ -10,6 +10,7 @@ return [
     'card_registration_intent_minutes' => 15,
     'konbini_payment_term_days' => 3,
     'virtual_account_payment_term_days' => 3,
-    'platform_origin' => rtrim((string) env('APP_URL', 'http://localhost'), '/'),
-    'storefront_origin' => rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/'),
+    'platform_origin' => rtrim((string) env('FINCODE_PLATFORM_ORIGIN', ''), '/'),
+    'storefront_origin' => rtrim((string) env('FINCODE_STOREFRONT_ORIGIN', ''), '/'),
+    'admin_origin' => rtrim((string) env('V2_ADMIN_ORIGIN', ''), '/'),
 ];
