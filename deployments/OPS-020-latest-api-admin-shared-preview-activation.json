@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-020",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "migration_ready",
+  "issue": 393,
+  "pull_request": null,
+  "base_sha": "2680e76a414f8bc80906ca7ff7a1c96b808165fc",
+  "recorded_at": "2026-08-27T01:49:14Z",
+  "stage_0": {
+    "result": "PASS",
+    "local_origin_github_main_equal": true,
+    "main_sha": "2680e76a414f8bc80906ca7ff7a1c96b808165fc",
+    "ops_016_reused": false,
+    "allocated_task_id": "OPS-020",
+    "active_task_conflict": false,
+    "shared_lock_conflict": false,
+    "preview_os_lock_free": true,
+    "resource_gate": "PASS",
+    "root_free_bytes": 23643103232,
+    "root_free_gib": 22.02
+  },
+  "runtime_before": {
+    "source_revision": "59173e3a0e96e49a1e16fa83a825b3d06655df35",
+    "api_image": "oripa-v2-api:preview-MIG-078-59173e3a0e96",
+    "api_image_id": "sha256:c072865555a4ba369f6f81b6ffaa5d46beadb282d35ab12923c73e84cd1c1d44",
+    "admin_image": "oripa-v2-admin:preview-MIG-078-59173e3a0e96",
+    "admin_image_id": "sha256:1f00f2fbef44adb4699aaf5b968a426495f6383704c5d0ba44e5ecda60a18c7e",
+    "api_health": "PASS_200",
+    "admin_health": "PASS_200",
+    "postgresql_health": "PASS",
+    "redis_health": "PASS",
+    "restart_counts": {"api": 0, "admin": 0, "postgresql": 0, "redis": 0}
+  },
+  "migration": {
+    "before_count": 64,
+    "before_batch": 31,
+    "before_latest": "2026_09_18_000064_add_v2_mail_templates",
+    "pending_order": [
+      "2026_09_21_000065_add_fincode_payment_backend_core",
+      "2026_09_22_000066_add_v2_verification_failed_user_state"
+    ],
+    "predecessors_complete": true,
+    "merged_to_main": true,
+    "live_copy_clone_apply": "PASS_BATCH_32",
+    "live_applied": false,
+    "rollback_backup": "/var/lib/oripa-v2-evidence/OPS-020/ops020-pre-activation.dump"
+  },
+  "data_baseline": {
+    "payments": 0,
+    "payment_point_grants": 0,
+    "point_operations": 10,
+    "point_ledger_entries": 10,
+    "point_lots": 5,
+    "point_lots_granted_total": 12607,
+    "point_lots_remaining_total": 12491,
+    "wallets": 3,
+    "wallet_paid_total": 500,
+    "wallet_free_total": 11991,
+    "point_purchase_plans": 3,
+    "point_purchase_plan_amount_total": 10200,
+    "users": 16,
+    "user_states": {"active": 5, "closed": 7, "pending_verification": 4}
+  },
+  "fincode_metadata": {
+    "payment_enabled": "UNSET_FALSE_DEFAULT",
+    "secret_api_key": "UNSET",
+    "public_api_key": "UNSET",
+    "webhook_signature": "UNSET",
+    "api_base_url": "UNSET"
+  },
+  "provider_communication": 0,
+  "production_changes": 0,
+  "storefront_changes": 0
+}
