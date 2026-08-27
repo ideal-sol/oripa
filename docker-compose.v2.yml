@@ -19,6 +19,8 @@ services:
       DB_PORT: ${V2_DB_PORT:?V2_DB_PORT is required}
       DB_USERNAME: ${V2_DB_USERNAME:?V2_DB_USERNAME is required}
       FILESYSTEM_DISK: local
+      FINCODE_PLATFORM_ORIGIN: ${FINCODE_PLATFORM_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
+      FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
       FRONTEND_URL: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       LOG_CHANNEL: stderr
       MAIL_MAILER: ${MAIL_MAILER:?MAIL_MAILER is required}

@@ -12,6 +12,7 @@ use App\Domain\Payment\V2\Services\V2AdminPaymentReadService;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodeReconciliationService;
+use App\Domain\Payment\V2\Services\V2FincodeReturnUrl;
 use App\Domain\Payment\V2\Services\V2FincodeWebhookService;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use App\Http\Controllers\V2\V2PaymentController;
@@ -45,6 +46,7 @@ final class FincodePaymentBackendTest extends TestCase
             'v2_fincode.webhook_signature' => 'test-webhook-signature',
             'v2_fincode.platform_origin' => 'https://api.luxe-pack.biz',
             'v2_fincode.storefront_origin' => 'https://luxe-pack.biz',
+            'v2_fincode.admin_origin' => 'https://admin.luxe-pack.biz',
         ]);
     }
 
@@ -220,6 +222,38 @@ final class FincodePaymentBackendTest extends TestCase
                         === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id'];
             });
         }
+    }
+
+    public function test_fincode_origins_fail_closed_when_missing_invalid_or_admin_scoped(): void
+    {
+        foreach ([
+            ['v2_fincode.platform_origin', null, 'provider'],
+            ['v2_fincode.platform_origin', 'https://admin.luxe-pack.biz', 'provider'],
+            ['v2_fincode.platform_origin', 'https://user@example.test', 'provider'],
+            ['v2_fincode.platform_origin', 'https://api.example.test/path', 'provider'],
+            ['v2_fincode.platform_origin', 'https://api.example.test?query=1', 'provider'],
+            ['v2_fincode.storefront_origin', null, 'storefront'],
+            ['v2_fincode.storefront_origin', 'https://admin.luxe-pack.biz', 'storefront'],
+            ['v2_fincode.storefront_origin', 'https://storefront.example.test/#fragment', 'storefront'],
+        ] as [$key, $value, $target]) {
+            config([$key => $value]);
+            try {
+                $returns = app(V2FincodeReturnUrl::class);
+                $target === 'provider'
+                    ? $returns->providerNormal((string) Str::uuid7())
+                    : $returns->storefrontPoints();
+                self::fail('Invalid or Admin-scoped fincode origins must fail closed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('FINCODE_RETURN_URL_INVALID', $exception->errorCode);
+            }
+            config([
+                'v2_fincode.platform_origin' => 'https://api.luxe-pack.biz',
+                'v2_fincode.storefront_origin' => 'https://luxe-pack.biz',
+            ]);
+        }
+
+        self::assertSame(0, DB::table('payments')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
     }
 
     public function test_fincode_post_returns_are_normalized_to_safe_storefront_gets_without_mutation(): void

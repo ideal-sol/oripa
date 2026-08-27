@@ -2310,6 +2310,16 @@ def validate_compose_skeletons(repository: Path) -> None:
         raise PolicyFailure("docker-compose.yml: V1 non-Production purpose is missing")
 
     v2 = (repository / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    for prohibited in (
+        "legacy/v1-frontend",
+        "container_name:",
+        "FINCODE_PLATFORM_ORIGIN: ${V2_ADMIN_ORIGIN",
+        "FINCODE_STOREFRONT_ORIGIN: ${V2_ADMIN_ORIGIN",
+    ):
+        if prohibited in v2:
+            raise PolicyFailure(
+                f"docker-compose.v2.yml: prohibited value present {prohibited}"
+            )
     for required in (
         "api:",
         "admin:",
@@ -2317,16 +2327,31 @@ def validate_compose_skeletons(repository: Path) -> None:
         "redis:",
         "healthcheck:",
         "V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}",
+        "FINCODE_PLATFORM_ORIGIN: ${FINCODE_PLATFORM_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}",
+        "FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}",
     ):
         if required not in v2:
             raise PolicyFailure(f"docker-compose.v2.yml: required value missing {required}")
-    for prohibited in ("legacy/v1-frontend", "container_name:"):
-        if prohibited in v2:
-            raise PolicyFailure(
-                f"docker-compose.v2.yml: prohibited value present {prohibited}"
-            )
     if "non-production-skeleton" not in v2 and "never a Production" not in v2:
         raise PolicyFailure("docker-compose.v2.yml: non-Production purpose is missing")
+    fincode = (repository / "apps/api/config/v2_fincode.php").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "env('FINCODE_PLATFORM_ORIGIN', '')",
+        "env('FINCODE_STOREFRONT_ORIGIN', '')",
+        "env('V2_ADMIN_ORIGIN', '')",
+    ):
+        if required not in fincode:
+            raise PolicyFailure(f"v2_fincode.php: required value missing {required}")
+    for prohibited in (
+        "'platform_origin' => rtrim((string) env('APP_URL'",
+        "'storefront_origin' => rtrim((string) env('FRONTEND_URL'",
+    ):
+        if prohibited in fincode:
+            raise PolicyFailure(
+                f"v2_fincode.php: generic Admin-coupled origin present {prohibited}"
+            )
     dockerignore = (repository / ".dockerignore").read_text(encoding="utf-8")
     if not re.search(r"^legacy/v1-frontend$", dockerignore, re.MULTILINE):
         raise PolicyFailure(".dockerignore: Legacy Frontend root-context exclusion missing")
