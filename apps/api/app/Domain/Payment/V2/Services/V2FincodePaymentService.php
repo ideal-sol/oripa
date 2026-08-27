@@ -8,6 +8,7 @@ use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Reporting\Services\V2ReportingCursor;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -213,8 +214,19 @@ final class V2FincodePaymentService
             ->where('public_id', $paymentPublicId)
             ->where('user_id', $user->id)
             ->whereIn('payment_method', ['konbini', 'virtual_account'])
-            ->where('status', 'processing')
-            ->where('provider_status', 'AWAITING_CUSTOMER_PAYMENT')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($requiresAction): void {
+                        $requiresAction
+                            ->where('status', 'requires_action')
+                            ->where('provider_status', 'UNPROCESSED');
+                    })
+                    ->orWhere(function ($processing): void {
+                        $processing
+                            ->where('status', 'processing')
+                            ->where('provider_status', 'AWAITING_CUSTOMER_PAYMENT');
+                    });
+            })
             ->where('expires_at', '>', now())
             ->first();
         if ($payment === null) {
@@ -224,12 +236,20 @@ final class V2FincodePaymentService
         if ($attempt->redirect_url_ciphertext === null) {
             throw new V2FincodeException('UNPAID_PAYMENT_NOT_RESUMABLE', 409, 'The unpaid payment cannot be resumed.');
         }
+        try {
+            $redirectUrl = Crypt::decryptString($attempt->redirect_url_ciphertext);
+        } catch (DecryptException) {
+            throw new V2FincodeException('UNPAID_PAYMENT_NOT_RESUMABLE', 409, 'The unpaid payment cannot be resumed.');
+        }
+        if ($this->optionalHttpsUrl($redirectUrl) === null) {
+            throw new V2FincodeException('UNPAID_PAYMENT_NOT_RESUMABLE', 409, 'The unpaid payment cannot be resumed.');
+        }
 
         return [
             'payment_id' => $payment->public_id,
             'next_action' => [
                 'type' => 'redirect',
-                'url' => Crypt::decryptString($attempt->redirect_url_ciphertext),
+                'url' => $redirectUrl,
             ],
         ];
     }

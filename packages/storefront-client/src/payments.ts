@@ -152,6 +152,7 @@ export function createStorefrontPaymentClient(
     resumeUnpaidPayment: (id, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/resume`,
       method: "POST",
+      body: {},
       headers: csrf(options.csrf_token),
       csrf: "required",
       retry: false,
@@ -215,6 +216,7 @@ export function createCsrfManagedStorefrontPaymentClient(
     resumeUnpaidPayment: (id, options = {}) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/resume`,
       method: "POST",
+      body: {},
       csrf: "required",
       retry: false,
       signal: options.signal,

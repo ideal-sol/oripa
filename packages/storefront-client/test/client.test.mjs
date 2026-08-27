@@ -66,7 +66,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.28");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.29");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -1200,6 +1200,10 @@ test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード
   assert.equal(requests[0].method, undefined);
   assert.equal(requests[0].csrf, undefined);
   assert.equal(requests[1].idempotency_key, "start-key");
+  assert.equal(requests[4].method, "POST");
+  assert.deepEqual(requests[4].body, {});
+  assert.equal(requests[4].headers["X-XSRF-TOKEN"], csrfToken);
+  assert.equal(requests[4].csrf, "required");
   assert.equal(requests[4].retry, false);
   assert.deepEqual(payment.data.grant, {
     paid_points: 10000,
@@ -1216,6 +1220,15 @@ test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () 
     if (url.endsWith("/sanctum/csrf-cookie")) {
       return jsonResponse({ initialized: true });
     }
+    if (url.endsWith("/payments/payment-id/resume")) {
+      return jsonResponse({
+        payment_id: "payment-id",
+        next_action: {
+          type: "redirect",
+          url: "https://pay.test.fincode.jp/session/existing",
+        },
+      });
+    }
     return jsonResponse({ id: "payment-id" }, { status: 201 });
   }));
   await client.getPaymentCardUiBootstrap();
@@ -1227,4 +1240,17 @@ test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () 
   );
   assert.equal(calls.at(-1).url, "/api/v2/payments");
   assert.equal(calls.at(-1).init.headers.get("Idempotency-Key"), "browser-payment-key");
+  const resumed = await client.resumeUnpaidPayment("payment-id");
+  assert.equal(calls.at(-1).url, "/api/v2/payments/payment-id/resume");
+  assert.equal(calls.at(-1).init.method, "POST");
+  assert.equal(calls.at(-1).init.body, "{}");
+  assert.equal(calls.at(-1).init.headers.get("Content-Type"), "application/json");
+  assert.equal(calls.at(-1).init.credentials, "include");
+  assert.deepEqual(resumed.data, {
+    payment_id: "payment-id",
+    next_action: {
+      type: "redirect",
+      url: "https://pay.test.fincode.jp/session/existing",
+    },
+  });
 });
