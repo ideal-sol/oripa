@@ -2320,6 +2320,42 @@ def validate_compose_skeletons(repository: Path) -> None:
             raise PolicyFailure(
                 f"docker-compose.v2.yml: prohibited value present {prohibited}"
             )
+    api_end = v2.find("\n  admin:")
+    if api_end < 0:
+        raise PolicyFailure("docker-compose.v2.yml: API service boundary is missing")
+    api_service = v2[:api_end]
+    fincode_runtime_wiring = (
+        (
+            "FINCODE_API_BASE_URL",
+            "FINCODE_API_BASE_URL: ${FINCODE_API_BASE_URL:-https://api.test.fincode.jp}",
+        ),
+        (
+            "FINCODE_PUBLIC_API_KEY",
+            "FINCODE_PUBLIC_API_KEY: ${FINCODE_PUBLIC_API_KEY:-}",
+        ),
+        (
+            "FINCODE_SECRET_API_KEY",
+            "FINCODE_SECRET_API_KEY: ${FINCODE_SECRET_API_KEY:-}",
+        ),
+        (
+            "FINCODE_WEBHOOK_SIGNATURE",
+            "FINCODE_WEBHOOK_SIGNATURE: ${FINCODE_WEBHOOK_SIGNATURE:-}",
+        ),
+        (
+            "FINCODE_PAYMENT_ENABLED",
+            "FINCODE_PAYMENT_ENABLED: ${FINCODE_PAYMENT_ENABLED:-false}",
+        ),
+    )
+    for name, required in fincode_runtime_wiring:
+        assignments = re.findall(
+            rf"^\s+{re.escape(name)}:",
+            v2,
+            re.MULTILINE,
+        )
+        if len(assignments) != 1 or required not in api_service:
+            raise PolicyFailure(
+                f"docker-compose.v2.yml: API fincode Runtime wiring missing {name}"
+            )
     for required in (
         "api:",
         "admin:",
@@ -2338,6 +2374,11 @@ def validate_compose_skeletons(repository: Path) -> None:
         encoding="utf-8"
     )
     for required in (
+        "env('FINCODE_API_BASE_URL', 'https://api.test.fincode.jp')",
+        "env('FINCODE_PUBLIC_API_KEY')",
+        "env('FINCODE_SECRET_API_KEY')",
+        "env('FINCODE_WEBHOOK_SIGNATURE')",
+        "env('FINCODE_PAYMENT_ENABLED', false)",
         "env('FINCODE_PLATFORM_ORIGIN', '')",
         "env('FINCODE_STOREFRONT_ORIGIN', '')",
         "env('V2_ADMIN_ORIGIN', '')",

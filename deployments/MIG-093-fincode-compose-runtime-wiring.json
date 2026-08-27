@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "MIG-093",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_validation_pass_activation_pending",
+  "issue": 398,
+  "pull_request": null,
+  "base_sha": "b805d09469c79f92564d041236daf4d3dc4c67a1",
+  "recorded_at": "2026-08-27T09:53:57Z",
+  "wiring": {
+    "service": "api",
+    "variables": [
+      "FINCODE_API_BASE_URL",
+      "FINCODE_PUBLIC_API_KEY",
+      "FINCODE_SECRET_API_KEY",
+      "FINCODE_WEBHOOK_SIGNATURE",
+      "FINCODE_PAYMENT_ENABLED"
+    ],
+    "admin": false,
+    "postgresql": false,
+    "redis": false,
+    "secret_default_embedded": false,
+    "payment_enable_changed": false
+  },
+  "source_validation": {
+    "focused_compose_policy_tests": "PASS_6",
+    "policy_unit": "PASS_165",
+    "local_policy_gate": "PASS_1581_TRACKED_FILES",
+    "compose_config_quiet": "PASS",
+    "api_config_php_syntax": "PASS",
+    "python_compile": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "build_count": 0,
+  "migration_created": 0,
+  "migration_applied": 0,
+  "provider_communication": 0,
+  "payment_coin_mutation": 0,
+  "production_mutation": 0,
+  "secret_value_readback": 0,
+  "runtime_activation": "PENDING_AFTER_MERGE",
+  "ops_021_restart": "PENDING"
+}
