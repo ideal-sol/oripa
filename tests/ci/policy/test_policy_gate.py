@@ -715,11 +715,12 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_released_alpha_28(self):
+    def test_storefront_release_governance_accepts_pending_alpha_29(self):
         value = policy_gate.storefront_release_governance(ROOT)
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.28")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.29")
+        self.assertEqual(value["candidate"]["release_mode"], "package-only")
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 65)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
@@ -2367,7 +2368,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.28",
+                    "version": "2.0.0-alpha.29",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",

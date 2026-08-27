@@ -121,6 +121,24 @@ as `latest_immutable` and clears `candidate`, so a same-version rebuild is
 rejected. Storefront exact-pin adoption is GO; Runtime Activation and Provider
 Browser E2E remain deferred.
 
+## Payment Resume JSON Request Release Candidate
+
+MIG-094 prepares package-only bundle `2.0.0-alpha.29`. The Storefront Client
+now sends the existing unpaid-payment resume operation as a JSON POST with an
+empty object body, preserving the existing authenticated CSRF contract and
+response shape. Storefront Testkit advances to the matching Client version;
+Public OpenAPI alpha.27, its 65 operations, Site Schema alpha.23, Platform, and
+Application versions remain unchanged.
+
+The candidate does not weaken Browser Security middleware, create a Provider
+session, alter the Payment state machine, activate an API Runtime, or apply a
+migration. Resume eligibility adds only the initial `requires_action` plus
+`UNPROCESSED` state pair for owned, unexpired Konbini and Virtual Account
+Payments with an existing decryptable fincode HTTPS redirect; the existing
+`processing` plus `AWAITING_CUSTOMER_PAYMENT` contract remains valid. Canonical
+workflow identity and immutable SHA-256 evidence are recorded here only after
+exact-source artifact readback succeeds.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.

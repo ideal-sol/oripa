@@ -130,7 +130,7 @@ importers:
         specifier: workspace:2.0.0-alpha.23
         version: link:../site-schema
       '@oripa/storefront-client':
-        specifier: workspace:2.0.0-alpha.28
+        specifier: workspace:2.0.0-alpha.29
         version: link:../storefront-client
     devDependencies:
       eslint:
