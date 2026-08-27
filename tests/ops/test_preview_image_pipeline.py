@@ -4,6 +4,7 @@ from importlib.machinery import SourceFileLoader
 import io
 import json
 from pathlib import Path
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -96,8 +97,8 @@ def create_docker_archive(
     }
 
 
-def create_artifact(directory: Path) -> None:
-    images = [create_docker_archive(directory, name) for name in artifact.IMAGE_NAMES]
+def create_artifact(directory: Path, image_names=artifact.IMAGE_NAMES) -> None:
+    images = [create_docker_archive(directory, name) for name in image_names]
     manifest = {
         "schema_version": artifact.SCHEMA_VERSION,
         "task_id": TASK,
@@ -128,6 +129,46 @@ class PreviewImageArtifactTest(unittest.TestCase):
         self.assertEqual(result["status"], "verified")
         self.assertEqual(result["platform"], "linux/amd64")
         self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
+
+    def test_api_only_artifact_verifies_without_admin_archive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("api",))
+            result = artifact.verify_artifact(
+                directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+            )
+        self.assertEqual([item["name"] for item in result["images"]], ["api"])
+
+    def test_admin_only_artifact_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("admin",))
+            with self.assertRaisesRegex(artifact.ArtifactError, "manifest_images_invalid"):
+                artifact.verify_artifact(
+                    directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+                )
+
+    def test_package_parser_rejects_unknown_image_mode(self):
+        with self.assertRaises(SystemExit):
+            artifact.parser().parse_args(
+                [
+                    "package",
+                    "--output",
+                    "/tmp/output",
+                    "--task-id",
+                    TASK,
+                    "--pr-number",
+                    str(PR),
+                    "--source-sha",
+                    HEAD,
+                    "--created-at",
+                    "2026-08-12T00:00:00Z",
+                    "--image-mode",
+                    "admin-only",
+                    "--api-image",
+                    "api",
+                ]
+            )
 
     def test_docker_archive_accepts_oci_content_store_config_path(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -211,6 +252,8 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
     def pull(self):
         return {
             "state": "open",
+            "merged": False,
+            "merge_commit_sha": None,
             "title": self.policy()["pr_title"],
             "head": {
                 "sha": HEAD,
@@ -224,6 +267,22 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
         with mock.patch.object(wrapper, "api_get", return_value=self.pull()):
             result = wrapper.validated_pr(self.policy(), str(PR), HEAD)
         self.assertEqual(result["head"]["sha"], HEAD)
+
+    def test_merged_internal_pr_exact_head_is_accepted(self):
+        pull = self.pull()
+        pull["state"] = "closed"
+        pull["merged"] = True
+        pull["merge_commit_sha"] = "b" * 40
+        with mock.patch.object(wrapper, "api_get", return_value=pull):
+            result = wrapper.validated_pr(self.policy(), str(PR), HEAD)
+        self.assertTrue(result["merged"])
+
+    def test_closed_unmerged_pr_is_rejected(self):
+        pull = self.pull()
+        pull["state"] = "closed"
+        with mock.patch.object(wrapper, "api_get", return_value=pull):
+            with self.assertRaisesRegex(wrapper.WrapperError, "pull_request_identity_mismatch"):
+                wrapper.validated_pr(self.policy(), str(PR), HEAD)
 
     def test_external_pr_or_head_mismatch_is_rejected(self):
         pull = self.pull()
@@ -265,6 +324,37 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
             wrapper.safe_extract(source, destination)
             self.assertEqual({path.name for path in destination.iterdir()}, expected)
 
+    def test_wrapper_extracts_canonical_api_only_artifact_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "artifact.zip"
+            destination = Path(temporary) / "payload"
+            destination.mkdir()
+            expected = {
+                "manifest.json",
+                "SHA256SUMS",
+                artifact.ARCHIVE_NAMES["api"],
+            }
+            with zipfile.ZipFile(source, "w") as archive_file:
+                for filename in expected:
+                    archive_file.writestr(filename, b"placeholder")
+            wrapper.safe_extract(source, destination)
+            self.assertEqual({path.name for path in destination.iterdir()}, expected)
+
+    def test_wrapper_rejects_admin_only_artifact_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "artifact.zip"
+            destination = Path(temporary) / "payload"
+            destination.mkdir()
+            with zipfile.ZipFile(source, "w") as archive_file:
+                for filename in (
+                    "manifest.json",
+                    "SHA256SUMS",
+                    artifact.ARCHIVE_NAMES["admin"],
+                ):
+                    archive_file.writestr(filename, b"placeholder")
+            with self.assertRaisesRegex(wrapper.WrapperError, "artifact_file_set_invalid"):
+                wrapper.safe_extract(source, destination)
+
     def test_failed_or_wrong_workflow_run_is_rejected(self):
         run = {
             "event": "workflow_dispatch",
@@ -272,6 +362,18 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
             "conclusion": "failure",
             "path": ".github/workflows/preview-image-build.yml",
             "head_branch": "main",
+        }
+        with mock.patch.object(wrapper, "api_get", return_value=run):
+            with self.assertRaisesRegex(wrapper.WrapperError, "workflow_run_rejected"):
+                wrapper.validated_run(123)
+
+    def test_successful_task_branch_workflow_run_is_not_canonical(self):
+        run = {
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "success",
+            "path": ".github/workflows/preview-image-build.yml",
+            "head_branch": "ci/OPS-005-preview-image-build-architecture",
         }
         with mock.patch.object(wrapper, "api_get", return_value=run):
             with self.assertRaisesRegex(wrapper.WrapperError, "workflow_run_rejected"):
@@ -304,6 +406,26 @@ class GitHubAppArtifactBoundaryTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(wrapper.WrapperError, "required_checks_not_successful"):
                 wrapper.validate_required_checks(HEAD)
+
+
+class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
+    def test_normal_default_and_api_only_admin_skip_are_guarded(self):
+        workflow = (ROOT / ".github/workflows/preview-image-build.yml").read_text()
+        self.assertIn("image_mode:", workflow)
+        self.assertIn("default: normal", workflow)
+        self.assertIn("- api-only", workflow)
+        self.assertIn('image_mode not in {"normal", "api-only"}', workflow)
+        self.assertIn("pull request is neither open nor merged", workflow)
+        self.assertEqual(workflow.count("--file infra/docker/backend/Dockerfile"), 1)
+        self.assertEqual(workflow.count("--file apps/admin/Dockerfile"), 1)
+        guard = re.search(
+            r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
+            workflow,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(guard)
+        self.assertIn("--file apps/admin/Dockerfile", guard.group("body"))
+        self.assertIn('--admin-image "$admin_image"', guard.group("body"))
 
 
 if __name__ == "__main__":

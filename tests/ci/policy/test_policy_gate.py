@@ -947,6 +947,52 @@ jobs:
                     root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
                 )
 
+    def test_preview_image_pipeline_requires_api_only_input_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = root / ".github/workflows/preview-image-build.yml"
+            workflow.write_text(
+                workflow.read_text().replace(
+                    'image_mode not in {"normal", "api-only"}', "False"
+                )
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure, "Preview image workflow boundary missing"
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
+    def test_preview_image_pipeline_requires_admin_build_inside_normal_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = root / ".github/workflows/preview-image-build.yml"
+            workflow.write_text(
+                workflow.read_text().replace(
+                    'if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then',
+                    'if [[ "$INPUT_IMAGE_MODE" == "api-only" ]]; then',
+                )
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "Preview image workflow boundary missing|normal-mode only",
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 

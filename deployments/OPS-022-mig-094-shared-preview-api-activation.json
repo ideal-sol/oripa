@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-022",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_ready_merge_pending",
+  "issue": 402,
+  "pull_request": null,
+  "base_sha": "053379b41ad5ad640a01c1a62410b9a121ac2f3f",
+  "stage_0": {
+    "main_contains_mig_094": true,
+    "current_api_revision": "42a70d8efde5b8818b1bcec59ecf2af82f862b6e",
+    "current_api_image": "oripa-v2-api:preview-MIG-092-42a70d8efde5",
+    "api_admin_postgresql_redis_health": "PASS",
+    "restart_counts_zero": true,
+    "migration_count": 66,
+    "migration_batch": 32,
+    "latest_migration": "2026_09_22_000066_add_v2_verification_failed_user_state",
+    "fincode_sandbox_readiness": "PASS",
+    "fincode_payment_enabled": true,
+    "secret_inputs": "present/non-empty",
+    "secret_value_readback": 0,
+    "root_free_bytes": 22116044800,
+    "resource_gate": "PASS"
+  },
+  "human_scope_correction": {
+    "integrated_task": "GOV-019",
+    "integrated_issue": 403,
+    "integrated_task_code_commit": 0,
+    "integrated_task_pull_request": 0,
+    "integrated_task_code_merge": 0,
+    "integrated_task_cleanup": "PASS"
+  },
+  "api_only_capability": {
+    "input": "image_mode",
+    "normal": ["api", "admin"],
+    "api_only": ["api"],
+    "invalid": "FAIL_CLOSED_BEFORE_CHECKOUT_OR_BUILD",
+    "admin_build_in_api_only": 0,
+    "artifact_inventories": ["api", "api+admin"],
+    "task_branch_workflow_canonical": false,
+    "merged_pr_exact_head_supported": true
+  },
+  "source_validation": {
+    "preview_pipeline_tests": "PASS_23",
+    "policy_unit_tests": "PASS_167",
+    "storefront_workflow_regression": "PASS_1",
+    "local_policy_gate": "PASS_1584_TRACKED_FILES",
+    "workflow_yaml": "PASS",
+    "python_compile": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "post_merge_operation": {
+    "authority": "Issue #402 and repository-external root-only evidence",
+    "canonical_workflow_ref": "main",
+    "image_mode": "api-only",
+    "build": "PENDING_AFTER_MERGE",
+    "api_activation": "PENDING_AFTER_BUILD",
+    "runtime_verification": "PENDING_AFTER_ACTIVATION"
+  },
+  "mutation_boundary": {
+    "mig_094_runtime_image_build": 0,
+    "runtime_activation": 0,
+    "admin_build_activation": 0,
+    "storefront_build_activation": 0,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "database_mutation": 0,
+    "payment_coin_mutation": 0,
+    "provider_communication": 0,
+    "fincode_configuration_change": 0,
+    "production_mutation": 0
+  }
+}
