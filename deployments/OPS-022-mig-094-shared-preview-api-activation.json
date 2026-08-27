@@ -6,7 +6,7 @@
   "activation": "immediate",
   "status": "source_ready_merge_pending",
   "issue": 402,
-  "pull_request": null,
+  "pull_request": 404,
   "base_sha": "053379b41ad5ad640a01c1a62410b9a121ac2f3f",
   "stage_0": {
     "main_contains_mig_094": true,
@@ -46,7 +46,7 @@
     "preview_pipeline_tests": "PASS_23",
     "policy_unit_tests": "PASS_167",
     "storefront_workflow_regression": "PASS_1",
-    "local_policy_gate": "PASS_1584_TRACKED_FILES",
+    "local_policy_gate": "PASS_1586_TRACKED_FILES",
     "workflow_yaml": "PASS",
     "python_compile": "PASS",
     "git_diff_check": "PASS"

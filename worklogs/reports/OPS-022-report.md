@@ -2,7 +2,7 @@
 
 ## Task
 
-- Issue `#402`, Lane `Strict Change`, Risk `R4`, Activation `immediate`.
+- Issue `#402`, Draft Pull Request `#404`, Lane `Strict Change`, Risk `R4`, Activation `immediate`.
 - Base and initial latest main are `053379b41ad5ad640a01c1a62410b9a121ac2f3f`, the MIG-094 squash merge.
 - Human Scope Correction integrated the Canonical Preview API-only Build blocker into OPS-022. GOV-019 / Issue `#403` closed with commit, PR, and merge all zero; its Remote/local branch, worktree, Task Policy, and evidence were cleaned.
 
@@ -26,7 +26,7 @@
 - Preview image pipeline: 23 tests PASS.
 - Policy Unit: 167 tests PASS.
 - Storefront workflow regression: 1 test PASS.
-- Local Policy Gate: PASS, 1,584 tracked files.
+- Local Policy Gate: PASS, 1,586 tracked files after the Task evidence files entered the tracked inventory.
 - Workflow YAML, Python compile, and `git diff --check`: PASS.
 - No real Preview image build or Runtime activation was performed during source validation.
 
