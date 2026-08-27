@@ -4,11 +4,11 @@
   "risk": "R4",
   "lane": "Strict Change",
   "activation": "immediate",
-  "status": "migration_ready",
+  "status": "activation_complete_acceptance_blocked",
   "issue": 393,
-  "pull_request": null,
+  "pull_request": 394,
   "base_sha": "2680e76a414f8bc80906ca7ff7a1c96b808165fc",
-  "recorded_at": "2026-08-27T01:49:14Z",
+  "recorded_at": "2026-08-27T02:29:44Z",
   "stage_0": {
     "result": "PASS",
     "local_origin_github_main_equal": true,
@@ -45,8 +45,54 @@
     "predecessors_complete": true,
     "merged_to_main": true,
     "live_copy_clone_apply": "PASS_BATCH_32",
-    "live_applied": false,
+    "live_applied": true,
+    "after_count": 66,
+    "after_batch": 32,
+    "after_latest": "2026_09_22_000066_add_v2_verification_failed_user_state",
+    "applied_order": [
+      "2026_09_21_000065_add_fincode_payment_backend_core",
+      "2026_09_22_000066_add_v2_verification_failed_user_state"
+    ],
+    "payment_rows_created": 0,
+    "payment_point_grants_created": 0,
+    "fincode_rows_created": 0,
+    "existing_users_backfilled_to_verification_failed": 0,
     "rollback_backup": "/var/lib/oripa-v2-evidence/OPS-020/ops020-pre-activation.dump"
+  },
+  "canonical_build": {
+    "source_revision": "6cc5e8d5c5194ebf122f8d819f2fa6c54fd1cf12",
+    "workflow": "preview-image-build.yml",
+    "workflow_run": 33032347596,
+    "artifact": 9630790720,
+    "artifact_digest": "sha256:13834c1b43ee8c7d0a82b921fda641e850be9f8f46a04da2c3bae24bb45890b8",
+    "dispatch_count": 1,
+    "host_build_count": 0,
+    "storefront_artifact_step": "SKIPPED"
+  },
+  "runtime_after": {
+    "source_revision": "6cc5e8d5c5194ebf122f8d819f2fa6c54fd1cf12",
+    "api_image": "oripa-v2-api:preview-OPS-020-6cc5e8d5c519",
+    "api_image_id": "sha256:a0494542769e6f9d1a4e4291311f385dd3decf71078236f1a77d6aab5914d85b",
+    "admin_image": "oripa-v2-admin:preview-OPS-020-6cc5e8d5c519",
+    "admin_image_id": "sha256:74a28be1adf716b2814638f77200900c52032961b7e4bb1e802e6acf42b1dfd6",
+    "api_health": "PASS_200_HEALTHY",
+    "admin_health": "PASS_200_HEALTHY",
+    "api_db_connectivity": "PASS",
+    "api_redis_connectivity": "PASS_VIA_HEALTH",
+    "restart_counts": {"api": 0, "admin": 0},
+    "activation_count": {"api": 1, "admin": 1},
+    "http_500_502_504": 0,
+    "network": "PASS_API_EGRESS_ONLY_ADMIN_DB_REDIS_PRIVATE",
+    "database_container_recreated": false,
+    "redis_container_recreated": false
+  },
+  "rollback": {
+    "api_image": "oripa-v2-api:preview-MIG-078-59173e3a0e96",
+    "api_image_id": "sha256:c072865555a4ba369f6f81b6ffaa5d46beadb282d35ab12923c73e84cd1c1d44",
+    "admin_image": "oripa-v2-admin:preview-MIG-078-59173e3a0e96",
+    "admin_image_id": "sha256:1f00f2fbef44adb4699aaf5b968a426495f6383704c5d0ba44e5ecda60a18c7e",
+    "loaded_and_retained": true,
+    "rollback_performed": false
   },
   "data_baseline": {
     "payments": 0,
@@ -65,13 +111,75 @@
     "user_states": {"active": 5, "closed": 7, "pending_verification": 4}
   },
   "fincode_metadata": {
-    "payment_enabled": "UNSET_FALSE_DEFAULT",
+    "payment_enabled": "DISABLED_UNSET_FALSE_DEFAULT",
     "secret_api_key": "UNSET",
     "public_api_key": "UNSET",
     "webhook_signature": "UNSET",
     "api_base_url": "UNSET"
   },
+  "post_activation_data": {
+    "payments": 0,
+    "payment_point_grants": 0,
+    "point_operations": 14,
+    "point_ledger_entries": 14,
+    "point_lots": 7,
+    "point_lots_granted_total": 12687,
+    "point_lots_remaining_total": 10571,
+    "wallets": 3,
+    "wallet_paid_total": 500,
+    "wallet_free_total": 10071,
+    "point_purchase_plans": 3,
+    "point_purchase_plan_amount_total": 10200,
+    "users": 16,
+    "user_states": {"active": 5, "closed": 7, "pending_verification": 4},
+    "unexpected_task_caused_business_mutation": 0,
+    "concurrent_external_user_operations": {
+      "draw_spend_count": 2,
+      "prize_exchange_free_grant_count": 2,
+      "free_point_net_delta": -1920
+    }
+  },
+  "browser_acceptance": {
+    "login_page": "PASS_200",
+    "admin_login": "BLOCKED_EXISTING_PREVIEW_CREDENTIAL_401",
+    "auth_session_endpoint": "PASS_200",
+    "payment_runtime_browser": "NOT_RUN_BLOCKED_BY_LOGIN",
+    "payment_focused_exact_source_evidence": "REUSED_MIG_085_PASS",
+    "rank_effect_runtime_browser": "NOT_RUN_BLOCKED_BY_LOGIN",
+    "rank_effect_focused_exact_source_evidence": "REUSED_MIG_090_PASS",
+    "user_list_runtime_browser": "NOT_RUN_BLOCKED_BY_LOGIN",
+    "user_list_focused_exact_source_evidence": "REUSED_MIG_091_PASS",
+    "expired_verification_link_mutation": 0,
+    "browser_http_500_502_504": 0
+  },
+  "required_checks": {
+    "activation_source": "PASS_ALL_FIVE",
+    "policy_gate": 98384657365,
+    "security_gate": 98384702496,
+    "quality_gate": 98384702499,
+    "integration_gate": 98386832977,
+    "ci_gate": 98386846911,
+    "rerun_count": 0
+  },
+  "resource_gate_after": {
+    "result": "PASS",
+    "root_free_bytes": 22962905088,
+    "root_free_gib": 21.38,
+    "cleanup_or_prune_for_disk": false
+  },
+  "blockers": [
+    "Authenticated Admin Browser acceptance requires a valid normal Preview test login or Human authenticated session",
+    "Activation-window business aggregates changed due to four concurrent external user operations"
+  ],
   "provider_communication": 0,
   "production_changes": 0,
-  "storefront_changes": 0
+  "storefront_changes": 0,
+  "cleanup": {
+    "migration_clone_container_removed": true,
+    "migration_clone_network_removed": true,
+    "rollback_images_retained": true,
+    "task_branch_retained": true,
+    "task_worktree_retained": true,
+    "pull_request_state": "DRAFT_OPEN"
+  }
 }
