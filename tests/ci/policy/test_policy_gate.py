@@ -2524,6 +2524,11 @@ services:
   api:
     environment:
       V2_PUBLIC_ORIGIN: ${V2_PUBLIC_ORIGIN:-http://localhost:3000}
+      FINCODE_API_BASE_URL: ${FINCODE_API_BASE_URL:-https://api.test.fincode.jp}
+      FINCODE_PUBLIC_API_KEY: ${FINCODE_PUBLIC_API_KEY:-}
+      FINCODE_SECRET_API_KEY: ${FINCODE_SECRET_API_KEY:-}
+      FINCODE_WEBHOOK_SIGNATURE: ${FINCODE_WEBHOOK_SIGNATURE:-}
+      FINCODE_PAYMENT_ENABLED: ${FINCODE_PAYMENT_ENABLED:-false}
       FINCODE_PLATFORM_ORIGIN: ${FINCODE_PLATFORM_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
       FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
     healthcheck:
@@ -2542,6 +2547,11 @@ services:
         fincode.parent.mkdir(parents=True, exist_ok=True)
         fincode.write_text(
             "<?php\nreturn [\n"
+            "    'base_url' => env('FINCODE_API_BASE_URL', 'https://api.test.fincode.jp'),\n"
+            "    'public_api_key' => env('FINCODE_PUBLIC_API_KEY'),\n"
+            "    'secret_api_key' => env('FINCODE_SECRET_API_KEY'),\n"
+            "    'webhook_signature' => env('FINCODE_WEBHOOK_SIGNATURE'),\n"
+            "    'enabled' => (bool) env('FINCODE_PAYMENT_ENABLED', false),\n"
             "    'platform_origin' => env('FINCODE_PLATFORM_ORIGIN', ''),\n"
             "    'storefront_origin' => env('FINCODE_STOREFRONT_ORIGIN', ''),\n"
             "    'admin_origin' => env('V2_ADMIN_ORIGIN', ''),\n"
@@ -3018,6 +3028,69 @@ services:
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "FINCODE_PLATFORM_ORIGIN"):
                 policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_requires_fincode_runtime_wiring_on_api(self):
+        wiring = (
+            "      FINCODE_API_BASE_URL: ${FINCODE_API_BASE_URL:-https://api.test.fincode.jp}\n",
+            "      FINCODE_PUBLIC_API_KEY: ${FINCODE_PUBLIC_API_KEY:-}\n",
+            "      FINCODE_SECRET_API_KEY: ${FINCODE_SECRET_API_KEY:-}\n",
+            "      FINCODE_WEBHOOK_SIGNATURE: ${FINCODE_WEBHOOK_SIGNATURE:-}\n",
+            "      FINCODE_PAYMENT_ENABLED: ${FINCODE_PAYMENT_ENABLED:-false}\n",
+        )
+        for line in wiring:
+            with self.subTest(variable=line.split(":", 1)[0].strip()):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    paths = self.make_workspace(root)
+                    compose = root / "docker-compose.v2.yml"
+                    source = compose.read_text(encoding="utf-8")
+                    compose.write_text(source.replace(line, ""), encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        policy_gate.PolicyFailure,
+                        "API fincode Runtime wiring missing",
+                    ):
+                        policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_v2_compose_rejects_fincode_runtime_wiring_outside_api(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_workspace(root)
+            compose = root / "docker-compose.v2.yml"
+            source = compose.read_text(encoding="utf-8")
+            line = "      FINCODE_SECRET_API_KEY: ${FINCODE_SECRET_API_KEY:-}\n"
+            source = source.replace(line, "")
+            source = source.replace(
+                "  admin:\n",
+                "  admin:\n    environment:\n" + line,
+            )
+            compose.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "FINCODE_SECRET_API_KEY",
+            ):
+                policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_fincode_config_requires_all_runtime_env_consumers(self):
+        consumers = (
+            "    'base_url' => env('FINCODE_API_BASE_URL', 'https://api.test.fincode.jp'),\n",
+            "    'public_api_key' => env('FINCODE_PUBLIC_API_KEY'),\n",
+            "    'secret_api_key' => env('FINCODE_SECRET_API_KEY'),\n",
+            "    'webhook_signature' => env('FINCODE_WEBHOOK_SIGNATURE'),\n",
+            "    'enabled' => (bool) env('FINCODE_PAYMENT_ENABLED', false),\n",
+        )
+        for line in consumers:
+            with self.subTest(variable=line.split("FINCODE_", 1)[1].split("'", 1)[0]):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    paths = self.make_workspace(root)
+                    fincode = root / "apps/api/config/v2_fincode.php"
+                    source = fincode.read_text(encoding="utf-8")
+                    fincode.write_text(source.replace(line, ""), encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        policy_gate.PolicyFailure,
+                        "v2_fincode.php: required value missing",
+                    ):
+                        policy_gate.validate_workspace_skeleton(root, paths)
 
     def test_v2_compose_fincode_origin_cannot_use_admin_origin(self):
         with tempfile.TemporaryDirectory() as temporary:
