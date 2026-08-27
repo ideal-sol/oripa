@@ -224,8 +224,16 @@ def validated_pr(policy: dict, pr_number: str, head_sha: str) -> dict:
     head = pull.get("head") if isinstance(pull.get("head"), dict) else {}
     base = pull.get("base") if isinstance(pull.get("base"), dict) else {}
     head_repository = head.get("repo") if isinstance(head.get("repo"), dict) else {}
+    state = pull.get("state")
+    merge_commit_sha = pull.get("merge_commit_sha")
+    merged = (
+        state == "closed"
+        and pull.get("merged") is True
+        and isinstance(merge_commit_sha, str)
+        and FULL_SHA.fullmatch(merge_commit_sha)
+    )
     if (
-        pull.get("state") != "open"
+        (state != "open" and not merged)
         or head.get("sha") != head_sha
         or head.get("ref") != policy.get("branch")
         or head_repository.get("full_name") != REPOSITORY
@@ -370,15 +378,19 @@ def download_to(path: str, destination: Path) -> str:
 
 
 def safe_extract(source: Path, destination: Path) -> None:
-    allowed = {
+    common = {
         "manifest.json",
         "SHA256SUMS",
         "oripa-v2-api-linux-amd64.docker.tar.zst",
-        "oripa-v2-admin-linux-amd64.docker.tar.zst",
     }
+    allowed_sets = (
+        common,
+        common | {"oripa-v2-admin-linux-amd64.docker.tar.zst"},
+    )
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
-        if len(files) != len(allowed) or {item.filename for item in files} != allowed:
+        filenames = {item.filename for item in files}
+        if len(files) != len(filenames) or filenames not in allowed_sets:
             fail("artifact_file_set_invalid")
         if sum(item.file_size for item in files) > MAX_ARTIFACT_BYTES:
             fail("artifact_unpacked_too_large")

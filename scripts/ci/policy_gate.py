@@ -1328,6 +1328,12 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     ).read_text(encoding="utf-8")
     required_workflow = {
         "checks: read",
+        "image_mode:",
+        "default: normal",
+        "- api-only",
+        'image_mode not in {"normal", "api-only"}',
+        'if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then',
+        '--image-mode "$INPUT_IMAGE_MODE"',
         "preview_image_artifact.py target --field platform",
         "preview_image_artifact.py host-check",
         "OCI_REVISION=${INPUT_HEAD_SHA}",
@@ -1335,6 +1341,7 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         "compression-level: 0",
         "external pull request rejected",
         "pull request head mismatch",
+        "pull request is neither open nor merged",
         "required checks not successful",
         "storefront_contract_artifact.py build",
         "storefront_contract_artifact.py verify",
@@ -1349,6 +1356,18 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         raise PolicyFailure("Preview image workflow must use the GitHub-hosted x64 runner")
     if "actions: write" in workflow or "packages: write" in workflow:
         raise PolicyFailure("Preview image workflow permissions are too broad")
+    admin_guard = re.search(
+        r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
+        workflow,
+        re.DOTALL,
+    )
+    if (
+        admin_guard is None
+        or workflow.count("--file apps/admin/Dockerfile") != 1
+        or "--file apps/admin/Dockerfile" not in admin_guard.group("body")
+        or "--admin-image" not in admin_guard.group("body")
+    ):
+        raise PolicyFailure("Preview Admin image build must be normal-mode only")
 
     helper = (repository / "scripts/ops/preview_image_artifact.py").read_text(
         encoding="utf-8"
