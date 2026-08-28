@@ -66,7 +66,7 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.29");
+  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.30");
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");
@@ -1205,6 +1205,11 @@ test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード
   assert.equal(requests[4].headers["X-XSRF-TOKEN"], csrfToken);
   assert.equal(requests[4].csrf, "required");
   assert.equal(requests[4].retry, false);
+  assert.equal(requests[6].method, "POST");
+  assert.deepEqual(requests[6].body, {});
+  assert.equal(requests[6].headers["X-XSRF-TOKEN"], csrfToken);
+  assert.equal(requests[6].idempotency_key, "card-intent-key");
+  assert.equal(requests[6].csrf, "required");
   assert.deepEqual(payment.data.grant, {
     paid_points: 10000,
     bonus_points: 1000,
@@ -1253,4 +1258,13 @@ test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () 
       url: "https://pay.test.fincode.jp/session/existing",
     },
   });
+  await client.createCardRegistrationIntent({
+    idempotency_key: "browser-card-intent-key",
+  });
+  assert.equal(calls.at(-1).url, "/api/v2/me/payment-card-registration-intents");
+  assert.equal(calls.at(-1).init.method, "POST");
+  assert.equal(calls.at(-1).init.body, "{}");
+  assert.equal(calls.at(-1).init.headers.get("Content-Type"), "application/json");
+  assert.equal(calls.at(-1).init.headers.get("Idempotency-Key"), "browser-card-intent-key");
+  assert.equal(calls.at(-1).init.credentials, "include");
 });

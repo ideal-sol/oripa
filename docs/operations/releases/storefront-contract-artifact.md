@@ -151,6 +151,21 @@ The ledger records alpha.29 as `latest_immutable` and clears `candidate`, so a
 same-version rebuild is rejected. Storefront exact-pin adoption is GO;
 Platform API Runtime Activation remains deferred.
 
+## Save Card Registration JSON Request Release Candidate
+
+MIG-096 prepares package-only bundle `2.0.0-alpha.30`. Both Storefront Client
+CSRF variants now send Card Registration Intent creation as a JSON POST with an
+empty object body, preserving the existing endpoint, idempotency, CSRF, response,
+and purchase orchestration contracts. Storefront Testkit advances to the matching
+Client version; Public OpenAPI alpha.27, its 65 operations, Site Schema alpha.23,
+Platform, and Application versions remain unchanged.
+
+The candidate does not weaken Browser Security, add standalone registration
+completion to the purchase flow, change Payment or Card authority, contact the
+Provider, activate an API Runtime, or apply a migration. Card success and failure
+return handling remains unchanged in Platform; the active Storefront must consume
+the existing Platform-provided merchant return URLs when executing the Card.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.
