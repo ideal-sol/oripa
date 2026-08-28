@@ -40,14 +40,31 @@
 - No purchase call to standalone `completePaymentCardRegistration()` is added.
 - Platform Card Return code is unchanged; exact Storefront follow-up is required to execute the Card with both Platform-provided merchant return URLs.
 
+## Stage 0 PayPay Correlation
+
+- Target Payment: `01a0473c-ea1a-72f5-bd43-24fa2c9400bb`, created 2026-08-28 16:19:29 JST, method `paypay`.
+- Stored Provider payment reference: `o9f422e197feab4c885d4543aa9`; current status / provider status: `requires_action` / `UNPROCESSED`.
+- Provider success evidence: Human observed PayPay App success. Canonical Provider retrieval using the stored reference returned HTTP 400 / `EE006025002` (`transaction does not exist`), so the Platform cannot independently read back that reference as a PayPay transaction.
+- Browser Return: Platform normal Return Handler received the target `pid` at 16:19:47 JST and returned the canonical 303 Storefront thanks destination. Browser return performed no Payment or Coin mutation.
+- Polling: authenticated `getPayment(pid)` returned the unchanged non-terminal state through the observed 30-second polling boundary.
+- Webhook received / HTTP: `POST /webhooks/v2/fincode` reached the API three times at 16:19:35, 16:19:35, and 16:19:40 JST; each response was HTTP 404. The route exists, and this controller returns 404 only for `FINCODE_PAYMENT_NOT_FOUND` after signature, JSON, supported event, pay type, and reference-shape validation.
+- Retained webhook evidence does not include the raw body, event name, pay type, or incoming Provider reference. No raw Provider payload was displayed or persisted by this diagnosis.
+- Provider Event / correlation / webhook re-query: 0 rows / failed / 0 calls. The service stops before Provider re-query when `payments.provider_payment_id` does not match the webhook order reference.
+- Canonical status transition / transaction: no `succeeded` transition and no webhook domain transaction began; therefore no commit or rollback occurred.
+- Payment Point Grant / purchase mail: 0 / 0.
+- Exact failure point: redirect-session order correlation was broken before webhook Provider re-query.
+- Root cause: `POST /v1/sessions` sent the merchant order reference as `transaction.id`. The official fincode OpenAPI requires the optional preassigned transaction reference at `transaction.order_id`; without it fincode generates a different Payment ID. Platform then stored and queried the unregistered merchant value, while the signed webhook carried the Provider-created transaction reference, causing `FINCODE_PAYMENT_NOT_FOUND`.
+- Minimal fix: send `transaction.order_id` and never send the unsupported `transaction.id`. The same redirect-session builder is shared by PayPay, Konbini, and Virtual Account, so all three retain the existing canonical return and correlation contract.
+- Diagnostic Provider communication: 3 read-only GET attempts, all safely reduced to HTTP/category evidence. Provider mutation, replay, artificial event delivery, Payment mutation, and Coin mutation were 0.
+
 ## Delivery Boundary
 
 - Migration created / applied: 0 / 0.
-- API source change / Build / Activation: 0 / 0 / 0.
+- API source change: 1 minimal adapter mapping. Build / Activation remain pending merge-first delivery.
 - Payment/Coin mutation from task: 0.
-- Provider mutation/communication from diagnosis: 0.
+- Provider mutation from diagnosis: 0.
 - Production mutation: 0.
-- Webhook W3: independently unresolved; no replay, event injection, configuration change, or speculative fix.
+- Webhook W3: exact `transaction.id` versus `transaction.order_id` cause is resolved without replay, event injection, signature weakening, configuration change, or speculative mapping.
 
 ## Focused Verification
 
@@ -58,4 +75,5 @@
 - Policy: 167 unit tests PASS; local Policy Gate PASS for 1,588 tracked files.
 - Card Backend: 26 tests / 295 assertions PASS on isolated PostgreSQL with Provider fakes; existing PHPUnit warnings 26.
 - Card concurrency/idempotency: 1 test / 22 assertions PASS on isolated PostgreSQL with Provider fakes; existing PHPUnit warning 1.
+- Fixed PayPay/Card/redirect-session head: 27 tests / 317 assertions PASS on a fresh isolated PostgreSQL with Provider fakes; existing PHPUnit warnings 27.
 - Initial non-behavioral failures: Client dependencies/dist absent; Testkit Site Schema prerequisite not built. Frozen install and dependency build resolved both. A stale alpha.29 version-header assertion was then updated to the alpha.30 package version and the same suite passed.

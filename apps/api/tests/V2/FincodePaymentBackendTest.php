@@ -220,7 +220,10 @@ final class FincodePaymentBackendTest extends TestCase
                 return ($data['success_url'] ?? null)
                         === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/normal?pid='.$payment['id']
                     && ($data['cancel_url'] ?? null)
-                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id'];
+                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id']
+                    && ($data['transaction']['order_id'] ?? null)
+                        === DB::table('payments')->where('public_id', $payment['id'])->value('provider_payment_id')
+                    && ! array_key_exists('id', $data['transaction'] ?? []);
             });
         }
     }
