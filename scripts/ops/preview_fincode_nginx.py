@@ -1,27 +1,52 @@
 #!/usr/bin/env python3
-"""Canonicalize the exact Shared Preview fincode webhook Nginx route."""
+"""Canonicalize Shared Preview API and fincode webhook Nginx routes."""
 
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import tempfile
+from urllib.parse import urlsplit
 
 
 PREVIEW_SERVER_NAME = "test.luxe-pack.biz"
 WEBHOOK_PATH = "/webhooks/v2/fincode"
+STABLE_API_UPSTREAM = "http://127.0.0.1:8611"
+NGINX_TEST_COMMAND = ("/usr/sbin/nginx", "-t")
+NGINX_RELOAD_COMMAND = ("/usr/bin/systemctl", "reload", "nginx")
+RFC1918_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
 SERVER_PATTERN = re.compile(r"^\s*server\s*\{\s*$")
-API_LOCATION_PATTERN = re.compile(r"^\s*location\s+\^~\s+/api/v2/\s*\{\s*$")
+API_EXACT_LOCATION_PATTERN = re.compile(
+    r"^\s*location\s+=\s+/api/v2\s*\{\s*$"
+)
+API_PREFIX_LOCATION_PATTERN = re.compile(
+    r"^\s*location\s+\^~\s+/api/v2/\s*\{\s*$"
+)
 WEBHOOK_LOCATION_PATTERN = re.compile(
     r"^\s*location\s+=\s+/webhooks/v2/fincode\s*\{\s*$"
 )
 ADMIN_LOCATION_PATTERN = re.compile(r"^\s*location\s+\^~\s+/admin/api/\s*\{\s*$")
 LOCATION_PATTERN = re.compile(r"^\s*location\b")
 PROXY_PATTERN = re.compile(r"^\s*proxy_pass\s+(http://[^;\s]+);\s*$")
+PROXY_CONTRACT_PATTERNS = (
+    re.compile(r"^\s*proxy_http_version\s+1\.1;\s*$"),
+    re.compile(r"^\s*proxy_set_header\s+Host\s+\$host;\s*$"),
+    re.compile(r"^\s*proxy_set_header\s+X-Real-IP\s+\$remote_addr;\s*$"),
+    re.compile(
+        r"^\s*proxy_set_header\s+X-Forwarded-For\s+"
+        r"\$proxy_add_x_forwarded_for;\s*$"
+    ),
+    re.compile(r"^\s*proxy_set_header\s+X-Forwarded-Proto\s+\$scheme;\s*$"),
+)
 
 
 class PreviewNginxError(RuntimeError):
@@ -96,15 +121,55 @@ def location_range(
     return matches[0] if matches else None
 
 
-def api_upstream(lines: list[str], start: int, end: int) -> str:
+def proxy_upstream(lines: list[str], start: int, end: int) -> tuple[int, str]:
     matches = []
-    for line in lines[start : end + 1]:
+    for index in range(start, end + 1):
+        line = lines[index]
         match = PROXY_PATTERN.fullmatch(line.rstrip("\n"))
         if match:
-            matches.append(match.group(1))
+            matches.append((index, match.group(1)))
     if len(matches) != 1:
         fail("preview_api_upstream_not_unique")
     return matches[0]
+
+
+def validate_proxy_contract(lines: list[str], start: int, end: int) -> None:
+    block = [line.rstrip("\n") for line in lines[start : end + 1]]
+    if any(
+        sum(bool(pattern.fullmatch(line)) for line in block) != 1
+        for pattern in PROXY_CONTRACT_PATTERNS
+    ):
+        fail("preview_proxy_header_contract_invalid")
+    _, upstream = proxy_upstream(lines, start, end)
+    parsed = urlsplit(upstream)
+    if (
+        parsed.path
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
+    ):
+        fail("preview_proxy_uri_semantics_invalid")
+
+
+def replace_proxy_upstream(
+    lines: list[str], start: int, end: int, upstream: str
+) -> None:
+    index, _ = proxy_upstream(lines, start, end)
+    indentation = re.match(r"^\s*", lines[index]).group(0)
+    newline = "\n" if lines[index].endswith("\n") else ""
+    lines[index] = f"{indentation}proxy_pass {upstream};{newline}"
+
+
+def is_container_specific_upstream(upstream: str) -> bool:
+    hostname = urlsplit(upstream).hostname
+    if hostname is None:
+        return False
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    return any(address in network for network in RFC1918_NETWORKS)
 
 
 def canonical_location(indentation: str, upstream: str) -> str:
@@ -132,10 +197,15 @@ def render_config(content: str) -> str:
     if not lines or any(not line.endswith("\n") for line in lines[:-1]):
         fail("nginx_content_invalid")
     server_start, server_end = preview_server(lines)
-    api = location_range(lines, server_start, server_end, API_LOCATION_PATTERN)
+    api_exact = location_range(
+        lines, server_start, server_end, API_EXACT_LOCATION_PATTERN
+    )
+    api_prefix = location_range(
+        lines, server_start, server_end, API_PREFIX_LOCATION_PATTERN
+    )
     admin = location_range(lines, server_start, server_end, ADMIN_LOCATION_PATTERN)
     webhook = location_range(lines, server_start, server_end, WEBHOOK_LOCATION_PATTERN)
-    if api is None or admin is None:
+    if api_exact is None or api_prefix is None or admin is None:
         fail("preview_route_boundary_missing")
     for index in range(server_start + 1, server_end):
         line = lines[index].rstrip("\n")
@@ -143,17 +213,24 @@ def render_config(content: str) -> str:
             if not WEBHOOK_LOCATION_PATTERN.fullmatch(line):
                 fail("broad_webhook_location_rejected")
 
-    upstream = api_upstream(lines, *api)
-    indentation = re.match(r"^\s*", lines[api[0]]).group(0)
-    expected = canonical_location(indentation, upstream)
+    for route in (api_exact, api_prefix):
+        validate_proxy_contract(lines, *route)
+        replace_proxy_upstream(lines, *route, STABLE_API_UPSTREAM)
+
+    indentation = re.match(r"^\s*", lines[api_prefix[0]]).group(0)
     if webhook is not None:
+        validate_proxy_contract(lines, *webhook)
+        _, webhook_upstream = proxy_upstream(lines, *webhook)
+        expected = canonical_location(indentation, webhook_upstream)
         actual = "".join(lines[webhook[0] : webhook[1] + 1])
         if actual != expected:
             fail("fincode_webhook_location_mismatch")
-        return content
+        replace_proxy_upstream(lines, *webhook, STABLE_API_UPSTREAM)
+        return "".join(lines)
 
     insertion = admin[0]
     prefix = "" if insertion == 0 or lines[insertion - 1].strip() == "" else "\n"
+    expected = canonical_location(indentation, STABLE_API_UPSTREAM)
     lines[insertion:insertion] = [prefix, expected, "\n"]
     return "".join(lines)
 
@@ -195,6 +272,7 @@ def apply_config(path: Path, backup: Path) -> dict[str, object]:
     metadata = secure_file(path)
     original = path.read_bytes()
     rendered = render_config(original.decode("utf-8")).encode("utf-8")
+    verify_content(rendered.decode("utf-8"))
     if rendered == original:
         return {"changed": False, "status": "already_canonical"}
     if backup.exists():
@@ -205,6 +283,11 @@ def apply_config(path: Path, backup: Path) -> dict[str, object]:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+    directory = os.open(backup.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
     atomic_replace(path, rendered, metadata)
     return {"changed": True, "status": "updated"}
 
@@ -222,28 +305,89 @@ def restore_config(path: Path, backup: Path) -> dict[str, object]:
     metadata = secure_file(path)
     secure_file(backup, 0o600)
     original = backup.read_bytes()
-    render_config(path.read_text(encoding="utf-8"))
+    render_config(original.decode("utf-8"))
     atomic_replace(path, original, metadata)
     return {"changed": True, "status": "restored"}
 
 
+def verify_content(content: str) -> None:
+    rendered = render_config(content)
+    if rendered == content:
+        return
+    lines = content.splitlines(keepends=True)
+    server_start, server_end = preview_server(lines)
+    upstreams = []
+    for pattern in (
+        API_EXACT_LOCATION_PATTERN,
+        API_PREFIX_LOCATION_PATTERN,
+        WEBHOOK_LOCATION_PATTERN,
+    ):
+        route = location_range(lines, server_start, server_end, pattern)
+        if route is not None:
+            upstreams.append(proxy_upstream(lines, *route)[1])
+    if any(is_container_specific_upstream(upstream) for upstream in upstreams):
+        fail("container_specific_upstream_rejected")
+    fail("preview_routes_not_canonical")
+
+
 def verify_config(path: Path) -> dict[str, object]:
     secure_file(path)
-    content = path.read_text(encoding="utf-8")
-    if render_config(content) != content:
-        fail("fincode_webhook_location_missing")
+    verify_content(path.read_text(encoding="utf-8"))
     return {"changed": False, "status": "canonical"}
+
+
+def run_operational_command(runner, command: tuple[str, ...]) -> bool:
+    try:
+        result = runner(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def activate_config(
+    path: Path, backup: Path, runner=subprocess.run
+) -> dict[str, object]:
+    result = apply_config(path, backup)
+    if not result["changed"]:
+        return {
+            **result,
+            "config_test": "not_run",
+            "reload": "not_run",
+        }
+    if not run_operational_command(runner, NGINX_TEST_COMMAND):
+        restore_config(path, backup)
+        fail("nginx_config_test_failed_rolled_back")
+    if not run_operational_command(runner, NGINX_RELOAD_COMMAND):
+        restore_config(path, backup)
+        fail("nginx_reload_failed_rolled_back")
+    return {
+        **result,
+        "config_test": "passed",
+        "reload": "completed",
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("operation", choices=("apply", "restore", "verify"))
+    parser.add_argument(
+        "operation", choices=("activate", "apply", "restore", "verify")
+    )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--backup", type=Path)
     arguments = parser.parse_args()
-    if arguments.operation in {"apply", "restore"} and arguments.backup is None:
+    if (
+        arguments.operation in {"activate", "apply", "restore"}
+        and arguments.backup is None
+    ):
         fail("backup_required")
-    if arguments.operation == "apply":
+    if arguments.operation == "activate":
+        result = activate_config(arguments.input, arguments.backup)
+    elif arguments.operation == "apply":
         result = apply_config(arguments.input, arguments.backup)
     elif arguments.operation == "restore":
         result = restore_config(arguments.input, arguments.backup)

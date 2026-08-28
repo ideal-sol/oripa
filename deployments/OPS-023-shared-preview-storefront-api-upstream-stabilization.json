@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-023",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_ready_merge_pending",
+  "issue": 412,
+  "pull_request": 413,
+  "base_sha": "8e5277110097a2e3b567392a035a23026aafce18",
+  "implementation_commit": "f453c59f51ba9d031855526be10b0f32585cc292",
+  "task_policy": {
+    "path": "/etc/ideal-sol/github-app/task-policies/OPS-023.json",
+    "sha256": "068386fd56d4eb4e3719b2b28cb07c78206d5d8a92ca7319c65119215bdde052",
+    "allowed_path_count": 10
+  },
+  "stage_0": {
+    "local_origin_github_main_equal": true,
+    "working_tree_clean": true,
+    "task_id_unused_before_issue": true,
+    "nginx_topology": "HOST_SYSTEMD",
+    "active_vhost": "/etc/nginx/conf.d/test.luxe-pack.biz.conf",
+    "active_vhost_sha256": "68fb67457d310a4210ef926ebe891a1a38eb0d32c23ff67bb522b0641c670a6b",
+    "old_api_upstream": "http://192.168.61.10:8000",
+    "api_loopback_publication": "127.0.0.1:8611:8000",
+    "docker_service_dns_from_host": false,
+    "active_api_revision": "e006c7a95592e5a03eef0be7e59bfa995185171c",
+    "active_api_image": "oripa-v2-api:preview-MIG-097-e006c7a95592",
+    "active_api_image_id": "sha256:e782e21228fb59e01f518213da48352750e7bf36b97a6c135fa75517980fadba",
+    "rollback_api_image": "oripa-v2-api:preview-MIG-096-3f6f918e2d85",
+    "active_storefront_revision": "bddff7106a8e710859a94cc07ada9a93b18aa136",
+    "active_storefront_build_id": "vEpuPZEWLUWtXU7dZ2lE6",
+    "direct_api_status": {
+      "/api/health": 200,
+      "/api/v2/auth/session": 200,
+      "/api/v2/gachas?limit=1": 200,
+      "/api/v2/point-products": 200
+    },
+    "storefront_same_origin_status": {
+      "/api/v2/auth/session": 502,
+      "/api/v2/gachas?limit=1": 502,
+      "/api/v2/point-products": 502,
+      "/": 200,
+      "/points": 200
+    },
+    "services_healthy_or_active": true,
+    "restart_counts_zero": true,
+    "v2_private_internal": true,
+    "root_free_bytes": 27402104832,
+    "secret_value_readback": 0
+  },
+  "root_cause": {
+    "summary": "API-only activation recreated the API without the historical static container address while Host Nginx retained that obsolete address.",
+    "activation_updates_nginx": false,
+    "activation_runs_same_origin_smoke": false,
+    "canonical_runbook_required_fixed_ip": true
+  },
+  "source_change": {
+    "canonical_stable_upstream": "http://127.0.0.1:8611",
+    "managed_routes": [
+      "location = /api/v2",
+      "location ^~ /api/v2/",
+      "location = /webhooks/v2/fincode"
+    ],
+    "private_container_upstream_verification": "FAIL_CLOSED",
+    "header_and_uri_contract": "PRESERVED",
+    "atomic_backup_apply_restore": "GUARDED",
+    "nginx_test_before_reload": true,
+    "api_only_same_origin_acceptance": "REQUIRED"
+  },
+  "source_validation": {
+    "preview_nginx_tests": "PASS_11",
+    "preview_pipeline_tests": "PASS_25",
+    "policy_unit_tests": "PASS_171",
+    "local_policy_gate": "PASS_1596_TRACKED_FILES",
+    "python_compile": "PASS",
+    "git_diff_check": "PASS",
+    "required_checks": "PENDING_FINAL_HEAD",
+    "fresh_strict_self_review": "PENDING_FINAL_HEAD"
+  },
+  "post_merge_runtime": {
+    "authority": "exact squash-merged main script and root-only evidence",
+    "backup": "/var/lib/oripa-v2-evidence/OPS-023/test-vhost.before.conf",
+    "config_apply": "PENDING_AFTER_MERGE",
+    "nginx_reload": "PENDING_AFTER_MERGE",
+    "runtime_acceptance": "PENDING_AFTER_MERGE"
+  },
+  "admin_api_proxy": {
+    "stage_0_status": 502,
+    "same_test_vhost_change_naturally_fixes": false,
+    "separate_runtime_vhost_required": true,
+    "ops_023_mutation": "PROHIBITED",
+    "status": "REMAINING_BLOCKER_SEPARATE_OPS_TASK"
+  },
+  "mutation_boundary_before_merge": {
+    "api_build": 0,
+    "storefront_build": 0,
+    "admin_build": 0,
+    "container_recreate": 0,
+    "nginx_config_apply": 0,
+    "nginx_reload": 0,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "database_mutation": 0,
+    "artifact_publication": 0,
+    "provider_payment_coin_mail_mutation": 0,
+    "production_mutation": 0,
+    "secret_value_readback": 0
+  }
+}
