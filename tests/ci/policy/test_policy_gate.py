@@ -1556,6 +1556,50 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_payment_boundary(root)
             policy_gate.validate_v2_payment_boundary(root, paths)
 
+    def test_v2_payment_fincode_canonical_classifier_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            classifier = (
+                root
+                / "apps/api/app/Domain/Payment/V2/Services/"
+                "V2FincodeCanonicalStatusClassifier.php"
+            )
+            classifier.write_text(
+                classifier.read_text(encoding="utf-8").replace(
+                    "EC0091310A3",
+                    "REMOVED_TERMINAL_FAILURE_CODE",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "canonical classifier missing EC0091310A3",
+            ):
+                policy_gate.validate_v2_payment_boundary(root, paths)
+
+    def test_v2_payment_fincode_webhook_must_use_canonical_classifier(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            webhook = (
+                root
+                / "apps/api/app/Domain/Payment/V2/Services/"
+                "V2FincodeWebhookService.php"
+            )
+            webhook.write_text(
+                webhook.read_text(encoding="utf-8").replace(
+                    "statusClassifier->classify",
+                    "REMOVED_CANONICAL_CLASSIFICATION",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "Webhook service missing statusClassifier->classify",
+            ):
+                policy_gate.validate_v2_payment_boundary(root, paths)
+
     def test_v2_payment_tenant_id_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -182,6 +182,14 @@ Platform状態は`created`、`requires_action`、`processing`、`succeeded`、`f
 | `EXPIRED` | `expired` |
 | `FAILED` | `failed` |
 
+Cardのexact Provider再照会が`status=AUTHENTICATED`かつ`error_code=EC0091310A3`を返す場合は、
+coarse statusより公式error semanticsを優先し、対象Payment attemptを`failed`へterminalizeする。
+同codeは「3Dセキュア2.0認証失敗、購入画面から再試行」を意味し、Browser failure Return単独では
+この判定を行わない。`AUTHENTICATED`でerrorなしは従来どおり`requires_action`、未承認error code、
+不正なerror shape、Provider再照会失敗は推測せずstatus mutationなしでFail Closedする。
+terminal codeは既存`fincode_payment_attempts.last_error_code`へ保持し、Payment success、Coin Grant、
+Point Ledger、購入完了Mailを作成しない。
+
 未知statusは推測せずRejectする。KonbiniとVirtual Accountの`payment_term_day`は公式仕様で
 指定可能な`3`日固定である。Userごとの有効な未払いKonbiniは最大1件とし、User row lockで
 並行作成を防ぐ。terminal化または期限経過後は新規作成できる。Virtual Accountの未払い数は

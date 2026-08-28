@@ -46,7 +46,8 @@ final class V2FincodeWebhookService
 
     public function __construct(
         private readonly V2FincodeClient $client,
-        private readonly V2PaymentService $payments
+        private readonly V2PaymentService $payments,
+        private readonly V2FincodeCanonicalStatusClassifier $statusClassifier
     ) {
     }
 
@@ -129,6 +130,7 @@ final class V2FincodeWebhookService
             'amount',
             'tax',
             'billing_total_amount',
+            'error_code',
             'transaction_date',
             'payment_date',
             'process_date',
@@ -167,14 +169,17 @@ final class V2FincodeWebhookService
     ): array
     {
         $this->validateCanonicalPayment($canonical, $payment, $orderId, $payType);
-        $providerStatus = $canonical['status'];
-        $platformStatus = $this->platformStatus($providerStatus);
+        $classification = $this->statusClassifier->classify($canonical, $payType);
+        $providerStatus = $classification['provider_status'];
+        $platformStatus = $classification['platform_status'];
+        $terminalFailureCode = $classification['terminal_failure_code'];
         $occurredAt = $this->occurredAt($canonical, $eventPayload, $platformStatus === 'succeeded');
         $eventId = hash('sha256', implode('|', [
             'fincode',
             $eventName,
             $orderId,
             $providerStatus,
+            $terminalFailureCode ?? '',
             $occurredAt?->toIso8601String() ?? '',
             hash('sha256', $rawEvidence),
         ]));
@@ -200,7 +205,7 @@ final class V2FincodeWebhookService
             }
             return ['status' => 'ignored'];
         }
-        DB::table('fincode_payment_attempts')->where('payment_id', $payment->id)->update([
+        $attemptUpdate = [
             'status' => match ($platformStatus) {
                 'succeeded' => 'completed',
                 'processing' => 'pending',
@@ -208,7 +213,13 @@ final class V2FincodeWebhookService
                 default => 'failed',
             },
             'updated_at' => now(),
-        ]);
+        ];
+        if ($terminalFailureCode !== null) {
+            $attemptUpdate['last_error_code'] = $terminalFailureCode;
+        }
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', $payment->id)
+            ->update($attemptUpdate);
 
         return ['status' => 'processed'];
     }
@@ -268,23 +279,6 @@ final class V2FincodeWebhookService
         }
 
         return null;
-    }
-
-    private function platformStatus(string $status): string
-    {
-        return match ($status) {
-            'CAPTURED' => 'succeeded',
-            'CANCELED' => 'canceled',
-            'EXPIRED' => 'expired',
-            'FAILED' => 'failed',
-            'AWAITING_CUSTOMER_PAYMENT', 'AWAITING_PAYMENT_APPROVAL' => 'processing',
-            'UNPROCESSED', 'CHECKED', 'AUTHORIZED', 'AUTHENTICATED' => 'requires_action',
-            default => throw new V2FincodeException(
-                'FINCODE_PAYMENT_STATUS_UNKNOWN',
-                422,
-                'The canonical payment status is unknown.'
-            ),
-        };
     }
 
     /**
