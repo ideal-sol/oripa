@@ -99,10 +99,12 @@ Konbiniは支払情報発行、Virtual Accountは振込先発行が成功したn
 `processing`／未払いであり、failureとして扱わず入金後だけCoinを付与する。thanks page reloadでも
 `getPayment(pid)`で状態を再取得し、期限内未払いならUser action時に
 `resumeUnpaidPayment(pid)`を呼ぶ。`getPayment().next_action.url`をdurable resume URLとして
-依存しない。resumeはownership、方式、`processing`、`AWAITING_CUSTOMER_PAYMENT`、期限、保存済み
-redirectを検証して暗号化保存済みの既存URLを返すだけで、新規Payment、fincode Session、
-Konbini支払情報、Virtual Accountを作らずProvider APIも呼ばない。Card／PayPay、terminal、
-期限切れ、other-user、invalid Paymentはresumeできない。
+依存しない。resumeと`view=unpaid`は、Konbini／Virtual Accountの
+`requires_action + UNPROCESSED`または`processing + AWAITING_CUSTOMER_PAYMENT`だけを対象とする。
+ownership、fincode provider、方式、期限、復号可能な保存済みfincode HTTPS redirectを共通で
+検証し、暗号化保存済みの既存URLを返すだけで、新規Payment、fincode Session、Konbini支払情報、
+Virtual Accountを作らずProvider APIも呼ばない。Card／PayPay、terminal、期限切れ、other-user、
+redirectなし／復号不可／authority不正、invalid Paymentは一覧へ出さずresumeできない。
 
 ## Card Boundary
 
@@ -224,8 +226,10 @@ reconciliation requiredで停止する。
 
 Public APIはPayment開始、Platform生成ReturnのPOST→303正規化、状態参照、成功／未払い履歴、既存未払いRedirect再開、カード一覧・
 削除・登録Intent・登録完了を提供する。成功履歴は`succeeded`だけ、未払い履歴は期限内かつ
-`AWAITING_CUSTOMER_PAYMENT`のKonbini／Virtual Accountだけを返す。expired、failed、canceledは
-Storefront履歴に出さない。`getPayment`はCanonical state／presentationのreadでありProvider
+復号可能な保存済みfincode HTTPS redirectを持つKonbini／Virtual Accountの
+`requires_action + UNPROCESSED`または`processing + AWAITING_CUSTOMER_PAYMENT`だけを返す。
+Credit Card／PayPay、expired、failed、canceled、succeededはStorefront未払い履歴に出さない。
+`getPayment`はCanonical state／presentationのreadでありProvider
 再照会、Session作成、Coin Grant、Webhook代替を行わない。未払い再開は暗号化保存した既存
 Redirect URLを返し、新規PaymentやProvider Sessionを作らない。API正本は`openapi/public/openapi.yaml`、薄いClientは
 `packages/storefront-client/src/payments.ts`である。
