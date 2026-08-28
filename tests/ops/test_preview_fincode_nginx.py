@@ -146,6 +146,18 @@ class PreviewFincodeNginxTest(unittest.TestCase):
                 FIXTURE.replace(OLD_UPSTREAM, f"{OLD_UPSTREAM}/api/v2/", 1)
             )
 
+        webhook_with_path = FIXTURE.replace(
+            WEBHOOK_BLOCK,
+            WEBHOOK_BLOCK.replace(
+                OLD_UPSTREAM, f"{OLD_UPSTREAM}/webhooks/v2/fincode"
+            ),
+        )
+        with self.assertRaisesRegex(
+            preview_fincode_nginx.PreviewNginxError,
+            "preview_proxy_uri_semantics_invalid",
+        ):
+            preview_fincode_nginx.render_config(webhook_with_path)
+
     def test_verify_rejects_container_specific_upstream_literals(self):
         for upstream in (OLD_UPSTREAM, CURRENT_CONTAINER_UPSTREAM):
             with self.subTest(upstream=upstream):

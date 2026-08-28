@@ -219,6 +219,7 @@ def render_config(content: str) -> str:
 
     indentation = re.match(r"^\s*", lines[api_prefix[0]]).group(0)
     if webhook is not None:
+        validate_proxy_contract(lines, *webhook)
         _, webhook_upstream = proxy_upstream(lines, *webhook)
         expected = canonical_location(indentation, webhook_upstream)
         actual = "".join(lines[webhook[0] : webhook[1] + 1])
