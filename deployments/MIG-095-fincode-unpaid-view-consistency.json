@@ -1,0 +1,51 @@
+{
+  "task_id": "MIG-095",
+  "lane": "Strict Change",
+  "risk": "R4",
+  "activation": "immediate",
+  "base_sha": "7d72997dd329bc90dcb9a1fb1a60dcd32ac025c7",
+  "issue": 405,
+  "source": {
+    "unpaid_old_state_pairs": [
+      "processing+AWAITING_CUSTOMER_PAYMENT"
+    ],
+    "unpaid_new_state_pairs": [
+      "requires_action+UNPROCESSED",
+      "processing+AWAITING_CUSTOMER_PAYMENT"
+    ],
+    "shared_resume_policy": true,
+    "konbini_unpaid_limit_changed": false,
+    "cursor_contract_changed": false,
+    "webhook_404_classification": "W3_UNRESOLVED",
+    "webhook_code_changed": false,
+    "public_openapi_changed": false,
+    "storefront_client_changed": false,
+    "storefront_testkit_changed": false,
+    "artifact_required": false,
+    "migration_created": 0
+  },
+  "merge_first_activation": {
+    "required": true,
+    "image_mode": "api-only",
+    "source_head": "PENDING_FINAL_HEAD",
+    "merge_sha": "PENDING_MERGE",
+    "workflow_run": "PENDING_POST_MERGE",
+    "artifact_id": "PENDING_POST_MERGE",
+    "api_image": "PENDING_POST_MERGE",
+    "api_image_digest": "PENDING_POST_MERGE",
+    "oci_revision": "PENDING_POST_MERGE",
+    "admin_build_count": 0,
+    "storefront_build_count": 0,
+    "migration_applied": 0
+  },
+  "runtime": {
+    "api_activation": "PENDING_POST_MERGE",
+    "api_health": "PENDING_POST_MERGE",
+    "admin_health": "PRESERVE_CURRENT",
+    "postgres_health": "PRESERVE_CURRENT",
+    "redis_health": "PRESERVE_CURRENT",
+    "business_mutation": 0,
+    "provider_communication": 0,
+    "production_mutation": 0
+  }
+}
