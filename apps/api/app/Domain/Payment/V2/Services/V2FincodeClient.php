@@ -85,7 +85,7 @@ final class V2FincodeClient
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
             'transaction' => [
-                'id' => $orderId,
+                'order_id' => $orderId,
                 'pay_type' => [$payType],
                 'amount' => (string) $amount,
             ],

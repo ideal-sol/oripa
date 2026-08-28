@@ -163,6 +163,7 @@ export function createStorefrontPaymentClient(
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",
+      body: {},
       headers: csrf(options.csrf_token),
       idempotency_key: options.idempotency_key,
       csrf: "required",
@@ -226,6 +227,7 @@ export function createCsrfManagedStorefrontPaymentClient(
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",
+      body: {},
       idempotency_key: options.idempotency_key,
       csrf: "required",
       signal: options.signal,
