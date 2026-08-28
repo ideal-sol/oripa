@@ -445,6 +445,7 @@ V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2PaymentException.php",
     "apps/api/app/Domain/Payment/V2/Services/V2AdminPaymentReadService.php",
     "apps/api/app/Domain/Payment/V2/Services/V2FincodeCardService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeCanonicalStatusClassifier.php",
     "apps/api/app/Domain/Payment/V2/Services/V2FincodeClient.php",
     "apps/api/app/Domain/Payment/V2/Services/V2FincodePaymentService.php",
     "apps/api/app/Domain/Payment/V2/Services/V2FincodeWebhookService.php",
@@ -3429,12 +3430,37 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
         "webhook_signature",
         "hash_equals",
         "retrievePayment",
-        "CAPTURED",
+        "V2FincodeCanonicalStatusClassifier",
+        "statusClassifier->classify",
         "recordVerifiedProviderEvent",
         "applyVerifiedStatus",
     ):
         if required not in fincode_webhook:
             raise PolicyFailure(f"fincode Webhook service missing {required}")
+    fincode_classifier = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/"
+        "V2FincodeCanonicalStatusClassifier.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "TERMINAL_FAILURE_CODES",
+        "error_code",
+        "EC0091310A3",
+        "FINCODE_CARD_FAILURE_UNCLASSIFIED",
+        "FINCODE_CANONICAL_RESPONSE_INVALID",
+        "CAPTURED",
+        "CANCELED",
+        "EXPIRED",
+        "FAILED",
+        "AWAITING_CUSTOMER_PAYMENT",
+        "AWAITING_PAYMENT_APPROVAL",
+        "UNPROCESSED",
+        "CHECKED",
+        "AUTHORIZED",
+        "AUTHENTICATED",
+    ):
+        if required not in fincode_classifier:
+            raise PolicyFailure(f"fincode canonical classifier missing {required}")
     fincode_payment = (
         repository
         / "apps/api/app/Domain/Payment/V2/Services/V2FincodePaymentService.php"

@@ -716,6 +716,314 @@ final class FincodePaymentBackendTest extends TestCase
         }
     }
 
+    public function test_documented_card_3ds_failure_from_exact_requery_is_terminal_and_duplicate_safe(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('three-d-secure-terminal');
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-terminal',
+            ['source' => 'new', 'save' => false]
+        );
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A3');
+        $raw = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+            'error_code' => 'EC0091310A2',
+            'process_date' => '2026/08/24 12:00:00.000',
+        ], JSON_THROW_ON_ERROR);
+        $webhooks = app(V2FincodeWebhookService::class);
+
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+
+        $failed = DB::table('payments')->where('id', $row->id)->firstOrFail();
+        self::assertSame('failed', $failed->status);
+        self::assertSame('AUTHENTICATED', $failed->provider_status);
+        self::assertNotNull($failed->provider_confirmed_at);
+        $attempt = DB::table('fincode_payment_attempts')->where('payment_id', $row->id)->firstOrFail();
+        self::assertSame('failed', $attempt->status);
+        self::assertSame('EC0091310A3', $attempt->last_error_code);
+        self::assertSame(1, DB::table('payment_provider_events')->where('payment_id', $row->id)->count());
+        self::assertSame(1, DB::table('payment_provider_event_attempts')->count());
+        self::assertSame(1, DB::table('payment_status_histories')
+            ->where('payment_id', $row->id)->where('to_status', 'failed')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        self::assertSame(0, DB::table('point_operations')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('point_ledger_entries')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+        Http::assertSent(function (Request $request) use ($row): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return $request->method() === 'GET'
+                && str_ends_with((string) parse_url($request->url(), PHP_URL_PATH), '/'.$row->provider_payment_id)
+                && ($query['pay_type'] ?? null) === 'Card';
+        });
+    }
+
+    public function test_documented_card_3ds_failure_after_challenge_event_uses_requery_authority(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('three-d-secure-challenge');
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-challenge',
+            ['source' => 'new', 'save' => false]
+        );
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $webhooks = app(V2FincodeWebhookService::class);
+        $this->fakeFincode('AUTHENTICATED');
+        $challenge = json_encode([
+            'event' => 'payments.card.secure2.authenticate',
+            'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+            'error_code' => 'EC0091310A3',
+            'process_date' => '2026/08/24 12:00:00.000',
+        ], JSON_THROW_ON_ERROR);
+
+        self::assertSame('processed', $webhooks->process($challenge, 'test-webhook-signature')['status']);
+        self::assertSame('requires_action', DB::table('payments')->where('id', $row->id)->value('status'));
+        self::assertNull(DB::table('fincode_payment_attempts')
+            ->where('payment_id', $row->id)->value('last_error_code'));
+
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A3');
+        $failure = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+            'process_date' => '2026/08/24 12:00:01.000',
+        ], JSON_THROW_ON_ERROR);
+        self::assertSame('processed', $webhooks->process($failure, 'test-webhook-signature')['status']);
+
+        self::assertSame('failed', DB::table('payments')->where('id', $row->id)->value('status'));
+        self::assertSame('EC0091310A3', DB::table('fincode_payment_attempts')
+            ->where('payment_id', $row->id)->value('last_error_code'));
+        self::assertSame(2, DB::table('payment_provider_events')->where('payment_id', $row->id)->count());
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+    }
+
+    public function test_documented_card_3ds_failure_is_shared_by_direct_reconciliation(): void
+    {
+        $this->fakeFincode();
+        $payment = app(V2FincodePaymentService::class)->start(
+            $this->user('three-d-secure-reconciliation'),
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-reconciliation',
+            ['source' => 'new', 'save' => false]
+        );
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A3');
+
+        $result = app(V2FincodeWebhookService::class)->reconcile($row);
+
+        self::assertSame('processed', $result['status']);
+        self::assertSame('failed', DB::table('payments')->where('id', $row->id)->value('status'));
+        self::assertSame('AUTHENTICATED', DB::table('payments')
+            ->where('id', $row->id)->value('provider_status'));
+        self::assertSame('EC0091310A3', DB::table('fincode_payment_attempts')
+            ->where('payment_id', $row->id)->value('last_error_code'));
+        self::assertSame(1, DB::table('payment_provider_events')->where('payment_id', $row->id)->count());
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        self::assertSame(0, DB::table('point_ledger_entries')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+    }
+
+    public function test_card_terminal_failure_and_success_resist_reverse_order_events(): void
+    {
+        $this->fakeFincode();
+        $failedUser = $this->user('three-d-secure-failure-first');
+        $failedPayment = app(V2FincodePaymentService::class)->start(
+            $failedUser,
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-failure-first',
+            ['source' => 'new', 'save' => false]
+        );
+        $failedRow = DB::table('payments')->where('public_id', $failedPayment['id'])->firstOrFail();
+        $webhooks = app(V2FincodeWebhookService::class);
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A3');
+        $failure = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $failedRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+            'process_date' => '2026/08/24 12:00:00.000',
+        ], JSON_THROW_ON_ERROR);
+        self::assertSame('processed', $webhooks->process($failure, 'test-webhook-signature')['status']);
+
+        $this->fakeFincode('CAPTURED');
+        $lateSuccess = json_encode([
+            'event' => 'payments.card.capture',
+            'order_id' => $failedRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'CAPTURED',
+            'transaction_date' => '2026/08/24 12:00:01.000',
+        ], JSON_THROW_ON_ERROR);
+        self::assertSame('ignored', $webhooks->process($lateSuccess, 'test-webhook-signature')['status']);
+        self::assertSame('failed', DB::table('payments')->where('id', $failedRow->id)->value('status'));
+        self::assertSame('AUTHENTICATED', DB::table('payments')
+            ->where('id', $failedRow->id)->value('provider_status'));
+        self::assertSame(0, DB::table('payment_point_grants')
+            ->where('payment_id', $failedRow->id)->count());
+
+        $succeededUser = $this->user('three-d-secure-success-first');
+        $succeededPayment = app(V2FincodePaymentService::class)->start(
+            $succeededUser,
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-success-first',
+            ['source' => 'new', 'save' => false]
+        );
+        $succeededRow = DB::table('payments')->where('public_id', $succeededPayment['id'])->firstOrFail();
+        $this->fakeFincode('CAPTURED', '1000', 'EC0091310A3');
+        $success = json_encode([
+            'event' => 'payments.card.capture',
+            'order_id' => $succeededRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'CAPTURED',
+            'transaction_date' => '2026/08/24 12:00:02.000',
+        ], JSON_THROW_ON_ERROR);
+        self::assertSame('processed', $webhooks->process($success, 'test-webhook-signature')['status']);
+
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A3');
+        $lateFailure = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $succeededRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+            'process_date' => '2026/08/24 12:00:03.000',
+        ], JSON_THROW_ON_ERROR);
+        self::assertSame('ignored', $webhooks->process($lateFailure, 'test-webhook-signature')['status']);
+        self::assertSame('succeeded', DB::table('payments')->where('id', $succeededRow->id)->value('status'));
+        self::assertSame('CAPTURED', DB::table('payments')
+            ->where('id', $succeededRow->id)->value('provider_status'));
+        self::assertSame('completed', DB::table('fincode_payment_attempts')
+            ->where('payment_id', $succeededRow->id)->value('status'));
+        self::assertNull(DB::table('fincode_payment_attempts')
+            ->where('payment_id', $succeededRow->id)->value('last_error_code'));
+        self::assertSame(1, DB::table('payment_point_grants')
+            ->where('payment_id', $succeededRow->id)->count());
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'coin.purchase.completed:'.$succeededRow->public_id)->count());
+    }
+
+    public function test_unclassified_malformed_and_unavailable_card_requeries_fail_closed(): void
+    {
+        $this->fakeFincode();
+        $service = app(V2FincodePaymentService::class);
+        $webhooks = app(V2FincodeWebhookService::class);
+        $unclassified = $service->start(
+            $this->user('three-d-secure-unclassified'),
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-unclassified',
+            ['source' => 'new', 'save' => false]
+        );
+        $unclassifiedRow = DB::table('payments')->where('public_id', $unclassified['id'])->firstOrFail();
+        $this->fakeFincode('AUTHENTICATED', '1000', 'EC0091310A2');
+        $raw = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $unclassifiedRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+        ], JSON_THROW_ON_ERROR);
+        try {
+            $webhooks->process($raw, 'test-webhook-signature');
+            self::fail('An unclassified Card error must fail closed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_CARD_FAILURE_UNCLASSIFIED', $exception->errorCode);
+            self::assertSame(503, $exception->status);
+            self::assertTrue($exception->retryable);
+        }
+        self::assertSame('requires_action', DB::table('payments')
+            ->where('id', $unclassifiedRow->id)->value('status'));
+        self::assertSame('UNPROCESSED', DB::table('payments')
+            ->where('id', $unclassifiedRow->id)->value('provider_status'));
+
+        $malformed = $service->start(
+            $this->user('three-d-secure-malformed'),
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-malformed',
+            ['source' => 'new', 'save' => false]
+        );
+        $malformedRow = DB::table('payments')->where('public_id', $malformed['id'])->firstOrFail();
+        Http::swap(new Factory());
+        Http::fake(function (Request $request) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return Http::response([
+                'id' => basename((string) parse_url($request->url(), PHP_URL_PATH)),
+                'pay_type' => $query['pay_type'] ?? null,
+                'status' => 'AUTHENTICATED',
+                'error_code' => ['EC0091310A3'],
+                'amount' => '1000',
+                'tax' => '0',
+            ], 200);
+        });
+        $malformedRaw = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $malformedRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+        ], JSON_THROW_ON_ERROR);
+        try {
+            $webhooks->process($malformedRaw, 'test-webhook-signature');
+            self::fail('A malformed Card error must fail closed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_CANONICAL_RESPONSE_INVALID', $exception->errorCode);
+            self::assertTrue($exception->retryable);
+        }
+
+        $this->fakeFincode();
+        $unavailable = $service->start(
+            $this->user('three-d-secure-unavailable'),
+            $this->plan()->public_id,
+            'credit_card',
+            'three-d-secure-unavailable',
+            ['source' => 'new', 'save' => false]
+        );
+        $unavailableRow = DB::table('payments')->where('public_id', $unavailable['id'])->firstOrFail();
+        Http::swap(new Factory());
+        Http::fake(fn () => Http::failedConnection());
+        $unavailableRaw = json_encode([
+            'event' => 'payments.card.secure2.result',
+            'order_id' => $unavailableRow->provider_payment_id,
+            'pay_type' => 'Card',
+            'status' => 'AUTHENTICATED',
+        ], JSON_THROW_ON_ERROR);
+        try {
+            $webhooks->process($unavailableRaw, 'test-webhook-signature');
+            self::fail('An unavailable Provider re-query must fail closed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_TIMEOUT', $exception->errorCode);
+            self::assertTrue($exception->retryable);
+        }
+
+        foreach ([$unclassifiedRow, $malformedRow, $unavailableRow] as $row) {
+            self::assertSame('requires_action', DB::table('payments')->where('id', $row->id)->value('status'));
+            self::assertSame('requires_action', DB::table('fincode_payment_attempts')
+                ->where('payment_id', $row->id)->value('status'));
+            self::assertNull(DB::table('fincode_payment_attempts')
+                ->where('payment_id', $row->id)->value('last_error_code'));
+            self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        }
+        self::assertSame(0, DB::table('payment_provider_events')->count());
+        self::assertSame(0, DB::table('point_ledger_entries')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+    }
+
     public function test_provider_rejection_fails_payment_without_coin(): void
     {
         Http::swap(new Factory());
@@ -1266,11 +1574,16 @@ final class FincodePaymentBackendTest extends TestCase
 
     private function fakeFincode(
         string $retrievedStatus = 'AWAITING_CUSTOMER_PAYMENT',
-        string $retrievedAmount = '1000'
+        string $retrievedAmount = '1000',
+        ?string $retrievedErrorCode = null
     ): void
     {
         Http::swap(new Factory());
-        Http::fake(function (Request $request) use ($retrievedStatus, $retrievedAmount) {
+        Http::fake(function (Request $request) use (
+            $retrievedStatus,
+            $retrievedAmount,
+            $retrievedErrorCode
+        ) {
             $url = $request->url();
             if ($request->method() === 'POST' && str_ends_with($url, '/v1/customers')) {
                 return Http::response(['id' => $request->data()['id']], 200);
@@ -1311,8 +1624,7 @@ final class FincodePaymentBackendTest extends TestCase
             if ($request->method() === 'GET' && str_contains($url, '/v1/payments/')) {
                 $orderId = basename(parse_url($url, PHP_URL_PATH));
                 parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
-
-                return Http::response([
+                $response = [
                     'id' => $orderId,
                     'pay_type' => $query['pay_type'] ?? null,
                     'status' => $retrievedStatus,
@@ -1320,7 +1632,12 @@ final class FincodePaymentBackendTest extends TestCase
                     'tax' => '0',
                     'transaction_date' => '2026/08/24 12:00:00.000',
                     'process_date' => '2026/08/24 12:00:00.000',
-                ], 200);
+                ];
+                if ($retrievedErrorCode !== null) {
+                    $response['error_code'] = $retrievedErrorCode;
+                }
+
+                return Http::response($response, 200);
             }
 
             return Http::response([], 500);
