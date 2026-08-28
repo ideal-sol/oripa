@@ -207,11 +207,19 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
 }
 PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
     ".github/workflows/preview-image-build.yml",
-    "infrastructure/github-app/oripa-github-app-api",
-    "scripts/ops/preview_image_artifact.py",
-    "tests/ops/test_preview_image_pipeline.py",
+    "docs/operations/deployment/preview-fincode-callbacks.md",
     "docs/operations/deployment/preview-image-build.md",
+    "infrastructure/github-app/oripa-github-app-api",
+    "scripts/ops/preview_fincode_nginx.py",
+    "scripts/ops/preview_image_artifact.py",
+    "tests/ops/test_preview_fincode_nginx.py",
+    "tests/ops/test_preview_image_pipeline.py",
 }
+PREVIEW_STABLE_API_UPSTREAM = "http://127.0.0.1:8611"
+PRIVATE_HTTP_UPSTREAM = re.compile(
+    r"http://(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
+    r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?"
+)
 MIG_061G_V2_IDENTITY_FILES = {
     "apps/api/app/Domain/Identity/Exceptions/V2AdminUserReadException.php",
     "apps/api/app/Domain/Identity/Services/V2AdminUserReadService.php",
@@ -1396,6 +1404,51 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     ).read_text(encoding="utf-8")
     if "--no-build --no-deps api admin" not in runbook:
         raise PolicyFailure("Preview deployment must prohibit host builds")
+    required_acceptance = {
+        "API-only Activation Acceptance",
+        "127.0.0.1:8611:8000",
+        "http://127.0.0.1:8611/api/health",
+        "https://test.luxe-pack.biz/api/v2/auth/session",
+        "https://test.luxe-pack.biz/api/v2/gachas?limit=1",
+        "https://test.luxe-pack.biz/api/v2/point-products",
+        "API-only Activation is incomplete if any same-origin smoke is omitted",
+    }
+    missing_acceptance = sorted(
+        item for item in required_acceptance if item not in runbook
+    )
+    if missing_acceptance:
+        raise PolicyFailure(
+            "Preview API-only same-origin acceptance missing: "
+            + ", ".join(missing_acceptance)
+        )
+    canonicalizer = (
+        repository / "scripts/ops/preview_fincode_nginx.py"
+    ).read_text(encoding="utf-8")
+    upstream_assignments = re.findall(
+        r'^STABLE_API_UPSTREAM\s*=\s*"([^"]+)"$', canonicalizer, re.MULTILINE
+    )
+    required_canonicalizer = {
+        "API_EXACT_LOCATION_PATTERN",
+        "API_PREFIX_LOCATION_PATTERN",
+        "container_specific_upstream_rejected",
+        "NGINX_TEST_COMMAND",
+        "NGINX_RELOAD_COMMAND",
+    }
+    if upstream_assignments != [PREVIEW_STABLE_API_UPSTREAM] or any(
+        item not in canonicalizer for item in required_canonicalizer
+    ):
+        raise PolicyFailure("Preview API stable upstream boundary missing")
+    callback_runbook = (
+        repository / "docs/operations/deployment/preview-fincode-callbacks.md"
+    ).read_text(encoding="utf-8")
+    if (
+        PREVIEW_STABLE_API_UPSTREAM not in callback_runbook
+        or "preview_fincode_nginx.py activate" not in callback_runbook
+        or "only after the config test passes" not in callback_runbook
+    ):
+        raise PolicyFailure("Preview Nginx stable activation boundary missing")
+    if PRIVATE_HTTP_UPSTREAM.search(runbook + callback_runbook + canonicalizer):
+        raise PolicyFailure("Preview Nginx container-specific upstream prohibited")
 
 
 def validate_basic_structures(repository: Path, paths: Iterable[str]) -> None:

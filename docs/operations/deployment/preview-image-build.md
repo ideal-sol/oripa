@@ -62,7 +62,9 @@ removes an image.
 
 After load, create a repository-external Compose override containing the exact
 loaded image references. Preserve the existing project, container, network,
-fixed IP, environment, loopback port, and restart policy.
+environment, loopback-only published port, and restart policy. Do not add or
+preserve a static `ipv4_address`: Host Nginx reaches the API through the stable
+`127.0.0.1:8611` published endpoint, not a Docker-assigned container address.
 
 ```bash
 docker compose -p mig061a-v2-preview \
@@ -73,10 +75,38 @@ docker compose -p mig061a-v2-preview \
 
 For an API-only artifact, the override contains only the API image and the
 activation command targets only `api` with the same `--no-build --no-deps`
-boundary. It must not recreate Admin.
+boundary. It must not recreate Admin. The existing API publication must remain
+`127.0.0.1:8611:8000`; do not add a new host port or a `0.0.0.0` bind.
 
 Record current and rollback image IDs before replacement. Do not remove either
-image. Health and browser checks remain Task-specific deployment gates.
+image.
+
+## API-only Activation Acceptance
+
+Every API-only Activation must pass both direct loopback and Storefront
+same-origin smoke before acceptance. These checks use the existing TLS origin
+and do not require Browser, Provider, Payment, Coin, or Mail activity.
+
+- Direct `http://127.0.0.1:8611/api/health` returns HTTP 200.
+- Direct `http://127.0.0.1:8611/api/v2/auth/session` returns HTTP 200.
+- Direct `http://127.0.0.1:8611/api/v2/gachas?limit=1` returns HTTP 200.
+- Direct `http://127.0.0.1:8611/api/v2/point-products` returns HTTP 200.
+- Same-origin `https://test.luxe-pack.biz/api/v2/auth/session` returns a
+  canonical non-5xx response.
+- Same-origin `https://test.luxe-pack.biz/api/v2/gachas?limit=1` returns HTTP
+  200.
+- Same-origin `https://test.luxe-pack.biz/api/v2/point-products` returns HTTP
+  200.
+- Storefront `https://test.luxe-pack.biz/` and
+  `https://test.luxe-pack.biz/points` return HTTP 200 without an unexpected
+  redirect.
+- A fresh post-activation Nginx log window contains zero HTTP 500, 502, and 504
+  responses.
+
+Also verify that API, Storefront, Admin, PostgreSQL, and Redis remain healthy or
+active with restart count zero; `v2_private` remains `internal: true`; API
+publishing remains loopback-only; and Admin, PostgreSQL, and Redis gain no host
+port. API-only Activation is incomplete if any same-origin smoke is omitted.
 
 ## Target Architecture
 

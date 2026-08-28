@@ -993,6 +993,58 @@ jobs:
                     root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
                 )
 
+    def test_preview_image_pipeline_rejects_container_specific_api_upstream(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            canonicalizer = root / "scripts/ops/preview_fincode_nginx.py"
+            canonicalizer.write_text(
+                canonicalizer.read_text(encoding="utf-8").replace(
+                    'STABLE_API_UPSTREAM = "http://127.0.0.1:8611"',
+                    'STABLE_API_UPSTREAM = "http://192.168.61.2:8000"',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "stable upstream boundary missing|"
+                "container-specific upstream prohibited",
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
+    def test_preview_image_pipeline_requires_same_origin_api_acceptance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            runbook = root / "docs/operations/deployment/preview-image-build.md"
+            runbook.write_text(
+                runbook.read_text(encoding="utf-8").replace(
+                    "https://test.luxe-pack.biz/api/v2/point-products", ""
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "Preview API-only same-origin acceptance missing",
+            ):
+                policy_gate.validate_preview_image_pipeline(
+                    root, policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES
+                )
+
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 

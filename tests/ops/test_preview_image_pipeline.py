@@ -428,5 +428,42 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
         self.assertIn('--admin-image "$admin_image"', guard.group("body"))
 
 
+class PreviewActivationRunbookTest(unittest.TestCase):
+    def test_api_only_activation_requires_stable_loopback_and_same_origin_smoke(self):
+        runbook = (
+            ROOT / "docs/operations/deployment/preview-image-build.md"
+        ).read_text(encoding="utf-8")
+
+        for required in (
+            "API-only Activation Acceptance",
+            "127.0.0.1:8611:8000",
+            "http://127.0.0.1:8611/api/health",
+            "https://test.luxe-pack.biz/api/v2/auth/session",
+            "https://test.luxe-pack.biz/api/v2/gachas?limit=1",
+            "https://test.luxe-pack.biz/api/v2/point-products",
+            "API-only Activation is incomplete if any same-origin smoke is omitted",
+        ):
+            self.assertIn(required, runbook)
+        self.assertNotIn("preserve the existing fixed IP", runbook)
+        self.assertNotRegex(
+            runbook,
+            r"http://(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)",
+        )
+
+    def test_preview_nginx_runbook_uses_guarded_stable_activation(self):
+        runbook = (
+            ROOT / "docs/operations/deployment/preview-fincode-callbacks.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("http://127.0.0.1:8611", runbook)
+        self.assertIn("preview_fincode_nginx.py activate", runbook)
+        self.assertIn("runs `/usr/sbin/nginx -t`", runbook)
+        self.assertIn("only after the config test passes", runbook)
+        self.assertNotRegex(
+            runbook,
+            r"http://(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
