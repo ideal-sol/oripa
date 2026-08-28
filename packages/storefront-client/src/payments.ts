@@ -152,6 +152,7 @@ export function createStorefrontPaymentClient(
     resumeUnpaidPayment: (id, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/resume`,
       method: "POST",
+      body: {},
       headers: csrf(options.csrf_token),
       csrf: "required",
       retry: false,
@@ -162,6 +163,7 @@ export function createStorefrontPaymentClient(
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",
+      body: {},
       headers: csrf(options.csrf_token),
       idempotency_key: options.idempotency_key,
       csrf: "required",
@@ -215,6 +217,7 @@ export function createCsrfManagedStorefrontPaymentClient(
     resumeUnpaidPayment: (id, options = {}) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/resume`,
       method: "POST",
+      body: {},
       csrf: "required",
       retry: false,
       signal: options.signal,
@@ -224,6 +227,7 @@ export function createCsrfManagedStorefrontPaymentClient(
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",
+      body: {},
       idempotency_key: options.idempotency_key,
       csrf: "required",
       signal: options.signal,

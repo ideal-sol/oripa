@@ -1328,6 +1328,12 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     ).read_text(encoding="utf-8")
     required_workflow = {
         "checks: read",
+        "image_mode:",
+        "default: normal",
+        "- api-only",
+        'image_mode not in {"normal", "api-only"}',
+        'if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then',
+        '--image-mode "$INPUT_IMAGE_MODE"',
         "preview_image_artifact.py target --field platform",
         "preview_image_artifact.py host-check",
         "OCI_REVISION=${INPUT_HEAD_SHA}",
@@ -1335,6 +1341,7 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         "compression-level: 0",
         "external pull request rejected",
         "pull request head mismatch",
+        "pull request is neither open nor merged",
         "required checks not successful",
         "storefront_contract_artifact.py build",
         "storefront_contract_artifact.py verify",
@@ -1349,6 +1356,18 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         raise PolicyFailure("Preview image workflow must use the GitHub-hosted x64 runner")
     if "actions: write" in workflow or "packages: write" in workflow:
         raise PolicyFailure("Preview image workflow permissions are too broad")
+    admin_guard = re.search(
+        r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
+        workflow,
+        re.DOTALL,
+    )
+    if (
+        admin_guard is None
+        or workflow.count("--file apps/admin/Dockerfile") != 1
+        or "--file apps/admin/Dockerfile" not in admin_guard.group("body")
+        or "--admin-image" not in admin_guard.group("body")
+    ):
+        raise PolicyFailure("Preview Admin image build must be normal-mode only")
 
     helper = (repository / "scripts/ops/preview_image_artifact.py").read_text(
         encoding="utf-8"
@@ -2320,6 +2339,42 @@ def validate_compose_skeletons(repository: Path) -> None:
             raise PolicyFailure(
                 f"docker-compose.v2.yml: prohibited value present {prohibited}"
             )
+    api_end = v2.find("\n  admin:")
+    if api_end < 0:
+        raise PolicyFailure("docker-compose.v2.yml: API service boundary is missing")
+    api_service = v2[:api_end]
+    fincode_runtime_wiring = (
+        (
+            "FINCODE_API_BASE_URL",
+            "FINCODE_API_BASE_URL: ${FINCODE_API_BASE_URL:-https://api.test.fincode.jp}",
+        ),
+        (
+            "FINCODE_PUBLIC_API_KEY",
+            "FINCODE_PUBLIC_API_KEY: ${FINCODE_PUBLIC_API_KEY:-}",
+        ),
+        (
+            "FINCODE_SECRET_API_KEY",
+            "FINCODE_SECRET_API_KEY: ${FINCODE_SECRET_API_KEY:-}",
+        ),
+        (
+            "FINCODE_WEBHOOK_SIGNATURE",
+            "FINCODE_WEBHOOK_SIGNATURE: ${FINCODE_WEBHOOK_SIGNATURE:-}",
+        ),
+        (
+            "FINCODE_PAYMENT_ENABLED",
+            "FINCODE_PAYMENT_ENABLED: ${FINCODE_PAYMENT_ENABLED:-false}",
+        ),
+    )
+    for name, required in fincode_runtime_wiring:
+        assignments = re.findall(
+            rf"^\s+{re.escape(name)}:",
+            v2,
+            re.MULTILINE,
+        )
+        if len(assignments) != 1 or required not in api_service:
+            raise PolicyFailure(
+                f"docker-compose.v2.yml: API fincode Runtime wiring missing {name}"
+            )
     for required in (
         "api:",
         "admin:",
@@ -2338,6 +2393,11 @@ def validate_compose_skeletons(repository: Path) -> None:
         encoding="utf-8"
     )
     for required in (
+        "env('FINCODE_API_BASE_URL', 'https://api.test.fincode.jp')",
+        "env('FINCODE_PUBLIC_API_KEY')",
+        "env('FINCODE_SECRET_API_KEY')",
+        "env('FINCODE_WEBHOOK_SIGNATURE')",
+        "env('FINCODE_PAYMENT_ENABLED', false)",
         "env('FINCODE_PLATFORM_ORIGIN', '')",
         "env('FINCODE_STOREFRONT_ORIGIN', '')",
         "env('V2_ADMIN_ORIGIN', '')",

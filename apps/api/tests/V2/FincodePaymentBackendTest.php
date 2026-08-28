@@ -22,6 +22,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -219,7 +220,10 @@ final class FincodePaymentBackendTest extends TestCase
                 return ($data['success_url'] ?? null)
                         === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/normal?pid='.$payment['id']
                     && ($data['cancel_url'] ?? null)
-                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id'];
+                        === 'https://api.luxe-pack.biz/api/v2/payment-returns/fincode/failure?pid='.$payment['id']
+                    && ($data['transaction']['order_id'] ?? null)
+                        === DB::table('payments')->where('public_id', $payment['id'])->value('provider_payment_id')
+                    && ! array_key_exists('id', $data['transaction'] ?? []);
             });
         }
     }
@@ -383,16 +387,29 @@ final class FincodePaymentBackendTest extends TestCase
 
         foreach (['konbini', 'virtual_account'] as $method) {
             $payment = $service->start($owner, $plan->public_id, $method, 'resume-'.$method);
+            $expectedUrl = $payment['next_action']['url'];
+            $paymentCount = DB::table('payments')->count();
+            $providerCallCount = Http::recorded()->count();
+
+            $initial = $service->resume($owner, $payment['id']);
+
+            self::assertSame($expectedUrl, $initial['next_action']['url']);
+            self::assertSame($paymentCount, DB::table('payments')->count());
+            self::assertSame($providerCallCount, Http::recorded()->count());
+            try {
+                $service->resume($other, $payment['id']);
+                self::fail('Other-user initial unpaid payment must not be resumable.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+            }
+
             DB::table('payments')->where('public_id', $payment['id'])->update([
                 'status' => 'processing',
                 'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
                 'expires_at' => now()->addDay(),
             ]);
-            $expectedUrl = $payment['next_action']['url'];
             self::assertSame('processing', $service->show($owner, $payment['id'])['status']);
             self::assertNull($service->show($owner, $payment['id'])['next_action']);
-            $paymentCount = DB::table('payments')->count();
-            $providerCallCount = Http::recorded()->count();
 
             $resumed = $service->resume($owner, $payment['id']);
 
@@ -407,6 +424,54 @@ final class FincodePaymentBackendTest extends TestCase
             }
         }
 
+        $missingRedirect = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'resume-missing-redirect'
+        );
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $missingRedirect['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => null]);
+        $providerCallCount = Http::recorded()->count();
+        try {
+            $service->resume($owner, $missingRedirect['id']);
+            self::fail('Payment without a saved redirect must not be resumable.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+        }
+        self::assertSame($providerCallCount, Http::recorded()->count());
+
+        $undecryptableOwner = $this->user('resume-undecryptable-owner');
+        $undecryptable = $service->start(
+            $undecryptableOwner,
+            $plan->public_id,
+            'konbini',
+            'resume-undecryptable-redirect'
+        );
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $undecryptable['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => 'invalid-ciphertext']);
+        $providerCallCount = Http::recorded()->count();
+        try {
+            $service->resume($undecryptableOwner, $undecryptable['id']);
+            self::fail('Payment with an undecryptable redirect must not be resumable.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+        }
+        self::assertSame($providerCallCount, Http::recorded()->count());
+
+        $expired = $service->start($owner, $plan->public_id, 'virtual_account', 'resume-expired');
+        DB::table('payments')->where('public_id', $expired['id'])->update(['expires_at' => now()->subSecond()]);
+        $providerCallCount = Http::recorded()->count();
+        try {
+            $service->resume($owner, $expired['id']);
+            self::fail('Expired unpaid payment must not be resumable.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
+        }
+        self::assertSame($providerCallCount, Http::recorded()->count());
+
         foreach (['credit_card', 'paypay'] as $method) {
             $payment = $service->start(
                 $owner,
@@ -415,12 +480,14 @@ final class FincodePaymentBackendTest extends TestCase
                 'resume-unsupported-'.$method,
                 $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null
             );
+            $providerCallCount = Http::recorded()->count();
             try {
                 $service->resume($owner, $payment['id']);
                 self::fail('Card and PayPay must not use unpaid resume.');
             } catch (V2FincodeException $exception) {
                 self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
             }
+            self::assertSame($providerCallCount, Http::recorded()->count());
         }
 
         $terminal = $service->start($owner, $plan->public_id, 'virtual_account', 'resume-terminal');
@@ -437,6 +504,41 @@ final class FincodePaymentBackendTest extends TestCase
                 self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
             }
         }
+    }
+
+    public function test_json_resume_http_contract_reuses_existing_redirect_without_provider_request(): void
+    {
+        $this->fakeFincode();
+        config(['v2_identity.origins.user' => 'https://storefront.example.test']);
+        $owner = $this->user('resume-http-owner');
+        $payment = app(V2FincodePaymentService::class)->start(
+            $owner,
+            $this->plan()->public_id,
+            'virtual_account',
+            'resume-http-contract'
+        );
+        $expectedUrl = $payment['next_action']['url'];
+        $paymentCount = DB::table('payments')->count();
+        $providerCallCount = Http::recorded()->count();
+        $csrf = str_repeat('a', 64);
+
+        Auth::guard('v2_user')->setUser($owner);
+        $this
+            ->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->postJson("/api/v2/payments/{$payment['id']}/resume", [])
+            ->assertOk()
+            ->assertJsonPath('payment_id', $payment['id'])
+            ->assertJsonPath('next_action.url', $expectedUrl);
+
+        self::assertSame($paymentCount, DB::table('payments')->count());
+        self::assertSame($providerCallCount, Http::recorded()->count());
     }
 
     public function test_browser_read_does_not_grant_and_duplicate_webhook_grants_coin_and_mail_once(): void
@@ -708,6 +810,207 @@ final class FincodePaymentBackendTest extends TestCase
             ->resume($user, $created['AWAITING_CUSTOMER_PAYMENT'])['payment_id']);
     }
 
+    public function test_unpaid_history_uses_exact_resume_eligibility_and_fails_closed(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('unpaid-history-owner');
+        $other = $this->user('unpaid-history-other');
+        $plan = $this->plan();
+        $service = app(V2FincodePaymentService::class);
+
+        $requiresActionVa = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-requires-action-va'
+        );
+        $requiresActionKonbini = $service->start(
+            $owner,
+            $plan->public_id,
+            'konbini',
+            'unpaid-history-requires-action-konbini'
+        );
+        $processingVa = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-processing-va'
+        );
+        DB::table('payments')->where('public_id', $processingVa['id'])->update([
+            'status' => 'processing',
+            'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
+        ]);
+
+        $card = $service->start(
+            $owner,
+            $plan->public_id,
+            'credit_card',
+            'unpaid-history-card',
+            ['source' => 'new', 'save' => false]
+        );
+        $paypay = $service->start($owner, $plan->public_id, 'paypay', 'unpaid-history-paypay');
+        $paypayProcessing = $service->start(
+            $owner,
+            $plan->public_id,
+            'paypay',
+            'unpaid-history-paypay-processing'
+        );
+        DB::table('payments')->where('public_id', $paypayProcessing['id'])->update([
+            'status' => 'processing',
+            'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
+        ]);
+
+        $expired = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-expired'
+        );
+        DB::table('payments')->where('public_id', $expired['id'])->update(['expires_at' => now()->subSecond()]);
+
+        $terminalIds = [];
+        foreach (['succeeded', 'failed', 'canceled', 'expired'] as $status) {
+            $terminal = $service->start(
+                $owner,
+                $plan->public_id,
+                'virtual_account',
+                'unpaid-history-terminal-'.$status
+            );
+            $terminalIds[] = $terminal['id'];
+            DB::table('payments')->where('public_id', $terminal['id'])->update([
+                'status' => $status,
+                'provider_status' => strtoupper($status),
+            ]);
+        }
+
+        $missingRedirect = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-missing-redirect'
+        );
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $missingRedirect['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => null]);
+
+        $undecryptable = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-undecryptable'
+        );
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $undecryptable['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => 'invalid-ciphertext']);
+
+        $invalidAuthority = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-invalid-authority'
+        );
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $invalidAuthority['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => Crypt::encryptString('https://payment.example.test/session')]);
+
+        $mismatchedPair = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-mismatched-pair'
+        );
+        DB::table('payments')->where('public_id', $mismatchedPair['id'])->update([
+            'status' => 'requires_action',
+            'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
+        ]);
+
+        $otherProvider = $service->start(
+            $owner,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-other-provider'
+        );
+        DB::table('payments')->where('public_id', $otherProvider['id'])->update(['provider_code' => 'other']);
+
+        $otherUserPayment = $service->start(
+            $other,
+            $plan->public_id,
+            'virtual_account',
+            'unpaid-history-other-user'
+        );
+        $providerCallCount = Http::recorded()->count();
+
+        $history = $service->history($owner, 'unpaid', null, 100);
+
+        self::assertSame([
+            $processingVa['id'],
+            $requiresActionKonbini['id'],
+            $requiresActionVa['id'],
+        ], array_column($history['data'], 'id'));
+        self::assertFalse($history['pagination']['has_more']);
+        self::assertNull($history['pagination']['next_cursor']);
+        self::assertSame($providerCallCount, Http::recorded()->count());
+        self::assertNotContains($card['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($paypay['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($paypayProcessing['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($expired['id'], array_column($history['data'], 'id'));
+        self::assertSame([], array_intersect($terminalIds, array_column($history['data'], 'id')));
+        self::assertNotContains($missingRedirect['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($undecryptable['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($invalidAuthority['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($mismatchedPair['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($otherProvider['id'], array_column($history['data'], 'id'));
+        self::assertNotContains($otherUserPayment['id'], array_column($history['data'], 'id'));
+
+        Auth::guard('v2_user')->setUser($owner);
+        $this->getJson('/api/v2/me/payments?view=unpaid&limit=100')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $processingVa['id'])
+            ->assertJsonPath('data.1.id', $requiresActionKonbini['id'])
+            ->assertJsonPath('data.2.id', $requiresActionVa['id'])
+            ->assertJsonCount(3, 'data');
+        self::assertSame($providerCallCount, Http::recorded()->count());
+    }
+
+    public function test_unpaid_history_pagination_skips_invalid_redirects_without_duplicates(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('unpaid-history-pagination');
+        $plan = $this->plan();
+        $service = app(V2FincodePaymentService::class);
+        $eligible = [];
+
+        $eligible[] = $service->start($user, $plan->public_id, 'virtual_account', 'unpaid-page-1')['id'];
+        $missing = $service->start($user, $plan->public_id, 'virtual_account', 'unpaid-page-missing');
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $missing['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => null]);
+        $eligible[] = $service->start($user, $plan->public_id, 'virtual_account', 'unpaid-page-2')['id'];
+        $invalid = $service->start($user, $plan->public_id, 'virtual_account', 'unpaid-page-invalid');
+        DB::table('fincode_payment_attempts')
+            ->where('payment_id', DB::table('payments')->where('public_id', $invalid['id'])->value('id'))
+            ->update(['redirect_url_ciphertext' => 'invalid-ciphertext']);
+        $eligible[] = $service->start($user, $plan->public_id, 'virtual_account', 'unpaid-page-3')['id'];
+        $providerCallCount = Http::recorded()->count();
+
+        $first = $service->history($user, 'unpaid', null, 2);
+        $second = $service->history($user, 'unpaid', $first['pagination']['next_cursor'], 2);
+
+        self::assertSame(array_reverse($eligible), [
+            ...array_column($first['data'], 'id'),
+            ...array_column($second['data'], 'id'),
+        ]);
+        self::assertTrue($first['pagination']['has_more']);
+        self::assertNotNull($first['pagination']['next_cursor']);
+        self::assertFalse($second['pagination']['has_more']);
+        self::assertNull($second['pagination']['next_cursor']);
+        self::assertSame([], array_intersect(
+            array_column($first['data'], 'id'),
+            array_column($second['data'], 'id')
+        ));
+        self::assertSame($providerCallCount, Http::recorded()->count());
+    }
+
     public function test_webhook_authenticity_unknown_event_and_out_of_order_delivery_are_safe(): void
     {
         $this->fakeFincode('AWAITING_CUSTOMER_PAYMENT');
@@ -778,13 +1081,22 @@ final class FincodePaymentBackendTest extends TestCase
         $this->fakeFincode();
         $user = $this->user('unpaid-limit');
         $service = app(V2FincodePaymentService::class);
-        $service->start($user, $this->plan()->public_id, 'konbini', 'konbini-first');
+        $first = $service->start($user, $this->plan()->public_id, 'konbini', 'konbini-first');
+        $providerCallCount = Http::recorded()->count();
+        self::assertSame(
+            [$first['id']],
+            array_column($service->history($user, 'unpaid', null, 20)['data'], 'id')
+        );
+        self::assertSame($providerCallCount, Http::recorded()->count());
         try {
             $service->start($user, $this->plan()->public_id, 'konbini', 'konbini-second');
             self::fail('A second active Konbini payment must fail.');
         } catch (V2FincodeException $exception) {
             self::assertSame('KONBINI_UNPAID_LIMIT_REACHED', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+            self::assertFalse($exception->retryable);
         }
+        self::assertSame($providerCallCount, Http::recorded()->count());
         $payment = DB::table('payments')
             ->where('user_id', $user->id)->where('payment_method', 'konbini')->firstOrFail();
         $event = app(V2PaymentService::class)->recordVerifiedProviderEvent(

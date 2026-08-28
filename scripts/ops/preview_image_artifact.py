@@ -25,6 +25,10 @@ ISO_DATETIME = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
 IMAGE_NAMES = ("api", "admin")
+IMAGE_MODES = {
+    "normal": IMAGE_NAMES,
+    "api-only": ("api",),
+}
 TARGET_OS = "linux"
 TARGET_ARCHITECTURE = "amd64"
 TARGET_PLATFORM = f"{TARGET_OS}/{TARGET_ARCHITECTURE}"
@@ -128,9 +132,12 @@ def package_images(arguments: argparse.Namespace) -> dict:
     if output.exists() and any(output.iterdir()):
         fail("output_directory_not_empty")
     output.mkdir(parents=True, exist_ok=True)
+    image_names = IMAGE_MODES[arguments.image_mode]
     references = {"api": arguments.api_image, "admin": arguments.admin_image}
+    if (arguments.image_mode == "normal") != (arguments.admin_image is not None):
+        fail("admin_image_mode_mismatch")
     images = []
-    for name in IMAGE_NAMES:
+    for name in image_names:
         reference = references[name]
         inspected = docker_inspect(reference)
         metadata = image_metadata(inspected, arguments.source_sha)
@@ -306,10 +313,13 @@ def verify_artifact(
     if not isinstance(created_at, str) or not ISO_DATETIME.fullmatch(created_at):
         fail("manifest_created_at_invalid")
     images = manifest.get("images")
-    if not isinstance(images, list) or [item.get("name") for item in images if isinstance(item, dict)] != list(IMAGE_NAMES):
+    image_names = tuple(
+        item.get("name") for item in images if isinstance(item, dict)
+    ) if isinstance(images, list) else ()
+    if image_names not in IMAGE_MODES.values() or len(image_names) != len(images):
         fail("manifest_images_invalid")
 
-    expected_files = {ARCHIVE_NAMES[name] for name in IMAGE_NAMES} | {"manifest.json"}
+    expected_files = {ARCHIVE_NAMES[name] for name in image_names} | {"manifest.json"}
     checksums = parse_checksums(checksums_path)
     if set(checksums) != expected_files:
         fail("checksums_file_set_invalid")
@@ -318,7 +328,7 @@ def verify_artifact(
             fail(f"checksum_mismatch:{filename}")
 
     verified_images = []
-    for expected_name, image in zip(IMAGE_NAMES, images):
+    for expected_name, image in zip(image_names, images):
         if set(image) != {
             "name",
             "reference",
@@ -444,8 +454,9 @@ def parser() -> argparse.ArgumentParser:
     package.add_argument("--pr-number", type=int, required=True)
     package.add_argument("--source-sha", required=True)
     package.add_argument("--created-at", required=True)
+    package.add_argument("--image-mode", choices=tuple(IMAGE_MODES), required=True)
     package.add_argument("--api-image", required=True)
-    package.add_argument("--admin-image", required=True)
+    package.add_argument("--admin-image")
     for name in ("verify", "load"):
         command = commands.add_parser(name)
         command.add_argument("--directory", type=Path, required=True)

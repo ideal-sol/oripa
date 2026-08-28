@@ -84,7 +84,7 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Package Versionは`2.0.0-alpha.28`。参照するStorefront Clientは`2.0.0-alpha.28`、
+Package Versionは`2.0.0-alpha.30`。参照するStorefront Clientは`2.0.0-alpha.30`、
 Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.27`。
 Payment Grant Fixtureは確定した`paid_points`、通常`bonus_points`、期間限定
 `limited_bonus_points`、3field合計`total_points`を表し、現在の商品・Campaignから

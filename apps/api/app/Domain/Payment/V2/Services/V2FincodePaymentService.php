@@ -8,6 +8,8 @@ use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Reporting\Services\V2ReportingCursor;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -20,6 +22,13 @@ final class V2FincodePaymentService
         'paypay' => 'Paypay',
         'konbini' => 'Konbini',
         'virtual_account' => 'Virtualaccount',
+    ];
+
+    private const UNPAID_METHODS = ['konbini', 'virtual_account'];
+
+    private const UNPAID_STATE_PAIRS = [
+        ['status' => 'requires_action', 'provider_status' => 'UNPROCESSED'],
+        ['status' => 'processing', 'provider_status' => 'AWAITING_CUSTOMER_PAYMENT'],
     ];
 
     public function __construct(
@@ -173,20 +182,17 @@ final class V2FincodePaymentService
             throw new V2FincodeException('PAYMENT_HISTORY_LIMIT_INVALID', 422, 'The history limit is invalid.');
         }
         $cursorId = $this->cursor->decode($cursor);
+        if ($view === 'unpaid') {
+            return $this->unpaidHistory($user, $cursorId, $limit, CarbonImmutable::now());
+        }
+
         $query = DB::table('payments')
             ->where('user_id', $user->id)
             ->where('provider_code', 'fincode')
+            ->where('status', 'succeeded')
             ->orderByDesc('id');
         if ($cursorId !== null) {
             $query->where('id', '<', $cursorId);
-        }
-        if ($view === 'succeeded') {
-            $query->where('status', 'succeeded');
-        } else {
-            $query->whereIn('payment_method', ['konbini', 'virtual_account'])
-                ->where('status', 'processing')
-                ->where('provider_status', 'AWAITING_CUSTOMER_PAYMENT')
-                ->where('expires_at', '>', now());
         }
         $rows = $query->limit($limit + 1)->get();
         $hasMore = $rows->count() > $limit;
@@ -209,19 +215,12 @@ final class V2FincodePaymentService
 
     public function resume(User $user, string $paymentPublicId): array
     {
-        $payment = DB::table('payments')
+        $query = DB::table('payments')
             ->where('public_id', $paymentPublicId)
-            ->where('user_id', $user->id)
-            ->whereIn('payment_method', ['konbini', 'virtual_account'])
-            ->where('status', 'processing')
-            ->where('provider_status', 'AWAITING_CUSTOMER_PAYMENT')
-            ->where('expires_at', '>', now())
-            ->first();
-        if ($payment === null) {
-            throw new V2FincodeException('UNPAID_PAYMENT_NOT_RESUMABLE', 409, 'The unpaid payment cannot be resumed.');
-        }
-        $attempt = DB::table('fincode_payment_attempts')->where('payment_id', $payment->id)->firstOrFail();
-        if ($attempt->redirect_url_ciphertext === null) {
+            ->where('user_id', $user->id);
+        $payment = $this->applyUnpaidEligibility($query, CarbonImmutable::now())->first();
+        $redirectUrl = $payment === null ? null : $this->savedRedirectUrl((int) $payment->id);
+        if ($payment === null || $redirectUrl === null) {
             throw new V2FincodeException('UNPAID_PAYMENT_NOT_RESUMABLE', 409, 'The unpaid payment cannot be resumed.');
         }
 
@@ -229,9 +228,103 @@ final class V2FincodePaymentService
             'payment_id' => $payment->public_id,
             'next_action' => [
                 'type' => 'redirect',
-                'url' => Crypt::decryptString($attempt->redirect_url_ciphertext),
+                'url' => $redirectUrl,
             ],
         ];
+    }
+
+    private function unpaidHistory(
+        User $user,
+        ?int $cursorId,
+        int $limit,
+        CarbonImmutable $now
+    ): array {
+        $eligible = collect();
+        $scanBeforeId = $cursorId;
+
+        while ($eligible->count() <= $limit) {
+            $query = DB::table('payments')->where('user_id', $user->id);
+            $this->applyUnpaidEligibility($query, $now);
+            if ($scanBeforeId !== null) {
+                $query->where('id', '<', $scanBeforeId);
+            }
+            $rows = $query->orderByDesc('id')->limit(101)->get();
+            if ($rows->isEmpty()) {
+                break;
+            }
+            foreach ($rows as $payment) {
+                $scanBeforeId = (int) $payment->id;
+                if ($this->savedRedirectUrl($scanBeforeId) !== null) {
+                    $eligible->push($payment);
+                    if ($eligible->count() > $limit) {
+                        break;
+                    }
+                }
+            }
+            if ($rows->count() < 101) {
+                break;
+            }
+        }
+
+        $hasMore = $eligible->count() > $limit;
+        $visible = $eligible->take($limit);
+        $items = $visible->map(
+            fn (object $payment): array => $this->present($payment->public_id, false, $user->id)
+        )->all();
+        $last = $visible->last();
+
+        return [
+            'data' => $items,
+            'pagination' => [
+                'limit' => $limit,
+                'has_more' => $hasMore,
+                'next_cursor' => $hasMore && $last !== null
+                    ? $this->cursor->encode((int) $last->id)
+                    : null,
+            ],
+        ];
+    }
+
+    private function applyUnpaidEligibility(Builder $query, CarbonImmutable $now): Builder
+    {
+        return $query
+            ->where('provider_code', 'fincode')
+            ->whereIn('payment_method', self::UNPAID_METHODS)
+            ->where(function (Builder $states): void {
+                foreach (self::UNPAID_STATE_PAIRS as $index => $pair) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $states->{$method}(function (Builder $state) use ($pair): void {
+                        $state
+                            ->where('status', $pair['status'])
+                            ->where('provider_status', $pair['provider_status']);
+                    });
+                }
+            })
+            ->where('expires_at', '>', $now)
+            ->whereExists(function (Builder $attempt): void {
+                $attempt
+                    ->selectRaw('1')
+                    ->from('fincode_payment_attempts')
+                    ->whereColumn('fincode_payment_attempts.payment_id', 'payments.id')
+                    ->whereNotNull('fincode_payment_attempts.redirect_url_ciphertext');
+            });
+    }
+
+    private function savedRedirectUrl(int $paymentId): ?string
+    {
+        $ciphertext = DB::table('fincode_payment_attempts')
+            ->where('payment_id', $paymentId)
+            ->value('redirect_url_ciphertext');
+        if (! is_string($ciphertext) || $ciphertext === '') {
+            return null;
+        }
+        try {
+            $redirectUrl = Crypt::decryptString($ciphertext);
+        } catch (DecryptException) {
+            return null;
+        }
+
+        return $this->optionalHttpsUrl($redirectUrl);
     }
 
     /** @param array<string, mixed>|null $card */

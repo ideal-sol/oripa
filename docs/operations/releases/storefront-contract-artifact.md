@@ -121,6 +121,65 @@ as `latest_immutable` and clears `candidate`, so a same-version rebuild is
 rejected. Storefront exact-pin adoption is GO; Runtime Activation and Provider
 Browser E2E remain deferred.
 
+## Payment Resume JSON Request Release
+
+MIG-094 published package-only bundle `2.0.0-alpha.29`. The Storefront Client
+now sends the existing unpaid-payment resume operation as a JSON POST with an
+empty object body, preserving the existing authenticated CSRF contract and
+response shape. Storefront Testkit advances to the matching Client version;
+Public OpenAPI alpha.27, its 65 operations, Site Schema alpha.23, Platform, and
+Application versions remain unchanged.
+
+The release does not weaken Browser Security middleware, create a Provider
+session, alter the Payment state machine, activate an API Runtime, or apply a
+migration. Resume eligibility adds only the initial `requires_action` plus
+`UNPROCESSED` state pair for owned, unexpired Konbini and Virtual Account
+Payments with an existing decryptable fincode HTTPS redirect; the existing
+`processing` plus `AWAITING_CUSTOMER_PAYMENT` contract remains valid. Canonical
+workflow Run `33084320143`, Artifact `9651612069`, and exact Source Commit
+`5cde1e0a91151b584de8a63d19efd7b4a15e8ab1` produced these verified SHA-256
+values:
+
+- GitHub outer Artifact: `1e11a5f793ad009320b0a52cc83a14c9f1dd48ecaebc5fcb4e94c43973f7b97b`
+- Manifest: `9e5059d1d098d435d16399d8ce7d60172befb1c2ffe979037bf93ae1c447423b`
+- Client: `28e5756000847df3a1a27cf77be3da97beb4aef447486978ee74ecd979b425e1`
+- Testkit: `1e976d1cd83c00e79c632636018c57461bc89940640d0de949568cc1769b0b56`
+- Public OpenAPI: `41ebdddbd7c4edeedd36ad3810b2afa564495aa2d1c3e48a187f44c85deb85da`
+- `SHA256SUMS`: `23a1afd8f69eacff43e5b0146259172e93754a542f88fa4294f52deec9c3a944`
+
+The ledger records alpha.29 as `latest_immutable` and clears `candidate`, so a
+same-version rebuild is rejected. Storefront exact-pin adoption is GO;
+Platform API Runtime Activation remains deferred.
+
+## Save Card Registration JSON Request Release
+
+MIG-096 published package-only bundle `2.0.0-alpha.30`. Both Storefront Client
+CSRF variants now send Card Registration Intent creation as a JSON POST with an
+empty object body, preserving the existing endpoint, idempotency, CSRF, response,
+and purchase orchestration contracts. Storefront Testkit advances to the matching
+Client version; Public OpenAPI alpha.27, its 65 operations, Site Schema alpha.23,
+Platform, and Application versions remain unchanged.
+
+The release does not weaken Browser Security, add standalone registration
+completion to the purchase flow, change Payment or Card authority, contact the
+Provider, activate an API Runtime, or apply a migration. Card success and failure
+return handling remains unchanged in Platform; the active Storefront must consume
+the existing Platform-provided merchant return URLs when executing the Card.
+Canonical api-only Workflow Run `33154172300`, Artifact `9678987823`, and exact
+Source Commit `4a7703859473f0c3f5e317cfca454cb8dce401ae` produced these verified
+SHA-256 values:
+
+- GitHub outer Artifact: `f9c7e8f65b0121fc5d99d0b79292b8c1c43eb2046145c8112516b823ee955b6a`
+- Manifest: `25667419d9db73a946f48ca1351f2c8b0e9fc1f371508efe2c44b9403852fe5a`
+- Client: `f44e2da2d427621296f2bb27958ef7b20e217b5b07fbcf6cc342978e2ef9dae6`
+- Testkit: `f349b6e07421507ccbdca9a6e0cbc07d79379b444fbe2119b1a92709319e8809`
+- Public OpenAPI: `41ebdddbd7c4edeedd36ad3810b2afa564495aa2d1c3e48a187f44c85deb85da`
+- `SHA256SUMS`: `5849402d1d7770751683c93d0dfd619edbf33eb7bd262094d6b3ce87948aa363`
+
+The ledger records alpha.30 as `latest_immutable` and clears `candidate`, so a
+same-version rebuild is rejected. Storefront exact-pin adoption is GO. API
+runtime activation remains separately merge-first.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.
