@@ -3,8 +3,8 @@
 ## Current Status
 
 - Issue `#397`, Lane `Strict Change`, Risk `R4`, Activation `immediate`.
-- Sandbox credentials, Webhook registration, Payment Enable, API readiness, Bootstrap readiness, and Return readiness now pass. Platform Payment Browser Acceptance readiness is GO.
-- Provider Browser E2E has not started because the active Storefront remains alpha.24; the latest Payment UI alpha.28 Runtime is not active. OPS-021 remains open at the Storefront Activation checkpoint.
+- Sandbox credentials, Webhook registration, Payment Enable, API readiness, Bootstrap readiness, Return readiness, and later Human Browser Card-success/PayPay-success acceptance are complete.
+- Active Storefront is release `bddff7106a8e710859a94cc07ada9a93b18aa136` with exact Client/Testkit `2.0.0-alpha.30`. OPS-021 is ready to close; the separately identified Card failure terminalization defect is handed off without expanding this Task's source scope.
 
 ## API Env-only Reflection
 
