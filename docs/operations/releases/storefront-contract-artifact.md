@@ -229,32 +229,39 @@ The ledger records alpha.30 as `latest_immutable` and clears `candidate`, so a
 same-version rebuild is rejected. Storefront exact-pin adoption is GO. API
 runtime activation remains separately merge-first.
 
-## Pending 3DS-Verified Card Registration Release
+## Released 3DS-Verified Card Registration Contract
 
-MIG-098 adds a pending `contract-additive` candidate after immutable alpha.30.
-At Source validation time the next unused version is `2.0.0-alpha.31`, containing
-Storefront Client and Testkit alpha.31, Public OpenAPI alpha.28 with 71
-operations, and unchanged Site Schema alpha.23. The candidate records no
-`source_commit` and predicts no Artifact, Manifest, package, or checksum digest.
+GOV-021 reconciled immutable `2.0.0-alpha.31` after the dedicated GOV-020
+workflow published it from the exact MIG-098 squash commit
+`ad078ecd1eebd68cd2443b347d387433177fd686` on protected `main`. Workflow Run
+`33254741748` completed successfully on its first `workflow_dispatch` attempt
+and produced the single available Artifact
+`oripa-storefront-contract-2.0.0-alpha.31` with Artifact ID `9715454247`.
 
-Before squash merge and again before publication, the live ledger and GitHub
-Artifacts must confirm that alpha.31 is still the next unused version. A moved
-main, changed predecessor, existing Artifact name, or non-null competing
-candidate fails closed and requires Source reconciliation before publication.
+Canonical remote download and readback fixed these SHA-256 values:
 
-Publication uses only
-`.github/workflows/storefront-contract-artifact-publish.yml` from the exact
-MIG-098 squash commit on protected `main`. The run must remain contract-only:
-Artifact publication 1, API image Build/push/Activation 0, Admin Build 0,
-Storefront application Build 0, and Migration apply 0. PR-head publication and
-workflow commits to `main` remain prohibited.
+- GitHub outer Artifact: `9e8921e7681abe52d3e5fba65e4fdf3186988df453fca4f39be86e811deb22f0`
+- Manifest: `c11894fbfadaf3dd4e00c7f94973ede1bb00f580ece5e109d0118c74c3b69f74`
+- Client: `0caf5e8ac829a1f13d1790298ba4a2fef3c50fe6ae11cad63329ab327cea40cf`
+- Testkit: `932cc4cc6560aa595e01bb5d929320f8d2f70dda32d5a8dd70ec91e84acb8716`
+- Public OpenAPI: `60a14073f7ee52d91b919c69fbc7444bf6afe391a887121bb4af5e45fbb85626`
+- `SHA256SUMS`: `1a0a4295106e8e7bc951b9caf907c9cf844a913bf820e896312889ca3749a127`
 
-After readback, a separate Release Ledger reconciliation Task/PR records the
-exact Source Commit and digests and clears the candidate. SITE-048 adoption is
-HOLD until that reconciliation finishes. Runtime Activation is independently
-HOLD until TEST/SANDBOX contains the formal
-`customers.payment_methods.updated` event and a later Activation Task applies
-Migration 000067 and activates the API.
+The Manifest records `contract-additive`, `breaking_change: false`, browser-
+compatible Client and Testkit alpha.31, Public OpenAPI alpha.28 with 71
+operations, and referenced immutable Site Schema alpha.23. The Release Ledger
+retains schema `2.0`, appends alpha.31 after unmodified alpha.30, sets the exact
+alpha.31 record as `latest_immutable`, and clears `candidate` to `null`.
+Artifact ID, Workflow Run, outer Artifact digest, and `SHA256SUMS` digest remain
+in this canonical release record because the existing Ledger schema has no such
+fields; the schema is not expanded during reconciliation.
+
+Artifact Ledger reconciliation is GO. Artifact adoption and SITE-048 remain
+HOLD until Human configures and read-only verifies the TEST/SANDBOX
+`customers.payment_methods.updated` Webhook and a separate Platform Activation
+Task applies Migration 000067, performs an API-only Build and Shared Preview API
+Activation, and passes Runtime Acceptance. This reconciliation does not
+redispatch or overwrite the Artifact and performs no Build or Activation.
 
 The validator requires:
 
