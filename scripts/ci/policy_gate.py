@@ -200,10 +200,24 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
     "scripts/release/README.md",
     "scripts/release/platform_artifact.py",
     "scripts/release/storefront_contract_artifact.py",
+    "scripts/release/storefront_contract_publication.py",
     "tests/release/test_platform_artifact.py",
     "tests/release/test_storefront_contract_artifact.py",
+    "tests/release/test_storefront_contract_publication.py",
     "manifests/storefront-contract-releases.json",
     "docs/operations/releases/storefront-contract-artifact.md",
+    "docs/operations/releases/release-process.md",
+    ".github/workflows/storefront-contract-artifact-publish.yml",
+}
+STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES = {
+    ".github/workflows/preview-image-build.yml",
+    ".github/workflows/storefront-contract-artifact-publish.yml",
+    "scripts/release/storefront_contract_artifact.py",
+    "scripts/release/storefront_contract_publication.py",
+    "tests/release/test_storefront_contract_artifact.py",
+    "tests/release/test_storefront_contract_publication.py",
+    "docs/operations/releases/storefront-contract-artifact.md",
+    "docs/operations/releases/release-process.md",
 }
 PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
     ".github/workflows/preview-image-build.yml",
@@ -1353,8 +1367,6 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         "pull request head mismatch",
         "pull request is neither open nor merged",
         "required checks not successful",
-        "storefront_contract_artifact.py build",
-        "storefront_contract_artifact.py verify",
         "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
     }
     missing_workflow = sorted(item for item in required_workflow if item not in workflow)
@@ -1366,6 +1378,8 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         raise PolicyFailure("Preview image workflow must use the GitHub-hosted x64 runner")
     if "actions: write" in workflow or "packages: write" in workflow:
         raise PolicyFailure("Preview image workflow permissions are too broad")
+    if "storefront_contract_artifact.py" in workflow or "storefront-contract" in workflow:
+        raise PolicyFailure("Preview image workflow must not publish Storefront contract artifacts")
     admin_guard = re.search(
         r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
         workflow,
@@ -1484,6 +1498,133 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         runbook + callback_runbook + live_runbook + canonicalizer
     ):
         raise PolicyFailure("Preview Nginx container-specific upstream prohibited")
+
+
+def validate_storefront_contract_publication(
+    repository: Path, paths: Iterable[str]
+) -> None:
+    missing = sorted(STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES - set(paths))
+    if missing:
+        raise PolicyFailure(
+            "required Storefront contract publication files missing: "
+            + ", ".join(missing)
+        )
+    workflow = (
+        repository / ".github/workflows/storefront-contract-artifact-publish.yml"
+    ).read_text(encoding="utf-8")
+    required_workflow = {
+        "publication_mode:",
+        "default: contract-only",
+        "- contract-only",
+        "expected_merged_sha:",
+        "actions: read",
+        "checks: read",
+        "pull-requests: read",
+        "group: storefront-contract-artifact-publication",
+        'test "$WORKFLOW_REF" = "refs/heads/main"',
+        'test "$WORKFLOW_SHA" = "$INPUT_EXPECTED_MERGED_SHA"',
+        "storefront_contract_publication.py authorize",
+        "storefront_contract_artifact.py validate-source",
+        "storefront_contract_artifact.py build",
+        "storefront_contract_artifact.py verify",
+        "overwrite: false",
+        "retention-days: 90",
+        "readback-and-verify-publication",
+        "storefront_contract_publication.py readback",
+        "expected-outer-digest",
+        "github-step-summary",
+    }
+    missing_workflow = sorted(
+        item for item in required_workflow if item not in workflow
+    )
+    if missing_workflow:
+        raise PolicyFailure(
+            "Storefront contract publication workflow boundary missing: "
+            + ", ".join(missing_workflow)
+        )
+    forbidden_workflow = {
+        "actions: write",
+        "contents: write",
+        "packages: write",
+        "docker build",
+        "docker push",
+        "docker compose",
+        "infra/docker/backend/Dockerfile",
+        "apps/admin/Dockerfile",
+        "git commit",
+        "git push",
+        "continue-on-error",
+    }
+    present_forbidden = sorted(
+        item for item in forbidden_workflow if item in workflow
+    )
+    if present_forbidden:
+        raise PolicyFailure(
+            "Storefront contract publication responsibility is too broad: "
+            + ", ".join(present_forbidden)
+        )
+    if workflow.count("actions/upload-artifact@") != 1:
+        raise PolicyFailure(
+            "Storefront contract publication must upload exactly one Artifact"
+        )
+    if workflow.count("actions/checkout@") != 3:
+        raise PolicyFailure(
+            "Storefront contract publication exact checkout inventory invalid"
+        )
+
+    helper = (
+        repository / "scripts/release/storefront_contract_publication.py"
+    ).read_text(encoding="utf-8")
+    required_helper = {
+        "protected_main_authority_invalid",
+        "workflow_event_sha_mismatch",
+        "stale_main_sha_rejected",
+        "exact_merged_source_pull_required",
+        "reviewed_and_merged_tree_mismatch",
+        "required_checks_not_successful",
+        "candidate_source_authority_conflict",
+        "immutable_artifact_version_already_exists",
+        "uploaded_artifact_identity_mismatch",
+        "outer_artifact_digest_mismatch",
+        "manifest_source_sha_mismatch",
+        "manifest_version_mismatch",
+        "artifact_file_set_invalid",
+    }
+    missing_helper = sorted(item for item in required_helper if item not in helper)
+    if missing_helper:
+        raise PolicyFailure(
+            "Storefront contract publication authority missing: "
+            + ", ".join(missing_helper)
+        )
+
+    preview_workflow = (
+        repository / ".github/workflows/preview-image-build.yml"
+    ).read_text(encoding="utf-8")
+    if (
+        "storefront_contract_artifact.py" in preview_workflow
+        or "storefront-contract" in preview_workflow
+    ):
+        raise PolicyFailure(
+            "Preview image workflow must not publish Storefront contract artifacts"
+        )
+
+    runbook = (
+        repository / "docs/operations/releases/storefront-contract-artifact.md"
+    ).read_text(encoding="utf-8")
+    required_runbook = {
+        "Exact Merged Main Publication",
+        "Release Ledger Reconciliation",
+        "API image build count is zero",
+        "never commits to `main`",
+        "duplicate version",
+        "readback",
+    }
+    missing_runbook = sorted(item for item in required_runbook if item not in runbook)
+    if missing_runbook:
+        raise PolicyFailure(
+            "Storefront contract publication runbook boundary missing: "
+            + ", ".join(missing_runbook)
+        )
 
 
 def validate_basic_structures(repository: Path, paths: Iterable[str]) -> None:
@@ -5761,6 +5902,7 @@ def validate_repository(repository: Path) -> list[str]:
     validate_basic_structures(repository, paths)
     validate_workspace_skeleton(repository, paths)
     validate_release_artifact_foundation(repository, paths)
+    validate_storefront_contract_publication(repository, paths)
     validate_preview_image_pipeline(repository, paths)
     validate_api_application_layout(paths)
     validate_legacy_frontend_layout(repository, paths)

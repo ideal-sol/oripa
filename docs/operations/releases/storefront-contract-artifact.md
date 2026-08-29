@@ -13,6 +13,55 @@ release, and either one pending next-version candidate or `null` after release.
 The ledger never authorizes publication by itself. Artifact Release Lock,
 exact-head Required Checks, and the task release gate remain mandatory.
 
+## Exact Merged Main Publication
+
+`.github/workflows/storefront-contract-artifact-publish.yml` is the only
+canonical contract-only publication workflow. Dispatch is permitted only with
+`publication_mode=contract-only`, the Source Task ID, and the Human-confirmed
+exact squash-merged SHA. The input SHA is confirmation, not selectable Source
+authority: the workflow requires its event ref and event SHA to be the protected
+`main` ref and its current live head.
+
+Before any package command, the authority helper verifies all of the following:
+
+1. GitHub reports `main` as protected and its current head equals the expected
+   merged SHA. A stale SHA, PR head, non-main commit, or arbitrary branch fails.
+2. Exactly one internal merged PR has that SHA as its squash merge commit, the
+   Source Task identity matches, and the reviewed PR head tree equals the merged
+   commit tree.
+3. The latest `policy-gate`, `quality-gate`, `security-gate`,
+   `integration-gate`, and `ci-gate` runs succeeded on the reviewed head.
+4. The checked-out `HEAD` equals the authorized merged SHA.
+5. The release ledger contains one valid next-version candidate without a
+   pre-merge `source_commit`, and GitHub has no Artifact with that version name.
+   Any duplicate version, including an expired Artifact, fails closed.
+
+The contract-only job builds only the Public OpenAPI, Storefront Client, and
+Storefront Testkit bundle plus `artifact-manifest.json` and `SHA256SUMS`. API image build count is zero. API push, API Activation, Admin build, Storefront
+application build, and Migration creation or application are also zero. The
+workflow has read-only repository permissions and never commits to `main`.
+
+The upload uses the immutable version as its name, disables overwrite, and is
+serialized across the repository. A required downstream readback job downloads
+the uploaded Artifact by exact ID, verifies the GitHub outer digest, safely
+extracts the exact five-file inventory, reruns the bundle validator, and matches
+the Manifest Source Commit, version, Client, Testkit, and Public OpenAPI digests.
+The run succeeds only after readback. A partial upload or digest mismatch leaves
+the run failed and never counts as publication success.
+
+## Release Ledger Reconciliation
+
+The Source Task records only contract and version intent before merge. It must
+not predict the merged Source Commit or future Artifact digests. After the
+dedicated workflow succeeds, a separate small Release Metadata Task and PR
+records the Artifact version, exact merged Source Commit, Manifest SHA, Client
+SHA, Testkit SHA, and Public OpenAPI SHA in the release ledger and clears the
+candidate under the existing validator.
+
+This separate reconciliation preserves one Task, one PR, protected-main
+provenance, and immutable version history. The publication workflow does not
+edit the ledger, does not open a PR, and does not push or commit to `main`.
+
 ## Immutable Alpha 24
 
 STORE-SITE-034 adopted the canonical package-only `2.0.0-alpha.24` Artifact from
@@ -206,11 +255,12 @@ python3 scripts/release/storefront_contract_artifact.py verify \
   --output <artifact-path>
 ```
 
-The canonical workflow detects whether a pending candidate exists. It builds and
-uploads exactly one candidate from an approved exact head. Once release evidence
-is reconciled into immutable history and `candidate` becomes `null`, later
-workflow runs skip Storefront Artifact creation instead of republishing the same
-version.
+The dedicated post-merge workflow requires a pending candidate and builds it
+only from the exact current protected `main` head. A missing candidate fails;
+an existing Artifact with the same immutable version also fails rather than
+skipping, overwriting, or republishing it. After the separate reconciliation PR
+sets `candidate` to `null`, no further publication is authorized until a later
+Source Task introduces a new next-version candidate.
 
 Publication, Registry publication, Storefront adoption, Runtime deployment,
 Migration application, Provider integration, and Production remain separate

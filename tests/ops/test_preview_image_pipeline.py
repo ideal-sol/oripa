@@ -426,6 +426,8 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
         self.assertIsNotNone(guard)
         self.assertIn("--file apps/admin/Dockerfile", guard.group("body"))
         self.assertIn('--admin-image "$admin_image"', guard.group("body"))
+        self.assertNotIn("storefront_contract_artifact.py", workflow)
+        self.assertNotIn("storefront-contract", workflow)
 
 
 class PreviewActivationRunbookTest(unittest.TestCase):

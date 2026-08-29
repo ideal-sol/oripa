@@ -907,6 +907,116 @@ jobs:
             | policy_gate.PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES,
         )
 
+    def test_storefront_contract_publication_has_exact_main_and_readback_guards(self):
+        policy_gate.validate_storefront_contract_publication(
+            ROOT,
+            set(policy_gate.tracked_paths(ROOT))
+            | policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES,
+        )
+
+    def test_storefront_contract_publication_rejects_non_main_authority(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = (
+                root / ".github/workflows/storefront-contract-artifact-publish.yml"
+            )
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    'test "$WORKFLOW_REF" = "refs/heads/main"',
+                    'test "$WORKFLOW_REF" = "refs/heads/feature"',
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "publication workflow boundary missing",
+            ):
+                policy_gate.validate_storefront_contract_publication(
+                    root,
+                    policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES,
+                )
+
+    def test_storefront_contract_publication_rejects_image_build_scope(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            workflow = (
+                root / ".github/workflows/storefront-contract-artifact-publish.yml"
+            )
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8") + "\n# docker build\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "publication responsibility is too broad",
+            ):
+                policy_gate.validate_storefront_contract_publication(
+                    root,
+                    policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES,
+                )
+
+    def test_preview_workflow_cannot_regain_contract_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            preview = root / ".github/workflows/preview-image-build.yml"
+            preview.write_text(
+                preview.read_text(encoding="utf-8")
+                + "\n# storefront_contract_artifact.py build\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "must not publish Storefront contract artifacts",
+            ):
+                policy_gate.validate_storefront_contract_publication(
+                    root,
+                    policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES,
+                )
+
+    def test_storefront_publication_requires_duplicate_version_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            helper = root / "scripts/release/storefront_contract_publication.py"
+            helper.write_text(
+                helper.read_text(encoding="utf-8").replace(
+                    "immutable_artifact_version_already_exists",
+                    "immutable_version_check_removed",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                policy_gate.PolicyFailure,
+                "publication authority missing",
+            ):
+                policy_gate.validate_storefront_contract_publication(
+                    root,
+                    policy_gate.STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES,
+                )
+
     def test_preview_image_pipeline_rejects_production_host_build_helper(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
