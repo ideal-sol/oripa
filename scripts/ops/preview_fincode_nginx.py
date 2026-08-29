@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonicalize Shared Preview API and fincode webhook Nginx routes."""
+"""Canonicalize Shared Preview and live Storefront API Nginx routes."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 
 
 PREVIEW_SERVER_NAME = "test.luxe-pack.biz"
+LIVE_SERVER_NAME = "luxe-pack.biz"
+MANAGED_SERVER_NAMES = frozenset((PREVIEW_SERVER_NAME, LIVE_SERVER_NAME))
 WEBHOOK_PATH = "/webhooks/v2/fincode"
 STABLE_API_UPSTREAM = "http://127.0.0.1:8611"
 NGINX_TEST_COMMAND = ("/usr/sbin/nginx", "-t")
@@ -92,7 +94,9 @@ def block_end(lines: list[str], start: int) -> int:
     fail("nginx_block_unterminated")
 
 
-def preview_server(lines: list[str]) -> tuple[int, int]:
+def managed_server(lines: list[str], server_name: str) -> tuple[int, int]:
+    if server_name not in MANAGED_SERVER_NAMES:
+        fail("managed_server_name_invalid")
     candidates = []
     for index, line in enumerate(lines):
         if not SERVER_PATTERN.fullmatch(line.rstrip("\n")):
@@ -100,12 +104,12 @@ def preview_server(lines: list[str]) -> tuple[int, int]:
         end = block_end(lines, index)
         block = "".join(lines[index : end + 1])
         if (
-            f"server_name {PREVIEW_SERVER_NAME};" in block
+            f"server_name {server_name};" in block
             and re.search(r"^\s*listen(?:\s+\[::\])?:443\s+ssl", block, re.MULTILINE)
         ):
             candidates.append((index, end))
     if len(candidates) != 1:
-        fail("preview_tls_server_not_unique")
+        fail("managed_tls_server_not_unique")
     return candidates[0]
 
 
@@ -192,11 +196,11 @@ def canonical_location(indentation: str, upstream: str) -> str:
     )
 
 
-def render_config(content: str) -> str:
+def render_config(content: str, server_name: str = PREVIEW_SERVER_NAME) -> str:
     lines = content.splitlines(keepends=True)
     if not lines or any(not line.endswith("\n") for line in lines[:-1]):
         fail("nginx_content_invalid")
-    server_start, server_end = preview_server(lines)
+    server_start, server_end = managed_server(lines, server_name)
     api_exact = location_range(
         lines, server_start, server_end, API_EXACT_LOCATION_PATTERN
     )
@@ -204,18 +208,27 @@ def render_config(content: str) -> str:
         lines, server_start, server_end, API_PREFIX_LOCATION_PATTERN
     )
     admin = location_range(lines, server_start, server_end, ADMIN_LOCATION_PATTERN)
-    webhook = location_range(lines, server_start, server_end, WEBHOOK_LOCATION_PATTERN)
+    manages_webhook = server_name == PREVIEW_SERVER_NAME
+    webhook = (
+        location_range(lines, server_start, server_end, WEBHOOK_LOCATION_PATTERN)
+        if manages_webhook
+        else None
+    )
     if api_exact is None or api_prefix is None or admin is None:
         fail("preview_route_boundary_missing")
-    for index in range(server_start + 1, server_end):
-        line = lines[index].rstrip("\n")
-        if LOCATION_PATTERN.match(line) and "/webhooks" in line:
-            if not WEBHOOK_LOCATION_PATTERN.fullmatch(line):
-                fail("broad_webhook_location_rejected")
+    if manages_webhook:
+        for index in range(server_start + 1, server_end):
+            line = lines[index].rstrip("\n")
+            if LOCATION_PATTERN.match(line) and "/webhooks" in line:
+                if not WEBHOOK_LOCATION_PATTERN.fullmatch(line):
+                    fail("broad_webhook_location_rejected")
 
     for route in (api_exact, api_prefix):
         validate_proxy_contract(lines, *route)
         replace_proxy_upstream(lines, *route, STABLE_API_UPSTREAM)
+
+    if not manages_webhook:
+        return "".join(lines)
 
     indentation = re.match(r"^\s*", lines[api_prefix[0]]).group(0)
     if webhook is not None:
@@ -268,11 +281,15 @@ def atomic_replace(path: Path, payload: bytes, metadata: os.stat_result) -> None
         temporary.unlink(missing_ok=True)
 
 
-def apply_config(path: Path, backup: Path) -> dict[str, object]:
+def apply_config(
+    path: Path, backup: Path, server_name: str = PREVIEW_SERVER_NAME
+) -> dict[str, object]:
     metadata = secure_file(path)
     original = path.read_bytes()
-    rendered = render_config(original.decode("utf-8")).encode("utf-8")
-    verify_content(rendered.decode("utf-8"))
+    rendered = render_config(original.decode("utf-8"), server_name).encode(
+        "utf-8"
+    )
+    verify_content(rendered.decode("utf-8"), server_name)
     if rendered == original:
         return {"changed": False, "status": "already_canonical"}
     if backup.exists():
@@ -301,27 +318,28 @@ def write_all(descriptor: int, payload: bytes) -> None:
         offset += written
 
 
-def restore_config(path: Path, backup: Path) -> dict[str, object]:
+def restore_config(
+    path: Path, backup: Path, server_name: str = PREVIEW_SERVER_NAME
+) -> dict[str, object]:
     metadata = secure_file(path)
     secure_file(backup, 0o600)
     original = backup.read_bytes()
-    render_config(original.decode("utf-8"))
+    render_config(original.decode("utf-8"), server_name)
     atomic_replace(path, original, metadata)
     return {"changed": True, "status": "restored"}
 
 
-def verify_content(content: str) -> None:
-    rendered = render_config(content)
+def verify_content(content: str, server_name: str = PREVIEW_SERVER_NAME) -> None:
+    rendered = render_config(content, server_name)
     if rendered == content:
         return
     lines = content.splitlines(keepends=True)
-    server_start, server_end = preview_server(lines)
+    server_start, server_end = managed_server(lines, server_name)
     upstreams = []
-    for pattern in (
-        API_EXACT_LOCATION_PATTERN,
-        API_PREFIX_LOCATION_PATTERN,
-        WEBHOOK_LOCATION_PATTERN,
-    ):
+    patterns = [API_EXACT_LOCATION_PATTERN, API_PREFIX_LOCATION_PATTERN]
+    if server_name == PREVIEW_SERVER_NAME:
+        patterns.append(WEBHOOK_LOCATION_PATTERN)
+    for pattern in patterns:
         route = location_range(lines, server_start, server_end, pattern)
         if route is not None:
             upstreams.append(proxy_upstream(lines, *route)[1])
@@ -330,9 +348,11 @@ def verify_content(content: str) -> None:
     fail("preview_routes_not_canonical")
 
 
-def verify_config(path: Path) -> dict[str, object]:
+def verify_config(
+    path: Path, server_name: str = PREVIEW_SERVER_NAME
+) -> dict[str, object]:
     secure_file(path)
-    verify_content(path.read_text(encoding="utf-8"))
+    verify_content(path.read_text(encoding="utf-8"), server_name)
     return {"changed": False, "status": "canonical"}
 
 
@@ -350,9 +370,12 @@ def run_operational_command(runner, command: tuple[str, ...]) -> bool:
 
 
 def activate_config(
-    path: Path, backup: Path, runner=subprocess.run
+    path: Path,
+    backup: Path,
+    runner=subprocess.run,
+    server_name: str = PREVIEW_SERVER_NAME,
 ) -> dict[str, object]:
-    result = apply_config(path, backup)
+    result = apply_config(path, backup, server_name)
     if not result["changed"]:
         return {
             **result,
@@ -360,10 +383,10 @@ def activate_config(
             "reload": "not_run",
         }
     if not run_operational_command(runner, NGINX_TEST_COMMAND):
-        restore_config(path, backup)
+        restore_config(path, backup, server_name)
         fail("nginx_config_test_failed_rolled_back")
     if not run_operational_command(runner, NGINX_RELOAD_COMMAND):
-        restore_config(path, backup)
+        restore_config(path, backup, server_name)
         fail("nginx_reload_failed_rolled_back")
     return {
         **result,
@@ -379,6 +402,11 @@ def main() -> None:
     )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--backup", type=Path)
+    parser.add_argument(
+        "--server-name",
+        choices=tuple(sorted(MANAGED_SERVER_NAMES)),
+        default=PREVIEW_SERVER_NAME,
+    )
     arguments = parser.parse_args()
     if (
         arguments.operation in {"activate", "apply", "restore"}
@@ -386,13 +414,25 @@ def main() -> None:
     ):
         fail("backup_required")
     if arguments.operation == "activate":
-        result = activate_config(arguments.input, arguments.backup)
+        result = activate_config(
+            arguments.input,
+            arguments.backup,
+            server_name=arguments.server_name,
+        )
     elif arguments.operation == "apply":
-        result = apply_config(arguments.input, arguments.backup)
+        result = apply_config(
+            arguments.input,
+            arguments.backup,
+            arguments.server_name,
+        )
     elif arguments.operation == "restore":
-        result = restore_config(arguments.input, arguments.backup)
+        result = restore_config(
+            arguments.input,
+            arguments.backup,
+            arguments.server_name,
+        )
     else:
-        result = verify_config(arguments.input)
+        result = verify_config(arguments.input, arguments.server_name)
     print(json.dumps(result, sort_keys=True))
 
 

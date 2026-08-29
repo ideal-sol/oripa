@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-024",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_implementation_in_progress",
+  "issue": 414,
+  "pull_request": null,
+  "base_sha": "efc64e24fbbb01cab10f1f2953c6b7ee49d90484",
+  "implementation_commit": null,
+  "task_policy": {
+    "path": "/etc/ideal-sol/github-app/task-policies/OPS-024.json",
+    "sha256": "1c309dc63b4f6a7981ee140768928bbcb667e31e3cd804f0ee9d300938e90585",
+    "allowed_path_count": 10
+  },
+  "stage_0": {
+    "readback_started_at_utc": "2026-08-29T03:25:27Z",
+    "local_origin_github_main_equal": true,
+    "working_tree_clean": true,
+    "task_id_unused_before_issue": true,
+    "open_human_issues": 0,
+    "open_human_pull_requests": 0,
+    "open_dependabot_pull_requests": 15,
+    "nginx_topology": "HOST_SYSTEMD",
+    "active_vhost": "/etc/nginx/conf.d/luxe-pack.biz.conf",
+    "active_vhost_sha256": "82beef1a07bf16084a5cee87c0d7ef6d507b258d30d9fd5dd421b5c1719078df",
+    "test_vhost_sha256": "f726e156b214f15ce5e4857eb33e172105726babe9dafd3dfa82465d783899e6",
+    "old_api_upstream": "http://192.168.61.10:8000",
+    "api_loopback_publication": "127.0.0.1:8611:8000",
+    "active_api_revision": "e006c7a95592e5a03eef0be7e59bfa995185171c",
+    "active_api_image": "oripa-v2-api:preview-MIG-097-e006c7a95592",
+    "active_api_image_id": "sha256:e782e21228fb59e01f518213da48352750e7bf36b97a6c135fa75517980fadba",
+    "active_storefront_revision": "0a8bcdf09e1d0549dac7d1736b9cb868eb04f0e9",
+    "active_storefront_build_id": "hjgAN8D6Bf2kOE71jmmh6",
+    "storefront_artifact": "@oripa/storefront-client 2.0.0-alpha.30",
+    "direct_api_status": {
+      "/api/health": 200,
+      "/api/v2/auth/session": 200,
+      "/api/v2/gachas?limit=1": 200,
+      "/api/v2/point-products": 200
+    },
+    "test_same_origin_status": {
+      "/api/v2/auth/session": 200,
+      "/api/v2/gachas?limit=1": 200,
+      "/api/v2/point-products": 200
+    },
+    "live_same_origin_status": {
+      "/api/v2/auth/session": 502,
+      "/api/v2/gachas?limit=1": 502,
+      "/api/v2/point-products": 502
+    },
+    "services_healthy_or_active": true,
+    "restart_counts_zero": true,
+    "v2_private_internal": true,
+    "api_bind_loopback_only": true,
+    "admin_database_redis_host_ports": 0,
+    "root_free_bytes": 27283791872,
+    "secret_value_readback": 0
+  },
+  "root_cause": {
+    "summary": "The live Storefront Host Nginx vhost retained an obsolete Docker container address that was not managed by the OPS-023 test-vhost canonicalizer.",
+    "first_failure": "Host Nginx TCP connection to obsolete upstream before API application dispatch",
+    "cloudflare_cause": false,
+    "site_047_cause": false,
+    "origin_or_csrf_cause": false,
+    "ops_023_managed_test_vhost_only": true
+  },
+  "source_change": {
+    "canonical_stable_upstream": "http://127.0.0.1:8611",
+    "managed_server_names": [
+      "test.luxe-pack.biz",
+      "luxe-pack.biz"
+    ],
+    "test_managed_routes": [
+      "location = /api/v2",
+      "location ^~ /api/v2/",
+      "location = /webhooks/v2/fincode"
+    ],
+    "live_managed_routes": [
+      "location = /api/v2",
+      "location ^~ /api/v2/"
+    ],
+    "private_container_upstream_verification": "FAIL_CLOSED",
+    "header_and_uri_contract": "PRESERVED",
+    "atomic_backup_apply_restore": "GUARDED",
+    "nginx_test_before_reload": true,
+    "test_and_live_same_origin_acceptance": "REQUIRED"
+  },
+  "source_validation": {
+    "nginx_canonicalizer_tests": "PASS_12",
+    "preview_pipeline_tests": "PASS_26",
+    "policy_unit_tests": "PASS_174",
+    "active_test_vhost_verify": "PASS_CANONICAL",
+    "active_live_vhost_verify": "EXPECTED_FAIL_CONTAINER_SPECIFIC_UPSTREAM",
+    "local_policy_gate": "PENDING_AFTER_NEW_FILE_IS_TRACKED",
+    "git_diff_check": "PASS",
+    "required_checks": "PENDING_FINAL_HEAD",
+    "fresh_strict_self_review": "PENDING_FINAL_HEAD"
+  },
+  "post_merge_runtime": {
+    "authority": "exact squash-merged main canonicalizer and root-only evidence",
+    "backup": "/var/lib/oripa-v2-evidence/OPS-024/luxe-pack-vhost.before.conf",
+    "config_apply": "PENDING_AFTER_MERGE",
+    "nginx_reload": "PENDING_AFTER_MERGE",
+    "runtime_acceptance": "PENDING_AFTER_MERGE"
+  },
+  "mutation_boundary_before_merge": {
+    "api_build": 0,
+    "storefront_build": 0,
+    "admin_build": 0,
+    "container_recreate": 0,
+    "service_restart": 0,
+    "nginx_config_apply": 0,
+    "nginx_reload": 0,
+    "migration_created": 0,
+    "migration_applied": 0,
+    "database_mutation": 0,
+    "artifact_publication": 0,
+    "provider_payment_coin_mail_mutation": 0,
+    "production_credential_mutation": 0,
+    "secret_value_readback": 0
+  }
+}

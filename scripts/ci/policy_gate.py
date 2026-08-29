@@ -207,6 +207,7 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
 }
 PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
     ".github/workflows/preview-image-build.yml",
+    "docs/operations/deployment/luxe-pack-storefront-api-upstream.md",
     "docs/operations/deployment/preview-fincode-callbacks.md",
     "docs/operations/deployment/preview-image-build.md",
     "infrastructure/github-app/oripa-github-app-api",
@@ -1411,6 +1412,9 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         "https://test.luxe-pack.biz/api/v2/auth/session",
         "https://test.luxe-pack.biz/api/v2/gachas?limit=1",
         "https://test.luxe-pack.biz/api/v2/point-products",
+        "https://luxe-pack.biz/api/v2/auth/session",
+        "https://luxe-pack.biz/api/v2/gachas?limit=1",
+        "https://luxe-pack.biz/api/v2/point-products",
         "API-only Activation is incomplete if any same-origin smoke is omitted",
     }
     missing_acceptance = sorted(
@@ -1427,15 +1431,29 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     upstream_assignments = re.findall(
         r'^STABLE_API_UPSTREAM\s*=\s*"([^"]+)"$', canonicalizer, re.MULTILINE
     )
+    managed_server_names = dict(
+        re.findall(
+            r'^(PREVIEW_SERVER_NAME|LIVE_SERVER_NAME)\s*=\s*"([^"]+)"$',
+            canonicalizer,
+            re.MULTILINE,
+        )
+    )
     required_canonicalizer = {
         "API_EXACT_LOCATION_PATTERN",
         "API_PREFIX_LOCATION_PATTERN",
+        "MANAGED_SERVER_NAMES",
         "container_specific_upstream_rejected",
         "NGINX_TEST_COMMAND",
         "NGINX_RELOAD_COMMAND",
     }
-    if upstream_assignments != [PREVIEW_STABLE_API_UPSTREAM] or any(
-        item not in canonicalizer for item in required_canonicalizer
+    if (
+        upstream_assignments != [PREVIEW_STABLE_API_UPSTREAM]
+        or managed_server_names
+        != {
+            "PREVIEW_SERVER_NAME": "test.luxe-pack.biz",
+            "LIVE_SERVER_NAME": "luxe-pack.biz",
+        }
+        or any(item not in canonicalizer for item in required_canonicalizer)
     ):
         raise PolicyFailure("Preview API stable upstream boundary missing")
     callback_runbook = (
@@ -1447,7 +1465,24 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         or "only after the config test passes" not in callback_runbook
     ):
         raise PolicyFailure("Preview Nginx stable activation boundary missing")
-    if PRIVATE_HTTP_UPSTREAM.search(runbook + callback_runbook + canonicalizer):
+    live_runbook = (
+        repository
+        / "docs/operations/deployment/luxe-pack-storefront-api-upstream.md"
+    ).read_text(encoding="utf-8")
+    required_live_activation = {
+        PREVIEW_STABLE_API_UPSTREAM,
+        "--server-name luxe-pack.biz",
+        "/etc/nginx/conf.d/luxe-pack.biz.conf",
+        "preview_fincode_nginx.py activate",
+        "only after the config test passes",
+    }
+    if any(item not in live_runbook for item in required_live_activation):
+        raise PolicyFailure(
+            "Production Storefront Nginx stable activation boundary missing"
+        )
+    if PRIVATE_HTTP_UPSTREAM.search(
+        runbook + callback_runbook + live_runbook + canonicalizer
+    ):
         raise PolicyFailure("Preview Nginx container-specific upstream prohibited")
 
 
