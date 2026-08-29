@@ -727,20 +727,20 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_alpha_31_pending_candidate(self):
+    def test_storefront_release_governance_accepts_reconciled_alpha_31(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.30")
-        self.assertEqual(value["latest_immutable"]["release_mode"], "package-only")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.31")
-        self.assertEqual(value["candidate"]["release_state"], "pending")
-        self.assertNotIn("source_commit", value["candidate"])
-        self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 65)
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.31")
+        self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
+        self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
+        self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.30")
+        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 71)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
             {
-                "public": "2.0.0-alpha.27",
-                "admin": "2.0.0-alpha.27",
-                "webhook": "2.0.0-alpha.27",
+                "public": "2.0.0-alpha.28",
+                "admin": "2.0.0-alpha.28",
+                "webhook": "2.0.0-alpha.28",
             },
         )
 
