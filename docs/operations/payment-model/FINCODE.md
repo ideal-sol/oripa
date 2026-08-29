@@ -108,19 +108,29 @@ redirectなし／復号不可／authority不正、invalid Paymentは一覧へ出
 
 ## Card Boundary
 
-PAN、CVC、生カード入力、TokenをLaravelへ送信・保存・Loggingしない。カード情報の
-Canonical holderはfincodeである。Platformが保存するのはUserとfincode Customer／Card
-reference、brand、last4、YYMMから検証したexpiry、last-used時刻だけである。
+PAN、CVC、生カード番号をLaravelへ送信、保存、Loggingしない。Browser fincode UIが一時生成した
+`card_token`はCard Registration開始Requestでだけ受け取り、同じProvider Requestへ渡した後は
+永続化しない。カード情報のCanonical holderはfincodeである。Platformが保存するのはUser、
+fincode Customer、Provider Payment Method／Card reference、Registration 3DS2 assurance、
+brand、last4、YYMMから検証したexpiry、last-used時刻だけである。
 
-Userごとの登録カードは最大3枚である。User row lockと有効な登録Intent予約数を含む
-判定により並行Requestでも4枚目を成立させない。利用・削除・登録完了ではPlatform側の
-User、Customer、Card所有関係とfincode取得結果のCustomer／Card referenceを照合する。
-期限切れカードは一覧表示と削除を許可し、決済利用を拒否する。表示順はlast-used降順で、
-メインカードというPlatform機能は持たない。
+Userごとの利用可能な登録カードは最大3枚である。effective registration capacityは次を正本とし、
+User row lockにより並行開始でも上限を超えない。
 
-新規カードはfincode UI Component／Public APIからProviderへ直接送る。Backend Contractは
-今回限りのカード、保存して購入、登録済みカードを区別する。登録Intentはfincode Customer
-reference、Public API Key、`tds_type=2`だけを返し、Secret API Keyは返さない。
+```text
+registration_remaining = max(0, 3 - verified usable Card - non-expired live Registration)
+```
+
+`limits.remaining`は後方互換のためundeleted stored Card rowだけを数える既存意味を変更しない。
+`registration_remaining`が0かつlive Registrationのexpiryでcapacityが解放される場合は、最も早い
+`next_capacity_at`を返す。terminal failure、cancel、expiryはcapacityを消費しない。Provider上限5より
+Application上限3を優先する。
+
+Migration前に存在したCardはRegistration 3DS2 proofを持たないため自動backfillせず、
+`verification_status=unverified`、`can_pay=false`として扱う。利用可能CardはPlatform User、
+Customer、Registration、Payment Method、Cardの所有関係と、Provider exact re-query結果が一致する
+`three_d_secure_2` rowだけである。期限切れCardは一覧表示と削除を許可し決済利用を拒否する。
+表示順はlast-used降順で、メインカードというPlatform機能は持たない。
 
 Card UI表示は`GET /api/v2/me/payment-card-ui-bootstrap`を正本とする。Authenticated Userだけが
 取得でき、responseは`provider=fincode`、Public API Key、`is_live_mode`の3fieldだけである。
@@ -147,12 +157,38 @@ Backend mutationとcleanup APIは0とする。再選択時は空のCard UIをmou
 
 保存せず購入はBootstrap／mount後の購入操作で初めて
 `startPayment(source=new, save=false)`を呼び、`Payment.next_action`からfincode
-`executePayment`／3DS2へ進む。保存して購入は購入操作時に
-`createPaymentCardRegistrationIntent()`、fincode `registerCard()`、返されたProvider Card IDを使う
-`startPayment(source=new, save=true, registration_intent_id, provider_card_id)`の順であり、Platformが
-同じ購入Flow内でregistrationをcompleteしてPayment／3DS2へ進む。購入Flowは
-`completePaymentCardRegistration()`を別途呼ばない。同operationは購入を伴わない独立Card登録Flowだけを
-担当する。
+`executePayment`／Payment 3DS2へ進む。
+
+Card保存のCanonical順序は次である。
+
+```text
+startPaymentCardRegistration(card_token, Idempotency-Key)
+→ POST /v1/customers/{customer_id}/payment_methods
+  pay_type=Card, tds_type=2, tds2_type=2
+→ Registration next_actionでProvider 3DS2
+→ normal／failure Browser Return（non-authoritative）
+→ Payment Method exact GET
+→ signed customers.payment_methods.updatedで相関したCard IDをCard exact GET
+→ ACTIVATED + AUTHENTICATED + ownership一致
+→ Platform Cardをexactly onceで作成
+→ completed + saved_card_id
+```
+
+Browser Return payloadやBrowserから渡された`provider_card_id`はAuthorityにしない。Webhookは署名済みの
+reconciliation trigger／Card ID相関に限り、成功判定はPayment Method exact GETとCard exact GETで行う。
+Provider不明／unavailableはCardを作らずretryable pending、failure／unsupported 3DSはfailed、明示cancelは
+canceled、TTL超過はexpiredとし、いずれもPayment、Coin、Mailを作らない。duplicate Return、Webhook、
+reconcile、並行reconcileでもCardは最大1件である。
+
+保存して購入する場合、completedが返したPlatform-owned `saved_card_id`で
+`startPayment(source=saved, card_id=saved_card_id)`を別途開始する。Registration 3DS2の後も
+Payment 3DS2を毎回要求し、必要ならUserはchallengeを2回通過する。Registration 3DSはPayment 3DSの
+代替ではない。
+
+`createPaymentCardRegistrationIntent()`→Browser `registerCard()`→`provider_card_id`の旧経路と、
+`completePaymentCardRegistration()`、`startPayment(source=new, save=true)`は互換surfaceとして
+deprecated維持するが、Registration 3DS2 proofがないためBackendが
+`CARD_REGISTRATION_3DS_REQUIRED`でFail Closedする。Storefront UIだけに依存しない。
 
 Bootstrapとnew-card `Payment.next_action`は同じvalidated configuration authorityからPublic Keyと
 `is_live_mode`を返す。Storefrontは両方の完全一致を確認でき、不一致時にenvironmentを推測・補正せず
@@ -160,9 +196,13 @@ Payment実行を停止する。
 
 ## Mandatory 3D Secure
 
-全Credit Card Paymentは登録時の`POST /v1/payments`へ`tds_type=2`かつ`tds2_type=2`
-を指定する。`tds2_type=2`は非対応カードを認証なしで継続せずError終了する境界である。
-新規、保存する新規、保存しない新規、登録済みカードに迂回Pathを設けない。
+Card保存はPayment Method Registrationの`POST /v1/customers/{customer_id}/payment_methods`へ
+`pay_type=Card`、`tds_type=2`、`tds2_type=2`を固定する。`tds2_type=3`を使用せず、3DS2非対応Cardを
+認証なしで保存しない。
+
+全Credit Card Paymentも`POST /v1/payments`へ`tds_type=2`かつ`tds2_type=2`を指定する。
+新規save=falseとverified saved Cardの双方でPayment 3DS2を必須とし、Registration 3DS2成功を理由に
+skipしない。新規save=trueだけのPayment開始は拒否する。
 
 Challenge／Frictionless後もBrowser Returnでは成功にせず、署名検証済みWebhookを契機に
 Secret APIで同一orderを照会し、Canonical statusが`CAPTURED`である場合だけ成功させる。
@@ -232,8 +272,13 @@ reconciliation requiredで停止する。
 
 ## Public Contract
 
-Public APIはPayment開始、Platform生成ReturnのPOST→303正規化、状態参照、成功／未払い履歴、既存未払いRedirect再開、カード一覧・
-削除・登録Intent・登録完了を提供する。成功履歴は`succeeded`だけ、未払い履歴は期限内かつ
+Public APIはPayment開始、Platform生成Payment ReturnのPOST→303正規化、状態参照、成功／未払い履歴、
+既存未払いRedirect再開、Card一覧／削除、3DS2 Card Registration開始／状態参照／reconcile／cancel、
+Registration normal／failure Return相関を提供する。旧登録Intent／完了operationはdeprecatedかつ
+Fail Closedである。Card一覧は後方互換の`limits.remaining`に加えて`registration_remaining`と
+`next_capacity_at`を返し、Registration completedだけがPlatform `saved_card_id`を返す。
+
+成功履歴は`succeeded`だけ、未払い履歴は期限内かつ
 復号可能な保存済みfincode HTTPS redirectを持つKonbini／Virtual Accountの
 `requires_action + UNPROCESSED`または`processing + AWAITING_CUSTOMER_PAYMENT`だけを返す。
 Credit Card／PayPay、expired、failed、canceled、succeededはStorefront未払い履歴に出さない。
@@ -252,19 +297,26 @@ Admin UIは実装しない。API正本は`openapi/admin/openapi.yaml`である�
 ## Contract Artifact
 
 Canonical publicationは`docs/operations/releases/storefront-contract-artifact.md`の
-additive-contract手順に従う。既存immutable `2.0.0-alpha.25`は変更せず、Public Contract、
-Storefront Client、Testkitのbyte変更をimmutable `2.0.0-alpha.26`としてSource Commit
-`2dd1c7dbcf83b78f5d07fe3d965f9982d1f2fd05`から正式発行した。Manifest SHA-256は
-`05ad837c3f4ebbf5875e4aed846d28df750c366cc5f4e3d8589799deea659e2e`、Clientは
-`80ebe7172fd4ca86fbcebe545cb2b18dfe4c3a76ccf9ad770b5291dd82225b3d`、Testkitは
-`ca62c03bddc6a3a263f5853f512f0b085756744c23ab563365b0e6d7c8e53fde`、Public OpenAPIは
-`888df7d36606aa05b599859ae27a0cd4343123d46cbbe9f4355f2f9fd649a6e5`である。
-Public OpenAPI Contract versionは`2.0.0-alpha.25`、Admin／Webhook Contractは既存versionを
-維持する。Platform、Application、Site Schemaも独立Versionのままである。
+dedicated contract-only workflowに従う。MIG-098 Sourceはlatest immutable alpha.30の次候補として
+Client／Testkit alpha.31、Public／Admin／Webhook Contract alpha.28、Public 71 operationsを記録する。
+versionは予約でなく、Squash Merge直前とpublication直前のlive ledgerでnext unusedであることを
+再確認する。
+
+ArtifactはMIG-098 exact Squash Commitがprotected `main` current headになった後だけ発行する。
+workflowはAPI image Build／push／Activation、Admin Build、Storefront application Build、Migrationを
+実行しない。publication後のSource CommitとArtifact digestは別Release Ledger reconciliation
+Task／PRで記録し、その完了までSITE-048 adoptionをHOLDする。
 
 ## Activation And Deferred Work
 
 `FINCODE_PAYMENT_ENABLED=false`が既定であり、Activation前はProvider通信をFail Closedする。
-Sandbox credentialを用いた外部実通信、Webhook登録、Shared Preview Activation、Storefront
-Payment UI、Admin Payment History UI、Refund／Chargeback、Production Enable／Commercial
-Gateは後続Taskで行う。Mock ProviderをProductionで有効化しない。
+MIG-098 Activationはdeferredで、Migration apply、API Build／Activation、Provider実Card Registration、
+実Payment、Webhook replayをSource Taskでは行わない。TEST／SANDBOXの既存fincode endpointへ正式event
+`customers.payment_methods.updated`が追加され、endpoint origin／path一致とsignature configuration presentを
+Secret値なしでread-only確認した後に、別Activation TaskでMigration applyとAPI-only Build／Activationを行う。
+既存eventを削除／置換せず、endpoint変更やSecret rotationを要求しない。
+
+Storefront SITE-048はimmutable Artifact publicationとRelease Ledger reconciliation後にexact pinし、保存確認
+Popup、Registration Return相関、capacity、legacy flow除去、completed saved CardからのPayment 3DS2を実装する。
+Sandbox credentialを用いたHuman-controlled Save Card E2Eはその後1回だけ行う。Admin UI、Refund／Chargeback、
+Production Enable／Commercial Gateは後続Taskであり、Mock ProviderをProductionで有効化しない。

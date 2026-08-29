@@ -1549,7 +1549,7 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame(3, $cards->cards($user)['limits']['registration_remaining']);
         self::assertSame('requires_action', DB::table('fincode_card_registration_intents')
             ->where('public_id', $started[2]['id'])->value('status'));
-        self::assertSame('expired', $cards->registration($user, $started[2]['id'])['status']);
+        self::assertSame('expired', $cards->cancelRegistration($user, $started[2]['id'])['status']);
         $released = $cards->cards($user)['limits'];
         self::assertSame(3, $released['registration_remaining']);
         self::assertNull($released['next_capacity_at']);

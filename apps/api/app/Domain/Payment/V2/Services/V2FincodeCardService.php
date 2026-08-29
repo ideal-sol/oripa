@@ -235,6 +235,17 @@ final class V2FincodeCardService
             if (in_array($locked->status, ['failed', 'expired', 'canceled'], true)) {
                 return $locked;
             }
+            if (now()->greaterThanOrEqualTo($locked->expires_at)) {
+                DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
+                    'status' => 'expired',
+                    'redirect_url_ciphertext' => null,
+                    'updated_at' => now(),
+                ]);
+
+                return DB::table('fincode_card_registration_intents')
+                    ->where('id', $locked->id)
+                    ->firstOrFail();
+            }
             DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                 'status' => 'canceled',
                 'canceled_at' => now()->startOfSecond(),

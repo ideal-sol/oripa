@@ -3798,7 +3798,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description GET `/points?card_registration_id={Card Registration.id}`へ固定遷移する。Browser payload単独ではCardを作成しない。 */
+            /** @description Storefrontの具体routeを推測せず、設定済みorigin直下へPublic Opaque Registration IDだけを付けて固定遷移する。Browser payload単独ではCardを作成しない。 */
             303: {
                 headers: {
                     Location: string;
@@ -3820,7 +3820,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description GET `/points?card_registration_id={Card Registration.id}`へ固定遷移する。Card保存やPayment開始をBrowser payloadから行わない。 */
+            /** @description Storefrontの具体routeを推測せず、設定済みorigin直下へPublic Opaque Registration IDだけを付けて固定遷移する。Card保存やPayment開始をBrowser payloadから行わない。 */
             303: {
                 headers: {
                     Location: string;

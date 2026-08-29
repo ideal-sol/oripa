@@ -175,10 +175,23 @@ Credit Card選択時は購入操作より先に`getPaymentCardUiBootstrap()`を�
 Idempotency-Keyを要求しない。購入操作時に初めて`startPayment()`を呼び、新規Cardの
 `next_action.public_api_key`／`is_live_mode`がBootstrapと一致しなければ実行を停止する。
 
-保存せず購入はBootstrap→mount→`startPayment(source=new, save=false)`、保存して購入は
-Bootstrap→mount→`createCardRegistrationIntent()`→fincode `registerCard()`→
-`startPayment(source=new, save=true, registration_intent_id, provider_card_id)`である。購入Flowは
-`completeCardRegistration()`を別途呼ばず、同methodは購入を伴わない独立Card登録だけに使う。
+保存せず購入はBootstrap→mount→`startPayment(source=new, save=false)`でPayment 3DS2へ進む。
+保存する場合はBrowser UIが一時生成した`card_token`を`startCardRegistration()`へ渡し、
+`next_action`のProvider Registration 3DS2を完了する。Browser Returnは成功Authorityではない。
+`getCardRegistration()`でPlatform状態を読み、必要な場合だけ
+`reconcileCardRegistration()`でProvider Payment Method exact GETとCard exact GETを実行する。
+`status=completed`かつ`saved_card_id`が返った後だけ、そのPlatform-owned IDを
+`startPayment(source=saved, card_id=saved_card_id)`へ渡して別のPayment 3DS2を開始する。
+
+`createCardRegistrationIntent()`と`completeCardRegistration()`は旧Client互換のdeprecated surfaceで、
+Browser `registerCard()`または`provider_card_id`だけではRegistration 3DS2 proofにならない。
+`completeCardRegistration()`と`startPayment(source=new, save=true)`はBackendが
+`CARD_REGISTRATION_3DS_REQUIRED`でFail Closedする。保存確認をcancelする場合は
+`cancelCardRegistration()`を使い、failure／cancel／expiryではPaymentを開始しない。
+
+`listPaymentCards().limits.remaining`は従来どおりundeleted rowだけを数える。
+新規登録可否は`registration_remaining`を使用し、0の原因がlive pending Registrationなら
+`next_capacity_at`を安全な再試行時刻として扱う。`cards.length < 3`だけで判定しない。
 
 Canonical normal returnは`/points/purchase/thanks?pid={Payment.id}`、failure／cancelは
 `/points/purchase/{PointProduct.id}?pid={Payment.id}`である。両方の`pid`はPlatform生成の
