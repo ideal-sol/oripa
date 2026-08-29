@@ -441,6 +441,10 @@ class PreviewActivationRunbookTest(unittest.TestCase):
             "https://test.luxe-pack.biz/api/v2/auth/session",
             "https://test.luxe-pack.biz/api/v2/gachas?limit=1",
             "https://test.luxe-pack.biz/api/v2/point-products",
+            "https://luxe-pack.biz/api/v2/auth/session",
+            "https://luxe-pack.biz/api/v2/gachas?limit=1",
+            "https://luxe-pack.biz/api/v2/point-products",
+            "https://luxe-pack.biz/points",
             "API-only Activation is incomplete if any same-origin smoke is omitted",
         ):
             self.assertIn(required, runbook)
@@ -459,6 +463,26 @@ class PreviewActivationRunbookTest(unittest.TestCase):
         self.assertIn("preview_fincode_nginx.py activate", runbook)
         self.assertIn("runs `/usr/sbin/nginx -t`", runbook)
         self.assertIn("only after the config test passes", runbook)
+        self.assertNotRegex(
+            runbook,
+            r"http://(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)",
+        )
+
+    def test_live_nginx_runbook_uses_guarded_stable_activation(self):
+        runbook = (
+            ROOT
+            / "docs/operations/deployment/luxe-pack-storefront-api-upstream.md"
+        ).read_text(encoding="utf-8")
+
+        for required in (
+            "http://127.0.0.1:8611",
+            "--server-name luxe-pack.biz",
+            "/etc/nginx/conf.d/luxe-pack.biz.conf",
+            "preview_fincode_nginx.py activate",
+            "runs `/usr/sbin/nginx -t`",
+            "only after the config test passes",
+        ):
+            self.assertIn(required, runbook)
         self.assertNotRegex(
             runbook,
             r"http://(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)",

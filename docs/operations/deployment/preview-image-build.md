@@ -83,16 +83,16 @@ image.
 
 ## API-only Activation Acceptance
 
-Every API-only Activation must pass both direct loopback and Storefront
-same-origin smoke before acceptance. These checks use the existing TLS origin
-and do not require Browser, Provider, Payment, Coin, or Mail activity.
+Every API-only Activation must pass direct loopback plus both test and live
+Storefront same-origin smoke before acceptance. These checks use the existing
+TLS origins and do not require Browser, Provider, Payment, Coin, or Mail
+activity.
 
 - Direct `http://127.0.0.1:8611/api/health` returns HTTP 200.
 - Direct `http://127.0.0.1:8611/api/v2/auth/session` returns HTTP 200.
 - Direct `http://127.0.0.1:8611/api/v2/gachas?limit=1` returns HTTP 200.
 - Direct `http://127.0.0.1:8611/api/v2/point-products` returns HTTP 200.
-- Same-origin `https://test.luxe-pack.biz/api/v2/auth/session` returns a
-  canonical non-5xx response.
+- Same-origin `https://test.luxe-pack.biz/api/v2/auth/session` returns HTTP 200.
 - Same-origin `https://test.luxe-pack.biz/api/v2/gachas?limit=1` returns HTTP
   200.
 - Same-origin `https://test.luxe-pack.biz/api/v2/point-products` returns HTTP
@@ -100,6 +100,12 @@ and do not require Browser, Provider, Payment, Coin, or Mail activity.
 - Storefront `https://test.luxe-pack.biz/` and
   `https://test.luxe-pack.biz/points` return HTTP 200 without an unexpected
   redirect.
+- Same-origin `https://luxe-pack.biz/api/v2/auth/session` returns a canonical
+  non-5xx response.
+- Same-origin `https://luxe-pack.biz/api/v2/gachas?limit=1` returns HTTP 200.
+- Same-origin `https://luxe-pack.biz/api/v2/point-products` returns HTTP 200.
+- Storefront `https://luxe-pack.biz/` and `https://luxe-pack.biz/points` return
+  HTTP 200 without an unexpected redirect.
 - A fresh post-activation Nginx log window contains zero HTTP 500, 502, and 504
   responses.
 
