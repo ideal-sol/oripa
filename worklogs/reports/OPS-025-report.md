@@ -2,7 +2,7 @@
 
 ## Task Governance
 
-- Task `OPS-025`, Issue `#422`, platform lane `plat-main / operations`, Change Lane `Strict Change`, Risk `R4`, Activation `immediate`.
+- Task `OPS-025`, Issue `#422`, Draft Pull Request `#423`, platform lane `plat-main / operations`, Change Lane `Strict Change`, Risk `R4`, Activation `immediate`.
 - Base is exact protected main `52efea768b6cfba086f1e85523f2e9f561246af4`.
 - Root-owned Task Policy is `/etc/ideal-sol/github-app/task-policies/OPS-025.json`, mode `0600`, SHA-256 `eaae357e24cc2885c70d37e6fb7a3edba8f4d0143d046e9b4dc92cce15a7cb23`.
 - Exact allowed Repository paths are `deployments/OPS-025-mig-098-shared-preview-activation.json`, this report, and `worklogs/new_ver_main.md`. Application Source is unchanged.
@@ -49,7 +49,9 @@
 
 ## Source-phase Status
 
+- Initial source commit `451693db737608d63fca16e3a63213f1f6762591` was pushed through the policy-aware GitHub App wrapper and Draft PR `#423` was opened against `main`.
+- Policy Unit `181` tests, Local Policy Gate over `1,610` tracked files, deployment JSON parse, exact three-path scope, high-confidence secret scan with zero candidates, and `git diff --check` passed.
 - Migration created/applied: `0 / 0` for OPS-025. Migration `000067` was created and source-verified by MIG-098 only.
 - API Build/Activation: `0 / 0`. Admin and Storefront Build/Activation: `0 / 0`. Artifact publication: `0`.
 - Database business mutation, Provider, Card Registration, Payment, Coin/Point Ledger, Mail, Production, Nginx, and Secret mutation/readback: `0`.
-- Required Checks, fresh Strict self-review, squash merge, Migration apply, API Build/Activation, Runtime Acceptance, GO/HOLD decisions, lock release, and cleanup remain pending.
+- Final-head Required Checks, fresh Strict self-review, squash merge, Migration apply, API Build/Activation, Runtime Acceptance, GO/HOLD decisions, lock release, and cleanup remain pending.

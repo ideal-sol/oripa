@@ -5,9 +5,9 @@
   "risk": "R4",
   "lane": "Strict Change",
   "activation": "immediate",
-  "status": "source_planning_in_progress",
+  "status": "source_ready_checks_pending",
   "issue": 422,
-  "pull_request": null,
+  "pull_request": 423,
   "base_sha": "52efea768b6cfba086f1e85523f2e9f561246af4",
   "task_policy": {
     "path": "/etc/ideal-sol/github-app/task-policies/OPS-025.json",
@@ -118,6 +118,17 @@
     "release_ledger_change": 0,
     "artifact_publication": 0,
     "storefront_admin_nginx_change": 0
+  },
+  "source_validation": {
+    "initial_source_commit": "451693db737608d63fca16e3a63213f1f6762591",
+    "policy_unit_tests": "PASS_181",
+    "local_policy_gate": "PASS_1610_TRACKED_FILES",
+    "deployment_json": "PASS",
+    "exact_changed_paths": "PASS_3",
+    "high_confidence_secret_scan": "PASS_ZERO_CANDIDATES",
+    "git_diff_check": "PASS",
+    "required_checks": "PENDING_FINAL_HEAD",
+    "fresh_strict_self_review": "PENDING_FINAL_HEAD"
   },
   "planned_execution": [
     "apply_migration_000067_exactly_once",
