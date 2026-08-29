@@ -4,6 +4,7 @@
 
 - Task: `GOV-020 — Contract-only Artifact Publication from Exact Merged Main`
 - Issue: `#417`
+- Pull request: `#418`
 - Lane: `plat-contract / governance`
 - Change: `Strict Change`
 - Risk: `R4`
@@ -69,6 +70,22 @@ call were corrected before the 11/11 and full 36/36 PASS reruns. Ruby YAML parse
 and `actionlint` were unavailable locally; PyYAML parse passed and GitHub workflow
 validation remains part of Required Checks.
 
-Required Checks, fresh self-review, squash merge, and cleanup are pending.
-GOV-020 publishes no MIG-098 Artifact, reserves no Artifact version, creates or
-applies no Migration, and performs no Build or Runtime Activation.
+Final-head Required Checks, fresh self-review, squash merge, and cleanup are
+pending. GOV-020 publishes no MIG-098 Artifact, reserves no Artifact version,
+creates or applies no Migration, and performs no publication or Runtime Build or
+Activation.
+
+Pre-final source head `3a19d42d31ac557ee765cd7c7e87c322ad802b0d`
+passed all five GitHub Required Checks: `policy-gate`, `quality-gate`,
+`security-gate`, `integration-gate`, and `ci-gate`. The first automatic PR run
+failed at lane resolution because the PR body used descriptive Change/Activation
+labels instead of the exact machine-readable `Lane`, `Application Runtime
+Activation`, and `UI Verification` labels. The body was corrected without a
+source-head change; one governed Strict workflow dispatch rerun then passed all
+five checks. This evidence is pre-final because recording it changes the report
+and requires a new exact-head run.
+
+No contract publication workflow was dispatched. API image Build, API push,
+API Activation, Admin/Storefront runtime Build, Artifact publication, Migration,
+and runtime mutation counts remain zero. Standard Required Check source builds
+ran once on the pre-final head and are verification only.
