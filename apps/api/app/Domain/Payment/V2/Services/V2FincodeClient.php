@@ -27,6 +27,45 @@ final class V2FincodeClient
         );
     }
 
+    /** @return array<string, mixed> */
+    public function createCardPaymentMethod(
+        string $customerId,
+        #[SensitiveParameter] string $cardToken,
+        string $returnUrl,
+        string $failureUrl,
+        string $registrationPublicId,
+        string $idempotencyKey
+    ): array {
+        return $this->request(
+            'post',
+            '/v1/customers/'.rawurlencode($customerId).'/payment_methods',
+            [
+                'pay_type' => 'Card',
+                'default_flag' => '0',
+                'return_url' => $returnUrl,
+                'return_url_on_failure' => $failureUrl,
+                'client_field_1' => $registrationPublicId,
+                'card' => [
+                    'token' => $cardToken,
+                    'tds_type' => '2',
+                    'tds2_type' => '2',
+                ],
+            ],
+            $idempotencyKey
+        );
+    }
+
+    /** @return array<string, mixed> */
+    public function retrieveCardPaymentMethod(string $customerId, string $paymentMethodId): array
+    {
+        return $this->request(
+            'get',
+            '/v1/customers/'.rawurlencode($customerId)
+                .'/payment_methods/'.rawurlencode($paymentMethodId)
+                .'?pay_type=Card'
+        );
+    }
+
     public function deleteCard(string $customerId, string $cardId): void
     {
         $this->request(

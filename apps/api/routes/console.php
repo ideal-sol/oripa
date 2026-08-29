@@ -29,8 +29,22 @@ Artisan::command('v2:fincode:reconcile-due {--limit=100}', function (V2FincodeRe
     return $result['failed'] === 0 ? 0 : 1;
 })->purpose('Reconcile due fincode Konbini and Virtual Account payments.');
 
+Artisan::command('v2:fincode:reconcile-card-registrations {--limit=100}', function (V2FincodeReconciliationService $service): int {
+    $result = $service->reconcileCardRegistrations((int) $this->option('limit'));
+    $this->info(sprintf(
+        'Reconciled %d/%d fincode card registrations; %d expired and %d failed.',
+        $result['processed'],
+        $result['selected'],
+        $result['expired'],
+        $result['failed'],
+    ));
+
+    return $result['failed'] === 0 ? 0 : 1;
+})->purpose('Reconcile canonical fincode 3DS2 card registrations.');
+
 Schedule::command('points:expire')->hourly()->withoutOverlapping();
 Schedule::command('v2:fincode:reconcile-due')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('v2:fincode:reconcile-card-registrations')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('points:snapshot-balances')
     ->dailyAt('00:10')
     ->timezone(config('app.timezone', 'Asia/Tokyo'))

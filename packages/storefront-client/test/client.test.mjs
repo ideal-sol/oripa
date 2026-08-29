@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   ApiProblemError,
+  CARD_REGISTRATION_INCOMPLETE_STATUSES,
+  CARD_REGISTRATION_TERMINAL_STATUSES,
   StorefrontTransportError,
   createBrowserStorefrontClient,
   createBrowserStorefrontContentContactClient,
@@ -11,6 +13,7 @@ import {
   createBrowserStorefrontPaymentClient,
   createIdempotencyKey,
   isAuthProblemError,
+  isCardRegistrationProblemError,
   isDrawProblemError,
   isFulfillmentProblemError,
 } from "../dist/browser.js";
@@ -1176,6 +1179,17 @@ test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード
   await payments.listPayments({ view: "unpaid", limit: 20, cursor: "next" });
   await payments.resumeUnpaidPayment("payment-id", { csrf_token: csrfToken });
   await payments.listCards();
+  await payments.startCardRegistration(
+    { card_token: "tok_registration_fixture" },
+    { csrf_token: csrfToken, idempotency_key: "card-registration-key" },
+  );
+  await payments.getCardRegistration("registration-id");
+  await payments.reconcileCardRegistration("registration-id", {
+    csrf_token: csrfToken,
+  });
+  await payments.cancelCardRegistration("registration-id", {
+    csrf_token: csrfToken,
+  });
   await payments.createCardRegistrationIntent({
     csrf_token: csrfToken,
     idempotency_key: "card-intent-key",
@@ -1193,6 +1207,10 @@ test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード
     "/me/payments?view=unpaid&limit=20&cursor=next",
     "/payments/payment-id/resume",
     "/me/payment-cards",
+    "/me/payment-card-registrations",
+    "/me/payment-card-registrations/registration-id",
+    "/me/payment-card-registrations/registration-id/reconcile",
+    "/me/payment-card-registrations/registration-id/cancel",
     "/me/payment-card-registration-intents",
     "/me/payment-card-registration-intents/intent-id/complete",
     "/me/payment-cards/card-id",
@@ -1206,10 +1224,16 @@ test("Payment FacadeはBootstrap・作成・履歴・未払い再開・カード
   assert.equal(requests[4].csrf, "required");
   assert.equal(requests[4].retry, false);
   assert.equal(requests[6].method, "POST");
-  assert.deepEqual(requests[6].body, {});
+  assert.deepEqual(requests[6].body, { card_token: "tok_registration_fixture" });
   assert.equal(requests[6].headers["X-XSRF-TOKEN"], csrfToken);
-  assert.equal(requests[6].idempotency_key, "card-intent-key");
+  assert.equal(requests[6].idempotency_key, "card-registration-key");
   assert.equal(requests[6].csrf, "required");
+  assert.equal(requests[7].method, undefined);
+  assert.equal(requests[8].method, "POST");
+  assert.equal(requests[8].retry, false);
+  assert.equal(requests[9].method, "POST");
+  assert.equal(requests[9].retry, false);
+  assert.equal(requests[10].idempotency_key, "card-intent-key");
   assert.deepEqual(payment.data.grant, {
     paid_points: 10000,
     bonus_points: 1000,
@@ -1267,4 +1291,54 @@ test("Browser Payment FacadeはCSRFをTransport管理へ委譲する", async () 
   assert.equal(calls.at(-1).init.headers.get("Content-Type"), "application/json");
   assert.equal(calls.at(-1).init.headers.get("Idempotency-Key"), "browser-card-intent-key");
   assert.equal(calls.at(-1).init.credentials, "include");
+  await client.startCardRegistration(
+    { card_token: "tok_browser_registration_fixture" },
+    { idempotency_key: "browser-registration-key" },
+  );
+  assert.equal(calls.at(-1).url, "/api/v2/me/payment-card-registrations");
+  assert.equal(calls.at(-1).init.method, "POST");
+  assert.equal(
+    calls.at(-1).init.body,
+    JSON.stringify({ card_token: "tok_browser_registration_fixture" }),
+  );
+  assert.equal(calls.at(-1).init.headers.get("Idempotency-Key"), "browser-registration-key");
+  await client.getCardRegistration("registration-id");
+  assert.equal(calls.at(-1).url, "/api/v2/me/payment-card-registrations/registration-id");
+  await client.reconcileCardRegistration("registration-id");
+  assert.equal(
+    calls.at(-1).url,
+    "/api/v2/me/payment-card-registrations/registration-id/reconcile",
+  );
+  await client.cancelCardRegistration("registration-id");
+  assert.equal(
+    calls.at(-1).url,
+    "/api/v2/me/payment-card-registrations/registration-id/cancel",
+  );
+});
+
+test("Card Registration state machineとtyped Problemsを公開する", () => {
+  assert.deepEqual(CARD_REGISTRATION_INCOMPLETE_STATUSES, [
+    "pending",
+    "requires_action",
+  ]);
+  assert.deepEqual(CARD_REGISTRATION_TERMINAL_STATUSES, [
+    "completed",
+    "failed",
+    "canceled",
+    "expired",
+  ]);
+  const error = new ApiProblemError({
+    type: "https://oripa.example/problems/card-registration-unavailable",
+    title: "The card registration status is temporarily unavailable.",
+    status: 503,
+    code: "CARD_REGISTRATION_UNAVAILABLE",
+    request_id: "0198a001-0000-7000-8000-000000009801",
+    retryable: true,
+  });
+  assert.equal(isCardRegistrationProblemError(error), true);
+  assert.equal(
+    isCardRegistrationProblemError(error, "CARD_REGISTRATION_UNAVAILABLE"),
+    true,
+  );
+  assert.equal(isCardRegistrationProblemError(error, "CARD_REGISTRATION_FAILED"), false);
 });

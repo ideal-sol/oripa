@@ -1423,6 +1423,333 @@ final class FincodePaymentBackendTest extends TestCase
             ->where('user_id', $user->id)->where('payment_method', 'virtual_account')->count());
     }
 
+    public function test_canonical_card_registration_uses_fixed_three_d_secure_contract_and_is_exactly_once(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('canonical-card');
+        $cards = app(V2FincodeCardService::class);
+        $cardToken = 'tok_browser_only_card_fixture';
+        $started = $cards->startRegistration($user, $cardToken, 'canonical-card-start');
+
+        self::assertSame('requires_action', $started['status']);
+        self::assertSame('three_d_secure', $started['next_action']['type']);
+        self::assertStringStartsWith('https://pay.test.fincode.jp/', $started['next_action']['url']);
+        self::assertNull($started['saved_card_id']);
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        $providerCalls = Http::recorded()->count();
+        $replayed = $cards->startRegistration($user, 'tok_different_replay_value', 'canonical-card-start');
+        self::assertSame($started, $replayed);
+        self::assertSame($providerCalls, Http::recorded()->count());
+
+        $intent = DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started['id'])
+            ->firstOrFail();
+        self::assertSame('three_d_secure_2', $intent->flow_type);
+        self::assertSame('AWAITING_CUSTOMER_ACTION', $intent->provider_status);
+        self::assertSame('AUTHENTICATING', $intent->provider_tds2_status);
+        self::assertStringNotContainsString($cardToken, json_encode((array) $intent, JSON_THROW_ON_ERROR));
+        Http::assertSent(function (Request $request) use ($started, $cardToken): bool {
+            if ($request->method() !== 'POST' || ! str_ends_with($request->url(), '/payment_methods')) {
+                return false;
+            }
+            $data = $request->data();
+
+            return ($data['pay_type'] ?? null) === 'Card'
+                && ($data['default_flag'] ?? null) === '0'
+                && ($data['client_field_1'] ?? null) === $started['id']
+                && ($data['return_url'] ?? null) === 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id']
+                && ($data['return_url_on_failure'] ?? null) === 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/failure?rid='.$started['id']
+                && ($data['card']['token'] ?? null) === $cardToken
+                && ($data['card']['tds_type'] ?? null) === '2'
+                && ($data['card']['tds2_type'] ?? null) === '2';
+        });
+
+        $browserReturn = $this->post(
+            '/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id'],
+            ['provider_card_id' => 'browser_supplied_card_must_be_ignored']
+        )
+            ->assertStatus(303)
+            ->assertRedirect('https://luxe-pack.biz/?card_registration_id='.$started['id'])
+            ->assertHeader('Referrer-Policy', 'no-referrer');
+        self::assertStringContainsString(
+            'no-store',
+            (string) $browserReturn->headers->get('Cache-Control')
+        );
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertNull(DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started['id'])->value('provider_card_id'));
+
+        $webhook = $this->registrationWebhook($started['id'], 'card_canonical');
+        self::assertSame(
+            ['status' => 'processed'],
+            app(V2FincodeWebhookService::class)->process($webhook, 'test-webhook-signature')
+        );
+        $completed = $cards->registration($user, $started['id']);
+        self::assertSame('completed', $completed['status']);
+        self::assertNotNull($completed['completed_at']);
+        self::assertNotNull($completed['saved_card_id']);
+        self::assertNull($completed['next_action']);
+        self::assertSame(1, DB::table('fincode_cards')->count());
+
+        $canonicalCalls = Http::recorded()->count();
+        app(V2FincodeWebhookService::class)->process($webhook, 'test-webhook-signature');
+        $cards->reconcileRegistration($user, $started['id']);
+        $this->post('/api/v2/payment-card-registration-returns/fincode/failure?rid='.$started['id'])
+            ->assertStatus(303);
+        self::assertSame($canonicalCalls, Http::recorded()->count());
+        self::assertSame(1, DB::table('fincode_cards')->count());
+        self::assertSame(1, DB::table('fincode_cards')
+            ->where('registration_assurance', 'three_d_secure_2')
+            ->whereNotNull('registration_verified_at')
+            ->count());
+    }
+
+    public function test_registration_terminal_states_release_capacity_without_business_mutation(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('registration-capacity');
+        $cards = app(V2FincodeCardService::class);
+        $started = [];
+        foreach (range(1, 3) as $index) {
+            $started[] = $cards->startRegistration(
+                $user,
+                'tok_registration_capacity_'.$index,
+                'registration-capacity-'.$index
+            );
+        }
+        $capacity = $cards->cards($user)['limits'];
+        self::assertSame(3, $capacity['remaining']);
+        self::assertSame(0, $capacity['registration_remaining']);
+        self::assertSame($started[0]['expires_at'], $capacity['next_capacity_at']);
+
+        $canceled = $cards->cancelRegistration($user, $started[0]['id']);
+        self::assertSame('canceled', $canceled['status']);
+        self::assertSame(1, $cards->cards($user)['limits']['registration_remaining']);
+
+        $this->fakeFincode(registration: ['canonical_status' => 'FAILED']);
+        try {
+            app(V2FincodeWebhookService::class)->process(
+                $this->registrationWebhook($started[1]['id'], 'card_failed', [
+                    'customer_id' => null,
+                    'card_id' => null,
+                ]),
+                'test-webhook-signature'
+            );
+            self::fail('A canonical Provider registration failure must fail closed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_FAILED', $exception->errorCode);
+        }
+        self::assertSame('failed', DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started[1]['id'])->value('status'));
+        self::assertSame(2, $cards->cards($user)['limits']['registration_remaining']);
+
+        DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started[2]['id'])
+            ->update(['expires_at' => now()->subSecond()]);
+        self::assertSame(3, $cards->cards($user)['limits']['registration_remaining']);
+        self::assertSame('requires_action', DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started[2]['id'])->value('status'));
+        self::assertSame('expired', $cards->registration($user, $started[2]['id'])['status']);
+        $released = $cards->cards($user)['limits'];
+        self::assertSame(3, $released['registration_remaining']);
+        self::assertNull($released['next_capacity_at']);
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertSame(0, DB::table('payments')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+    }
+
+    public function test_registration_fails_closed_for_unsupported_unknown_and_unavailable_provider_states(): void
+    {
+        $cases = [
+            'unsupported' => [
+                'fake' => ['canonical_tds2_type' => '3'],
+                'expected_error' => 'CARD_REGISTRATION_FAILED',
+                'expected_status' => 'failed',
+                'expected_capacity' => 3,
+            ],
+            'unknown' => [
+                'fake' => ['canonical_status' => 'UNKNOWN'],
+                'expected_error' => 'CARD_REGISTRATION_UNAVAILABLE',
+                'expected_status' => 'pending',
+                'expected_capacity' => 2,
+            ],
+            'unavailable' => [
+                'fake' => ['canonical_http_status' => 503],
+                'expected_error' => 'CARD_REGISTRATION_UNAVAILABLE',
+                'expected_status' => 'pending',
+                'expected_capacity' => 2,
+            ],
+        ];
+
+        foreach ($cases as $name => $case) {
+            $this->fakeFincode(registration: $case['fake']);
+            $user = $this->user('registration-'.$name);
+            $cards = app(V2FincodeCardService::class);
+            $started = $cards->startRegistration(
+                $user,
+                'tok_registration_'.$name,
+                'registration-'.$name
+            );
+            try {
+                app(V2FincodeWebhookService::class)->process(
+                    $this->registrationWebhook($started['id'], 'card_'.$name),
+                    'test-webhook-signature'
+                );
+                self::fail('A non-authoritative Provider outcome must not create a card.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame($case['expected_error'], $exception->errorCode);
+            }
+            self::assertSame($case['expected_status'], DB::table('fincode_card_registration_intents')
+                ->where('public_id', $started['id'])->value('status'));
+            self::assertSame($case['expected_capacity'], $cards->cards($user)['limits']['registration_remaining']);
+            self::assertSame(0, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+        }
+
+        $this->fakeFincode(registration: ['canonical_tds2_status' => null]);
+        $user = $this->user('registration-assurance-pending');
+        $cards = app(V2FincodeCardService::class);
+        $started = $cards->startRegistration(
+            $user,
+            'tok_registration_assurance_pending',
+            'registration-assurance-pending'
+        );
+        self::assertSame(
+            ['status' => 'processed'],
+            app(V2FincodeWebhookService::class)->process(
+                $this->registrationWebhook($started['id'], 'card_assurance_pending'),
+                'test-webhook-signature'
+            )
+        );
+        self::assertSame('pending', $cards->registration($user, $started['id'])['status']);
+        self::assertSame(2, $cards->cards($user)['limits']['registration_remaining']);
+        self::assertSame(0, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+    }
+
+    public function test_registration_rejects_provider_payment_method_customer_and_card_ownership_mismatch(): void
+    {
+        $cases = [
+            'payment-method' => ['canonical_payment_method_id' => 'pm_foreign'],
+            'customer' => ['canonical_customer_id' => 'c_foreign'],
+            'card' => ['card_customer_id' => 'c_foreign'],
+        ];
+
+        foreach ($cases as $name => $providerOverrides) {
+            $this->fakeFincode(registration: $providerOverrides);
+            $user = $this->user('registration-ownership-'.$name);
+            $cards = app(V2FincodeCardService::class);
+            $started = $cards->startRegistration(
+                $user,
+                'tok_ownership_'.$name,
+                'registration-ownership-'.$name
+            );
+            try {
+                app(V2FincodeWebhookService::class)->process(
+                    $this->registrationWebhook($started['id'], 'card_ownership_'.$name),
+                    'test-webhook-signature'
+                );
+                self::fail('Provider ownership mismatch must fail closed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('CARD_REGISTRATION_OWNERSHIP_INVALID', $exception->errorCode);
+            }
+            $intent = DB::table('fincode_card_registration_intents')
+                ->where('public_id', $started['id'])->firstOrFail();
+            self::assertSame('failed', $intent->status);
+            self::assertSame('CARD_REGISTRATION_OWNERSHIP_INVALID', $intent->last_error_code);
+            self::assertSame(3, $cards->cards($user)['limits']['registration_remaining']);
+            self::assertSame(0, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+        }
+    }
+
+    public function test_legacy_non_three_d_secure_save_paths_fail_closed_but_new_card_payment_remains_available(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('legacy-card');
+        $cards = app(V2FincodeCardService::class);
+        $legacy = $cards->reserveRegistration($user, 'legacy-registration');
+        $providerCalls = Http::recorded()->count();
+        try {
+            $cards->completeRegistration($user, $legacy['id'], 'browser_card_id');
+            self::fail('Legacy standalone completion must not save a card.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_3DS_REQUIRED', $exception->errorCode);
+        }
+        try {
+            app(V2FincodePaymentService::class)->start(
+                $user,
+                $this->plan()->public_id,
+                'credit_card',
+                'legacy-save-payment',
+                ['source' => 'new', 'save' => true]
+            );
+            self::fail('Legacy save=true payment must not save or start a payment.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_3DS_REQUIRED', $exception->errorCode);
+        }
+        self::assertSame($providerCalls, Http::recorded()->count());
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertSame(0, DB::table('payments')->count());
+
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $this->plan()->public_id,
+            'credit_card',
+            'new-card-payment-without-save',
+            ['source' => 'new', 'save' => false]
+        );
+        self::assertSame('fincode_card_component', $payment['next_action']['type']);
+        self::assertSame(1, DB::table('payments')->count());
+    }
+
+    public function test_existing_unverified_card_is_not_backfilled_or_usable_for_payment(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('unverified-card');
+        $cards = app(V2FincodeCardService::class);
+        $legacy = $cards->reserveRegistration($user, 'unverified-card-customer');
+        DB::table('fincode_card_registration_intents')
+            ->where('public_id', $legacy['id'])
+            ->update(['status' => 'canceled']);
+        $customerId = DB::table('fincode_customers')->where('user_id', $user->id)->value('id');
+        $cardId = (string) Str::uuid7();
+        DB::table('fincode_cards')->insert([
+            'public_id' => $cardId,
+            'user_id' => $user->id,
+            'fincode_customer_id' => $customerId,
+            'provider_card_id' => 'legacy_unverified_card',
+            'brand' => 'VISA',
+            'last4' => '4242',
+            'expire_month' => 12,
+            'expire_year' => 2030,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $collection = $cards->cards($user);
+        self::assertSame('unverified', $collection['data'][0]['verification_status']);
+        self::assertFalse($collection['data'][0]['can_pay']);
+        self::assertSame(2, $collection['limits']['remaining']);
+        self::assertSame(3, $collection['limits']['registration_remaining']);
+        $stored = DB::table('fincode_cards')->where('public_id', $cardId)->firstOrFail();
+        self::assertNull($stored->registration_intent_id);
+        self::assertNull($stored->provider_payment_method_id);
+        self::assertNull($stored->registration_assurance);
+        self::assertNull($stored->registration_verified_at);
+        try {
+            app(V2FincodePaymentService::class)->start(
+                $user,
+                $this->plan()->public_id,
+                'credit_card',
+                'unverified-card-payment',
+                ['source' => 'saved', 'card_id' => $cardId]
+            );
+            self::fail('An unverified legacy card must not be usable for payment.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_NOT_FOUND', $exception->errorCode);
+        }
+        self::assertSame(0, DB::table('payments')->count());
+    }
+
     public function test_card_registration_enforces_three_ownership_and_expiry(): void
     {
         $this->fakeFincode();
@@ -1431,33 +1758,39 @@ final class FincodePaymentBackendTest extends TestCase
         $cards = app(V2FincodeCardService::class);
         $registered = [];
         foreach (range(1, 3) as $index) {
-            $intent = $cards->reserveRegistration($user, 'card-intent-'.$index);
-            $registered[] = $cards->completeRegistration($user, $intent['id'], 'card_'.$index);
+            $registered[] = $this->completeCanonicalRegistration(
+                $user,
+                'card-intent-'.$index,
+                'card_'.$index
+            );
         }
-        self::assertSame(3, count($cards->cards($user)['data']));
+        $collection = $cards->cards($user);
+        self::assertSame(3, count($collection['data']));
+        self::assertSame(0, $collection['limits']['remaining']);
+        self::assertSame(0, $collection['limits']['registration_remaining']);
         try {
-            $cards->reserveRegistration($user, 'card-intent-four');
+            $cards->startRegistration($user, 'tok_fourth_card', 'card-intent-four');
             self::fail('A fourth card must fail.');
         } catch (V2FincodeException $exception) {
             self::assertSame('CARD_LIMIT_REACHED', $exception->errorCode);
         }
         try {
-            $cards->ownedUsableCard($other, $registered[0]['id']);
+            $cards->ownedUsableCard($other, $registered[0]['saved_card_id']);
             self::fail('Card ownership mismatch must fail.');
         } catch (V2FincodeException $exception) {
             self::assertSame('CARD_NOT_FOUND', $exception->errorCode);
         }
-        DB::table('fincode_cards')->where('public_id', $registered[0]['id'])->update([
+        DB::table('fincode_cards')->where('public_id', $registered[0]['saved_card_id'])->update([
             'expire_month' => 1,
             'expire_year' => 2020,
         ]);
         try {
-            $cards->ownedUsableCard($user, $registered[0]['id']);
+            $cards->ownedUsableCard($user, $registered[0]['saved_card_id']);
             self::fail('An expired card must not pay.');
         } catch (V2FincodeException $exception) {
             self::assertSame('CARD_EXPIRED', $exception->errorCode);
         }
-        $cards->delete($user, $registered[1]['id']);
+        $cards->delete($user, $registered[1]['saved_card_id']);
         self::assertSame(2, count($cards->cards($user)['data']));
     }
 
@@ -1465,15 +1798,13 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $this->fakeFincode();
         $user = $this->user('saved-card');
-        $cards = app(V2FincodeCardService::class);
-        $intent = $cards->reserveRegistration($user, 'saved-card-intent');
-        $card = $cards->completeRegistration($user, $intent['id'], 'card_saved');
+        $card = $this->completeCanonicalRegistration($user, 'saved-card-intent', 'card_saved');
         $payment = app(V2FincodePaymentService::class)->start(
             $user,
             $this->plan()->public_id,
             'credit_card',
             'saved-card-payment',
-            ['source' => 'saved', 'card_id' => $card['id']]
+            ['source' => 'saved', 'card_id' => $card['saved_card_id']]
         );
         self::assertSame('three_d_secure', $payment['next_action']['type']);
         Http::assertSent(function (Request $request): bool {
@@ -1572,29 +1903,142 @@ final class FincodePaymentBackendTest extends TestCase
         }
     }
 
+    /** @return array<string, mixed> */
+    private function completeCanonicalRegistration(
+        User $user,
+        string $idempotencyKey,
+        string $providerCardId
+    ): array {
+        $cards = app(V2FincodeCardService::class);
+        $started = $cards->startRegistration($user, 'tok_'.$idempotencyKey, $idempotencyKey);
+        $payload = $this->registrationWebhook($started['id'], $providerCardId);
+        app(V2FincodeWebhookService::class)->process($payload, 'test-webhook-signature');
+
+        return $cards->registration($user, $started['id']);
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function registrationWebhook(
+        string $registrationPublicId,
+        string $providerCardId,
+        array $overrides = []
+    ): string {
+        $intent = DB::table('fincode_card_registration_intents as intent')
+            ->join('fincode_customers as customer', 'customer.id', '=', 'intent.fincode_customer_id')
+            ->where('intent.public_id', $registrationPublicId)
+            ->select(['intent.*', 'customer.provider_customer_id'])
+            ->firstOrFail();
+
+        return json_encode([
+            'event' => 'customers.payment_methods.updated',
+            'pay_type' => 'Card',
+            'customer_id' => $intent->provider_customer_id,
+            'card_id' => $providerCardId,
+            'card_status' => 'ACTIVATED',
+            'status' => 'AUTHENTICATED',
+            'access_id' => $intent->provider_access_id,
+            'transaction_id' => 'txn_'.substr(hash('sha256', $registrationPublicId), 0, 24),
+            'client_field_1' => $intent->public_id,
+            'error_code' => null,
+            ...$overrides,
+        ], JSON_THROW_ON_ERROR);
+    }
+
     private function fakeFincode(
         string $retrievedStatus = 'AWAITING_CUSTOMER_PAYMENT',
         string $retrievedAmount = '1000',
-        ?string $retrievedErrorCode = null
+        ?string $retrievedErrorCode = null,
+        array $registration = []
     ): void
     {
+        $registration = [
+            'create_http_status' => 200,
+            'create_status' => 'AWAITING_CUSTOMER_ACTION',
+            'create_tds_type' => '2',
+            'create_tds2_type' => '2',
+            'create_tds2_status' => 'AUTHENTICATING',
+            'canonical_http_status' => 200,
+            'canonical_status' => 'ACTIVATED',
+            'canonical_tds_type' => '2',
+            'canonical_tds2_type' => '2',
+            'canonical_tds2_status' => 'AUTHENTICATED',
+            'canonical_customer_id' => null,
+            'canonical_payment_method_id' => null,
+            'card_customer_id' => null,
+            ...$registration,
+        ];
         Http::swap(new Factory());
         Http::fake(function (Request $request) use (
             $retrievedStatus,
             $retrievedAmount,
-            $retrievedErrorCode
+            $retrievedErrorCode,
+            $registration
         ) {
             $url = $request->url();
             if ($request->method() === 'POST' && str_ends_with($url, '/v1/customers')) {
                 return Http::response(['id' => $request->data()['id']], 200);
             }
+            if ($request->method() === 'POST' && str_ends_with($url, '/payment_methods')) {
+                if ($registration['create_http_status'] !== 200) {
+                    return Http::response([], $registration['create_http_status']);
+                }
+                $customerId = basename(dirname((string) parse_url($url, PHP_URL_PATH)));
+                $suffix = substr(hash('sha256', (string) $request->data()['client_field_1']), 0, 22);
+
+                return Http::response([
+                    'id' => 'pm_'.$suffix,
+                    'pay_type' => 'Card',
+                    'customer_id' => $customerId,
+                    'status' => $registration['create_status'],
+                    'redirect_url' => $registration['create_status'] === 'AWAITING_CUSTOMER_ACTION'
+                        ? 'https://pay.test.fincode.jp/card-registration/'.$suffix
+                        : null,
+                    'card' => [
+                        'tds_type' => $registration['create_tds_type'],
+                        'tds2_type' => $registration['create_tds2_type'],
+                        'tds2_status' => $registration['create_tds2_status'],
+                        'access_id' => 'a_'.$suffix,
+                    ],
+                ], 200);
+            }
+            if ($request->method() === 'GET' && str_contains($url, '/payment_methods/')) {
+                if ($registration['canonical_http_status'] !== 200) {
+                    return Http::response([], $registration['canonical_http_status']);
+                }
+                $path = (string) parse_url($url, PHP_URL_PATH);
+                $paymentMethodId = basename($path);
+                $customerId = basename(dirname(dirname($path)));
+                $suffix = str_starts_with($paymentMethodId, 'pm_')
+                    ? substr($paymentMethodId, 3)
+                    : substr(hash('sha256', $paymentMethodId), 0, 22);
+
+                return Http::response([
+                    'id' => $registration['canonical_payment_method_id'] ?? $paymentMethodId,
+                    'pay_type' => 'Card',
+                    'customer_id' => $registration['canonical_customer_id'] ?? $customerId,
+                    'status' => $registration['canonical_status'],
+                    'redirect_url' => $registration['canonical_status'] === 'AWAITING_CUSTOMER_ACTION'
+                        ? 'https://pay.test.fincode.jp/card-registration/'.$suffix
+                        : null,
+                    'card' => [
+                        'card_no' => '************4242',
+                        'expire' => '3012',
+                        'brand' => 'VISA',
+                        'tds_type' => $registration['canonical_tds_type'],
+                        'tds2_type' => $registration['canonical_tds2_type'],
+                        'tds2_status' => $registration['canonical_tds2_status'],
+                        'access_id' => 'a_'.$suffix,
+                    ],
+                ], 200);
+            }
             if ($request->method() === 'GET' && str_contains($url, '/cards/')) {
                 $cardId = basename(parse_url($url, PHP_URL_PATH));
+                $customerId = basename(dirname(dirname(parse_url($url, PHP_URL_PATH))));
 
                 return Http::response([
                     'id' => $cardId,
                     'brand' => 'VISA',
-                    'customer_id' => basename(dirname(dirname(parse_url($url, PHP_URL_PATH)))),
+                    'customer_id' => $registration['card_customer_id'] ?? $customerId,
                     'card_no' => '************4242',
                     'expire' => '3012',
                 ], 200);

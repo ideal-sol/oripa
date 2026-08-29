@@ -41,6 +41,9 @@ import {
   PUBLIC_POINT_HISTORY_FIXTURES,
   PUBLIC_POINT_READ_PROBLEM_FIXTURES,
   PUBLIC_PAYMENT_GRANT_FIXTURES,
+  PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES,
+  PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES,
+  PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES,
   PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES,
   PUBLIC_DRAW_PROBLEM_FIXTURES,
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
@@ -82,6 +85,51 @@ test("Payment Card UI Bootstrap FixtureはPublic KeyとCanonical environmentだ�
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES),
     /secret|webhook|token|credential|customer_id|card_id|user_id/i,
+  );
+});
+
+test("Card Registration Fixtureは3DS2 state machine・capacity・typed Problemsを表現する", () => {
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.requires_action.next_action.type,
+    "three_d_secure",
+  );
+  assert.equal(PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.pending.saved_card_id, null);
+  assert.equal(PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.completed.status, "completed");
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.completed.saved_card_id,
+    PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.duplicate_return.saved_card_id,
+  );
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.completed.saved_card_id,
+    PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES.duplicate_reconcile.saved_card_id,
+  );
+  for (const status of ["failed", "canceled", "expired"]) {
+    assert.equal(PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES[status].saved_card_id, null);
+    assert.equal(PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES[status].next_action, null);
+  }
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES.saved_2_pending_1.limits.registration_remaining,
+    0,
+  );
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES.pending_terminal_released.limits.registration_remaining,
+    1,
+  );
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES.legacy_rejected.code,
+    "CARD_REGISTRATION_3DS_REQUIRED",
+  );
+  assert.equal(
+    PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES.unavailable.retryable,
+    true,
+  );
+  assert.doesNotMatch(
+    JSON.stringify({
+      registrations: PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES,
+      capacity: PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES,
+      problems: PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES,
+    }),
+    /card_token|provider_card_id|customer_id|secret|credential|pan|cvc/i,
   );
 });
 
@@ -718,10 +766,11 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつPayment Card UI Bootstrapを含むOperation 65件である", () => {
+test("Public OpenAPIは3.1.1かつ3DS2 Card Registrationを含むOperation 71件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 65);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 71);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "cancelPaymentCardRegistration",
     "completeGoogleOidc",
     "completeLineLogin",
     "completePaymentCardRegistration",
@@ -743,6 +792,7 @@ test("Public OpenAPIは3.1.1かつPayment Card UI Bootstrapを含むOperation 65
     "getGachaPresentation",
     "getLineFriendState",
     "getPayment",
+    "getPaymentCardRegistration",
     "getPaymentCardUiBootstrap",
     "getShippingAddress",
     "getShippingRequest",
@@ -770,6 +820,9 @@ test("Public OpenAPIは3.1.1かつPayment Card UI Bootstrapを含むOperation 65
     "normalizeFincodePaymentFailureReturn",
     "normalizeFincodePaymentReturn",
     "reauthenticateUserPassword",
+    "reconcileFincodeCardRegistrationFailureReturn",
+    "reconcileFincodeCardRegistrationReturn",
+    "reconcilePaymentCardRegistration",
     "registerUser",
     "requestPasswordReset",
     "resendSmsVerification",
@@ -782,6 +835,7 @@ test("Public OpenAPIは3.1.1かつPayment Card UI Bootstrapを含むOperation 65
     "startLineIdentityLink",
     "startLineLogin",
     "startLineReauthentication",
+    "startPaymentCardRegistration",
     "unlinkGoogleIdentity",
     "unlinkLineIdentity",
     "updateShippingAddress",
@@ -950,6 +1004,9 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
     "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
+    "PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES",
+    "PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES",
+    "PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES",
     "PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES",
     "PUBLIC_PAYMENT_GRANT_FIXTURES",
     "PUBLIC_POINT_BALANCE_FIXTURES",

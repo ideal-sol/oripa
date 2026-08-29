@@ -43,6 +43,161 @@ export const PUBLIC_PAYMENT_CARD_UI_BOOTSTRAP_FIXTURES = Object.freeze({
   PublicComponents["schemas"]["PaymentCardUiBootstrap"]
 >);
 
+const CARD_REGISTRATION_ID = "0198a001-0000-7000-8000-000000009801";
+const SAVED_CARD_ID = "0198a001-0000-7000-8000-000000009802";
+
+export const PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES = Object.freeze({
+  requires_action: {
+    id: CARD_REGISTRATION_ID,
+    status: "requires_action",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: null,
+    saved_card_id: null,
+    next_action: {
+      type: "three_d_secure",
+      url: "https://pay.test.fincode.jp/card-registration/public-safe-fixture",
+    },
+  },
+  pending: {
+    id: CARD_REGISTRATION_ID,
+    status: "pending",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: null,
+    saved_card_id: null,
+    next_action: null,
+  },
+  completed: {
+    id: CARD_REGISTRATION_ID,
+    status: "completed",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: "2026-08-29T12:03:00Z",
+    saved_card_id: SAVED_CARD_ID,
+    next_action: null,
+  },
+  duplicate_return: {
+    id: CARD_REGISTRATION_ID,
+    status: "completed",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: "2026-08-29T12:03:00Z",
+    saved_card_id: SAVED_CARD_ID,
+    next_action: null,
+  },
+  duplicate_reconcile: {
+    id: CARD_REGISTRATION_ID,
+    status: "completed",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: "2026-08-29T12:03:00Z",
+    saved_card_id: SAVED_CARD_ID,
+    next_action: null,
+  },
+  failed: {
+    id: CARD_REGISTRATION_ID,
+    status: "failed",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: null,
+    saved_card_id: null,
+    next_action: null,
+  },
+  canceled: {
+    id: CARD_REGISTRATION_ID,
+    status: "canceled",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: null,
+    saved_card_id: null,
+    next_action: null,
+  },
+  expired: {
+    id: CARD_REGISTRATION_ID,
+    status: "expired",
+    expires_at: "2026-08-29T12:15:00Z",
+    completed_at: null,
+    saved_card_id: null,
+    next_action: null,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PaymentCardRegistration"]
+>);
+
+const VERIFIED_CARD_FIXTURES: PublicComponents["schemas"]["PaymentCard"][] = [
+  {
+    id: "0198a001-0000-7000-8000-000000009811",
+    brand: "VISA",
+    last4: "4242",
+    expiration: { month: 12, year: 2030 },
+    verification_status: "verified",
+    is_expired: false,
+    can_pay: true,
+    last_used_at: null,
+  },
+  {
+    id: "0198a001-0000-7000-8000-000000009812",
+    brand: "MASTERCARD",
+    last4: "4444",
+    expiration: { month: 11, year: 2031 },
+    verification_status: "verified",
+    is_expired: false,
+    can_pay: true,
+    last_used_at: null,
+  },
+];
+
+export const PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES = Object.freeze({
+  saved_0_pending_0: {
+    data: [],
+    limits: {
+      maximum: 3,
+      remaining: 3,
+      registration_remaining: 3,
+      next_capacity_at: null,
+    },
+  },
+  saved_2_pending_1: {
+    data: VERIFIED_CARD_FIXTURES,
+    limits: {
+      maximum: 3,
+      remaining: 1,
+      registration_remaining: 0,
+      next_capacity_at: "2026-08-29T12:15:00Z",
+    },
+  },
+  pending_terminal_released: {
+    data: VERIFIED_CARD_FIXTURES,
+    limits: {
+      maximum: 3,
+      remaining: 1,
+      registration_remaining: 1,
+      next_capacity_at: null,
+    },
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PaymentCardCollection"]
+>);
+
+const cardRegistrationProblem = (
+  code: PublicComponents["schemas"]["CardRegistrationProblemCode"],
+  status: number,
+  retryable = false,
+): PublicComponents["schemas"]["CardRegistrationProblemDetails"] => ({
+  type: `https://oripa.example/problems/${code.toLowerCase().replaceAll("_", "-")}`,
+  title: "Public-safe card registration problem fixture.",
+  status,
+  code,
+  request_id: "0198a001-0000-7000-8000-000000009899",
+  retryable,
+});
+
+export const PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES = Object.freeze({
+  legacy_rejected: cardRegistrationProblem("CARD_REGISTRATION_3DS_REQUIRED", 409),
+  failed: cardRegistrationProblem("CARD_REGISTRATION_FAILED", 422),
+  canceled: cardRegistrationProblem("CARD_REGISTRATION_CANCELED", 409),
+  expired: cardRegistrationProblem("CARD_INTENT_EXPIRED", 409),
+  capacity: cardRegistrationProblem("CARD_LIMIT_REACHED", 409),
+  unavailable: cardRegistrationProblem("CARD_REGISTRATION_UNAVAILABLE", 503, true),
+  ownership: cardRegistrationProblem("CARD_REGISTRATION_OWNERSHIP_INVALID", 422),
+});
+
 export const MINIMAL_SITE_MANIFEST_FIXTURE = Object.freeze(
   {
     schema_version: "2.0.0-alpha.1",

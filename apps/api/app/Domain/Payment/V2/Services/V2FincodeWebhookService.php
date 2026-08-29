@@ -6,6 +6,7 @@ use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
 
@@ -42,12 +43,14 @@ final class V2FincodeWebhookService
         'payments.virtualaccount.cancel',
         'payments.virtualaccount.complete',
         'payments.virtualaccount.complete.stub',
+        'customers.payment_methods.updated',
     ];
 
     public function __construct(
         private readonly V2FincodeClient $client,
         private readonly V2PaymentService $payments,
-        private readonly V2FincodeCanonicalStatusClassifier $statusClassifier
+        private readonly V2FincodeCanonicalStatusClassifier $statusClassifier,
+        private readonly V2FincodeCardService $cards
     ) {
     }
 
@@ -72,6 +75,11 @@ final class V2FincodeWebhookService
         }
         if (! in_array($eventName, self::EVENTS, true)) {
             return ['status' => 'ignored'];
+        }
+        if ($eventName === 'customers.payment_methods.updated') {
+            $this->cards->reconcileFromWebhook($this->cardRegistrationPayload($payload));
+
+            return ['status' => 'processed'];
         }
         $payType = $payload['pay_type'] ?? null;
         $method = is_string($payType) ? (self::PAY_TYPES[$payType] ?? null) : null;
@@ -239,6 +247,65 @@ final class V2FincodeWebhookService
                 'The webhook authenticity check failed.'
             );
         }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, string|null>
+     */
+    private function cardRegistrationPayload(array $payload): array
+    {
+        $customerId = $payload['customer_id'] ?? null;
+        $cardId = $payload['card_id'] ?? null;
+        $accessId = $payload['access_id'] ?? null;
+        $transactionId = $payload['transaction_id'] ?? null;
+        $clientField = $payload['client_field_1'] ?? null;
+        $errorCode = $payload['error_code'] ?? null;
+        $cardStatus = $payload['card_status'] ?? null;
+        $tds2Status = $payload['status'] ?? null;
+        if (
+            ($payload['pay_type'] ?? null) !== 'Card'
+            || ($customerId !== null && ! $this->providerReference($customerId, 64))
+            || ($cardId !== null && ! $this->providerReference($cardId, 64))
+            || ! $this->providerReference($accessId, 128)
+            || ! $this->providerReference($transactionId, 128)
+            || ! is_string($cardStatus)
+            || ! in_array($cardStatus, [
+                'INACTIVATED',
+                'AWAITING_CUSTOMER_ACTION',
+                'ACTIVATED',
+                'FAILED',
+            ], true)
+            || ! is_string($tds2Status)
+            || ! in_array($tds2Status, ['AUTHENTICATING', 'CHALLENGE', 'AUTHENTICATED'], true)
+            || ($clientField !== null
+                && (! is_string($clientField) || ! Str::isUuid($clientField)))
+            || ($errorCode !== null
+                && (! is_string($errorCode)
+                    || ! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $errorCode)))
+        ) {
+            throw new V2FincodeException(
+                'FINCODE_WEBHOOK_INVALID',
+                422,
+                'The webhook card registration reference is invalid.'
+            );
+        }
+
+        return [
+            'customer_id' => $customerId,
+            'card_id' => $cardId,
+            'access_id' => $accessId,
+            'transaction_id' => $transactionId,
+            'client_field_1' => $clientField,
+            'error_code' => $errorCode,
+        ];
+    }
+
+    private function providerReference(mixed $value, int $maximum): bool
+    {
+        return is_string($value)
+            && strlen($value) <= $maximum
+            && preg_match('/^[A-Za-z0-9_-]+$/', $value) === 1;
     }
 
     /** @param array<string, mixed> $canonical */

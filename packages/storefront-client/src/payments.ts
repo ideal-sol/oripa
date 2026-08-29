@@ -36,6 +36,18 @@ export interface BrowserPaymentCsrfOptions {
   timeout_ms?: number;
 }
 
+export const CARD_REGISTRATION_TERMINAL_STATUSES = [
+  "completed",
+  "failed",
+  "canceled",
+  "expired",
+] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
+
+export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
+  "pending",
+  "requires_action",
+] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
+
 export interface StorefrontPaymentClient {
   getPaymentCardUiBootstrap(): Promise<
     StorefrontResponse<Schemas["PaymentCardUiBootstrap"]>
@@ -53,9 +65,26 @@ export interface StorefrontPaymentClient {
     options: PaymentCsrfOptions,
   ): Promise<StorefrontResponse<Schemas["PaymentResume"]>>;
   listCards(): Promise<StorefrontResponse<Schemas["PaymentCardCollection"]>>;
+  startCardRegistration(
+    input: Schemas["PaymentCardRegistrationStartRequest"],
+    options: PaymentMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  getCardRegistration(
+    registrationId: string,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  reconcileCardRegistration(
+    registrationId: string,
+    options: PaymentCsrfOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  cancelCardRegistration(
+    registrationId: string,
+    options: PaymentCsrfOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  /** @deprecated Use startCardRegistration. Legacy Browser registerCard() cannot prove Registration 3DS2. */
   createCardRegistrationIntent(
     options: PaymentMutationOptions,
   ): Promise<StorefrontResponse<Schemas["PaymentCardRegistrationIntent"]>>;
+  /** @deprecated Always fails closed with CARD_REGISTRATION_3DS_REQUIRED after canonical activation. */
   completeCardRegistration(
     registrationIntentId: string,
     input: Schemas["PaymentCardRegistrationCompleteRequest"],
@@ -81,9 +110,26 @@ export interface BrowserStorefrontPaymentClient {
     options?: BrowserPaymentCsrfOptions,
   ): Promise<StorefrontResponse<Schemas["PaymentResume"]>>;
   listCards(): Promise<StorefrontResponse<Schemas["PaymentCardCollection"]>>;
+  startCardRegistration(
+    input: Schemas["PaymentCardRegistrationStartRequest"],
+    options: BrowserPaymentMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  getCardRegistration(
+    registrationId: string,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  reconcileCardRegistration(
+    registrationId: string,
+    options?: BrowserPaymentCsrfOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  cancelCardRegistration(
+    registrationId: string,
+    options?: BrowserPaymentCsrfOptions,
+  ): Promise<StorefrontResponse<Schemas["PaymentCardRegistration"]>>;
+  /** @deprecated Use startCardRegistration. Legacy Browser registerCard() cannot prove Registration 3DS2. */
   createCardRegistrationIntent(
     options: BrowserPaymentMutationOptions,
   ): Promise<StorefrontResponse<Schemas["PaymentCardRegistrationIntent"]>>;
+  /** @deprecated Always fails closed with CARD_REGISTRATION_3DS_REQUIRED after canonical activation. */
   completeCardRegistration(
     registrationIntentId: string,
     input: Schemas["PaymentCardRegistrationCompleteRequest"],
@@ -160,6 +206,39 @@ export function createStorefrontPaymentClient(
       timeout_ms: options.timeout_ms,
     }),
     listCards: () => transport.request({ path: "/me/payment-cards" }),
+    startCardRegistration: (input, options) => transport.request({
+      path: "/me/payment-card-registrations",
+      method: "POST",
+      body: input,
+      headers: csrf(options.csrf_token),
+      idempotency_key: options.idempotency_key,
+      csrf: "required",
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
+    getCardRegistration: (id) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}`,
+    }),
+    reconcileCardRegistration: (id, options) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}/reconcile`,
+      method: "POST",
+      body: {},
+      headers: csrf(options.csrf_token),
+      csrf: "required",
+      retry: false,
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
+    cancelCardRegistration: (id, options) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}/cancel`,
+      method: "POST",
+      body: {},
+      headers: csrf(options.csrf_token),
+      csrf: "required",
+      retry: false,
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",
@@ -224,6 +303,36 @@ export function createCsrfManagedStorefrontPaymentClient(
       timeout_ms: options.timeout_ms,
     }),
     listCards: () => transport.request({ path: "/me/payment-cards" }),
+    startCardRegistration: (input, options) => transport.request({
+      path: "/me/payment-card-registrations",
+      method: "POST",
+      body: input,
+      idempotency_key: options.idempotency_key,
+      csrf: "required",
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
+    getCardRegistration: (id) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}`,
+    }),
+    reconcileCardRegistration: (id, options = {}) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}/reconcile`,
+      method: "POST",
+      body: {},
+      csrf: "required",
+      retry: false,
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
+    cancelCardRegistration: (id, options = {}) => transport.request({
+      path: `/me/payment-card-registrations/${segment(id, "registration_id")}/cancel`,
+      method: "POST",
+      body: {},
+      csrf: "required",
+      retry: false,
+      signal: options.signal,
+      timeout_ms: options.timeout_ms,
+    }),
     createCardRegistrationIntent: (options) => transport.request({
       path: "/me/payment-card-registration-intents",
       method: "POST",

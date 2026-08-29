@@ -2,6 +2,7 @@ import {
   ApiProblemError,
   StorefrontTransportError,
   isAuthProblemError,
+  isCardRegistrationProblemError,
   isDrawProblemError,
   isFulfillmentProblemError,
 } from "./errors.js";
@@ -49,6 +50,7 @@ export {
   StorefrontTransportError,
   createIdempotencyKey,
   isAuthProblemError,
+  isCardRegistrationProblemError,
   isDrawProblemError,
   isFulfillmentProblemError,
 };
@@ -63,6 +65,7 @@ export type {
   BrowserStorefrontDrawClient,
 } from "./draw.js";
 export type { DrawProblemCode } from "./errors.js";
+export type { CardRegistrationProblemCode } from "./errors.js";
 export type { FulfillmentProblemCode } from "./errors.js";
 export {
   FULFILLMENT_MUTATION_RETRY_SEMANTICS,
@@ -82,6 +85,10 @@ export type {
   BrowserPaymentMutationOptions,
   BrowserStorefrontPaymentClient,
   PaymentHistoryQuery,
+} from "./payments.js";
+export {
+  CARD_REGISTRATION_INCOMPLETE_STATUSES,
+  CARD_REGISTRATION_TERMINAL_STATUSES,
 } from "./payments.js";
 
 function readDocumentCookie(name: string): string | undefined {

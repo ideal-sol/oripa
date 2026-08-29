@@ -153,6 +153,40 @@ export function isFulfillmentProblemError(
   );
 }
 
+export type CardRegistrationProblemCode =
+  PublicComponents["schemas"]["CardRegistrationProblemCode"];
+
+const CARD_REGISTRATION_PROBLEM_CODES: ReadonlySet<string> =
+  new Set<CardRegistrationProblemCode>([
+    "AUTHENTICATION_REQUIRED",
+    "CARD_INTENT_EXPIRED",
+    "CARD_LIMIT_REACHED",
+    "CARD_REFERENCE_INVALID",
+    "CARD_REGISTRATION_3DS_REQUIRED",
+    "CARD_REGISTRATION_CANCELED",
+    "CARD_REGISTRATION_CONFLICT",
+    "CARD_REGISTRATION_FAILED",
+    "CARD_REGISTRATION_NOT_FOUND",
+    "CARD_REGISTRATION_OWNERSHIP_INVALID",
+    "CARD_REGISTRATION_REQUEST_INVALID",
+    "CARD_REGISTRATION_RETURN_OVERRIDE_FORBIDDEN",
+    "CARD_REGISTRATION_UNAVAILABLE",
+    "CSRF_TOKEN_MISMATCH",
+    "IDEMPOTENCY_KEY_REQUIRED",
+    "IDEMPOTENCY_KEY_REUSED",
+  ]);
+
+export function isCardRegistrationProblemError(
+  error: unknown,
+  code?: CardRegistrationProblemCode,
+): error is ApiProblemError & { readonly code: CardRegistrationProblemCode } {
+  return (
+    error instanceof ApiProblemError
+    && CARD_REGISTRATION_PROBLEM_CODES.has(error.code)
+    && (code === undefined || error.code === code)
+  );
+}
+
 export type StorefrontTransportErrorCode =
   | "ABORTED"
   | "CSRF_INITIALIZATION_FAILED"

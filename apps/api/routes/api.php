@@ -33,6 +33,7 @@ use App\Http\Controllers\V2\V2CurrentUserPointController;
 use App\Http\Controllers\V2\V2CurrentUserLineController;
 use App\Http\Controllers\V2\V2PointProductController;
 use App\Http\Controllers\V2\V2PaymentController;
+use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
@@ -40,6 +41,10 @@ Route::prefix('v2')->group(function (): void {
         ->name('v2.public.payment-returns.fincode.normal');
     Route::post('/payment-returns/fincode/failure', [V2FincodeReturnController::class, 'failure'])
         ->name('v2.public.payment-returns.fincode.failure');
+    Route::post('/payment-card-registration-returns/fincode/normal', [V2FincodeCardRegistrationReturnController::class, 'normal'])
+        ->name('v2.public.payment-card-registration-returns.fincode.normal');
+    Route::post('/payment-card-registration-returns/fincode/failure', [V2FincodeCardRegistrationReturnController::class, 'failure'])
+        ->name('v2.public.payment-card-registration-returns.fincode.failure');
     Route::get('/content/banners', [V2ContentContactController::class, 'banners'])
         ->name('v2.public.content.banners');
     Route::get('/content/assets/{assetId}', [V2ContentContactController::class, 'assetContent'])
@@ -121,6 +126,17 @@ Route::prefix('v2')
         Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
             ->whereUuid('registrationIntentId')
             ->name('v2.public.payment-card-registration-intents.complete');
+        Route::post('/me/payment-card-registrations', [V2PaymentController::class, 'startCardRegistration'])
+            ->name('v2.public.payment-card-registrations.store');
+        Route::get('/me/payment-card-registrations/{registrationId}', [V2PaymentController::class, 'showCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.show');
+        Route::post('/me/payment-card-registrations/{registrationId}/reconcile', [V2PaymentController::class, 'reconcileCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.reconcile');
+        Route::post('/me/payment-card-registrations/{registrationId}/cancel', [V2PaymentController::class, 'cancelCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.cancel');
         Route::delete('/me/payment-cards/{cardId}', [V2PaymentController::class, 'deleteCard'])
             ->whereUuid('cardId')->name('v2.public.payment-cards.destroy');
         Route::get('/me/line-friend-state', [V2CurrentUserLineController::class, 'show'])

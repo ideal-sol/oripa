@@ -462,6 +462,13 @@ MIG_063A_V2_PAYMENT_FILES = {
     "apps/api/database/migrations-v2/2026_09_10_000055_add_v2_limited_bonus_domain_core.php",
     "apps/api/tests/V2/LimitedBonusDomainCoreTest.php",
 }
+MIG_098_V2_PAYMENT_FILES = {
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeReconciliationService.php",
+    "apps/api/app/Domain/Payment/V2/Services/V2FincodeReturnUrl.php",
+    "apps/api/app/Http/Controllers/V2/V2FincodeCardRegistrationReturnController.php",
+    "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
+    "apps/api/tests/V2/ZFincodePaymentConcurrencyTest.php",
+}
 V2_PAYMENT_REQUIRED_FILES = {
     "apps/api/app/Domain/Payment/V2/Exceptions/V2AdminPaymentReadException.php",
     "apps/api/app/Domain/Payment/V2/Exceptions/V2FincodeException.php",
@@ -486,6 +493,7 @@ V2_PAYMENT_REQUIRED_FILES = {
     *MIG_061V_V2_PAYMENT_FILES,
     *MIG_062D_V2_PAYMENT_FILES,
     *MIG_063A_V2_PAYMENT_FILES,
+    *MIG_098_V2_PAYMENT_FILES,
 }
 MIG_061I_V2_CATALOG_FILES = {
     "apps/api/database/migrations-v2/2026_08_19_000032_add_v2_gacha_core_management_fields.php",
@@ -2859,6 +2867,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_18_000064_add_v2_mail_templates.php",
         "2026_09_21_000065_add_fincode_payment_backend_core.php",
         "2026_09_22_000066_add_v2_verification_failed_user_state.php",
+        "2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3651,6 +3660,35 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in fincode_migration:
             raise PolicyFailure(f"fincode Payment migration missing {required}")
+    fincode_registration_migration = (
+        repository
+        / "apps/api/database/migrations-v2/"
+        "2026_09_23_000067_add_fincode_card_registration_3ds_authority.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "flow_type",
+        "provider_idempotency_key",
+        "provider_payment_method_id",
+        "provider_access_id",
+        "provider_card_id",
+        "provider_tds2_status",
+        "provider_reconciled_at",
+        "registration_intent_id",
+        "registration_assurance",
+        "registration_verified_at",
+        "three_d_secure_2",
+        "fincode_cards_registration_intent_unique",
+    ):
+        if required not in fincode_registration_migration:
+            raise PolicyFailure(
+                f"fincode Card Registration migration missing {required}"
+            )
+    if re.search(
+        r"\bUPDATE\s+fincode_(?:cards|card_registration_intents)\b",
+        fincode_registration_migration,
+        flags=re.IGNORECASE,
+    ):
+        raise PolicyFailure("fincode Card Registration migration must not backfill authority")
     fincode_webhook = (
         repository
         / "apps/api/app/Domain/Payment/V2/Services/V2FincodeWebhookService.php"
@@ -3659,6 +3697,8 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
         "webhook_signature",
         "hash_equals",
         "retrievePayment",
+        "customers.payment_methods.updated",
+        "reconcileFromWebhook",
         "V2FincodeCanonicalStatusClassifier",
         "statusClassifier->classify",
         "recordVerifiedProviderEvent",
@@ -3703,6 +3743,47 @@ def validate_v2_payment_boundary(repository: Path, paths: Iterable[str]) -> None
     ):
         if required not in fincode_payment:
             raise PolicyFailure(f"fincode Payment service missing {required}")
+    fincode_client = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/V2FincodeClient.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "createCardPaymentMethod",
+        "retrieveCardPaymentMethod",
+        "/v1/customers/",
+        "/payment_methods",
+        "'tds_type' => '2'",
+        "'tds2_type' => '2'",
+    ):
+        if required not in fincode_client:
+            raise PolicyFailure(f"fincode Client missing {required}")
+    fincode_cards = (
+        repository
+        / "apps/api/app/Domain/Payment/V2/Services/V2FincodeCardService.php"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "CARD_REGISTRATION_3DS_REQUIRED",
+        "registration_assurance",
+        "provider_reconciled_at",
+        "registration_remaining",
+        "next_capacity_at",
+        "reconcileFromReturn",
+        "reconcileFromWebhook",
+        "retrieveCardPaymentMethod",
+        "retrieveCard",
+        "three_d_secure_2",
+    ):
+        if required not in fincode_cards:
+            raise PolicyFailure(f"fincode Card Registration service missing {required}")
+    fincode_registration_return = (
+        repository
+        / "apps/api/app/Http/Controllers/V2/"
+        "V2FincodeCardRegistrationReturnController.php"
+    ).read_text(encoding="utf-8")
+    if "reconcileFromReturn" not in fincode_registration_return:
+        raise PolicyFailure("fincode Card Registration Return must re-query authority")
+    if "$request->input" in fincode_registration_return:
+        raise PolicyFailure("fincode Card Registration Return must ignore Browser payload")
 
     limited_bonus_migration = (
         repository

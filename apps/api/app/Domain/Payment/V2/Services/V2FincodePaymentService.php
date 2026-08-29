@@ -337,19 +337,12 @@ final class V2FincodePaymentService
         if ($source === 'saved' && is_string($card['card_id'] ?? null)) {
             return $this->cards->ownedUsableCard($user, $card['card_id']);
         }
-        if (
-            $source === 'new'
-            && ($card['save'] ?? null) === true
-            && is_string($card['registration_intent_id'] ?? null)
-            && is_string($card['provider_card_id'] ?? null)
-        ) {
-            $registered = $this->cards->completeRegistration(
-                $user,
-                $card['registration_intent_id'],
-                $card['provider_card_id']
+        if ($source === 'new' && ($card['save'] ?? null) === true) {
+            throw new V2FincodeException(
+                'CARD_REGISTRATION_3DS_REQUIRED',
+                409,
+                'Save the card through canonical 3D Secure 2.0 registration before starting payment.'
             );
-
-            return $this->cards->ownedUsableCard($user, $registered['id']);
         }
         throw new V2FincodeException('CARD_SELECTION_INVALID', 422, 'The card selection is invalid.');
     }

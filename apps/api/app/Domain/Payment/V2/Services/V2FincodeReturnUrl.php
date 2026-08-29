@@ -22,6 +22,20 @@ final class V2FincodeReturnUrl
         ]);
     }
 
+    public function providerCardRegistrationNormal(string $registrationPublicId): string
+    {
+        return $this->providerUrl('/api/v2/payment-card-registration-returns/fincode/normal', [
+            'rid' => $this->opaqueId($registrationPublicId),
+        ]);
+    }
+
+    public function providerCardRegistrationFailure(string $registrationPublicId): string
+    {
+        return $this->providerUrl('/api/v2/payment-card-registration-returns/fincode/failure', [
+            'rid' => $this->opaqueId($registrationPublicId),
+        ]);
+    }
+
     public function storefrontNormalForPayment(string $paymentPublicId): string
     {
         $payment = $this->payment($paymentPublicId);
@@ -45,6 +59,20 @@ final class V2FincodeReturnUrl
     public function storefrontPoints(): string
     {
         return $this->storefrontUrl('/points');
+    }
+
+    public function storefrontRoot(): string
+    {
+        return $this->storefrontUrl('/');
+    }
+
+    public function storefrontForCardRegistration(string $registrationPublicId): string
+    {
+        $registration = $this->cardRegistration($registrationPublicId);
+
+        return $this->storefrontUrl('/', [
+            'card_registration_id' => $registration->public_id,
+        ]);
     }
 
     /** @param array<string, string> $query */
@@ -151,6 +179,21 @@ final class V2FincodeReturnUrl
         }
 
         return $payment;
+    }
+
+    private function cardRegistration(string $registrationPublicId): object
+    {
+        $registrationId = $this->opaqueId($registrationPublicId);
+        $registration = DB::table('fincode_card_registration_intents')
+            ->where('public_id', $registrationId)
+            ->where('flow_type', 'three_d_secure_2')
+            ->select(['public_id'])
+            ->first();
+        if ($registration === null) {
+            throw $this->invalid();
+        }
+
+        return $registration;
     }
 
     private function invalid(): V2FincodeException

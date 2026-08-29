@@ -182,6 +182,18 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_mig_098_card_registration_paths_are_registered_exactly(self):
+        expected = {
+            "apps/api/app/Domain/Payment/V2/Services/V2FincodeReconciliationService.php",
+            "apps/api/app/Domain/Payment/V2/Services/V2FincodeReturnUrl.php",
+            "apps/api/app/Http/Controllers/V2/V2FincodeCardRegistrationReturnController.php",
+            "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
+            "apps/api/tests/V2/ZFincodePaymentConcurrencyTest.php",
+        }
+        self.assertEqual(policy_gate.MIG_098_V2_PAYMENT_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_063d_category_tag_presentation_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
@@ -1580,6 +1592,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_16_000062_allow_v2_direct_terminal_gacha_deactivation.php",
             "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
             "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
+            "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -1796,6 +1809,23 @@ python3 scripts/db/v2_database.py smoke \\
             root = Path(temporary)
             paths = self.copy_v2_payment_boundary(root)
             policy_gate.validate_v2_payment_boundary(root, paths)
+
+    def test_v2_payment_card_registration_authority_backfill_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_payment_boundary(root)
+            migration = (
+                root
+                / "apps/api/database/migrations-v2/"
+                "2026_09_23_000067_add_fincode_card_registration_3ds_authority.php"
+            )
+            migration.write_text(
+                migration.read_text(encoding="utf-8")
+                + "\n<?php DB::statement(\"UPDATE fincode_cards SET registration_assurance = 'three_d_secure_2'\");\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "must not backfill"):
+                policy_gate.validate_v2_payment_boundary(root, paths)
 
     def test_v2_payment_fincode_canonical_classifier_is_required(self):
         with tempfile.TemporaryDirectory() as temporary:
