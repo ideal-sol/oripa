@@ -48,6 +48,7 @@
     "site_048": "HOLD"
   },
   "verification": {
+    "application_head": "c184b7ffb2b3388209a0841e075e3990e9196647",
     "fincode_backend": "PASS_38_TESTS_502_ASSERTIONS",
     "storefront_client": "PASS_32_TESTS",
     "storefront_testkit": "PASS_41_TESTS",
@@ -58,8 +59,10 @@
     "publication_unit": "PASS_11_TESTS",
     "policy_unit": "PASS_181_TESTS",
     "local_policy_gate": "PASS_1607_TRACKED_FILES",
-    "required_checks": "PENDING_FINAL_HEAD",
-    "fresh_self_review": "PENDING_FINAL_HEAD"
+    "application_head_required_checks": "PASS_ALL_FIVE",
+    "application_head_self_review": "PASS_SEV_0_1_2_3_ZERO_COMMENT_5462554301",
+    "required_checks": "PENDING_FINAL_EVIDENCE_HEAD",
+    "fresh_self_review": "PENDING_FINAL_EVIDENCE_HEAD"
   },
   "deferred_activation": {
     "required_test_sandbox_event": "customers.payment_methods.updated",

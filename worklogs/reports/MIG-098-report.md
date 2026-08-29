@@ -7,6 +7,7 @@
 - Semantic overlap was limited to `scripts/ci/policy_gate.py` and `tests/ci/policy/test_policy_gate.py`. GOV-020 exact merged-main publication, contract-only API Build 0, PR-head rejection, immutable upload/readback, preview-image workflow, and separate Release Ledger reconciliation invariants remain intact while MIG-098 adds Migration 000067 and Payment contract inventory guards.
 - Platform Integration Lock and Migration 000067 Allocation Lock are held by MIG-098. Issue `#416`, the branch, dedicated worktree, and root-owned Task Policy remain active.
 - The rebased Task Policy uses Base `cfe24c416b9d95131ef0ec271bd129875a91c9f1`. Human-approved Testkit export scope expansion added only `packages/storefront-testkit/scripts/check-exports.mjs`, bringing the exact allowed path count to 46 and SHA-256 to `5e91031d43e9d0a313fb159673d7d11611d607a038babb9bfb318867d0628547`.
+- Draft PR `#419` was opened from Application Head `c184b7ffb2b3388209a0841e075e3990e9196647`. The remote task ref was only the old-base seed, so the initial GitHub App `push-new-branch` guard correctly reported a conflict; after exact ancestry, 46-path scope, secret, and no-force gates passed, the configured task ref was advanced by one normal fast-forward. All later task-branch updates use the policy-aware wrapper.
 - GitHub protected main stayed at the GOV-020 squash during the scope update. The protected-main GOV-020 report still contains its pre-final text; Human directed MIG-098 not to edit or reopen that documentation.
 
 ## Stage 0 Readback
@@ -63,7 +64,7 @@
 - OpenAPI canonical bundle check PASS: Admin 222, Public 71, Webhook 2.
 - Artifact source validation PASS for pending alpha.31; Artifact unit 13 tests and exact-main publication unit 11 tests PASS.
 - Policy unit 181 tests and local Policy Gate 1,607 tracked files PASS. `git diff --check` PASS.
-- Required five GitHub checks and fresh exact-head Strict self-review remain pending Final Head. No Browser/E2E or real Provider communication is claimed.
+- Application Head `c184b7ffb2b3388209a0841e075e3990e9196647` passed `policy-gate`, `quality-gate`, `security-gate`, `integration-gate`, and `ci-gate`. Fresh Strict self-review `#issuecomment-5462554301` recorded scope, secret/PII, migration/contract/security PASS and SEV-0/1/2/3 all zero. This report update creates one evidence-only successor Head, so the Required five and fresh Strict review run once more on that exact Final Head. No Browser/E2E or real Provider communication is claimed.
 
 ## Artifact And Deferred Activation
 
@@ -78,4 +79,4 @@
 - Migration created/applied: 1/0. API Build/Activation: 0/0. Admin and Storefront Build/Activation: 0/0.
 - Provider Card Registration, real Payment, Webhook replay, Card/Payment/Coin/Mail business mutation, Production mutation, and Secret value readback are all 0.
 - SITE-048 must exact-pin the reconciled Artifact, show the Human-approved save-card confirmation popup, retain entered Card input on Back, use Registration `next_action` and opaque ID correlation, start Payment only after `completed + saved_card_id`, require Payment 3DS2 again, use `registration_remaining`, and remove non-3DS `registerCard()` from the Canonical save flow.
-- Remaining Source gates are final documentation/evidence synchronization, Required five checks, fresh Strict self-review with SEV-0/SEV-1 zero, squash merge, exact-main contract-only Artifact publication/readback, and branch/worktree/lock/policy closeout. Runtime Activation, Release Ledger reconciliation, SITE-048, and Human Sandbox E2E remain separate.
+- Remaining Source gates are the evidence-only Final Head Required five checks, fresh Strict self-review with SEV-0/SEV-1 zero, squash merge, exact-main contract-only Artifact publication/readback, and branch/worktree/lock/policy closeout. Runtime Activation, Release Ledger reconciliation, SITE-048, and Human Sandbox E2E remain separate.
