@@ -2,7 +2,7 @@
 
 ## Task
 
-- Issue `#414`, Lane `Strict Change`, Risk `R4`, Activation `immediate`.
+- Issue `#414`, Draft Pull Request `#415`, Lane `Strict Change`, Risk `R4`, Activation `immediate`.
 - Base/local/origin/GitHub main at Task start: `efc64e24fbbb01cab10f1f2953c6b7ee49d90484`.
 - Task Policy: `/etc/ideal-sol/github-app/task-policies/OPS-024.json`, SHA-256 `1c309dc63b4f6a7981ee140768928bbcb667e31e3cd804f0ee9d300938e90585`, ten exact allowed Repository paths.
 
@@ -36,7 +36,7 @@ The live Storefront vhost retained an obsolete Docker-assigned API address. Host
 - Active test vhost read-only verify: canonical PASS.
 - Active live vhost read-only verify: expected fail-closed `container_specific_upstream_rejected` before Runtime mutation.
 - `git diff --check`: PASS.
-- The first Local Policy Gate invocation failed only because the new allowed runbook was necessarily untracked before the first commit; it will be rerun from a tracked exact head. Required five checks and fresh exact-head Strict self-review remain pending.
+- Local Policy Gate PASS for 1,599 tracked files. Its first invocation failed only because the new allowed runbook was necessarily untracked before the first commit; the same gate passed from committed source. Required five checks and fresh exact-head Strict self-review remain pending.
 
 ## Runtime Boundary
 
