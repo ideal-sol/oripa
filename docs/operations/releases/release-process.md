@@ -8,7 +8,11 @@ gate.
 
 ## Principles
 
-- `main`から直接Releaseしない。
+- PR headまたは作業branchからpre-merge Releaseしない。Storefront
+  contract-only Artifactだけは、Required Check済みPRのsquash merge後に
+  protected `main`のexact current headをauthorityとする専用workflowで発行する。
+- Release workflowから`main`へcommit／pushしない。digest確定後のRelease
+  Ledger更新は別Task／PRで行う。
 - Build Once／Digest Promoteを維持し、Environmentごとの再Buildを行わない。
 - Stable TagはStable Tag RulesetとRelease Gateを通過した場合だけ新規作成する。
 - Stable Tagの移動、上書き、削除を行わない。

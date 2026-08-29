@@ -1,0 +1,174 @@
+name: Storefront Contract Artifact Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      publication_mode:
+        description: Publication responsibility
+        required: true
+        default: contract-only
+        type: choice
+        options:
+          - contract-only
+      source_task_id:
+        description: Task ID of the squash-merged contract source
+        required: true
+        type: string
+      expected_merged_sha:
+        description: Exact protected main head expected at dispatch
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: storefront-contract-artifact-publication
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: authorize-exact-protected-main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.authority.outputs.source_sha }}
+      source_pr: ${{ steps.authority.outputs.source_pr }}
+      reviewed_head_sha: ${{ steps.authority.outputs.reviewed_head_sha }}
+      artifact_version: ${{ steps.authority.outputs.artifact_version }}
+      artifact_name: ${{ steps.authority.outputs.artifact_name }}
+    steps:
+      - name: Reject non-main and mismatched dispatch authority
+        env:
+          INPUT_EXPECTED_MERGED_SHA: ${{ inputs.expected_merged_sha }}
+          INPUT_PUBLICATION_MODE: ${{ inputs.publication_mode }}
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          WORKFLOW_REF: ${{ github.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          test "$WORKFLOW_EVENT" = "workflow_dispatch"
+          test "$INPUT_PUBLICATION_MODE" = "contract-only"
+          test "$WORKFLOW_REF" = "refs/heads/main"
+          test "$WORKFLOW_SHA" = "$INPUT_EXPECTED_MERGED_SHA"
+
+      - name: Check out only the expected merged main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.expected_merged_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify checkout and authorize protected-main provenance
+        id: authority
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          INPUT_EXPECTED_MERGED_SHA: ${{ inputs.expected_merged_sha }}
+          INPUT_SOURCE_TASK_ID: ${{ inputs.source_task_id }}
+          WORKFLOW_REF: ${{ github.ref }}
+          WORKFLOW_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$INPUT_EXPECTED_MERGED_SHA"
+          python3 scripts/release/storefront_contract_publication.py authorize \
+            --repository . \
+            --repository-name "$WORKFLOW_REPOSITORY" \
+            --github-ref "$WORKFLOW_REF" \
+            --event-sha "$WORKFLOW_SHA" \
+            --expected-merged-sha "$INPUT_EXPECTED_MERGED_SHA" \
+            --source-task-id "$INPUT_SOURCE_TASK_ID" \
+            --github-output "$GITHUB_OUTPUT"
+
+  publish:
+    name: publish-contract-only-artifact
+    needs: authorize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Check out the exact authorized merged main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        env:
+          AUTHORIZED_SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUTHORIZED_SOURCE_SHA"
+
+      - name: Set up Node.js for contract packages
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.3"
+
+      - name: Build and verify only the Storefront contract bundle
+        env:
+          AUTHORIZED_SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+          INPUT_TASK_ID: ${{ inputs.source_task_id }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$AUTHORIZED_SOURCE_SHA"
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+          pnpm install --frozen-lockfile
+          output="$RUNNER_TEMP/storefront-contract"
+          python3 scripts/release/storefront_contract_artifact.py validate-source \
+            --repository .
+          python3 scripts/release/storefront_contract_artifact.py build \
+            --repository . \
+            --source-commit "$AUTHORIZED_SOURCE_SHA" \
+            --output "$output"
+          python3 scripts/release/storefront_contract_artifact.py verify \
+            --repository . \
+            --output "$output"
+
+      - name: Upload the new immutable contract version
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ needs.authorize.outputs.artifact_name }}
+          path: ${{ runner.temp }}/storefront-contract/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+          overwrite: false
+          include-hidden-files: false
+
+  readback:
+    name: readback-and-verify-publication
+    needs:
+      - authorize
+      - publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact authorized merged main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Read back upload and verify outer and inner digests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UPLOADED_ARTIFACT_DIGEST: ${{ needs.publish.outputs.artifact_digest }}
+          UPLOADED_ARTIFACT_ID: ${{ needs.publish.outputs.artifact_id }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ needs.authorize.outputs.source_sha }}"
+          python3 scripts/release/storefront_contract_publication.py readback \
+            --repository . \
+            --artifact-id "$UPLOADED_ARTIFACT_ID" \
+            --artifact-name "${{ needs.authorize.outputs.artifact_name }}" \
+            --expected-outer-digest "$UPLOADED_ARTIFACT_DIGEST" \
+            --expected-source-sha "${{ needs.authorize.outputs.source_sha }}" \
+            --expected-version "${{ needs.authorize.outputs.artifact_version }}" \
+            --expected-task-id "${{ inputs.source_task_id }}" \
+            --expected-run-id "${{ github.run_id }}" \
+            --output "$RUNNER_TEMP/storefront-contract-readback" \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"

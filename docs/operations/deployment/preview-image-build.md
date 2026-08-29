@@ -6,6 +6,10 @@ Platform API and Admin Preview images are built only by
 `.github/workflows/preview-image-build.yml` on GitHub-hosted
 `ubuntu-24.04` x64. The Preview host must never run `docker build`.
 
+This workflow owns Preview image build only. It never builds, uploads, or
+publishes the Storefront Contract Artifact; that post-merge responsibility is
+isolated in `.github/workflows/storefront-contract-artifact-publish.yml`.
+
 The workflow accepts an approved Task ID, an internal PR number, its exact
 reviewed head SHA, and `image_mode`. The PR may be open or already merged; a
 closed unmerged PR fails closed. This permits a Task to merge the canonical

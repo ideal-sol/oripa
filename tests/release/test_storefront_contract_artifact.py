@@ -222,13 +222,22 @@ class StorefrontContractArtifactTest(unittest.TestCase):
                 with self.assertRaisesRegex(artifact.ArtifactError, "file inventory mismatch"):
                     artifact.verify_manifest(ROOT, output)
 
-    def test_workflow_invokes_validator_build_and_verify_without_skip(self):
-        workflow = (ROOT / ".github/workflows/preview-image-build.yml").read_text()
-        self.assertIn("storefront_contract_artifact.py candidate-version", workflow)
-        self.assertIn("storefront-contract-candidate.outputs.present == 'true'", workflow)
+    def test_dedicated_workflow_invokes_validator_build_verify_and_readback(self):
+        workflow = (
+            ROOT / ".github/workflows/storefront-contract-artifact-publish.yml"
+        ).read_text()
+        self.assertIn("publication_mode:", workflow)
+        self.assertIn("default: contract-only", workflow)
+        self.assertEqual(workflow.count("actions/checkout@"), 3)
+        self.assertIn('test "$(git rev-parse HEAD)"', workflow)
         self.assertIn("storefront_contract_artifact.py validate-source", workflow)
         self.assertIn("storefront_contract_artifact.py build", workflow)
         self.assertIn("storefront_contract_artifact.py verify", workflow)
+        self.assertIn("storefront_contract_publication.py readback", workflow)
+        self.assertIn("overwrite: false", workflow)
+        self.assertNotIn("docker build", workflow)
+        self.assertNotIn("docker push", workflow)
+        self.assertNotIn("apps/admin/Dockerfile", workflow)
         self.assertNotIn("package version mismatch", workflow)
 
 
