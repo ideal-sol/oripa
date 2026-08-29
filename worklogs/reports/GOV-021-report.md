@@ -103,7 +103,7 @@ this report.
 - Release validation: passed with 67 unchanged migrations and the existing
   Platform, Application, Contract, and package version inventory.
 - Final Policy Unit: 181 passed.
-- Local Policy Gate: passed for 1,607 tracked files.
+- Local Policy Gate: passed for 1,608 tracked files.
 - Changed Python compilation, exact JSON/history preservation, scope review,
   and final `git diff --check`: passed.
 - Final-head Required Checks and fresh Strict self-review remain required before
