@@ -26,23 +26,48 @@
 - Protected-main Repository and the active API route table both contain canonical `POST /webhooks/v2/fincode`.
 - Provider Settings GET/change, Webhook replay/send, and artificial Provider event generation are all zero and remain prohibited.
 
+## Human Reviewed Tree Authority
+
+- The Human adopted `Engineering Safety Strict / Git Lite` for OPS-025 and explicitly declined GOV-022 and the six-path CI/Git scope expansion. Required Checks, fresh Strict self-review, protected main, PR review/merge, migration safety, Provider authority, Payment/Coin exactly-once, and Runtime Acceptance remain unchanged.
+- OPS-025 no longer requires the API OCI revision to equal the squash merge commit SHA. The exact Final reviewed PR Head remains the build input and OCI revision.
+- Activation authority requires the Final PR Head tree object and squash merge tree object to be identical, plus a zero content diff. A commit-SHA difference is accepted only through that exact byte-equivalence proof.
+- Root-only closeout evidence and Issue `#422` must record Final PR Head SHA/tree, squash merge SHA/tree, equality result, zero content diff, Build workflow run, image digest, and the mapping `OCI PR Head -> common reviewed/merged tree -> Merge SHA`.
+- Any tree mismatch, content diff, image/OCI mismatch, or protected-main drift blocks Migration `000067`, blocks Activation, and leaves the old API Runtime unchanged.
+
+## Full Delivery Preflight
+
+- A read-only end-to-end preflight completed at `2026-08-29T16:39:23Z` before this authority evidence update. Source change, Build, Migration apply, Runtime Activation, and Provider/business mutation during the preflight were all zero.
+- Live protected main and the PR base remained `52efea768b6cfba086f1e85523f2e9f561246af4`; live Draft PR `#423` remained open, cleanly mergeable, and at Head `fc24322064401867e51ed89005bca2f892d94977`. Both Platform worktrees were clean and the merge-base was exact protected main.
+- The preflight Head had all five Required Checks successful. This evidence update intentionally creates a new Final Head, so those runs are historical only and cannot satisfy the new Head.
+- Canonical `preview-image-build.yml` can dispatch from protected `main`, validate the open internal PR and exact checked Head, run `image_mode=api-only`, build API once, skip Admin, and expose the workflow run, GitHub artifact digest, Docker image ID, archive digest, and OCI revision through the verified artifact manifest/read wrapper.
+- Git and the squash wrapper expose the exact pre-merge base, returned merge SHA, both tree objects, and a direct content diff. The wrapper also revalidates the exact PR Head, scope, five checks, fresh self-review, mergeability, and squash method immediately before merge.
+- The verified API image contains the merged-main migration root and supports the canonical Compose one-off migration runner without replacing the active API. Shared Preview is healthy at ledger `66`, batch `32`, latest `000066`; only `000067` is pending and current aggregate counts remain unchanged.
+- API-only Compose Activation accepts the explicit verified image/OCI identity and does not require OCI revision equality with protected-main commit SHA. It replaces only API, preserves loopback publication `127.0.0.1:8611`, and does not mutate Nginx, Admin, Storefront, PostgreSQL, or Redis.
+- Test and live Nginx profiles verify canonical on `127.0.0.1:8611`; Nginx config is valid and its fresh access/error log window is measurable. API/Admin/PostgreSQL/Redis, Storefront, and Nginx are healthy or active with restart zero.
+- Platform Integration and Migration `000067` locks remain held by OPS-025; Preview Deployment Lock is free and acquirable before Activation. All three lock release paths and Task Policy/branch/worktree/Issue cleanup remain available after complete acceptance.
+- No additional hard blocker exists across Final Head -> Required Checks -> API-only Build -> pre-merge drift gate -> squash merge -> tree equality -> Migration -> Activation -> Runtime Acceptance -> lock cleanup.
+
 ## Lock Handoff
 
 - Platform Integration Lock was acquired by OPS-025 at `2026-08-29T15:46:52Z` after Issue, remote branch, and dedicated worktree establishment.
 - Protected-main GOV-021 evidence fixed MIG-098 as the retained Migration 000067 holder. Competing holder count was zero; no transfer helper exists. MIG-098 was released and OPS-025 acquired the canonical 000067 OS lock immediately at `2026-08-29T15:47:15Z`.
 - Migration 000067 remains held through complete Runtime Acceptance. Preview Deployment Lock remains free until its pre-activation gate. Artifact Lock is not required.
 
-## Merge-first Runtime Boundary
+## Reviewed-tree Delivery Boundary
 
-- This PR records Stage 0, exact source authority, ordered activation plan, acceptance gates, rollback boundary, and public-safe evidence only.
-- Runtime mutation is prohibited until this evidence-only PR passes all five Required Checks and fresh exact-head Strict self-review, squash merges, and local/origin/Remote/GitHub main equal the exact squash commit.
-- Post-merge execution order is fixed: Migration `000067` apply exactly once, API-only Build exactly once, Shared Preview API-only Activation exactly once, then read-only Runtime Acceptance.
-- Canonical post-merge evidence is Issue `#422` plus root-only `/var/lib/oripa-v2-evidence/OPS-025/`. A task branch or unmerged head is never Runtime authority.
+- This PR records Stage 0, Full Delivery Preflight, Reviewed Tree Authority, ordered activation plan, acceptance gates, rollback boundary, and public-safe evidence only.
+- The new Final Head must pass focused local validation, all five Required Checks, and fresh exact-head Strict self-review. From that fixed Head through Build and merge, Repository Source is immutable.
+- Delivery order is fixed: API-only Build from the exact Final reviewed PR Head, pre-merge protected-main drift gate, squash merge, tree equality and zero content diff, Migration `000067` apply exactly once, built-image API-only Activation exactly once, then read-only Runtime Acceptance.
+- If protected main drifts after Build, the PR must update, all checks and self-review must repeat, and a new API image must be built. The prior image cannot become an Activation candidate.
+- Runtime mutation remains prohibited until squash merge, exact main synchronization, and tree equality PASS. The pre-merge image is not Runtime authority by itself; it becomes eligible only through the Human-approved Reviewed Tree mapping.
+- Canonical operational closeout evidence is Issue `#422` plus root-only `/var/lib/oripa-v2-evidence/OPS-025/`. No Application Source, workflow, wrapper, migration, OpenAPI, Client/Testkit, Artifact, Storefront, Admin, or Nginx source changes are in scope.
 
 ## Planned Acceptance And Failure Handling
 
-- Migration preflight rechecks DB health, exact pending set, lock holder, aggregate baseline, backup/rollback policy, and root disk. Apply failure blocks Build and retains the lock without manual repair.
-- API-only Build must use the exact OPS-025 squash from protected main. OCI/source mismatch or Build failure blocks Activation and preserves the existing API.
+- API-only Build must use the exact Final reviewed PR Head, produce one API image and zero Admin/Storefront/Artifact-release builds, and retain the old API rollback image. OCI/manifest mismatch or Build failure blocks merge and preserves the existing API.
+- The pre-merge drift gate rechecks protected main against the Final Head base. Drift blocks merge and requires updated checks, self-review, and Build.
+- Tree equality and zero content diff are mandatory after squash merge. Mismatch blocks Migration and Activation and prohibits use of the built image.
+- Migration preflight rechecks DB health, exact pending set, lock holder, aggregate baseline, current backup/rollback policy, and root disk. Apply failure blocks Activation and retains the lock without manual repair.
 - API-only Activation must preserve Admin, Storefront, PostgreSQL, Redis, Nginx config/reload, stable loopback upstream, private network, and rollback image. Activation failure remains Fail Closed under Governance.
 - Runtime Acceptance covers API health, 000067 ledger/schema and zero false verification backfill, direct/test/live public regression, Storefront pages/dynamic data, active MIG-098 routes and authority source, Artifact ledger, service health/restarts, fresh 500/502/504 window, and before/after aggregate preservation.
 - Provider Card Registration, Registration POST, Payment, Webhook replay/send, Provider event creation, manual Card/Payment/Coin mutation, Mail, Production, and Secret value readback remain zero.
@@ -51,7 +76,9 @@
 
 - Initial source commit `451693db737608d63fca16e3a63213f1f6762591` was pushed through the policy-aware GitHub App wrapper and Draft PR `#423` was opened against `main`.
 - Policy Unit `181` tests, Local Policy Gate over `1,610` tracked files, deployment JSON parse, exact three-path scope, high-confidence secret scan with zero candidates, and `git diff --check` passed.
+- Pre-resume Head `fc24322064401867e51ed89005bca2f892d94977` also passed all five Required Checks, but this Human-authority evidence update supersedes that Head. The resulting new Head must rerun focused validation, Required Checks, and fresh Strict self-review.
+- The Reviewed Tree candidate evidence bytes pass Policy Unit `193` tests, Local Policy Gate over `1,610` tracked files, deployment JSON parse, exact three-path scope, high-confidence secret scan with zero candidates, and `git diff --check`. Required Checks and self-review remain pending until the exact committed Head exists.
 - Migration created/applied: `0 / 0` for OPS-025. Migration `000067` was created and source-verified by MIG-098 only.
 - API Build/Activation: `0 / 0`. Admin and Storefront Build/Activation: `0 / 0`. Artifact publication: `0`.
 - Database business mutation, Provider, Card Registration, Payment, Coin/Point Ledger, Mail, Production, Nginx, and Secret mutation/readback: `0`.
-- Final-head Required Checks, fresh Strict self-review, squash merge, Migration apply, API Build/Activation, Runtime Acceptance, GO/HOLD decisions, lock release, and cleanup remain pending.
+- New Final-head validation/checks/self-review, API-only Build, pre-merge drift gate, squash merge, tree equality, Migration apply, API Activation, Runtime Acceptance, GO/HOLD decisions, lock release, and cleanup remain pending.
