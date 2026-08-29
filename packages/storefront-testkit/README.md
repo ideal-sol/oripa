@@ -22,6 +22,7 @@ OwnerはPlatform Codex。親[`AGENTS.md`](../AGENTS.md)に従う。
 - Anonymous／Authenticated Session、Pending Registration、Accepted ResponseのAuth Fixture
 - Contact input／202 Receipt／Validation／429のPublic-safe Fixture
 - Anonymous first submit／Authenticated submit／CSRF bootstrap／typed transport error検証
+- Card Registration 3DS2のstate、effective capacity、typed Problem Fixture
 
 認証Fixtureは実Credential、Cookie、Token、PIIを含めず、Public OpenAPIの型に
 compile-timeで適合する。架空Endpointや認証判断は提供しない。
@@ -84,8 +85,14 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Package Versionは`2.0.0-alpha.30`。参照するStorefront Clientは`2.0.0-alpha.30`、
-Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.27`。
+Package Version候補は`2.0.0-alpha.31`。参照するStorefront Client候補は`2.0.0-alpha.31`、
+Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.28`。
+`PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES`はpending／requires action／completed／failed／
+canceled／expired、`PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES`はsaved Cardとlive Registrationを
+合算した`registration_remaining`／`next_capacity_at`、
+`PUBLIC_PAYMENT_CARD_REGISTRATION_PROBLEM_FIXTURES`はlegacy rejection、failure、cancel、expiry、
+capacity、Provider unavailable、ownership mismatchをPublic型だけで表す。exact export allowlistは
+Admin／Webhook／Provider内部型を引き続き拒否する。
 Payment Grant Fixtureは確定した`paid_points`、通常`bonus_points`、期間限定
 `limited_bonus_points`、3field合計`total_points`を表し、現在の商品・Campaignから
 Historical実績を再計算しない。Payment Card UI Bootstrap FixtureはPublic-safeなfincode

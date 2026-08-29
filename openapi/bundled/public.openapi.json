@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.27",
+    "version": "2.0.0-alpha.28",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -2265,6 +2265,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "fincode Paymentを支払操作時に開始する",
+        "description": "credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。",
         "x-idempotency": "required",
         "x-rate-limit": "payment-create",
         "x-cache-policy": "no-store",
@@ -2304,7 +2305,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PaymentProblem"
           }
         }
       }
@@ -2370,6 +2371,80 @@
         "responses": {
           "303": {
             "description": "GET `/points/purchase/{PointProduct.id}?pid={Payment.id}`へ正規化する。Payment状態は変更しない。",
+            "headers": {
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-card-registration-returns/fincode/normal": {
+      "post": {
+        "operationId": "reconcileFincodeCardRegistrationReturn",
+        "summary": "fincode Card Registrationの正常POST ReturnをCanonical状態へreconcileする",
+        "description": "Browser payloadを登録成功Authorityとして使用しない。Platform生成済みridだけでRegistrationを相関し、 fincode Payment Method exact GETを実行する。Card IDが正式なsigned provider notificationで相関済みの場合に限り Card exact GETも行い、3DS2、customer、payment method、card ownershipを再確認して保存する。",
+        "x-idempotency": "canonical-provider-requery",
+        "x-rate-limit": "provider-browser-return",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "query",
+            "required": true,
+            "description": "PlatformがReturn URLへ設定したCanonical Public Opaque Card Registration.id。",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Storefrontの具体routeを推測せず、設定済みorigin直下へPublic Opaque Registration IDだけを付けて固定遷移する。Browser payload単独ではCardを作成しない。",
+            "headers": {
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-card-registration-returns/fincode/failure": {
+      "post": {
+        "operationId": "reconcileFincodeCardRegistrationFailureReturn",
+        "summary": "fincode Card Registrationのfailure POST ReturnをCanonical状態へreconcileする",
+        "description": "failureというBrowser遷移自体をAuthorityにせず、正常Returnと同じProvider exact re-query境界を使用する。 Provider状態が不明または取得不能ならCardを作成せず、retryable pendingとしてFail Closedする。",
+        "x-idempotency": "canonical-provider-requery",
+        "x-rate-limit": "provider-browser-return",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "query",
+            "required": true,
+            "description": "PlatformがReturn URLへ設定したCanonical Public Opaque Card Registration.id。",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Storefrontの具体routeを推測せず、設定済みorigin直下へPublic Opaque Registration IDだけを付けて固定遷移する。Card保存やPayment開始をBrowser payloadから行わない。",
             "headers": {
               "Location": {
                 "required": true,
@@ -2638,7 +2713,10 @@
     "/me/payment-card-registration-intents": {
       "post": {
         "operationId": "createPaymentCardRegistrationIntent",
-        "summary": "3DS必須のfincodeカード登録枠を予約する",
+        "summary": "Legacy non-3DS fincodeカード登録枠を互換目的で予約する",
+        "description": "Deprecated compatibility operation。Browser registerCard()とprovider_card_idだけではRegistration 3DS2成功を 証明できないため、このIntentはCanonical Card保存に使用できない。新規実装はstartPaymentCardRegistrationを使用する。",
+        "deprecated": true,
+        "x-oripa-legacy-fail-closed": true,
         "x-idempotency": "required",
         "x-rate-limit": "payment-create",
         "x-cache-policy": "no-store",
@@ -2668,7 +2746,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/CardRegistrationProblem"
           }
         }
       }
@@ -2676,7 +2754,10 @@
     "/me/payment-card-registration-intents/{registration_intent_id}/complete": {
       "post": {
         "operationId": "completePaymentCardRegistration",
-        "summary": "fincodeから取得・ownership確認したカードを登録確定する",
+        "summary": "Legacy non-3DS Card登録完了をFail Closedする互換operation",
+        "description": "Deprecated compatibility operation。Browserが渡すprovider_card_idはAuthorityではなく、 CARD_REGISTRATION_3DS_REQUIRED Problemで常に拒否する。Card、Payment、Coin、Mailを作成しない。",
+        "deprecated": true,
+        "x-oripa-legacy-fail-closed": true,
         "x-idempotency": "safe",
         "x-rate-limit": "payment-create",
         "x-cache-policy": "no-store",
@@ -2711,7 +2792,7 @@
         },
         "responses": {
           "200": {
-            "description": "PAN/CVCを受け取らずProvider card referenceを照合して登録する。",
+            "description": "Deprecated response shape。Canonical Activation後は返さず、legacy flowをProblem Detailsで拒否する。",
             "content": {
               "application/json": {
                 "schema": {
@@ -2721,7 +2802,185 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/CardRegistrationProblem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registrations": {
+      "post": {
+        "operationId": "startPaymentCardRegistration",
+        "summary": "Card保存専用のfincode Registration 3DS2を開始する",
+        "description": "Browserで一時生成されたfincode tokenを永続化せず、PlatformがProvider CustomerとRegistrationを相関して Payment Method登録を作成する。tds_type=2かつtds2_type=2を固定し、tds2_type=3は使用しない。 同じIdempotency-Keyは同一Registrationを返す。Registration成功前にPaymentを開始しない。",
+        "x-idempotency": "required",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCardRegistrationStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "3DS2 Browser actionまたはCanonical terminal stateを含むCard Registration。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardRegistration"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CardRegistrationProblem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registrations/{registration_id}": {
+      "get": {
+        "operationId": "getPaymentCardRegistration",
+        "summary": "所有するCard RegistrationのCanonical Platform状態を取得する",
+        "description": "read自体はProviderへ通信しない。pendingとrequires_actionは未確定であり、completedとsaved_card_idだけが 保存済みCard確定を表す。Browser Returnの到達だけをsuccessとして返さない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Canonical Card Registration状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardRegistration"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CardRegistrationProblem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registrations/{registration_id}/reconcile": {
+      "post": {
+        "operationId": "reconcilePaymentCardRegistration",
+        "summary": "Card RegistrationをProvider exact GETでreconcileする",
+        "description": "Browser payloadを受け取らず、Payment Method exact GETと、signed provider notificationでCard IDが相関済みの場合の Card exact GETをAuthorityとして使用する。不明またはunavailableはCardを作成せずretryable Problemとする。",
+        "x-idempotency": "canonical-provider-requery",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Re-query後のCanonical Card Registration状態。同一または並行reconcileでもCardは最大1件。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardRegistration"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CardRegistrationProblem"
+          }
+        }
+      }
+    },
+    "/me/payment-card-registrations/{registration_id}/cancel": {
+      "post": {
+        "operationId": "cancelPaymentCardRegistration",
+        "summary": "未完了Card Registrationをcancelしてcapacityを解放する",
+        "description": "completedはcancelできない。canceledはterminalで、Card、Payment、Coin、Mailを作成せず、 live Registration capacityから即時除外する。同一cancelは安全に再実行できる。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "canceledまたは既存terminal状態のCard Registration。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardRegistration"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CardRegistrationProblem"
           }
         }
       }
@@ -2810,6 +3069,8 @@
       "NewSavedCardSelection": {
         "type": "object",
         "additionalProperties": false,
+        "deprecated": true,
+        "description": "Legacy non-3DS save selection。provider_card_idとregistration_intent_idだけではRegistration 3DS2 proofに ならないため、Canonical Activation後はCARD_REGISTRATION_3DS_REQUIREDで拒否する。",
         "required": [
           "source",
           "save",
@@ -2837,6 +3098,7 @@
       "SavedCardSelection": {
         "type": "object",
         "additionalProperties": false,
+        "description": "completed Card Registrationが返したPlatform-owned saved_card_idだけを指定する。 Card保存時の3DS2とは別に、このPaymentでも毎回3DS2を要求する。",
         "required": [
           "source",
           "card_id"
@@ -3116,9 +3378,13 @@
           "brand",
           "last4",
           "expiration",
+          "verification_status",
           "is_expired",
           "can_pay",
           "last_used_at"
+        ],
+        "x-oripa-response-required-additions": [
+          "verification_status"
         ],
         "properties": {
           "id": {
@@ -3155,11 +3421,19 @@
               }
             }
           },
+          "verification_status": {
+            "enum": [
+              "verified",
+              "unverified"
+            ],
+            "description": "verifiedはProvider Payment Method exact GETとCard exact GETによりRegistration 3DS2成功とownershipを 確認したCardだけを示す。MigrationやBrowser provider_card_idだけで既存Cardをverifiedへしない。"
+          },
           "is_expired": {
             "type": "boolean"
           },
           "can_pay": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "verification_status=verifiedかつ期限内の場合だけtrue。"
           },
           "last_used_at": {
             "type": [
@@ -3199,7 +3473,22 @@
               "remaining": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 3
+                "maximum": 3,
+                "description": "後方互換のため、undeleted stored Card rowだけから算出する既存capacity。"
+              },
+              "registration_remaining": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3,
+                "description": "max(0, 3 - verified usable Card - non-expired live Registration attempts)。新規登録可否にはこの値を使用する。"
+              },
+              "next_capacity_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "capacity 0の原因にlive Registrationが含まれる場合の最も早いexpiry。不要またはCard 3枚で0の場合はnull。"
               }
             }
           }
@@ -3232,6 +3521,8 @@
       "PaymentCardRegistrationIntent": {
         "type": "object",
         "additionalProperties": false,
+        "deprecated": true,
+        "description": "Legacy Browser registerCard()互換用。provider_contextはRegistration 3DS2 proofではない。",
         "required": [
           "id",
           "expires_at",
@@ -3268,7 +3559,9 @@
                 "maxLength": 512
               },
               "tds_type": {
-                "const": "2"
+                "const": "2",
+                "deprecated": true,
+                "description": "Payment側のhistorical hint。Registration 3DS2成功またはCard保存可否を示さない。"
               }
             }
           }
@@ -3277,6 +3570,8 @@
       "PaymentCardRegistrationCompleteRequest": {
         "type": "object",
         "additionalProperties": false,
+        "deprecated": true,
+        "description": "Legacy Browser provider_card_idはAuthorityではなく、Canonical Activation後は常に拒否される。",
         "required": [
           "provider_card_id"
         ],
@@ -3286,6 +3581,111 @@
             "minLength": 1,
             "maxLength": 64,
             "writeOnly": true
+          }
+        }
+      },
+      "PaymentCardRegistrationStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "card_token"
+        ],
+        "properties": {
+          "card_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "writeOnly": true,
+            "description": "Browser fincode Card UIが一時生成したtoken。PlatformはProviderへの1回の登録Requestにだけ使用し、永続化しない。"
+          }
+        }
+      },
+      "PaymentCardRegistrationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "requires_action",
+          "completed",
+          "failed",
+          "canceled",
+          "expired"
+        ],
+        "description": "pendingとrequires_actionは未確定。completedだけが3DS2とownershipのCanonical確認済み。 failed、canceled、expiredはterminalでCardを作成せずcapacityを解放する。"
+      },
+      "PaymentCardRegistrationAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "url"
+        ],
+        "properties": {
+          "type": {
+            "const": "three_d_secure"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "fincodeが返したHTTPS Registration 3DS2 redirect。Platformはfincode originだけを許可する。"
+          }
+        }
+      },
+      "PaymentCardRegistration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "expires_at",
+          "completed_at",
+          "saved_card_id",
+          "next_action"
+        ],
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              }
+            ],
+            "description": "StorefrontがReturn後の状態を相関するPlatform Public Opaque Registration ID。"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentCardRegistrationStatus"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "既存15分Registration TTLの終了時刻。expired後はcapacityを消費しない。"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "saved_card_id": {
+            "description": "completed時だけ返すPlatform-owned saved Card Public ID。PaymentはこのIDをsource=savedで使用する。",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              }
+            ]
+          },
+          "next_action": {
+            "description": "requires_action時だけ返すRegistration 3DS2 action。Payment 3DS2 actionとは別であり代替しない。",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentCardRegistrationAction"
+              }
+            ]
           }
         }
       },
@@ -4293,6 +4693,56 @@
             "minimum": 0
           }
         }
+      },
+      "CardRegistrationProblemCode": {
+        "type": "string",
+        "enum": [
+          "AUTHENTICATION_REQUIRED",
+          "CARD_INTENT_EXPIRED",
+          "CARD_LIMIT_REACHED",
+          "CARD_REFERENCE_INVALID",
+          "CARD_REGISTRATION_3DS_REQUIRED",
+          "CARD_REGISTRATION_CANCELED",
+          "CARD_REGISTRATION_CONFLICT",
+          "CARD_REGISTRATION_FAILED",
+          "CARD_REGISTRATION_NOT_FOUND",
+          "CARD_REGISTRATION_OWNERSHIP_INVALID",
+          "CARD_REGISTRATION_REQUEST_INVALID",
+          "CARD_REGISTRATION_RETURN_OVERRIDE_FORBIDDEN",
+          "CARD_REGISTRATION_UNAVAILABLE",
+          "CSRF_TOKEN_MISMATCH",
+          "IDEMPOTENCY_KEY_REQUIRED",
+          "IDEMPOTENCY_KEY_REUSED"
+        ]
+      },
+      "CardRegistrationProblemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          },
+          {
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/CardRegistrationProblemCode"
+              }
+            }
+          }
+        ]
+      },
+      "CardRegistrationProblemResponse": {
+        "description": "Card Registrationの既知Problemまたは安全に汎用処理する未知のProblem Details。 pendingはProblemではなくPaymentCardRegistration.statusで表現する。",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CardRegistrationProblemDetails"
+          },
+          {
+            "$ref": "#/components/schemas/ProblemDetails"
+          }
+        ]
       },
       "PublicAuthProblemCode": {
         "type": "string",
@@ -7002,6 +7452,42 @@
           "application/problem+json": {
             "schema": {
               "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "PaymentProblem": {
+        "description": "PaymentのRFC 9457 Problem Details。Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/CardRegistrationProblemResponse"
+            }
+          }
+        }
+      },
+      "CardRegistrationProblem": {
+        "description": "Card RegistrationのRFC 9457 Problem Details。",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/CardRegistrationProblemResponse"
             }
           }
         }

@@ -86,11 +86,13 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
         self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
 
-    def test_released_alpha_30_bundle_preserves_immutable_history(self):
+    def test_alpha_31_candidate_preserves_released_alpha_30_history(self):
         value = artifact.validate_governance(self.governance())
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.30")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.31")
+        self.assertEqual(value["candidate"]["release_state"], "pending")
+        self.assertNotIn("source_commit", value["candidate"])
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 65)
         self.assertEqual(value["latest_immutable"]["release_mode"], "package-only")
         self.assertEqual(
@@ -158,7 +160,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(result["packages"]["@oripa/storefront-testkit"]["version"], "2.0.0-alpha.30")
 
     def valid_output(self, output: Path) -> dict:
-        governance = self.next_candidate_governance()
+        governance = self.governance()
         candidate = governance["candidate"]
         assets = {}
         for name in ("@oripa/storefront-client", "@oripa/storefront-testkit"):
@@ -185,11 +187,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         artifact.write_checksums(output)
         return governance
 
-    def test_released_alpha_30_has_no_publishable_candidate(self):
-        with self.assertRaisesRegex(
-            artifact.ArtifactError, "no pending Storefront artifact candidate"
-        ):
-            artifact.pending_candidate(ROOT)
+    def test_alpha_31_is_the_pending_publishable_candidate(self):
+        candidate = artifact.pending_candidate(ROOT)
+        self.assertEqual(candidate["bundle_version"], "2.0.0-alpha.31")
+        self.assertEqual(candidate["predecessor_bundle_version"], "2.0.0-alpha.30")
+        self.assertNotIn("source_commit", candidate)
 
     def test_release_manifest_and_file_inventory_are_consistent(self):
         with tempfile.TemporaryDirectory() as temporary:

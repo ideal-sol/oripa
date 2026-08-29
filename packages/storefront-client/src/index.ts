@@ -2,6 +2,7 @@ export {
   ApiProblemError,
   StorefrontTransportError,
   isAuthProblemError,
+  isCardRegistrationProblemError,
   isDrawProblemError,
   isFulfillmentProblemError,
 } from "./errors.js";
@@ -23,6 +24,8 @@ export {
 export {
   createStorefrontPaymentClient,
   createCsrfManagedStorefrontPaymentClient,
+  CARD_REGISTRATION_INCOMPLETE_STATUSES,
+  CARD_REGISTRATION_TERMINAL_STATUSES,
 } from "./payments.js";
 export {
   createStorefrontCurrentUserPointClient,
@@ -95,6 +98,7 @@ export type {
 export type {
   AuthProblemCode,
   ApiProblem,
+  CardRegistrationProblemCode,
   DrawProblemCode,
   FulfillmentProblemCode,
   StorefrontTransportErrorCode,

@@ -229,6 +229,33 @@ The ledger records alpha.30 as `latest_immutable` and clears `candidate`, so a
 same-version rebuild is rejected. Storefront exact-pin adoption is GO. API
 runtime activation remains separately merge-first.
 
+## Pending 3DS-Verified Card Registration Release
+
+MIG-098 adds a pending `contract-additive` candidate after immutable alpha.30.
+At Source validation time the next unused version is `2.0.0-alpha.31`, containing
+Storefront Client and Testkit alpha.31, Public OpenAPI alpha.28 with 71
+operations, and unchanged Site Schema alpha.23. The candidate records no
+`source_commit` and predicts no Artifact, Manifest, package, or checksum digest.
+
+Before squash merge and again before publication, the live ledger and GitHub
+Artifacts must confirm that alpha.31 is still the next unused version. A moved
+main, changed predecessor, existing Artifact name, or non-null competing
+candidate fails closed and requires Source reconciliation before publication.
+
+Publication uses only
+`.github/workflows/storefront-contract-artifact-publish.yml` from the exact
+MIG-098 squash commit on protected `main`. The run must remain contract-only:
+Artifact publication 1, API image Build/push/Activation 0, Admin Build 0,
+Storefront application Build 0, and Migration apply 0. PR-head publication and
+workflow commits to `main` remain prohibited.
+
+After readback, a separate Release Ledger reconciliation Task/PR records the
+exact Source Commit and digests and clears the candidate. SITE-048 adoption is
+HOLD until that reconciliation finishes. Runtime Activation is independently
+HOLD until TEST/SANDBOX contains the formal
+`customers.payment_methods.updated` event and a later Activation Task applies
+Migration 000067 and activates the API.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.

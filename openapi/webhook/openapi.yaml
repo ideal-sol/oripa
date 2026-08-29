@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Webhook API
-  version: 2.0.0-alpha.27
+  version: 2.0.0-alpha.28
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -52,11 +52,11 @@ paths:
   /fincode:
     post:
       operationId: receiveFincodePaymentWebhook
-      summary: fincode Payment Webhookを受信する
+      summary: fincode PaymentまたはCard Registration Webhookを受信する
       description: >-
-        Fincode-Signatureを登録済みsignatureと定数時間比較し、EventのPayment参照と
-        pay_typeを照合した後、fincode Payment取得APIのCanonical statusを確認する。
-        Browser returnやWebhook payload単独ではPayment Successを確定しない。
+        Fincode-Signatureを登録済みsignatureと定数時間比較する。Payment Eventはfincode Payment exact GETを、
+        customers.payment_methods.updatedはCard Registration相関triggerとしてPayment Method exact GETとCard exact GETを行う。
+        Browser ReturnやWebhook payload単独ではPayment成功またはCard保存成功を確定しない。
       x-idempotency: canonical-event-fingerprint
       x-rate-limit: provider-signed-webhook
       x-cache-policy: no-store
@@ -69,7 +69,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FincodePaymentWebhook'
+              $ref: '#/components/schemas/FincodeWebhook'
       responses:
         '200':
           description: 検証済みEventを処理、重複処理、または安全に無視した。
@@ -180,6 +180,52 @@ components:
           enum: [Card, Paypay, Konbini, Virtualaccount]
         status:
           enum: [UNPROCESSED, CHECKED, AUTHORIZED, AWAITING_CUSTOMER_PAYMENT, AWAITING_PAYMENT_APPROVAL, CAPTURED, CANCELED, EXPIRED, AUTHENTICATED, FAILED]
+    FincodeCardRegistrationWebhook:
+      type: object
+      additionalProperties: true
+      required: [event, pay_type, card_status, status, access_id, transaction_id]
+      properties:
+        event:
+          const: customers.payment_methods.updated
+          description: Redirect型Card Registration結果通知に必要なfincode公式Event。
+        pay_type:
+          const: Card
+        card_status:
+          enum: [INACTIVATED, AWAITING_CUSTOMER_ACTION, ACTIVATED, FAILED]
+        customer_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 64
+        card_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 64
+          description: signed correlation candidate。Card保存Authorityではなく、Card exact GETで再確認する。
+        process_type:
+          enum: [I, U]
+        status:
+          enum: [AUTHENTICATING, CHALLENGE, AUTHENTICATED]
+        access_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        transaction_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        client_field_1:
+          description: Platform Public Opaque Card Registration.id。nullable時はaccess_idで相関する。
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/OpaqueId'
+        error_code:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 64
+    FincodeWebhook:
+      oneOf:
+        - $ref: '#/components/schemas/FincodePaymentWebhook'
+        - $ref: '#/components/schemas/FincodeCardRegistrationWebhook'
     FincodeWebhookAccepted:
       type: object
       additionalProperties: false
