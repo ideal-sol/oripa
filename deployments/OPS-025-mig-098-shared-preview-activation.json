@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "task_id": "OPS-025",
+  "platform_lane": "plat-main / operations",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_planning_in_progress",
+  "issue": 422,
+  "pull_request": null,
+  "base_sha": "52efea768b6cfba086f1e85523f2e9f561246af4",
+  "task_policy": {
+    "path": "/etc/ideal-sol/github-app/task-policies/OPS-025.json",
+    "sha256": "eaae357e24cc2885c70d37e6fb7a3edba8f4d0143d046e9b4dc92cce15a7cb23",
+    "allowed_paths": [
+      "deployments/OPS-025-mig-098-shared-preview-activation.json",
+      "worklogs/reports/OPS-025-report.md",
+      "worklogs/new_ver_main.md"
+    ]
+  },
+  "stage_0": {
+    "completed_at_utc": "2026-08-29T15:46:09Z",
+    "task_id_unused_before_issue": true,
+    "local_origin_remote_github_main_equal": true,
+    "protected_main_sha": "52efea768b6cfba086f1e85523f2e9f561246af4",
+    "working_tree_clean": true,
+    "open_human_issues": 0,
+    "open_human_pull_requests": 0,
+    "open_dependabot_pull_requests": 15,
+    "platform_task_worktrees": 0,
+    "mig_098_issue": 416,
+    "mig_098_pull_request": 419,
+    "mig_098_squash_sha": "ad078ecd1eebd68cd2443b347d387433177fd686",
+    "mig_098_protected_main_ancestor": true,
+    "gov_021_issue": 420,
+    "gov_021_pull_request": 421,
+    "active_api_image": "oripa-v2-api:preview-MIG-097-e006c7a95592",
+    "active_api_image_id": "sha256:e782e21228fb59e01f518213da48352750e7bf36b97a6c135fa75517980fadba",
+    "active_api_revision": "e006c7a95592e5a03eef0be7e59bfa995185171c",
+    "rollback_api_image": "oripa-v2-api:preview-MIG-097-e006c7a95592",
+    "api_admin_postgresql_redis_health": "PASS",
+    "api_admin_postgresql_redis_restart_counts_zero": true,
+    "storefront_source": "0a8bcdf09e1d0549dac7d1736b9cb868eb04f0e9",
+    "storefront_build_id": "hjgAN8D6Bf2kOE71jmmh6",
+    "storefront_active_restart_zero": true,
+    "nginx_active_restart_zero": true,
+    "nginx_canonical_profiles": "PASS",
+    "api_loopback_publication": "127.0.0.1:8611:8000",
+    "v2_private_internal": true,
+    "same_origin_test_api": "PASS_200",
+    "same_origin_live_api": "PASS_200",
+    "storefront_test_live_pages": "PASS_200_NO_REDIRECT",
+    "migration_count": 66,
+    "migration_max_batch": 32,
+    "latest_migration": "2026_09_22_000066_add_v2_verification_failed_user_state",
+    "migration_000067_applied": false,
+    "pending_migrations": [
+      "2026_09_23_000067_add_fincode_card_registration_3ds_authority"
+    ],
+    "unexpected_pending_migrations": 0,
+    "aggregate_baseline": {
+      "fincode_cards": 0,
+      "fincode_cards_active": 0,
+      "fincode_cards_deleted": 0,
+      "registration_intents": 4,
+      "registration_intent_statuses": {
+        "expired": 3,
+        "reserved": 1
+      },
+      "payments": 21,
+      "payment_point_grants": 6,
+      "point_ledger_entries": 31
+    },
+    "artifact_latest_immutable": "2.0.0-alpha.31",
+    "artifact_candidate": null,
+    "root_free_bytes": 27155279872,
+    "root_free_gate_gib": 20,
+    "resource_gate": "PASS"
+  },
+  "human_webhook_confirmation": {
+    "accepted": true,
+    "canonical_platform_route": "POST /webhooks/v2/fincode",
+    "repository_route_present": true,
+    "active_route_present": true,
+    "provider_settings_get": 0,
+    "provider_settings_change": 0,
+    "webhook_replay": 0,
+    "test_webhook_send": 0,
+    "provider_event_generation": 0
+  },
+  "locks": {
+    "platform_integration": {
+      "holder": "OPS-025",
+      "acquired_at_utc": "2026-08-29T15:46:52Z",
+      "status": "held"
+    },
+    "migration_000067": {
+      "previous_holder": "MIG-098",
+      "released_at_utc": "2026-08-29T15:47:15Z",
+      "holder": "OPS-025",
+      "acquired_at_utc": "2026-08-29T15:47:15Z",
+      "status": "held_until_runtime_acceptance"
+    },
+    "preview_deployment": {
+      "holder": null,
+      "status": "acquire_before_activation"
+    },
+    "artifact": {
+      "holder": null,
+      "status": "not_required"
+    }
+  },
+  "source_boundary": {
+    "application_source_change": 0,
+    "migration_created": 0,
+    "openapi_change": 0,
+    "client_testkit_change": 0,
+    "release_ledger_change": 0,
+    "artifact_publication": 0,
+    "storefront_admin_nginx_change": 0
+  },
+  "planned_execution": [
+    "apply_migration_000067_exactly_once",
+    "build_api_only_from_exact_squash_main",
+    "activate_shared_preview_api_only",
+    "complete_read_only_runtime_acceptance"
+  ],
+  "post_merge_operation": {
+    "authority": "exact OPS-025 squash on protected main",
+    "migration_apply": "PENDING_AFTER_MERGE",
+    "api_only_build": "PENDING_AFTER_MIGRATION",
+    "api_only_activation": "PENDING_AFTER_BUILD",
+    "runtime_acceptance": "PENDING_AFTER_ACTIVATION",
+    "canonical_evidence": "Issue #422 and root-only OPS-025 evidence"
+  },
+  "mutation_boundary_before_merge": {
+    "migration_applied": 0,
+    "api_build": 0,
+    "api_activation": 0,
+    "admin_build_activation": 0,
+    "storefront_build_activation": 0,
+    "database_business_mutation": 0,
+    "provider_card_registration": 0,
+    "payment": 0,
+    "coin_point_ledger_mail_mutation": 0,
+    "production_mutation": 0,
+    "secret_value_readback": 0
+  }
+}
