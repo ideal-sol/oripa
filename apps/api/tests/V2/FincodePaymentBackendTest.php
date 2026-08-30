@@ -1448,20 +1448,35 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame('AWAITING_CUSTOMER_ACTION', $intent->provider_status);
         self::assertSame('AUTHENTICATING', $intent->provider_tds2_status);
         self::assertStringNotContainsString($cardToken, json_encode((array) $intent, JSON_THROW_ON_ERROR));
-        Http::assertSent(function (Request $request) use ($started, $cardToken): bool {
-            if ($request->method() !== 'POST' || ! str_ends_with($request->url(), '/payment_methods')) {
-                return false;
-            }
-            $data = $request->data();
-
-            return ($data['pay_type'] ?? null) === 'Card'
-                && ($data['default_flag'] ?? null) === '0'
-                && ($data['client_field_1'] ?? null) === $started['id']
-                && ($data['return_url'] ?? null) === 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id']
-                && ($data['return_url_on_failure'] ?? null) === 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/failure?rid='.$started['id']
-                && ($data['card']['token'] ?? null) === $cardToken
-                && ($data['card']['tds_type'] ?? null) === '2'
-                && ($data['card']['tds2_type'] ?? null) === '2';
+        $providerCustomerId = DB::table('fincode_customers')
+            ->where('user_id', $user->id)
+            ->value('provider_customer_id');
+        Http::assertSent(function (Request $request) use (
+            $started,
+            $cardToken,
+            $intent,
+            $providerCustomerId
+        ): bool {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://api.test.fincode.jp/v1/customers/'
+                    .rawurlencode((string) $providerCustomerId).'/payment_methods'
+                && ($request->header('Accept')[0] ?? null) === 'application/json'
+                && ($request->header('Content-Type')[0] ?? null) === 'application/json'
+                && ($request->header('Authorization')[0] ?? null)
+                    === 'Bearer '.config('v2_fincode.secret_api_key')
+                && ($request->header('idempotent_key')[0] ?? null) === $intent->provider_idempotency_key
+                && $request->data() === [
+                    'pay_type' => 'Card',
+                    'default_flag' => '1',
+                    'return_url' => 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id'],
+                    'return_url_on_failure' => 'https://api.luxe-pack.biz/api/v2/payment-card-registration-returns/fincode/failure?rid='.$started['id'],
+                    'client_field_1' => $started['id'],
+                    'card' => [
+                        'token' => $cardToken,
+                        'tds_type' => '2',
+                        'tds2_type' => '2',
+                    ],
+                ];
         });
 
         $browserReturn = $this->post(
@@ -1502,6 +1517,125 @@ final class FincodePaymentBackendTest extends TestCase
             ->where('registration_assurance', 'three_d_secure_2')
             ->whereNotNull('registration_verified_at')
             ->count());
+    }
+
+    public function test_card_registration_marks_only_the_first_saved_card_as_provider_default(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('card-default-contract');
+        $this->completeCanonicalRegistration($user, 'card-default-first', 'card_default_first');
+
+        $second = app(V2FincodeCardService::class)->startRegistration(
+            $user,
+            'tok_card_default_second',
+            'card-default-second'
+        );
+
+        Http::assertSent(function (Request $request) use ($second): bool {
+            return $request->method() === 'POST'
+                && str_ends_with($request->url(), '/payment_methods')
+                && ($request->data()['client_field_1'] ?? null) === $second['id']
+                && ($request->data()['default_flag'] ?? null) === '0';
+        });
+        self::assertSame(1, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('payments')->where('user_id', $user->id)->count());
+    }
+
+    public function test_card_registration_preserves_sanitized_structured_provider_rejection(): void
+    {
+        $providerErrorCode = 'EC013136002';
+        $providerPrivateMarker = 'provider-private-detail-must-not-persist';
+        $cardToken = 'tok_structured_rejection_must_not_persist';
+        $this->fakeFincode(registration: [
+            'create_http_status' => 400,
+            'create_response' => [
+                'errors' => [[
+                    'error_code' => $providerErrorCode,
+                    'error_message' => $providerPrivateMarker,
+                ]],
+            ],
+        ]);
+        $user = $this->user('registration-structured-rejection');
+
+        try {
+            app(V2FincodeCardService::class)->startRegistration(
+                $user,
+                $cardToken,
+                'registration-structured-rejection'
+            );
+            self::fail('A Provider rejection must fail the card registration.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_FAILED', $exception->errorCode);
+            self::assertSame(422, $exception->status);
+            self::assertStringNotContainsString($providerErrorCode, $exception->getMessage());
+            self::assertStringNotContainsString($providerPrivateMarker, $exception->getMessage());
+        }
+
+        $intent = DB::table('fincode_card_registration_intents')
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+        self::assertSame('failed', $intent->status);
+        self::assertSame(
+            'FINCODE_PROVIDER_REJECTED|HTTP_400|'.$providerErrorCode,
+            $intent->last_error_code
+        );
+        self::assertNull($intent->provider_payment_method_id);
+        self::assertNull($intent->provider_access_id);
+        self::assertNull($intent->redirect_url_ciphertext);
+        $storedEvidence = json_encode((array) $intent, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString($providerPrivateMarker, $storedEvidence);
+        self::assertStringNotContainsString($cardToken, $storedEvidence);
+        self::assertSame(0, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('payments')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
+    }
+
+    public function test_card_registration_rejection_with_malformed_or_empty_body_fails_closed(): void
+    {
+        $cases = [
+            'malformed' => [
+                'errors' => [[
+                    'error_code' => "EC013136002\nunsafe",
+                    'error_message' => 'malformed-provider-detail-must-not-persist',
+                ]],
+            ],
+            'empty' => '',
+        ];
+
+        foreach ($cases as $name => $providerResponse) {
+            $this->fakeFincode(registration: [
+                'create_http_status' => 400,
+                'create_response' => $providerResponse,
+            ]);
+            $user = $this->user('registration-'.$name.'-rejection');
+            $cardToken = 'tok_'.$name.'_rejection_must_not_persist';
+
+            try {
+                app(V2FincodeCardService::class)->startRegistration(
+                    $user,
+                    $cardToken,
+                    'registration-'.$name.'-rejection'
+                );
+                self::fail('Malformed Provider rejection evidence must fail closed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('CARD_REGISTRATION_FAILED', $exception->errorCode);
+                self::assertSame(422, $exception->status);
+            }
+
+            $intent = DB::table('fincode_card_registration_intents')
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+            self::assertSame('failed', $intent->status);
+            self::assertSame('FINCODE_PROVIDER_REJECTED|HTTP_400', $intent->last_error_code);
+            $storedEvidence = json_encode((array) $intent, JSON_THROW_ON_ERROR);
+            self::assertStringNotContainsString($cardToken, $storedEvidence);
+            self::assertStringNotContainsString('malformed-provider-detail-must-not-persist', $storedEvidence);
+            self::assertSame(0, DB::table('fincode_cards')->where('user_id', $user->id)->count());
+            self::assertSame(0, DB::table('payments')->where('user_id', $user->id)->count());
+        }
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+        self::assertSame(0, DB::table('mail_deliveries')->count());
     }
 
     public function test_registration_terminal_states_release_capacity_without_business_mutation(): void
@@ -1953,6 +2087,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $registration = [
             'create_http_status' => 200,
+            'create_response' => [],
             'create_status' => 'AWAITING_CUSTOMER_ACTION',
             'create_tds_type' => '2',
             'create_tds2_type' => '2',
@@ -1980,7 +2115,10 @@ final class FincodePaymentBackendTest extends TestCase
             }
             if ($request->method() === 'POST' && str_ends_with($url, '/payment_methods')) {
                 if ($registration['create_http_status'] !== 200) {
-                    return Http::response([], $registration['create_http_status']);
+                    return Http::response(
+                        $registration['create_response'],
+                        $registration['create_http_status']
+                    );
                 }
                 $customerId = basename(dirname((string) parse_url($url, PHP_URL_PATH)));
                 $suffix = substr(hash('sha256', (string) $request->data()['client_field_1']), 0, 22);

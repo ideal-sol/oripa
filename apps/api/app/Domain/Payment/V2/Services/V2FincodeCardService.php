@@ -169,6 +169,7 @@ final class V2FincodeCardService
             $response = $this->client->createCardPaymentMethod(
                 (string) $customer->provider_customer_id,
                 $cardToken,
+                $prepared['make_default'],
                 $this->returns->providerCardRegistrationNormal((string) $intent->public_id),
                 $this->returns->providerCardRegistrationFailure((string) $intent->public_id),
                 (string) $intent->public_id,
@@ -431,7 +432,7 @@ final class V2FincodeCardService
         return $card;
     }
 
-    /** @return array{intent: object, call_provider: bool} */
+    /** @return array{intent: object, call_provider: bool, make_default: bool} */
     private function prepareRegistrationStart(User $user, object $customer, string $idempotencyKey): array
     {
         $keyHash = hash('sha256', $idempotencyKey);
@@ -470,7 +471,11 @@ final class V2FincodeCardService
                         ->firstOrFail();
                 }
 
-                return ['intent' => $existing, 'call_provider' => $callProvider];
+                return [
+                    'intent' => $existing,
+                    'call_provider' => $callProvider,
+                    'make_default' => $this->storedCardCount((int) $user->id) === 0,
+                ];
             }
             $capacity = $this->registrationCapacity((int) $user->id);
             if ($capacity['remaining'] === 0) {
@@ -497,6 +502,7 @@ final class V2FincodeCardService
                     ->where('public_id', $publicId)
                     ->firstOrFail(),
                 'call_provider' => true,
+                'make_default' => $this->storedCardCount((int) $user->id) === 0,
             ];
         });
     }
@@ -581,9 +587,29 @@ final class V2FincodeCardService
             ->update([
                 'status' => $exception->retryable ? 'pending' : 'failed',
                 'failed_at' => $exception->retryable ? null : now()->startOfSecond(),
-                'last_error_code' => $exception->errorCode,
+                'last_error_code' => $this->registrationStartFailureEvidence($exception),
                 'updated_at' => now(),
             ]);
+    }
+
+    private function registrationStartFailureEvidence(V2FincodeException $exception): string
+    {
+        $evidence = [$exception->errorCode];
+        if (
+            is_int($exception->providerHttpStatus)
+            && $exception->providerHttpStatus >= 100
+            && $exception->providerHttpStatus <= 599
+        ) {
+            $evidence[] = 'HTTP_'.$exception->providerHttpStatus;
+        }
+        if (
+            is_string($exception->providerErrorCode)
+            && preg_match('/^[A-Z0-9]{11}$/D', $exception->providerErrorCode)
+        ) {
+            $evidence[] = $exception->providerErrorCode;
+        }
+
+        return implode('|', $evidence);
     }
 
     private function reconcileIntent(int $intentId): object
