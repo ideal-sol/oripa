@@ -96,15 +96,49 @@ def validate_immutable_release(value: dict) -> None:
         "public_openapi",
         "packages",
     }
-    if set(value) != required or value["handoff_status"] not in {"released", "retired"}:
+    optional = {"publication"}
+    if (
+        not required.issubset(value)
+        or set(value) - required - optional
+        or value["handoff_status"] not in {"released", "retired"}
+    ):
         raise ArtifactError("immutable release record invalid")
-    alpha_identity(value["bundle_version"])
+    _, release_sequence = alpha_identity(value["bundle_version"])
     if (
         not SHA256.fullmatch(str(value["manifest_sha256"]))
         or not FULL_SHA.fullmatch(str(value["source_commit"]))
         or value["release_mode"] not in {"package-only", "contract-additive"}
     ):
         raise ArtifactError("immutable release evidence invalid")
+    publication = value.get("publication")
+    if release_sequence >= 33 and publication is None:
+        raise ArtifactError("immutable publication evidence missing")
+    if publication is not None:
+        publication_fields = {
+            "workflow_run_id",
+            "workflow_run_attempt",
+            "artifact_id",
+            "artifact_name",
+            "github_digest",
+            "sha256sums_sha256",
+        }
+        if (
+            not isinstance(publication, dict)
+            or set(publication) != publication_fields
+            or not all(
+                isinstance(publication[key], int)
+                and not isinstance(publication[key], bool)
+                and publication[key] > 0
+                for key in ("workflow_run_id", "workflow_run_attempt", "artifact_id")
+            )
+            or publication["artifact_name"]
+            != f"oripa-storefront-contract-{value['bundle_version']}"
+            or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}", str(publication["github_digest"])
+            )
+            or not SHA256.fullmatch(str(publication["sha256sums_sha256"]))
+        ):
+            raise ArtifactError("immutable publication evidence invalid")
     if set(value["application_versions"]) != {"workspace", "admin"} or set(
         value["contract_versions"]
     ) != {"public", "admin", "webhook"}:

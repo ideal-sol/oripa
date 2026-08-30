@@ -742,18 +742,29 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_retired_alpha_32_and_candidate_alpha_33(self):
+    def test_storefront_release_governance_accepts_released_alpha_33_and_retired_alpha_32(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.32")
-        self.assertEqual(value["latest_immutable"]["handoff_status"], "retired")
-        self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.33")
+        self.assertEqual(value["latest_immutable"]["handoff_status"], "released")
+        self.assertEqual(value["latest_immutable"]["release_mode"], "package-only")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
-        self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.31")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.33")
-        self.assertEqual(value["candidate"]["release_mode"], "package-only")
-        self.assertEqual(value["latest_immutable"]["source_commit"], "4147487f8f1474d5261a12aa8a0ad124cebe922f")
-        self.assertEqual(value["latest_immutable"]["manifest_sha256"], "263955a5521a863635bf6ad23d604e52b1319e84052178288bad7b7c308de564")
+        self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.32")
+        self.assertEqual(value["immutable_history"][-2]["handoff_status"], "retired")
+        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["latest_immutable"]["source_commit"], "9867c1ea50140efd1eff7a652d3da5bd36665e1d")
+        self.assertEqual(value["latest_immutable"]["manifest_sha256"], "b6522d16230734ea7f4604be59a2585c29bcf03a2b447269e824e712759d893c")
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 74)
+        self.assertEqual(
+            value["latest_immutable"]["publication"],
+            {
+                "workflow_run_id": 33318307918,
+                "workflow_run_attempt": 1,
+                "artifact_id": 9734141503,
+                "artifact_name": "oripa-storefront-contract-2.0.0-alpha.33",
+                "github_digest": "sha256:734b8e36fef261b72ab8013a0656c4a2ca3f1a6c8ea472d817c3b3ae7410e58c",
+                "sha256sums_sha256": "10252bf2cb15f80e2c26fd329c15092517d667267a9cc105ab74b9f5c3649328",
+            },
+        )
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
             {

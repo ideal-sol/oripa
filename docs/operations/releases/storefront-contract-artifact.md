@@ -289,11 +289,10 @@ A fresh canonical remote download and readback fixed these SHA-256 values:
 The Manifest records `contract-additive`, `breaking_change: false`, browser-
 compatible Client and Testkit alpha.32, Public OpenAPI alpha.29 with 74
 operations, and referenced immutable Site Schema alpha.23. The Release Ledger
-retains schema `2.0`, appends alpha.32 after unmodified alpha.31, sets the exact
-alpha.32 record as `latest_immutable`, and clears `candidate` to `null`.
-Artifact ID, Workflow Run, outer Artifact digest, and `SHA256SUMS` digest remain
-in this canonical release record because the existing Ledger schema has no such
-fields; GOV-023 does not expand that schema.
+initially retained schema `2.0`, appended alpha.32 after unmodified alpha.31,
+set the exact alpha.32 record as `latest_immutable`, and cleared `candidate` to
+`null`. Its Artifact ID, Workflow Run, outer Artifact digest, and
+`SHA256SUMS` digest remain historical readback evidence in this runbook.
 
 The later fresh semantic readback found that the packed Client
 `package.json.version` is `2.0.0-alpha.32` while packed
@@ -301,9 +300,37 @@ The later fresh semantic readback found that the packed Client
 `2.0.0-alpha.31`. The transport therefore sends the old
 `X-Oripa-Client-Version`. Alpha.32 remains published and immutable: it is never
 deleted, overwritten, rebuilt, or republished. Its ledger `handoff_status` is
-`retired`, meaning published but non-adoptable, and `2.0.0-alpha.33` is the next
-package-only repair candidate. Public OpenAPI stays independently fixed at
-`2.0.0-alpha.29` with the existing hash and 74 operations.
+`retired`, meaning published but non-adoptable.
+
+GOV-024 repaired Client package/runtime/header coherence and reserved
+`2.0.0-alpha.33` as the next package-only candidate. Repair PR #428 merged as
+`b42a1a45276fce69b282c183cfc5675a2d6d9be5`. The first publication Run
+`33317049114` failed before upload because the referenced Site Schema had not
+been built before Testkit typecheck; it produced no alpha.33 Artifact. GOV-025
+added that dependency order without changing a package or contract and merged
+as `9867c1ea50140efd1eff7a652d3da5bd36665e1d`.
+
+Canonical publication Run `33318307918` attempt 1 then completed all authorize,
+publish, and readback jobs from that exact protected `main` commit. It produced
+the single immutable Artifact `oripa-storefront-contract-2.0.0-alpha.33`, ID
+`9734141503`, with GitHub digest
+`sha256:734b8e36fef261b72ab8013a0656c4a2ca3f1a6c8ea472d817c3b3ae7410e58c`.
+A separate fresh download fixed these SHA-256 values:
+
+- Manifest: `b6522d16230734ea7f4604be59a2585c29bcf03a2b447269e824e712759d893c`
+- `SHA256SUMS`: `10252bf2cb15f80e2c26fd329c15092517d667267a9cc105ab74b9f5c3649328`
+- Public OpenAPI: `9670bc769080da605c97cb9849b61f342cf0111bc39e91c09dbbf62fc4bcc720`
+- Client: `846b0e036ebf76dd46ab1a2c9d6b67b786f9d2dfe5672d8b3a0eb31b7ad675a2`
+- Testkit: `720d8cc6a0b1c786267de34af0f1fddefc5a517d5d064491f4a78af2e492df4d`
+
+Fresh semantic readback imported the packed Client and made an actual transport
+request. Bundle, Client Manifest, Client package, runtime constant, actual
+`X-Oripa-Client-Version`, Testkit Manifest, and Testkit package all equal
+`2.0.0-alpha.33`. Public OpenAPI remains independently fixed at
+`2.0.0-alpha.29`, the same hash, and 74 operations. The ledger appends this
+released record, minimally records its Run/Artifact/GitHub/checksum evidence in
+`publication`, sets it as `latest_immutable`, retains alpha.32 as `retired`, and
+clears `candidate` to `null`.
 
 The validator requires:
 
@@ -315,7 +342,8 @@ The validator requires:
 6. Client source package/runtime versions and the transport version header to remain coherent.
 7. Packed Client package/runtime versions and packed Testkit package version to equal the bundle version.
 8. The Artifact inventory to contain only Client, Testkit, Public OpenAPI, Manifest, and checksums.
-9. A settled ledger with `candidate: null` to reject a second publication attempt.
+9. Alpha.33 and later immutable records to contain valid Run, Artifact, GitHub digest, and `SHA256SUMS` evidence.
+10. A settled ledger with `candidate: null` to reject a second publication attempt.
 
 ## Validation And Publication
 
