@@ -1307,8 +1307,17 @@ services:
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?required}
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?required}
+      MAIL_MAILER: ${MAIL_MAILER:-array}
     networks:
       - v2_private
+  identity-mail-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    command: php artisan v2:identity:work-mail-outbox
+    networks:
+      - v2_private
+      - v2_api_egress
   admin:
     image: admin
     networks:
@@ -1444,8 +1453,8 @@ python3 scripts/db/v2_database.py smoke \\
             compose = root / "docker-compose.v2.yml"
             compose.write_text(
                 compose.read_text(encoding="utf-8").replace(
-                    "  admin:\n",
-                    "      - v2_api_egress\n  admin:\n",
+                    "  identity-mail-worker:\n",
+                    "      - v2_api_egress\n  identity-mail-worker:\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -1467,6 +1476,39 @@ python3 scripts/db/v2_database.py smoke \\
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "postgres.*prohibited"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_egress_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    "      - v2_private\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "worker.*missing"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_host_port_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    networks:\n      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    "    ports:\n      - 127.0.0.1:9000:9000\n"
+                    "    networks:\n      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Host Port"):
                 policy_gate.validate_v2_database_boundary(root, paths)
 
     def test_v2_database_admin_api_egress_fails(self):

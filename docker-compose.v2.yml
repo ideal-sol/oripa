@@ -28,7 +28,7 @@ services:
       FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
       FRONTEND_URL: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       LOG_CHANNEL: stderr
-      MAIL_MAILER: ${MAIL_MAILER:?MAIL_MAILER is required}
+      MAIL_MAILER: ${MAIL_MAILER:-array}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@example.local}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Oripa Local}
       MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}

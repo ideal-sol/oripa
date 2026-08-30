@@ -2719,6 +2719,9 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "v2_private:",
         "v2_api_egress:",
         "V2_API_EGRESS_SUBNET",
+        "identity-mail-worker:",
+        "v2:identity:work-mail-outbox",
+        "${MAIL_MAILER:-array}",
         "internal: true",
     ):
         if required not in compose:
@@ -2733,7 +2736,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         if prohibited in compose:
             raise PolicyFailure(f"V2 database Compose contains prohibited {prohibited}")
     service_blocks = {}
-    for service in ("api", "admin", "postgres", "redis"):
+    for service in ("api", "identity-mail-worker", "admin", "postgres", "redis"):
         block = re.search(
             rf"(?ms)^  {service}:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^networks:)",
             compose,
@@ -2747,6 +2750,20 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
             raise PolicyFailure(
                 f"V2 {service} create-phase egress attachment is prohibited"
             )
+
+    worker_block = service_blocks["identity-mail-worker"]
+    for required in (
+        "infra/docker/backend/Dockerfile",
+        "v2:identity:work-mail-outbox",
+        "v2_private",
+        "v2_api_egress",
+    ):
+        if required not in worker_block:
+            raise PolicyFailure(
+                f"V2 identity mail worker boundary missing {required}"
+            )
+    if re.search(r"(?m)^\s{4}ports:", worker_block):
+        raise PolicyFailure("V2 identity mail worker Host Port publication is prohibited")
 
     private_network = re.search(
         r"(?ms)^  v2_private:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)",

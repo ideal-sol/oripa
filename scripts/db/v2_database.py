@@ -364,7 +364,13 @@ def validate_compose(
     except json.JSONDecodeError as error:
         raise GuardFailure("Compose Config is invalid") from error
     services = config.get("services", {})
-    if set(services) != {"api", "admin", "postgres", "redis"}:
+    if set(services) != {
+        "api",
+        "identity-mail-worker",
+        "admin",
+        "postgres",
+        "redis",
+    }:
         raise GuardFailure("Unexpected V2 Compose services")
     if not str(services["postgres"].get("image", "")).startswith("postgres:17"):
         raise GuardFailure("PostgreSQL major version is invalid")
@@ -392,7 +398,7 @@ def validate_compose(
     if actual_volume_names != expected_volume_names or actual_volume_names & V1_VOLUMES:
         raise GuardFailure("V2 Volume isolation is invalid")
     networks = config.get("networks", {})
-    if set(networks) != {"v2_private"}:
+    if set(networks) != {"v2_private", "v2_api_egress"}:
         raise GuardFailure("V2 Network isolation is invalid")
     private_network = networks.get("v2_private")
     if (
@@ -401,8 +407,17 @@ def validate_compose(
         or private_network.get("internal") is not True
     ):
         raise GuardFailure("V2 Network isolation is invalid")
+    egress_network = networks.get("v2_api_egress")
+    if (
+        not isinstance(egress_network, dict)
+        or egress_network.get("name") != f"{project}_v2_api_egress"
+        or egress_network.get("driver") != "bridge"
+        or egress_network.get("internal") is True
+    ):
+        raise GuardFailure("V2 Network isolation is invalid")
     expected_service_networks = {
         "api": {"v2_private"},
+        "identity-mail-worker": {"v2_private", "v2_api_egress"},
         "admin": {"v2_private"},
         "postgres": {"v2_private"},
         "redis": {"v2_private"},
