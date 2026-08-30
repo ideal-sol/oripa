@@ -88,7 +88,19 @@ export interface StorefrontIdentityClient {
   confirmPasswordReset(
     input: Schemas["PasswordResetConfirmRequest"],
     options: IdentityMutationOptions,
-  ): Promise<StorefrontResponse<Schemas["UserSession"]>>;
+  ): Promise<StorefrontResponse<Schemas["PasswordResetCompleted"]>>;
+  createEmailChangeRequest(
+    input: Schemas["EmailChangeRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["EmailChangePending"]>>;
+  completeEmailChange(
+    input: Schemas["EmailChangeCompleteRequest"] & { request_id: string },
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["EmailChangeCompleted"]>>;
+  changeUserPassword(
+    input: Schemas["UserPasswordChangeRequest"],
+    options: IdentityMutationOptions,
+  ): Promise<StorefrontResponse<Schemas["UserPasswordChanged"]>>;
   getSmsVerificationStatus(): Promise<
     StorefrontResponse<Schemas["SmsVerificationStatus"]>
   >;
@@ -264,7 +276,41 @@ export function createStorefrontIdentityClient(
         options,
       ),
     confirmPasswordReset: (input, options) =>
-      mutation<Schemas["UserSession"]>("/auth/password/reset", input, options),
+      mutation<Schemas["PasswordResetCompleted"]>(
+        "/auth/password/reset",
+        input,
+        options,
+      ),
+    createEmailChangeRequest: (input, options) =>
+      mutation<Schemas["EmailChangePending"]>(
+        "/me/email-change-requests",
+        input,
+        options,
+      ),
+    completeEmailChange: (input, options) => {
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          input.request_id,
+        )
+        || !/^[0-9a-f]{64}$/.test(input.token)
+      ) {
+        throw new TypeError("email change completion input is invalid");
+      }
+      const { request_id, ...body } = input;
+      return mutation<Schemas["EmailChangeCompleted"]>(
+        `/me/email-change-requests/${encodeURIComponent(request_id)}/complete`,
+        body,
+        options,
+      );
+    },
+    changeUserPassword: (input, options) =>
+      transport.request<Schemas["UserPasswordChanged"]>({
+        path: "/me/password",
+        method: "PUT",
+        body: input,
+        headers: csrf(options.csrf_token),
+        csrf: "required",
+      }),
     getSmsVerificationStatus: () =>
       transport.request({ path: "/me/sms-verification" }),
     sendSmsVerification: (input, options) =>

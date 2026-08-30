@@ -1252,6 +1252,109 @@ export const PUBLIC_IDENTITY_RECOVERY_FIXTURE = Object.freeze({
   sms_status: PublicComponents["schemas"]["SmsVerificationStatus"];
 });
 
+export const PUBLIC_ACCOUNT_SECURITY_FIXTURE = Object.freeze({
+  password_reset_completed: {
+    status: "password_updated",
+    authenticated: false,
+    user: null,
+    next_action: "login",
+    redirect_path: "/",
+  },
+  email_change_pending: {
+    status: "pending_verification",
+    request_id: "0198a001-0000-7000-8000-000000000601",
+    expires_at: "2026-08-30T11:00:00Z",
+  },
+  email_change_completed_same_browser: {
+    status: "completed",
+    authenticated: true,
+    session_rotated: true,
+    initiating_session_preserved: true,
+    next_action: "return_to_account",
+  },
+  email_change_completed_cross_browser: {
+    status: "completed",
+    authenticated: false,
+    session_rotated: false,
+    initiating_session_preserved: true,
+    next_action: "return_to_account",
+  },
+  password_changed: {
+    status: "password_updated",
+    authenticated: true,
+    session_rotated: true,
+    next_action: "return_to_account",
+  },
+} as const satisfies {
+  password_reset_completed: PublicComponents["schemas"]["PasswordResetCompleted"];
+  email_change_pending: PublicComponents["schemas"]["EmailChangePending"];
+  email_change_completed_same_browser: PublicComponents["schemas"]["EmailChangeCompleted"];
+  email_change_completed_cross_browser: PublicComponents["schemas"]["EmailChangeCompleted"];
+  password_changed: PublicComponents["schemas"]["UserPasswordChanged"];
+});
+
+export const PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES = Object.freeze({
+  invalid_password_reset: {
+    type: "https://oripa.example/problems/invalid_password_reset",
+    title: "The password reset request is invalid or expired.",
+    status: 410,
+    code: "INVALID_PASSWORD_RESET",
+    request_id: "request-account-security-001",
+    retryable: false,
+  },
+  password_policy: {
+    type: "https://oripa.example/problems/password_policy_violation",
+    title: "The credential does not satisfy the security policy.",
+    status: 422,
+    code: "PASSWORD_POLICY_VIOLATION",
+    request_id: "request-account-security-002",
+    retryable: false,
+  },
+  email_unchanged: {
+    type: "https://oripa.example/problems/email_unchanged",
+    title: "The new email address must differ from the current email address.",
+    status: 422,
+    code: "EMAIL_UNCHANGED",
+    request_id: "request-account-security-003",
+    retryable: false,
+  },
+  email_claimed: {
+    type: "https://oripa.example/problems/email_already_claimed",
+    title: "The email address is already verified by another account.",
+    status: 409,
+    code: "EMAIL_ALREADY_CLAIMED",
+    request_id: "request-account-security-004",
+    retryable: false,
+  },
+  invalid_email_change: {
+    type: "https://oripa.example/problems/invalid_email_change_request",
+    title: "The email change request is invalid or expired.",
+    status: 410,
+    code: "INVALID_EMAIL_CHANGE_REQUEST",
+    request_id: "request-account-security-005",
+    retryable: false,
+  },
+  password_unchanged: {
+    type: "https://oripa.example/problems/password_unchanged",
+    title: "The new password must differ from the current password.",
+    status: 422,
+    code: "PASSWORD_UNCHANGED",
+    request_id: "request-account-security-006",
+    retryable: false,
+  },
+  wrong_current_password: {
+    type: "https://oripa.example/problems/invalid_reauthentication",
+    title: "The current password could not be verified.",
+    status: 401,
+    code: "INVALID_REAUTHENTICATION",
+    request_id: "request-account-security-007",
+    retryable: false,
+  },
+} as const satisfies Record<
+  string,
+  PublicComponents["schemas"]["PublicAuthProblemDetails"]
+>);
+
 export const PUBLIC_AUTH_FIXTURE = Object.freeze({
   anonymous_session: {
     authenticated: false,

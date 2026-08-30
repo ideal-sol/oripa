@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
     command: php artisan serve --host=0.0.0.0 --port=8000
-    environment:
+    environment: &v2_api_environment
       APP_DEBUG: "false"
       APP_ENV: ${V2_APP_ENV:?V2_APP_ENV is required}
       APP_KEY: ${V2_APP_KEY:?V2_APP_KEY is required}
@@ -28,7 +28,7 @@ services:
       FINCODE_STOREFRONT_ORIGIN: ${FINCODE_STOREFRONT_ORIGIN:-${V2_PUBLIC_ORIGIN:-http://localhost:3000}}
       FRONTEND_URL: ${V2_ADMIN_ORIGIN:-http://localhost:3000}
       LOG_CHANNEL: stderr
-      MAIL_MAILER: ${MAIL_MAILER:?MAIL_MAILER is required}
+      MAIL_MAILER: ${MAIL_MAILER:-array}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@example.local}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Oripa Local}
       MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
@@ -69,6 +69,37 @@ services:
       - v2_api_assets:/var/www/backend/storage/app/private
     networks:
       - v2_private
+
+  identity-mail-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - identity-mail
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          php artisan v2:identity:work-mail-outbox --worker=identity-mail-worker --limit=10
+          sleep 5
+        done
+    environment: *v2_api_environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - v2_private
+      - v2_api_egress
 
   admin:
     build:

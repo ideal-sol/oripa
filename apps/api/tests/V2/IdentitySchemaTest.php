@@ -12,6 +12,7 @@ use App\Models\V2\AdminSession;
 use App\Models\V2\AdminTotpMethod;
 use App\Models\V2\AdminWebauthnMethod;
 use App\Models\V2\User;
+use App\Models\V2\UserEmailChangeRequest;
 use App\Models\V2\UserRememberDevice;
 use App\Models\V2\UserSession;
 use Illuminate\Database\QueryException;
@@ -26,6 +27,7 @@ final class IdentitySchemaTest extends TestCase
         'users',
         'admins',
         'user_email_verifications',
+        'user_email_change_requests',
         'admin_invitations',
         'user_sessions',
         'admin_sessions',
@@ -58,6 +60,12 @@ final class IdentitySchemaTest extends TestCase
         self::assertTrue(Schema::hasColumn('admin_sessions', 'requires_mfa_enrollment'));
         self::assertTrue(Schema::hasColumn('user_email_verifications', 'token_hash'));
         self::assertFalse(Schema::hasColumn('user_email_verifications', 'token'));
+        self::assertTrue(Schema::hasColumn('user_email_change_requests', 'token_hash'));
+        self::assertTrue(Schema::hasColumn(
+            'user_email_change_requests',
+            'initiating_session_hash'
+        ));
+        self::assertFalse(Schema::hasColumn('user_email_change_requests', 'token'));
         self::assertTrue(Schema::hasColumn('admin_invitations', 'token_hash'));
         self::assertFalse(Schema::hasColumn('admin_invitations', 'token'));
         self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'mfa_required'));
@@ -238,6 +246,7 @@ final class IdentitySchemaTest extends TestCase
     {
         $models = [
             new User(),
+            new UserEmailChangeRequest(),
             new Admin(),
             new UserSession(),
             new AdminSession(),
@@ -254,6 +263,11 @@ final class IdentitySchemaTest extends TestCase
         }
 
         self::assertContains('password_hash', (new User())->getHidden());
+        self::assertContains('token_hash', (new UserEmailChangeRequest())->getHidden());
+        self::assertContains(
+            'initiating_session_hash',
+            (new UserEmailChangeRequest())->getHidden()
+        );
         self::assertContains('display_name', (new User())->getFillable());
         self::assertContains('state_revision', (new User())->getFillable());
         self::assertContains('password_hash', (new Admin())->getHidden());

@@ -21,13 +21,40 @@ final class V2TemplateMailDeliveryService
     }
 
     /** @param array<string, string|list<string>|null> $values */
-    public function sendVerification(string $recipient, array $values): void
+    public function sendVerification(
+        #[\SensitiveParameter] string $recipient,
+        array $values
+    ): void
     {
         $template = $this->template('email_verification');
         $this->send(
             $recipient,
             $this->renderer->subject($template->subject_template, $this->variables($values)),
             $this->renderer->html($template->body_html, $this->variables($values))
+        );
+    }
+
+    /** @param array<string, string|list<string>|null> $values */
+    public function sendSecurity(
+        string $templateKey,
+        #[\SensitiveParameter] string $recipient,
+        array $values
+    ): void
+    {
+        if (! in_array($templateKey, [
+            'password_reset',
+            'email_change_verification',
+            'email_change_completed',
+            'password_changed',
+        ], true)) {
+            throw new RuntimeException('Security Mail Template is invalid.');
+        }
+        $template = $this->template($templateKey);
+        $variables = $this->variables($values);
+        $this->send(
+            $recipient,
+            $this->renderer->subject($template->subject_template, $variables),
+            $this->renderer->html($template->body_html, $variables)
         );
     }
 
@@ -239,7 +266,11 @@ final class V2TemplateMailDeliveryService
         ])];
     }
 
-    private function send(string $recipient, string $subject, string $bodyHtml): void
+    private function send(
+        #[\SensitiveParameter] string $recipient,
+        string $subject,
+        string $bodyHtml
+    ): void
     {
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
             throw new RuntimeException('Template Mail rendering is invalid.');

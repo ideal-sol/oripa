@@ -49,7 +49,13 @@ return [
     ],
 
     'password_reset' => [
-        'ttl_minutes' => 30,
+        'ttl_minutes' => 60,
+        'maximum_attempts' => 5,
+        'redirect_allowlist' => ['/'],
+    ],
+
+    'email_change' => [
+        'ttl_minutes' => 60,
         'maximum_attempts' => 5,
         'redirect_allowlist' => ['/'],
     ],
@@ -127,6 +133,10 @@ return [
         'password_reset_account' => [3, 3600],
         'password_reset_ip' => [10, 3600],
         'password_reset_confirm' => [5, 1800],
+        'email_change_hour' => [3, 3600],
+        'email_change_day' => [10, 86400],
+        'email_change_confirm' => [5, 1800],
+        'password_change' => [5, 900],
         'sms_phone_hour' => [3, 3600],
         'sms_phone_day' => [10, 86400],
         'sms_ip' => [5, 3600],

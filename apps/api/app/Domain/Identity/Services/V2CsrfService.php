@@ -32,6 +32,22 @@ final class V2CsrfService
         $this->attach($response, $realm, $this->tokens->generate());
     }
 
+    public function expire(Response $response, V2Realm $realm): void
+    {
+        $policy = $this->sessions->forRealm($realm);
+        $response->headers->setCookie(new Cookie(
+            $policy['csrf_cookie'],
+            '',
+            1,
+            '/',
+            null,
+            true,
+            false,
+            false,
+            $policy['same_site']
+        ));
+    }
+
     public function assertValid(Request $request, V2Realm $realm): void
     {
         $policy = $this->sessions->forRealm($realm);

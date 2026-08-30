@@ -2553,7 +2553,11 @@ export type MailTemplateKey =
   | "shipping_requested"
   | "shipping_completed"
   | "user_closed"
-  | "contact_received";
+  | "contact_received"
+  | "password_reset"
+  | "email_change_verification"
+  | "email_change_completed"
+  | "password_changed";
 
 export interface AdminMailTemplateVariable {
   key: string;

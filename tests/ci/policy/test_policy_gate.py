@@ -194,6 +194,21 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_acct_001_account_security_paths_are_registered_exactly(self):
+        expected = {
+            "apps/api/app/Console/Commands/V2/RunV2IdentityMailOutboxWorker.php",
+            "apps/api/app/Domain/Identity/Services/V2EmailChangeService.php",
+            "apps/api/app/Domain/Identity/Services/V2PasswordChangeService.php",
+            "apps/api/app/Domain/Mail/Services/V2IdentityMailOutboxWorker.php",
+            "apps/api/app/Domain/Mail/Services/V2IdentityMailUrlBuilder.php",
+            "apps/api/app/Models/V2/UserEmailChangeRequest.php",
+            "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
+            "apps/api/tests/V2/AccountSecurityTest.php",
+        }
+        self.assertEqual(policy_gate.ACCT_001_V2_IDENTITY_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_063d_category_tag_presentation_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
@@ -727,13 +742,15 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_reconciled_alpha_31(self):
+    def test_storefront_release_governance_accepts_alpha_32_candidate(self):
         value = policy_gate.storefront_release_governance(ROOT)
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.31")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.30")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.32")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(value["candidate"]["public_api_operation_count"], 74)
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 71)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
@@ -1290,8 +1307,19 @@ services:
       REDIS_PASSWORD: ${V2_REDIS_PASSWORD:?required}
       V2_AUDIT_HMAC_KEY: ${V2_AUDIT_HMAC_KEY:?required}
       V2_PII_CORRELATION_KEY: ${V2_PII_CORRELATION_KEY:?required}
+      MAIL_MAILER: ${MAIL_MAILER:-array}
     networks:
       - v2_private
+  identity-mail-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - identity-mail
+    command: php artisan v2:identity:work-mail-outbox
+    networks:
+      - v2_private
+      - v2_api_egress
   admin:
     image: admin
     networks:
@@ -1427,8 +1455,8 @@ python3 scripts/db/v2_database.py smoke \\
             compose = root / "docker-compose.v2.yml"
             compose.write_text(
                 compose.read_text(encoding="utf-8").replace(
-                    "  admin:\n",
-                    "      - v2_api_egress\n  admin:\n",
+                    "  identity-mail-worker:\n",
+                    "      - v2_api_egress\n  identity-mail-worker:\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -1450,6 +1478,55 @@ python3 scripts/db/v2_database.py smoke \\
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "postgres.*prohibited"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_egress_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    "      - v2_private\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "worker.*missing"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_profile_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    profiles:\n      - identity-mail\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "worker.*missing"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_host_port_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    networks:\n      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    "    ports:\n      - 127.0.0.1:9000:9000\n"
+                    "    networks:\n      - v2_private\n      - v2_api_egress\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Host Port"):
                 policy_gate.validate_v2_database_boundary(root, paths)
 
     def test_v2_database_admin_api_egress_fails(self):
@@ -1595,6 +1672,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
             "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
             "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
+            "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2730,7 +2808,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.31",
+                    "version": "2.0.0-alpha.32",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2768,7 +2846,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.28",
+                        "minimumPublicApiContract": "2.0.0-alpha.29",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -3103,8 +3181,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 71",
-                    "operation_count: 70",
+                    "operation_count: 74",
+                    "operation_count: 73",
                 ),
                 encoding="utf-8",
             )

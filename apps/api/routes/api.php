@@ -92,6 +92,10 @@ Route::prefix('v2')
             ->name('v2.public.catalog.gachas.presentation');
         Route::post('/contact-inquiries', [V2ContentContactController::class, 'contact'])
             ->name('v2.public.contacts.store');
+        Route::post('/me/email-change-requests/{emailChangeRequestId}/complete', [
+            V2PublicAuthController::class,
+            'completeEmailChange',
+        ])->name('v2.public.email-change-requests.complete');
     });
 
 Route::prefix('v2')
@@ -206,6 +210,14 @@ Route::prefix('v2')
             V2PublicAuthController::class,
             'reauthenticatePassword',
         ])->name('v2.public.password.reauthenticate');
+        Route::post('/me/email-change-requests', [
+            V2PublicAuthController::class,
+            'createEmailChangeRequest',
+        ])->name('v2.public.email-change-requests.store');
+        Route::put('/me/password', [
+            V2PublicAuthController::class,
+            'changePassword',
+        ])->name('v2.public.password.update');
     });
 
 Route::prefix('v2/auth')

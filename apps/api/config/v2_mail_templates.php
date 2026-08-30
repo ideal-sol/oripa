@@ -9,6 +9,10 @@ return [
         'shipping_completed' => '発送完了時',
         'user_closed' => '退会時',
         'contact_received' => 'お問い合わせ完了時',
+        'password_reset' => 'パスワード再設定時',
+        'email_change_verification' => 'メールアドレス変更認証時',
+        'email_change_completed' => 'メールアドレス変更完了時',
+        'password_changed' => 'パスワード変更完了時',
     ],
     'variables' => [
         'user_name' => 'ユーザー名',
@@ -20,6 +24,9 @@ return [
         'purchase_plan' => 'コイン購入プラン',
         'purchase_amount' => '購入金額',
         'verification_url' => '認証リンク',
+        'reset_url' => 'パスワード再設定リンク',
+        'email_change_verification_url' => 'メールアドレス変更認証リンク',
+        'expires_in_minutes' => '有効期限（分）',
         'contact_body' => 'お問い合わせ内容',
     ],
     'preview_values' => [
@@ -32,6 +39,9 @@ return [
         'purchase_plan' => 'サンプルコインプラン',
         'purchase_amount' => '1,000円',
         'verification_url' => 'https://example.test/verify/sample',
+        'reset_url' => 'https://example.test/reset-password/sample',
+        'email_change_verification_url' => 'https://example.test/change-email/sample',
+        'expires_in_minutes' => '60',
         'contact_body' => 'サンプルのお問い合わせ内容です。',
     ],
 ];

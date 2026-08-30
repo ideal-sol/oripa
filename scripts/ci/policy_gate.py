@@ -268,6 +268,16 @@ MIG_062K_V2_IDENTITY_FILES = {
 MIG_073_V2_IDENTITY_FILES = {
     "apps/api/database/migrations-v2/2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
 }
+ACCT_001_V2_IDENTITY_FILES = {
+    "apps/api/app/Console/Commands/V2/RunV2IdentityMailOutboxWorker.php",
+    "apps/api/app/Domain/Identity/Services/V2EmailChangeService.php",
+    "apps/api/app/Domain/Identity/Services/V2PasswordChangeService.php",
+    "apps/api/app/Domain/Mail/Services/V2IdentityMailOutboxWorker.php",
+    "apps/api/app/Domain/Mail/Services/V2IdentityMailUrlBuilder.php",
+    "apps/api/app/Models/V2/UserEmailChangeRequest.php",
+    "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
+    "apps/api/tests/V2/AccountSecurityTest.php",
+}
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -345,6 +355,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     *MIG_062B_V2_IDENTITY_FILES,
     *MIG_062K_V2_IDENTITY_FILES,
     *MIG_073_V2_IDENTITY_FILES,
+    *ACCT_001_V2_IDENTITY_FILES,
     "apps/api/app/Domain/Line/Services/V2LineFriendService.php",
     "apps/api/app/Domain/Line/Contracts/V2LineMessagingTransport.php",
     "apps/api/app/Domain/Line/Exceptions/V2LineMessagingException.php",
@@ -2494,7 +2505,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -2708,6 +2719,9 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         "v2_private:",
         "v2_api_egress:",
         "V2_API_EGRESS_SUBNET",
+        "identity-mail-worker:",
+        "v2:identity:work-mail-outbox",
+        "${MAIL_MAILER:-array}",
         "internal: true",
     ):
         if required not in compose:
@@ -2722,7 +2736,7 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
         if prohibited in compose:
             raise PolicyFailure(f"V2 database Compose contains prohibited {prohibited}")
     service_blocks = {}
-    for service in ("api", "admin", "postgres", "redis"):
+    for service in ("api", "identity-mail-worker", "admin", "postgres", "redis"):
         block = re.search(
             rf"(?ms)^  {service}:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^networks:)",
             compose,
@@ -2736,6 +2750,22 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
             raise PolicyFailure(
                 f"V2 {service} create-phase egress attachment is prohibited"
             )
+
+    worker_block = service_blocks["identity-mail-worker"]
+    for required in (
+        "infra/docker/backend/Dockerfile",
+        "v2:identity:work-mail-outbox",
+        "profiles:",
+        "- identity-mail",
+        "v2_private",
+        "v2_api_egress",
+    ):
+        if required not in worker_block:
+            raise PolicyFailure(
+                f"V2 identity mail worker boundary missing {required}"
+            )
+    if re.search(r"(?m)^\s{4}ports:", worker_block):
+        raise PolicyFailure("V2 identity mail worker Host Port publication is prohibited")
 
     private_network = re.search(
         r"(?ms)^  v2_private:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)",
@@ -2868,6 +2898,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_21_000065_add_fincode_payment_backend_core.php",
         "2026_09_22_000066_add_v2_verification_failed_user_state.php",
         "2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
+        "2026_09_24_000068_add_v2_account_security.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2882,6 +2913,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "2026_08_04_000015_create_v2_external_identity_google_oidc.php",
             "2026_08_07_000018_add_line_external_identity_provider.php",
             "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
+            "2026_09_24_000068_add_v2_account_security.php",
         ]
     )
     for required in (
@@ -2918,6 +2950,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "password_login_enabled",
         "subject_hash",
         "code_verifier_ciphertext",
+        "user_email_change_requests",
+        "initiating_session_hash",
     ):
         if required not in identity_migrations:
             raise PolicyFailure(f"V2 Identity migration boundary missing {required}")
@@ -2968,6 +3002,10 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "'password_reset_account' => [3, 3600]",
         "'password_reset_ip' => [10, 3600]",
         "'password_reset_confirm' => [5, 1800]",
+        "'email_change_hour' => [3, 3600]",
+        "'email_change_day' => [10, 86400]",
+        "'email_change_confirm' => [5, 1800]",
+        "'password_change' => [5, 900]",
         "'sms_phone_hour' => [3, 3600]",
         "'sms_phone_day' => [10, 86400]",
         "'sms_ip' => [5, 3600]",
@@ -3146,6 +3184,11 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "startGoogleIdentityLink",
         "startGoogleReauthentication",
         "reauthenticateUserPassword",
+        "requestPasswordReset",
+        "confirmPasswordReset",
+        "createEmailChangeRequest",
+        "completeEmailChange",
+        "changeUserPassword",
         "unlinkGoogleIdentity",
         "startLineLogin",
         "completeLineLogin",

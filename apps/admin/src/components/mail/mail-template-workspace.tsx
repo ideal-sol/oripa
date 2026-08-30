@@ -28,6 +28,10 @@ const TEMPLATE_KEYS = new Set<MailTemplateKey>([
   "shipping_completed",
   "user_closed",
   "contact_received",
+  "password_reset",
+  "email_change_verification",
+  "email_change_completed",
+  "password_changed",
 ]);
 
 const PREVIEW_TAGS = new Set([
