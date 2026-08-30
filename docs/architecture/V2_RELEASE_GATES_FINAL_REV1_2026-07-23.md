@@ -4,6 +4,10 @@
 - Status: **FINAL / Architecture Baseline 1.1 / Revision 1**
 - Confirmed: 2026-07-23
 
+> **SUPERSEDED / HISTORICAL:** Revision 2 dated 2026-08-30 is the current
+> authority. The universal Issue, Worktree, Task Policy, and exact path merge
+> requirements below must not be applied to current Changes.
+
 ## Supersession
 
 This document supersedes `V2_RELEASE_GATES_FINAL_2026-07-22.md`. The earlier

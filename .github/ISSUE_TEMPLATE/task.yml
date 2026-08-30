@@ -8,7 +8,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use one Issue, one Branch, one Worktree and one Pull Request per task.
+        Issues are optional under Engineering Safety Strict / Git Lite. When an
+        Issue is needed, bind it to one Change, one Branch and one Pull Request.
         Do not include secrets, credentials, production data or personal information.
 
   - type: input
@@ -94,11 +95,9 @@ body:
   - type: textarea
     id: allowed_paths
     attributes:
-      label: Allowed paths
-      description: List paths that may be changed.
+      label: Exact allowed paths (optional)
+      description: Use only when the Change requires an exact scope-control envelope.
       render: text
-    validations:
-      required: true
 
   - type: textarea
     id: forbidden_paths

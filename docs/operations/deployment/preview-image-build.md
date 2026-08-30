@@ -41,10 +41,30 @@ The manifest fixes the Task, PR, source commit, `linux/amd64` platform, image
 references, image IDs, archive checksums, and OCI labels. The OCI revision is
 the requested PR head SHA.
 
+## Reviewed Tree Activation Authority
+
+Preview images may use either a merge-first Build from exact protected `main`
+or the canonical Reviewed Tree sequence:
+
+`Final PR Head -> Required Checks PASS -> Fresh self-review PASS -> Build -> Squash Merge -> Head tree == Merge tree -> content diff 0`
+
+For Reviewed Tree Authority, the exact final PR head is the Build input and OCI
+revision. The image is not eligible for load, Migration, or Activation before
+squash merge. After merge, record and compare the Final Head Tree SHA and Merge
+Tree SHA, then prove a direct content diff is zero.
+
+Required evidence is Final Head SHA/Tree SHA, Merge SHA/Tree SHA, tree equality,
+content diff zero, GitHub Artifact digest, loaded image digest or image ID, and
+OCI revision. Any head/base drift, stale review, failed check, digest or OCI
+mismatch, tree mismatch, or non-zero content diff blocks load, Migration, and
+Activation. Keep the prior Runtime unchanged.
+
 ## Host Import
 
 Use the installed GitHub App read wrapper to list and download the exact
-artifact. It validates the current Task Policy and open or merged internal PR, successful
+artifact. Preview image import is a privileged Runtime operation, so this path
+uses a Task Policy even though Task Policies are not universal Change ceremony.
+The wrapper validates that policy, the open or merged internal PR, successful
 workflow identity, GitHub's outer artifact digest, safe ZIP members, and all
 inner checksums and image metadata.
 

@@ -23,9 +23,9 @@ Directory-specific rules may be added by later tasks without weakening this file
 Resolve conflicts in this order:
 
 1. Latest explicit human decision
-2. `docs/architecture/V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md`
-3. `docs/architecture/V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md`
-4. `docs/architecture/V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md`
+2. `docs/architecture/V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV3_2026-08-30.md`
+3. `docs/architecture/V2_RELEASE_GATES_FINAL_REV2_2026-08-30.md`
+4. `docs/architecture/V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_REV1_2026-08-30.md`
 5. `docs/architecture/V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md`
 6. `docs/architecture/V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md`
 7. `docs/architecture/V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md`
@@ -37,9 +37,10 @@ Resolve conflicts in this order:
 The current finalized V2 authorities are committed under `docs/architecture/`.
 Use `docs/architecture/README.md` as the architecture reading index.
 
-The 2026-07-22 Governance and Release Gates files are superseded historical
-documents. Do not apply their human-only PR approval, human-only merge,
-mandatory Code Owner review, or disabled auto-merge decisions.
+The 2026-07-22 and 2026-07-23 Governance, Release Gates, and GitHub Operations
+files are superseded historical documents. Do not apply their human-only PR
+approval, human-only merge, mandatory Code Owner review, disabled auto-merge,
+or universal Issue, Worktree, Task Policy, and exact-path ceremony decisions.
 
 Do not use the non-revision Identity/Authorization/Security document. Only the
 `REV1` filename above is authoritative.
@@ -87,9 +88,9 @@ judgments remain human decisions.
 
 ### Change Lanes
 
-- Every Task, Task Policy, Issue, and PR declares exactly one of `Lite Maintenance`,
-  `Standard Change`, or `Strict Change`, plus Application Runtime Activation as
-  `none`, `deferred`, or `immediate`.
+- Every Change and PR declares exactly one of `Lite Maintenance`, `Standard Change`,
+  or `Strict Change`, plus Application Runtime Activation as `none`, `deferred`,
+  or `immediate`. A Task Policy or Issue, when used, declares the same values.
 - Codex may escalate `Lite Maintenance` to `Standard Change` or `Strict Change`,
   and may escalate `Standard Change` to `Strict Change`. Codex must never lower
   a Lane. Missing, invalid, or unclassifiable metadata and paths fail closed.
@@ -111,6 +112,23 @@ judgments remain human decisions.
 - Ruleset bypass is prohibited for ordinary acceleration. It is limited to an
   emergency, GitHub/CI outage, or explicit Human approval and must be separately
   evidenced. Codex must never infer bypass authority.
+
+### Engineering Safety Strict / Git Lite
+
+- The default lifecycle is `1 Change = 1 Branch = 1 PR`.
+- Create an Issue only when coordination, durable follow-up, or a pending
+  decision requires one.
+- Create a dedicated Worktree only for parallel work or required isolation.
+- Use a Task Policy or exact `allowed_paths` only when scope risk, a privileged
+  operation, or explicit Human direction requires it.
+- Acquire a Source Lock only for a real semantic or file-level collision risk.
+- Acquire and retain the Migration Allocation Lock for every migration
+  reservation or creation.
+- A small directly necessary CI/Git blocker may be fixed in the same PR only
+  when Security, permissions, protections, tests, and domain safeguards are not
+  weakened. Re-run every head-dependent gate on the new final head.
+- Do not create a repeating `Task -> GOV -> Task -> GOV` chain for such a bounded
+  blocker.
 
 ### Site Isolation
 
@@ -160,26 +178,32 @@ judgments remain human decisions.
 
 ## Task Start Procedure
 
-1. Use one Task, one GitHub Issue, one branch, one worktree, and one PR.
+1. Use one Change, one branch, and one PR. Add conditional controls only when
+   their risk criteria require them.
 2. Read this file and every applicable nested `AGENTS.md`.
 3. Re-read the finalized V2 documents relevant to the Task.
 4. Confirm Repository root, `git status`, current branch, HEAD, and Remote refs.
-5. Confirm Issue ID, Risk, base SHA, Allowed Paths, Forbidden Paths, and tests.
+5. Confirm Change ID, Risk, base SHA, actual scope, forbidden areas, and tests;
+   confirm Issue and exact allowed paths only when used.
 6. Confirm Lane and Application Runtime Activation before implementation.
 7. Stop if the worktree contains an unrecognized change or the Remote moved.
-8. Work only in the dedicated task worktree; do not switch the main worktree.
+8. Use a dedicated Worktree for parallel work or isolation; otherwise use a
+   clean task branch without disturbing another active Change.
 9. Do not infer undecided provider, legal, security, or accounting behavior.
 10. Do not use Production secrets, credentials, or real-user PII.
-11. Record work in `worklogs/new_ver_main.md` and the GitHub Issue/PR.
+11. Record work in `worklogs/new_ver_main.md`, the PR, and the Issue when one
+    exists.
 12. Fix the PR head SHA before review and merge.
 13. Require lane-valid machine-readable self-review evidence for that exact head.
 14. Merge only after all available required checks and applicable local tests
     pass with no SEV-0 or SEV-1 finding.
-15. Squash merge through the approved GitHub App wrapper, then verify `main` and
-    clean the Remote/local task branch and dedicated worktree.
+15. Squash merge through the approved GitHub App wrapper, then verify `main`,
+    clean the Remote/local task branch, and remove a dedicated Worktree only when
+    one was created.
 
-The latest human decision explicitly adopts both GitHub Issue/PR records and
-`worklogs/new_ver_main.md`. Keep the Worklog free of secrets and PII.
+The latest human decision adopts the GitHub PR and `worklogs/new_ver_main.md` as
+records, plus the GitHub Issue when one is used. Keep every record free of
+secrets and PII.
 
 ## Git and Command Prohibitions
 
@@ -223,7 +247,8 @@ them in process arguments, or persisting them in Git configuration.
 
 ## Verification
 
-- Run the checks required by the Issue and applicable Release Gate.
+- Run the checks required by the Change, any Issue used, and the applicable
+  Release Gate.
 - Keep executed, passed, failed, and not-run tests separate.
 - Keep migration creation separate from migration application.
 - Keep implementation, commit, push, Staging, and Production status separate.
@@ -241,19 +266,20 @@ them in process arguments, or persisting them in Git configuration.
 ## Completion and Reporting
 
 Codex completion is a gate-compliant squash merge followed by Remote/local
-branch cleanup, worktree cleanup, and local `main` synchronization.
+branch cleanup, cleanup of any dedicated Worktree and selected locks, and local
+`main` synchronization.
 
 At completion, report:
 
-- Issue and Risk
-- branch, worktree, base SHA, commit SHA, and Remote SHA
+- Issue or `none`, and Risk
+- branch, worktree mode, base SHA, commit SHA, and Remote SHA
 - changed files and explicit out-of-scope areas
 - tests/checks run, PASS/FAIL, and tests not run with reasons
 - migrations created and migrations applied
 - API, database, auth, point, payment, draw, and infrastructure impact
 - known risks, unresolved decisions, and rollback notes
 - PR URL, self-review evidence, check summary, merge actor, and squash SHA
-- Remote/local task branch and worktree cleanup
+- Remote/local task branch and any dedicated Worktree cleanup
 - local and Remote `main` equality
 - Lane, Activation mode, Task elapsed time, CI wait time, Check rerun count,
   Build count, Runtime Activation count, and Human wait time

@@ -22,8 +22,10 @@ requirements and approved trust exceptions.
   repository scope.
 - Direct pushes to `main`, force pushes, Archive updates, and Stable Tag
   updates or deletions remain prohibited.
-- Changes use one Issue, branch, worktree, PR, fixed-head self-review, checks,
-  Squash Merge, cleanup, and local-main synchronization.
+- Changes use one Change, one branch, one PR, fixed-head self-review, Required
+  Checks, Squash Merge, cleanup, and local-main synchronization. Issue,
+  dedicated Worktree, Task Policy, and exact scope controls are added only when
+  their risk criteria require them.
 - Stable Tags may only be created through an approved Release Gate.
 
 The machine-readable current profile is
@@ -39,7 +41,8 @@ This exception means:
 - OS user isolation is **not implemented**;
 - filesystem isolation from the GitHub App private key is **not implemented**;
 - repository access separation is enforced by GitHub App Installation scope
-  and task-policy wrappers, not by an unprivileged OS account; and
+  and operation-constrained wrappers, including Task Policy validation when a
+  Task Policy is selected, not by an unprivileged OS account; and
 - private key, configuration values, JWTs, tokens, and authorization headers
   must never be displayed, logged, committed, or written to the Worklog.
 

@@ -1,7 +1,7 @@
 ## Task
 
 - Task ID:
-- Issue:
+- Issue (`none` allowed):
 - Risk:
 - Lane:
 - Application Runtime Activation:
@@ -10,6 +10,10 @@
 - Base SHA:
 - Head branch:
 - Base branch:
+- Worktree mode (`current` / `dedicated`):
+- Task Policy (`none` allowed):
+- Source Lock (`none` allowed):
+- Migration Allocation Lock (`not applicable` allowed):
 
 ## Summary
 
@@ -23,7 +27,7 @@
 
 ### Allowed paths
 
--
+<!-- Optional exact scope control. Delete or leave empty when not used. -->
 
 ### Changed files
 
@@ -108,10 +112,12 @@
 
 ## Checklist
 
-- [ ] One Issue, one Branch, one Worktree and one PR were used.
-- [ ] Lane and Application Runtime Activation match the Task Policy.
+- [ ] One Change, one Branch and one PR were used.
+- [ ] Issue, dedicated Worktree, Task Policy and Source Lock were used only when risk required them.
+- [ ] Lane and Application Runtime Activation match the PR and any selected policy or Issue.
 - [ ] Lane was not downgraded by Codex.
-- [ ] Only allowed paths were changed.
+- [ ] Declared changed files match the actual Git diff.
+- [ ] Exact allowed paths pass when that optional scope control was selected.
 - [ ] Unexpected changes were not ignored.
 - [ ] Executed and unexecuted tests are clearly separated.
 - [ ] Commit, push, merge, staging and production states are clearly separated.
@@ -120,5 +126,6 @@
 - [ ] Fresh machine-readable self-review evidence exists for the current head.
 - [ ] Every available required check passed without bypass.
 - [ ] No SEV-0 or SEV-1 finding remains.
+- [ ] Reviewed Tree evidence passes before Activation when a final-head Build is used.
 - [ ] This PR is ready for autonomous squash merge.
 - [ ] Commercial Production GO, legal, accounting and provider decisions remain outside this PR.

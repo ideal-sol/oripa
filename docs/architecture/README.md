@@ -10,9 +10,9 @@ decision or change the finalized document bodies.
 
 | Priority | Document | Document ID | Status | Applies to | Authority and supersession |
 | --- | --- | --- | --- | --- | --- |
-| 1 | [Codex, Git, and CI Governance Revision 2](V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md) | `V2-CODEX-GIT-CI-GOVERNANCE-001` | FINAL / Architecture Baseline 2.0 / Revision 2 | Platform Repository governance, Codex, GitHub, and CI operations | Supersedes `V2_CODEX_GIT_CI_GOVERNANCE_FINAL_2026-07-22.md`. |
-| 2 | [Release Gates Revision 1](V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md) | `V2-RELEASE-GATES-001` | FINAL / Architecture Baseline 1.1 / Revision 1 | Platform and Site release, deployment, and migration gates | Supersedes `V2_RELEASE_GATES_FINAL_2026-07-22.md`. |
-| 3 | [Autonomous GitHub Operations ADR](V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md) | `V2-ADR-GITHUB-AUTONOMY-001` | FINAL | Autonomous GitHub operations for `ideal-sol/oripa` | Implements the latest autonomous-operations decision and replaces the earlier human-only GitHub lifecycle. |
+| 1 | [Codex, Git, and CI Governance Revision 3](V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV3_2026-08-30.md) | `V2-CODEX-GIT-CI-GOVERNANCE-001` | FINAL / Architecture Baseline 3.0 / Revision 3 | Platform Repository governance, Codex, GitHub, and CI operations | Establishes Engineering Safety Strict / Git Lite and Reviewed Tree Authority; supersedes Revision 2. |
+| 2 | [Release Gates Revision 2](V2_RELEASE_GATES_FINAL_REV2_2026-08-30.md) | `V2-RELEASE-GATES-001` | FINAL / Architecture Baseline 2.0 / Revision 2 | Platform and Site release, deployment, and migration gates | Aligns merge and Activation gates with Git Lite while retaining all safety gates; supersedes Revision 1. |
+| 3 | [Autonomous GitHub Operations ADR Revision 1](V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_REV1_2026-08-30.md) | `V2-ADR-GITHUB-AUTONOMY-001` | FINAL / Revision 1 | Autonomous GitHub operations for `ideal-sol/oripa` | Replaces universal Git ceremony with risk-selected controls and formalizes Reviewed Tree Authority. |
 | 4 | [V1 to V2 Migration Plan](V1_TO_V2_MIGRATION_PLAN_FINAL_2026-07-22.md) | `V2-V1-MIGRATION-PLAN-001` | FINAL / Architecture Baseline 1.0 | V1 assets, V2 Platform, Site Template, Luxe Pack, and future customer Sites | Governs migration below the current Governance, Release Gates, and autonomous-operations ADR. |
 | 5 | [Package Version and Compatibility Policy](V2_PACKAGE_VERSION_COMPATIBILITY_POLICY_FINAL_2026-07-22.md) | `V2-PACKAGE-VERSION-COMPATIBILITY-POLICY-001` | FINAL / Architecture Baseline 1.0 | V2 Platform, all customer Sites, first-party packages, and container images | Extends the API contract with version and compatibility rules; remains below the Migration Plan. |
 | 6 | [Identity, Authorization, and Security Baseline Revision 1](V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_REV1_2026-07-22.md) | `V2-IDENTITY-AUTHORIZATION-SECURITY-BASELINE-001` | FINAL / Architecture Baseline 1.0 / Revision 1 | Every fully isolated V2 Site environment | The sole current security baseline. Its Revision 1 decisions override lower Data and API baselines for identity, authorization, and security. |
@@ -50,6 +50,11 @@ record.
   architecture authorities.
 - `V2_CODEX_GIT_CI_GOVERNANCE_FINAL_2026-07-22.md` and
   `V2_RELEASE_GATES_FINAL_2026-07-22.md` are superseded historical documents.
+- `V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md`,
+  `V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md`, and
+  `V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md` are superseded
+  historical documents. Their universal Issue, Worktree, Task Policy, and exact
+  path requirements are not current Governance.
 - The obsolete non-revision Identity, Authorization, and Security document is
   not authoritative and is not committed. Only the `REV1` document above may
   be used.
