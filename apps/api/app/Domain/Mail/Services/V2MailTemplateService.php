@@ -228,7 +228,7 @@ final class V2MailTemplateService
     private function catalog(): array
     {
         $catalog = config('v2_mail_templates.templates', []);
-        if (! is_array($catalog) || count($catalog) !== 7) {
+        if (! is_array($catalog) || count($catalog) !== 11) {
             throw $this->unavailable();
         }
 

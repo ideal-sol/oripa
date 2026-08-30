@@ -467,6 +467,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
         for table in (
             "public.password_reset_tokens",
             "public.sms_verification_challenges",
+            "public.user_email_change_requests",
             "public.user_phone_numbers",
         ):
             self.assertIn(table, v2_database.EXPECTED_V2_SCHEMA_INVENTORY)

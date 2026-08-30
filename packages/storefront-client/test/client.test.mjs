@@ -445,6 +445,9 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
     "getUserSession",
     "requestPasswordReset",
     "confirmPasswordReset",
+    "createEmailChangeRequest",
+    "completeEmailChange",
+    "changeUserPassword",
     "getSmsVerificationStatus",
     "sendSmsVerification",
     "resendSmsVerification",
@@ -471,7 +474,7 @@ test("Package公開面はPublic ContractだけでAdmin／Webhook Exportがない
   assert.doesNotMatch(generated, /beginAdminLogin|verifyAdminMfa|Webhook/);
 });
 
-test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る", async () => {
+test("Identity FacadeはAccount SecurityとSMSをCSRF付き単一Requestで送る", async () => {
   const requests = [];
   const identity = createStorefrontIdentityClient({
     request: async (options) => {
@@ -495,6 +498,24 @@ test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る"
     },
     options,
   );
+  await identity.createEmailChangeRequest(
+    { email: "changed@example.test", redirect_path: "/" },
+    options,
+  );
+  await identity.completeEmailChange(
+    {
+      request_id: "0198a001-0000-7000-8000-000000000303",
+      token: "b".repeat(64),
+    },
+    options,
+  );
+  await identity.changeUserPassword(
+    {
+      current_password: "valid fixture password",
+      new_password: "new valid fixture password",
+    },
+    options,
+  );
   await identity.getSmsVerificationStatus();
   await identity.sendSmsVerification({ phone: "+819012345678" }, options);
   await identity.resendSmsVerification(options);
@@ -509,12 +530,16 @@ test("Identity FacadeはPassword ResetとSMSをCSRF付き単一Requestで送る"
   assert.deepEqual(requests.map(({ path }) => path), [
     "/auth/password/forgot",
     "/auth/password/reset",
+    "/me/email-change-requests",
+    "/me/email-change-requests/0198a001-0000-7000-8000-000000000303/complete",
+    "/me/password",
     "/me/sms-verification",
     "/me/sms-verification",
     "/me/sms-verification/resend",
     "/me/sms-verification/verify",
   ]);
-  for (const request of requests.filter(({ method }) => method === "POST")) {
+  for (const request of requests.filter(({ method }) =>
+    ["POST", "PUT"].includes(method))) {
     assert.equal(request.headers["X-XSRF-TOKEN"], "d".repeat(64));
     assert.equal(request.csrf, "required");
   }

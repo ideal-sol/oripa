@@ -165,6 +165,27 @@ final class V2SessionManager
      */
     public function rotateLockedUserSession(UserSession $session): array
     {
+        return $this->rotateUserSession($session, true);
+    }
+
+    /**
+     * @return array{token: string, absolute_expires_at: CarbonImmutable}
+     */
+    public function rotateLockedUserSessionPreservingReauthentication(
+        UserSession $session
+    ): array
+    {
+        return $this->rotateUserSession($session, false);
+    }
+
+    /**
+     * @return array{token: string, absolute_expires_at: CarbonImmutable}
+     */
+    private function rotateUserSession(
+        UserSession $session,
+        bool $refreshReauthentication
+    ): array
+    {
         if ($session->revoked_at !== null) {
             throw new \RuntimeException('The User Session is no longer active.');
         }
@@ -178,13 +199,19 @@ final class V2SessionManager
         if ($idle->greaterThan($absolute)) {
             $idle = $absolute;
         }
+        $createdAt = $refreshReauthentication
+            ? $now
+            : CarbonImmutable::parse($session->created_at);
+        $reauthenticatedAt = $refreshReauthentication
+            ? $now
+            : CarbonImmutable::parse($session->reauthenticated_at);
         $token = $this->tokens->generate();
         $session->forceFill(['revoked_at' => $now])->save();
         DB::table($configuration['table'])->insert([
             'session_id_hash' => $this->policy->hashSessionId($token),
             'user_id' => $session->user_id,
-            'reauthenticated_at' => $now,
-            'created_at' => $now,
+            'reauthenticated_at' => $reauthenticatedAt,
+            'created_at' => $createdAt,
             'last_activity_at' => $now,
             'idle_expires_at' => $idle,
             'absolute_expires_at' => $absolute,

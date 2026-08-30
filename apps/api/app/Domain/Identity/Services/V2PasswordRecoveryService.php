@@ -4,7 +4,6 @@ namespace App\Domain\Identity\Services;
 
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Contracts\V2SuspiciousRecoveryBoundary;
-use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Outbox\Services\V2OutboxService;
@@ -23,14 +22,17 @@ final class V2PasswordRecoveryService
         private readonly V2PasswordPolicy $passwords,
         private readonly V2SecureToken $tokens,
         private readonly V2RateLimiter $rateLimiter,
-        private readonly V2SessionManager $sessions,
         private readonly V2OutboxService $outbox,
         private readonly V2SecurityEventSink $events,
         private readonly V2SuspiciousRecoveryBoundary $suspiciousRecovery
     ) {
     }
 
-    public function request(string $email, string $redirectPath, string $ip): void
+    public function request(
+        #[SensitiveParameter] string $email,
+        string $redirectPath,
+        string $ip
+    ): void
     {
         $normalized = $this->emails->normalize($email);
         $this->assertRedirectAllowed($redirectPath);
@@ -45,42 +47,41 @@ final class V2PasswordRecoveryService
             throw $exception;
         }
 
-        $user = User::query()
+        $candidate = User::query()
             ->where('email_normalized', $normalized)
             ->whereNotNull('email_verified_at')
-            ->whereIn('state', [
-                V2UserState::Active->value,
-                V2UserState::Restricted->value,
-                V2UserState::Suspended->value,
-            ])
+            ->whereIn('state', $this->eligibleStateValues())
             ->first();
-        if ($user === null) {
-            $this->events->record('password_reset_requested', [
-                'realm' => 'user',
-                'result' => 'generic',
-            ]);
+        if (! $candidate instanceof User) {
+            $this->recordGenericRequest();
 
             return;
         }
 
-        DB::transaction(function () use ($user, $redirectPath): void {
-            $user = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($candidate, $redirectPath): void {
+            $user = User::query()->whereKey($candidate->getKey())->lockForUpdate()->first();
+            if (! $user instanceof User || ! $this->eligible($user)) {
+                $this->recordGenericRequest();
+
+                return;
+            }
+
+            $now = now()->startOfSecond();
             PasswordResetToken::query()
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => now()]);
+                ->update(['revoked_at' => $now]);
             $rawToken = $this->tokens->generate();
-            $createdAt = now()->startOfSecond();
             $reset = PasswordResetToken::query()->create([
                 'user_id' => $user->getKey(),
                 'token_hash' => $this->tokens->hash($rawToken),
                 'redirect_path' => $redirectPath,
                 'failed_attempts' => 0,
-                'expires_at' => $createdAt->copy()->addMinutes(
-                    (int) config('v2_identity.password_reset.ttl_minutes', 30)
+                'expires_at' => $now->copy()->addMinutes(
+                    (int) config('v2_identity.password_reset.ttl_minutes', 60)
                 ),
-                'created_at' => $createdAt,
+                'created_at' => $now,
             ]);
             $message = Crypt::encryptString(json_encode([
                 'recipient' => $user->email_display,
@@ -104,14 +105,13 @@ final class V2PasswordRecoveryService
         }, 3);
     }
 
-    /**
-     * @return array{user: User, session: array{token: string, absolute_expires_at: \DateTimeInterface}, redirect_path: string}
-     */
+    /** @return array{redirect_path: string} */
     public function confirm(
         string $userPublicId,
         #[SensitiveParameter] string $token,
         #[SensitiveParameter] string $newPassword
     ): array {
+        $tokenHash = $this->tokens->hash($token);
         try {
             $this->rateLimiter->assertSubject(
                 'password_reset_confirm',
@@ -119,7 +119,7 @@ final class V2PasswordRecoveryService
             );
             $this->rateLimiter->assertSubject(
                 'password_reset_confirm',
-                'token|'.$this->tokens->hash($token)
+                'token|'.$tokenHash
             );
         } catch (V2AuthenticationException $exception) {
             $this->events->record('password_reset_rate_limited', [
@@ -129,68 +129,68 @@ final class V2PasswordRecoveryService
             ]);
             throw $exception;
         }
-        try {
-            $passwordHash = $this->passwords->hash($newPassword);
-        } catch (\InvalidArgumentException) {
-            throw new V2AuthenticationException(
-                'INVALID_PASSWORD_RESET',
-                422,
-                V2PasswordPolicy::GENERIC_ERROR
-            );
-        }
 
         $result = DB::transaction(function () use (
             $userPublicId,
-            $token,
-            $passwordHash
-        ): ?array {
-            $user = User::query()
-                ->where('public_id', $userPublicId)
-                ->whereNotNull('email_verified_at')
-                ->whereIn('state', [
-                    V2UserState::Active->value,
-                    V2UserState::Restricted->value,
-                    V2UserState::Suspended->value,
-                ])
-                ->lockForUpdate()
-                ->first();
-            if ($user === null) {
-                return null;
+            $tokenHash,
+            $newPassword
+        ): array {
+            $candidate = PasswordResetToken::query()
+                ->where('token_hash', $tokenHash)
+                ->first(['id', 'user_id']);
+            if (! $candidate instanceof PasswordResetToken) {
+                $this->recordResetFailure($userPublicId);
+
+                return ['failure' => 'invalid'];
             }
+
+            $user = User::query()->whereKey($candidate->user_id)->lockForUpdate()->first();
             $reset = PasswordResetToken::query()
-                ->where('user_id', $user->getKey())
-                ->whereNull('used_at')
-                ->whereNull('revoked_at')
-                ->latest('id')
+                ->whereKey($candidate->getKey())
+                ->where('token_hash', $tokenHash)
                 ->lockForUpdate()
                 ->first();
-            if (
-                $reset === null
-                || ! $reset->expires_at->isFuture()
-                || $reset->failed_attempts >= (int) config(
-                    'v2_identity.password_reset.maximum_attempts',
-                    5
-                )
-                || ! hash_equals($reset->token_hash, $this->tokens->hash($token))
-            ) {
-                if ($reset !== null && $reset->used_at === null && $reset->revoked_at === null) {
-                    $attempts = min(5, $reset->failed_attempts + 1);
+            if (! $reset instanceof PasswordResetToken) {
+                $this->recordResetFailure(
+                    $user instanceof User ? $user->public_id : $userPublicId
+                );
+
+                return ['failure' => 'invalid'];
+            }
+            $belongsToUser = $user instanceof User
+                && hash_equals($user->public_id, $userPublicId);
+            $eligible = $user instanceof User && $this->eligible($user);
+            $maximumAttempts = (int) config(
+                'v2_identity.password_reset.maximum_attempts',
+                5
+            );
+            $active = $reset->used_at === null
+                && $reset->revoked_at === null
+                && $reset->expires_at->isFuture()
+                && $reset->failed_attempts < $maximumAttempts;
+            if (! $belongsToUser || ! $active || ! $eligible) {
+                if ($reset->used_at === null && $reset->revoked_at === null) {
+                    $attempts = min($maximumAttempts, $reset->failed_attempts + 1);
                     $reset->forceFill([
                         'failed_attempts' => $attempts,
-                        'revoked_at' => $attempts >= 5 || ! $reset->expires_at->isFuture()
-                            ? now()
-                            : null,
+                        'revoked_at' => $attempts >= $maximumAttempts
+                            || ! $reset->expires_at->isFuture()
+                            || ! $eligible
+                                ? now()->startOfSecond()
+                                : null,
                     ])->save();
                 }
-                $this->events->record('password_reset_failed', [
-                    'realm' => 'user',
-                    'subject_id' => $user->public_id,
-                    'reason' => 'invalid_or_expired',
-                ]);
+                $this->recordResetFailure(
+                    $user instanceof User ? $user->public_id : $userPublicId
+                );
 
-                return null;
+                return ['failure' => 'invalid'];
             }
 
+            if (! $this->passwords->isAllowed($newPassword)) {
+                return ['failure' => 'password_policy'];
+            }
+            $passwordHash = $this->passwords->hash($newPassword);
             $now = now()->startOfSecond();
             $user->forceFill([
                 'password_hash' => $passwordHash,
@@ -211,7 +211,6 @@ final class V2PasswordRecoveryService
                 ->where('user_id', $user->getKey())
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => $now]);
-            $session = $this->sessions->issue(V2Realm::User, (int) $user->getKey());
             $this->outbox->enqueue(
                 'identity.password-changed',
                 'user',
@@ -247,14 +246,17 @@ final class V2PasswordRecoveryService
                 'result' => 'sessions:'.$sessionCount.';devices:'.$rememberCount,
             ]);
 
-            return [
-                'user' => $user,
-                'session' => $session,
-                'redirect_path' => $reset->redirect_path,
-            ];
+            return ['redirect_path' => $reset->redirect_path];
         }, 3);
 
-        if ($result === null) {
+        if (($result['failure'] ?? null) === 'password_policy') {
+            throw new V2AuthenticationException(
+                'PASSWORD_POLICY_VIOLATION',
+                422,
+                V2PasswordPolicy::GENERIC_ERROR
+            );
+        }
+        if (($result['failure'] ?? null) !== null) {
             throw new V2AuthenticationException(
                 'INVALID_PASSWORD_RESET',
                 410,
@@ -263,6 +265,35 @@ final class V2PasswordRecoveryService
         }
 
         return $result;
+    }
+
+    private function eligible(User $user): bool
+    {
+        return $user->email_verified_at !== null
+            && in_array($user->state, [V2UserState::Active, V2UserState::Restricted], true);
+    }
+
+    /** @return list<string> */
+    private function eligibleStateValues(): array
+    {
+        return [V2UserState::Active->value, V2UserState::Restricted->value];
+    }
+
+    private function recordGenericRequest(): void
+    {
+        $this->events->record('password_reset_requested', [
+            'realm' => 'user',
+            'result' => 'generic',
+        ]);
+    }
+
+    private function recordResetFailure(string $subjectId): void
+    {
+        $this->events->record('password_reset_failed', [
+            'realm' => 'user',
+            'subject_id' => $subjectId,
+            'reason' => 'invalid_or_expired',
+        ]);
     }
 
     private function assertRedirectAllowed(string $path): void

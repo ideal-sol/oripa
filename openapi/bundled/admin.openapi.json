@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.28",
+    "version": "2.0.0-alpha.29",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -16550,7 +16550,11 @@
           "shipping_requested",
           "shipping_completed",
           "user_closed",
-          "contact_received"
+          "contact_received",
+          "password_reset",
+          "email_change_verification",
+          "email_change_completed",
+          "password_changed"
         ]
       },
       "AdminMailTemplateVariable": {
@@ -16614,8 +16618,8 @@
           },
           "variables": {
             "type": "array",
-            "minItems": 10,
-            "maxItems": 10,
+            "minItems": 13,
+            "maxItems": 13,
             "items": {
               "$ref": "#/components/schemas/AdminMailTemplateVariable"
             }
@@ -16635,8 +16639,8 @@
         "properties": {
           "items": {
             "type": "array",
-            "minItems": 7,
-            "maxItems": 7,
+            "minItems": 11,
+            "maxItems": 11,
             "items": {
               "$ref": "#/components/schemas/AdminMailTemplate"
             }

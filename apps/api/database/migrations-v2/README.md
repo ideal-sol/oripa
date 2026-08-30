@@ -34,7 +34,8 @@ devices, and Admin MFA credential storage.
 
 ## Status
 
-The root contains six migrations through MIG-043. It is a development and CI
-baseline, not a Production migration set. OAuth, Password Reset, Payment, Draw,
-real external notification transport, Point Reservation／Payment Adjustment,
-Audit search／export, and WORM storage integration are not implemented.
+This append-only root contains the current V2 migration source through
+`2026_09_24_000068_add_v2_account_security.php`. Runtime applied/pending state
+must always be read from the guarded environment migration ledger; source
+presence alone is not evidence that a migration was applied. Production
+application remains a separate Human-authorized Release Gate action.

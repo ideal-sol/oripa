@@ -6,6 +6,7 @@ import {
   StorefrontTransportError,
   createBrowserStorefrontClient,
   createBrowserStorefrontContentContactClient,
+  isAuthProblemError,
 } from "@oripa/storefront-client/browser";
 import {
   createServerStorefrontClient,
@@ -19,6 +20,8 @@ import {
   CAPABILITY_SITE_MANIFEST_FIXTURE,
   MINIMAL_SITE_MANIFEST_FIXTURE,
   PLATFORM_COMPATIBILITY_FIXTURE,
+  PUBLIC_ACCOUNT_SECURITY_FIXTURE,
+  PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES,
   PUBLIC_AUTH_FIXTURE,
   PUBLIC_CONTACT_FIXTURE,
   PUBLIC_CONTACT_PROBLEM_FIXTURES,
@@ -72,6 +75,41 @@ test("Public Auth FixtureはCookie Session状態をCredentialなしで表現す�
   assert.doesNotMatch(
     JSON.stringify(PUBLIC_AUTH_FIXTURE),
     /password|token|cookie|session_id|secret/i,
+  );
+});
+
+test("Account Security FixtureはSession保持差分とtyped Problemsを表現する", () => {
+  assert.equal(
+    PUBLIC_ACCOUNT_SECURITY_FIXTURE.password_reset_completed.authenticated,
+    false,
+  );
+  assert.equal(
+    PUBLIC_ACCOUNT_SECURITY_FIXTURE.password_reset_completed.next_action,
+    "login",
+  );
+  assert.equal(
+    PUBLIC_ACCOUNT_SECURITY_FIXTURE.email_change_completed_same_browser
+      .session_rotated,
+    true,
+  );
+  assert.equal(
+    PUBLIC_ACCOUNT_SECURITY_FIXTURE.email_change_completed_cross_browser
+      .initiating_session_preserved,
+    true,
+  );
+  assert.equal(
+    PUBLIC_ACCOUNT_SECURITY_FIXTURE.password_changed.authenticated,
+    true,
+  );
+  for (const problem of Object.values(
+    PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES,
+  )) {
+    const error = new ApiProblemError(problem);
+    assert.equal(isAuthProblemError(error, problem.code), true);
+  }
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_ACCOUNT_SECURITY_FIXTURE),
+    /current_password|new_password|"token"|cookie|session_id|secret/i,
   );
 });
 
@@ -766,17 +804,20 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつ3DS2 Card Registrationを含むOperation 71件である", () => {
+test("Public OpenAPIは3.1.1かつAccount Securityを含むOperation 74件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 71);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 74);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
+    "changeUserPassword",
+    "completeEmailChange",
     "completeGoogleOidc",
     "completeLineLogin",
     "completePaymentCardRegistration",
     "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",
+    "createEmailChangeRequest",
     "createPayment",
     "createPaymentCardRegistrationIntent",
     "createShippingAddress",
@@ -985,6 +1026,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "CAPABILITY_SITE_MANIFEST_FIXTURE",
     "MINIMAL_SITE_MANIFEST_FIXTURE",
     "PLATFORM_COMPATIBILITY_FIXTURE",
+    "PUBLIC_ACCOUNT_SECURITY_FIXTURE",
+    "PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES",
     "PUBLIC_AUTH_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
     "PUBLIC_CONTACT_FIXTURE",

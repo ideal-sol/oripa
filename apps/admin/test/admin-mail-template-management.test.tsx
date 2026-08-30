@@ -24,6 +24,9 @@ const variables: AdminMailTemplateVariable[] = [
   ["purchase_plan", "コイン購入プラン"],
   ["purchase_amount", "購入金額"],
   ["verification_url", "認証リンク"],
+  ["reset_url", "パスワード再設定リンク"],
+  ["email_change_verification_url", "メールアドレス変更認証リンク"],
+  ["expires_in_minutes", "有効期限（分）"],
   ["contact_body", "お問い合わせ内容"],
 ].map(([key, label]) => ({ key, label, token: `{{${key}}}` }));
 
@@ -35,6 +38,10 @@ const keys: MailTemplateKey[] = [
   "shipping_completed",
   "user_closed",
   "contact_received",
+  "password_reset",
+  "email_change_verification",
+  "email_change_completed",
+  "password_changed",
 ];
 
 beforeEach(() => {
@@ -48,12 +55,12 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Mail Template management", () => {
-  it("shows exactly seven fixed templates without create or delete controls", async () => {
+  it("shows exactly eleven fixed templates without create or delete controls", async () => {
     render(<MailTemplateWorkspace />);
 
     const table = await screen.findByRole("table");
-    expect(within(table).getAllByRole("row")).toHaveLength(8);
-    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(7);
+    expect(within(table).getAllByRole("row")).toHaveLength(12);
+    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(11);
     expect(screen.queryByRole("button", { name: /新規|追加|削除/u })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "メール設定" })).toBeVisible();
   });

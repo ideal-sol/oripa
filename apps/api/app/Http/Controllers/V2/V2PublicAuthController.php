@@ -5,17 +5,20 @@ namespace App\Http\Controllers\V2;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2CsrfService;
+use App\Domain\Identity\Services\V2EmailChangeService;
 use App\Domain\Identity\Services\V2ExternalIdentityService;
+use App\Domain\Identity\Services\V2PasswordChangeService;
 use App\Domain\Identity\Services\V2PasswordRecoveryService;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Identity\Services\V2SmsVerificationService;
 use App\Domain\Identity\Services\V2UserAuthenticationService;
 use App\Http\Responses\V2ProblemDetails;
+use App\Models\V2\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use App\Models\V2\User;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +28,8 @@ final class V2PublicAuthController
     public function __construct(
         private readonly V2UserAuthenticationService $authentication,
         private readonly V2PasswordRecoveryService $passwordRecovery,
+        private readonly V2EmailChangeService $emailChanges,
+        private readonly V2PasswordChangeService $passwordChanges,
         private readonly V2SmsVerificationService $smsVerification,
         private readonly V2ExternalIdentityService $externalIdentities,
         private readonly V2SessionManager $sessions,
@@ -295,7 +300,7 @@ final class V2PublicAuthController
     public function reauthenticatePassword(Request $request): JsonResponse
     {
         $data = $this->validate($request, [
-            'password' => ['required', 'string'],
+            'password' => ['required', 'string', 'max:128'],
         ]);
         $session = $this->externalIdentities->reauthenticatePassword(
             $this->currentUser(),
@@ -368,33 +373,134 @@ final class V2PublicAuthController
             $request->ip() ?? 'unknown'
         );
 
-        return response()->json([
+        return $this->privateResponse(response()->json([
             'status' => 'accepted',
             'message' => V2PasswordRecoveryService::GENERIC_ACCEPTED,
-        ], 202);
+        ], 202));
     }
 
     public function confirmPasswordReset(Request $request): JsonResponse
     {
+        $userId = $request->input('user_id');
+        $token = $request->input('token');
+        if (
+            ! is_string($userId)
+            || ! Str::isUuid($userId)
+            || ! is_string($token)
+            || ! preg_match('/\A[0-9a-f]{64}\z/', $token)
+        ) {
+            throw new V2AuthenticationException(
+                'INVALID_PASSWORD_RESET',
+                410,
+                'The password reset request is invalid or expired.'
+            );
+        }
         $data = $this->validate($request, [
-            'user_id' => ['required', 'uuid'],
-            'token' => ['required', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
-            'password' => ['required', 'string'],
+            'password' => ['required', 'string', 'max:128'],
         ]);
+        $current = Auth::guard('v2_user')->user();
         $result = $this->passwordRecovery->confirm(
-            $data['user_id'],
-            $data['token'],
+            $userId,
+            $token,
             $data['password']
         );
-        $response = response()->json([
-            'authenticated' => true,
-            'user' => [
-                'id' => $result['user']->public_id,
-                'state' => $result['user']->state->value,
-                'email_verified' => true,
-            ],
+        $response = $this->privateResponse(response()->json([
+            'status' => 'password_updated',
+            'authenticated' => false,
+            'user' => null,
+            'next_action' => 'login',
             'redirect_path' => $result['redirect_path'],
+        ]));
+        if ($current instanceof User && hash_equals($current->public_id, $userId)) {
+            $this->sessions->expireSession($response, V2Realm::User);
+            $this->csrf->expire($response, V2Realm::User);
+        }
+
+        return $response;
+    }
+
+    public function createEmailChangeRequest(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'email' => ['required', 'string', 'email:rfc', 'max:320'],
+            'redirect_path' => ['sometimes', 'string', 'max:255'],
         ]);
+        $result = $this->emailChanges->start(
+            $this->currentUser(),
+            $request,
+            $data['email'],
+            $data['redirect_path'] ?? '/'
+        );
+
+        return $this->privateResponse(response()->json([
+            'status' => 'pending_verification',
+            'request_id' => $result['request_id'],
+            'expires_at' => $result['expires_at']->format(DATE_ATOM),
+        ], 202));
+    }
+
+    public function completeEmailChange(
+        Request $request,
+        string $emailChangeRequestId
+    ): JsonResponse {
+        $token = $request->input('token');
+        if (
+            ! Str::isUuid($emailChangeRequestId)
+            || ! is_string($token)
+            || ! preg_match('/\A[0-9a-f]{64}\z/', $token)
+        ) {
+            throw new V2AuthenticationException(
+                'INVALID_EMAIL_CHANGE_REQUEST',
+                410,
+                'The email change request is invalid or expired.'
+            );
+        }
+        $result = $this->emailChanges->complete(
+            $emailChangeRequestId,
+            $token,
+            $request
+        );
+        $response = $this->privateResponse(response()->json([
+            'status' => 'completed',
+            'authenticated' => $result['session'] !== null,
+            'session_rotated' => $result['session'] !== null,
+            'initiating_session_preserved' => $result['initiating_session_preserved'],
+            'next_action' => 'return_to_account',
+        ]));
+        if ($result['session'] !== null) {
+            $this->sessions->attachSession(
+                $response,
+                V2Realm::User,
+                $result['session']['token'],
+                $result['session']['absolute_expires_at']
+            );
+            $this->csrf->rotate($response, V2Realm::User);
+        } elseif ($result['request_session_revoked']) {
+            $this->sessions->expireSession($response, V2Realm::User);
+            $this->csrf->expire($response, V2Realm::User);
+        }
+
+        return $response;
+    }
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        $data = $this->validate($request, [
+            'current_password' => ['required', 'string', 'max:128'],
+            'new_password' => ['required', 'string', 'max:128'],
+        ]);
+        $result = $this->passwordChanges->change(
+            $this->currentUser(),
+            $request,
+            $data['current_password'],
+            $data['new_password']
+        );
+        $response = $this->privateResponse(response()->json([
+            'status' => 'password_updated',
+            'authenticated' => true,
+            'session_rotated' => true,
+            'next_action' => 'return_to_account',
+        ]));
         $this->sessions->attachSession(
             $response,
             V2Realm::User,

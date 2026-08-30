@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3b28644445fc5b2b9acc457d80f221361cc9aeb144ac1d2cae144e8daefddd25
+// Contract SHA-256: 61829e3e8150aa92152686ca8ac0b4f9f4caaebd846049052e5f8fd913df3cac
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1962,7 +1962,11 @@ export type MailTemplateKey =
   | "shipping_requested"
   | "shipping_completed"
   | "user_closed"
-  | "contact_received";
+  | "contact_received"
+  | "password_reset"
+  | "email_change_verification"
+  | "email_change_completed"
+  | "password_changed";
 
 export interface AdminMailTemplateVariable {
   key: string;

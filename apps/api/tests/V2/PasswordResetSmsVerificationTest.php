@@ -55,16 +55,22 @@ final class PasswordResetSmsVerificationTest extends TestCase
     {
         $verified = $this->user('verified@example.test');
         $this->user('pending@example.test', V2UserState::PendingVerification, false);
+        $this->user('suspended@example.test', V2UserState::Suspended);
+        $this->user('closed@example.test', V2UserState::Closed);
+        $this->user('anonymized@example.test', V2UserState::Anonymized);
         $service = app(V2PasswordRecoveryService::class);
         $outboxCount = OutboxMessage::query()->count();
         $resetCount = PasswordResetToken::query()->count();
 
         $service->request('absent@example.test', '/', '192.0.2.10');
         $service->request('pending@example.test', '/', '192.0.2.11');
+        $service->request('suspended@example.test', '/', '192.0.2.12');
+        $service->request('closed@example.test', '/', '192.0.2.13');
+        $service->request('anonymized@example.test', '/', '192.0.2.14');
         self::assertSame($resetCount, PasswordResetToken::query()->count());
         self::assertSame($outboxCount, OutboxMessage::query()->count());
 
-        $service->request('VERIFIED@example.test', '/', '192.0.2.12');
+        $service->request('VERIFIED@example.test', '/', '192.0.2.15');
         $reset = PasswordResetToken::query()->where('user_id', $verified->getKey())->sole();
         $message = $this->outboxMessage('identity.password-reset');
         $delivery = json_decode(
@@ -76,7 +82,135 @@ final class PasswordResetSmsVerificationTest extends TestCase
         self::assertSame(64, strlen($delivery['reset_token']));
         self::assertNotSame($delivery['reset_token'], $reset->token_hash);
         self::assertSame(hash('sha256', $delivery['reset_token']), $reset->token_hash);
-        self::assertSame(30 * 60, (int) $reset->created_at->diffInSeconds($reset->expires_at));
+        self::assertStringNotContainsString(
+            $delivery['reset_token'],
+            json_encode($message->payload, JSON_THROW_ON_ERROR)
+        );
+        self::assertSame(60 * 60, (int) $reset->created_at->diffInSeconds($reset->expires_at));
+    }
+
+    public function test_password_reset_http_response_is_generic_and_success_mints_no_session(): void
+    {
+        $user = $this->user('http-reset@example.test');
+        $session = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $user->getKey()
+        );
+        $csrf = str_repeat('d', 64);
+        $request = fn (string $email) => $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->postJson('/api/v2/auth/password/forgot', [
+                'email' => $email,
+                'redirect_path' => '/',
+            ]);
+
+        $unknown = $request('http-reset-absent@example.test');
+        $known = $request($user->email_display);
+        self::assertSame($unknown->getStatusCode(), $known->getStatusCode());
+        self::assertSame($unknown->getContent(), $known->getContent());
+        $unknown->assertAccepted();
+
+        $delivery = $this->decryptedOutbox('identity.password-reset');
+        $response = $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->withUnencryptedCookie('__Host-oripa_user_session', $session['token'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->postJson('/api/v2/auth/password/reset', [
+                'user_id' => $user->public_id,
+                'token' => $delivery['reset_token'],
+                'password' => 'new http reset password',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('authenticated', false)
+            ->assertJsonPath('user', null)
+            ->assertJsonPath('next_action', 'login');
+        self::assertSame(0, DB::table('user_sessions')
+            ->where('user_id', $user->getKey())
+            ->whereNull('revoked_at')
+            ->count());
+        $cookies = collect($response->headers->getCookies());
+        self::assertSame('', $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_session'
+        )?->getValue());
+        self::assertSame('', $cookies->first(
+            fn ($cookie): bool => $cookie->getName() === '__Host-oripa_user_xsrf'
+        )?->getValue());
+    }
+
+    public function test_password_reset_rechecks_user_state_without_mutating_credentials(): void
+    {
+        $user = $this->user('suspended-after-reset@example.test');
+        $session = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $user->getKey()
+        );
+        UserRememberDevice::query()->create([
+            'user_id' => $user->getKey(),
+            'selector' => str_repeat('e', 32),
+            'token_hash' => str_repeat('f', 64),
+            'expires_at' => now()->addDays(30),
+        ]);
+        $service = app(V2PasswordRecoveryService::class);
+        $service->request($user->email_display, '/', '192.0.2.16');
+        $delivery = $this->decryptedOutbox('identity.password-reset');
+        $passwordHash = $user->password_hash;
+        $user->forceFill(['state' => V2UserState::Suspended])->save();
+
+        try {
+            $service->confirm(
+                $user->public_id,
+                $delivery['reset_token'],
+                'new suspended password'
+            );
+            self::fail('A suspended User must not complete Password Reset.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('INVALID_PASSWORD_RESET', $exception->errorCode);
+        }
+
+        self::assertSame($passwordHash, $user->refresh()->password_hash);
+        self::assertSame(V2UserState::Suspended, $user->state);
+        self::assertNull(DB::table('user_sessions')
+            ->where('session_id_hash', hash('sha256', $session['token']))
+            ->value('revoked_at'));
+        self::assertNull(UserRememberDevice::query()
+            ->where('user_id', $user->getKey())
+            ->sole()
+            ->revoked_at);
+        self::assertDatabaseMissing('outbox_messages', [
+            'topic' => 'identity.password-changed',
+            'aggregate_public_id' => $user->public_id,
+        ]);
+    }
+
+    public function test_malformed_password_reset_link_uses_stable_problem(): void
+    {
+        $csrf = str_repeat('e', 64);
+        $this->withCredentials()
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders([
+                'Origin' => 'https://storefront.example.test',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->postJson('/api/v2/auth/password/reset', [
+                'user_id' => 'malformed',
+                'token' => 'malformed',
+                'password' => 'new valid password',
+            ])
+            ->assertStatus(410)
+            ->assertJsonPath('code', 'INVALID_PASSWORD_RESET');
     }
 
     public function test_password_reset_is_one_time_and_revokes_all_sessions_and_devices(): void
@@ -114,10 +248,11 @@ final class PasswordResetSmsVerificationTest extends TestCase
             ->where('user_id', $user->getKey())
             ->sole()
             ->revoked_at);
-        self::assertDatabaseHas('user_sessions', [
-            'session_id_hash' => hash('sha256', $result['session']['token']),
-            'revoked_at' => null,
-        ]);
+        self::assertSame(['redirect_path' => '/'], $result);
+        self::assertSame(0, DB::table('user_sessions')
+            ->where('user_id', $user->getKey())
+            ->whereNull('revoked_at')
+            ->count());
         self::assertDatabaseHas('outbox_messages', [
             'topic' => 'identity.password-changed',
         ]);
@@ -134,7 +269,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
         }
     }
 
-    public function test_password_reset_token_expires_and_five_failures_revoke_it(): void
+    public function test_password_reset_attempts_are_isolated_to_exact_token_row_and_expire_at_sixty_minutes(): void
     {
         $user = $this->user('attempts@example.test');
         $service = app(V2PasswordRecoveryService::class);
@@ -152,15 +287,37 @@ final class PasswordResetSmsVerificationTest extends TestCase
             }
         }
         $reset = PasswordResetToken::query()->where('user_id', $user->getKey())->sole();
-        self::assertSame(5, $reset->failed_attempts);
+        self::assertSame(0, $reset->failed_attempts);
+        self::assertNull($reset->revoked_at);
+
+        $delivery = $this->decryptedOutbox('identity.password-reset');
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            Cache::store('array')->clear();
+            try {
+                $service->confirm(
+                    '0198a001-0000-7000-8000-000000000399',
+                    $delivery['reset_token'],
+                    'new valid password'
+                );
+                self::fail('A mismatched Password Reset account must fail.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('INVALID_PASSWORD_RESET', $exception->errorCode);
+            }
+        }
+        self::assertSame(5, $reset->refresh()->failed_attempts);
         self::assertNotNull($reset->revoked_at);
 
         Cache::store('array')->clear();
         $service->request($user->email_display, '/', '192.0.2.31');
         $latest = PasswordResetToken::query()->latest('id')->firstOrFail();
-        $this->travel(31)->minutes();
+        $latestDelivery = $this->decryptedOutbox('identity.password-reset');
+        $this->travel(61)->minutes();
         try {
-            $service->confirm($user->public_id, str_repeat('f', 64), 'new valid password');
+            $service->confirm(
+                $user->public_id,
+                $latestDelivery['reset_token'],
+                'new valid password'
+            );
             self::fail('An expired Password Reset Token must fail.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('INVALID_PASSWORD_RESET', $exception->errorCode);
@@ -186,7 +343,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             $service->confirm($user->public_id, $delivery['reset_token'], 'short');
             self::fail('Password Policy must apply to Password Reset.');
         } catch (V2AuthenticationException $exception) {
-            self::assertSame('INVALID_PASSWORD_RESET', $exception->errorCode);
+            self::assertSame('PASSWORD_POLICY_VIOLATION', $exception->errorCode);
         }
         self::assertNull(PasswordResetToken::query()
             ->where('user_id', $user->getKey())

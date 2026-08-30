@@ -5,6 +5,8 @@ namespace Tests\V2;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Domain\Identity\Services\V2EmailChangeService;
+use App\Domain\Identity\Services\V2PasswordChangeService;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PasswordRecoveryService;
 use App\Domain\Identity\Services\V2SessionManager;
@@ -13,6 +15,7 @@ use App\Models\V2\OutboxMessage;
 use App\Models\V2\PasswordResetToken;
 use App\Models\V2\SmsVerificationChallenge;
 use App\Models\V2\User;
+use App\Models\V2\UserEmailChangeRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +43,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
     {
         $runId = bin2hex(random_bytes(6));
         $user = $this->user("concurrent-reset-{$runId}@example.test");
+        app(V2SessionManager::class)->issue(V2Realm::User, (int) $user->getKey());
         app(V2PasswordRecoveryService::class)->request(
             $user->email_display,
             '/',
@@ -47,7 +51,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
         );
         $token = $this->delivery('identity.password-reset')['reset_token'];
 
-        $statuses = $this->concurrent(static function () use ($user, $token): bool {
+        $statuses = $this->concurrent(static function (int $_worker) use ($user, $token): bool {
             try {
                 app(V2PasswordRecoveryService::class)->confirm(
                     $user->public_id,
@@ -67,6 +71,163 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
             ->where('user_id', $user->getKey())
             ->sole()
             ->used_at);
+        self::assertSame(0, DB::table('user_sessions')
+            ->where('user_id', $user->getKey())
+            ->whereNull('revoked_at')
+            ->count());
+        self::assertSame(1, OutboxMessage::query()
+            ->where('topic', 'identity.password-changed')
+            ->where('aggregate_public_id', $user->public_id)
+            ->count());
+    }
+
+    public function test_concurrent_email_change_completion_consumes_once(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $user = $this->user("concurrent-email-{$runId}@example.test");
+        $session = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $user->getKey()
+        );
+        $started = app(V2EmailChangeService::class)->start(
+            $user,
+            $this->request($session['token'], '/api/v2/me/email-change-requests'),
+            "concurrent-email-new-{$runId}@example.test",
+            '/'
+        );
+        $token = $this->delivery('identity.email-change-verification')['verification_token'];
+
+        $statuses = $this->concurrent(static function (int $_worker) use ($started, $token): bool {
+            try {
+                app(V2EmailChangeService::class)->complete(
+                    $started['request_id'],
+                    $token,
+                    Request::create(
+                        '/api/v2/me/email-change-requests/'.$started['request_id'].'/complete',
+                        'POST'
+                    )
+                );
+
+                return true;
+            } catch (V2AuthenticationException) {
+                return false;
+            }
+        }, 'email-change-once');
+
+        sort($statuses);
+        self::assertSame([false, true], $statuses);
+        self::assertNotNull(UserEmailChangeRequest::query()
+            ->where('public_id', $started['request_id'])
+            ->sole()
+            ->used_at);
+        self::assertSame(1, OutboxMessage::query()
+            ->where('topic', 'identity.email-change-completed')
+            ->where('aggregate_public_id', $user->public_id)
+            ->count());
+        self::assertSame(1, DB::table('user_sessions')
+            ->where('user_id', $user->getKey())
+            ->whereNull('revoked_at')
+            ->count());
+    }
+
+    public function test_concurrent_email_change_duplicate_claim_has_one_winner(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $first = $this->user("duplicate-email-first-{$runId}@example.test");
+        $second = $this->user("duplicate-email-second-{$runId}@example.test");
+        $target = "duplicate-email-target-{$runId}@example.test";
+        $firstSession = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $first->getKey()
+        );
+        $secondSession = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $second->getKey()
+        );
+        $firstStarted = app(V2EmailChangeService::class)->start(
+            $first,
+            $this->request($firstSession['token'], '/api/v2/me/email-change-requests'),
+            $target,
+            '/'
+        );
+        $firstToken = $this->delivery(
+            'identity.email-change-verification'
+        )['verification_token'];
+        $secondStarted = app(V2EmailChangeService::class)->start(
+            $second,
+            $this->request($secondSession['token'], '/api/v2/me/email-change-requests'),
+            $target,
+            '/'
+        );
+        $secondToken = $this->delivery(
+            'identity.email-change-verification'
+        )['verification_token'];
+        $attempts = [
+            [$firstStarted['request_id'], $firstToken],
+            [$secondStarted['request_id'], $secondToken],
+        ];
+
+        $statuses = $this->concurrent(static function (int $worker) use ($attempts): bool {
+            $attempt = $attempts[$worker];
+            try {
+                app(V2EmailChangeService::class)->complete(
+                    $attempt[0],
+                    $attempt[1],
+                    Request::create(
+                        '/api/v2/me/email-change-requests/'.$attempt[0].'/complete',
+                        'POST'
+                    )
+                );
+
+                return true;
+            } catch (V2AuthenticationException) {
+                return false;
+            }
+        }, 'email-change-duplicate');
+
+        sort($statuses);
+        self::assertSame([false, true], $statuses);
+        self::assertSame(1, User::query()
+            ->where('email_normalized', $target)
+            ->count());
+        self::assertSame(1, OutboxMessage::query()
+            ->where('topic', 'identity.email-change-completed')
+            ->whereIn('aggregate_public_id', [$first->public_id, $second->public_id])
+            ->count());
+    }
+
+    public function test_concurrent_password_change_accepts_old_password_once(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $user = $this->user("concurrent-password-{$runId}@example.test");
+        $session = app(V2SessionManager::class)->issue(
+            V2Realm::User,
+            (int) $user->getKey()
+        );
+
+        $statuses = $this->concurrent(static function (int $_worker) use ($user, $session): bool {
+            $request = Request::create('/api/v2/me/password', 'PUT');
+            $request->cookies->set('__Host-oripa_user_session', $session['token']);
+            try {
+                app(V2PasswordChangeService::class)->change(
+                    $user,
+                    $request,
+                    'valid old password',
+                    'concurrent new password'
+                );
+
+                return true;
+            } catch (V2AuthenticationException) {
+                return false;
+            }
+        }, 'password-change');
+
+        sort($statuses);
+        self::assertSame([false, true], $statuses);
+        self::assertTrue(app(V2PasswordPolicy::class)->verify(
+            'concurrent new password',
+            $user->refresh()->password_hash
+        ));
         self::assertSame(1, DB::table('user_sessions')
             ->where('user_id', $user->getKey())
             ->whereNull('revoked_at')
@@ -99,7 +260,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
         $code = $this->delivery('identity.sms-verification')['verification_code'];
 
         $statuses = $this->concurrent(
-            function () use ($user, $session, $challenge, $code): bool {
+            function (int $_worker) use ($user, $session, $challenge, $code): bool {
                 try {
                     app(V2SmsVerificationService::class)->verify(
                         $user,
@@ -135,7 +296,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
     }
 
     /**
-     * @param callable(): bool $operation
+     * @param callable(int): bool $operation
      * @return list<bool>
      */
     private function concurrent(callable $operation, string $scenario): array
@@ -157,7 +318,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
                 DB::reconnect();
                 $succeeded = false;
                 try {
-                    $succeeded = $operation();
+                    $succeeded = $operation($worker);
                 } catch (\Throwable) {
                     $succeeded = false;
                 }
@@ -204,9 +365,12 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
         ]);
     }
 
-    private function request(string $token): Request
+    private function request(
+        string $token,
+        string $path = '/api/v2/me/sms-verification'
+    ): Request
     {
-        $request = Request::create('/api/v2/me/sms-verification/verify', 'POST');
+        $request = Request::create($path, 'POST');
         $request->cookies->set('__Host-oripa_user_session', $token);
 
         return $request;

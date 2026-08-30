@@ -97,7 +97,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.31")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.32")
         self.assertEqual(latest["source_commit"], "ad078ecd1eebd68cd2443b347d387433177fd686")
         self.assertEqual(latest["manifest_sha256"], "c11894fbfadaf3dd4e00c7f94973ede1bb00f580ece5e109d0118c74c3b69f74")
         self.assertEqual(latest["release_mode"], "contract-additive")
@@ -180,7 +180,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(result["packages"]["@oripa/storefront-testkit"]["version"], "2.0.0-alpha.31")
 
     def valid_output(self, output: Path) -> dict:
-        governance = self.next_candidate_governance()
+        governance = self.governance()
         candidate = governance["candidate"]
         assets = {}
         for name in ("@oripa/storefront-client", "@oripa/storefront-testkit"):
@@ -207,11 +207,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         artifact.write_checksums(output)
         return governance
 
-    def test_settled_alpha_31_has_no_publishable_candidate(self):
-        with self.assertRaisesRegex(
-            artifact.ArtifactError, "no pending Storefront artifact candidate"
-        ):
-            artifact.pending_candidate(ROOT)
+    def test_alpha_32_candidate_is_publishable(self):
+        candidate = artifact.pending_candidate(ROOT)
+        self.assertEqual(candidate["bundle_version"], "2.0.0-alpha.32")
+        self.assertEqual(candidate["release_mode"], "contract-additive")
+        self.assertEqual(candidate["public_api_operation_count"], 74)
 
     def test_release_manifest_and_file_inventory_are_consistent(self):
         with tempfile.TemporaryDirectory() as temporary:

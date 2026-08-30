@@ -137,6 +137,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.shipping_request_status_histories",
     "public.shipping_requests",
     "public.sms_verification_challenges",
+    "public.user_email_change_requests",
     "public.user_email_verifications",
     "public.user_phone_numbers",
     "public.user_prize_status_histories",

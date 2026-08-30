@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.28",
+    "version": "2.0.0-alpha.29",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -1569,7 +1569,7 @@
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -1600,17 +1600,17 @@
         },
         "responses": {
           "200": {
-            "description": "Passwordを変更し全旧Sessionを失効した。",
+            "description": "Passwordを変更し全SessionとRemember Deviceを失効した。新Sessionは発行せず、 authenticated=false、user=null、next_action=loginを返す。",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserSession"
+                  "$ref": "#/components/schemas/PasswordResetCompleted"
                 }
               }
             }
           },
           "default": {
-            "$ref": "#/components/responses/Problem"
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -2093,6 +2093,151 @@
           },
           "default": {
             "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/email-change-requests": {
+      "post": {
+        "operationId": "createEmailChangeRequest",
+        "summary": "新しいEmail Addressへの変更認証を開始する",
+        "x-idempotency": "supersedes-active-request",
+        "x-rate-limit": "user-3-per-hour-and-10-per-day",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailChangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Canonical Emailを変更せず、新Emailへの認証通知をOutboxへ登録した。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChangePending"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      }
+    },
+    "/me/email-change-requests/{email_change_request_id}/complete": {
+      "post": {
+        "operationId": "completeEmailChange",
+        "summary": "One-time TokenでEmail Address Changeを完了する",
+        "x-idempotency": "one-time-token",
+        "x-rate-limit": "request-token-5-attempts",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {},
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "name": "email_change_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailChangeCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Emailを変更した。同じinitiating SessionならSession/CSRFをRotationし、別Browserなら 新Sessionを発行せずinitiating Sessionを保持する。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChangeCompleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      }
+    },
+    "/me/password": {
+      "put": {
+        "operationId": "changeUserPassword",
+        "summary": "Current Passwordを照合してPasswordを即時変更する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "user-5-per-15-minutes",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPasswordChangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Passwordを即時変更しCurrent Session/CSRFをRotationした。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPasswordChanged"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
           }
         }
       }
@@ -4751,11 +4896,17 @@
           "AUTHENTICATION_REQUIRED",
           "CSRF_TOKEN_MISMATCH",
           "EMAIL_ALREADY_CLAIMED",
+          "EMAIL_UNCHANGED",
           "EMAIL_VERIFICATION_REQUIRED",
           "INVALID_CREDENTIALS",
+          "INVALID_EMAIL_CHANGE_REQUEST",
+          "INVALID_PASSWORD_RESET",
           "INVALID_REDIRECT",
+          "INVALID_REAUTHENTICATION",
           "INVALID_REQUEST",
           "INVALID_VERIFICATION_LINK",
+          "PASSWORD_POLICY_VIOLATION",
+          "PASSWORD_UNCHANGED",
           "RATE_LIMITED",
           "SESSION_EXPIRED",
           "UNSUPPORTED_MEDIA_TYPE",
@@ -6899,6 +7050,125 @@
           }
         }
       },
+      "PasswordResetCompleted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "authenticated",
+          "user",
+          "next_action",
+          "redirect_path"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "password_updated"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "const": false
+          },
+          "user": {
+            "type": "null"
+          },
+          "next_action": {
+            "type": "string",
+            "const": "login"
+          },
+          "redirect_path": {
+            "type": "string",
+            "pattern": "^/(?!/)"
+          }
+        }
+      },
+      "EmailChangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "redirect_path": {
+            "type": "string",
+            "default": "/",
+            "maxLength": 255,
+            "pattern": "^/(?!/)"
+          }
+        }
+      },
+      "EmailChangePending": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "request_id",
+          "expires_at"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "pending_verification"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          }
+        }
+      },
+      "EmailChangeCompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "EmailChangeCompleted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "authenticated",
+          "session_rotated",
+          "initiating_session_preserved",
+          "next_action"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "completed"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "description": "Completion requestを行ったBrowserが変更後も認証済みかを示す。"
+          },
+          "session_rotated": {
+            "type": "boolean"
+          },
+          "initiating_session_preserved": {
+            "type": "boolean"
+          },
+          "next_action": {
+            "type": "string",
+            "const": "return_to_account"
+          }
+        }
+      },
       "SmsVerificationSendRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -7246,6 +7516,56 @@
             "minLength": 8,
             "maxLength": 128,
             "writeOnly": true
+          }
+        }
+      },
+      "UserPasswordChangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        }
+      },
+      "UserPasswordChanged": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "authenticated",
+          "session_rotated",
+          "next_action"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "password_updated"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "const": true
+          },
+          "session_rotated": {
+            "type": "boolean",
+            "const": true
+          },
+          "next_action": {
+            "type": "string",
+            "const": "return_to_account"
           }
         }
       },

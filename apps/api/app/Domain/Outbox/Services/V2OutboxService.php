@@ -78,11 +78,26 @@ final class V2OutboxService
     }
 
     /**
+     * @param list<string> $topics
      * @return Collection<int, OutboxMessage>
      */
-    public function claim(string $worker, int $limit = 10, ?int $leaseSeconds = null): Collection
+    public function claim(
+        string $worker,
+        int $limit = 10,
+        ?int $leaseSeconds = null,
+        array $topics = []
+    ): Collection
     {
         $this->assertWorker($worker);
+        if (count($topics) !== count(array_unique($topics)) || count($topics) > 16) {
+            throw new RuntimeException('Outbox topic filter is invalid.');
+        }
+        foreach ($topics as $topic) {
+            if (! is_string($topic)) {
+                throw new RuntimeException('Outbox topic filter is invalid.');
+            }
+            $this->assertCode($topic, 128, 'Outbox topic');
+        }
         $maximum = (int) config('v2_outbox.maximum_claim_size', 100);
         if ($limit < 1 || $limit > $maximum) {
             throw new RuntimeException('Outbox claim size is invalid.');
@@ -92,22 +107,25 @@ final class V2OutboxService
             throw new RuntimeException('Outbox lease duration is invalid.');
         }
 
-        return DB::transaction(function () use ($worker, $limit, $leaseSeconds): Collection {
+        return DB::transaction(function () use ($worker, $limit, $leaseSeconds, $topics): Collection {
             $now = now()->startOfSecond();
-            $messages = OutboxMessage::query()
-                ->where(function ($query) use ($now): void {
-                    $query
-                        ->where(function ($pending) use ($now): void {
-                            $pending
-                                ->where('status', 'pending')
-                                ->where('available_at', '<=', $now);
-                        })
-                        ->orWhere(function ($expired) use ($now): void {
-                            $expired
-                                ->where('status', 'processing')
-                                ->where('lease_expires_at', '<=', $now);
-                        });
-                })
+            $query = OutboxMessage::query();
+            if ($topics !== []) {
+                $query->whereIn('topic', $topics);
+            }
+            $messages = $query->where(function ($query) use ($now): void {
+                $query
+                    ->where(function ($pending) use ($now): void {
+                        $pending
+                            ->where('status', 'pending')
+                            ->where('available_at', '<=', $now);
+                    })
+                    ->orWhere(function ($expired) use ($now): void {
+                        $expired
+                            ->where('status', 'processing')
+                            ->where('lease_expires_at', '<=', $now);
+                    });
+            })
                 ->orderBy('id')
                 ->limit($limit)
                 ->lock('FOR UPDATE SKIP LOCKED')

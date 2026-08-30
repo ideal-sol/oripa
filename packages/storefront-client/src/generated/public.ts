@@ -790,6 +790,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/email-change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新しいEmail Addressへの変更認証を開始する */
+        post: operations["createEmailChangeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/email-change-requests/{email_change_request_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One-time TokenでEmail Address Changeを完了する */
+        post: operations["completeEmailChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Current Passwordを照合してPasswordを即時変更する */
+        put: operations["changeUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/sms-verification": {
         parameters: {
             query?: never;
@@ -1626,7 +1677,7 @@ export interface components {
         /** @description Card Registrationの既知Problemまたは安全に汎用処理する未知のProblem Details。 pendingはProblemではなくPaymentCardRegistration.statusで表現する。 */
         CardRegistrationProblemResponse: components["schemas"]["CardRegistrationProblemDetails"] | components["schemas"]["ProblemDetails"];
         /** @enum {string} */
-        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_REDIRECT" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "RATE_LIMITED" | "SESSION_EXPIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
+        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_UNCHANGED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_EMAIL_CHANGE_REQUEST" | "INVALID_PASSWORD_RESET" | "INVALID_REDIRECT" | "INVALID_REAUTHENTICATION" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "PASSWORD_POLICY_VIOLATION" | "PASSWORD_UNCHANGED" | "RATE_LIMITED" | "SESSION_EXPIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
         PublicAuthProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
@@ -2103,6 +2154,42 @@ export interface components {
             /** @constant */
             message: "If the account is eligible, password reset instructions will be sent.";
         };
+        PasswordResetCompleted: {
+            /** @constant */
+            status: "password_updated";
+            /** @constant */
+            authenticated: false;
+            user: null;
+            /** @constant */
+            next_action: "login";
+            redirect_path: string;
+        };
+        EmailChangeRequest: {
+            /** Format: email */
+            email: string;
+            /** @default / */
+            redirect_path: string;
+        };
+        EmailChangePending: {
+            /** @constant */
+            status: "pending_verification";
+            /** Format: uuid */
+            request_id: string;
+            expires_at: components["schemas"]["UtcDateTime"];
+        };
+        EmailChangeCompleteRequest: {
+            token: string;
+        };
+        EmailChangeCompleted: {
+            /** @constant */
+            status: "completed";
+            /** @description Completion requestを行ったBrowserが変更後も認証済みかを示す。 */
+            authenticated: boolean;
+            session_rotated: boolean;
+            initiating_session_preserved: boolean;
+            /** @constant */
+            next_action: "return_to_account";
+        };
         SmsVerificationSendRequest: {
             phone: string;
         };
@@ -2192,6 +2279,20 @@ export interface components {
         };
         UserPasswordReauthenticationRequest: {
             password: string;
+        };
+        UserPasswordChangeRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        UserPasswordChanged: {
+            /** @constant */
+            status: "password_updated";
+            /** @constant */
+            authenticated: true;
+            /** @constant */
+            session_rotated: true;
+            /** @constant */
+            next_action: "return_to_account";
         };
         UserReauthentication: {
             /** @constant */
@@ -3282,7 +3383,7 @@ export interface operations {
                     "application/json": components["schemas"]["PasswordResetAccepted"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     confirmPasswordReset: {
@@ -3300,16 +3401,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Passwordを変更し全旧Sessionを失効した。 */
+            /** @description Passwordを変更し全SessionとRemember Deviceを失効した。新Sessionは発行せず、 authenticated=false、user=null、next_action=loginを返す。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserSession"];
+                    "application/json": components["schemas"]["PasswordResetCompleted"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     logoutUser: {
@@ -3610,6 +3711,89 @@ export interface operations {
                 };
             };
             default: components["responses"]["Problem"];
+        };
+    };
+    createEmailChangeRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Canonical Emailを変更せず、新Emailへの認証通知をOutboxへ登録した。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailChangePending"];
+                };
+            };
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    completeEmailChange: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                email_change_request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailChangeCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Emailを変更した。同じinitiating SessionならSession/CSRFをRotationし、別Browserなら 新Sessionを発行せずinitiating Sessionを保持する。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailChangeCompleted"];
+                };
+            };
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    changeUserPassword: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Passwordを即時変更しCurrent Session/CSRFをRotationした。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPasswordChanged"];
+                };
+            };
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     getSmsVerificationStatus: {

@@ -194,6 +194,21 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected.issubset(policy_gate.V2_PAYMENT_REQUIRED_FILES))
         self.assertFalse(any("*" in path for path in expected))
 
+    def test_acct_001_account_security_paths_are_registered_exactly(self):
+        expected = {
+            "apps/api/app/Console/Commands/V2/RunV2IdentityMailOutboxWorker.php",
+            "apps/api/app/Domain/Identity/Services/V2EmailChangeService.php",
+            "apps/api/app/Domain/Identity/Services/V2PasswordChangeService.php",
+            "apps/api/app/Domain/Mail/Services/V2IdentityMailOutboxWorker.php",
+            "apps/api/app/Domain/Mail/Services/V2IdentityMailUrlBuilder.php",
+            "apps/api/app/Models/V2/UserEmailChangeRequest.php",
+            "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
+            "apps/api/tests/V2/AccountSecurityTest.php",
+        }
+        self.assertEqual(policy_gate.ACCT_001_V2_IDENTITY_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.V2_IDENTITY_REQUIRED_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_063d_category_tag_presentation_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_11_000056_allow_v2_published_category_tag_presentation_edits.php",
@@ -727,13 +742,15 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_reconciled_alpha_31(self):
+    def test_storefront_release_governance_accepts_alpha_32_candidate(self):
         value = policy_gate.storefront_release_governance(ROOT)
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.31")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.30")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.32")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertEqual(value["candidate"]["public_api_operation_count"], 74)
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 71)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
@@ -1595,6 +1612,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_18_000064_add_v2_mail_templates.php",
             "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
             "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
+            "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2730,7 +2748,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.31",
+                    "version": "2.0.0-alpha.32",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2768,7 +2786,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.28",
+                        "minimumPublicApiContract": "2.0.0-alpha.29",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -3103,8 +3121,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 71",
-                    "operation_count: 70",
+                    "operation_count: 74",
+                    "operation_count: 73",
                 ),
                 encoding="utf-8",
             )
