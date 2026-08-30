@@ -31,6 +31,7 @@ final class V2FincodeClient
     public function createCardPaymentMethod(
         string $customerId,
         #[SensitiveParameter] string $cardToken,
+        bool $makeDefault,
         string $returnUrl,
         string $failureUrl,
         string $registrationPublicId,
@@ -41,7 +42,7 @@ final class V2FincodeClient
             '/v1/customers/'.rawurlencode($customerId).'/payment_methods',
             [
                 'pay_type' => 'Card',
-                'default_flag' => '0',
+                'default_flag' => $makeDefault ? '1' : '0',
                 'return_url' => $returnUrl,
                 'return_url_on_failure' => $failureUrl,
                 'client_field_1' => $registrationPublicId,
@@ -253,13 +254,16 @@ final class V2FincodeClient
     private function decode(Response $response): array
     {
         if (! $response->successful()) {
+            $providerHttpStatus = $response->status();
             throw new V2FincodeException(
                 $response->serverError() ? 'FINCODE_PROVIDER_UNAVAILABLE' : 'FINCODE_PROVIDER_REJECTED',
-                $response->serverError() || $response->status() === 429 ? 503 : 422,
+                $response->serverError() || $providerHttpStatus === 429 ? 503 : 422,
                 $response->serverError()
                     ? 'The payment provider is unavailable.'
                     : 'The payment provider rejected the request.',
-                $response->serverError() || $response->status() === 429
+                $response->serverError() || $providerHttpStatus === 429,
+                $providerHttpStatus,
+                $this->safeProviderErrorCode($response)
             );
         }
         if ($response->status() === 204 || $response->body() === '') {
@@ -276,6 +280,23 @@ final class V2FincodeClient
         }
 
         return $decoded;
+    }
+
+    private function safeProviderErrorCode(Response $response): ?string
+    {
+        $decoded = $response->json();
+        $errors = is_array($decoded) ? ($decoded['errors'] ?? null) : null;
+        if (! is_array($errors)) {
+            return null;
+        }
+        foreach ($errors as $error) {
+            $code = is_array($error) ? ($error['error_code'] ?? null) : null;
+            if (is_string($code) && preg_match('/^[A-Z0-9]{11}$/D', $code)) {
+                return $code;
+            }
+        }
+
+        return null;
     }
 
     private function baseUrl(): string

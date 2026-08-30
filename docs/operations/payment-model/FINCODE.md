@@ -200,6 +200,17 @@ Card保存はPayment Method Registrationの`POST /v1/customers/{customer_id}/pay
 `pay_type=Card`、`tds_type=2`、`tds2_type=2`を固定する。`tds2_type=3`を使用せず、3DS2非対応Cardを
 認証なしで保存しない。
 
+`default_flag`は必須である。Platformに有効な保存Cardが0件なら最初のPayment Methodを`1`、
+1件以上なら新しいPayment Methodを`0`として送る。これにより、決済種別ごとにPayment Methodが
+存在する場合は必ず1件のdefaultを持つfincode Contractを満たし、既存Cardがある場合はそのdefaultを
+不用意に変更しない。
+
+Payment Method createが非成功の場合、Provider HTTP statusと公式11文字`errors[].error_code`の
+最初の安全な値だけをRegistrationのinternal failure evidenceへ保持する。raw response、
+`error_message`、request body、Card token、credentialは保存・log・User-facing Problemへ出さない。
+User-facing errorはtyped `CARD_REGISTRATION_FAILED`または`CARD_REGISTRATION_UNAVAILABLE`を維持し、
+malformed／empty error bodyはProvider codeを推測せずFail Closedする。
+
 全Credit Card Paymentも`POST /v1/payments`へ`tds_type=2`かつ`tds2_type=2`を指定する。
 新規save=falseとverified saved Cardの双方でPayment 3DS2を必須とし、Registration 3DS2成功を理由に
 skipしない。新規save=trueだけのPayment開始は拒否する。
