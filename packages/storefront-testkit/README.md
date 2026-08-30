@@ -85,8 +85,8 @@ Production Credential、実PII、Business Authority、Admin／Webhook Surface、
 
 ## Status
 
-Package Version候補は`2.0.0-alpha.31`。参照するStorefront Client候補は`2.0.0-alpha.31`、
-Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.28`。
+Package Version候補は`2.0.0-alpha.33`。参照するStorefront Client候補は`2.0.0-alpha.33`、
+Site Schemaは`2.0.0-alpha.23`、Public OpenAPI Contractは`2.0.0-alpha.29`。
 `PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES`はpending／requires action／completed／failed／
 canceled／expired、`PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES`はsaved Cardとlive Registrationを
 合算した`registration_remaining`／`next_capacity_at`、

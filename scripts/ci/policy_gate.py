@@ -1553,6 +1553,8 @@ def validate_storefront_contract_publication(
         'test "$WORKFLOW_REF" = "refs/heads/main"',
         'test "$WORKFLOW_SHA" = "$INPUT_EXPECTED_MERGED_SHA"',
         "storefront_contract_publication.py authorize",
+        "pnpm storefront:check",
+        "pnpm testkit:check",
         "storefront_contract_artifact.py validate-source",
         "storefront_contract_artifact.py build",
         "storefront_contract_artifact.py verify",
@@ -1624,6 +1626,24 @@ def validate_storefront_contract_publication(
         raise PolicyFailure(
             "Storefront contract publication authority missing: "
             + ", ".join(missing_helper)
+        )
+
+    artifact_helper = (
+        repository / "scripts/release/storefront_contract_artifact.py"
+    ).read_text(encoding="utf-8")
+    required_artifact_helper = {
+        "read_source_client_runtime_version",
+        "client source runtime version mismatch",
+        "read_client_runtime_version",
+        "tarball runtime version mismatch",
+    }
+    missing_artifact_helper = sorted(
+        item for item in required_artifact_helper if item not in artifact_helper
+    )
+    if missing_artifact_helper:
+        raise PolicyFailure(
+            "Storefront contract semantic validation missing: "
+            + ", ".join(missing_artifact_helper)
         )
 
     preview_workflow = (

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -66,6 +67,20 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
+
+test("Testkit VersionとClient bundle metadataを一致させる", async () => {
+  const packageManifest = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(
+    packageManifest.version,
+    packageManifest.oripaCompatibility.storefrontClientVersion,
+  );
+  assert.equal(
+    packageManifest.dependencies["@oripa/storefront-client"],
+    `workspace:${packageManifest.version}`,
+  );
+});
 
 test("Public Auth FixtureはCookie Session状態をCredentialなしで表現する", () => {
   assert.equal(PUBLIC_AUTH_FIXTURE.anonymous_session.authenticated, false);
