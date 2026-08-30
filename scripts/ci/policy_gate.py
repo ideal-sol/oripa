@@ -1163,8 +1163,11 @@ CURRENT_SECURITY = (
 OBSOLETE_SECURITY = (
     "V2_IDENTITY_AUTHORIZATION_SECURITY_BASELINE_FINAL_2026-07-22.md"
 )
-CURRENT_GOVERNANCE = "V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md"
-CURRENT_RELEASE_GATES = "V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md"
+CURRENT_GOVERNANCE = "V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV3_2026-08-30.md"
+CURRENT_RELEASE_GATES = "V2_RELEASE_GATES_FINAL_REV2_2026-08-30.md"
+CURRENT_GITHUB_AUTONOMY = (
+    "V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_REV1_2026-08-30.md"
+)
 
 
 class PolicyFailure(RuntimeError):
@@ -1217,13 +1220,20 @@ def metadata_value(body: str, label: str) -> str:
     return match.group(1).strip()
 
 
-def section_bullets(body: str, heading: str) -> list[str]:
+def section_bullets(
+    body: str,
+    heading: str,
+    *,
+    required: bool = True,
+) -> list[str]:
     match = re.search(
         rf"^###\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^#{{2,3}}\s+|\Z)",
         body,
         re.MULTILINE,
     )
     if not match:
+        if not required:
+            return []
         raise PolicyFailure(f"pull request section missing: {heading}")
     values = []
     for line in match.group(1).splitlines():
@@ -1235,7 +1245,7 @@ def section_bullets(body: str, heading: str) -> list[str]:
             value = value[1:]
         if value and value != "-":
             values.append(value)
-    if not values:
+    if not values and required:
         raise PolicyFailure(f"pull request section is empty: {heading}")
     return values
 
@@ -1273,11 +1283,11 @@ def validate_pr_body(
         raise PolicyFailure("pull request Base SHA does not match the event base")
 
     declared_changed = set(section_bullets(body, "Changed files"))
-    allowed = set(section_bullets(body, "Allowed paths"))
+    allowed = set(section_bullets(body, "Allowed paths", required=False))
     actual = set(actual_changed_paths)
     if declared_changed != actual:
         raise PolicyFailure("declared Changed files do not match the Git diff")
-    if not all(declared_path_allowed(path, allowed) for path in actual):
+    if allowed and not all(declared_path_allowed(path, allowed) for path in actual):
         raise PolicyFailure("Git diff includes a path outside declared Allowed paths")
     try:
         lane_policy.validate_pr_lane(body, actual)
@@ -5970,7 +5980,12 @@ def validate_architecture_index(repository: Path) -> None:
         target = (index_path.parent / link.split("#", 1)[0]).resolve()
         if not target.is_file():
             raise PolicyFailure(f"architecture index link does not exist: {link}")
-    for current in (CURRENT_SECURITY, CURRENT_GOVERNANCE, CURRENT_RELEASE_GATES):
+    for current in (
+        CURRENT_SECURITY,
+        CURRENT_GOVERNANCE,
+        CURRENT_RELEASE_GATES,
+        CURRENT_GITHUB_AUTONOMY,
+    ):
         if current not in text or not (index_path.parent / current).is_file():
             raise PolicyFailure(f"architecture authority missing: {current}")
     if OBSOLETE_SECURITY in text:

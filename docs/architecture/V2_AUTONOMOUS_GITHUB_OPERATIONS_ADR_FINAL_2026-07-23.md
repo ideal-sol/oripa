@@ -4,6 +4,10 @@
 - Status: **FINAL**
 - Decision date: 2026-07-23
 
+> **SUPERSEDED / HISTORICAL:** Revision 1 dated 2026-08-30 is the current ADR.
+> Its Engineering Safety Strict / Git Lite decision replaces the universal Git
+> ceremony recorded below.
+
 ## Context
 
 The original V2 governance required human GitHub Approval and merge for every

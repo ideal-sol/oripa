@@ -818,6 +818,111 @@ class PolicyGateTest(unittest.TestCase):
         policy_gate.validate_workflow_text("fixture.yml", data["workflow"])
         policy_gate.validate_dangerous_paths(data["tracked_paths"])
 
+    def test_git_lite_pull_request_can_omit_exact_allowed_paths(self):
+        data = fixture("positive.json")
+        body = data["pr_body"].replace(
+            "### Allowed paths\n\n- `scripts/ci/policy_gate.py`\n\n",
+            "",
+        )
+        policy_gate.validate_pr_body(
+            body,
+            data["title"],
+            data["changed_paths"],
+            data["base_sha"],
+        )
+
+    def test_git_lite_pull_request_can_leave_optional_allowed_paths_empty(self):
+        data = fixture("positive.json")
+        body = data["pr_body"].replace(
+            "- `scripts/ci/policy_gate.py`\n\n### Changed files",
+            "<!-- Optional exact scope control. -->\n\n### Changed files",
+            1,
+        )
+        policy_gate.validate_pr_body(
+            body,
+            data["title"],
+            data["changed_paths"],
+            data["base_sha"],
+        )
+
+    def test_git_lite_selected_exact_allowed_paths_remain_enforced(self):
+        data = fixture("positive.json")
+        body = data["pr_body"].replace(
+            "- `scripts/ci/policy_gate.py`\n\n### Changed files",
+            "- `docs/**`\n\n### Changed files",
+            1,
+        )
+        with self.assertRaisesRegex(
+            policy_gate.PolicyFailure,
+            "outside declared Allowed paths",
+        ):
+            policy_gate.validate_pr_body(
+                body,
+                data["title"],
+                data["changed_paths"],
+                data["base_sha"],
+            )
+
+    def test_git_lite_governance_is_current_and_legacy_rules_are_historical(self):
+        architecture = ROOT / "docs/architecture"
+        governance = (architecture / policy_gate.CURRENT_GOVERNANCE).read_text(
+            encoding="utf-8"
+        )
+        release_gates = (architecture / policy_gate.CURRENT_RELEASE_GATES).read_text(
+            encoding="utf-8"
+        )
+        autonomy = (architecture / policy_gate.CURRENT_GITHUB_AUTONOMY).read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("1 Change = 1 Branch = 1 PR", governance)
+        self.assertIn("Migration Allocation Lock", governance)
+        self.assertIn("Head tree == Merge tree", governance)
+        self.assertIn("content diff 0", governance)
+        for conditional_control in (
+            "Issue,",
+            "dedicated Worktree",
+            "Task Policy",
+            "Source Lock",
+        ):
+            self.assertIn(conditional_control, release_gates)
+        self.assertIn("conditional controls under", release_gates)
+        self.assertIn("Engineering Safety Strict / Git Lite", autonomy)
+
+        current_sources = (
+            ROOT / "AGENTS.md",
+            ROOT / ".github/pull_request_template.md",
+            ROOT / ".github/ISSUE_TEMPLATE/task.yml",
+            ROOT / "docs/operations/codex-access/README.md",
+            ROOT / "docs/operations/codex-access/repository-access-matrix.md",
+            ROOT / "docs/operations/github-rulesets/GOV-005-BASELINE.md",
+            ROOT / "docs/operations/deployment/preview-image-build.md",
+            architecture / policy_gate.CURRENT_GOVERNANCE,
+            architecture / policy_gate.CURRENT_RELEASE_GATES,
+            architecture / policy_gate.CURRENT_GITHUB_AUTONOMY,
+        )
+        legacy_mandates = (
+            "Use exactly one Issue, one task branch, one dedicated worktree",
+            "One Issue, one Branch, one Worktree and one PR",
+            "Changes use one Issue, branch, worktree, PR",
+            "Work only in the dedicated task worktree",
+            "Task ID, Issue, task branch, worktree, and PR are present",
+            "Bind every operation to a root-owned task policy",
+        )
+        for source in current_sources:
+            text = source.read_text(encoding="utf-8")
+            for legacy_mandate in legacy_mandates:
+                with self.subTest(source=source, legacy_mandate=legacy_mandate):
+                    self.assertNotIn(legacy_mandate, text)
+
+        for historical in (
+            "V2_CODEX_GIT_CI_GOVERNANCE_FINAL_REV2_2026-07-23.md",
+            "V2_RELEASE_GATES_FINAL_REV1_2026-07-23.md",
+            "V2_AUTONOMOUS_GITHUB_OPERATIONS_ADR_FINAL_2026-07-23.md",
+        ):
+            with self.subTest(historical=historical):
+                text = (architecture / historical).read_text(encoding="utf-8")
+                self.assertIn("SUPERSEDED / HISTORICAL", text)
+
     def test_contract_lane_task_id_with_multiple_segments_passes(self):
         data = fixture("positive.json")
         body = data["pr_body"].replace("GOV-008", "STORE-SITE-034")

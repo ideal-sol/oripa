@@ -10,7 +10,7 @@
 
 | Subject | Platform `ideal-sol/oripa` | Site Template | Own customer Site | Other customer Sites |
 | --- | --- | --- | --- | --- |
-| Platform Codex | Write through task-policy GitHub App workflow | Write only while Platform manages the template | No write by default | No read or write |
+| Platform Codex | Write through protected-PR GitHub App workflow; add a Task Policy when operation risk requires it | Write only while Platform manages the template | No write by default | No read or write |
 | Luxe Pack Site Codex | No write | No write | Write only to the Luxe Pack repository | No read or write |
 | Customer Site Codex | No write | No write | Write only to that customer's repository | No read or write |
 

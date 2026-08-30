@@ -2,12 +2,15 @@
 
 ## Status
 
-This is the active baseline for `ideal-sol/oripa`. It supersedes the
-human-approval proposal committed by GOV-005.
+This is the active branch and tag protection baseline for `ideal-sol/oripa`.
+It supersedes the human-approval proposal committed by GOV-005 and operates
+under the current Engineering Safety Strict / Git Lite Governance.
 
 Platform Codex applies and verifies these settings through a fixed,
-policy-constrained GitHub App wrapper. Application does not authorize bypassing
-CI, direct push to `main`, force push, Archive mutation, or Stable Tag mutation.
+operation-constrained GitHub App wrapper. A Task Policy is added when the
+operation risk requires one; it is not a universal Change prerequisite.
+Application does not authorize bypassing CI, direct push to `main`, force push,
+Archive mutation, or Stable Tag mutation.
 
 Reference: [GitHub REST API endpoints for repository rules](https://docs.github.com/en/rest/repos/rules)
 
@@ -131,7 +134,8 @@ Autonomous merge still uses the fixed-head wrapper after all gates pass.
 
 ## Application Procedure
 
-1. Confirm the task policy, expected base SHA, and clean main.
+1. Confirm the Change identity, expected base SHA, clean `main`, and any Task
+   Policy selected for the operation.
 2. Read current settings and Rulesets through authenticated API calls.
 3. Validate every JSON file and replace only the approved internal App actor
    placeholder.
@@ -146,9 +150,10 @@ Autonomous merge still uses the fixed-head wrapper after all gates pass.
 
 Before each merge:
 
-- PR Task ID, branch, base, and head match policy;
+- PR Change ID, branch, base, and head match the fixed Change identity;
 - current head equals expected reviewed head;
-- changed files are in allowed paths;
+- declared changed files equal the actual Git diff;
+- exact allowed paths pass when that optional scope control is selected;
 - every available required check passes;
 - local required validation passes;
 - no secret/PII candidate remains;
@@ -168,7 +173,8 @@ recovery:
 
 1. stop automated merge and release operations;
 2. preserve redacted before-state evidence;
-3. create a dedicated recovery Issue and policy;
+3. create a dedicated recovery Change, plus an Issue and policy when the
+   recovery risk requires them;
 4. change only the minimum affected configuration;
 5. restore and verify the baseline immediately.
 
@@ -188,7 +194,8 @@ Archive and Stable Tag immutability cannot be waived by Codex.
 
 Record:
 
-- Task, Issue, PR, branch, base, and head SHA;
+- Change, optional Issue, PR, branch, base, and head SHA;
+- worktree mode and optional Task Policy, exact scope, and Source Lock state;
 - redacted before/after Ruleset summaries;
 - Repository setting results;
 - local and GitHub checks;

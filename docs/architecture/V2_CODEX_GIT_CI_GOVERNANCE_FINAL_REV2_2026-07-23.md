@@ -5,6 +5,10 @@
 - Confirmed: 2026-07-23
 - Repository: `ideal-sol/oripa`
 
+> **SUPERSEDED / HISTORICAL:** Revision 3 dated 2026-08-30 is the current
+> authority. The universal Issue, dedicated Worktree, Task Policy, and exact
+> path ceremony below must not be applied to current Changes.
+
 ## Supersession
 
 This document supersedes
