@@ -742,22 +742,22 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_alpha_32_candidate(self):
+    def test_storefront_release_governance_accepts_reconciled_alpha_32(self):
         value = policy_gate.storefront_release_governance(ROOT)
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.31")
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.32")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
-        self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.30")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.32")
-        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
-        self.assertEqual(value["candidate"]["public_api_operation_count"], 74)
-        self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 71)
+        self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.31")
+        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["latest_immutable"]["source_commit"], "4147487f8f1474d5261a12aa8a0ad124cebe922f")
+        self.assertEqual(value["latest_immutable"]["manifest_sha256"], "263955a5521a863635bf6ad23d604e52b1319e84052178288bad7b7c308de564")
+        self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 74)
         self.assertEqual(
             value["latest_immutable"]["contract_versions"],
             {
-                "public": "2.0.0-alpha.28",
-                "admin": "2.0.0-alpha.28",
-                "webhook": "2.0.0-alpha.28",
+                "public": "2.0.0-alpha.29",
+                "admin": "2.0.0-alpha.29",
+                "webhook": "2.0.0-alpha.29",
             },
         )
 

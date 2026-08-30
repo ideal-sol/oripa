@@ -263,6 +263,39 @@ Task applies Migration 000067, performs an API-only Build and Shared Preview API
 Activation, and passes Runtime Acceptance. This reconciliation does not
 redispatch or overwrite the Artifact and performs no Build or Activation.
 
+## Released Account Security Contract
+
+GOV-023 reconciled immutable `2.0.0-alpha.32` after the Account Security
+publication workflow built it from the exact ACCT-001 squash commit
+`4147487f8f1474d5261a12aa8a0ad124cebe922f` on protected `main`. Workflow Run
+`33307134531` completed successfully on attempt 1 and produced the single
+available, unexpired Artifact
+`oripa-storefront-contract-2.0.0-alpha.32` with Artifact ID `9730828197`.
+
+A fresh canonical remote download and readback fixed these SHA-256 values:
+
+- GitHub outer Artifact: `e891ea105a03bc3e484d06ff837730d2c0f24ab5d7df887a3a7040011b8a6744`
+- Manifest: `263955a5521a863635bf6ad23d604e52b1319e84052178288bad7b7c308de564`
+- Client: `5d00dd111914d4bd6da248c99b98fcc697eb1507092fe6757015745e73856ad8`
+- Testkit: `6124a6ac5837984eda60fdada0dae98fa24f28285ed674b7197f3b64bd7095be`
+- Public OpenAPI: `9670bc769080da605c97cb9849b61f342cf0111bc39e91c09dbbf62fc4bcc720`
+- `SHA256SUMS`: `755c4a752250edc77da01d6dd7c2b7ef781aa3cfc55b696be47c760517bd4237`
+
+The Manifest records `contract-additive`, `breaking_change: false`, browser-
+compatible Client and Testkit alpha.32, Public OpenAPI alpha.29 with 74
+operations, and referenced immutable Site Schema alpha.23. The Release Ledger
+retains schema `2.0`, appends alpha.32 after unmodified alpha.31, sets the exact
+alpha.32 record as `latest_immutable`, and clears `candidate` to `null`.
+Artifact ID, Workflow Run, outer Artifact digest, and `SHA256SUMS` digest remain
+in this canonical release record because the existing Ledger schema has no such
+fields; GOV-023 does not expand that schema.
+
+Artifact Ledger reconciliation and exact-pin Storefront adoption are GO after
+the GOV-023 squash merge. Storefront Account Security UI implementation remains
+a separate Site Change. This reconciliation does not publish, rebuild,
+overwrite, or replace the Artifact and performs no Build, Migration, Runtime
+Activation, database mutation, or Production action.
+
 The validator requires:
 
 1. A pending bundle to be exactly the next Alpha sequence after the latest immutable bundle.
