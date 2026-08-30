@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -30,6 +31,9 @@ import {
   createStorefrontPaymentClient,
   createStorefrontPrizeShippingClient,
 } from "../dist/index.js";
+import {
+  STOREFRONT_CLIENT_VERSION,
+} from "../dist/constants.js";
 
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {
@@ -46,6 +50,13 @@ const browserConfig = (fetch) => ({
   site_version: "1.0.0",
   default_timeout_ms: 500,
   fetch,
+});
+
+test("Package VersionとRuntime Versionを一致させる", async () => {
+  const packageManifest = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(packageManifest.version, STOREFRONT_CLIENT_VERSION);
 });
 
 test("Browser通信はCookie、Version Header、Response Metadataを固定する", async () => {
@@ -69,7 +80,10 @@ test("Browser通信はCookie、Version Header、Response Metadataを固定する
   const result = await client.request({ path: "/transport-test" });
   assert.equal(request.url, "/api/v2/transport-test");
   assert.equal(request.init.credentials, "include");
-  assert.equal(request.init.headers.get("X-Oripa-Client-Version"), "2.0.0-alpha.31");
+  assert.equal(
+    request.init.headers.get("X-Oripa-Client-Version"),
+    STOREFRONT_CLIENT_VERSION,
+  );
   assert.equal(request.init.headers.get("X-Oripa-Site-Version"), "1.0.0");
   assert.equal(result.metadata.request_id, "req_test");
   assert.equal(result.metadata.api_version, "2");

@@ -36,10 +36,13 @@ Before any package command, the authority helper verifies all of the following:
    pre-merge `source_commit`, and GitHub has no Artifact with that version name.
    Any duplicate version, including an expired Artifact, fails closed.
 
-The contract-only job builds only the Public OpenAPI, Storefront Client, and
-Storefront Testkit bundle plus `artifact-manifest.json` and `SHA256SUMS`. API image build count is zero. API push, API Activation, Admin build, Storefront
-application build, and Migration creation or application are also zero. The
-workflow has read-only repository permissions and never commits to `main`.
+The contract-only job runs the Client and Testkit checks, then builds only the
+Public OpenAPI, Storefront Client, and Storefront Testkit bundle plus
+`artifact-manifest.json` and `SHA256SUMS`. It imports the packed Client runtime
+constant and requires it to equal both the packed package version and bundle
+version. API image build count is zero. API push, API Activation, Admin build,
+Storefront application build, and Migration creation or application are also
+zero. The workflow has read-only repository permissions and never commits to `main`.
 
 The upload uses the immutable version as its name, disables overwrite, and is
 serialized across the repository. A required downstream readback job downloads
@@ -290,11 +293,15 @@ Artifact ID, Workflow Run, outer Artifact digest, and `SHA256SUMS` digest remain
 in this canonical release record because the existing Ledger schema has no such
 fields; GOV-023 does not expand that schema.
 
-Artifact Ledger reconciliation and exact-pin Storefront adoption are GO after
-the GOV-023 squash merge. Storefront Account Security UI implementation remains
-a separate Site Change. This reconciliation does not publish, rebuild,
-overwrite, or replace the Artifact and performs no Build, Migration, Runtime
-Activation, database mutation, or Production action.
+The later fresh semantic readback found that the packed Client
+`package.json.version` is `2.0.0-alpha.32` while packed
+`dist/constants.js` exports `STOREFRONT_CLIENT_VERSION` as
+`2.0.0-alpha.31`. The transport therefore sends the old
+`X-Oripa-Client-Version`. Alpha.32 remains published and immutable: it is never
+deleted, overwritten, rebuilt, or republished. Its ledger `handoff_status` is
+`retired`, meaning published but non-adoptable, and `2.0.0-alpha.33` is the next
+package-only repair candidate. Public OpenAPI stays independently fixed at
+`2.0.0-alpha.29` with the existing hash and 74 operations.
 
 The validator requires:
 
@@ -303,8 +310,10 @@ The validator requires:
 3. Referenced Site Schema version, digest, source bundle, and source tree to match immutable evidence.
 4. Public OpenAPI digest and operation count to match the declared additive contract.
 5. Client minimum Public API, required capabilities, Testkit dependencies, and operation count to match.
-6. The Artifact inventory to contain only Client, Testkit, Public OpenAPI, Manifest, and checksums.
-7. A settled ledger with `candidate: null` to reject a second publication attempt.
+6. Client source package/runtime versions and the transport version header to remain coherent.
+7. Packed Client package/runtime versions and packed Testkit package version to equal the bundle version.
+8. The Artifact inventory to contain only Client, Testkit, Public OpenAPI, Manifest, and checksums.
+9. A settled ledger with `candidate: null` to reject a second publication attempt.
 
 ## Validation And Publication
 

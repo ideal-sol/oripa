@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 
 
 GOVERNANCE_PATH = Path("manifests/storefront-contract-releases.json")
@@ -25,6 +26,9 @@ PACKAGE_PATHS = {
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 ALPHA_VERSION = re.compile(r"^(?P<family>[0-9]+)\.0\.0-alpha\.(?P<sequence>[0-9]+)$")
+SOURCE_CLIENT_VERSION = re.compile(
+    r'^export const STOREFRONT_CLIENT_VERSION = "([^"]+)";$', re.MULTILINE
+)
 
 
 class ArtifactError(RuntimeError):
@@ -92,7 +96,7 @@ def validate_immutable_release(value: dict) -> None:
         "public_openapi",
         "packages",
     }
-    if set(value) != required or value["handoff_status"] != "released":
+    if set(value) != required or value["handoff_status"] not in {"released", "retired"}:
         raise ArtifactError("immutable release record invalid")
     alpha_identity(value["bundle_version"])
     if (
@@ -199,6 +203,8 @@ def validate_governance(value: dict) -> dict:
     if latest != history[-1]:
         raise ArtifactError("latest immutable release mismatch")
     if candidate is None:
+        if latest.get("handoff_status") != "released":
+            raise ArtifactError("latest immutable release is not adoptable")
         return value
     if not isinstance(candidate, dict) or candidate.get("release_state") != "pending":
         raise ArtifactError("release candidate state invalid")
@@ -343,6 +349,17 @@ def git_tree(repository: Path, relative: Path) -> str:
     return run(["git", "rev-parse", f"HEAD:{relative.as_posix()}"], cwd=repository, capture=True)
 
 
+def read_source_client_runtime_version(repository: Path) -> str:
+    path = repository / PACKAGE_PATHS["@oripa/storefront-client"] / "src/constants.ts"
+    try:
+        matches = SOURCE_CLIENT_VERSION.findall(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError) as error:
+        raise ArtifactError("client source runtime version missing") from error
+    if len(matches) != 1 or not ALPHA_VERSION.fullmatch(matches[0]):
+        raise ArtifactError("client source runtime version invalid")
+    return matches[0]
+
+
 def validate_source(repository: Path) -> dict:
     value = governance(repository)
     source = release_source(value)
@@ -379,6 +396,8 @@ def validate_source(repository: Path) -> dict:
         raise ArtifactError("referenced Site Schema source changed")
     client_package = load_json(repository / PACKAGE_PATHS["@oripa/storefront-client"] / "package.json")
     testkit_package = load_json(repository / PACKAGE_PATHS["@oripa/storefront-testkit"] / "package.json")
+    if read_source_client_runtime_version(repository) != client_package.get("version"):
+        raise ArtifactError("client source runtime version mismatch")
     if client_package.get("oripaCompatibility", {}).get("minimumPublicApiContract") != contracts["public"]["version"]:
         raise ArtifactError("client package compatibility metadata mismatch")
     if testkit_package.get("dependencies") != {
@@ -415,6 +434,39 @@ def read_package_manifest(path: Path) -> dict:
     if not isinstance(value, dict):
         raise ArtifactError(f"package manifest invalid: {path.name}")
     return value
+
+
+def read_client_runtime_version(path: Path) -> str:
+    with tarfile.open(path, mode="r:gz") as archive:
+        stream = archive.extractfile("package/dist/constants.js")
+        if stream is None:
+            raise ArtifactError(f"client runtime constants missing: {path.name}")
+        runtime_module = stream.read()
+    with tempfile.TemporaryDirectory(prefix="oripa-storefront-client-runtime-") as temporary:
+        module_path = Path(temporary) / "constants.mjs"
+        module_path.write_bytes(runtime_module)
+        result = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "--eval",
+                (
+                    "const constantsModule = await import(process.argv[1]);"
+                    "const runtimeVersion = constantsModule.STOREFRONT_CLIENT_VERSION;"
+                    "if (typeof runtimeVersion !== 'string') process.exit(2);"
+                    "process.stdout.write(runtimeVersion);"
+                ),
+                module_path.as_uri(),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            text=True,
+        )
+    runtime_version = result.stdout.strip()
+    if result.returncode != 0 or not ALPHA_VERSION.fullmatch(runtime_version):
+        raise ArtifactError(f"client runtime constants invalid: {path.name}")
+    return runtime_version
 
 
 def write_json(path: Path, value: object) -> None:
@@ -561,6 +613,11 @@ def verify_manifest(repository: Path, output: Path) -> dict:
             package = read_package_manifest(path)
             if package.get("name") != row["name"] or package.get("version") != row["version"]:
                 raise ArtifactError(f"{row['name']}: tarball identity mismatch")
+            if (
+                row["name"] == "@oripa/storefront-client"
+                and read_client_runtime_version(path) != row["version"]
+            ):
+                raise ArtifactError("@oripa/storefront-client: tarball runtime version mismatch")
             for key in (
                 "minimum_public_api_contract",
                 "required_capabilities",

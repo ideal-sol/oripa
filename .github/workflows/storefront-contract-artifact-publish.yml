@@ -117,6 +117,8 @@ jobs:
           corepack prepare pnpm@10.12.1 --activate
           pnpm install --frozen-lockfile
           output="$RUNNER_TEMP/storefront-contract"
+          pnpm storefront:check
+          pnpm testkit:check
           python3 scripts/release/storefront_contract_artifact.py validate-source \
             --repository .
           python3 scripts/release/storefront_contract_artifact.py build \
