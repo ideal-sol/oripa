@@ -2755,6 +2755,8 @@ def validate_v2_database_boundary(repository: Path, paths: Iterable[str]) -> Non
     for required in (
         "infra/docker/backend/Dockerfile",
         "v2:identity:work-mail-outbox",
+        "profiles:",
+        "- identity-mail",
         "v2_private",
         "v2_api_egress",
     ):

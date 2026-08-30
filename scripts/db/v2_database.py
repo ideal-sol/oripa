@@ -356,7 +356,7 @@ def validate_compose(
         raise GuardFailure("Unexpected Compose File")
     config_bytes = run(
         compose_command(repository, compose_file, env_file, project)
-        + ["config", "--format", "json"],
+        + ["--profile", "identity-mail", "config", "--format", "json"],
         cwd=repository,
     )
     try:
@@ -376,6 +376,8 @@ def validate_compose(
         raise GuardFailure("PostgreSQL major version is invalid")
     if not str(services["redis"].get("image", "")).startswith("redis:7"):
         raise GuardFailure("Redis major version is invalid")
+    if services["identity-mail-worker"].get("profiles") != ["identity-mail"]:
+        raise GuardFailure("V2 identity mail worker profile is invalid")
     for service_name in ("postgres", "redis"):
         if services[service_name].get("ports"):
             raise GuardFailure("Database and Redis Host Ports are prohibited")
@@ -1015,7 +1017,17 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         try:
             source_started = True
             run(
-                source_base + ["up", "--detach", "--wait", "--build"],
+                source_base
+                + [
+                    "up",
+                    "--detach",
+                    "--wait",
+                    "--build",
+                    "api",
+                    "admin",
+                    "postgres",
+                    "redis",
+                ],
                 cwd=repository,
                 capture=False,
             )

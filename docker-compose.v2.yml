@@ -74,6 +74,8 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - identity-mail
     command:
       - /bin/sh
       - -ec

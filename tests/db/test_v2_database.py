@@ -53,6 +53,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "services": {
                 "api": {"networks": {"v2_private": {}}},
                 "identity-mail-worker": {
+                    "profiles": ["identity-mail"],
                     "networks": {
                         "v2_private": {},
                         "v2_api_egress": {},
@@ -119,6 +120,29 @@ class V2DatabaseGuardTest(unittest.TestCase):
             self.validate_compose_config(self.valid_compose_config()),
         )
 
+    def test_validation_explicitly_resolves_identity_mail_profile(self):
+        compose_file = self.repository / "docker-compose.v2.yml"
+        compose_file.write_text("services: {}\n", encoding="utf-8")
+        env_file = self.repository / "runtime.env"
+        with mock.patch.object(
+            v2_database,
+            "run",
+            return_value=__import__("json").dumps(
+                self.valid_compose_config()
+            ).encode(),
+        ) as command_run:
+            v2_database.validate_compose(
+                self.repository,
+                compose_file,
+                env_file,
+                self.values["COMPOSE_PROJECT_NAME"],
+                self.values,
+            )
+        self.assertEqual(
+            command_run.call_args.args[0][-5:],
+            ["--profile", "identity-mail", "config", "--format", "json"],
+        )
+
     def test_private_network_must_remain_internal(self):
         config = self.valid_compose_config()
         config["networks"]["v2_private"]["internal"] = False
@@ -143,6 +167,14 @@ class V2DatabaseGuardTest(unittest.TestCase):
             "v2_api_egress"
         ]
         with self.assertRaisesRegex(v2_database.GuardFailure, "Network isolation"):
+            self.validate_compose_config(config)
+
+    def test_identity_mail_worker_must_require_explicit_profile(self):
+        config = self.valid_compose_config()
+        config["services"]["identity-mail-worker"]["profiles"] = []
+        with self.assertRaisesRegex(
+            v2_database.GuardFailure, "identity mail worker profile"
+        ):
             self.validate_compose_config(config)
 
     def test_egress_network_must_match_scoped_bridge(self):

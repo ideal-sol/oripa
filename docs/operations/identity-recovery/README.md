@@ -58,6 +58,8 @@ Production Deployment、AdminによるPassword設定は所有しない。
 - Security Mail Workerは対象TopicだけをClaimする。Provider失敗はRetry／Audit／既存可視化へ
   送り、既に確定したAccount mutationを巻き戻さない。Outbox／必須Audit永続化失敗は
   Account mutation TransactionをFail ClosedでRollbackする。
+- ComposeのSecurity Mail Workerは`identity-mail` Profileで明示起動する。Database smokeや
+  通常のCore Service起動では自動起動せず、Migration後の承認済みActivationだけが起動する。
 - Raw TokenはToken Table、Audit、Error、Logへ保存しない。通知に必要なRaw Tokenは
   Application-level EncryptionしたOutbox Payloadにだけ保持する。
 

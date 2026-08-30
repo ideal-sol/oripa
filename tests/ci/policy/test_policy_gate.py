@@ -1314,6 +1314,8 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - identity-mail
     command: php artisan v2:identity:work-mail-outbox
     networks:
       - v2_private
@@ -1487,6 +1489,22 @@ python3 scripts/db/v2_database.py smoke \\
                 compose.read_text(encoding="utf-8").replace(
                     "      - v2_private\n      - v2_api_egress\n  admin:\n",
                     "      - v2_private\n  admin:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "worker.*missing"):
+                policy_gate.validate_v2_database_boundary(root, paths)
+
+    def test_v2_identity_mail_worker_profile_is_required(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.make_v2_database_boundary(root)
+            compose = root / "docker-compose.v2.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "    profiles:\n      - identity-mail\n",
+                    "",
                     1,
                 ),
                 encoding="utf-8",
