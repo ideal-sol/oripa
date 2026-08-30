@@ -1554,6 +1554,7 @@ def validate_storefront_contract_publication(
         'test "$WORKFLOW_SHA" = "$INPUT_EXPECTED_MERGED_SHA"',
         "storefront_contract_publication.py authorize",
         "pnpm storefront:check",
+        "pnpm site-schema:build",
         "pnpm testkit:check",
         "storefront_contract_artifact.py validate-source",
         "storefront_contract_artifact.py build",

@@ -318,7 +318,12 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(workflow.count("actions/checkout@"), 3)
         self.assertIn('test "$(git rev-parse HEAD)"', workflow)
         self.assertIn("pnpm storefront:check", workflow)
+        self.assertIn("pnpm site-schema:build", workflow)
         self.assertIn("pnpm testkit:check", workflow)
+        self.assertLess(
+            workflow.index("pnpm site-schema:build"),
+            workflow.index("pnpm testkit:check"),
+        )
         self.assertIn("storefront_contract_artifact.py validate-source", workflow)
         self.assertIn("storefront_contract_artifact.py build", workflow)
         self.assertIn("storefront_contract_artifact.py verify", workflow)

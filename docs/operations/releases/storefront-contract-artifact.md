@@ -36,9 +36,11 @@ Before any package command, the authority helper verifies all of the following:
    pre-merge `source_commit`, and GitHub has no Artifact with that version name.
    Any duplicate version, including an expired Artifact, fails closed.
 
-The contract-only job runs the Client and Testkit checks, then builds only the
-Public OpenAPI, Storefront Client, and Storefront Testkit bundle plus
-`artifact-manifest.json` and `SHA256SUMS`. It imports the packed Client runtime
+The contract-only job runs the Client checks, builds the referenced Site Schema
+dependency, and then runs the Testkit checks before building only the Public
+OpenAPI, Storefront Client, and Storefront Testkit bundle plus
+`artifact-manifest.json` and `SHA256SUMS`. The referenced Site Schema is not
+republished. The job imports the packed Client runtime
 constant and requires it to equal both the packed package version and bundle
 version. API image build count is zero. API push, API Activation, Admin build,
 Storefront application build, and Migration creation or application are also
