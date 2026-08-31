@@ -29,6 +29,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
     private const CATEGORY_ID = '0198a001-0000-7000-8000-000000000001';
     private const TAG_ID = '0198a001-0000-7000-8000-000000000002';
     private const GACHA_ASSET_ID = '0198a001-0000-7000-8000-000000000005';
+    private const VIDEO_ASSET_ID = '0198a001-0000-7000-8000-000000000006';
     private const PRIZE_ASSET_ID = '0198a001-0000-7000-8000-000000000007';
     private const PRIZE_S_ID = '0198a001-0000-7000-8000-000000000009';
     private const PRIZE_A_ID = '0198a001-0000-7000-8000-000000000010';
@@ -783,34 +784,33 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             ]
         )['data'];
         $versionId = (string) $core['current_version']['id'];
-        $rank = $service->createGachaDraftRank(
+        $rankMasterId = (string) DB::table('catalog_rank_masters')
+            ->orderBy('id')
+            ->value('public_id');
+        $service->setGachaRankVideo(
             $context,
             $core['id'],
-            $versionId,
-            'gacha-initial-publish-concurrency-rank',
+            $rankMasterId,
+            'gacha-initial-publish-concurrency-video',
             [
-                'code' => 's',
-                'name' => 'S rank',
-                'description' => null,
-                'image_asset_id' => null,
-                'video_asset_id' => null,
-                'expected_version_revision' => 1,
+                'video_asset_id' => self::VIDEO_ASSET_ID,
+                'expected_revision' => 0,
             ]
-        )['data'];
-        $service->createGachaDraftPrize(
+        );
+        $service->createGachaRankPrize(
             $context,
             $core['id'],
             $versionId,
+            $rankMasterId,
             'gacha-initial-publish-concurrency-prize',
             [
-                'rank_id' => $rank['id'],
                 'presentation_asset_id' => self::PRIZE_ASSET_ID,
                 'name' => 'Initial publish prize',
                 'total_inventory' => 10,
                 'exchange_points' => 100,
                 'cost_price' => 50,
                 'is_active' => true,
-                'expected_version_revision' => 2,
+                'expected_version_revision' => 1,
             ]
         )['data'];
         $versionRevision = (int) DB::table('catalog_gacha_versions')
