@@ -147,14 +147,12 @@ function RankEffectList({
       </div>
       <div className="table-container rank-effect-table-container">
         <table>
-          <thead><tr><th>種別</th><th>タイトル</th><th>ランク</th><th>プレビュー</th><th>表示順</th><th>状態</th><th>更新日時</th><th>操作</th></tr></thead>
+          <thead><tr><th>種別</th><th>タイトル</th><th>プレビュー</th><th>状態</th><th>更新日時</th><th>操作</th></tr></thead>
           <tbody>{items.map((item) => (
             <tr key={item.id}>
               <td>{item.media_type === "image" ? "画像" : "動画"}</td>
               <td>{item.alt_text ?? "未設定"}</td>
-              <td>{item.rank_assignments.map((assignment) => assignment.rank.name).join("、")}</td>
               <td><RankEffectPreview compact effect={item} /></td>
-              <td>{item.rank_assignments.map((assignment) => assignment.sort_order).join("、")}</td>
               <td><span className={`status-badge ${item.is_public ? "is-success" : "is-muted"}`}>{item.is_public ? "有効" : "無効"}</span></td>
               <td>{formatDate(item.updated_at)}</td>
               <td><Link aria-label={`${item.alt_text ?? "ランク演出"}を編集`} className="icon-button" href={`/catalog/presentation-assets/${item.id}/edit`} title="編集"><Pencil aria-hidden="true" size={17} /></Link></td>

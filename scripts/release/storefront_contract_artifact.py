@@ -96,7 +96,7 @@ def validate_immutable_release(value: dict) -> None:
         "public_openapi",
         "packages",
     }
-    optional = {"publication"}
+    optional = {"publication", "breaking_change"}
     if (
         not required.issubset(value)
         or set(value) - required - optional
@@ -107,7 +107,20 @@ def validate_immutable_release(value: dict) -> None:
     if (
         not SHA256.fullmatch(str(value["manifest_sha256"]))
         or not FULL_SHA.fullmatch(str(value["source_commit"]))
-        or value["release_mode"] not in {"package-only", "contract-additive"}
+        or value["release_mode"] not in {
+            "package-only",
+            "contract-additive",
+            "contract-breaking",
+        }
+        or not isinstance(value.get("breaking_change", False), bool)
+        or (
+            value["release_mode"] == "contract-breaking"
+            and value.get("breaking_change") is not True
+        )
+        or (
+            value["release_mode"] != "contract-breaking"
+            and value.get("breaking_change", False)
+        )
     ):
         raise ArtifactError("immutable release evidence invalid")
     publication = value.get("publication")
@@ -251,8 +264,18 @@ def validate_governance(value: dict) -> dict:
     if candidate_family != latest_family or candidate_family != family or candidate_sequence != latest_sequence + 1:
         raise ArtifactError("candidate must be the next alpha bundle version")
     release_mode = candidate.get("release_mode")
-    if release_mode not in {"package-only", "contract-additive"}:
+    if release_mode not in {
+        "package-only",
+        "contract-additive",
+        "contract-breaking",
+    }:
         raise ArtifactError("unsupported release mode")
+    breaking_change = candidate.get("breaking_change", False)
+    if (
+        not isinstance(breaking_change, bool)
+        or (release_mode == "contract-breaking") != breaking_change
+    ):
+        raise ArtifactError("contract-breaking candidate authority mismatch")
 
     latest_packages = latest["packages"]
     candidate_packages = candidate.get("packages")
@@ -320,7 +343,12 @@ def validate_governance(value: dict) -> dict:
             or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
             or candidate.get("public_openapi_sha256") == public["sha256"]
             or not isinstance(candidate.get("public_api_operation_count"), int)
-            or candidate["public_api_operation_count"] < public["operation_count"]
+            or candidate["public_api_operation_count"] <= 0
+        ):
+            raise ArtifactError("contract candidate mismatch")
+        if (
+            release_mode == "contract-additive"
+            and candidate["public_api_operation_count"] < public["operation_count"]
         ):
             raise ArtifactError("additive contract candidate mismatch")
     client = candidate_packages["@oripa/storefront-client"]
@@ -563,7 +591,7 @@ def create_manifest(repository: Path, source_commit: str, created_at: str, asset
             "sha256": sha256_file(public),
             "compatibility_family": value["compatibility_family"],
             "operation_count": candidate["public_api_operation_count"],
-            "breaking_change": False,
+            "breaking_change": candidate.get("breaking_change", False),
         },
         "packages": package_rows,
         "toolchain": {"node": "22.22.3", "pnpm": "10.12.1"},
@@ -623,6 +651,7 @@ def verify_manifest(repository: Path, output: Path) -> dict:
         or public.get("sha256") != expected_public_sha256
         or public.get("file") != PUBLIC_OPENAPI_PATH.name
         or public.get("operation_count") != candidate["public_api_operation_count"]
+        or public.get("breaking_change") != candidate.get("breaking_change", False)
         or sha256_file(output / PUBLIC_OPENAPI_PATH.name) != public.get("sha256")
     ):
         raise ArtifactError("artifact manifest Public OpenAPI mismatch")

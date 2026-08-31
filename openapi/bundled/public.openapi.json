@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.29",
+    "version": "2.0.0-alpha.30",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -413,6 +413,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GachaDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/presentation-assets/{asset_id}/content": {
+      "get": {
+        "operationId": "getCanonicalPresentationAssetContent",
+        "summary": "Canonical Rank presentation Asset contentを取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "public-immutable",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable presentation Asset content。",
+            "content": {
+              "image/gif": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/quicktime": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -5567,147 +5640,57 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "code",
           "name"
         ],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
-          "code": {
-            "type": "string",
-            "pattern": "^[A-Z0-9_-]{1,32}$"
-          },
           "name": {
             "type": "string",
             "maxLength": 128
           }
         }
       },
-      "RankPresentationAsset": {
+      "GachaRankPresentation": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id",
-          "path",
-          "checksum_sha256",
-          "media_type",
-          "mime_type",
-          "alt_text",
-          "usage_type"
+          "rank_id",
+          "rank_name",
+          "lineup_image",
+          "show_total_stock",
+          "total_stock",
+          "display_order",
+          "current_video"
         ],
         "properties": {
-          "id": {
+          "rank_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
-          "path": {
-            "type": "string",
-            "pattern": "^/(?!/)",
-            "maxLength": 512
-          },
-          "checksum_sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
-          },
-          "media_type": {
-            "type": "string",
-            "enum": [
-              "image",
-              "video"
-            ]
-          },
-          "mime_type": {
+          "rank_name": {
             "type": "string",
             "maxLength": 128
           },
-          "alt_text": {
+          "lineup_image": {
+            "$ref": "#/components/schemas/PresentationAsset"
+          },
+          "show_total_stock": {
+            "type": "boolean"
+          },
+          "total_stock": {
             "type": [
-              "string",
+              "integer",
               "null"
             ],
-            "maxLength": 191
+            "minimum": 0
           },
-          "usage_type": {
-            "type": "string",
-            "enum": [
-              "image",
-              "video",
-              "result_image"
-            ]
-          }
-        }
-      },
-      "PrizeDisplay": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "name",
-          "description",
-          "display_price",
-          "exchange_points",
-          "presentation_asset"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/OpaqueId"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 191
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "display_price": {
+          "display_order": {
             "type": "integer",
             "minimum": 0
           },
-          "exchange_points": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "presentation_asset": {
-            "$ref": "#/components/schemas/NullablePresentationAsset"
-          }
-        }
-      },
-      "RankDisplay": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "code",
-          "name",
-          "presentation_assets",
-          "prizes"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/OpaqueId"
-          },
-          "code": {
-            "type": "string",
-            "pattern": "^[A-Z0-9_-]{1,32}$"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 128
-          },
-          "presentation_assets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RankPresentationAsset"
-            }
-          },
-          "prizes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PrizeDisplay"
-            }
+          "current_video": {
+            "$ref": "#/components/schemas/PresentationAsset"
           }
         }
       },
@@ -5927,7 +5910,7 @@
           "ranks": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RankDisplay"
+              "$ref": "#/components/schemas/GachaRankPresentation"
             }
           },
           "probability_stages": {
@@ -6728,22 +6711,6 @@
           }
         }
       },
-      "DrawAnimation": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "image",
-          "video"
-        ],
-        "properties": {
-          "image": {
-            "$ref": "#/components/schemas/NullablePresentationAsset"
-          },
-          "video": {
-            "$ref": "#/components/schemas/NullablePresentationAsset"
-          }
-        }
-      },
       "DrawResult": {
         "type": "object",
         "additionalProperties": false,
@@ -6752,9 +6719,11 @@
           "sequence_number",
           "result_type",
           "rank",
+          "rank_name_snapshot",
+          "result_image_snapshot",
+          "video_snapshot",
           "prize",
-          "point_back",
-          "animation"
+          "point_back"
         ],
         "properties": {
           "id": {
@@ -6781,6 +6750,19 @@
               }
             ]
           },
+          "rank_name_snapshot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "result_image_snapshot": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
+          "video_snapshot": {
+            "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
           "prize": {
             "oneOf": [
               {
@@ -6795,16 +6777,6 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/DrawPointBack"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "animation": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DrawAnimation"
               },
               {
                 "type": "null"
@@ -7954,5 +7926,10 @@
       }
     }
   },
-  "x-oripa-surface": "public"
+  "x-oripa-surface": "public",
+  "x-oripa-breaking-change": {
+    "authority": "oripa_v2_rank_master_gacha_rank_canonical_spec_v1.0_2026-08-28",
+    "change_id": "MIG-099",
+    "scope": "rank-master-gacha-rank-clean-cutover"
+  }
 }

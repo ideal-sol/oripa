@@ -511,7 +511,17 @@ describe("AdminApiClient", () => {
     const client = new AdminApiClient(fetcher, () => csrf);
 
     await expect(
-      client.archiveCatalogRank("../internal", 0, "", undefined),
+      client.updateCatalogRank(
+        "../internal",
+        {
+          expected_revision: 0,
+          rank_name: "Rank",
+          show_total_stock: false,
+          status: "active",
+        },
+        "",
+        undefined,
+      ),
     ).rejects.toMatchObject({
       code: "CATALOG_MUTATION_INVALID",
       status: 422,
@@ -519,22 +529,24 @@ describe("AdminApiClient", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("uses the shared mutation transport for Prize and Presentation Asset", async () => {
+  it("uses the rank-fixed Prize transport and shared Presentation Asset transport", async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }, 201))
       .mockResolvedValueOnce(jsonResponse({ data: {}, idempotent_replay: false }));
     const client = new AdminApiClient(fetcher, () => csrf);
 
-    await client.createCatalogPrize(
+    await client.createGachaRankPrize(
+      "01910191-0191-7191-8191-019101910190",
+      "01910191-0191-7191-8191-019101910191",
+      "01910191-0191-7191-8191-019101910192",
       {
-        code: "prize-a",
-        description: null,
-        display_price: 3000,
+        cost_price: 1000,
         exchange_points: 2000,
-        is_visible: true,
+        expected_version_revision: 1,
+        is_active: true,
         name: "Prize A",
         presentation_asset_id: null,
-        rank_id: "01910191-0191-7191-8191-019101910191",
+        total_inventory: 10,
       },
       "prize-create-key",
     );
@@ -544,7 +556,9 @@ describe("AdminApiClient", () => {
       "asset-update-key",
     );
 
-    expect(fetcher.mock.calls[0][0]).toBe("/admin/api/v2/catalog/prizes");
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "/admin/api/v2/catalog/gachas/01910191-0191-7191-8191-019101910190/versions/01910191-0191-7191-8191-019101910191/ranks/01910191-0191-7191-8191-019101910192/prizes",
+    );
     expect(fetcher.mock.calls[1][0]).toBe(
       "/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910192",
     );
@@ -717,7 +731,6 @@ describe("AdminApiClient", () => {
       file_name: "effect.png",
       is_active: true,
       mime_type: "image/png",
-      rank_assignments: [{ rank_id: id, sort_order: 0 }],
       title: "当選演出",
     }, "rank-effect-create-key");
 

@@ -2,13 +2,17 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.29
+  version: 2.0.0-alpha.30
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
   description: 共通管理画面向けAdmin API v2の認証Contract Alpha。
   x-status: alpha
 x-oripa-surface: admin
+x-oripa-breaking-change:
+  authority: oripa_v2_rank_master_gacha_rank_canonical_spec_v1.0_2026-08-28
+  change_id: MIG-099
+  scope: rank-master-gacha-rank-clean-cutover
 x-oripa-error-codes:
   FRESH_AUTHENTICATION_REQUIRED:
     status: 403
@@ -651,9 +655,9 @@ paths:
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
         - {$ref: '#/components/parameters/CatalogSearch'}
-        - {$ref: '#/components/parameters/CatalogVisibility'}
+        - {name: status, in: query, schema: {type: string, enum: [active, inactive, all], default: active}}
         - {$ref: '#/components/parameters/CatalogDirection'}
-        - {name: sort, in: query, schema: {type: string, enum: [sort_order, name, code], default: sort_order}}
+        - {name: sort, in: query, schema: {type: string, enum: [display_order, rank_name, created_at], default: display_order}}
       responses:
         '200': {description: Rank一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
@@ -673,6 +677,22 @@ paths:
             schema: {$ref: '#/components/schemas/AdminCatalogRankCreate'}
       responses:
         '201': {description: Rank作成結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/ranks/reorder:
+    put:
+      operationId: reorderAdminCatalogRanks
+      summary: Rank Masterの全Gacha共通表示順を更新する
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankReorder'}}}
+      responses:
+        '200': {description: Rank Master表示順更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankReorderResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /catalog/ranks/{catalog_resource_id}:
     get:
@@ -706,26 +726,6 @@ paths:
       responses:
         '200': {description: Rank更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
-  /catalog/ranks/{catalog_resource_id}/archive:
-    post:
-      operationId: archiveAdminCatalogRank
-      summary: RankをArchiveする
-      x-idempotency: required
-      x-rate-limit: catalog-mutation
-      x-cache-policy: no-store
-      x-stability: alpha
-      security: [{adminSession: []}]
-      parameters:
-        - {$ref: '#/components/parameters/CatalogResourceId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminCatalogArchiveRequest'}
-      responses:
-        '200': {description: Rank Archive結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankMutationResult'}}}}
-        default: {$ref: '#/components/responses/Problem'}
   /catalog/prizes:
     get:
       operationId: listAdminCatalogPrizes
@@ -746,23 +746,6 @@ paths:
       responses:
         '200': {description: Prize一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
-    post:
-      operationId: createAdminCatalogPrize
-      summary: Prizeを作成する
-      x-idempotency: required
-      x-rate-limit: catalog-mutation
-      x-cache-policy: no-store
-      x-stability: alpha
-      security: [{adminSession: []}]
-      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminCatalogPrizeCreate'}
-      responses:
-        '201': {description: Prize作成結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
-        default: {$ref: '#/components/responses/Problem'}
   /catalog/prizes/{catalog_resource_id}:
     get:
       operationId: getAdminCatalogPrize
@@ -775,45 +758,6 @@ paths:
       parameters: [{$ref: '#/components/parameters/CatalogResourceId'}]
       responses:
         '200': {description: Prize詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeDetail'}}}}
-        default: {$ref: '#/components/responses/Problem'}
-    put:
-      operationId: updateAdminCatalogPrize
-      summary: Prizeを更新する
-      x-idempotency: required
-      x-rate-limit: catalog-mutation
-      x-cache-policy: no-store
-      x-stability: alpha
-      security: [{adminSession: []}]
-      parameters:
-        - {$ref: '#/components/parameters/CatalogResourceId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminCatalogPrizeUpdate'}
-      responses:
-        '200': {description: Prize更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
-        default: {$ref: '#/components/responses/Problem'}
-  /catalog/prizes/{catalog_resource_id}/archive:
-    post:
-      operationId: archiveAdminCatalogPrize
-      summary: PrizeをArchiveする
-      x-idempotency: required
-      x-rate-limit: catalog-mutation
-      x-cache-policy: no-store
-      x-stability: alpha
-      security: [{adminSession: []}]
-      parameters:
-        - {$ref: '#/components/parameters/CatalogResourceId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminCatalogArchiveRequest'}
-      responses:
-        '200': {description: Prize Archive結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /catalog/presentation-assets:
     get:
@@ -1221,10 +1165,10 @@ paths:
       responses:
         '200': {description: Gacha Draft Version更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaVersionMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
-  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks:
+  /catalog/gachas/{gacha_id}/ranks:
     get:
-      operationId: listAdminGachaVersionRanks
-      summary: 対象Gacha Draft VersionのRank設定を参照する
+      operationId: listAdminGachaRanks
+      summary: 全active Rank MasterとGacha固有動画設定を参照する
       x-idempotency: safe
       x-rate-limit: admin-read
       x-cache-policy: no-store
@@ -1232,32 +1176,13 @@ paths:
       security: [{adminSession: []}]
       parameters:
         - {$ref: '#/components/parameters/GachaId'}
-        - {$ref: '#/components/parameters/GachaVersionId'}
       responses:
-        '200': {description: Rank設定一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionRankCollection'}}}}
+        '200': {description: Gacha Rank設定一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaRankCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
-    post:
-      operationId: createAdminGachaVersionRank
-      summary: 対象Gacha Draft VersionへRankを追加する
-      x-idempotency: required
-      x-rate-limit: catalog-mutation
-      x-cache-policy: no-store
-      x-stability: alpha
-      security: [{adminSession: []}]
-      parameters:
-        - {$ref: '#/components/parameters/GachaId'}
-        - {$ref: '#/components/parameters/GachaVersionId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-      requestBody:
-        required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionRankCreate'}}}
-      responses:
-        '201': {description: Rank追加結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankMutationResult'}}}}
-        default: {$ref: '#/components/responses/Problem'}
-  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}:
+  /catalog/gachas/{gacha_id}/ranks/{rank_id}/video:
     put:
-      operationId: updateAdminGachaVersionRank
-      summary: 対象Gacha Draft VersionのRankを更新する
+      operationId: setAdminGachaRankVideo
+      summary: Gacha Rankの動画Revisionを即時保存する
       x-idempotency: required
       x-rate-limit: catalog-mutation
       x-cache-policy: no-store
@@ -1265,14 +1190,32 @@ paths:
       security: [{adminSession: []}]
       parameters:
         - {$ref: '#/components/parameters/GachaId'}
-        - {$ref: '#/components/parameters/GachaVersionId'}
         - {name: rank_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionRankUpdate'}}}
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaRankVideoSet'}}}
       responses:
-        '200': {description: Rank更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogRankMutationResult'}}}}
+        '200': {description: Gacha Rank動画保存結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaRankMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset:
+    post:
+      operationId: unsetAdminGachaRankVideo
+      summary: 景品0件のGacha Rank動画を未設定へ戻す
+      x-idempotency: required
+      x-rate-limit: catalog-mutation
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {name: rank_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaRankVideoUnset'}}}
+      responses:
+        '200': {description: Gacha Rank動画解除結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaRankMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes:
     get:
@@ -1289,9 +1232,10 @@ paths:
       responses:
         '200': {description: 景品一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionPrizeCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes:
     post:
-      operationId: createAdminGachaVersionPrize
-      summary: 対象Gacha Draft Versionへ景品を追加する
+      operationId: createAdminGachaRankPrize
+      summary: 押下元Rank固定で景品を追加する
       x-idempotency: required
       x-rate-limit: catalog-mutation
       x-cache-policy: no-store
@@ -1300,6 +1244,7 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/GachaId'}
         - {$ref: '#/components/parameters/GachaVersionId'}
+        - {name: rank_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
         required: true
@@ -1307,10 +1252,10 @@ paths:
       responses:
         '201': {description: 景品追加結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
-  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}:
+  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes/{prize_id}:
     put:
-      operationId: updateAdminGachaVersionPrize
-      summary: 対象Gacha Draft Versionの景品を更新する
+      operationId: updateAdminGachaRankPrize
+      summary: 押下元Rank固定で景品を更新する
       x-idempotency: required
       x-rate-limit: catalog-mutation
       x-cache-policy: no-store
@@ -1319,6 +1264,7 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/GachaId'}
         - {$ref: '#/components/parameters/GachaVersionId'}
+        - {name: rank_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
         - {name: prize_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
@@ -5117,25 +5063,19 @@ components:
     AdminCatalogRank:
       type: object
       additionalProperties: false
-      required: [id, code, name, sort_order, is_visible, created_at, updated_at]
+      required: [id, rank_name, lineup_image, result_image, show_total_stock, status, display_order, revision_number, revision, has_usage, used_by_published_gacha, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
-        code: {type: string, maxLength: 32}
-        name: {type: string, maxLength: 128}
-        description: {type: [string, 'null'], maxLength: 2000}
-        sort_order: {type: integer, minimum: 0}
-        is_visible: {type: boolean}
-        image_asset:
-          oneOf:
-            - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
-            - {type: 'null'}
-        video_asset:
-          oneOf:
-            - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
-            - {type: 'null'}
-        is_archived: {type: boolean}
+        rank_name: {type: string, maxLength: 128}
+        lineup_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+        result_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+        show_total_stock: {type: boolean}
+        status: {type: string, enum: [active, inactive]}
+        display_order: {type: integer, minimum: 0}
+        revision_number: {type: integer, minimum: 1}
         revision: {type: integer, minimum: 1}
-        archived_at: {type: [string, 'null'], format: date-time}
+        has_usage: {type: boolean}
+        used_by_published_gacha: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     AdminCatalogCategoryCreate:
@@ -5180,96 +5120,63 @@ components:
         name: {type: string, minLength: 1, maxLength: 191}
         sort_order: {type: integer, minimum: 0, maximum: 4294967295}
         is_visible: {type: boolean}
+    AdminDirectUpload:
+      type: object
+      additionalProperties: false
+      required: [file_name, mime_type, content_base64]
+      properties:
+        file_name: {type: string, minLength: 1, maxLength: 191}
+        mime_type: {type: string, enum: [image/gif, image/jpeg, image/png, image/webp]}
+        content_base64: {type: string, minLength: 1, maxLength: 6990508}
+    AdminCanonicalAssetSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, path, mime_type, alt_text]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        path: {type: string, pattern: '^/(?!/)', maxLength: 512}
+        mime_type: {type: string, maxLength: 128}
+        alt_text: {type: [string, 'null'], maxLength: 191}
     AdminCatalogRankCreate:
       type: object
       additionalProperties: false
-      required: [code, name, sort_order, is_visible]
+      required: [rank_name, lineup_image, result_image]
       properties:
-        code: {type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$'}
-        name: {type: string, minLength: 1, maxLength: 128}
-        sort_order: {type: integer, minimum: 0, maximum: 4294967295}
-        is_visible: {type: boolean}
+        rank_name: {type: string, minLength: 1, maxLength: 128}
+        lineup_image: {$ref: '#/components/schemas/AdminDirectUpload'}
+        result_image: {$ref: '#/components/schemas/AdminDirectUpload'}
+        show_total_stock: {type: boolean, default: false}
+        status: {type: string, enum: [active, inactive], default: active}
     AdminCatalogRankUpdate:
       type: object
       additionalProperties: false
-      required: [expected_revision, name, sort_order, is_visible]
+      required: [expected_revision, rank_name, show_total_stock, status]
       properties:
         expected_revision: {type: integer, minimum: 1}
-        name: {type: string, minLength: 1, maxLength: 128}
-        sort_order: {type: integer, minimum: 0, maximum: 4294967295}
-        is_visible: {type: boolean}
-    AdminCatalogPrizeCreate:
+        rank_name: {type: string, minLength: 1, maxLength: 128}
+        lineup_image: {$ref: '#/components/schemas/AdminDirectUpload'}
+        result_image: {$ref: '#/components/schemas/AdminDirectUpload'}
+        show_total_stock: {type: boolean}
+        status: {type: string, enum: [active, inactive]}
+    AdminCatalogRankReorderItem:
       type: object
       additionalProperties: false
-      required: [code, rank_id, presentation_asset_id, name, description, display_price, exchange_points, is_visible]
+      required: [rank_id, expected_revision, display_order]
       properties:
-        code: {type: string, pattern: '^[a-z][a-z0-9_-]{0,63}$'}
         rank_id: {$ref: '#/components/schemas/OpaqueId'}
-        presentation_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        name: {type: string, minLength: 1, maxLength: 191}
-        description: {type: [string, 'null'], maxLength: 2000}
-        display_price: {type: integer, minimum: 0}
-        exchange_points: {type: integer, minimum: 0}
-        is_visible: {type: boolean}
-    AdminCatalogPrizeUpdate:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, rank_id, presentation_asset_id, name, description, display_price, exchange_points, is_visible]
-      properties:
         expected_revision: {type: integer, minimum: 1}
-        rank_id: {$ref: '#/components/schemas/OpaqueId'}
-        presentation_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        name: {type: string, minLength: 1, maxLength: 191}
-        description: {type: [string, 'null'], maxLength: 2000}
-        display_price: {type: integer, minimum: 0}
-        exchange_points: {type: integer, minimum: 0}
-        is_visible: {type: boolean}
-    AdminGachaVersionRankCreate:
+        display_order: {type: integer, minimum: 0}
+    AdminCatalogRankReorder:
       type: object
       additionalProperties: false
-      required: [code, name, description, image_asset_id, video_asset_id, expected_version_revision]
+      required: [items]
       properties:
-        code: {type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$'}
-        name: {type: string, minLength: 1, maxLength: 128}
-        description: {type: [string, 'null'], maxLength: 2000}
-        image_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        video_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        expected_version_revision: {type: integer, minimum: 1}
-    AdminGachaVersionRankUpdate:
-      type: object
-      additionalProperties: false
-      required: [name, description, image_asset_id, video_asset_id, expected_revision, expected_version_revision]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 128}
-        description: {type: [string, 'null'], maxLength: 2000}
-        image_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        video_asset_id:
-          oneOf:
-            - {$ref: '#/components/schemas/OpaqueId'}
-            - {type: 'null'}
-        expected_revision: {type: integer, minimum: 1}
-        expected_version_revision: {type: integer, minimum: 1}
+        items: {type: array, minItems: 1, items: {$ref: '#/components/schemas/AdminCatalogRankReorderItem'}}
     AdminGachaVersionPrizeCreate:
       type: object
       additionalProperties: false
-      required: [rank_id, presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_version_revision]
+      required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_version_revision]
       properties:
-        rank_id: {$ref: '#/components/schemas/OpaqueId'}
         presentation_asset_id:
           oneOf:
             - {$ref: '#/components/schemas/OpaqueId'}
@@ -5283,9 +5190,8 @@ components:
     AdminGachaVersionPrizeUpdate:
       type: object
       additionalProperties: false
-      required: [rank_id, presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
+      required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
       properties:
-        rank_id: {$ref: '#/components/schemas/OpaqueId'}
         presentation_asset_id:
           oneOf:
             - {$ref: '#/components/schemas/OpaqueId'}
@@ -5321,13 +5227,6 @@ components:
         expected_revision: {type: integer, minimum: 1}
         alt_text: {type: [string, 'null'], maxLength: 191}
         is_public: {type: boolean}
-    AdminRankEffectRankAssignmentInput:
-      type: object
-      additionalProperties: false
-      required: [rank_id, sort_order]
-      properties:
-        rank_id: {$ref: '#/components/schemas/OpaqueId'}
-        sort_order: {type: integer, minimum: 0, maximum: 4294967295}
     AdminRankEffectCreate:
       type: object
       additionalProperties: false
@@ -5335,7 +5234,6 @@ components:
       properties:
         title: {type: string, minLength: 1, maxLength: 191}
         asset_type: {type: string, enum: [image, video]}
-        rank_assignments: {type: array, minItems: 1, items: {$ref: '#/components/schemas/AdminRankEffectRankAssignmentInput'}}
         is_active: {type: boolean}
         file_name: {type: string, minLength: 1, maxLength: 191}
         mime_type: {type: string, minLength: 3, maxLength: 128}
@@ -5348,7 +5246,6 @@ components:
         expected_revision: {type: integer, minimum: 1}
         title: {type: string, minLength: 1, maxLength: 191}
         asset_type: {type: string, enum: [image, video]}
-        rank_assignments: {type: array, minItems: 1, items: {$ref: '#/components/schemas/AdminRankEffectRankAssignmentInput'}}
         is_active: {type: boolean}
         file_name: {type: string, minLength: 1, maxLength: 191}
         mime_type: {type: string, minLength: 3, maxLength: 128}
@@ -5380,6 +5277,19 @@ components:
       properties:
         data: {$ref: '#/components/schemas/AdminCatalogRank'}
         idempotent_replay: {type: boolean}
+    AdminCatalogRankReorderData:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogRank'}}
+    AdminCatalogRankReorderResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminCatalogRankReorderData'}
+        idempotent_replay: {type: boolean}
     AdminCatalogPrizeMutationResult:
       type: object
       additionalProperties: false
@@ -5397,7 +5307,7 @@ components:
     AdminCatalogRankReference:
       type: object
       additionalProperties: false
-      required: [id, code, name, sort_order]
+      required: [id, name, sort_order]
       properties:
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 32}
@@ -5454,29 +5364,74 @@ components:
         archived_at: {type: [string, 'null'], format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-    AdminRankEffectRankAssignment:
-      type: object
-      additionalProperties: false
-      required: [rank, sort_order]
-      properties:
-        rank: {$ref: '#/components/schemas/AdminCatalogReference'}
-        sort_order: {type: integer, minimum: 0}
     AdminRankEffect:
       allOf:
         - {$ref: '#/components/schemas/AdminCatalogPresentationAsset'}
         - type: object
           additionalProperties: false
-          required: [content_path, rank_assignments]
+          required: [content_path]
           properties:
             content_path: {type: string, pattern: '^/(?!/)', maxLength: 512}
-            rank_assignments: {type: array, items: {$ref: '#/components/schemas/AdminRankEffectRankAssignment'}}
-    AdminGachaVersionRankCollection:
+    AdminGachaRank:
       type: object
       additionalProperties: false
-      required: [items, version_revision]
+      required: [id, gacha_id, rank, current_video, video_revision_number, revision, first_published_at, created_at, updated_at]
       properties:
-        items: {type: array, items: {$ref: '#/components/schemas/AdminCatalogRank'}}
-        version_revision: {type: integer, minimum: 1}
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        gacha_id: {$ref: '#/components/schemas/OpaqueId'}
+        rank: {$ref: '#/components/schemas/AdminCatalogRank'}
+        current_video:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+            - {type: 'null'}
+        video_revision_number: {type: [integer, 'null'], minimum: 1}
+        revision: {type: integer, minimum: 1}
+        first_published_at: {type: [string, 'null'], format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AdminGachaRankListItem:
+      type: object
+      additionalProperties: false
+      required: [rank, gacha_rank_id, gacha_rank_revision, video_revision_number, current_video, can_unset_video]
+      properties:
+        rank: {$ref: '#/components/schemas/AdminCatalogRank'}
+        gacha_rank_id:
+          oneOf:
+            - {$ref: '#/components/schemas/OpaqueId'}
+            - {type: 'null'}
+        gacha_rank_revision: {type: [integer, 'null'], minimum: 1}
+        video_revision_number: {type: [integer, 'null'], minimum: 1}
+        current_video:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+            - {type: 'null'}
+        can_unset_video: {type: boolean}
+    AdminGachaRankCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AdminGachaRankListItem'}}
+    AdminGachaRankVideoSet:
+      type: object
+      additionalProperties: false
+      required: [video_asset_id]
+      properties:
+        video_asset_id: {$ref: '#/components/schemas/OpaqueId'}
+        expected_revision: {type: integer, minimum: 1}
+    AdminGachaRankVideoUnset:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+    AdminGachaRankMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaRank'}
+        idempotent_replay: {type: boolean}
     AdminGachaVersionPrize:
       type: object
       additionalProperties: false

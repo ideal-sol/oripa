@@ -297,33 +297,26 @@ final class V2QaDrawResolver
     {
         $row = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
-            ->leftJoin(
-                'catalog_presentation_assets as asset',
-                'asset.id',
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
                 '=',
-                'relation.presentation_asset_id'
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
             )
             ->where('relation.id', $item->gacha_version_prize_id)
             ->where('relation.gacha_version_id', $gachaVersionId)
             ->where('relation.is_visible', true)
+            ->where('master.status', 'active')
+            ->whereNotNull('gacha_rank.current_video_revision_id')
             ->first([
                 'relation.id as relation_id',
-                'relation.sort_order as relation_sort_order',
                 'prize.public_id as prize_public_id',
-                'relation.display_name as prize_name',
-                'relation.exchange_points',
-                'rank.id as rank_id',
-                'rank.public_id as rank_public_id',
-                'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
-                'relation.rank_sort_order as rank_sort_order',
-                'asset.public_id as asset_public_id',
-                'asset.public_path as asset_path',
-                'asset.checksum_sha256 as asset_checksum',
-                'asset.media_type as asset_media_type',
-                'asset.mime_type as asset_mime_type',
-                'asset.alt_text as asset_alt_text',
             ]);
         if ($row === null) {
             throw $this->configuration(
@@ -338,24 +331,7 @@ final class V2QaDrawResolver
             'fixed_image' => $this->asset($item->fixed_image_asset_id, 'image'),
             'fixed_video' => $this->asset($item->fixed_video_asset_id, 'video'),
             'prize' => [
-                'relation_id' => (int) $row->relation_id,
-                'relation_sort_order' => (int) $row->relation_sort_order,
                 'prize_public_id' => $row->prize_public_id,
-                'prize_name' => $row->prize_name,
-                'exchange_points' => (int) $row->exchange_points,
-                'rank_id' => (int) $row->rank_id,
-                'rank_public_id' => $row->rank_public_id,
-                'rank_code' => $row->rank_code,
-                'rank_name' => $row->rank_name,
-                'rank_sort_order' => (int) $row->rank_sort_order,
-                'asset' => $row->asset_public_id === null ? null : [
-                    'id' => $row->asset_public_id,
-                    'path' => $row->asset_path,
-                    'checksum_sha256' => $row->asset_checksum,
-                    'media_type' => $row->asset_media_type,
-                    'mime_type' => $row->asset_mime_type,
-                    'alt_text' => $row->asset_alt_text,
-                ],
             ],
         ];
     }
@@ -367,35 +343,28 @@ final class V2QaDrawResolver
     ): array {
         $row = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
-            ->leftJoin(
-                'catalog_presentation_assets as asset',
-                'asset.id',
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
                 '=',
-                'relation.presentation_asset_id'
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
             )
             ->where('relation.gacha_version_id', $gachaVersionId)
             ->where('relation.prize_id', $assignment->prize_id)
             ->where('prize.gacha_id', $assignment->gacha_id)
             ->where('relation.is_visible', true)
             ->whereNull('prize.archived_at')
+            ->where('master.status', 'active')
+            ->whereNotNull('gacha_rank.current_video_revision_id')
             ->first([
                 'relation.id as relation_id',
-                'relation.sort_order as relation_sort_order',
                 'prize.public_id as prize_public_id',
-                'relation.display_name as prize_name',
-                'relation.exchange_points',
-                'rank.id as rank_id',
-                'rank.public_id as rank_public_id',
-                'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
-                'relation.rank_sort_order as rank_sort_order',
-                'asset.public_id as asset_public_id',
-                'asset.public_path as asset_path',
-                'asset.checksum_sha256 as asset_checksum',
-                'asset.media_type as asset_media_type',
-                'asset.mime_type as asset_mime_type',
-                'asset.alt_text as asset_alt_text',
             ]);
         if ($row === null) {
             throw $this->configuration(
@@ -411,24 +380,7 @@ final class V2QaDrawResolver
             'fixed_image' => null,
             'fixed_video' => null,
             'prize' => [
-                'relation_id' => (int) $row->relation_id,
-                'relation_sort_order' => (int) $row->relation_sort_order,
                 'prize_public_id' => $row->prize_public_id,
-                'prize_name' => $row->prize_name,
-                'exchange_points' => (int) $row->exchange_points,
-                'rank_id' => (int) $row->rank_id,
-                'rank_public_id' => $row->rank_public_id,
-                'rank_code' => $row->rank_code,
-                'rank_name' => $row->rank_name,
-                'rank_sort_order' => (int) $row->rank_sort_order,
-                'asset' => $row->asset_public_id === null ? null : [
-                    'id' => $row->asset_public_id,
-                    'path' => $row->asset_path,
-                    'checksum_sha256' => $row->asset_checksum,
-                    'media_type' => $row->asset_media_type,
-                    'mime_type' => $row->asset_mime_type,
-                    'alt_text' => $row->asset_alt_text,
-                ],
             ],
         ];
     }

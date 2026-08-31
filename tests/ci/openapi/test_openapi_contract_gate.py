@@ -82,6 +82,36 @@ class OpenApiContractGateTest(unittest.TestCase):
             findings,
         )
 
+    def test_mig_099_break_requires_exact_authority_and_alpha_transition(self):
+        previous = {"info": {"version": "2.0.0-alpha.29"}}
+        current = {
+            "info": {"version": "2.0.0-alpha.30"},
+            "x-oripa-breaking-change": openapi_contract_gate.MIG_099_CANONICAL_BREAK,
+        }
+
+        self.assertTrue(
+            openapi_contract_gate.is_authorized_mig_099_canonical_break(
+                "public",
+                previous,
+                current,
+            )
+        )
+        self.assertFalse(
+            openapi_contract_gate.is_authorized_mig_099_canonical_break(
+                "webhook",
+                previous,
+                current,
+            )
+        )
+        current["info"]["version"] = "2.0.0-alpha.31"
+        self.assertFalse(
+            openapi_contract_gate.is_authorized_mig_099_canonical_break(
+                "public",
+                previous,
+                current,
+            )
+        )
+
     def test_explicit_response_only_required_addition_is_additive(self):
         previous = {
             "paths": {

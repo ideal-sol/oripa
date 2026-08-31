@@ -208,6 +208,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/presentation-assets/{asset_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Canonical Rank presentation Asset contentを取得する */
+        get: operations["getCanonicalPresentationAssetContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gacha-presentations/{gacha_id}": {
         parameters: {
             query?: never;
@@ -1819,34 +1836,16 @@ export interface components {
         };
         RankReference: {
             id: components["schemas"]["OpaqueId"];
-            code: string;
             name: string;
         };
-        RankPresentationAsset: {
-            id: components["schemas"]["OpaqueId"];
-            path: string;
-            checksum_sha256: string;
-            /** @enum {string} */
-            media_type: "image" | "video";
-            mime_type: string;
-            alt_text: string | null;
-            /** @enum {string} */
-            usage_type: "image" | "video" | "result_image";
-        };
-        PrizeDisplay: {
-            id: components["schemas"]["OpaqueId"];
-            name: string;
-            description: string | null;
-            display_price: number;
-            exchange_points: number;
-            presentation_asset: components["schemas"]["NullablePresentationAsset"];
-        };
-        RankDisplay: {
-            id: components["schemas"]["OpaqueId"];
-            code: string;
-            name: string;
-            presentation_assets: components["schemas"]["RankPresentationAsset"][];
-            prizes: components["schemas"]["PrizeDisplay"][];
+        GachaRankPresentation: {
+            rank_id: components["schemas"]["OpaqueId"];
+            rank_name: string;
+            lineup_image: components["schemas"]["PresentationAsset"];
+            show_total_stock: boolean;
+            total_stock: number | null;
+            display_order: number;
+            current_video: components["schemas"]["PresentationAsset"];
         };
         StageCondition: {
             /** @constant */
@@ -1889,7 +1888,7 @@ export interface components {
             presentation_asset: components["schemas"]["NullablePresentationAsset"];
             description: string | null;
             notices: string | null;
-            ranks: components["schemas"]["RankDisplay"][];
+            ranks: components["schemas"]["GachaRankPresentation"][];
             probability_stages: components["schemas"]["ProbabilityStage"][];
             sale_state?: components["schemas"]["GachaSaleState"];
         };
@@ -2083,19 +2082,17 @@ export interface components {
             /** @constant */
             point_type: "free";
         };
-        DrawAnimation: {
-            image: components["schemas"]["NullablePresentationAsset"];
-            video: components["schemas"]["NullablePresentationAsset"];
-        };
         DrawResult: {
             id: components["schemas"]["OpaqueId"];
             sequence_number: number;
             /** @enum {string} */
             result_type: "prize" | "point_back";
             rank: components["schemas"]["RankReference"] | null;
+            rank_name_snapshot: string | null;
+            result_image_snapshot: components["schemas"]["NullablePresentationAsset"];
+            video_snapshot: components["schemas"]["NullablePresentationAsset"];
             prize: components["schemas"]["DrawPrizeReference"] | null;
             point_back: components["schemas"]["DrawPointBack"] | null;
-            animation: components["schemas"]["DrawAnimation"] | null;
         };
         ProbabilityVersionReference: {
             id: components["schemas"]["OpaqueId"];
@@ -2714,6 +2711,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getCanonicalPresentationAssetContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Immutable presentation Asset content。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/gif": string;
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "video/mp4": string;
+                    "video/webm": string;
+                    "video/quicktime": string;
                 };
             };
             default: components["responses"]["Problem"];

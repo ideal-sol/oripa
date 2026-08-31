@@ -76,6 +76,137 @@ final class DrawVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_draw_persists_canonical_presentation_revisions_before_and_after_updates(): void
+    {
+        [$user] = $this->fixture([1, 1]);
+        $before = $this->draw($user, 1, 'canonical-presentation-before-update');
+        $beforeResult = DB::table('draw_results')
+            ->where('draw_request_id', $this->requestId($before))
+            ->where('result_type', 'prize')
+            ->firstOrFail();
+        $beforeSnapshot = json_decode(
+            (string) $beforeResult->display_snapshot,
+            true,
+            flags: JSON_THROW_ON_ERROR
+        );
+        self::assertNotNull($beforeResult->rank_master_revision_id);
+        self::assertNotNull($beforeResult->gacha_rank_video_revision_id);
+        self::assertSame(
+            $beforeSnapshot['rank_name_snapshot'],
+            $before['results'][0]['rank_name_snapshot']
+        );
+        self::assertEquals(
+            $beforeSnapshot['result_image_snapshot'],
+            $before['results'][0]['result_image_snapshot']
+        );
+        self::assertEquals(
+            $beforeSnapshot['video_snapshot'],
+            $before['results'][0]['video_snapshot']
+        );
+
+        $relation = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->join('catalog_rank_masters as rank_master', 'rank_master.id', '=', 'gacha_rank.rank_master_id')
+            ->where('relation.id', $beforeResult->gacha_version_prize_id)
+            ->firstOrFail([
+                'rank_master.id as rank_master_id',
+                'rank_master.current_revision_id as rank_master_revision_id',
+                'rank_master.revision as rank_master_revision',
+                'gacha_rank.id as gacha_rank_id',
+                'gacha_rank.current_video_revision_id',
+                'gacha_rank.revision as gacha_rank_revision',
+            ]);
+        $rankRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', $relation->rank_master_revision_id)
+            ->firstOrFail();
+        $videoRevision = DB::table('catalog_gacha_rank_video_revisions')
+            ->where('id', $relation->current_video_revision_id)
+            ->firstOrFail();
+        $now = now()->startOfSecond();
+        $newRankRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+            'rank_master_id' => $relation->rank_master_id,
+            'revision_number' => (int) $rankRevision->revision_number + 1,
+            'rank_name' => 'Updated Rank Snapshot',
+            'lineup_image_asset_id' => $rankRevision->lineup_image_asset_id,
+            'result_image_asset_id' => $rankRevision->result_image_asset_id,
+            'show_total_stock' => (bool) $rankRevision->show_total_stock,
+            'display_order' => $rankRevision->display_order,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_rank_masters')->where('id', $relation->rank_master_id)->update([
+            'current_revision_id' => $newRankRevisionId,
+            'revision' => (int) $relation->rank_master_revision + 1,
+            'updated_at' => $now,
+        ]);
+        $newVideoAssetId = DB::table('catalog_presentation_assets')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'storage_identifier' => 'tests/canonical-rank-video-'.Str::uuid7().'.mp4',
+            'public_path' => '/assets/tests/canonical-rank-video-'.Str::uuid7().'.mp4',
+            'checksum_sha256' => hash('sha256', 'canonical-rank-video-update'),
+            'media_type' => 'video',
+            'mime_type' => 'video/mp4',
+            'byte_size' => 1,
+            'alt_text' => 'Updated Rank Video',
+            'is_public' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $newVideoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+            'gacha_rank_id' => $relation->gacha_rank_id,
+            'revision_number' => (int) $videoRevision->revision_number + 1,
+            'video_asset_id' => $newVideoAssetId,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_gacha_ranks')->where('id', $relation->gacha_rank_id)->update([
+            'current_video_revision_id' => $newVideoRevisionId,
+            'revision' => (int) $relation->gacha_rank_revision + 1,
+            'updated_at' => $now,
+        ]);
+
+        $inventoryAfterFirstDraw = (int) DB::table('prize_inventories')->sum('awarded_count');
+        $soldAfterFirstDraw = (int) DB::table('gacha_draw_states')->value('sold_count');
+        $walletAfterFirstDraw = (int) DB::table('wallets')
+            ->where('user_id', $user->id)->value('free_balance');
+        $after = $this->draw($user, 1, 'canonical-presentation-after-update');
+        $afterResult = DB::table('draw_results')
+            ->where('draw_request_id', $this->requestId($after))
+            ->where('result_type', 'prize')
+            ->firstOrFail();
+        $afterSnapshot = json_decode(
+            (string) $afterResult->display_snapshot,
+            true,
+            flags: JSON_THROW_ON_ERROR
+        );
+
+        self::assertSame((int) $beforeResult->rank_master_revision_id, (int) DB::table('draw_results')
+            ->where('id', $beforeResult->id)->value('rank_master_revision_id'));
+        self::assertSame((int) $beforeResult->gacha_rank_video_revision_id, (int) DB::table('draw_results')
+            ->where('id', $beforeResult->id)->value('gacha_rank_video_revision_id'));
+        self::assertEquals($beforeSnapshot, json_decode(
+            (string) DB::table('draw_results')->where('id', $beforeResult->id)
+                ->value('display_snapshot'),
+            true,
+            flags: JSON_THROW_ON_ERROR
+        ));
+        self::assertSame($newRankRevisionId, (int) $afterResult->rank_master_revision_id);
+        self::assertSame($newVideoRevisionId, (int) $afterResult->gacha_rank_video_revision_id);
+        self::assertSame('Updated Rank Snapshot', $afterSnapshot['rank_name_snapshot']);
+        self::assertStringStartsWith(
+            '/assets/tests/',
+            $afterSnapshot['video_snapshot']['path']
+        );
+        self::assertSame($inventoryAfterFirstDraw + 1, (int) DB::table('prize_inventories')->sum('awarded_count'));
+        self::assertSame($soldAfterFirstDraw + 1, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($walletAfterFirstDraw - 100, (int) DB::table('wallets')
+            ->where('user_id', $user->id)->value('free_balance'));
+
+        $persisted = app(V2DrawService::class)->get($user, $before['id']);
+        self::assertSame($beforeSnapshot['rank_name_snapshot'], $persisted['results'][0]['rank_name_snapshot']);
+        self::assertEquals($beforeSnapshot['result_image_snapshot'], $persisted['results'][0]['result_image_snapshot']);
+        self::assertEquals($beforeSnapshot['video_snapshot'], $persisted['results'][0]['video_snapshot']);
+    }
+
     public function test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response(): void
     {
         [$user] = $this->fixture(

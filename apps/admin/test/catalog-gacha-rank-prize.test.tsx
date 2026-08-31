@@ -3,565 +3,339 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { AdminCatalogGachaVersion, AdminRankEffect } from "@/lib/admin-api/generated";
+import type {
+  AdminCatalogGachaVersion,
+  AdminCatalogPrize,
+  AdminGachaRankListItem,
+  AdminGachaVersionPrize,
+  AdminRankEffect,
+} from "@/lib/admin-api/generated";
 
 const GACHA_ID = "01910191-0191-7191-8191-019101910191";
 const VERSION_ID = "01910191-0191-7191-8191-019101910192";
 const RANK_ID = "01910191-0191-7191-8191-019101910193";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910194";
-const ASSET_ID = "01910191-0191-7191-8191-019101910195";
-const RANK_IMAGE_ASSET_ID = "01910191-0191-7191-8191-019101910196";
-const RANK_VIDEO_ASSET_ID = "01910191-0191-7191-8191-019101910197";
-const CATEGORY_A_ID = "01910191-0191-7191-8191-019101910198";
-const CATEGORY_B_ID = "01910191-0191-7191-8191-019101910199";
-const BANNER_A_ASSET_ID = "01910191-0191-7191-8191-019101910200";
-const BANNER_B_ASSET_ID = "01910191-0191-7191-8191-019101910201";
+const VIDEO_ASSET_ID = "01910191-0191-7191-8191-019101910195";
 
 beforeEach(() => {
-  vi.spyOn(AdminApiClient.prototype, "listGachaVersionRanks").mockResolvedValue({
-    items: [rank],
-    version_revision: 3,
+  vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
+    items: [gachaRank()],
   });
   vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
-    items: [prize],
+    items: [],
     version_revision: 3,
   });
-  vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({
-    items: [
-      { id: CATEGORY_A_ID, name: "Category A" },
-      { id: CATEGORY_B_ID, name: "Category B" },
-    ],
-  });
-  vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockImplementation(async (query = {}) => ({
-    items: query.category_id === CATEGORY_A_ID ? [banner("A")] : [banner("B")],
-    next_cursor: null,
-  }));
   vi.spyOn(AdminApiClient.prototype, "listRankEffects").mockResolvedValue({
-    items: [rankImageEffect, rankVideoEffect],
+    items: [videoEffect()],
+    next_cursor: null,
+  });
+  vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({
+    items: [],
+  });
+  vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
+    items: [],
     next_cursor: null,
   });
 });
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("Gacha Rank and Prize manager", () => {
-  it("renders the canonical prize columns and available inventory", async () => {
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-    expect(await screen.findByRole("heading", { name: "ランク／景品管理" })).toBeVisible();
-    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers).toEqual([
-      "Rank", "キー", "説明", "編集", "ランク", "景品名", "サムネイル",
-      "総在庫数", "現在個数", "交換ポイント", "状態", "登録日", "編集",
-    ]);
-    expect(screen.getByText("7")).toBeVisible();
-    expect(screen.getByText("8,000")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Rank一覧" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "景品" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Rank追加" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "景品追加" })).toBeVisible();
+describe("Canonical Gacha Rank and Prize manager", () => {
+  it("renders every active Rank Master without creating a GachaRank row", async () => {
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+      .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+
+    expect(await screen.findByText("SSランク")).toBeVisible();
+    expect(screen.getByText("未設定")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Rank追加/u })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rank削除/u })).not.toBeInTheDocument();
+    expect(screen.queryByText("景品数")).not.toBeInTheDocument();
+    expect(screen.queryByText("景品総在庫")).not.toBeInTheDocument();
+    expect(screen.queryByText("現在庫")).not.toBeInTheDocument();
+    expect(setVideo).not.toHaveBeenCalled();
   });
 
-  it("opens Rank settings and submits a new Rank once", async () => {
-    const create = vi.spyOn(AdminApiClient.prototype, "createGachaVersionRank")
-      .mockResolvedValue({ data: rank, idempotent_replay: false });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "Rank追加" }));
-    const dialog = screen.getByRole("dialog", { name: "Rank追加" });
-    fireEvent.change(within(dialog).getByLabelText("ランクキー"), { target: { value: "a" } });
-    fireEvent.change(within(dialog).getByLabelText("ランク表示"), { target: { value: "Aランク" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(create).toHaveBeenCalledOnce());
-    expect(create.mock.calls[0][2]).toMatchObject({
-      code: "a",
-      expected_version_revision: 3,
-      name: "Aランク",
-    });
+  it("rejects opening Prize registration until the Rank video is configured", async () => {
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+
+    await screen.findByText("SSランク");
+    fireEvent.click(screen.getByRole("button", { name: "景品登録" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "抽選演出動画が設定されていません。先に抽選演出動画を選択してください。",
+    );
+    expect(screen.queryByRole("dialog", { name: "新規景品登録" })).not.toBeInTheDocument();
   });
 
-  it("uses only matching Rank Effect media candidates and saves their canonical IDs", async () => {
-    const create = vi.spyOn(AdminApiClient.prototype, "createGachaVersionRank")
-      .mockResolvedValue({ data: rank, idempotent_replay: false });
-    const listRankEffects = vi.mocked(AdminApiClient.prototype.listRankEffects);
-    listRankEffects.mockReset();
-    listRankEffects
-      .mockResolvedValueOnce({ items: [rankImageEffect], next_cursor: "rank-effect-page-2" })
-      .mockResolvedValueOnce({ items: [rankVideoEffect], next_cursor: null });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
+  it("lazily creates the GachaRank and saves a selected video immediately", async () => {
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+      .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "Rank追加" }));
-    const dialog = screen.getByRole("dialog", { name: "Rank追加" });
-    fireEvent.change(within(dialog).getByLabelText("ランクキー"), { target: { value: "a" } });
-    fireEvent.change(within(dialog).getByLabelText("ランク表示"), { target: { value: "Aランク" } });
+    const picker = await screen.findByLabelText("SSランクの動画");
+    fireEvent.change(picker, { target: { value: VIDEO_ASSET_ID } });
 
-    const imagePicker = within(dialog).getByRole("group", { name: "ランク画像" });
-    const videoPicker = within(dialog).getByRole("group", { name: "抽選演出動画" });
-    expect(within(imagePicker).getByRole("button", { name: "画像演出" })).toBeVisible();
-    expect(within(imagePicker).queryByRole("button", { name: "動画演出" })).not.toBeInTheDocument();
-    expect(within(videoPicker).getByRole("button", { name: "動画演出" })).toBeVisible();
-    expect(within(videoPicker).queryByRole("button", { name: "画像演出" })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "一般画像" })).not.toBeInTheDocument();
-    expect(listRankEffects.mock.calls.map(([query]) => query.cursor)).toEqual([
-      undefined,
-      "rank-effect-page-2",
-    ]);
-
-    fireEvent.click(within(imagePicker).getByRole("button", { name: "画像演出" }));
-    fireEvent.click(within(videoPicker).getByRole("button", { name: "動画演出" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(create).toHaveBeenCalledOnce());
-    expect(create.mock.calls[0][2]).toMatchObject({
-      image_asset_id: RANK_IMAGE_ASSET_ID,
-      video_asset_id: RANK_VIDEO_ASSET_ID,
-    });
-  });
-
-  it("restores existing Rank Effect choices and preserves an unresolved legacy asset", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionRank")
-      .mockResolvedValue({ data: rank, idempotent_replay: false });
-    const unresolvedRank = {
-      ...rank,
-      image_asset: { ...asset, id: "01910191-0191-7191-8191-019101910198" },
-      video_asset: null,
-    };
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionRanks").mockResolvedValue({
-      items: [unresolvedRank],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SSランクを編集" }));
-    const dialog = screen.getByRole("dialog", { name: "Rank編集" });
-    expect(await within(dialog).findByText("現在のAssetはランク演出候補として解決できません。", { exact: false })).toBeVisible();
-    fireEvent.change(within(dialog).getByLabelText("ランク表示"), { target: { value: "SSランク更新" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({
-      image_asset_id: "01910191-0191-7191-8191-019101910198",
-      video_asset_id: null,
-    });
-  });
-
-  it("restores matching Rank Effect choices during edit", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionRank")
-      .mockResolvedValue({ data: rank, idempotent_replay: false });
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionRanks").mockResolvedValue({
-      items: [{ ...rank, image_asset: rankImageEffect, video_asset: rankVideoEffect }],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SSランクを編集" }));
-    const dialog = screen.getByRole("dialog", { name: "Rank編集" });
-    expect(within(dialog).getByRole("button", { name: "画像演出" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(dialog).getByRole("button", { name: "動画演出" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.change(within(dialog).getByLabelText("ランク表示"), { target: { value: "SSランク更新" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({
-      image_asset_id: RANK_IMAGE_ASSET_ID,
-      video_asset_id: RANK_VIDEO_ASSET_ID,
-    });
-  });
-
-  it("creates a Gacha Prize from the selected Category Banner Asset without general assets", async () => {
-    const create = vi.spyOn(AdminApiClient.prototype, "createGachaVersionPrize")
-      .mockResolvedValue({ data: prize, idempotent_replay: false });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "景品追加" }));
-    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
-    await within(dialog).findByRole("option", { name: "Category A" });
-    fireEvent.change(within(dialog).getByLabelText("ランク"), { target: { value: RANK_ID } });
-    fireEvent.change(within(dialog).getByLabelText("景品名"), { target: { value: "Banner景品" } });
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), {
-      target: { value: CATEGORY_A_ID },
-    });
-
-    const bannerA = await within(dialog).findByRole("button", { name: "Banner A" });
-    expect(bannerA.querySelector("img")).toHaveAttribute("src", "/banners/a.png");
-    expect(within(dialog).queryByRole("button", { name: "Banner B" })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("option", { name: "一般画像" })).not.toBeInTheDocument();
-    fireEvent.click(bannerA);
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(create).toHaveBeenCalledOnce());
-    expect(create.mock.calls[0][2]).toMatchObject({
-      presentation_asset_id: BANNER_A_ASSET_ID,
-      rank_id: RANK_ID,
-    });
-  });
-
-  it("clears the previous Gacha Prize Banner when its Category changes", async () => {
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "景品追加" }));
-    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
-    await within(dialog).findByRole("option", { name: "Category A" });
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), {
-      target: { value: CATEGORY_A_ID },
-    });
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Banner A" }));
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), {
-      target: { value: CATEGORY_B_ID },
-    });
-
-    const bannerB = await within(dialog).findByRole("button", { name: "Banner B" });
-    expect(within(dialog).queryByRole("button", { name: "Banner A" })).not.toBeInTheDocument();
-    expect(bannerB).toHaveAttribute("aria-pressed", "false");
-    expect(dialog.querySelector<HTMLInputElement>('input[name="presentation_asset_id"]')?.value).toBe("");
-  });
-
-  it("restores a unique Banner for Gacha Prize edit and preserves an unresolved Asset", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
-      .mockResolvedValue({ data: prize, idempotent_replay: false });
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
-      items: [{ ...prize, presentation_asset: { ...asset, id: BANNER_A_ASSET_ID } }],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    expect(await within(dialog).findByRole("button", { name: "Banner A" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.change(within(dialog).getByLabelText("変更理由"), { target: { value: "確認保存" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({ presentation_asset_id: BANNER_A_ASSET_ID });
-  });
-
-  it("changes a Gacha Prize Asset only after an explicit replacement Banner selection", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
-      .mockResolvedValue({ data: prize, idempotent_replay: false });
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
-      items: [{ ...prize, presentation_asset: { ...asset, id: BANNER_A_ASSET_ID } }],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    await within(dialog).findByRole("button", { name: "Banner A" });
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), {
-      target: { value: CATEGORY_B_ID },
-    });
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Banner B" }));
-    fireEvent.change(within(dialog).getByLabelText("変更理由"), { target: { value: "Banner差替" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({ presentation_asset_id: BANNER_B_ASSET_ID });
-  });
-
-  it("does not replace an unresolved Gacha Prize Asset during edit", async () => {
-    const unresolvedAssetId = "01910191-0191-7191-8191-019101910202";
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
-      .mockResolvedValue({ data: prize, idempotent_replay: false });
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
-      items: [{ ...prize, presentation_asset: { ...asset, id: unresolvedAssetId } }],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    expect(await within(dialog).findByText("既存のPresentation Assetに対応するBannerを一意に特定できませんでした。", { exact: false })).toBeVisible();
-    fireEvent.change(within(dialog).getByLabelText("変更理由"), { target: { value: "既存値保持" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({ presentation_asset_id: unresolvedAssetId });
-  });
-
-  it("shows the remaining total count for a new Prize and blocks a negative value", async () => {
-    const create = vi.spyOn(AdminApiClient.prototype, "createGachaVersionPrize");
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "景品追加" }));
-    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
-    await within(dialog).findByRole("option", { name: "Category A" });
-    expect(within(dialog).getByText("（総口数残り90）")).toBeVisible();
-
-    fireEvent.change(within(dialog).getByLabelText("総在庫数"), { target: { value: "100" } });
-    expect(within(dialog).getByText("（総口数残り-10）")).toBeVisible();
-    expect(within(dialog).getByText(/景品の総在庫数がガチャの総口数を超えています/u)).toBeVisible();
-    expect(within(dialog).getByRole("button", { name: "保存" })).toBeDisabled();
-    fireEvent.submit(within(dialog).getByRole("button", { name: "保存" }).closest("form")!);
-    expect(create).not.toHaveBeenCalled();
-
-    fireEvent.change(within(dialog).getByLabelText("総在庫数"), { target: { value: "90" } });
-    expect(within(dialog).getByText("（総口数残り0）")).toBeVisible();
-    expect(within(dialog).getByRole("button", { name: "保存" })).toBeEnabled();
-  });
-
-  it("calculates an edited Prize from other Prize inventory without double counting", async () => {
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
-      items: [prize, { ...prize, id: "01910191-0191-7191-8191-019101910203", name: "A景品", total_inventory: 50 }],
-      version_revision: 3,
-    });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    expect(within(dialog).getByText("（総口数残り40）")).toBeVisible();
-
-    fireEvent.change(within(dialog).getByLabelText("総在庫数"), { target: { value: "50" } });
-    expect(within(dialog).getByText("（総口数残り0）")).toBeVisible();
-  });
-
-  it("uses the saved canonical presentation Asset for a created Prize preview", async () => {
-    const saved = {
-      ...prize,
-      id: "01910191-0191-7191-8191-019101910203",
-      name: "Banner景品",
-      presentation_asset: {
-        ...asset,
-        id: BANNER_A_ASSET_ID,
-        public_path: `/api/v2/content/assets/${BANNER_A_ASSET_ID}`,
-      },
-    };
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes")
-      .mockResolvedValueOnce({ items: [], version_revision: 3 })
-      .mockResolvedValue({ items: [saved], version_revision: 4 });
-    vi.spyOn(AdminApiClient.prototype, "createGachaVersionPrize")
-      .mockResolvedValue({ data: saved, idempotent_replay: false });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByRole("button", { name: "景品追加" });
-    fireEvent.click(screen.getByRole("button", { name: "景品追加" }));
-    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
-    await within(dialog).findByRole("option", { name: "Category A" });
-    fireEvent.change(within(dialog).getByLabelText("ランク"), { target: { value: RANK_ID } });
-    fireEvent.change(within(dialog).getByLabelText("景品名"), { target: { value: "Banner景品" } });
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), { target: { value: CATEGORY_A_ID } });
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Banner A" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    const preview = await screen.findByAltText("一般画像");
-    expect(preview).toHaveAttribute(
-      "src",
-      `/admin/api/v2/catalog/presentation-assets/${BANNER_A_ASSET_ID}/content`,
+    await waitFor(() => expect(setVideo).toHaveBeenCalledOnce());
+    expect(setVideo).toHaveBeenCalledWith(
+      GACHA_ID,
+      RANK_ID,
+      { video_asset_id: VIDEO_ASSET_ID },
+      expect.any(String),
     );
   });
 
-  it("refreshes the preview from the updated canonical presentation Asset", async () => {
-    const current = {
-      ...prize,
-      presentation_asset: {
-        ...asset,
-        id: BANNER_A_ASSET_ID,
-        public_path: `/api/v2/content/assets/${BANNER_A_ASSET_ID}`,
-      },
-    };
-    const updated = {
-      ...current,
-      presentation_asset: {
-        ...asset,
-        id: BANNER_B_ASSET_ID,
-        public_path: `/api/v2/content/assets/${BANNER_B_ASSET_ID}`,
-      },
-    };
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes")
-      .mockResolvedValueOnce({ items: [current], version_revision: 3 })
-      .mockResolvedValue({ items: [updated], version_revision: 4 });
-    vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
-      .mockResolvedValue({ data: updated, idempotent_replay: false });
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    await within(dialog).findByRole("option", { name: "Category B" });
-    fireEvent.change(within(dialog).getByLabelText("Banner Category"), { target: { value: CATEGORY_B_ID } });
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Banner B" }));
-    fireEvent.change(within(dialog).getByLabelText("変更理由"), { target: { value: "差し替え" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-
-    const preview = await screen.findByAltText("一般画像");
-    expect(preview).toHaveAttribute(
-      "src",
-      `/admin/api/v2/catalog/presentation-assets/${BANNER_B_ASSET_ID}/content`,
-    );
-  });
-
-  it("maps publish errors without internal codes in the Prize section", async () => {
-    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockRejectedValue(
-      new AdminApiError(422, "CATALOG_GACHA_PUBLISH_INVENTORY_INVALID", GACHA_ID, null, false),
-    );
-    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version} />);
-
-    expect(await screen.findByText("景品在庫とガチャの総口数の整合性を確認してください。")).toBeVisible();
-    expect(screen.queryByText("CATALOG_GACHA_PUBLISH_INVENTORY_INVALID")).not.toBeInTheDocument();
-  });
-
-  it("keeps mutations hidden for read-only users", async () => {
-    render(
-      <CatalogGachaRankPrizeManager
-        canManage={false}
-        gachaId={GACHA_ID}
-        heading="現在公開中の景品ラインナップ"
-        version={version}
-        versionLabel="公開済み バージョン 1"
-      />,
-    );
-    await screen.findByText("SS景品");
-    expect(screen.getByRole("heading", { name: "現在公開中の景品ラインナップ" }))
-      .toBeVisible();
-    expect(screen.getByText("公開済み バージョン 1")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Rank追加" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "景品追加" })).not.toBeInTheDocument();
-  });
-
-  it("submits operational inventory changes for a published Prize", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateGachaVersionPrize")
-      .mockResolvedValue({ data: prize, idempotent_replay: false });
+  it("requires confirmation but allows a published Gacha video change", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+      .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(
       <CatalogGachaRankPrizeManager
         canManage
         gachaId={GACHA_ID}
         presentationOnly
-        version={version}
+        version={version("published")}
       />,
     );
-    await screen.findByText("SS景品");
-    fireEvent.click(screen.getByRole("button", { name: "SS景品を編集" }));
-    const dialog = screen.getByRole("dialog", { name: "景品編集" });
-    fireEvent.change(within(dialog).getByLabelText("総在庫数"), { target: { value: "12" } });
-    fireEvent.change(within(dialog).getByLabelText("現在個数"), { target: { value: "8" } });
-    fireEvent.change(within(dialog).getByLabelText("変更理由"), {
-      target: { value: "棚卸差異を反映" },
+
+    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
+      target: { value: VIDEO_ASSET_ID },
+    });
+
+    await waitFor(() => expect(setVideo).toHaveBeenCalledOnce());
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("公開中のガチャです"));
+  });
+
+  it("unsets a video only when the API reports the Rank can be unset", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
+      items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
+    });
+    const unset = vi.spyOn(AdminApiClient.prototype, "unsetGachaRankVideo")
+      .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+
+    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
+      target: { value: "" },
+    });
+
+    await waitFor(() => expect(unset).toHaveBeenCalledOnce());
+    expect(unset).toHaveBeenCalledWith(
+      GACHA_ID,
+      RANK_ID,
+      { expected_revision: 4 },
+      expect.any(String),
+    );
+  });
+
+  it("maps the backend Prize-protected video unset error", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
+      items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
+    });
+    vi.spyOn(AdminApiClient.prototype, "unsetGachaRankVideo").mockRejectedValue(
+      new AdminApiError(409, "CATALOG_GACHA_RANK_VIDEO_REQUIRED", null, null, false),
+    );
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+
+    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
+      target: { value: "" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "景品が登録されているため、抽選演出動画を未設定に戻せません。",
+    );
+  });
+
+  it("creates a Prize through a rank-fixed path without a mutable Rank selector", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
+      items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
+    });
+    const create = vi.spyOn(AdminApiClient.prototype, "createGachaRankPrize")
+      .mockResolvedValue({ data: prize(), idempotent_replay: false });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "景品登録" }));
+    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
+    const rankField = within(dialog).getByLabelText("ランク");
+    expect(rankField).toHaveValue("SSランク");
+    expect(rankField).toHaveAttribute("readonly");
+    expect(within(dialog).queryByRole("combobox", { name: "ランク" })).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("景品名"), {
+      target: { value: "Canonical Prize" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("総在庫数"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("交換ポイント"), {
+      target: { value: "8000" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("原価"), {
+      target: { value: "5000" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(update.mock.calls[0][3]).toMatchObject({
-      available_inventory: 8,
-      expected_inventory_revision: 4,
-      inventory_reason: "棚卸差異を反映",
-      total_inventory: 12,
+
+    await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create).toHaveBeenCalledWith(
+      GACHA_ID,
+      VERSION_ID,
+      RANK_ID,
+      expect.objectContaining({
+        cost_price: 5000,
+        exchange_points: 8000,
+        expected_version_revision: 3,
+        name: "Canonical Prize",
+        total_inventory: 10,
+      }),
+      expect.any(String),
+    );
+    expect(create.mock.calls[0][3]).not.toHaveProperty("rank_id");
+  });
+
+  it("keeps Prize mutations hidden for read-only users", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
+      items: [gachaPrize()],
+      version_revision: 3,
     });
+    render(
+      <CatalogGachaRankPrizeManager
+        canManage={false}
+        gachaId={GACHA_ID}
+        heading="現在公開中の景品ラインナップ"
+        version={version("published")}
+      />,
+    );
+
+    expect(await screen.findByText("SS景品")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "景品登録" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "SS景品を編集" })).not.toBeInTheDocument();
   });
 });
 
-const asset = {
-  alt_text: "一般画像",
-  byte_size: 100,
-  checksum_sha256: "a".repeat(64),
-  created_at: "2026-08-20T00:00:00Z",
-  id: ASSET_ID,
-  is_archived: false,
-  is_public: true,
-  media_type: "image" as const,
-  mime_type: "image/png",
-  public_path: "/assets/ss.png",
-  revision: 1,
-  updated_at: "2026-08-20T00:00:00Z",
-};
-
-function banner(key: "A" | "B") {
-  const categoryId = key === "A" ? CATEGORY_A_ID : CATEGORY_B_ID;
-  const assetId = key === "A" ? BANNER_A_ASSET_ID : BANNER_B_ASSET_ID;
+function asset(id: string, mediaType: "image" | "video" = "image") {
   return {
-    asset: { id: assetId, public_url: `/banners/${key.toLowerCase()}.png` },
-    category: { id: categoryId, name: `Category ${key}` },
-    created_at: "2026-08-20T00:00:00Z",
-    id: `01910191-0191-7191-8191-01910191020${key === "A" ? "3" : "4"}`,
-    link_url: null,
-    show_on_top: false,
-    status: "draft" as const,
-    title: `Banner ${key}`,
-    updated_at: "2026-08-20T00:00:00Z",
-    version_id: `01910191-0191-7191-8191-01910191020${key === "A" ? "5" : "6"}`,
-    version_number: 1,
+    id,
+    path: `/admin/api/v2/catalog/presentation-assets/${id}/content`,
+    mime_type: mediaType === "video" ? "video/mp4" : "image/png",
+    alt_text: mediaType === "video" ? "共通動画演出" : "SSランク画像",
   };
 }
 
-const rankImageEffect: AdminRankEffect = {
-  ...asset,
-  alt_text: "画像演出",
-  content_path: "/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910196/content",
-  id: RANK_IMAGE_ASSET_ID,
-  rank_assignments: [],
-};
+function gachaRank(options: {
+  currentVideo?: boolean;
+  canUnset?: boolean;
+  revision?: number | null;
+} = {}): AdminGachaRankListItem {
+  return {
+    rank: {
+      id: RANK_ID,
+      rank_name: "SSランク",
+      lineup_image: asset("01910191-0191-7191-8191-019101910196"),
+      result_image: asset("01910191-0191-7191-8191-019101910197"),
+      show_total_stock: false,
+      status: "active",
+      display_order: 0,
+      revision_number: 1,
+      revision: 1,
+      has_usage: false,
+      used_by_published_gacha: false,
+      created_at: "2026-08-20T00:00:00Z",
+      updated_at: "2026-08-20T00:00:00Z",
+    },
+    gacha_rank_id: options.revision == null ? null : "01910191-0191-7191-8191-019101910198",
+    gacha_rank_revision: options.revision ?? null,
+    video_revision_number: options.currentVideo ? 1 : null,
+    current_video: options.currentVideo ? asset(VIDEO_ASSET_ID, "video") : null,
+    can_unset_video: options.canUnset ?? false,
+  };
+}
 
-const rankVideoEffect: AdminRankEffect = {
-  ...asset,
-  alt_text: "動画演出",
-  content_path: "/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910197/content",
-  id: RANK_VIDEO_ASSET_ID,
-  media_type: "video",
-  mime_type: "video/mp4",
-  public_path: "/assets/effect.mp4",
-  rank_assignments: [],
-};
+function savedGachaRank() {
+  return {
+    id: "01910191-0191-7191-8191-019101910198",
+    gacha_id: GACHA_ID,
+    rank: gachaRank().rank,
+    current_video: asset(VIDEO_ASSET_ID, "video"),
+    video_revision_number: 1,
+    revision: 1,
+    first_published_at: null,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z",
+  };
+}
 
-const rank = {
-  code: "ss",
-  created_at: "2026-08-20T00:00:00Z",
-  description: "SS rank",
-  id: RANK_ID,
-  image_asset: asset,
-  is_archived: false,
-  is_visible: true,
-  name: "SSランク",
-  revision: 1,
-  sort_order: 0,
-  updated_at: "2026-08-20T00:00:00Z",
-  video_asset: null,
-};
+function videoEffect(): AdminRankEffect {
+  return {
+    id: VIDEO_ASSET_ID,
+    media_type: "video",
+    mime_type: "video/mp4",
+    alt_text: "共通動画演出",
+    public_path: "/assets/effect.mp4",
+    is_public: true,
+    byte_size: 128,
+    checksum_sha256: "a".repeat(64),
+    revision: 1,
+    archived_at: null,
+    is_archived: false,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z",
+    content_path: `/admin/api/v2/catalog/presentation-assets/${VIDEO_ASSET_ID}/content`,
+  };
+}
 
-const prize = {
-  available_inventory: 7,
-  awarded_inventory: 2,
-  code: "prize-ss",
-  cost_price: 5000,
-  created_at: "2026-08-20T00:00:00Z",
-  description: null,
-  display_price: 0,
-  exchange_points: 8000,
-  id: PRIZE_ID,
-  inventory_revision: 4,
-  is_visible: true,
-  name: "SS景品",
-  presentation_asset: asset,
-  rank: { code: "ss", id: RANK_ID, name: "SSランク", sort_order: 0 },
-  revision: 1,
-  total_inventory: 10,
-  updated_at: "2026-08-20T00:00:00Z",
-  version_sort_order: 0,
-  withdrawn_inventory: 1,
-};
+function prize(): AdminCatalogPrize {
+  return {
+    id: PRIZE_ID,
+    code: "canonical-prize",
+    name: "Canonical Prize",
+    description: null,
+    display_price: 0,
+    exchange_points: 8000,
+    cost_price: 5000,
+    is_visible: true,
+    rank: { id: RANK_ID, name: "SSランク", sort_order: 0 },
+    presentation_asset: null,
+    revision: 1,
+    archived_at: null,
+    is_archived: false,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z",
+  };
+}
 
-const version: AdminCatalogGachaVersion = {
-  archived_at: null,
-  cloned_from_version: null,
-  created_at: "2026-08-20T00:00:00Z",
-  description: null,
-  id: VERSION_ID,
-  is_archived: false,
-  notices: null,
-  presentation_asset: null,
-  price_points: 100,
-  prizes: [],
-  publish_end_at: null,
-  publish_start_at: "2026-08-20T00:00:00Z",
-  published_at: null,
-  published_probability_version: null,
-  revision: 1,
-  status: "draft",
-  title: "Draft Gacha",
-  total_count: 100,
-  updated_at: "2026-08-20T00:00:00Z",
-  version_number: 1,
-};
+function gachaPrize(): AdminGachaVersionPrize {
+  return {
+    ...prize(),
+    name: "SS景品",
+    total_inventory: 10,
+    available_inventory: 7,
+    awarded_inventory: 2,
+    withdrawn_inventory: 1,
+    inventory_revision: 4,
+    version_sort_order: 0,
+    revision: 1,
+  };
+}
+
+function version(status: "draft" | "published" = "draft"): AdminCatalogGachaVersion {
+  return {
+    id: VERSION_ID,
+    version_number: 1,
+    status,
+    title: "Canonical Gacha",
+    description: null,
+    notices: null,
+    price_points: 100,
+    total_count: 100,
+    presentation_asset: null,
+    published_probability_version: null,
+    cloned_from_version: null,
+    publish_start_at: "2026-08-20T00:00:00Z",
+    publish_end_at: null,
+    published_at: status === "published" ? "2026-08-20T00:00:00Z" : null,
+    prizes: [],
+    is_archived: false,
+    revision: 3,
+    archived_at: null,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z",
+  };
+}

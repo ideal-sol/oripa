@@ -62,6 +62,10 @@ Route::prefix('v2')->group(function (): void {
         ->name('v2.public.catalog.categories');
     Route::get('/gacha-tags', [V2CatalogController::class, 'tags'])
         ->name('v2.public.catalog.tags');
+    Route::get('/catalog/presentation-assets/{assetId}/content', [
+        V2CatalogController::class,
+        'presentationAssetContent',
+    ])->whereUuid('assetId')->name('v2.public.catalog.presentation-assets.content');
     Route::get('/point-products', [V2PointProductController::class, 'index'])
         ->middleware('v2.browser:user')
         ->name('v2.public.point-products.index');

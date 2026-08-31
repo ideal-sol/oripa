@@ -26,6 +26,209 @@ final class ZDrawConcurrencyLoadTest extends TestCase
     private const VERSION_ID = '0198a001-0000-7000-8000-000000000012';
     private const PRIZE_A_ID = '0198a001-0000-7000-8000-000000000010';
 
+    public function test_concurrent_draw_and_presentation_update_snapshot_one_committed_revision_pair(): void
+    {
+        if (getenv('V2_RANK_PRESENTATION_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('MIG-099の明示的Presentation Concurrency検証で実行する。');
+        }
+        if (! function_exists('pcntl_fork')) {
+            self::fail('pcntl is required for Canonical Rank presentation concurrency verification.');
+        }
+        $this->configureInventoryBoundary();
+        $gachaId = $this->importGachas(1, totalCount: 100)[0];
+        $user = $this->inventoryUser('rank-presentation-concurrency');
+        $relation = DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->join('catalog_rank_masters as rank_master', 'rank_master.id', '=', 'gacha_rank.rank_master_id')
+            ->where('relation.gacha_version_id', DB::table('catalog_gacha_versions')
+                ->where('gacha_id', DB::table('catalog_gachas')->where('public_id', $gachaId)->value('id'))
+                ->value('id'))
+            ->orderBy('relation.id')
+            ->firstOrFail([
+                'rank_master.id as rank_master_id',
+                'rank_master.current_revision_id as rank_master_revision_id',
+                'rank_master.revision as rank_master_revision',
+                'gacha_rank.id as gacha_rank_id',
+                'gacha_rank.current_video_revision_id',
+                'gacha_rank.revision as gacha_rank_revision',
+            ]);
+        $rankRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', $relation->rank_master_revision_id)->firstOrFail();
+        $videoRevision = DB::table('catalog_gacha_rank_video_revisions')
+            ->where('id', $relation->current_video_revision_id)->firstOrFail();
+        $this->app->instance(
+            V2CryptographicRandomSource::class,
+            new V2CryptographicRandomSource(
+                static fn (int $minimum, int $maximum): int => $minimum
+            )
+        );
+        $drawResultsBefore = DB::table('draw_results')->count();
+        $soldBefore = (int) DB::table('gacha_draw_states')->value('sold_count');
+        $awardedBefore = (int) DB::table('prize_inventories')->sum('awarded_count');
+        $directory = sys_get_temp_dir().'/mig099-rank-presentation-'.getmypid();
+        mkdir($directory, 0700, true);
+        $startAt = microtime(true) + 0.5;
+        $idempotencyKey = 'rank-presentation-concurrent-draw';
+        $requestToken = (string) Str::uuid7();
+        $children = [];
+        foreach (['draw', 'admin'] as $worker) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                self::fail('Canonical Rank presentation worker could not be created.');
+            }
+            if ($pid === 0) {
+                while (microtime(true) < $startAt) {
+                    usleep(1_000);
+                }
+                DB::disconnect();
+                DB::reconnect();
+                try {
+                    if ($worker === 'draw') {
+                        $response = app(V2DrawService::class)->create(
+                            User::query()->findOrFail($user->id),
+                            $gachaId,
+                            1,
+                            $idempotencyKey,
+                            $requestToken
+                        );
+                        $result = [
+                            'status' => 'completed',
+                            'draw_id' => $response['id'],
+                        ];
+                    } else {
+                        $result = DB::transaction(function () use ($relation, $rankRevision, $videoRevision): array {
+                            $now = now()->startOfSecond();
+                            $rankRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+                                'rank_master_id' => $relation->rank_master_id,
+                                'revision_number' => (int) $rankRevision->revision_number + 1,
+                                'rank_name' => 'Concurrent Rank Presentation',
+                                'lineup_image_asset_id' => $rankRevision->lineup_image_asset_id,
+                                'result_image_asset_id' => $rankRevision->result_image_asset_id,
+                                'show_total_stock' => (bool) $rankRevision->show_total_stock,
+                                'display_order' => $rankRevision->display_order,
+                                'created_at' => $now,
+                            ]);
+                            $videoAssetId = DB::table('catalog_presentation_assets')->insertGetId([
+                                'public_id' => (string) Str::uuid7(),
+                                'storage_identifier' => 'tests/concurrent-rank-video-'.Str::uuid7().'.mp4',
+                                'public_path' => '/assets/tests/concurrent-rank-video-'.Str::uuid7().'.mp4',
+                                'checksum_sha256' => hash('sha256', 'concurrent-rank-video-update'),
+                                'media_type' => 'video',
+                                'mime_type' => 'video/mp4',
+                                'byte_size' => 1,
+                                'alt_text' => 'Concurrent Rank Video',
+                                'is_public' => true,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                            $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+                                'gacha_rank_id' => $relation->gacha_rank_id,
+                                'revision_number' => (int) $videoRevision->revision_number + 1,
+                                'video_asset_id' => $videoAssetId,
+                                'created_at' => $now,
+                            ]);
+                            DB::table('catalog_rank_masters')
+                                ->where('id', $relation->rank_master_id)
+                                ->update([
+                                    'current_revision_id' => $rankRevisionId,
+                                    'revision' => (int) $relation->rank_master_revision + 1,
+                                    'updated_at' => $now,
+                                ]);
+                            DB::table('catalog_gacha_ranks')
+                                ->where('id', $relation->gacha_rank_id)
+                                ->update([
+                                    'current_video_revision_id' => $videoRevisionId,
+                                    'revision' => (int) $relation->gacha_rank_revision + 1,
+                                    'updated_at' => $now,
+                                ]);
+
+                            return [
+                                'status' => 'completed',
+                                'rank_revision_id' => $rankRevisionId,
+                                'video_revision_id' => $videoRevisionId,
+                            ];
+                        }, 3);
+                    }
+                } catch (\Throwable $exception) {
+                    $result = [
+                        'status' => 'failed',
+                        'class' => get_class($exception),
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+                file_put_contents(
+                    "{$directory}/{$worker}.json",
+                    json_encode($result, JSON_THROW_ON_ERROR),
+                    LOCK_EX
+                );
+                exit($result['status'] === 'completed' ? 0 : 1);
+            }
+            $children[] = $pid;
+        }
+        DB::disconnect();
+        DB::reconnect();
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            self::assertTrue(pcntl_wifexited($status));
+            self::assertSame(0, pcntl_wexitstatus($status));
+        }
+        $results = [];
+        foreach (['draw', 'admin'] as $worker) {
+            $path = "{$directory}/{$worker}.json";
+            $results[$worker] = json_decode(
+                file_get_contents($path),
+                true,
+                flags: JSON_THROW_ON_ERROR
+            );
+            unlink($path);
+        }
+        rmdir($directory);
+
+        $drawResult = DB::table('draw_results as result')
+            ->join('draw_requests as request', 'request.id', '=', 'result.draw_request_id')
+            ->where('request.public_id', $results['draw']['draw_id'])
+            ->where('result.result_type', 'prize')
+            ->firstOrFail(['result.*']);
+        $validPairs = [
+            [
+                (int) $relation->rank_master_revision_id,
+                (int) $relation->current_video_revision_id,
+            ],
+            [
+                (int) $results['admin']['rank_revision_id'],
+                (int) $results['admin']['video_revision_id'],
+            ],
+        ];
+        self::assertContains([
+            (int) $drawResult->rank_master_revision_id,
+            (int) $drawResult->gacha_rank_video_revision_id,
+        ], $validPairs);
+        $snapshot = json_decode(
+            (string) $drawResult->display_snapshot,
+            true,
+            flags: JSON_THROW_ON_ERROR
+        );
+        if ((int) $drawResult->rank_master_revision_id === (int) $results['admin']['rank_revision_id']) {
+            self::assertSame('Concurrent Rank Presentation', $snapshot['rank_name_snapshot']);
+            self::assertStringStartsWith('/assets/tests/concurrent-rank-video-', $snapshot['video_snapshot']['path']);
+        } else {
+            self::assertSame($rankRevision->rank_name, $snapshot['rank_name_snapshot']);
+        }
+        $replay = app(V2DrawService::class)->create(
+            User::query()->findOrFail($user->id),
+            $gachaId,
+            1,
+            $idempotencyKey,
+            $requestToken
+        );
+        self::assertTrue($replay['idempotent_replay']);
+        self::assertSame(1, DB::table('draw_requests')->where('public_id', $results['draw']['draw_id'])->count());
+        self::assertSame($drawResultsBefore + 1, DB::table('draw_results')->count());
+        self::assertSame($soldBefore + 1, (int) DB::table('gacha_draw_states')->value('sold_count'));
+        self::assertSame($awardedBefore + 1, (int) DB::table('prize_inventories')->sum('awarded_count'));
+    }
+
     public function test_operational_inventory_migration_backfills_successful_draw_history(): void
     {
         $this->configureInventoryBoundary();

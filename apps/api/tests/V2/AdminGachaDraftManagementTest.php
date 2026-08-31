@@ -503,27 +503,44 @@ final class AdminGachaDraftManagementTest extends TestCase
     private function createOwnedPrize(string $gachaPublicId): string
     {
         $source = DB::table('catalog_prizes')->where('public_id', self::PRIZE_ID)->firstOrFail();
-        $gachaId = DB::table('catalog_gachas')
+        $gachaId = (int) DB::table('catalog_gachas')
             ->where('public_id', $gachaPublicId)->value('id');
-        $sourceRank = DB::table('catalog_ranks')->where('id', $source->rank_id)->firstOrFail();
-        $rankValues = (array) $sourceRank;
-        unset($rankValues['id']);
-        $rankValues['public_id'] = (string) Str::uuid7();
-        $rankValues['gacha_id'] = $gachaId;
-        $rankValues['revision'] = 1;
-        $rankValues['created_at'] = now()->startOfSecond();
-        $rankValues['updated_at'] = now()->startOfSecond();
-        $rankId = DB::table('catalog_ranks')->insertGetId($rankValues);
+        $sourceGachaRank = DB::table('catalog_gacha_ranks')
+            ->where('id', $source->gacha_rank_id)->firstOrFail();
+        $sourceVideo = DB::table('catalog_gacha_rank_video_revisions')
+            ->where('id', $sourceGachaRank->current_video_revision_id)->firstOrFail();
+        $now = now()->startOfSecond();
+        $gachaRankId = DB::table('catalog_gacha_ranks')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'gacha_id' => $gachaId,
+            'rank_master_id' => $sourceGachaRank->rank_master_id,
+            'current_video_revision_id' => null,
+            'first_published_at' => null,
+            'revision' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+            'gacha_rank_id' => $gachaRankId,
+            'revision_number' => 1,
+            'video_asset_id' => $sourceVideo->video_asset_id,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_gacha_ranks')->where('id', $gachaRankId)->update([
+            'current_video_revision_id' => $videoRevisionId,
+            'updated_at' => $now,
+        ]);
         $publicId = (string) Str::uuid7();
         $values = (array) $source;
         unset($values['id']);
         $values['public_id'] = $publicId;
         $values['code'] = 'owned-'.str_replace('-', '', $publicId);
         $values['gacha_id'] = $gachaId;
-        $values['rank_id'] = $rankId;
+        $values['rank_id'] = null;
+        $values['gacha_rank_id'] = $gachaRankId;
         $values['revision'] = 1;
-        $values['created_at'] = now()->startOfSecond();
-        $values['updated_at'] = now()->startOfSecond();
+        $values['created_at'] = $now;
+        $values['updated_at'] = $now;
         DB::table('catalog_prizes')->insert($values);
 
         return $publicId;

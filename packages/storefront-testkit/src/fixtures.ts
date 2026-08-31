@@ -739,20 +739,29 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
     notices: "Production利用不可。",
     ranks: [
       {
-        id: "0198a001-0000-7000-8000-000000000003",
-        code: "S",
-        name: "Sランク",
-        presentation_assets: [],
-        prizes: [
-          {
-            id: "0198a001-0000-7000-8000-000000000009",
-            name: "Fixture S景品",
-            description: "公開安全なFixture景品。",
-            display_price: 10000,
-            exchange_points: 8000,
-            presentation_asset: null,
-          },
-        ],
+        rank_id: "0198a001-0000-7000-8000-000000000003",
+        rank_name: "Sランク",
+        lineup_image: {
+          id: "0198a001-0000-7000-8000-000000000005",
+          path: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000005",
+          checksum_sha256:
+            "0605cbbe5fcd83f57adc97efe4eb39efc5639b28f6fc48e097dc4a9ba68d86c8",
+          media_type: "image",
+          mime_type: "image/png",
+          alt_text: "Sランク景品ラインナップ",
+        },
+        show_total_stock: true,
+        total_stock: 100,
+        display_order: 10,
+        current_video: {
+          id: "0198a001-0000-7000-8000-000000000006",
+          path: "/api/v2/content/assets/0198a001-0000-7000-8000-000000000006",
+          checksum_sha256:
+            "8d719a8e24354d042de0b73ee5cc4e145da4ac9c00cd0474d16386e1244ba7d1",
+          media_type: "video",
+          mime_type: "video/mp4",
+          alt_text: "Sランク抽選演出",
+        },
       },
     ],
     probability_stages: [
@@ -770,7 +779,6 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
           {
             rank: {
               id: "0198a001-0000-7000-8000-000000000003",
-              code: "S",
               name: "Sランク",
             },
             total_ppm: 100000,
@@ -782,7 +790,6 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
           total_ppm: 800000,
           rank: {
             id: "0198a001-0000-7000-8000-000000000004",
-            code: "A",
             name: "Aランク",
           },
         },
@@ -1045,7 +1052,6 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
     {
       rank: {
         id: "0198a001-0000-7000-8000-000000000003",
-        code: "S",
         name: "Sランク",
       },
       count: 100,
@@ -1060,7 +1066,6 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
       },
       rank: {
         id: "0198a001-0000-7000-8000-000000000003",
-        code: "S",
         name: "Sランク",
       },
       count: 100,
@@ -1163,7 +1168,6 @@ export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
     image: null,
     rank: {
       id: "0198a001-0000-7000-8000-000000000003",
-      code: "S",
       name: "Sランク",
     },
   },
@@ -1184,7 +1188,6 @@ export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   },
   rank: {
     id: "0198a001-0000-7000-8000-000000000003",
-    code: "S",
     name: "Sランク",
   },
 } as const satisfies PublicComponents["schemas"]["UserPrize"]);

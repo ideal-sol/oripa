@@ -9,6 +9,7 @@ use App\Domain\Identity\Services\V2SessionPolicy;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -20,12 +21,12 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
     private const VIDEO_ASSET_ID = '0198a001-0000-7000-8000-000000000006';
     private const PRIZE_ASSET_ID = '0198a001-0000-7000-8000-000000000007';
     private const PUBLISHED_GACHA_ID = '0198a001-0000-7000-8000-000000000011';
-    private const PUBLISHED_VERSION_ID = '0198a001-0000-7000-8000-000000000012';
 
     protected function setUp(): void
     {
         parent::setUp();
         DB::beginTransaction();
+        Storage::fake('local');
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
             true,
@@ -33,7 +34,10 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             JSON_THROW_ON_ERROR
         );
         app(V2CatalogFixtureImporter::class)->import($fixture);
-        config(['v2_identity.origins.admin' => 'https://admin.example.test']);
+        config([
+            'filesystems.default' => 'local',
+            'v2_identity.origins.admin' => 'https://admin.example.test',
+        ]);
     }
 
     protected function tearDown(): void
@@ -42,627 +46,370 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_owner_manages_draft_ranks_and_prizes_with_canonical_inventory(): void
+    public function test_rank_master_defaults_revisions_reorder_and_unused_inactive_are_canonical(): void
     {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $core = $this->mutate(
-            $token,
-            'POST',
-            '/admin/api/v2/catalog/gachas/core',
-            $this->coreInput()
-        )->assertCreated()->json('data');
-        $gachaId = $core['id'];
-        $versionId = $core['current_version']['id'];
-        $assetCountBefore = DB::table('catalog_presentation_assets')->count();
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $this->mutate($owner, 'POST', '/admin/api/v2/catalog/ranks', [
+            'rank_name' => '画像不足',
+            'lineup_image' => $this->imageInput(),
+        ])->assertUnprocessable();
+
+        $first = $this->createRankMaster($owner, 'Sランク');
+        $second = $this->createRankMaster($owner, 'Aランク');
+        self::assertFalse($first['show_total_stock']);
+        self::assertSame('active', $first['status']);
+        self::assertSame(1, $first['revision']);
+        self::assertSame(1, $first['revision_number']);
+        self::assertDatabaseCount('catalog_rank_master_revisions', 2 + $this->fixtureRankCount());
 
         Auth::forgetGuards();
-        $rank = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/ranks",
-            [
-                'code' => 'ss',
-                'name' => 'SSランク',
-                'description' => '最上位ランク',
-                'image_asset_id' => self::IMAGE_ASSET_ID,
-                'video_asset_id' => self::VIDEO_ASSET_ID,
-                'expected_version_revision' => 1,
+        $firstUpdated = $this->mutate($owner, 'PUT', '/admin/api/v2/catalog/ranks/'.$first['id'], [
+            'expected_revision' => 1,
+            'rank_name' => 'Sランク 更新',
+            'show_total_stock' => true,
+            'status' => 'active',
+        ])->assertOk()->json('data');
+        self::assertSame('Sランク 更新', $firstUpdated['rank_name']);
+        self::assertTrue($firstUpdated['show_total_stock']);
+        self::assertSame(2, $firstUpdated['revision']);
+        self::assertSame(2, $firstUpdated['revision_number']);
+
+        Auth::forgetGuards();
+        $reordered = $this->mutate($owner, 'PUT', '/admin/api/v2/catalog/ranks/reorder', [
+            'items' => [
+                ['rank_id' => $first['id'], 'expected_revision' => 2, 'display_order' => 990],
+                ['rank_id' => $second['id'], 'expected_revision' => 1, 'display_order' => 991],
             ],
-            'rank-create-canonical'
-        )->assertCreated()
-            ->assertJsonPath('data.description', '最上位ランク')
-            ->assertJsonPath('data.image_asset.id', self::IMAGE_ASSET_ID)
-            ->assertJsonPath('data.video_asset.id', self::VIDEO_ASSET_ID)
+        ])->assertOk()->json('data');
+        $reorderedFirst = collect($reordered['items'])->first(
+            fn (array $item): bool => $item['id'] === $first['id']
+        );
+        self::assertNotNull($reorderedFirst);
+        self::assertSame(990, $reorderedFirst['display_order']);
+        self::assertSame(3, $reorderedFirst['revision']);
+
+        Auth::forgetGuards();
+        $inactive = $this->mutate($owner, 'PUT', '/admin/api/v2/catalog/ranks/'.$second['id'], [
+            'expected_revision' => 2,
+            'rank_name' => $second['rank_name'],
+            'show_total_stock' => false,
+            'status' => 'inactive',
+        ])->assertOk()->json('data');
+        self::assertSame('inactive', $inactive['status']);
+        self::assertFalse($inactive['has_usage']);
+
+        $routes = collect(app('router')->getRoutes())
+            ->filter(fn ($route): bool => str_starts_with($route->uri(), 'admin/api/v2/catalog/ranks'));
+        self::assertFalse($routes->contains(fn ($route): bool => in_array(
+            'DELETE',
+            $route->methods(),
+            true
+        )));
+
+        $firstInternalId = (int) DB::table('catalog_rank_masters')
+            ->where('public_id', $first['id'])->value('id');
+        $this->expectException(QueryException::class);
+        DB::table('catalog_rank_masters')->where('id', $firstInternalId)->delete();
+    }
+
+    public function test_active_master_union_is_lazy_and_video_revisions_reuse_registry_assets(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $legacyRankAssetCount = DB::table('catalog_rank_assets')->count();
+        $gacha = $this->createGacha($owner, 'Lazy Gacha');
+        $first = $this->createRankMaster($owner, 'Lazy S');
+        $second = $this->createRankMaster($owner, 'Lazy A');
+
+        Auth::forgetGuards();
+        $before = $this->gachaRankRow($owner, $gacha['id'], $first['id']);
+        self::assertNull($before['gacha_rank_id']);
+        self::assertNull($before['current_video']);
+        self::assertTrue($before['can_unset_video']);
+        self::assertSame(0, DB::table('catalog_gacha_ranks')->where('gacha_id', function ($query) use ($gacha): void {
+            $query->select('id')->from('catalog_gachas')->where('public_id', $gacha['id']);
+        })->count());
+
+        Auth::forgetGuards();
+        $firstVideo = $this->setRankVideo($owner, $gacha['id'], $first['id']);
+        self::assertSame(self::VIDEO_ASSET_ID, $firstVideo['current_video']['id']);
+        self::assertSame(1, $firstVideo['video_revision_number']);
+        self::assertSame(1, $firstVideo['revision']);
+        self::assertDatabaseCount('catalog_gacha_rank_video_revisions', $this->fixtureGachaRankCount() + 1);
+
+        Auth::forgetGuards();
+        $sameVideo = $this->setRankVideo(
+            $owner,
+            $gacha['id'],
+            $first['id'],
+            ['expected_revision' => 1]
+        );
+        self::assertSame(1, $sameVideo['video_revision_number']);
+        self::assertSame(1, $sameVideo['revision']);
+
+        Auth::forgetGuards();
+        $secondVideo = $this->setRankVideo($owner, $gacha['id'], $second['id']);
+        self::assertSame(self::VIDEO_ASSET_ID, $secondVideo['current_video']['id']);
+        self::assertSame(1, $secondVideo['video_revision_number']);
+        self::assertSame(2, DB::table('catalog_gacha_ranks')
+            ->where('gacha_id', function ($query) use ($gacha): void {
+                $query->select('id')->from('catalog_gachas')->where('public_id', $gacha['id']);
+            })->count());
+        self::assertSame($legacyRankAssetCount, DB::table('catalog_rank_assets')->count());
+
+        $gachaInternalId = (int) DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('id');
+        $firstMasterId = (int) DB::table('catalog_rank_masters')->where('public_id', $first['id'])->value('id');
+        $this->expectException(QueryException::class);
+        DB::table('catalog_gacha_ranks')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'gacha_id' => $gachaInternalId,
+            'rank_master_id' => $firstMasterId,
+            'revision' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_prize_requires_video_uses_gacha_rank_and_cannot_cross_or_change_rank(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->createGacha($owner, 'Prize Gacha');
+        $versionId = $gacha['current_version']['id'];
+        $rank = $this->createRankMaster($owner, 'Prize S');
+
+        $createUri = $this->rankPrizeUri($gacha['id'], $versionId, $rank['id']);
+        $this->mutate($owner, 'POST', $createUri, $this->prizeInput(1))
+            ->assertConflict()
+            ->assertJsonPath('code', 'CATALOG_GACHA_RANK_VIDEO_REQUIRED');
+
+        Auth::forgetGuards();
+        $gachaRank = $this->setRankVideo($owner, $gacha['id'], $rank['id']);
+        Auth::forgetGuards();
+        $prize = $this->mutate($owner, 'POST', $createUri, $this->prizeInput(1))
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Canonical Prize')
             ->json('data');
+
+        $storedPrize = DB::table('catalog_prizes')->where('public_id', $prize['id'])->firstOrFail();
+        $storedGachaRank = DB::table('catalog_gacha_ranks')->where('public_id', $gachaRank['id'])->firstOrFail();
+        self::assertNull($storedPrize->rank_id);
+        self::assertSame((int) $storedGachaRank->id, (int) $storedPrize->gacha_rank_id);
+        self::assertDatabaseHas('catalog_gacha_version_prizes', [
+            'prize_id' => $storedPrize->id,
+            'gacha_rank_id' => $storedGachaRank->id,
+            'rank_id' => null,
+        ]);
 
         Auth::forgetGuards();
         $this->mutate(
-            $token,
+            $owner,
             'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/ranks",
-            [
-                'code' => 'ss',
-                'name' => 'SSランク',
-                'description' => '最上位ランク',
-                'image_asset_id' => self::IMAGE_ASSET_ID,
-                'video_asset_id' => self::VIDEO_ASSET_ID,
-                'expected_version_revision' => 1,
-            ],
-            'rank-create-canonical'
-        )->assertCreated()->assertJsonPath('idempotent_replay', true);
+            '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/ranks/'.$rank['id'].'/video/unset',
+            ['expected_revision' => $gachaRank['revision']]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_GACHA_RANK_VIDEO_REQUIRED');
 
+        $otherRank = $this->createRankMaster($owner, 'Prize A');
         Auth::forgetGuards();
-        $this->asAdmin($token)
-            ->getJson("/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/ranks")
-            ->assertOk()
-            ->assertJsonPath('version_revision', 2)
-            ->assertJsonPath('items.0.id', $rank['id']);
-
-        Auth::forgetGuards();
-        $prize = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes",
-            [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => self::PRIZE_ASSET_ID,
-                'name' => 'SS景品',
-                'total_inventory' => 10,
-                'exchange_points' => 8000,
-                'cost_price' => 5000,
-                'is_active' => true,
-                'expected_version_revision' => 2,
-            ]
-        )->assertCreated()
-            ->assertJsonPath('data.cost_price', 5000)
-            ->assertJsonPath(
-                'data.presentation_asset.id',
-                self::PRIZE_ASSET_ID
-            )
-            ->json('data');
-
-        $prizeAssetId = DB::table('catalog_presentation_assets')
-            ->where('public_id', self::PRIZE_ASSET_ID)->value('id');
-        $storedPrizeId = DB::table('catalog_prizes')
-            ->where('public_id', $prize['id'])->value('id');
-        self::assertSame(
-            (int) $prizeAssetId,
-            (int) DB::table('catalog_prizes')
-                ->where('id', $storedPrizeId)
-                ->value('presentation_asset_id')
-        );
-        self::assertSame(
-            (int) $prizeAssetId,
-            (int) DB::table('catalog_gacha_version_prizes')
-                ->where('prize_id', $storedPrizeId)
-                ->value('presentation_asset_id')
-        );
-
-        Auth::forgetGuards();
-        $this->asAdmin($token)
-            ->getJson("/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes")
-            ->assertOk()
-            ->assertJsonPath('version_revision', 3)
-            ->assertJsonPath('items.0.id', $prize['id'])
-            ->assertJsonPath('items.0.total_inventory', 10)
-            ->assertJsonPath('items.0.available_inventory', 10)
-            ->assertJsonPath('items.0.awarded_inventory', 0)
-            ->assertJsonPath('items.0.withdrawn_inventory', 0)
-            ->assertJsonPath('items.0.inventory_revision', 0)
-            ->assertJsonPath(
-                'items.0.presentation_asset.id',
-                self::PRIZE_ASSET_ID
-            )
-            ->assertJsonMissingPath('items.0.internal_id');
-
+        $this->setRankVideo($owner, $gacha['id'], $otherRank['id']);
         Auth::forgetGuards();
         $this->mutate(
-            $token,
+            $owner,
             'PUT',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes/{$prize['id']}",
+            $this->rankPrizeUri($gacha['id'], $versionId, $otherRank['id']).'/'.$prize['id'],
             [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => self::IMAGE_ASSET_ID,
-                'name' => 'SS景品 改訂',
-                'total_inventory' => 12,
-                'available_inventory' => 12,
-                'exchange_points' => 8500,
-                'cost_price' => 5200,
-                'is_active' => false,
+                ...$this->prizeInput(2),
                 'expected_revision' => 1,
-                'expected_version_revision' => 3,
-                'expected_inventory_revision' => 0,
-                'inventory_reason' => 'Draft inventory correction',
             ]
-        )->assertOk()
-            ->assertJsonPath('data.name', 'SS景品 改訂')
-            ->assertJsonPath('data.cost_price', 5200)
-            ->assertJsonPath('data.is_visible', false)
-            ->assertJsonPath(
-                'data.presentation_asset.id',
-                self::IMAGE_ASSET_ID
-            );
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_RANK_IMMUTABLE');
 
-        $updatedAssetId = DB::table('catalog_presentation_assets')
-            ->where('public_id', self::IMAGE_ASSET_ID)->value('id');
-        self::assertSame(
-            (int) $updatedAssetId,
-            (int) DB::table('catalog_prizes')
-                ->where('id', $storedPrizeId)
-                ->value('presentation_asset_id')
-        );
-        self::assertSame(
-            (int) $updatedAssetId,
-            (int) DB::table('catalog_gacha_version_prizes')
-                ->where('prize_id', $storedPrizeId)
-                ->value('presentation_asset_id')
-        );
-
-        Auth::forgetGuards();
-        $this->asAdmin($token)
-            ->getJson("/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes")
-            ->assertOk()
-            ->assertJsonPath(
-                'items.0.presentation_asset.id',
-                self::IMAGE_ASSET_ID
-            );
-        self::assertSame(
-            $assetCountBefore,
-            DB::table('catalog_presentation_assets')->count()
-        );
-    }
-
-    public function test_rank_codes_are_unique_inside_one_gacha_and_reusable_across_gachas(): void
-    {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $coreA = $this->mutate(
-            $token,
-            'POST',
-            '/admin/api/v2/catalog/gachas/core',
-            [...$this->coreInput(), 'title' => 'Rank Scope A']
-        )->assertCreated()->json('data');
-        Auth::forgetGuards();
-        $coreB = $this->mutate(
-            $token,
-            'POST',
-            '/admin/api/v2/catalog/gachas/core',
-            [...$this->coreInput(), 'title' => 'Rank Scope B']
-        )->assertCreated()->json('data');
-
-        $rankInput = [
-            'code' => 'first',
-            'name' => '1等賞',
-            'description' => 'Scoped Rank',
-            'image_asset_id' => null,
-            'video_asset_id' => null,
-            'expected_version_revision' => 1,
-        ];
-        Auth::forgetGuards();
-        $rankA = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks",
-            $rankInput,
-            'rank-scope-a-first'
-        )->assertCreated()->assertJsonPath('data.code', 'first')->json('data');
-
+        $otherGacha = $this->createGacha($owner, 'Cross Gacha');
         Auth::forgetGuards();
         $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks",
-            [...$rankInput, 'expected_version_revision' => 2],
-            'rank-scope-a-duplicate'
-        )->assertConflict()->assertJsonPath('code', 'CATALOG_MASTER_CONFLICT');
-
-        Auth::forgetGuards();
-        $rankB = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$coreB['id']}/versions/{$coreB['current_version']['id']}/ranks",
-            $rankInput,
-            'rank-scope-b-first'
-        )->assertCreated()->assertJsonPath('data.code', 'first')->json('data');
-
-        $storedRanks = DB::table('catalog_ranks')
-            ->whereIn('public_id', [$rankA['id'], $rankB['id']])
-            ->orderBy('public_id')
-            ->get(['gacha_id', 'code']);
-        self::assertCount(2, $storedRanks);
-        self::assertSame(['first'], $storedRanks->pluck('code')->unique()->values()->all());
-        self::assertCount(2, $storedRanks->pluck('gacha_id')->unique());
-
-        Auth::forgetGuards();
-        $this->mutate(
-            $token,
+            $owner,
             'PUT',
-            "/admin/api/v2/catalog/gachas/{$coreA['id']}/versions/{$coreA['current_version']['id']}/ranks/{$rankA['id']}",
+            $this->rankPrizeUri($otherGacha['id'], $otherGacha['current_version']['id'], $rank['id'])
+                .'/'.$prize['id'],
             [
-                'code' => 'second',
-                'name' => $rankA['name'],
-                'description' => $rankA['description'],
-                'image_asset_id' => null,
-                'video_asset_id' => null,
-                'expected_revision' => $rankA['revision'],
-                'expected_version_revision' => 2,
-            ],
-            'rank-code-remains-immutable'
-        )->assertConflict()->assertJsonPath('code', 'CATALOG_CODE_IMMUTABLE');
-        self::assertSame(
-            'first',
-            DB::table('catalog_ranks')->where('public_id', $rankA['id'])->value('code')
-        );
-        self::assertSame(
-            1,
-            DB::table('pg_constraint')
-                ->where('conname', 'catalog_ranks_gacha_id_code_unique')
-                ->count()
-        );
-        self::assertSame(
-            0,
-            DB::table('pg_constraint')
-                ->where('conname', 'catalog_ranks_code_unique')
-                ->count()
-        );
+                ...$this->prizeInput(1),
+                'expected_revision' => 1,
+            ]
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_RANK_IMMUTABLE');
+
+        $otherGachaInternalId = (int) DB::table('catalog_gachas')
+            ->where('public_id', $otherGacha['id'])->value('id');
+        $this->expectException(QueryException::class);
+        DB::table('catalog_prizes')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'code' => 'cross-'.Str::uuid7(),
+            'gacha_id' => $otherGachaInternalId,
+            'rank_id' => null,
+            'gacha_rank_id' => $storedGachaRank->id,
+            'display_name' => 'Cross Gacha Prize',
+            'display_price' => 0,
+            'exchange_points' => 0,
+            'is_visible' => true,
+            'revision' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
-    public function test_prize_inventory_total_cannot_exceed_gacha_total_count(): void
+    public function test_rank_usage_prevents_inactive_after_prize_or_publication_forever(): void
     {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $core = $this->mutate(
-            $token,
-            'POST',
-            '/admin/api/v2/catalog/gachas/core',
-            [...$this->coreInput(), 'total_count' => 10]
-        )->assertCreated()->json('data');
-        $gachaId = $core['id'];
-        $versionId = $core['current_version']['id'];
-
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->createGacha($owner, 'Usage Gacha');
+        $prizeRank = $this->createRankMaster($owner, 'Usage Prize Rank');
         Auth::forgetGuards();
-        $rank = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/ranks",
-            [
-                'code' => 'capacity',
-                'name' => 'Capacity Rank',
-                'description' => null,
-                'image_asset_id' => null,
-                'video_asset_id' => null,
-                'expected_version_revision' => 1,
-            ]
-        )->assertCreated()->json('data');
-
-        Auth::forgetGuards();
-        $prize = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes",
-            [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => null,
-                'name' => 'Capacity Prize',
-                'total_inventory' => 10,
-                'exchange_points' => 0,
-                'cost_price' => 0,
-                'is_active' => true,
-                'expected_version_revision' => 2,
-            ]
-        )->assertCreated()->json('data');
-
+        $this->setRankVideo($owner, $gacha['id'], $prizeRank['id']);
         Auth::forgetGuards();
         $this->mutate(
-            $token,
+            $owner,
             'POST',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes",
-            [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => null,
-                'name' => 'Over Capacity Prize',
-                'total_inventory' => 1,
-                'exchange_points' => 0,
-                'cost_price' => 0,
-                'is_active' => true,
-                'expected_version_revision' => 3,
-            ],
-            'inventory-capacity-create'
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_GACHA_INVENTORY_TOTAL_CONFLICT');
+            $this->rankPrizeUri($gacha['id'], $gacha['current_version']['id'], $prizeRank['id']),
+            $this->prizeInput(1)
+        )->assertCreated();
 
         Auth::forgetGuards();
-        $this->mutate(
-            $token,
-            'PUT',
-            "/admin/api/v2/catalog/gachas/{$gachaId}/versions/{$versionId}/prizes/{$prize['id']}",
-            [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => null,
-                'name' => $prize['name'],
-                'total_inventory' => 11,
-                'available_inventory' => 11,
-                'exchange_points' => 0,
-                'cost_price' => 0,
-                'is_active' => true,
-                'expected_revision' => $prize['revision'],
-                'expected_version_revision' => 3,
-                'expected_inventory_revision' => 0,
-                'inventory_reason' => 'Capacity rejection',
-            ],
-            'inventory-capacity-update'
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_GACHA_INVENTORY_TOTAL_CONFLICT');
-    }
+        $this->updateRankStatus($owner, $prizeRank, 'inactive')
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_RANK_IN_USE');
 
-    public function test_database_constraint_rejects_aggregate_prize_inventory_over_capacity(): void
-    {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $core = $this->mutate(
-            $token,
-            'POST',
-            '/admin/api/v2/catalog/gachas/core',
-            [...$this->coreInput(), 'total_count' => 10]
-        )->assertCreated()->json('data');
-
+        $publishedRank = $this->createRankMaster($owner, 'Usage Published Rank');
         Auth::forgetGuards();
-        $rank = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$core['id']}/versions/{$core['current_version']['id']}/ranks",
-            [
-                'code' => 'database-capacity',
-                'name' => 'Database Capacity Rank',
-                'description' => null,
-                'image_asset_id' => null,
-                'video_asset_id' => null,
-                'expected_version_revision' => 1,
-            ]
-        )->assertCreated()->json('data');
-
-        Auth::forgetGuards();
-        $prize = $this->mutate(
-            $token,
-            'POST',
-            "/admin/api/v2/catalog/gachas/{$core['id']}/versions/{$core['current_version']['id']}/prizes",
-            [
-                'rank_id' => $rank['id'],
-                'presentation_asset_id' => null,
-                'name' => 'Database Capacity Prize',
-                'total_inventory' => 10,
-                'exchange_points' => 0,
-                'cost_price' => 0,
-                'is_active' => true,
-                'expected_version_revision' => 2,
-            ]
-        )->assertCreated()->json('data');
-        $relationId = (int) DB::table('catalog_gacha_version_prizes as relation')
-            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->where('prize.public_id', $prize['id'])
-            ->value('relation.id');
-
-        DB::table('catalog_gacha_version_prizes')->where('id', $relationId)->update([
-            'initial_inventory' => 11,
+        $publishedGachaRank = $this->setRankVideo($owner, $gacha['id'], $publishedRank['id']);
+        $publishedGachaRankId = (int) DB::table('catalog_gacha_ranks')
+            ->where('public_id', $publishedGachaRank['id'])->value('id');
+        DB::table('catalog_gacha_ranks')->where('id', $publishedGachaRankId)->update([
+            'first_published_at' => now(),
+            'revision' => 2,
             'updated_at' => now(),
         ]);
 
-        $this->expectException(QueryException::class);
-        DB::statement(
-            'SET CONSTRAINTS ' .
-            'catalog_gacha_version_prizes_inventory_capacity_update_check IMMEDIATE'
-        );
-    }
-
-    public function test_operator_and_published_version_mutations_are_rejected(): void
-    {
-        $operator = $this->createAdminSession(V2AdminRole::Operator);
-        $publishedRevision = (int) DB::table('catalog_gacha_versions')
-            ->where('public_id', self::PUBLISHED_VERSION_ID)->value('revision');
-        $payload = [
-            'code' => 'blocked-rank',
-            'name' => 'Blocked',
-            'description' => null,
-            'image_asset_id' => null,
-            'video_asset_id' => null,
-            'expected_version_revision' => $publishedRevision,
-        ];
-        $this->mutate(
-            $operator,
-            'POST',
-            '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID.'/versions/'
-                .self::PUBLISHED_VERSION_ID.'/ranks',
-            $payload
-        )->assertForbidden();
-
         Auth::forgetGuards();
-        $owner = $this->createAdminSession(V2AdminRole::Owner);
-        $this->mutate(
-            $owner,
-            'POST',
-            '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID.'/versions/'
-                .self::PUBLISHED_VERSION_ID.'/ranks',
-            $payload
-        )->assertConflict()->assertJsonPath('code', 'CATALOG_GACHA_VERSION_IMMUTABLE');
-    }
-
-    public function test_published_inventory_adjustment_is_occ_idempotent_and_audited(): void
-    {
-        $owner = $this->createAdminSession(V2AdminRole::Owner);
-        $versionRevision = (int) DB::table('catalog_gacha_versions')
-            ->where('public_id', self::PUBLISHED_VERSION_ID)
-            ->value('revision');
-        $gacha = DB::table('catalog_gachas')
-            ->where('public_id', self::PUBLISHED_GACHA_ID)
-            ->firstOrFail();
-        $stateBefore = DB::table('gacha_draw_states')
-            ->where('id', $gacha->active_draw_state_id)
-            ->firstOrFail();
-        $collection = $this->asAdmin($owner)
-            ->getJson('/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
-                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes')
-            ->assertOk()
-            ->json();
-        $prize = $collection['items'][0];
-        $payload = [
-            'rank_id' => $prize['rank']['id'],
-            'presentation_asset_id' => $prize['presentation_asset']['id'] ?? null,
-            'name' => $prize['name'],
-            'total_inventory' => $prize['total_inventory'] + 5,
-            'available_inventory' => $prize['available_inventory'] + 2,
-            'exchange_points' => $prize['exchange_points'],
-            'cost_price' => $prize['cost_price'],
-            'is_active' => $prize['is_visible'],
-            'expected_revision' => $prize['revision'],
-            'expected_version_revision' => $versionRevision,
-            'expected_inventory_revision' => $prize['inventory_revision'],
-            'inventory_reason' => 'Operational stock reconciliation',
-        ];
-        $uri = '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
-            .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes/'.$prize['id'];
-        $key = 'published-inventory-adjustment-key';
-
-        $this->mutate($owner, 'PUT', $uri, $payload, $key)
-            ->assertOk()
-            ->assertJsonPath('idempotent_replay', false);
-        Auth::forgetGuards();
-        $this->mutate($owner, 'PUT', $uri, $payload, $key)
-            ->assertOk()
-            ->assertJsonPath('idempotent_replay', true);
-
-        $inventory = DB::table('prize_inventories as inventory')
-            ->join(
-                'catalog_gacha_version_prizes as relation',
-                'relation.id',
-                '=',
-                'inventory.gacha_version_prize_id'
-            )
-            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->where('prize.public_id', $prize['id'])
-            ->firstOrFail(['inventory.*']);
-        self::assertSame($payload['total_inventory'], (int) $inventory->total_quantity);
-        self::assertSame($payload['available_inventory'], (int) $inventory->available_quantity);
-        self::assertSame(
-            (int) $inventory->total_quantity,
-            (int) $inventory->awarded_count
-                + (int) $inventory->available_quantity
-                + (int) $inventory->withdrawn_quantity
-        );
-        self::assertSame(1, (int) $inventory->lock_version);
-        self::assertSame(1, DB::table('prize_inventory_adjustments')->count());
-        self::assertSame(1, DB::table('audit_logs')
-            ->where('action_code', 'catalog.inventory.adjusted')->count());
-        self::assertDatabaseHas('prize_inventory_adjustments', [
-            'idempotency_key' => $key,
-            'reason' => 'Operational stock reconciliation',
-            'before_lock_version' => 0,
-            'after_lock_version' => 1,
+        $this->updateRankStatus($owner, $publishedRank, 'inactive')
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_RANK_IN_USE');
+        self::assertDatabaseHas('catalog_gacha_ranks', [
+            'id' => $publishedGachaRankId,
         ]);
-        $stateAfter = DB::table('gacha_draw_states')
-            ->where('id', $gacha->active_draw_state_id)
-            ->firstOrFail();
-        self::assertSame((int) $stateBefore->id, (int) $stateAfter->id);
-        self::assertSame($stateBefore->status, $stateAfter->status);
-        self::assertSame((int) $stateBefore->sold_count, (int) $stateAfter->sold_count);
-        self::assertSame((int) $stateBefore->lock_version, (int) $stateAfter->lock_version);
-        self::assertSame(
-            $versionRevision,
-            (int) DB::table('catalog_gacha_versions')
-                ->where('public_id', self::PUBLISHED_VERSION_ID)
-                ->value('revision')
-        );
-        $currentPrizeRevision = (int) DB::table('catalog_prizes')
-            ->where('public_id', $prize['id'])
-            ->value('revision');
-
-        Auth::forgetGuards();
-        $this->mutate(
-            $owner,
-            'PUT',
-            $uri,
-            [...$payload, 'expected_revision' => $currentPrizeRevision],
-            'published-inventory-stale-key'
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_PRIZE_INVENTORY_REVISION_CONFLICT');
-
-        Auth::forgetGuards();
-        $this->mutate($owner, 'PUT', $uri, [
-            ...$payload,
-            'available_inventory' => -1,
-            'expected_inventory_revision' => 1,
-        ], 'published-inventory-negative-key')->assertUnprocessable();
-
-        DB::table('prize_inventories')->where('id', $inventory->id)->update([
-            'awarded_count' => DB::raw('awarded_count + 1'),
-            'available_quantity' => DB::raw('available_quantity - 1'),
-            'lock_version' => 2,
-        ]);
-        Auth::forgetGuards();
-        $this->mutate($owner, 'PUT', $uri, [
-            ...$payload,
-            'expected_revision' => $currentPrizeRevision,
-            'total_inventory' => 0,
-            'available_inventory' => 0,
-            'expected_inventory_revision' => 2,
-        ], 'published-inventory-below-awarded-key')->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_PRIZE_INVENTORY_CONFLICT');
     }
 
-    public function test_published_presentation_update_keeps_inventory_without_adjustment_metadata(): void
+    public function test_published_gacha_video_change_keeps_inventory_and_draw_state_unchanged(): void
     {
         $owner = $this->createAdminSession(V2AdminRole::Owner);
-        $versionRevision = (int) DB::table('catalog_gacha_versions')
-            ->where('public_id', self::PUBLISHED_VERSION_ID)
-            ->value('revision');
-        $collection = $this->asAdmin($owner)
-            ->getJson('/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
-                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes')
-            ->assertOk()
-            ->json();
-        $prize = $collection['items'][0];
-        $inventoryBefore = DB::table('prize_inventories as inventory')
-            ->join(
-                'catalog_gacha_version_prizes as relation',
-                'relation.id',
-                '=',
-                'inventory.gacha_version_prize_id'
-            )
-            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->where('prize.public_id', $prize['id'])
-            ->firstOrFail(['inventory.*']);
+        $rows = $this->asAdmin($owner)
+            ->getJson('/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID.'/ranks')
+            ->assertOk()->json('items');
+        $row = collect($rows)->first(fn (array $item): bool => $item['gacha_rank_id'] !== null
+            && $item['current_video'] !== null
+            && ! $item['can_unset_video']);
+        self::assertNotNull($row);
 
-        $this->mutate(
+        $replacement = $this->mutate($owner, 'POST', '/admin/api/v2/catalog/rank-effects', [
+            'title' => '公開中変更用動画',
+            'asset_type' => 'video',
+            'is_active' => true,
+            ...$this->videoInput('published-replacement.mp4'),
+        ])->assertCreated()->json('data');
+        $inventoryBefore = DB::table('prize_inventories')->orderBy('id')
+            ->get()->map(static fn (object $entry): array => (array) $entry)->all();
+        $drawStateBefore = DB::table('gacha_draw_states as state')
+            ->join('catalog_gachas as gacha', 'gacha.active_draw_state_id', '=', 'state.id')
+            ->where('gacha.public_id', self::PUBLISHED_GACHA_ID)
+            ->first(['state.*']);
+
+        Auth::forgetGuards();
+        $changed = $this->setRankVideo(
             $owner,
-            'PUT',
-            '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_ID
-                .'/versions/'.self::PUBLISHED_VERSION_ID.'/prizes/'.$prize['id'],
+            self::PUBLISHED_GACHA_ID,
+            $row['rank']['id'],
             [
-                'rank_id' => $prize['rank']['id'],
-                'presentation_asset_id' => $prize['presentation_asset']['id'] ?? null,
-                'name' => $prize['name'].' Presentation',
-                'total_inventory' => $prize['total_inventory'],
-                'exchange_points' => $prize['exchange_points'],
-                'cost_price' => $prize['cost_price'],
-                'is_active' => $prize['is_visible'],
-                'expected_revision' => $prize['revision'],
-                'expected_version_revision' => $versionRevision,
+                'video_asset_id' => $replacement['id'],
+                'expected_revision' => $row['gacha_rank_revision'],
             ]
-        )->assertOk()->assertJsonPath('data.name', $prize['name'].' Presentation');
-
-        $inventoryAfter = DB::table('prize_inventories')
-            ->where('id', $inventoryBefore->id)
-            ->firstOrFail();
-        self::assertSame((array) $inventoryBefore, (array) $inventoryAfter);
-        self::assertSame(0, DB::table('prize_inventory_adjustments')->count());
-        self::assertSame(0, DB::table('audit_logs')
-            ->where('action_code', 'catalog.inventory.adjusted')->count());
+        );
+        self::assertSame($replacement['id'], $changed['current_video']['id']);
+        self::assertSame($row['video_revision_number'] + 1, $changed['video_revision_number']);
+        self::assertSame($row['gacha_rank_revision'] + 1, $changed['revision']);
+        self::assertSame($inventoryBefore, DB::table('prize_inventories')->orderBy('id')
+            ->get()->map(static fn (object $entry): array => (array) $entry)->all());
+        $drawStateAfter = DB::table('gacha_draw_states')->where('id', $drawStateBefore->id)->firstOrFail();
+        self::assertSame((array) $drawStateBefore, (array) $drawStateAfter);
     }
 
-    public function test_database_guard_protects_new_rank_fields_of_published_versions(): void
+    /** @return array<string, mixed> */
+    private function createGacha(string $token, string $title): array
     {
-        $rankId = DB::table('catalog_ranks')->where('code', 'S')->value('id');
-        $this->expectException(QueryException::class);
-        DB::table('catalog_ranks')->where('id', $rankId)->update([
-            'description' => 'direct sql bypass',
-            'revision' => DB::raw('revision + 1'),
+        return $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', [
+            ...$this->coreInput(),
+            'title' => $title,
+        ])->assertCreated()->json('data');
+    }
+
+    /** @return array<string, mixed> */
+    private function createRankMaster(string $token, string $rankName): array
+    {
+        return $this->mutate($token, 'POST', '/admin/api/v2/catalog/ranks', [
+            'rank_name' => $rankName,
+            'lineup_image' => $this->imageInput($rankName.'-lineup.png'),
+            'result_image' => $this->imageInput($rankName.'-result.png'),
+        ])->assertCreated()->json('data');
+    }
+
+    /** @return array<string, mixed> */
+    private function setRankVideo(
+        string $token,
+        string $gachaId,
+        string $rankId,
+        array $input = []
+    ): array {
+        return $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$gachaId.'/ranks/'.$rankId.'/video',
+            ['video_asset_id' => self::VIDEO_ASSET_ID, ...$input]
+        )->assertOk()->json('data');
+    }
+
+    /** @return array<string, mixed> */
+    private function gachaRankRow(string $token, string $gachaId, string $rankId): array
+    {
+        $items = $this->asAdmin($token)
+            ->getJson('/admin/api/v2/catalog/gachas/'.$gachaId.'/ranks')
+            ->assertOk()->json('items');
+        $row = collect($items)->first(
+            fn (array $item): bool => $item['rank']['id'] === $rankId
+        );
+        self::assertNotNull($row);
+
+        return $row;
+    }
+
+    private function updateRankStatus(string $token, array $rank, string $status)
+    {
+        return $this->mutate($token, 'PUT', '/admin/api/v2/catalog/ranks/'.$rank['id'], [
+            'expected_revision' => $rank['revision'],
+            'rank_name' => $rank['rank_name'],
+            'show_total_stock' => $rank['show_total_stock'],
+            'status' => $status,
         ]);
+    }
+
+    private function rankPrizeUri(string $gachaId, string $versionId, string $rankId): string
+    {
+        return '/admin/api/v2/catalog/gachas/'.$gachaId.'/versions/'.$versionId
+            .'/ranks/'.$rankId.'/prizes';
+    }
+
+    /** @return array<string, mixed> */
+    private function prizeInput(int $versionRevision): array
+    {
+        return [
+            'presentation_asset_id' => self::PRIZE_ASSET_ID,
+            'name' => 'Canonical Prize',
+            'total_inventory' => 10,
+            'exchange_points' => 8000,
+            'cost_price' => 5000,
+            'is_active' => true,
+            'expected_version_revision' => $versionRevision,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -682,6 +429,38 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
             'description' => null,
             'notices' => null,
         ];
+    }
+
+    /** @return array<string, string> */
+    private function imageInput(string $fileName = 'rank.png'): array
+    {
+        return [
+            'file_name' => $fileName,
+            'mime_type' => 'image/png',
+            'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function videoInput(string $fileName = 'effect.mp4'): array
+    {
+        return [
+            'file_name' => $fileName,
+            'mime_type' => 'video/mp4',
+            'content_base64' => base64_encode(hex2bin(
+                '00000018667479706d703432000000006d70343269736f6d'
+            )),
+        ];
+    }
+
+    private function fixtureRankCount(): int
+    {
+        return (int) DB::table('catalog_rank_masters')->count() - 2;
+    }
+
+    private function fixtureGachaRankCount(): int
+    {
+        return (int) DB::table('catalog_gacha_ranks')->count() - 1;
     }
 
     private function mutate(

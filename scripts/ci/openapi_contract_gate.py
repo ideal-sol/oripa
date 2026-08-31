@@ -57,6 +57,12 @@ SEMVER = re.compile(
     r"^2\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$"
 )
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+MIG_099_CANONICAL_BREAK = {
+    "authority": "oripa_v2_rank_master_gacha_rank_canonical_spec_v1.0_2026-08-28",
+    "change_id": "MIG-099",
+    "scope": "rank-master-gacha-rank-clean-cutover",
+}
+MIG_099_CANONICAL_BREAK_SURFACES = {"public", "admin"}
 
 
 class ContractFailure(RuntimeError):
@@ -119,6 +125,9 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
         raise ContractFailure(f"{surface}: contract status must be skeleton or alpha")
     if document.get("x-oripa-surface") != surface:
         raise ContractFailure(f"{surface}: surface marker is invalid")
+    canonical_break = document.get("x-oripa-breaking-change")
+    if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK:
+        raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
         raise ContractFailure(f"{surface}: server namespace is invalid")
     if not isinstance(document.get("paths"), dict):
@@ -383,6 +392,23 @@ def previous_bundle(repository: Path, base_sha: str, relative: str) -> dict[str,
     return value
 
 
+def is_authorized_mig_099_canonical_break(
+    surface: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if surface not in MIG_099_CANONICAL_BREAK_SURFACES:
+        return False
+    if current.get("x-oripa-breaking-change") != MIG_099_CANONICAL_BREAK:
+        return False
+    previous_version = previous.get("info", {}).get("version")
+    current_version = current.get("info", {}).get("version")
+    return (
+        previous_version == "2.0.0-alpha.29"
+        and current_version == "2.0.0-alpha.30"
+    )
+
+
 def generate_bundles(repository: Path, output_root: Path) -> dict[str, Path]:
     sources = [str(value["source"]) for value in SURFACES.values()]
     run(
@@ -452,7 +478,11 @@ def validate_generated(
             previous = previous_bundle(repository, base_sha, relative)
             if previous is not None:
                 findings = breaking_changes(previous, document)
-                if findings:
+                if findings and not is_authorized_mig_099_canonical_break(
+                    surface,
+                    previous,
+                    document,
+                ):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

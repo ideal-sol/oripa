@@ -93,9 +93,17 @@ final class V2AdminCatalogController
         return $this->update($request, 'rank', $catalogResourceId);
     }
 
-    public function archiveRank(Request $request, string $catalogResourceId): JsonResponse
+    public function reorderRanks(Request $request): JsonResponse
     {
-        return $this->archive($request, 'rank', $catalogResourceId);
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->reorderRankMasters(
+                    $context,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
     }
 
     public function prizes(Request $request): JsonResponse
@@ -359,6 +367,51 @@ final class V2AdminCatalogController
         );
     }
 
+    public function gachaRanks(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->catalog->gachaRanks($context, $gachaId)
+        );
+    }
+
+    public function setGachaRankVideo(
+        Request $request,
+        string $gachaId,
+        string $rankId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->setGachaRankVideo(
+                    $context,
+                    $gachaId,
+                    $rankId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function unsetGachaRankVideo(
+        Request $request,
+        string $gachaId,
+        string $rankId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->unsetGachaRankVideo(
+                    $context,
+                    $gachaId,
+                    $rankId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createGachaVersionRank(
         Request $request,
         string $gachaId,
@@ -427,6 +480,26 @@ final class V2AdminCatalogController
         );
     }
 
+    public function createGachaRankPrize(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $rankId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->createGachaRankPrize(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $rankId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function updateGachaVersionPrize(
         Request $request,
         string $gachaId,
@@ -440,6 +513,28 @@ final class V2AdminCatalogController
                     $context,
                     $gachaId,
                     $versionId,
+                    $prizeId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
+    public function updateGachaRankPrize(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $rankId,
+        string $prizeId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->updateGachaRankPrize(
+                    $context,
+                    $gachaId,
+                    $versionId,
+                    $rankId,
                     $prizeId,
                     (string) $request->header('Idempotency-Key', ''),
                     $request->json()->all()

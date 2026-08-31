@@ -1,6 +1,6 @@
 {
   "name": "@oripa/storefront-client",
-  "version": "2.0.0-alpha.33",
+  "version": "2.0.0-alpha.34",
   "private": true,
   "description": "Public API v2向けの薄い型付きStorefront Client Alpha。",
   "license": "UNLICENSED",
@@ -49,11 +49,12 @@
   "oripaCompatibility": {
     "family": 2,
     "apiMajor": 2,
-    "minimumPublicApiContract": "2.0.0-alpha.29",
+    "minimumPublicApiContract": "2.0.0-alpha.30",
     "requiredCapabilities": [
       "draw.browser-mutation.v2",
       "gacha.catalog-display.v2",
       "gacha.presentation.v2",
+      "gacha.rank-master.v2",
       "payment.fincode.v2",
       "prize.fulfillment-browser-mutation.v2",
       "user-draw-history.read.v2",

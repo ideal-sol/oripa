@@ -271,7 +271,19 @@ final class V2AdminUserReadService
             )
             ->join('catalog_gachas as gacha', 'gacha.id', '=', 'version.gacha_id')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'version_prize.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'version_prize.rank_id')
+            ->leftJoin('catalog_ranks as legacy_rank', 'legacy_rank.id', '=', 'version_prize.rank_id')
+            ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'result.rank_master_revision_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'rank_revision.rank_master_id'
+            )
             ->where('ownership.user_id', (int) $userId)
             ->orderByDesc('ownership.id')
             ->select([
@@ -283,8 +295,12 @@ final class V2AdminUserReadService
                 'version.title as gacha_title',
                 'prize.public_id as prize_public_id',
                 'version_prize.display_name as prize_name',
-                'rank.public_id as rank_public_id',
-                'version_prize.rank_display_name as rank_name',
+                DB::raw('COALESCE(rank_master.public_id, legacy_rank.public_id) as rank_public_id'),
+                DB::raw(
+                    "COALESCE(result.display_snapshot->>'rank_name_snapshot', ".
+                    "result.display_snapshot#>>'{rank,name}', version_prize.rank_display_name) ".
+                    'as rank_name'
+                ),
                 'ownership.status',
                 'ownership.exchange_point_snapshot',
                 'ownership.exchanged_point_amount',

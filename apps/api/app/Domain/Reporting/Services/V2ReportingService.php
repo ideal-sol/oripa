@@ -499,19 +499,28 @@ final class V2ReportingService
                 'result.gacha_version_prize_id'
             )
             ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'result.rank_id')
-            ->whereNotNull('result.rank_id')
+            ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'result.rank_master_revision_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'rank_revision.rank_master_id'
+            )
+            ->where('result.result_type', 'prize')
             ->where('result.occurred_at', '>=', $period->utcStart()->toIso8601String())
             ->where('result.occurred_at', '<', $period->utcEnd()->toIso8601String())
-            ->groupBy(
-                'gacha.public_id',
-                'rank.public_id',
-                'version_prize.rank_code',
-                'version_prize.rank_display_name'
-            )
+            ->groupBy('gacha.public_id', 'rank.public_id', 'rank_master.public_id')
+            ->groupByRaw("COALESCE(result.display_snapshot->>'rank_name_snapshot', version_prize.rank_display_name)")
+            ->groupBy('version_prize.rank_code')
             ->orderBy('gacha.public_id')
             ->orderBy('version_prize.rank_code')
             ->selectRaw(
-                'gacha.public_id AS gacha_public_id, rank.public_id AS rank_public_id, version_prize.rank_code AS rank_code, version_prize.rank_display_name AS rank_name, COUNT(*) AS result_count'
+                "gacha.public_id AS gacha_public_id, COALESCE(rank_master.public_id, rank.public_id) AS rank_public_id, version_prize.rank_code AS rank_code, COALESCE(result.display_snapshot->>'rank_name_snapshot', version_prize.rank_display_name) AS rank_name, COUNT(*) AS result_count"
             );
         $this->applyQaFilter($rankResults, 'request.is_qa_draw', $qaFilter);
         $prizeResults = DB::table('draw_results as result')
@@ -627,6 +636,18 @@ final class V2ReportingService
             ->join('users', 'users.id', '=', 'result.user_id')
             ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'result.rank_id')
             ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'result.rank_master_revision_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'rank_revision.rank_master_id'
+            )
+            ->leftJoin(
                 'catalog_gacha_version_prizes as version_prize',
                 'version_prize.id',
                 '=',
@@ -644,8 +665,10 @@ final class V2ReportingService
                 'result.request_sequence',
                 'result.draw_sequence_number',
                 'result.result_type',
-                'rank.public_id as rank_public_id',
-                'version_prize.rank_display_name as rank_name',
+                DB::raw('COALESCE(rank_master.public_id, rank.public_id) as rank_public_id'),
+                DB::raw(
+                    "COALESCE(result.display_snapshot->>'rank_name_snapshot', version_prize.rank_display_name) as rank_name"
+                ),
                 'prize.public_id as prize_public_id',
                 'version_prize.display_name as prize_name',
                 'result.consumed_points',

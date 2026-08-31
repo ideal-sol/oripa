@@ -30,17 +30,9 @@ final class AdminRankEffectSettingsTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_owner_uploads_without_relation_and_update_preserves_existing_relation(): void
+    public function test_rank_effect_material_is_a_relation_free_asset_registry(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Owner);
-        $rank = $this->mutate($token, 'POST', '/admin/api/v2/catalog/ranks', [
-            'code' => 'effect-rank',
-            'name' => '演出ランク',
-            'sort_order' => 10,
-            'is_visible' => true,
-        ])->assertCreated()->json('data');
-
-        Auth::forgetGuards();
         $key = 'rank-effect-create-'.Str::uuid7();
         $payload = [
             'title' => '当選演出',
@@ -48,6 +40,7 @@ final class AdminRankEffectSettingsTest extends TestCase
             'is_active' => true,
             ...$this->imageInput(),
         ];
+
         $created = $this->mutate(
             $token,
             'POST',
@@ -55,7 +48,7 @@ final class AdminRankEffectSettingsTest extends TestCase
             $payload,
             $key
         )->assertCreated()
-            ->assertJsonCount(0, 'data.rank_assignments')
+            ->assertJsonMissingPath('data.rank_assignments')
             ->assertJsonMissingPath('data.storage_identifier')
             ->json('data');
 
@@ -67,24 +60,16 @@ final class AdminRankEffectSettingsTest extends TestCase
             $payload,
             $key
         )->assertCreated()->assertJsonPath('idempotent_replay', true);
-        self::assertDatabaseCount('catalog_presentation_assets', 1);
-        self::assertDatabaseCount('catalog_rank_assets', 0);
 
-        $now = now()->startOfSecond();
-        DB::table('catalog_rank_assets')->insert([
-            'rank_id' => DB::table('catalog_ranks')->where('public_id', $rank['id'])->value('id'),
-            'presentation_asset_id' => DB::table('catalog_presentation_assets')
-                ->where('public_id', $created['id'])->value('id'),
-            'usage_type' => 'image',
-            'sort_order' => 3,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        self::assertDatabaseCount('catalog_presentation_assets', 1);
+        self::assertDatabaseCount('catalog_rank_effect_materials', 1);
+        self::assertDatabaseCount('catalog_rank_assets', 0);
 
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects')
             ->assertOk()
-            ->assertJsonPath('items.0.id', $created['id']);
+            ->assertJsonPath('items.0.id', $created['id'])
+            ->assertJsonMissingPath('items.0.rank_assignments');
 
         Auth::forgetGuards();
         $updated = $this->mutate(
@@ -97,43 +82,33 @@ final class AdminRankEffectSettingsTest extends TestCase
                 'asset_type' => 'image',
                 'is_active' => false,
             ]
-        )->assertOk()->json('data');
+        )->assertOk()
+            ->assertJsonMissingPath('data.rank_assignments')
+            ->json('data');
+
         self::assertSame($created['id'], $updated['id']);
-        self::assertSame($rank['id'], $updated['rank_assignments'][0]['rank']['id']);
-        self::assertSame(3, $updated['rank_assignments'][0]['sort_order']);
         self::assertFalse($updated['is_public']);
+        self::assertDatabaseCount('catalog_rank_assets', 0);
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?visibility=visible')
             ->assertOk()->assertJsonCount(0, 'items');
         Auth::forgetGuards();
         $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?visibility=hidden')
             ->assertOk()->assertJsonPath('items.0.id', $created['id']);
-        self::assertDatabaseCount('catalog_presentation_assets', 1);
-        self::assertDatabaseHas('audit_logs', ['action_code' => 'catalog.master.created']);
-        self::assertDatabaseHas('audit_logs', ['action_code' => 'catalog.master.updated']);
     }
 
-    public function test_video_upload_replacement_and_invalid_mime_are_enforced(): void
+    public function test_video_replacement_keeps_old_asset_but_never_creates_rank_assignment(): void
     {
         $token = $this->createAdminSession(V2AdminRole::Admin);
-        $rank = $this->mutate($token, 'POST', '/admin/api/v2/catalog/ranks', [
-            'code' => 'video-rank',
-            'name' => '動画ランク',
-            'sort_order' => 20,
-            'is_visible' => true,
-        ])->assertCreated()->json('data');
-        Auth::forgetGuards();
         $created = $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects', [
             'title' => '動画演出',
             'asset_type' => 'video',
-            'rank_assignments' => [['rank_id' => $rank['id'], 'sort_order' => 0]],
             'is_active' => true,
-            'file_name' => 'effect.mp4',
-            'mime_type' => 'video/mp4',
-            'content_base64' => base64_encode(hex2bin(
-                '00000018667479706d703432000000006d70343269736f6d'
-            )),
-        ])->assertCreated()->assertJsonPath('data.media_type', 'video')->json('data');
+            ...$this->videoInput(),
+        ])->assertCreated()
+            ->assertJsonPath('data.media_type', 'video')
+            ->assertJsonMissingPath('data.rank_assignments')
+            ->json('data');
 
         Auth::forgetGuards();
         $this->asAdmin($token)
@@ -142,26 +117,30 @@ final class AdminRankEffectSettingsTest extends TestCase
             ->assertHeader('Content-Type', 'video/mp4');
 
         Auth::forgetGuards();
-        $replacement = $this->mutate($token, 'PUT', '/admin/api/v2/catalog/rank-effects/'.$created['id'], [
-            'expected_revision' => 1,
-            'title' => '画像へ差し替え',
-            'asset_type' => 'image',
-            'is_active' => true,
-            ...$this->imageInput(),
-        ])->assertOk()
+        $replacement = $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/rank-effects/'.$created['id'],
+            [
+                'expected_revision' => 1,
+                'title' => '画像へ差し替え',
+                'asset_type' => 'image',
+                'is_active' => true,
+                ...$this->imageInput(),
+            ]
+        )->assertOk()
             ->assertJsonPath('data.media_type', 'image')
-            ->assertJsonPath('data.rank_assignments.0.rank.id', $rank['id'])
-            ->assertJsonPath('data.rank_assignments.0.sort_order', 0)
+            ->assertJsonMissingPath('data.rank_assignments')
             ->json('data');
+
         self::assertNotSame($created['id'], $replacement['id']);
         self::assertDatabaseHas('catalog_presentation_assets', ['public_id' => $created['id']]);
         self::assertDatabaseCount('catalog_presentation_assets', 2);
-        self::assertDatabaseCount('catalog_rank_assets', 1);
-        self::assertDatabaseHas('catalog_rank_assets', [
+        self::assertDatabaseCount('catalog_rank_effect_materials', 1);
+        self::assertDatabaseCount('catalog_rank_assets', 0);
+        self::assertDatabaseHas('catalog_rank_effect_materials', [
             'presentation_asset_id' => DB::table('catalog_presentation_assets')
                 ->where('public_id', $replacement['id'])->value('id'),
-            'sort_order' => 0,
-            'usage_type' => 'image',
         ]);
 
         Auth::forgetGuards();
@@ -205,6 +184,18 @@ final class AdminRankEffectSettingsTest extends TestCase
             'file_name' => 'effect.png',
             'mime_type' => 'image/png',
             'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function videoInput(): array
+    {
+        return [
+            'file_name' => 'effect.mp4',
+            'mime_type' => 'video/mp4',
+            'content_base64' => base64_encode(hex2bin(
+                '00000018667479706d703432000000006d70343269736f6d'
+            )),
         ];
     }
 

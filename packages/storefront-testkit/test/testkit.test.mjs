@@ -350,7 +350,7 @@ test("Fulfillment Problem FixtureはGenerated Codeと型付きAssertionを同期
 
 test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開する", () => {
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.status, "stored");
-  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.presentation.rank.code, "S");
+  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.presentation.rank.name, "Sランク");
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
   assert.equal(
     PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.point_exchange.unavailable_reason,
@@ -819,9 +819,9 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつAccount Securityを含むOperation 74件である", () => {
+test("Public OpenAPIは3.1.1かつCanonical Rank Assetを含むOperation 75件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 74);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 75);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -840,6 +840,7 @@ test("Public OpenAPIは3.1.1かつAccount Securityを含むOperation 74件であ
     "deletePaymentCard",
     "deleteShippingAddress",
     "exchangeUserPrizes",
+    "getCanonicalPresentationAssetContent",
     "getContentNotice",
     "getContentStaticPage",
     "getDrawRequest",
@@ -935,7 +936,14 @@ test("External Identity FixtureはProvider Subject／Token／Secretを公開し�
 
 test("Public Catalog Fixtureは集約確率だけを持ち内部情報を公開しない", () => {
   const serialized = JSON.stringify(PUBLIC_CATALOG_FIXTURE);
+  const rank = PUBLIC_CATALOG_FIXTURE.data.ranks[0];
   assert.equal(PUBLIC_CATALOG_FIXTURE.data.probability_stages.length, 1);
+  assert.equal(rank.rank_name, "Sランク");
+  assert.equal(rank.show_total_stock, true);
+  assert.equal(rank.total_stock, 100);
+  assert.equal(rank.current_video.media_type, "video");
+  assert.equal("prizes" in rank, false);
+  assert.equal("code" in rank, false);
   assert.equal(
     PUBLIC_CATALOG_FIXTURE.data.probability_stages[0].rank_probabilities[0]
       .total_ppm,

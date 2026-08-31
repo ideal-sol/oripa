@@ -182,22 +182,16 @@ Route::prefix('v2')
             ->name('v2.admin.catalog.ranks.index');
         Route::post('/catalog/ranks', [V2AdminCatalogController::class, 'createRank'])
             ->name('v2.admin.catalog.ranks.store');
+        Route::put('/catalog/ranks/reorder', [V2AdminCatalogController::class, 'reorderRanks'])
+            ->name('v2.admin.catalog.ranks.reorder');
         Route::get('/catalog/ranks/{catalogResourceId}', [V2AdminCatalogController::class, 'rank'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.show');
         Route::put('/catalog/ranks/{catalogResourceId}', [V2AdminCatalogController::class, 'updateRank'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.update');
-        Route::post('/catalog/ranks/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archiveRank'])
-            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.ranks.archive');
         Route::get('/catalog/prizes', [V2AdminCatalogController::class, 'prizes'])
             ->name('v2.admin.catalog.prizes.index');
-        Route::post('/catalog/prizes', [V2AdminCatalogController::class, 'createPrize'])
-            ->name('v2.admin.catalog.prizes.create');
         Route::get('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'prize'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.show');
-        Route::put('/catalog/prizes/{catalogResourceId}', [V2AdminCatalogController::class, 'updatePrize'])
-            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.update');
-        Route::post('/catalog/prizes/{catalogResourceId}/archive', [V2AdminCatalogController::class, 'archivePrize'])
-            ->whereUuid('catalogResourceId')->name('v2.admin.catalog.prizes.archive');
         Route::get('/catalog/presentation-assets', [V2AdminCatalogController::class, 'assets'])
             ->name('v2.admin.catalog.presentation-assets.index');
         Route::post('/catalog/presentation-assets', [V2AdminCatalogController::class, 'createAsset'])
@@ -228,6 +222,14 @@ Route::prefix('v2')
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.presentation-assets.content');
         Route::get('/catalog/gachas/{gachaId}', [V2AdminCatalogController::class, 'gacha'])
             ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.gachas.show');
+        Route::get('/catalog/gachas/{gachaId}/ranks', [V2AdminCatalogController::class, 'gachaRanks'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.gacha-ranks.index');
+        Route::put('/catalog/gachas/{gachaId}/ranks/{rankId}/video', [V2AdminCatalogController::class, 'setGachaRankVideo'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('rankId')
+            ->name('v2.admin.catalog.gacha-ranks.video.update');
+        Route::post('/catalog/gachas/{gachaId}/ranks/{rankId}/video/unset', [V2AdminCatalogController::class, 'unsetGachaRankVideo'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('rankId')
+            ->name('v2.admin.catalog.gacha-ranks.video.unset');
         Route::get('/catalog/gachas/{gachaId}/history', [V2AdminCatalogController::class, 'gachaUsageHistory'])
             ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.gachas.history.index');
         Route::get('/catalog/gachas/{gachaId}/history/{drawRequestId}', [V2AdminCatalogController::class, 'gachaUsageHistoryDetail'])
@@ -262,24 +264,15 @@ Route::prefix('v2')
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'gachaVersion'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.show');
-        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/ranks', [V2AdminCatalogController::class, 'gachaVersionRanks'])
-            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
-            ->name('v2.admin.catalog.gacha-version-ranks.index');
-        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/ranks', [V2AdminCatalogController::class, 'createGachaVersionRank'])
-            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
-            ->name('v2.admin.catalog.gacha-version-ranks.store');
-        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}', [V2AdminCatalogController::class, 'updateGachaVersionRank'])
-            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('rankId')
-            ->name('v2.admin.catalog.gacha-version-ranks.update');
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'gachaVersionPrizes'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-version-prizes.index');
-        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'createGachaVersionPrize'])
-            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
-            ->name('v2.admin.catalog.gacha-version-prizes.store');
-        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/prizes/{prizeId}', [V2AdminCatalogController::class, 'updateGachaVersionPrize'])
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}/prizes', [V2AdminCatalogController::class, 'createGachaRankPrize'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('rankId')
+            ->name('v2.admin.catalog.gacha-rank-prizes.store');
+        Route::put('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}/prizes/{prizeId}', [V2AdminCatalogController::class, 'updateGachaRankPrize'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('prizeId')
-            ->name('v2.admin.catalog.gacha-version-prizes.update');
+            ->whereUuid('rankId')->name('v2.admin.catalog.gacha-rank-prizes.update');
         Route::put('/catalog/gachas/{gachaId}/versions/{versionId}', [V2AdminCatalogController::class, 'updateGachaDraft'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-versions.update');
