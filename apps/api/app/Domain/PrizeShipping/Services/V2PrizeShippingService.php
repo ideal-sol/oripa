@@ -791,7 +791,6 @@ final class V2PrizeShippingService
                 'image' => $prize['presentation_asset'] ?? null,
                 'rank' => [
                     'id' => $rank['id'],
-                    'code' => $rank['code'],
                     'name' => $rank['name'],
                 ],
             ],
