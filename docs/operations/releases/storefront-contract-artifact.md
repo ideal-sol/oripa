@@ -400,3 +400,35 @@ User action through `resumeUnpaidPayment`; they do not treat `next_action.url` a
 durable. Runtime activation is not required for exact-pin Artifact adoption;
 Provider Browser E2E remains HOLD until the Payment Backend source and Migration
 `000065` are active in the target Runtime.
+
+## Released Canonical Rank Contract
+
+GOV-027 reconciles immutable `2.0.0-alpha.34` after the canonical publication
+workflow built it from the exact MIG-099 squash commit
+`576c35137946e5effcda63d6bf750d5ecc41150f` on protected `main`. Workflow Run
+`33395772059` completed successfully on attempt 1 and produced the sole
+immutable Artifact `oripa-storefront-contract-2.0.0-alpha.34`, ID
+`9759273312`, with GitHub digest
+`sha256:c6927b367f9d1ad1a5602792873da481405dc8c3d9c1ba12bbca1954c4e4c8fb`.
+Fresh readback verified Manifest
+`42f4bee68b787dac16d07accee1c6154c7cea392c521c41b14461d6b56221464`,
+`SHA256SUMS` `555ae3637e71a57bff447aa084d21e649b598c878f64766b9f044d1e59f75355`,
+Public OpenAPI
+`27d0cdcee9194989058573d7e198066fa4af62017a0f301117ea4af034e733f0`,
+Client `3363ebf849e3c7165b89ea9f037c681ab889d16539ce290383cad41d31c134c6`,
+and Testkit `07916ff69e2e6882aa0e62ee676a65652382413f14f65459ba4e773a41f8a440`.
+
+This is an exact-pin, contract-breaking release. It replaces the old public
+`RankDisplay` presentation with the canonical Rank response; old `RankDisplay`
+compatibility is intentionally not provided. Storefront must adopt the exact
+alpha.34 Client/Testkit Artifact and implement canonical Rank presentation,
+lineup image, `show_total_stock`/`total_stock`, Draw-result Rank snapshot, and
+video playback before it can use the new Platform response.
+
+Shared Preview Platform Activation is HOLD. The active Shared Preview Storefront
+is exact-pinned to alpha.33 and reads `ranks[].id`, `name`, `code`, and
+`prizes`, which are absent from the new canonical response. In addition,
+`test.luxe-pack.biz` and `luxe-pack.biz` currently route `/api/v2` to the same
+API upstream; a Preview Platform deployment could therefore change the
+Production-facing API. No Preview migration, API/Admin activation, routing
+change, or Production operation is authorized by this release reconciliation.
