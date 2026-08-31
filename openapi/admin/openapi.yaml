@@ -6370,14 +6370,7 @@ components:
         code: {type: string, maxLength: 64}
         name: {type: string, maxLength: 191}
         rank:
-          type: object
-          additionalProperties: false
-          required: [id, code, name, sort_order]
-          properties:
-            id: {$ref: '#/components/schemas/OpaqueId'}
-            code: {type: string, maxLength: 32}
-            name: {type: string, maxLength: 128}
-            sort_order: {type: integer, minimum: 0}
+          $ref: '#/components/schemas/AdminCatalogRankReference'
     AdminCatalogProbabilityEntry:
       type: object
       additionalProperties: false

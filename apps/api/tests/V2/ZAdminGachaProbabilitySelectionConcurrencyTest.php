@@ -794,7 +794,6 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
             'gacha-initial-publish-concurrency-video',
             [
                 'video_asset_id' => self::VIDEO_ASSET_ID,
-                'expected_revision' => 0,
             ]
         );
         $service->createGachaRankPrize(
