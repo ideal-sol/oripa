@@ -20,7 +20,7 @@ COPY apps/admin apps/admin
 
 RUN pnpm --filter @oripa/admin build
 
-FROM node:22.22.3-alpine@sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd
+FROM node:22.22.3-alpine@sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd AS production
 
 ARG OCI_VERSION
 ARG OCI_REVISION

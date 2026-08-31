@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create, verify, and load immutable Preview image artifacts."""
+"""Create, verify, and load immutable Platform image artifacts."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ import tarfile
 import tempfile
 
 
-SCHEMA_VERSION = "oripa.preview-images.v1"
+SCHEMA_VERSION = "oripa.platform-images.v2"
+LEGACY_SCHEMA_VERSION = "oripa.preview-images.v1"
 SOURCE_URL = "https://github.com/ideal-sol/oripa"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -32,6 +33,8 @@ IMAGE_MODES = {
 TARGET_OS = "linux"
 TARGET_ARCHITECTURE = "amd64"
 TARGET_PLATFORM = f"{TARGET_OS}/{TARGET_ARCHITECTURE}"
+SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
+ARTIFACT_KINDS = ("preview", "production-candidate")
 ARCHIVE_NAMES = {
     "api": "oripa-v2-api-linux-amd64.docker.tar.zst",
     "admin": "oripa-v2-admin-linux-amd64.docker.tar.zst",
@@ -90,6 +93,47 @@ def validate_identity(task_id: str, pr_number: int, source_sha: str) -> None:
         fail("source_sha_invalid")
 
 
+def validate_target(artifact_kind: str, architecture: str) -> None:
+    if artifact_kind not in ARTIFACT_KINDS:
+        fail("artifact_kind_invalid")
+    if architecture not in SUPPORTED_ARCHITECTURES:
+        fail("architecture_invalid")
+    if artifact_kind == "preview" and architecture != TARGET_ARCHITECTURE:
+        fail("preview_architecture_invalid")
+
+
+def target_platform(architecture: str) -> str:
+    return f"{TARGET_OS}/{architecture}"
+
+
+def archive_names(architecture: str) -> dict[str, str]:
+    if architecture not in SUPPORTED_ARCHITECTURES:
+        fail("architecture_invalid")
+    return {
+        name: f"oripa-v2-{name}-linux-{architecture}.docker.tar.zst"
+        for name in IMAGE_NAMES
+    }
+
+
+def image_identity(
+    name: str,
+    *,
+    artifact_kind: str,
+    architecture: str,
+    task_id: str,
+    source_sha: str,
+) -> tuple[str, str]:
+    version = f"{artifact_kind}-{task_id}"
+    if artifact_kind == "preview":
+        reference = f"oripa-v2-{name}:preview-{task_id}-{source_sha[:12]}"
+    else:
+        reference = (
+            f"oripa-v2-{name}:production-candidate-{task_id}-"
+            f"{source_sha[:12]}-{architecture}"
+        )
+    return reference, version
+
+
 def docker_inspect(reference: str) -> dict:
     try:
         decoded = json.loads(run(["docker", "image", "inspect", reference], capture=True))
@@ -100,7 +144,7 @@ def docker_inspect(reference: str) -> dict:
     return decoded[0]
 
 
-def image_metadata(inspect: dict, source_sha: str) -> dict:
+def image_metadata(inspect: dict, source_sha: str, architecture: str) -> dict:
     labels = (inspect.get("Config") or {}).get("Labels") or {}
     if not isinstance(labels, dict) or not REQUIRED_LABELS.issubset(labels):
         fail("oci_labels_missing")
@@ -109,7 +153,7 @@ def image_metadata(inspect: dict, source_sha: str) -> dict:
     if labels["org.opencontainers.image.source"] != SOURCE_URL:
         fail("oci_source_mismatch")
     if (
-        normalise_architecture(inspect.get("Architecture")) != TARGET_ARCHITECTURE
+        normalise_architecture(inspect.get("Architecture")) != architecture
         or inspect.get("Os") != TARGET_OS
     ):
         fail("image_platform_mismatch")
@@ -118,7 +162,7 @@ def image_metadata(inspect: dict, source_sha: str) -> dict:
         fail("image_id_invalid")
     return {
         "image_id": image_id,
-        "architecture": TARGET_ARCHITECTURE,
+        "architecture": architecture,
         "os": TARGET_OS,
         "labels": {key: labels[key] for key in sorted(REQUIRED_LABELS)},
     }
@@ -126,6 +170,7 @@ def image_metadata(inspect: dict, source_sha: str) -> dict:
 
 def package_images(arguments: argparse.Namespace) -> dict:
     validate_identity(arguments.task_id, arguments.pr_number, arguments.source_sha)
+    validate_target(arguments.artifact_kind, arguments.architecture)
     if not ISO_DATETIME.fullmatch(arguments.created_at):
         fail("created_at_invalid")
     output = arguments.output.resolve()
@@ -133,6 +178,7 @@ def package_images(arguments: argparse.Namespace) -> dict:
         fail("output_directory_not_empty")
     output.mkdir(parents=True, exist_ok=True)
     image_names = IMAGE_MODES[arguments.image_mode]
+    archives = archive_names(arguments.architecture)
     references = {"api": arguments.api_image, "admin": arguments.admin_image}
     if (arguments.image_mode == "normal") != (arguments.admin_image is not None):
         fail("admin_image_mode_mismatch")
@@ -140,8 +186,19 @@ def package_images(arguments: argparse.Namespace) -> dict:
     for name in image_names:
         reference = references[name]
         inspected = docker_inspect(reference)
-        metadata = image_metadata(inspected, arguments.source_sha)
-        archive = output / ARCHIVE_NAMES[name]
+        metadata = image_metadata(inspected, arguments.source_sha, arguments.architecture)
+        expected_reference, expected_version = image_identity(
+            name,
+            artifact_kind=arguments.artifact_kind,
+            architecture=arguments.architecture,
+            task_id=arguments.task_id,
+            source_sha=arguments.source_sha,
+        )
+        if reference != expected_reference:
+            fail("image_reference_mismatch")
+        if metadata["labels"]["org.opencontainers.image.version"] != expected_version:
+            fail("oci_version_mismatch")
+        archive = output / archives[name]
         with tempfile.TemporaryDirectory(prefix="oripa-preview-save-") as temporary:
             raw = Path(temporary) / f"{name}.docker.tar"
             run(["docker", "image", "save", "--output", str(raw), reference])
@@ -161,12 +218,14 @@ def package_images(arguments: argparse.Namespace) -> dict:
 
     manifest = {
         "schema_version": SCHEMA_VERSION,
+        "artifact_kind": arguments.artifact_kind,
+        "architecture": arguments.architecture,
         "task_id": arguments.task_id,
         "repository": "ideal-sol/oripa",
         "pull_request": arguments.pr_number,
         "source_commit": arguments.source_sha,
         "created_at": arguments.created_at,
-        "platform": TARGET_PLATFORM,
+        "platform": target_platform(arguments.architecture),
         "images": images,
     }
     manifest_path = output / "manifest.json"
@@ -282,14 +341,23 @@ def docker_archive_metadata(archive: Path, expected_size: int) -> dict:
 
 
 def verify_artifact(
-    directory: Path, *, task_id: str, pr_number: int, source_sha: str
+    directory: Path,
+    *,
+    task_id: str,
+    pr_number: int,
+    source_sha: str,
+    artifact_kind: str = "preview",
+    architecture: str = TARGET_ARCHITECTURE,
 ) -> dict:
     validate_identity(task_id, pr_number, source_sha)
+    validate_target(artifact_kind, architecture)
     directory = directory.resolve()
     manifest_path = directory / "manifest.json"
     checksums_path = directory / "SHA256SUMS"
     manifest = load_json(manifest_path)
-    if set(manifest) != {
+    schema_version = manifest.get("schema_version")
+    legacy_preview = schema_version == LEGACY_SCHEMA_VERSION
+    expected_manifest_fields = {
         "schema_version",
         "task_id",
         "repository",
@@ -298,15 +366,22 @@ def verify_artifact(
         "created_at",
         "platform",
         "images",
-    }:
+    }
+    if not legacy_preview:
+        expected_manifest_fields |= {"artifact_kind", "architecture"}
+    if set(manifest) != expected_manifest_fields:
         fail("manifest_schema_invalid")
+    if legacy_preview and (artifact_kind != "preview" or architecture != TARGET_ARCHITECTURE):
+        fail("legacy_artifact_target_invalid")
     if (
-        manifest.get("schema_version") != SCHEMA_VERSION
+        schema_version not in {SCHEMA_VERSION, LEGACY_SCHEMA_VERSION}
         or manifest.get("task_id") != task_id
         or manifest.get("repository") != "ideal-sol/oripa"
         or manifest.get("pull_request") != pr_number
         or manifest.get("source_commit") != source_sha
-        or manifest.get("platform") != TARGET_PLATFORM
+        or manifest.get("platform") != target_platform(architecture)
+        or (not legacy_preview and manifest.get("artifact_kind") != artifact_kind)
+        or (not legacy_preview and manifest.get("architecture") != architecture)
     ):
         fail("manifest_identity_mismatch")
     created_at = manifest.get("created_at")
@@ -319,7 +394,8 @@ def verify_artifact(
     if image_names not in IMAGE_MODES.values() or len(image_names) != len(images):
         fail("manifest_images_invalid")
 
-    expected_files = {ARCHIVE_NAMES[name] for name in image_names} | {"manifest.json"}
+    archives = archive_names(architecture)
+    expected_files = {archives[name] for name in image_names} | {"manifest.json"}
     checksums = parse_checksums(checksums_path)
     if set(checksums) != expected_files:
         fail("checksums_file_set_invalid")
@@ -342,7 +418,7 @@ def verify_artifact(
             "labels",
         }:
             fail("manifest_image_schema_invalid")
-        if image["name"] != expected_name or image["archive"] != ARCHIVE_NAMES[expected_name]:
+        if image["name"] != expected_name or image["archive"] != archives[expected_name]:
             fail("manifest_image_identity_invalid")
         if image["archive_sha256"] != checksums[image["archive"]]:
             fail("manifest_archive_checksum_invalid")
@@ -352,16 +428,20 @@ def verify_artifact(
         metadata = docker_archive_metadata(
             archive_path, image["archive_uncompressed_bytes"]
         )
-        expected_reference = (
-            f"oripa-v2-{expected_name}:preview-{task_id}-{source_sha[:12]}"
+        expected_reference, expected_version = image_identity(
+            expected_name,
+            artifact_kind=artifact_kind,
+            architecture=architecture,
+            task_id=task_id,
+            source_sha=source_sha,
         )
         if (
             metadata["image_id"] != image["image_id"]
             or metadata["reference"] != image["reference"]
             or image["reference"] != expected_reference
-            or normalise_architecture(metadata["architecture"]) != TARGET_ARCHITECTURE
+            or normalise_architecture(metadata["architecture"]) != architecture
             or metadata["os"] != TARGET_OS
-            or image["architecture"] != TARGET_ARCHITECTURE
+            or image["architecture"] != architecture
             or image["os"] != TARGET_OS
         ):
             fail("image_metadata_mismatch")
@@ -374,7 +454,7 @@ def verify_artifact(
             fail("oci_revision_mismatch")
         if labels["org.opencontainers.image.source"] != SOURCE_URL:
             fail("oci_source_mismatch")
-        if labels["org.opencontainers.image.version"] != f"preview-{task_id}":
+        if labels["org.opencontainers.image.version"] != expected_version:
             fail("oci_version_mismatch")
         if labels["org.opencontainers.image.created"] != created_at:
             fail("oci_created_mismatch")
@@ -387,7 +467,9 @@ def verify_artifact(
         "task_id": task_id,
         "pull_request": pr_number,
         "source_commit": source_sha,
-        "platform": TARGET_PLATFORM,
+        "artifact_kind": artifact_kind,
+        "architecture": architecture,
+        "platform": target_platform(architecture),
         "manifest_sha256": checksums["manifest.json"],
         "images": verified_images,
         "status": "verified",
@@ -410,9 +492,11 @@ def host_architectures() -> dict[str, str]:
     return {"machine": machine, "docker": docker}
 
 
-def require_target_host() -> dict[str, str]:
+def require_target_host(architecture: str = TARGET_ARCHITECTURE) -> dict[str, str]:
+    if architecture not in SUPPORTED_ARCHITECTURES:
+        fail("architecture_invalid")
     architectures = host_architectures()
-    if any(value != TARGET_ARCHITECTURE for value in architectures.values()):
+    if any(value != architecture for value in architectures.values()):
         fail("host_architecture_mismatch")
     return architectures
 
@@ -423,8 +507,10 @@ def load_artifact(arguments: argparse.Namespace) -> dict:
         task_id=arguments.task_id,
         pr_number=arguments.pr_number,
         source_sha=arguments.source_sha,
+        artifact_kind=arguments.artifact_kind,
+        architecture=arguments.architecture,
     )
-    require_target_host()
+    require_target_host(arguments.architecture)
     manifest = load_json(arguments.directory / "manifest.json")
     for image in manifest["images"]:
         with tempfile.TemporaryDirectory(prefix="oripa-preview-load-") as temporary:
@@ -435,7 +521,11 @@ def load_artifact(arguments: argparse.Namespace) -> dict:
                 image["archive_uncompressed_bytes"],
             )
             run(["docker", "image", "load", "--input", str(raw)])
-        metadata = image_metadata(docker_inspect(image["reference"]), arguments.source_sha)
+        metadata = image_metadata(
+            docker_inspect(image["reference"]),
+            arguments.source_sha,
+            arguments.architecture,
+        )
         if metadata["image_id"] != image["image_id"]:
             fail("loaded_image_id_mismatch")
     verified["status"] = "loaded"
@@ -447,7 +537,13 @@ def parser() -> argparse.ArgumentParser:
     commands = value.add_subparsers(dest="command", required=True)
     target = commands.add_parser("target")
     target.add_argument("--field", choices=("architecture", "platform"))
-    commands.add_parser("host-check")
+    target.add_argument(
+        "--architecture", choices=SUPPORTED_ARCHITECTURES, default=TARGET_ARCHITECTURE
+    )
+    host_check = commands.add_parser("host-check")
+    host_check.add_argument(
+        "--architecture", choices=SUPPORTED_ARCHITECTURES, default=TARGET_ARCHITECTURE
+    )
     package = commands.add_parser("package")
     package.add_argument("--output", type=Path, required=True)
     package.add_argument("--task-id", required=True)
@@ -455,6 +551,10 @@ def parser() -> argparse.ArgumentParser:
     package.add_argument("--source-sha", required=True)
     package.add_argument("--created-at", required=True)
     package.add_argument("--image-mode", choices=tuple(IMAGE_MODES), required=True)
+    package.add_argument("--artifact-kind", choices=ARTIFACT_KINDS, default="preview")
+    package.add_argument(
+        "--architecture", choices=SUPPORTED_ARCHITECTURES, default=TARGET_ARCHITECTURE
+    )
     package.add_argument("--api-image", required=True)
     package.add_argument("--admin-image")
     for name in ("verify", "load"):
@@ -463,6 +563,10 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--task-id", required=True)
         command.add_argument("--pr-number", type=int, required=True)
         command.add_argument("--source-sha", required=True)
+        command.add_argument("--artifact-kind", choices=ARTIFACT_KINDS, default="preview")
+        command.add_argument(
+            "--architecture", choices=SUPPORTED_ARCHITECTURES, default=TARGET_ARCHITECTURE
+        )
     return value
 
 
@@ -471,17 +575,17 @@ def main() -> int:
     try:
         if arguments.command == "target":
             result = {
-                "architecture": TARGET_ARCHITECTURE,
-                "platform": TARGET_PLATFORM,
+                "architecture": arguments.architecture,
+                "platform": target_platform(arguments.architecture),
             }
             if arguments.field:
                 print(result[arguments.field])
                 return 0
         elif arguments.command == "host-check":
             result = {
-                "architecture": TARGET_ARCHITECTURE,
-                "platform": TARGET_PLATFORM,
-                **require_target_host(),
+                "architecture": arguments.architecture,
+                "platform": target_platform(arguments.architecture),
+                **require_target_host(arguments.architecture),
                 "status": "matched",
             }
         elif arguments.command == "package":
@@ -492,6 +596,8 @@ def main() -> int:
                 task_id=arguments.task_id,
                 pr_number=arguments.pr_number,
                 source_sha=arguments.source_sha,
+                artifact_kind=arguments.artifact_kind,
+                architecture=arguments.architecture,
             )
         else:
             result = load_artifact(arguments)

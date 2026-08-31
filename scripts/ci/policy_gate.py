@@ -196,6 +196,7 @@ RELEASE_ARTIFACT_REQUIRED_FILES = {
     "apps/admin/Dockerfile",
     "apps/admin/next.config.ts",
     "infra/docker/backend/Dockerfile",
+    "infra/docker/backend/apache-production.conf",
     "docs/operations/releases/platform-alpha-artifact.md",
     "scripts/release/README.md",
     "scripts/release/platform_artifact.py",
@@ -220,6 +221,8 @@ STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES = {
     "docs/operations/releases/release-process.md",
 }
 PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
+    ".github/workflows/platform-ci.yml",
+    ".github/workflows/platform-production-arm64-artifact.yml",
     ".github/workflows/preview-image-build.yml",
     "docs/operations/deployment/luxe-pack-storefront-api-upstream.md",
     "docs/operations/deployment/preview-fincode-callbacks.md",
@@ -1005,6 +1008,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/lib/permissions/admin-navigation.ts",
     "apps/admin/src/proxy.ts",
     "apps/admin/test/admin-api-client.test.ts",
+    "apps/admin/test/admin-health-route.test.ts",
     "apps/admin/test/admin-authentication-settings.test.tsx",
     "apps/admin/test/auth-components.test.tsx",
     "apps/admin/test/catalog-read.test.tsx",
@@ -1430,12 +1434,53 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         encoding="utf-8"
     )
     if any(
-        obsolete in workflow + helper
+        obsolete in workflow
         for obsolete in ("ubuntu-24.04-arm", "linux/arm64", "linux-arm64")
     ):
         raise PolicyFailure("Preview image pipeline contains an obsolete ARM64 target")
+    for required in (
+        'TARGET_ARCHITECTURE = "amd64"',
+        'SUPPORTED_ARCHITECTURES = ("amd64", "arm64")',
+        'ARTIFACT_KINDS = ("preview", "production-candidate")',
+        'SCHEMA_VERSION = "oripa.platform-images.v2"',
+        'LEGACY_SCHEMA_VERSION = "oripa.preview-images.v1"',
+    ):
+        if required not in helper:
+            raise PolicyFailure(f"Architecture-aware artifact helper missing: {required}")
     if "docker build" in helper or '["docker", "image", "load"' not in helper:
         raise PolicyFailure("Preview host helper may only load verified images")
+    platform_ci = (repository / ".github/workflows/platform-ci.yml").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "production-arm64-artifact:",
+        "runs-on: ubuntu-24.04-arm",
+        "--target production",
+        "--artifact-kind production-candidate",
+        "--architecture arm64",
+        "preview_image_artifact.py load",
+        "oripa-platform-arm64-verification-${source_sha}",
+    ):
+        if required not in platform_ci:
+            raise PolicyFailure(f"Production ARM64 artifact CI boundary missing: {required}")
+    production_workflow = (
+        repository / ".github/workflows/platform-production-arm64-artifact.yml"
+    ).read_text(encoding="utf-8")
+    for required in (
+        "runs-on: ubuntu-24.04-arm",
+        "source SHA is not current protected main",
+        "merged pull request authority mismatch",
+        "required checks not successful",
+        "--target production",
+        "--artifact-kind production-candidate",
+        "--architecture arm64",
+        "preview_image_artifact.py load",
+        "oripa-platform-production-candidate-${{ steps.authority.outputs.source_sha }}-linux-arm64",
+    ):
+        if required not in production_workflow:
+            raise PolicyFailure(
+                f"Production ARM64 artifact workflow boundary missing: {required}"
+            )
     wrapper = (
         repository / "infrastructure/github-app/oripa-github-app-api"
     ).read_text(encoding="utf-8")
@@ -2089,9 +2134,11 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     if (
         "export function GET" not in health
         or 'status: "ok"' not in health
-        or "production_ready: false" not in health
+        or 'readiness_scope: "process"' not in health
+        or 'process: "ok"' not in health
+        or "production_ready" in health
     ):
-        raise PolicyFailure("apps/admin: deterministic Skeleton health is required")
+        raise PolicyFailure("apps/admin: scoped process health is required")
 
     catalog_source = "\n".join(
         (repository / relative).read_text(encoding="utf-8", errors="replace")

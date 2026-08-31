@@ -39,7 +39,10 @@ API archive fails closed.
 
 The manifest fixes the Task, PR, source commit, `linux/amd64` platform, image
 references, image IDs, archive checksums, and OCI labels. The OCI revision is
-the requested PR head SHA.
+the requested PR head SHA. New manifests record `architecture=amd64` explicitly.
+The helper continues to accept the exact legacy v1 Preview schema only when its
+platform and every image remain unambiguously `linux/amd64`; legacy metadata is
+never reinterpreted as ARM64.
 
 ## Reviewed Tree Activation Authority
 
@@ -142,5 +145,7 @@ port. API-only Activation is incomplete if any same-origin smoke is omitted.
 
 OPS-005 confirms that the existing Preview host and Docker daemon are `x86_64`.
 The canonical artifact target is therefore `linux/amd64`. The artifact helper
-owns this target value; both CI build selection and the host load guard consume
-that boundary. Cross-architecture loading remains fail closed.
+keeps `linux/amd64` as the default target; both Preview CI build selection and
+the Preview host load guard consume that boundary. The helper also validates the
+separate `linux/arm64` Production-candidate artifact kind, but Preview rejects
+that kind and architecture. Cross-architecture loading remains fail closed.
