@@ -427,6 +427,18 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected_admin))
 
+    def test_mig_099_rank_master_status_constraint_migration_is_safe(self):
+        migration = (
+            ROOT
+            / "apps/api/database/migrations-v2/"
+            "2026_09_26_000070_normalize_v2_rank_master_status_check.php"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("catalog_rank_masters_status_check", migration)
+        self.assertIn("status::text = ANY", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+        self.assertNotIn("DELETE FROM", migration)
+
     def test_mig_061r_gacha_master_edit_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",
@@ -1803,6 +1815,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
             "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
             "apps/api/database/migrations-v2/2026_09_25_000069_create_v2_canonical_rank_domain.php",
+            "apps/api/database/migrations-v2/2026_09_26_000070_normalize_v2_rank_master_status_check.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
