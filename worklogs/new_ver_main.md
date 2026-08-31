@@ -9,6 +9,15 @@
 
 このFileは、V1から新Version構造へ移行するMain Codexの作業記録です。
 
+## MIG-100 Admin Announcement Existing Test Failure Repair
+
+- Base `22ba6ae2da393fdbe42a67c136d1a3e4efdf09ff`、Issue `none`、Branch `fix/MIG-100-admin-announcement-test-mismatch`、current worktree、Risk R3、Lane `Strict Change`、Application Runtime Activation `none`で開始した。Dedicated Worktree、Source Lock、Migration Allocation Lockは使用しない。GitHub App wrapperがpush／PR／mergeにroot-owned policyを必須とするため、外部transient `MIG-100` policyだけを`apps/admin/e2e/admin-announcement-management.spec.ts`、`apps/admin/test/admin-announcement-management.test.tsx`、`worklogs/new_ver_main.md`と必要最小操作へ限定して使用する。
+- PR #435 のRequired `quality-gate`を独立して阻害した `apps/admin/test/admin-announcement-management.test.tsx:58` を修正する。PR #435のrelease verifier sourceは変更しない。
+- Root causeはB. Fixture staleである。MIG-075の`getAllByText("公開")`期待値2は、公開済みfixture 1件のstatus badgeと`published` select optionを検証する正当な回帰検査である。一方、unit/E2E fixtureの`publish_end_at`が`2026-08-31T14:59:59Z`であり、実行時刻がこれを超えると現行Canonical UIはstatus badgeを`公開終了`へ正しく遷移させ、`公開`要素はselect optionの1件だけになる。現行Admin route、workspace、Admin API client、Admin OpenAPI contract、およびMIG-075記録はいずれも`公開 + 下書き`を正本としており、Admin implementationとAPIに回帰はない。
+- Unit/E2E fixtureの公開終了日時だけを`2099-08-31T14:59:59Z`へ更新し、Canonical公開状態を再び固定する。E2Eはこれにより公開状態textの二重matchと、Rich Text toolbar／editor labelのprefix matchを露出したため、同一announcement workflow内でtable領域とexact editor labelへselectorを限定する。既存の期待値、既定filter `published,draft`、初回／cursor／filter変更時のAdmin API queryを維持する。Payment、Auth、Coin、Draw、Rank Master、API/OpenAPI、migration、dependency、Preview/Production runtime、release verifier sourceは変更しない。
+- 修正前はfocused unitで`公開`要素2件期待に対して1件を再現した。final sourceでは`pnpm exec vitest run test/admin-announcement-management.test.tsx --reporter=verbose`が3 tests、`pnpm exec playwright test e2e/admin-announcement-management.spec.ts`がdesktop list／mobile editor各1件、`pnpm admin:typecheck`、`pnpm admin:lint`、`pnpm admin:test`が35 files／199 tests、`pnpm admin:generate:check`、`pnpm admin:build`、policy tests 203、local `policy-gate`、quality tests 4、local `quality-gate`、`git diff --check`をPASSした。E2E web-serverの2回とfinal Admin buildの計3回はlocal validationだけであり、Shared Preview／ProductionのRuntime Activation、migration作成／適用、API／database mutationは0である。
+- Diffの3 changed pathsとexternal policy scopeは一致し、binary、dependency／lockfile、generated contract、secret／PII候補の追加はない。既存mock CSRF token名だけを確認し、credential値は存在しない。PR #435のbranch、release verifier source、PR metadataに対するmutationは0である。
+
 ## 運用ルール
 
 - 今後の新Version関連作業は、各Task完了時にこのFileへ追記する。
