@@ -35,7 +35,7 @@ test("desktop announcement list previews the sanitized publication", async ({ pa
     "公開開始日時", "公開終了日時", "更新日時", "プレビュー", "編集",
   ]);
   await expect(page.getByText(noticeId)).toBeVisible();
-  await expect(page.getByText("公開", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("お知らせ一覧").getByText("公開", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "運用のお知らせをプレビュー" }).click();
   await expect(page.getByRole("dialog", { name: "運用のお知らせ" })).toContainText("安全な本文");
   await page.keyboard.press("Escape");
@@ -52,7 +52,7 @@ test("mobile announcement editor validates, previews, and publishes without over
   await page.goto("/announcements/new");
   await expect(page.getByRole("heading", { name: "お知らせ登録" })).toBeVisible();
   await page.getByLabel("タイトル").fill("Previewのお知らせ");
-  await page.getByLabel("本文（HTML）").fill("<p>安全な本文</p><script>alert(1)</script>");
+  await page.getByLabel("本文（HTML）", { exact: true }).fill("<p>安全な本文</p><script>alert(1)</script>");
   await page.getByLabel("公開状態").selectOption("published");
   await page.getByRole("button", { name: "プレビュー" }).click();
   await expect(page.getByRole("dialog", { name: "Previewのお知らせ" })).toContainText("安全な本文");
@@ -141,7 +141,7 @@ function version() {
     id: versionId,
     is_important: true,
     link_url: null,
-    publish_end_at: "2026-08-31T14:59:59Z",
+    publish_end_at: "2099-08-31T14:59:59Z",
     publish_start_at: "2026-08-01T00:00:00Z",
     published_at: "2026-08-01T00:00:00Z",
     sort_order: 0,
