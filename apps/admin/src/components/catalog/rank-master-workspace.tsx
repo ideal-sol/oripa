@@ -51,7 +51,6 @@ function RankMasterContent({ id }: { id?: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ kind: "loading" });
     const list = client.listCatalogRanks({
       direction: "asc",
       limit: 100,
