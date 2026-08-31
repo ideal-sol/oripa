@@ -78,6 +78,9 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if ($resource === 'rank') {
+            return $this->createRankMaster($context, $idempotencyKey, $input);
+        }
         if ($resource === 'prize') {
             return $this->createPrize($context, $idempotencyKey, $input);
         }
@@ -132,6 +135,14 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if ($resource === 'rank') {
+            return $this->updateRankMaster(
+                $context,
+                $publicId,
+                $idempotencyKey,
+                $input
+            );
+        }
         if ($resource === 'prize') {
             return $this->updatePrize($context, $publicId, $idempotencyKey, $input);
         }
@@ -181,6 +192,257 @@ final class V2CatalogMasterMutationService
                 ]);
 
                 return $this->find($definition['table'], $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function createRankMaster(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'rank');
+        $this->rateLimit($context, $admin, 'create', 'rank');
+        $payload = $this->validateRankMaster($input, false);
+        $storedPaths = [];
+
+        try {
+            return $this->execute(
+                $context,
+                $admin,
+                'rank',
+                'create',
+                $idempotencyKey,
+                $this->rankMasterIdempotencyPayload($payload),
+                201,
+                function () use ($payload, &$storedPaths): object {
+                    $lineupAsset = $this->storeRankMasterImageAsset(
+                        $payload['lineup_image'],
+                        'lineup',
+                        $payload['rank_name'],
+                        $storedPaths
+                    );
+                    $resultAsset = $this->storeRankMasterImageAsset(
+                        $payload['result_image'],
+                        'result',
+                        $payload['rank_name'],
+                        $storedPaths
+                    );
+                    $now = now()->startOfSecond();
+                    $publicId = (string) Str::uuid7();
+                    $masterId = DB::table('catalog_rank_masters')->insertGetId([
+                        'public_id' => $publicId,
+                        'current_revision_id' => null,
+                        'status' => $payload['status'],
+                        'revision' => 1,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                    $displayOrder = (int) DB::table('catalog_rank_master_revisions')
+                        ->max('display_order') + 1;
+                    $revisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+                        'rank_master_id' => $masterId,
+                        'revision_number' => 1,
+                        'rank_name' => $payload['rank_name'],
+                        'lineup_image_asset_id' => $lineupAsset->id,
+                        'result_image_asset_id' => $resultAsset->id,
+                        'show_total_stock' => $payload['show_total_stock'],
+                        'display_order' => $displayOrder,
+                        'created_at' => $now,
+                    ]);
+                    DB::table('catalog_rank_masters')->where('id', $masterId)->update([
+                        'current_revision_id' => $revisionId,
+                        'updated_at' => $now,
+                    ]);
+
+                    return $this->find('catalog_rank_masters', $publicId, false);
+                },
+                true,
+                fn (object $row): array => $this->mapRankMaster($row)
+            );
+        } catch (\Throwable $exception) {
+            foreach ($storedPaths as $storedPath) {
+                Storage::disk(config('filesystems.default'))->delete($storedPath);
+            }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $input */
+    public function updateRankMaster(
+        V2AdminAuthorizationContext $context,
+        string $publicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'rank');
+        $this->rateLimit($context, $admin, 'update', 'rank');
+        $payload = $this->validateRankMaster($input, true);
+        $storedPaths = [];
+
+        try {
+            return $this->execute(
+                $context,
+                $admin,
+                'rank',
+                'update',
+                $idempotencyKey,
+                ['id' => $publicId, ...$this->rankMasterIdempotencyPayload($payload)],
+                200,
+                function () use ($publicId, $payload, &$storedPaths): object {
+                    $master = $this->find('catalog_rank_masters', $publicId, true);
+                    $this->assertMutable($master, $payload['expected_revision']);
+                    $current = DB::table('catalog_rank_master_revisions')
+                        ->where('id', $master->current_revision_id)
+                        ->firstOrFail();
+                    if ($payload['status'] === 'inactive' && $master->status !== 'inactive') {
+                        $this->assertRankMasterUnused((int) $master->id);
+                    }
+
+                    $lineupAssetId = (int) $current->lineup_image_asset_id;
+                    if ($payload['lineup_image'] !== null) {
+                        $lineupAssetId = (int) $this->storeRankMasterImageAsset(
+                            $payload['lineup_image'],
+                            'lineup',
+                            $payload['rank_name'],
+                            $storedPaths
+                        )->id;
+                    }
+                    $resultAssetId = (int) $current->result_image_asset_id;
+                    if ($payload['result_image'] !== null) {
+                        $resultAssetId = (int) $this->storeRankMasterImageAsset(
+                            $payload['result_image'],
+                            'result',
+                            $payload['rank_name'],
+                            $storedPaths
+                        )->id;
+                    }
+                    $presentationChanged = $current->rank_name !== $payload['rank_name']
+                        || (int) $current->lineup_image_asset_id !== $lineupAssetId
+                        || (int) $current->result_image_asset_id !== $resultAssetId
+                        || (bool) $current->show_total_stock !== $payload['show_total_stock'];
+                    $currentRevisionId = (int) $current->id;
+                    if ($presentationChanged) {
+                        $currentRevisionId = DB::table('catalog_rank_master_revisions')
+                            ->insertGetId([
+                                'rank_master_id' => $master->id,
+                                'revision_number' => (int) $current->revision_number + 1,
+                                'rank_name' => $payload['rank_name'],
+                                'lineup_image_asset_id' => $lineupAssetId,
+                                'result_image_asset_id' => $resultAssetId,
+                                'show_total_stock' => $payload['show_total_stock'],
+                                'display_order' => $current->display_order,
+                                'created_at' => now()->startOfSecond(),
+                            ]);
+                    }
+                    if ($presentationChanged || $master->status !== $payload['status']) {
+                        DB::table('catalog_rank_masters')->where('id', $master->id)->update([
+                            'current_revision_id' => $currentRevisionId,
+                            'status' => $payload['status'],
+                            'revision' => (int) $master->revision + 1,
+                            'updated_at' => now()->startOfSecond(),
+                        ]);
+                    }
+
+                    return $this->find('catalog_rank_masters', $publicId, false);
+                },
+                true,
+                fn (object $row): array => $this->mapRankMaster($row)
+            );
+        } catch (\Throwable $exception) {
+            foreach ($storedPaths as $storedPath) {
+                Storage::disk(config('filesystems.default'))->delete($storedPath);
+            }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $input */
+    public function reorderRankMasters(
+        V2AdminAuthorizationContext $context,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'rank');
+        $this->rateLimit($context, $admin, 'update', 'rank');
+        $payload = $this->validateRankMasterReorder($input);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'rank',
+            'update',
+            $idempotencyKey,
+            $payload,
+            200,
+            function () use ($payload): object {
+                $masters = DB::table('catalog_rank_masters')
+                    ->whereIn('public_id', array_column($payload['items'], 'rank_id'))
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('public_id');
+                if ($masters->count() !== count($payload['items'])) {
+                    throw $this->notFound();
+                }
+                foreach ($payload['items'] as $item) {
+                    $master = $masters->get($item['rank_id']);
+                    if ((int) $master->revision !== $item['expected_revision']) {
+                        throw new V2CatalogException(
+                            'CATALOG_REVISION_CONFLICT',
+                            409,
+                            'The Catalog record has changed.'
+                        );
+                    }
+                    $current = DB::table('catalog_rank_master_revisions')
+                        ->where('id', $master->current_revision_id)
+                        ->firstOrFail();
+                    if ((int) $current->display_order === $item['display_order']) {
+                        continue;
+                    }
+                    $revisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+                        'rank_master_id' => $master->id,
+                        'revision_number' => (int) $current->revision_number + 1,
+                        'rank_name' => $current->rank_name,
+                        'lineup_image_asset_id' => $current->lineup_image_asset_id,
+                        'result_image_asset_id' => $current->result_image_asset_id,
+                        'show_total_stock' => $current->show_total_stock,
+                        'display_order' => $item['display_order'],
+                        'created_at' => now()->startOfSecond(),
+                    ]);
+                    DB::table('catalog_rank_masters')->where('id', $master->id)->update([
+                        'current_revision_id' => $revisionId,
+                        'revision' => (int) $master->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+                }
+
+                return $this->find(
+                    'catalog_rank_masters',
+                    $payload['items'][0]['rank_id'],
+                    false
+                );
+            },
+            true,
+            function (object $row): array {
+                $items = DB::table('catalog_rank_masters as master')
+                    ->join(
+                        'catalog_rank_master_revisions as revision',
+                        'revision.id',
+                        '=',
+                        'master.current_revision_id'
+                    )
+                    ->orderBy('revision.display_order')
+                    ->orderBy('master.public_id')
+                    ->get(['master.*'])
+                    ->map(fn (object $master): array => $this->mapRankMaster($master))
+                    ->all();
+
+                return [
+                    'id' => $row->public_id,
+                    'items' => $items,
+                ];
             }
         );
     }
@@ -691,11 +953,10 @@ final class V2CatalogMasterMutationService
                 201,
                 function () use ($payload, &$storedPath): object {
                     $row = $this->storeRankEffectAsset($payload, $storedPath);
-                    $this->replaceRankEffectAssignments(
-                        (int) $row->id,
-                        $payload['asset_type'],
-                        $payload['rank_assignments'] ?? []
-                    );
+                    DB::table('catalog_rank_effect_materials')->insert([
+                        'presentation_asset_id' => $row->id,
+                        'created_at' => now()->startOfSecond(),
+                    ]);
 
                     return $row;
                 },
@@ -733,17 +994,17 @@ final class V2CatalogMasterMutationService
                 200,
                 function () use ($publicId, $payload, &$storedPath): object {
                     $current = $this->find('catalog_presentation_assets', $publicId, true);
+                    $material = DB::table('catalog_rank_effect_materials')
+                        ->where('presentation_asset_id', $current->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($material === null) {
+                        throw $this->notFound();
+                    }
                     $this->assertMutable($current, $payload['expected_revision']);
                     if (! in_array($current->media_type, ['image', 'video'], true)) {
                         throw $this->validationException();
                     }
-                    $rankAssignments = $payload['rank_assignments'];
-                    if ($payload['file'] !== null && $rankAssignments === null) {
-                        $rankAssignments = $this->existingRankEffectAssignments(
-                            (int) $current->id
-                        );
-                    }
-
                     if ($payload['file'] === null) {
                         if ($current->media_type !== $payload['asset_type']) {
                             throw $this->validationException();
@@ -757,17 +1018,9 @@ final class V2CatalogMasterMutationService
                         $row = $this->find('catalog_presentation_assets', $publicId, false);
                     } else {
                         $row = $this->storeRankEffectAsset($payload, $storedPath);
-                        DB::table('catalog_rank_assets')
-                            ->where('presentation_asset_id', $current->id)
-                            ->whereIn('usage_type', ['image', 'video'])
-                            ->delete();
-                    }
-                    if ($rankAssignments !== null) {
-                        $this->replaceRankEffectAssignments(
-                            (int) $row->id,
-                            $payload['asset_type'],
-                            $rankAssignments
-                        );
+                        DB::table('catalog_rank_effect_materials')
+                            ->where('id', $material->id)
+                            ->update(['presentation_asset_id' => $row->id]);
                     }
 
                     return $this->find(
@@ -785,6 +1038,185 @@ final class V2CatalogMasterMutationService
             }
             throw $exception;
         }
+    }
+
+    /** @param array<string, mixed> $input */
+    public function setGachaRankVideo(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $rankMasterPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_rank');
+        $this->rateLimit($context, $admin, 'update', 'gacha_rank');
+        $payload = $this->validateGachaRankVideo($input, false);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_rank',
+            'update',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'rank_id' => $rankMasterPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use ($gachaPublicId, $rankMasterPublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
+                if ($master->status !== 'active') {
+                    throw new V2CatalogException(
+                        'CATALOG_RANK_INACTIVE',
+                        409,
+                        'Inactive Rank Masters cannot be configured on a Gacha.'
+                    );
+                }
+                $asset = DB::table('catalog_presentation_assets as asset')
+                    ->join(
+                        'catalog_rank_effect_materials as material',
+                        'material.presentation_asset_id',
+                        '=',
+                        'asset.id'
+                    )
+                    ->where('asset.public_id', $payload['video_asset_id'])
+                    ->where('asset.media_type', 'video')
+                    ->where('asset.is_public', true)
+                    ->whereNull('asset.archived_at')
+                    ->lockForUpdate()
+                    ->first(['asset.*']);
+                if ($asset === null) {
+                    throw $this->validationException();
+                }
+                $gachaRank = DB::table('catalog_gacha_ranks')
+                    ->where('gacha_id', $gacha->id)
+                    ->where('rank_master_id', $master->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($gachaRank === null) {
+                    if (($payload['expected_revision'] ?? 0) !== 0) {
+                        throw new V2CatalogException(
+                            'CATALOG_REVISION_CONFLICT',
+                            409,
+                            'The Catalog record has changed.'
+                        );
+                    }
+                    $publicId = (string) Str::uuid7();
+                    DB::table('catalog_gacha_ranks')->insert([
+                        'public_id' => $publicId,
+                        'gacha_id' => $gacha->id,
+                        'rank_master_id' => $master->id,
+                        'current_video_revision_id' => null,
+                        'first_published_at' => null,
+                        'revision' => 1,
+                        'created_at' => now()->startOfSecond(),
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+                    $gachaRank = DB::table('catalog_gacha_ranks')
+                        ->where('public_id', $publicId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                } elseif (
+                    array_key_exists('expected_revision', $payload)
+                    && (int) $gachaRank->revision !== $payload['expected_revision']
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_REVISION_CONFLICT',
+                        409,
+                        'The Catalog record has changed.'
+                    );
+                }
+                $currentVideo = $gachaRank->current_video_revision_id === null
+                    ? null
+                    : DB::table('catalog_gacha_rank_video_revisions')
+                        ->where('id', $gachaRank->current_video_revision_id)
+                        ->firstOrFail();
+                if ($currentVideo !== null && (int) $currentVideo->video_asset_id === (int) $asset->id) {
+                    return $gachaRank;
+                }
+                $revisionNumber = (int) DB::table('catalog_gacha_rank_video_revisions')
+                    ->where('gacha_rank_id', $gachaRank->id)
+                    ->max('revision_number') + 1;
+                $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')
+                    ->insertGetId([
+                        'gacha_rank_id' => $gachaRank->id,
+                        'revision_number' => $revisionNumber,
+                        'video_asset_id' => $asset->id,
+                        'created_at' => now()->startOfSecond(),
+                    ]);
+                DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
+                    'current_video_revision_id' => $videoRevisionId,
+                    'revision' => $gachaRank->current_video_revision_id === null
+                        ? (int) $gachaRank->revision
+                        : (int) $gachaRank->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+
+                return DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->firstOrFail();
+            },
+            true,
+            fn (object $row): array => $this->mapGachaRank($row)
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function unsetGachaRankVideo(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $rankMasterPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_rank');
+        $this->rateLimit($context, $admin, 'update', 'gacha_rank');
+        $payload = $this->validateGachaRankVideo($input, true);
+
+        return $this->execute(
+            $context,
+            $admin,
+            'gacha_rank',
+            'update',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'rank_id' => $rankMasterPublicId,
+                ...$payload,
+            ],
+            200,
+            function () use ($gachaPublicId, $rankMasterPublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
+                $gachaRank = DB::table('catalog_gacha_ranks')
+                    ->where('gacha_id', $gacha->id)
+                    ->where('rank_master_id', $master->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($gachaRank === null) {
+                    throw $this->notFound();
+                }
+                $this->assertMutable($gachaRank, $payload['expected_revision']);
+                if (DB::table('catalog_prizes')->where('gacha_rank_id', $gachaRank->id)->exists()) {
+                    throw new V2CatalogException(
+                        'CATALOG_GACHA_RANK_VIDEO_REQUIRED',
+                        409,
+                        'A Rank with registered Prizes must retain an animation video.'
+                    );
+                }
+                if ($gachaRank->current_video_revision_id !== null) {
+                    DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
+                        'current_video_revision_id' => null,
+                        'revision' => (int) $gachaRank->revision + 1,
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+                }
+
+                return DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->firstOrFail();
+            },
+            true,
+            fn (object $row): array => $this->mapGachaRank($row)
+        );
     }
 
     /** @param array<string, mixed> $input */
@@ -1285,6 +1717,139 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function createGachaRankPrize(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $rankMasterPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'create', 'gacha_prize');
+        $this->rateLimit($context, $admin, 'create', 'gacha_prize');
+        $payload = $this->validateGachaDraftPrize(
+            ['rank_id' => $rankMasterPublicId, ...$input],
+            false
+        );
+
+        return $this->execute(
+            $context,
+            $admin,
+            'prize',
+            'create',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId,
+                'rank_id' => $rankMasterPublicId,
+                ...array_diff_key($payload, ['rank_id' => true]),
+            ],
+            201,
+            function () use (
+                $gachaPublicId,
+                $versionPublicId,
+                $rankMasterPublicId,
+                $payload
+            ): object {
+                [$gacha, $version] = $this->editableGachaVersion(
+                    $gachaPublicId,
+                    $versionPublicId,
+                    $payload['expected_version_revision']
+                );
+                $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
+                if ($master->status !== 'active') {
+                    throw new V2CatalogException(
+                        'CATALOG_RANK_INACTIVE',
+                        409,
+                        'Inactive Rank Masters cannot receive Prizes.'
+                    );
+                }
+                $gachaRank = DB::table('catalog_gacha_ranks')
+                    ->where('gacha_id', $gacha->id)
+                    ->where('rank_master_id', $master->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($gachaRank === null || $gachaRank->current_video_revision_id === null) {
+                    throw new V2CatalogException(
+                        'CATALOG_GACHA_RANK_VIDEO_REQUIRED',
+                        409,
+                        'Select an animation video before registering a Prize.'
+                    );
+                }
+                $this->assertGachaInventoryCapacity(
+                    (int) $version->id,
+                    (int) $version->total_count,
+                    null,
+                    $payload['total_inventory']
+                );
+                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+                if ($asset !== null && $asset->media_type !== 'image') {
+                    throw $this->validationException();
+                }
+                $now = now()->startOfSecond();
+                $publicId = (string) Str::uuid7();
+                $code = 'prize-'.str_replace('-', '', $publicId);
+                DB::table('catalog_prizes')->insert([
+                    'public_id' => $publicId,
+                    'code' => $code,
+                    'gacha_id' => $gacha->id,
+                    'rank_id' => null,
+                    'gacha_rank_id' => $gachaRank->id,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'description' => null,
+                    'display_price' => 0,
+                    'exchange_points' => $payload['exchange_points'],
+                    'cost_price' => $payload['cost_price'],
+                    'is_visible' => $payload['is_active'],
+                    'revision' => 1,
+                    'archived_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $prize = $this->find('catalog_prizes', $publicId, true);
+                $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
+                    ->where('gacha_version_id', $version->id)
+                    ->max('sort_order') + 1;
+                $relationId = DB::table('catalog_gacha_version_prizes')->insertGetId([
+                    'gacha_version_id' => $version->id,
+                    'prize_id' => $prize->id,
+                    'rank_id' => null,
+                    'gacha_rank_id' => $gachaRank->id,
+                    'rank_code' => null,
+                    'rank_display_name' => null,
+                    'rank_sort_order' => null,
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'description' => null,
+                    'display_price' => 0,
+                    'exchange_points' => $payload['exchange_points'],
+                    'cost_price' => $payload['cost_price'],
+                    'is_visible' => $payload['is_active'],
+                    'initial_inventory' => $payload['total_inventory'],
+                    'sort_order' => $sortOrder,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                DB::table('prize_inventories')->insert([
+                    'gacha_draw_state_id' => null,
+                    'gacha_version_prize_id' => $relationId,
+                    'total_quantity' => $payload['total_inventory'],
+                    'awarded_count' => 0,
+                    'available_quantity' => $payload['total_inventory'],
+                    'withdrawn_quantity' => 0,
+                    'lock_version' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $this->incrementGachaVersionRevision($version);
+
+                return $this->find('catalog_prizes', $publicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
     public function updateGachaDraftPrize(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -1423,6 +1988,155 @@ final class V2CatalogMasterMutationService
                     'updated_at' => now()->startOfSecond(),
                 ]);
                 $this->incrementGachaVersionRevision($version);
+
+                return $this->find('catalog_prizes', $prizePublicId, false);
+            }
+        );
+    }
+
+    /** @param array<string, mixed> $input */
+    public function updateGachaRankPrize(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $rankMasterPublicId,
+        string $prizePublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_prize');
+        $this->rateLimit($context, $admin, 'update', 'gacha_prize');
+        $payload = $this->validateGachaDraftPrize(
+            ['rank_id' => $rankMasterPublicId, ...$input],
+            true
+        );
+
+        return $this->execute(
+            $context,
+            $admin,
+            'prize',
+            'update',
+            $idempotencyKey,
+            [
+                'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId,
+                'rank_id' => $rankMasterPublicId,
+                'prize_id' => $prizePublicId,
+                ...array_diff_key($payload, ['rank_id' => true]),
+            ],
+            200,
+            function () use (
+                $context,
+                $admin,
+                $gachaPublicId,
+                $versionPublicId,
+                $rankMasterPublicId,
+                $prizePublicId,
+                $idempotencyKey,
+                $payload
+            ): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                if (
+                    (int) $version->gacha_id !== (int) $gacha->id
+                    || (int) $version->revision !== $payload['expected_version_revision']
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_REVISION_CONFLICT',
+                        409,
+                        'The Catalog record has changed.'
+                    );
+                }
+                $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
+                $gachaRank = DB::table('catalog_gacha_ranks')
+                    ->where('gacha_id', $gacha->id)
+                    ->where('rank_master_id', $master->id)
+                    ->lockForUpdate()
+                    ->first();
+                $prize = $this->find('catalog_prizes', $prizePublicId, true);
+                $this->assertMutable($prize, $payload['expected_revision']);
+                if (
+                    $gachaRank === null
+                    || (int) ($prize->gacha_rank_id ?? 0) !== (int) $gachaRank->id
+                    || (int) $prize->gacha_id !== (int) $gacha->id
+                ) {
+                    throw new V2CatalogException(
+                        'CATALOG_PRIZE_RANK_IMMUTABLE',
+                        409,
+                        'A Prize Rank cannot be changed.'
+                    );
+                }
+                $relation = DB::table('catalog_gacha_version_prizes')
+                    ->where('gacha_version_id', $version->id)
+                    ->where('prize_id', $prize->id)
+                    ->where('gacha_rank_id', $gachaRank->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($relation === null) {
+                    throw $this->notFound();
+                }
+                if (
+                    $version->status !== 'draft'
+                    || $version->archived_at !== null
+                    || $gacha->first_published_at !== null
+                ) {
+                    if (
+                        $version->status !== 'published'
+                        || (int) ($gacha->published_version_id ?? 0) !== (int) $version->id
+                        || $payload['exchange_points'] !== (int) $relation->exchange_points
+                        || $payload['cost_price'] !== (int) $relation->cost_price
+                        || $payload['is_active'] !== (bool) $relation->is_visible
+                    ) {
+                        throw $this->immutableException();
+                    }
+                }
+                $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
+                if ($asset !== null && $asset->media_type !== 'image') {
+                    throw $this->validationException();
+                }
+                $inventory = DB::table('prize_inventories')
+                    ->where('gacha_version_prize_id', $relation->id)
+                    ->lockForUpdate()
+                    ->first();
+                $this->assertGachaInventoryCapacity(
+                    (int) $version->id,
+                    (int) $version->total_count,
+                    (int) $relation->id,
+                    $payload['total_inventory'],
+                    $version->status !== 'published'
+                );
+                $this->adjustOperationalInventory(
+                    $gacha,
+                    $version,
+                    $prize,
+                    $relation,
+                    $inventory,
+                    $payload,
+                    $context,
+                    $admin,
+                    $idempotencyKey
+                );
+                DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                    'presentation_asset_id' => $asset?->id,
+                    'display_name' => $payload['name'],
+                    'exchange_points' => $payload['exchange_points'],
+                    'cost_price' => $payload['cost_price'],
+                    'is_visible' => $payload['is_active'],
+                    'revision' => (int) $prize->revision + 1,
+                    'updated_at' => now()->startOfSecond(),
+                ]);
+                if ($version->status === 'draft') {
+                    DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->update([
+                        'presentation_asset_id' => $asset?->id,
+                        'display_name' => $payload['name'],
+                        'exchange_points' => $payload['exchange_points'],
+                        'cost_price' => $payload['cost_price'],
+                        'is_visible' => $payload['is_active'],
+                        'initial_inventory' => $payload['total_inventory'],
+                        'updated_at' => now()->startOfSecond(),
+                    ]);
+                    $this->incrementGachaVersionRevision($version);
+                }
 
                 return $this->find('catalog_prizes', $prizePublicId, false);
             }
@@ -3271,6 +3985,195 @@ final class V2CatalogMasterMutationService
     }
 
     /** @return array<string, mixed> */
+    private function validateRankMaster(array $input, bool $updating): array
+    {
+        $allowed = [
+            'rank_name', 'lineup_image', 'result_image', 'show_total_stock', 'status',
+        ];
+        $required = $updating
+            ? ['expected_revision', 'rank_name', 'show_total_stock', 'status']
+            : ['rank_name', 'lineup_image', 'result_image'];
+        if ($updating) {
+            array_unshift($allowed, 'expected_revision');
+        }
+        $this->assertFields($input, $allowed, $required);
+        $lineupImage = array_key_exists('lineup_image', $input)
+            ? $this->validateRankMasterImage($input['lineup_image'])
+            : null;
+        $resultImage = array_key_exists('result_image', $input)
+            ? $this->validateRankMasterImage($input['result_image'])
+            : null;
+        $status = $input['status'] ?? 'active';
+        if (! is_string($status) || ! in_array($status, ['active', 'inactive'], true)) {
+            throw $this->validationException();
+        }
+
+        return [
+            ...($updating
+                ? ['expected_revision' => $this->revision($input['expected_revision'])]
+                : []),
+            'rank_name' => $this->plainText($input['rank_name'], 1, 128),
+            'lineup_image' => $lineupImage,
+            'result_image' => $resultImage,
+            'show_total_stock' => array_key_exists('show_total_stock', $input)
+                ? $this->boolean($input['show_total_stock'])
+                : false,
+            'status' => $status,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validateRankMasterImage(mixed $input): array
+    {
+        if (! is_array($input)) {
+            throw $this->validationException();
+        }
+        $this->assertFields(
+            $input,
+            ['file_name', 'mime_type', 'content_base64'],
+            ['file_name', 'mime_type', 'content_base64']
+        );
+
+        return $this->validateRankEffectFile($input, 'image');
+    }
+
+    /** @return array<string, mixed> */
+    private function rankMasterIdempotencyPayload(array $payload): array
+    {
+        foreach (['lineup_image', 'result_image'] as $field) {
+            if (is_array($payload[$field] ?? null)) {
+                $payload[$field] = [
+                    'file_name' => $payload[$field]['file_name'],
+                    'mime_type' => $payload[$field]['mime_type'],
+                    'checksum_sha256' => $payload[$field]['checksum_sha256'],
+                ];
+            }
+        }
+
+        return $payload;
+    }
+
+    /** @return array{items: list<array{rank_id: string, expected_revision: int, display_order: int}>} */
+    private function validateRankMasterReorder(array $input): array
+    {
+        $this->assertFields($input, ['items'], ['items']);
+        if (! is_array($input['items']) || $input['items'] === []) {
+            throw $this->validationException();
+        }
+        $items = [];
+        $rankIds = [];
+        $displayOrders = [];
+        foreach ($input['items'] as $item) {
+            if (! is_array($item)) {
+                throw $this->validationException();
+            }
+            $this->assertFields(
+                $item,
+                ['rank_id', 'expected_revision', 'display_order'],
+                ['rank_id', 'expected_revision', 'display_order']
+            );
+            $rankId = $this->uuid($item['rank_id']);
+            $displayOrder = $this->sortOrder($item['display_order']);
+            if (isset($rankIds[$rankId]) || isset($displayOrders[$displayOrder])) {
+                throw $this->validationException();
+            }
+            $rankIds[$rankId] = true;
+            $displayOrders[$displayOrder] = true;
+            $items[] = [
+                'rank_id' => $rankId,
+                'expected_revision' => $this->revision($item['expected_revision']),
+                'display_order' => $displayOrder,
+            ];
+        }
+
+        return ['items' => $items];
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @param list<string> $storedPaths
+     */
+    private function storeRankMasterImageAsset(
+        array $file,
+        string $usage,
+        string $rankName,
+        array &$storedPaths
+    ): object {
+        $publicId = (string) Str::uuid7();
+        $storedPath = sprintf(
+            'admin-assets/rank-masters/%s/%s-%s.%s',
+            now()->format('Y/m'),
+            $publicId,
+            $usage,
+            $file['extension']
+        );
+        if (! Storage::disk(config('filesystems.default'))->put(
+            $storedPath,
+            $file['bytes'],
+            ['ContentType' => $file['mime_type']]
+        )) {
+            throw new \RuntimeException('Rank Master image storage failed.');
+        }
+        $storedPaths[] = $storedPath;
+        $now = now()->startOfSecond();
+        DB::table('catalog_presentation_assets')->insert([
+            'public_id' => $publicId,
+            'storage_identifier' => $storedPath,
+            'public_path' => '/api/v2/catalog/presentation-assets/'.$publicId.'/content',
+            'checksum_sha256' => $file['checksum_sha256'],
+            'media_type' => 'image',
+            'mime_type' => $file['mime_type'],
+            'byte_size' => strlen($file['bytes']),
+            'alt_text' => $rankName.' '.$usage,
+            'is_public' => true,
+            'revision' => 1,
+            'archived_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return $this->find('catalog_presentation_assets', $publicId, false);
+    }
+
+    private function assertRankMasterUnused(int $rankMasterId): void
+    {
+        $hasPrize = DB::table('catalog_prizes as prize')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->where('gacha_rank.rank_master_id', $rankMasterId)
+            ->exists();
+        $hasPublication = DB::table('catalog_gacha_ranks')
+            ->where('rank_master_id', $rankMasterId)
+            ->whereNotNull('first_published_at')
+            ->exists();
+        if ($hasPrize || $hasPublication) {
+            throw new V2CatalogException(
+                'CATALOG_RANK_IN_USE',
+                409,
+                'A Rank Master with usage history cannot be made inactive.'
+            );
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function validateGachaRankVideo(array $input, bool $unsetting): array
+    {
+        $allowed = $unsetting
+            ? ['expected_revision']
+            : ['video_asset_id', 'expected_revision'];
+        $required = $unsetting ? ['expected_revision'] : ['video_asset_id'];
+        $this->assertFields($input, $allowed, $required);
+
+        return [
+            ...(! $unsetting
+                ? ['video_asset_id' => $this->uuid($input['video_asset_id'])]
+                : []),
+            ...array_key_exists('expected_revision', $input)
+                ? ['expected_revision' => $this->revision($input['expected_revision'])]
+                : [],
+        ];
+    }
+
+    /** @return array<string, mixed> */
     private function validateCreate(array $definition, array $input): array
     {
         $allowed = ['code', 'name', 'sort_order', 'is_visible'];
@@ -4031,7 +4934,7 @@ final class V2CatalogMasterMutationService
     private function validateRankEffect(array $input, bool $updating): array
     {
         $allowed = [
-            'title', 'asset_type', 'rank_assignments', 'is_active',
+            'title', 'asset_type', 'is_active',
             'file_name', 'mime_type', 'content_base64',
         ];
         $required = ['title', 'asset_type', 'is_active'];
@@ -4054,30 +4957,6 @@ final class V2CatalogMasterMutationService
         if (! is_string($assetType) || ! in_array($assetType, ['image', 'video'], true)) {
             throw $this->validationException();
         }
-        $rankAssignments = null;
-        if (array_key_exists('rank_assignments', $input)) {
-            if (! is_array($input['rank_assignments']) || $input['rank_assignments'] === []) {
-                throw $this->validationException();
-            }
-            $rankAssignments = [];
-            $rankIds = [];
-            foreach ($input['rank_assignments'] as $assignment) {
-                if (! is_array($assignment)) {
-                    throw $this->validationException();
-                }
-                $this->assertFields($assignment, ['rank_id', 'sort_order'], ['rank_id', 'sort_order']);
-                $rankId = $this->uuid($assignment['rank_id']);
-                if (isset($rankIds[$rankId])) {
-                    throw $this->validationException();
-                }
-                $rankIds[$rankId] = true;
-                $rankAssignments[] = [
-                    'rank_id' => $rankId,
-                    'sort_order' => $this->sortOrder($assignment['sort_order']),
-                ];
-            }
-        }
-
         $file = count($fileFields) === 3
             ? $this->validateRankEffectFile($input, $assetType)
             : null;
@@ -4086,7 +4965,6 @@ final class V2CatalogMasterMutationService
             ...($updating ? ['expected_revision' => $this->revision($input['expected_revision'])] : []),
             'title' => $this->plainText($input['title'], 1, 191),
             'asset_type' => $assetType,
-            'rank_assignments' => $rankAssignments,
             'is_active' => $this->boolean($input['is_active']),
             'file' => $file,
         ];
@@ -4147,50 +5025,6 @@ final class V2CatalogMasterMutationService
         ]);
 
         return $this->find('catalog_presentation_assets', $publicId, false);
-    }
-
-    /** @param list<array{rank_id: string, sort_order: int}> $assignments */
-    private function replaceRankEffectAssignments(
-        int $assetId,
-        string $usageType,
-        array $assignments
-    ): void {
-        DB::table('catalog_rank_assets')
-            ->where('presentation_asset_id', $assetId)
-            ->whereIn('usage_type', ['image', 'video'])
-            ->delete();
-        $now = now()->startOfSecond();
-        foreach ($assignments as $assignment) {
-            $rank = $this->find('catalog_ranks', $assignment['rank_id'], true);
-            if ($rank->archived_at !== null) {
-                throw $this->validationException();
-            }
-            DB::table('catalog_rank_assets')->insert([
-                'rank_id' => $rank->id,
-                'presentation_asset_id' => $assetId,
-                'usage_type' => $usageType,
-                'sort_order' => $assignment['sort_order'],
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
-    }
-
-    /** @return list<array{rank_id: string, sort_order: int}> */
-    private function existingRankEffectAssignments(int $assetId): array
-    {
-        return DB::table('catalog_rank_assets as relation')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
-            ->where('relation.presentation_asset_id', $assetId)
-            ->whereIn('relation.usage_type', ['image', 'video'])
-            ->orderBy('relation.sort_order')
-            ->orderBy('rank.public_id')
-            ->lockForUpdate()
-            ->get(['rank.public_id', 'relation.sort_order'])
-            ->map(fn (object $relation): array => [
-                'rank_id' => $relation->public_id,
-                'sort_order' => (int) $relation->sort_order,
-            ])->values()->all();
     }
 
     /** @return array<string, mixed> */
@@ -5092,7 +5926,7 @@ final class V2CatalogMasterMutationService
 
     private function assertMutable(object $row, int $expectedRevision): void
     {
-        if ($row->archived_at !== null) {
+        if (property_exists($row, 'archived_at') && $row->archived_at !== null) {
             throw new V2CatalogException(
                 'CATALOG_RESOURCE_ARCHIVED',
                 409,
@@ -5319,20 +6153,10 @@ final class V2CatalogMasterMutationService
                 ->where('gacha_version_id', $snapshotSourceVersionId)
                 ->get()
                 ->keyBy('prize_id');
-        $rankIds = collect($resolved)->pluck('rank_id')
-            ->merge($sourceSnapshots->pluck('rank_id'))
-            ->unique()
-            ->values();
-        $ranksById = DB::table('catalog_ranks')
-            ->whereIn('id', $rankIds)
-            ->get()
-            ->keyBy('id');
-
         return array_map(function (array $relation) use (
             $gachaId,
             $prizesByPublicId,
-            $sourceSnapshots,
-            $ranksById
+            $sourceSnapshots
         ): array {
             $prize = $prizesByPublicId[$relation['prize_id']];
             if ((int) $prize->gacha_id !== $gachaId) {
@@ -5342,18 +6166,35 @@ final class V2CatalogMasterMutationService
                     'A Prize can only be associated with its owning Gacha.'
                 );
             }
+            if ($prize->gacha_rank_id === null) {
+                throw new V2CatalogException(
+                    'CATALOG_LEGACY_RANK_NOT_CANONICAL',
+                    409,
+                    'Legacy Rank Prizes cannot be used by the canonical Gacha runtime.'
+                );
+            }
             $snapshot = $sourceSnapshots->get($prize->id) ?? $prize;
-            $rank = $ranksById->get($snapshot->rank_id);
-            if ($rank === null) {
-                throw $this->notFound();
+            if (
+                $sourceSnapshots->isNotEmpty()
+                && (
+                    $snapshot->gacha_rank_id === null
+                    || (int) $snapshot->gacha_rank_id !== (int) $prize->gacha_rank_id
+                )
+            ) {
+                throw new V2CatalogException(
+                    'CATALOG_LEGACY_RANK_NOT_CANONICAL',
+                    409,
+                    'Legacy Rank snapshots cannot be cloned into the canonical Gacha runtime.'
+                );
             }
 
             return [
                 'prize_id' => (int) $prize->id,
-                'rank_id' => (int) $snapshot->rank_id,
-                'rank_code' => $snapshot->rank_code ?? $rank->code,
-                'rank_display_name' => $snapshot->rank_display_name ?? $rank->display_name,
-                'rank_sort_order' => (int) ($snapshot->rank_sort_order ?? $rank->sort_order),
+                'rank_id' => null,
+                'gacha_rank_id' => (int) $prize->gacha_rank_id,
+                'rank_code' => null,
+                'rank_display_name' => null,
+                'rank_sort_order' => null,
                 'presentation_asset_id' => $snapshot->presentation_asset_id,
                 'display_name' => $snapshot->display_name,
                 'description' => $snapshot->description,
@@ -5385,27 +6226,6 @@ final class V2CatalogMasterMutationService
             ],
             $prizes
         ));
-        $rankIds = DB::table('catalog_gacha_version_prizes as relation')
-            ->where('relation.gacha_version_id', $versionId)
-            ->orderBy('relation.sort_order')
-            ->pluck('relation.rank_id')
-            ->unique()
-            ->values();
-        $existingRankIds = DB::table('catalog_gacha_version_ranks')
-            ->where('gacha_version_id', $versionId)
-            ->pluck('rank_id');
-        $nextSortOrder = (int) DB::table('catalog_gacha_version_ranks')
-            ->where('gacha_version_id', $versionId)
-            ->max('sort_order') + 1;
-        foreach ($rankIds->diff($existingRankIds) as $rankId) {
-            DB::table('catalog_gacha_version_ranks')->insert([
-                'gacha_version_id' => $versionId,
-                'rank_id' => $rankId,
-                'sort_order' => $nextSortOrder++,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
     }
 
     /** @return array{0: object, 1: object} */
@@ -5669,24 +6489,6 @@ final class V2CatalogMasterMutationService
                 : $source->publish_end_at,
             'prizes' => $prizes,
         ], (int) $source->id);
-
-        $rankRows = DB::table('catalog_gacha_version_ranks')
-            ->where('gacha_version_id', $source->id)
-            ->orderBy('sort_order')->get(['rank_id', 'sort_order']);
-        foreach ($rankRows as $rank) {
-            if (DB::table('catalog_gacha_version_ranks')
-                ->where('gacha_version_id', $draft->id)
-                ->where('rank_id', $rank->rank_id)->exists()) {
-                continue;
-            }
-            DB::table('catalog_gacha_version_ranks')->insert([
-                'gacha_version_id' => $draft->id,
-                'rank_id' => $rank->rank_id,
-                'sort_order' => $rank->sort_order,
-                'created_at' => now()->startOfSecond(),
-                'updated_at' => now()->startOfSecond(),
-            ]);
-        }
 
         return $draft;
     }
@@ -6521,7 +7323,18 @@ final class V2CatalogMasterMutationService
 
         $prizeRelations = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
@@ -6533,14 +7346,23 @@ final class V2CatalogMasterMutationService
                 'relation.is_visible as prize_is_visible',
                 'relation.initial_inventory',
                 'prize.archived_at as prize_archived_at',
-                'rank.is_visible as rank_is_visible',
-                'rank.archived_at as rank_archived_at',
+                'rank_master.status as rank_status',
+                'gacha_rank.current_video_revision_id',
                 'relation.presentation_asset_id',
                 'asset.is_public as asset_is_public',
                 'asset.archived_at as asset_archived_at',
             ]);
         if ($prizeRelations->isEmpty()) {
             $block('GACHA_PRIZE_REQUIRED', 'At least one Prize is required.');
+        }
+        if (DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $version->id)
+            ->whereNull('gacha_rank_id')
+            ->exists()) {
+            $block(
+                'GACHA_CANONICAL_RANK_REQUIRED',
+                'Every Prize must use a Canonical Gacha Rank.'
+            );
         }
         $initialInventory = (int) $prizeRelations->sum('initial_inventory');
         if ($prizeRelations->isNotEmpty() && $initialInventory <= 0) {
@@ -6559,8 +7381,8 @@ final class V2CatalogMasterMutationService
             if (
                 ! $relation->prize_is_visible
                 || $relation->prize_archived_at !== null
-                || ! $relation->rank_is_visible
-                || $relation->rank_archived_at !== null
+                || $relation->rank_status !== 'active'
+                || $relation->current_video_revision_id === null
                 || (
                     $relation->presentation_asset_id !== null
                     && (
@@ -7452,6 +8274,55 @@ final class V2CatalogMasterMutationService
             throw $this->canonicalProbabilityInternalException();
         }
 
+        $versionPrizeCount = DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $version->id)
+            ->count();
+        $canonicalGachaRanks = DB::table('catalog_gacha_version_prizes as relation')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->where('relation.gacha_version_id', $version->id)
+            ->where('gacha_rank.gacha_id', $gacha->id)
+            ->orderBy('master.id')
+            ->lock('for update of master, gacha_rank')
+            ->get([
+                'gacha_rank.id', 'gacha_rank.current_video_revision_id',
+                'gacha_rank.first_published_at', 'gacha_rank.revision',
+                'master.status',
+            ]);
+        if (
+            $versionPrizeCount === 0
+            || DB::table('catalog_gacha_version_prizes')
+                ->where('gacha_version_id', $version->id)
+                ->whereNull('gacha_rank_id')
+                ->exists()
+            || $canonicalGachaRanks->contains(
+                fn (object $rank): bool => $rank->status !== 'active'
+                    || $rank->current_video_revision_id === null
+            )
+        ) {
+            throw $this->gachaPublishPrizeException();
+        }
+        foreach ($canonicalGachaRanks->unique('id') as $rank) {
+            if ($rank->first_published_at !== null) {
+                continue;
+            }
+            DB::table('catalog_gacha_ranks')->where('id', $rank->id)->update([
+                'first_published_at' => DB::raw('CURRENT_TIMESTAMP'),
+                'revision' => (int) $rank->revision + 1,
+                'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+            ]);
+        }
+
         DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
             'status' => 'published',
             'published_probability_version_id' => $probability->id,
@@ -7858,6 +8729,116 @@ final class V2CatalogMasterMutationService
     }
 
     /** @return array<string, mixed> */
+    private function mapRankMaster(object $row): array
+    {
+        $current = DB::table('catalog_rank_master_revisions as revision')
+            ->join(
+                'catalog_presentation_assets as lineup_asset',
+                'lineup_asset.id',
+                '=',
+                'revision.lineup_image_asset_id'
+            )
+            ->join(
+                'catalog_presentation_assets as result_asset',
+                'result_asset.id',
+                '=',
+                'revision.result_image_asset_id'
+            )
+            ->where('revision.id', $row->current_revision_id)
+            ->first([
+                'revision.*',
+                'lineup_asset.public_id as lineup_public_id',
+                'lineup_asset.public_path as lineup_public_path',
+                'lineup_asset.mime_type as lineup_mime_type',
+                'lineup_asset.alt_text as lineup_alt_text',
+                'result_asset.public_id as result_public_id',
+                'result_asset.public_path as result_public_path',
+                'result_asset.mime_type as result_mime_type',
+                'result_asset.alt_text as result_alt_text',
+            ]);
+        if ($current === null) {
+            throw new \RuntimeException('Rank Master current Revision is unavailable.');
+        }
+        $hasPrizeUsage = DB::table('catalog_prizes as prize')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->where('gacha_rank.rank_master_id', $row->id)
+            ->exists();
+        $usedByPublishedGacha = DB::table('catalog_gacha_ranks')
+            ->where('rank_master_id', $row->id)
+            ->whereNotNull('first_published_at')
+            ->exists();
+
+        return [
+            'id' => $row->public_id,
+            'rank_name' => $current->rank_name,
+            'lineup_image' => [
+                'id' => $current->lineup_public_id,
+                'path' => $current->lineup_public_path,
+                'mime_type' => $current->lineup_mime_type,
+                'alt_text' => $current->lineup_alt_text,
+            ],
+            'result_image' => [
+                'id' => $current->result_public_id,
+                'path' => $current->result_public_path,
+                'mime_type' => $current->result_mime_type,
+                'alt_text' => $current->result_alt_text,
+            ],
+            'show_total_stock' => (bool) $current->show_total_stock,
+            'status' => $row->status,
+            'display_order' => (int) $current->display_order,
+            'revision_number' => (int) $current->revision_number,
+            'revision' => (int) $row->revision,
+            'has_usage' => $hasPrizeUsage || $usedByPublishedGacha,
+            'used_by_published_gacha' => $usedByPublishedGacha,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapGachaRank(object $row): array
+    {
+        $master = DB::table('catalog_rank_masters')
+            ->where('id', $row->rank_master_id)
+            ->firstOrFail();
+        $video = $row->current_video_revision_id === null
+            ? null
+            : DB::table('catalog_gacha_rank_video_revisions as revision')
+                ->join(
+                    'catalog_presentation_assets as asset',
+                    'asset.id',
+                    '=',
+                    'revision.video_asset_id'
+                )
+                ->where('revision.id', $row->current_video_revision_id)
+                ->first([
+                    'revision.revision_number',
+                    'asset.public_id', 'asset.public_path', 'asset.mime_type', 'asset.alt_text',
+                ]);
+
+        return [
+            'id' => $row->public_id,
+            'gacha_id' => DB::table('catalog_gachas')
+                ->where('id', $row->gacha_id)
+                ->value('public_id'),
+            'rank' => $this->mapRankMaster($master),
+            'current_video' => $video === null ? null : [
+                'id' => $video->public_id,
+                'path' => $video->public_path,
+                'mime_type' => $video->mime_type,
+                'alt_text' => $video->alt_text,
+            ],
+            'video_revision_number' => $video === null
+                ? null
+                : (int) $video->revision_number,
+            'revision' => (int) $row->revision,
+            'first_published_at' => $row->first_published_at,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
     private function mapGacha(object $row): array
     {
         $publishedVersion = $row->published_version_id === null
@@ -8056,7 +9037,25 @@ final class V2CatalogMasterMutationService
                 ->firstOrFail();
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->leftJoin(
+                'catalog_rank_master_revisions as master_revision',
+                'master_revision.id',
+                '=',
+                'master.current_revision_id'
+            )
             ->where('relation.gacha_version_id', $row->id)
             ->orderBy('relation.sort_order')
             ->orderBy('relation.id')
@@ -8064,9 +9063,11 @@ final class V2CatalogMasterMutationService
                 'prize.public_id as prize_id',
                 'prize.code as prize_code',
                 'relation.display_name as prize_name',
-                'rank.public_id as rank_id',
+                DB::raw('COALESCE(master.public_id, rank.public_id) as rank_id'),
                 'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
+                DB::raw(
+                    'COALESCE(master_revision.rank_name, relation.rank_display_name) as rank_name'
+                ),
                 'relation.initial_inventory',
                 'relation.sort_order',
             ])->map(fn (object $relation): array => [
@@ -8076,7 +9077,9 @@ final class V2CatalogMasterMutationService
                     'name' => $relation->prize_name,
                     'rank' => [
                         'id' => $relation->rank_id,
-                        'code' => $relation->rank_code,
+                        ...($relation->rank_code === null
+                            ? []
+                            : ['code' => $relation->rank_code]),
                         'name' => $relation->rank_name,
                     ],
                 ],
@@ -8142,16 +9145,32 @@ final class V2CatalogMasterMutationService
         $structure = $this->probabilityStructure((int) $row->id);
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
             ->where('relation.gacha_version_id', $row->gacha_version_id)
             ->get([
                 'prize.public_id',
                 'prize.code',
                 'relation.display_name as display_name',
-                'rank.public_id as rank_public_id',
-                'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
-                'relation.rank_sort_order as rank_sort_order',
+                'rank_master.public_id as rank_public_id',
+                'rank_revision.rank_name',
+                'rank_revision.display_order as rank_sort_order',
             ])->keyBy('public_id');
         $target = static function (array $value) use ($prizes): array {
             $prize = $value['prize_public_id'] === null
@@ -8166,7 +9185,6 @@ final class V2CatalogMasterMutationService
                     'name' => $prize->display_name,
                     'rank' => [
                         'id' => $prize->rank_public_id,
-                        'code' => $prize->rank_code,
                         'name' => $prize->rank_name,
                         'sort_order' => (int) $prize->rank_sort_order,
                     ],
@@ -8285,7 +9303,30 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     private function mapPrize(object $row): array
     {
-        $rank = DB::table('catalog_ranks')->where('id', $row->rank_id)->firstOrFail();
+        if ($row->gacha_rank_id !== null) {
+            $rank = DB::table('catalog_gacha_ranks as gacha_rank')
+                ->join(
+                    'catalog_rank_masters as master',
+                    'master.id',
+                    '=',
+                    'gacha_rank.rank_master_id'
+                )
+                ->join(
+                    'catalog_rank_master_revisions as revision',
+                    'revision.id',
+                    '=',
+                    'master.current_revision_id'
+                )
+                ->where('gacha_rank.id', $row->gacha_rank_id)
+                ->first([
+                    'master.public_id', 'revision.rank_name', 'revision.display_order',
+                ]);
+        } else {
+            $rank = DB::table('catalog_ranks')->where('id', $row->rank_id)->first();
+        }
+        if ($rank === null) {
+            throw new \RuntimeException('Prize Rank authority is unavailable.');
+        }
         $asset = $row->presentation_asset_id === null
             ? null
             : DB::table('catalog_presentation_assets')
@@ -8303,9 +9344,13 @@ final class V2CatalogMasterMutationService
             'is_visible' => (bool) $row->is_visible,
             'rank' => [
                 'id' => $rank->public_id,
-                'code' => $rank->code,
-                'name' => $rank->display_name,
-                'sort_order' => (int) $rank->sort_order,
+                ...($row->gacha_rank_id === null ? ['code' => $rank->code] : []),
+                'name' => $row->gacha_rank_id === null
+                    ? $rank->display_name
+                    : $rank->rank_name,
+                'sort_order' => (int) ($row->gacha_rank_id === null
+                    ? $rank->sort_order
+                    : $rank->display_order),
             ],
             'presentation_asset' => $asset === null ? null : [
                 'id' => $asset->public_id,
@@ -8363,31 +9408,10 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     private function mapRankEffect(object $row): array
     {
-        $relations = DB::table('catalog_rank_assets as relation')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
-            ->where('relation.presentation_asset_id', $row->id)
-            ->whereIn('relation.usage_type', ['image', 'video'])
-            ->orderBy('relation.sort_order')
-            ->orderBy('rank.public_id')
-            ->get([
-                'rank.public_id',
-                'rank.code',
-                'rank.display_name',
-                'relation.sort_order',
-            ]);
-
         return [
             ...$this->mapAsset($row),
             'content_path' => '/admin/api/v2/catalog/presentation-assets/'
                 .$row->public_id.'/content',
-            'rank_assignments' => $relations->map(fn (object $relation): array => [
-                'rank' => [
-                    'id' => $relation->public_id,
-                    'code' => $relation->code,
-                    'name' => $relation->display_name,
-                ],
-                'sort_order' => (int) $relation->sort_order,
-            ])->values()->all(),
         ];
     }
 
@@ -8422,14 +9446,84 @@ final class V2CatalogMasterMutationService
     private function queryException(QueryException $exception): V2CatalogException
     {
         $state = $exception->errorInfo[0] ?? null;
+        $message = $exception->getMessage();
         if ($state === '23505') {
+            if (str_contains($message, 'catalog_gacha_ranks_gacha_id_rank_master_id_unique')) {
+                return new V2CatalogException(
+                    'CATALOG_REVISION_CONFLICT',
+                    409,
+                    'The Gacha Rank configuration has changed.'
+                );
+            }
+
             return new V2CatalogException(
                 'CATALOG_MASTER_CONFLICT',
                 409,
                 'The Catalog code or slug is already in use.'
             );
         }
-        $message = $exception->getMessage();
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Rank Masters with usage history cannot be made inactive')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_RANK_IN_USE',
+                409,
+                'A Rank Master with usage history cannot be made inactive.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Inactive Rank Masters')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_RANK_INACTIVE',
+                409,
+                'Inactive Rank Masters cannot gain usage history.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && str_contains($message, 'Canonical Prizes require a Gacha Rank video')
+        ) {
+            return new V2CatalogException(
+                'CATALOG_GACHA_RANK_VIDEO_REQUIRED',
+                409,
+                'A Gacha Rank video is required before registering a Prize.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Catalog Prize Gacha Rank is immutable')
+                || str_contains($message, 'Cross-Gacha canonical Prize relation is not allowed')
+                || str_contains(
+                    $message,
+                    'Cross-Gacha canonical Version Prize relation is not allowed'
+                )
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_PRIZE_RANK_IMMUTABLE',
+                409,
+                'A Prize Rank cannot be changed or assigned across Gachas.'
+            );
+        }
+        if (
+            $state === 'P0001'
+            && (
+                str_contains($message, 'Catalog Rank Master revision must increase by one')
+                || str_contains($message, 'Catalog Rank Master current Revision is invalid')
+                || str_contains($message, 'Catalog Gacha Rank revision must increase by one')
+                || str_contains($message, 'Catalog Gacha Rank current Video Revision is invalid')
+            )
+        ) {
+            return new V2CatalogException(
+                'CATALOG_REVISION_CONFLICT',
+                409,
+                'The Rank configuration has changed.'
+            );
+        }
         if (
             $state === 'P0001'
             && str_contains(

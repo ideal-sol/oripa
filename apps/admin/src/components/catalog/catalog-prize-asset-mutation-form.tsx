@@ -8,25 +8,10 @@ import { AdminApiClient } from "@/lib/admin-api/client";
 import type {
   AdminBannerCategory,
   AdminCatalogPresentationAsset,
-  AdminCatalogPrize,
-  AdminCatalogRank,
   AdminManagedBanner,
 } from "@/lib/admin-api/generated";
 
-export interface CatalogPrizeDraft {
-  kind: "prize";
-  code: string;
-  rankId: string;
-  presentationAssetId: string | null;
-  name: string;
-  description: string | null;
-  displayPrice: number;
-  exchangePoints: number;
-  isVisible: boolean;
-}
-
 export interface CatalogAssetDraft {
-  kind: "asset";
   storageIdentifier: string;
   publicPath: string;
   checksumSha256: string;
@@ -37,29 +22,22 @@ export interface CatalogAssetDraft {
   isPublic: boolean;
 }
 
-export type CatalogPrizeAssetDraft = CatalogPrizeDraft | CatalogAssetDraft;
+export type CatalogPrizeAssetDraft = CatalogAssetDraft;
 
 export function CatalogPrizeAssetMutationForm({
   current,
   mode,
-  resource,
   onCancel,
   onSubmit,
 }: {
-  current?: AdminCatalogPrize | AdminCatalogPresentationAsset;
+  current?: AdminCatalogPresentationAsset;
   mode: "create" | "edit";
-  resource: "prizes" | "presentation-assets";
+  resource: "presentation-assets";
   onCancel: () => void;
   onSubmit: (draft: CatalogPrizeAssetDraft) => Promise<void>;
 }) {
-  const initial = useMemo(
-    () => initialDraft(resource, current),
-    [current, resource],
-  );
+  const initial = useMemo(() => initialDraft(current), [current]);
   const [draft, setDraft] = useState(initial);
-  const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
-  const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
-  const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -68,20 +46,6 @@ export function CatalogPrizeAssetMutationForm({
   useEffect(() => {
     heading.current?.focus();
   }, []);
-  useEffect(() => {
-    if (resource !== "prizes") return;
-    const controller = new AbortController();
-    const client = new AdminApiClient();
-    client.listCatalogRanks(
-      { direction: "asc", limit: 100, sort: "sort_order", visibility: "visible" },
-      controller.signal,
-    )
-      .then((rankResponse) => {
-        setRanks(rankResponse.items.filter((item) => !item.is_archived));
-      })
-      .catch(() => setError("選択肢を取得できませんでした。"));
-    return () => controller.abort();
-  }, [resource]);
   useEffect(() => {
     if (!dirty) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -92,10 +56,6 @@ export function CatalogPrizeAssetMutationForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (draft.kind === "prize" && bannerPickerChanged && selectedBannerId === null) {
-      setError("選択したBanner CategoryからBannerを選択してください。");
-      return;
-    }
     if (!validDraft(draft, mode)) {
       setError("入力内容を確認してください。HTMLや不正なPathは入力できません。");
       return;
@@ -141,141 +101,47 @@ export function CatalogPrizeAssetMutationForm({
           </button>
         </header>
         <form className="catalog-mutation-form" onSubmit={submit}>
-          {draft.kind === "prize" ? (
+          {mode === "create" ? (
             <>
-              {mode === "create" ? (
-                <label>
-                  Code
-                  <input
-                    maxLength={64}
-                    onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-                    pattern="[a-z][a-z0-9_-]*"
-                    required
-                    value={draft.code}
-                  />
-                </label>
-              ) : (
-                <p className="catalog-immutable-code">
-                  Code <code>{draft.code}</code>
-                </p>
-              )}
+              <TextField label="Storage識別子" value={draft.storageIdentifier}
+                onChange={(value) => setDraft({ ...draft, storageIdentifier: value })} />
+              <TextField label="Public Path" value={draft.publicPath}
+                onChange={(value) => setDraft({ ...draft, publicPath: value })} />
+              <TextField label="SHA-256" value={draft.checksumSha256} maxLength={64}
+                onChange={(value) => setDraft({ ...draft, checksumSha256: value })} />
               <label>
-                Rank
+                Media種別
                 <select
-                  onChange={(event) => setDraft({ ...draft, rankId: event.target.value })}
-                  required
-                  value={draft.rankId}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      mediaType: event.target.value as "image" | "video",
+                    })
+                  }
+                  value={draft.mediaType}
                 >
-                  <option value="">選択してください</option>
-                  {ranks.map((rank) => (
-                    <option key={rank.id} value={rank.id}>{rank.name}</option>
-                  ))}
+                  <option value="image">Image</option>
+                  <option value="video">Video</option>
                 </select>
               </label>
-              <CatalogBannerAssetPicker
-                assetId={draft.presentationAssetId}
-                disabled={submitting}
-                onSelectionChange={(selection) => {
-                  setBannerPickerChanged(selection.changed);
-                  setSelectedBannerId(selection.bannerId);
-                  setDraft({ ...draft, presentationAssetId: selection.assetId });
-                }}
-              />
+              <TextField label="MIME Type" value={draft.mimeType}
+                onChange={(value) => setDraft({ ...draft, mimeType: value })} />
               <label>
-                名称
-                <input
-                  maxLength={191}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  required
-                  value={draft.name}
-                />
+                Byte Size
+                <input min={0} onChange={(event) =>
+                  setDraft({ ...draft, byteSize: Number(event.target.value) })
+                } required type="number" value={draft.byteSize} />
               </label>
-              <label>
-                説明
-                <textarea
-                  maxLength={2000}
-                  onChange={(event) =>
-                    setDraft({ ...draft, description: event.target.value })
-                  }
-                  rows={4}
-                  value={draft.description ?? ""}
-                />
-              </label>
-              <label>
-                表示価格
-                <input
-                  min={0}
-                  onChange={(event) =>
-                    setDraft({ ...draft, displayPrice: Number(event.target.value) })
-                  }
-                  required
-                  type="number"
-                  value={draft.displayPrice}
-                />
-              </label>
-              <label>
-                交換Point
-                <input
-                  min={0}
-                  onChange={(event) =>
-                    setDraft({ ...draft, exchangePoints: Number(event.target.value) })
-                  }
-                  required
-                  type="number"
-                  value={draft.exchangePoints}
-                />
-              </label>
-              <BooleanField
-                checked={draft.isVisible}
-                label="公開Catalogへ表示する"
-                onChange={(value) => setDraft({ ...draft, isVisible: value })}
-              />
             </>
           ) : (
-            <>
-              {mode === "create" ? (
-                <>
-                  <TextField label="Storage識別子" value={draft.storageIdentifier}
-                    onChange={(value) => setDraft({ ...draft, storageIdentifier: value })} />
-                  <TextField label="Public Path" value={draft.publicPath}
-                    onChange={(value) => setDraft({ ...draft, publicPath: value })} />
-                  <TextField label="SHA-256" value={draft.checksumSha256} maxLength={64}
-                    onChange={(value) => setDraft({ ...draft, checksumSha256: value })} />
-                  <label>
-                    Media種別
-                    <select
-                      onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          mediaType: event.target.value as "image" | "video",
-                        })
-                      }
-                      value={draft.mediaType}
-                    >
-                      <option value="image">Image</option>
-                      <option value="video">Video</option>
-                    </select>
-                  </label>
-                  <TextField label="MIME Type" value={draft.mimeType}
-                    onChange={(value) => setDraft({ ...draft, mimeType: value })} />
-                  <label>
-                    Byte Size
-                    <input min={0} onChange={(event) =>
-                      setDraft({ ...draft, byteSize: Number(event.target.value) })
-                    } required type="number" value={draft.byteSize} />
-                  </label>
-                </>
-              ) : (
-                <p className="catalog-immutable-code">
-                  Object識別情報は作成後変更できません。
-                </p>
-              )}
-              <TextField label="Alt" required={false} value={draft.altText ?? ""}
-                onChange={(value) => setDraft({ ...draft, altText: value || null })} />
-              <BooleanField checked={draft.isPublic} label="Public Assetとして公開する"
-                onChange={(value) => setDraft({ ...draft, isPublic: value })} />
-            </>
+            <p className="catalog-immutable-code">
+              Object識別情報は作成後変更できません。
+            </p>
           )}
+          <TextField label="Alt" required={false} value={draft.altText ?? ""}
+            onChange={(value) => setDraft({ ...draft, altText: value || null })} />
+          <BooleanField checked={draft.isPublic} label="Public Assetとして公開する"
+            onChange={(value) => setDraft({ ...draft, isPublic: value })} />
           {error ? <p aria-live="assertive" className="form-error" role="alert">{error}</p> : null}
           <div className="catalog-dialog-actions">
             <button className="secondary-button" disabled={submitting} onClick={cancel} type="button">
@@ -309,26 +175,10 @@ function BooleanField({ checked, label, onChange }: {
 }
 
 function initialDraft(
-  resource: "prizes" | "presentation-assets",
-  current?: AdminCatalogPrize | AdminCatalogPresentationAsset,
+  current?: AdminCatalogPresentationAsset,
 ): CatalogPrizeAssetDraft {
-  if (resource === "prizes") {
-    const prize = current as AdminCatalogPrize | undefined;
-    return {
-      kind: "prize",
-      code: prize?.code ?? "",
-      rankId: prize?.rank.id ?? "",
-      presentationAssetId: prize?.presentation_asset?.id ?? null,
-      name: prize?.name ?? "",
-      description: prize?.description ?? null,
-      displayPrice: prize?.display_price ?? 0,
-      exchangePoints: prize?.exchange_points ?? 0,
-      isVisible: prize?.is_visible ?? true,
-    };
-  }
-  const asset = current as AdminCatalogPresentationAsset | undefined;
+  const asset = current;
   return {
-    kind: "asset",
     storageIdentifier: "",
     publicPath: "",
     checksumSha256: "",
@@ -341,15 +191,6 @@ function initialDraft(
 }
 
 function validDraft(draft: CatalogPrizeAssetDraft, mode: "create" | "edit"): boolean {
-  if (draft.kind === "prize") {
-    return Boolean(
-      draft.name.trim() && draft.rankId &&
-      (mode === "edit" || /^[a-z][a-z0-9_-]{0,63}$/u.test(draft.code)) &&
-      Number.isSafeInteger(draft.displayPrice) && draft.displayPrice >= 0 &&
-      Number.isSafeInteger(draft.exchangePoints) && draft.exchangePoints >= 0 &&
-      !/[<>]/u.test(`${draft.name}${draft.description ?? ""}`),
-    );
-  }
   return Boolean(
     (mode === "edit" || (
       draft.storageIdentifier && draft.publicPath.startsWith("/") &&
@@ -361,9 +202,7 @@ function validDraft(draft: CatalogPrizeAssetDraft, mode: "create" | "edit"): boo
 }
 
 function trimDraft(draft: CatalogPrizeAssetDraft): CatalogPrizeAssetDraft {
-  return draft.kind === "prize"
-    ? { ...draft, name: draft.name.trim(), description: draft.description?.trim() || null }
-    : { ...draft, altText: draft.altText?.trim() || null };
+  return { ...draft, altText: draft.altText?.trim() || null };
 }
 
 export function CatalogBannerAssetPicker({

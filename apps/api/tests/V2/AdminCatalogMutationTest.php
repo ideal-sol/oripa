@@ -52,7 +52,6 @@ final class AdminCatalogMutationTest extends TestCase
             foreach ([
                 ['categories', $this->categoryInput($role->value.'-category')],
                 ['tags', $this->tagInput($role->value.'-tag')],
-                ['ranks', $this->rankInput($role->value.'-rank')],
             ] as [$resource, $input]) {
                 Auth::forgetGuards();
                 $this->mutatingRequest($token, 'POST', "/admin/api/v2/catalog/{$resource}", $input)
@@ -65,6 +64,20 @@ final class AdminCatalogMutationTest extends TestCase
             }
 
             Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/ranks',
+                $this->rankMasterInput($role->value.' rank')
+            )->assertCreated()
+                ->assertJsonPath('data.rank_name', $role->value.' rank')
+                ->assertJsonPath('data.show_total_stock', false)
+                ->assertJsonPath('data.status', 'active')
+                ->assertJsonPath('data.revision', 1)
+                ->assertJsonPath('idempotent_replay', false)
+                ->assertHeader('Cache-Control', 'no-store, private');
+
+            Auth::forgetGuards();
             $asset = $this->mutatingRequest(
                 $token,
                 'POST',
@@ -72,13 +85,12 @@ final class AdminCatalogMutationTest extends TestCase
                 $this->assetInput($role->value.'-asset')
             )->assertCreated()->json('data');
             Auth::forgetGuards();
-            $this->mutatingRequest(
-                $token,
-                'POST',
-                '/admin/api/v2/catalog/prizes',
-                $this->prizeInput($role->value.'-prize', $asset['id'])
-            )->assertConflict()
-                ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
+        $this->mutatingRequest(
+            $token,
+            'POST',
+            '/admin/api/v2/catalog/prizes',
+            $this->prizeInput($role->value.'-prize', $asset['id'])
+            )->assertStatus(405);
         }
 
         $operator = $this->createAdminSession(V2AdminRole::Operator);
@@ -90,10 +102,6 @@ final class AdminCatalogMutationTest extends TestCase
             $this->categoryInput('operator-category')
         )->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
         foreach ([
-            [
-                '/admin/api/v2/catalog/prizes/0198a001-0000-7000-8000-000000000009',
-                ['code' => 'must-not-leak-immutability'],
-            ],
             [
                 '/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000005',
                 ['public_path' => '/must-not-leak-immutability.png'],
@@ -650,8 +658,7 @@ final class AdminCatalogMutationTest extends TestCase
             '/admin/api/v2/catalog/prizes',
             $this->prizeInput('created-prize', $asset['id']),
             'prize-create-key'
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
+        )->assertStatus(405);
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -691,8 +698,7 @@ final class AdminCatalogMutationTest extends TestCase
                 'exchange_points' => 8000,
                 'is_visible' => true,
             ]
-        )->assertConflict()
-            ->assertJsonPath('code', 'CATALOG_GACHA_SCOPED_PRIZE_REQUIRED');
+        )->assertStatus(405);
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -770,13 +776,22 @@ final class AdminCatalogMutationTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function rankInput(string $code): array
+    private function rankMasterInput(string $name): array
     {
         return [
-            'code' => $code,
-            'name' => strtoupper($code),
-            'sort_order' => 1,
-            'is_visible' => true,
+            'rank_name' => $name,
+            'lineup_image' => $this->rankImageInput($name.'-lineup.png'),
+            'result_image' => $this->rankImageInput($name.'-result.png'),
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function rankImageInput(string $fileName): array
+    {
+        return [
+            'file_name' => $fileName,
+            'mime_type' => 'image/png',
+            'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         ];
     }
 

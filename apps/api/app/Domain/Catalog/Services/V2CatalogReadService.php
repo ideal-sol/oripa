@@ -9,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 final class V2CatalogReadService
@@ -51,6 +52,53 @@ final class V2CatalogReadService
                 'slug' => $row->slug,
                 'name' => $row->display_name,
             ])->all();
+    }
+
+    /** @return array{content: string, mime_type: string, checksum: string} */
+    public function presentationAssetContent(string $publicId): array
+    {
+        if (! Str::isUuid($publicId)) {
+            throw new V2CatalogException(
+                'CATALOG_NOT_FOUND',
+                404,
+                'The requested catalog resource was not found.'
+            );
+        }
+        $asset = DB::table('catalog_presentation_assets as asset')
+            ->where('asset.public_id', $publicId)
+            ->where('asset.is_public', true)
+            ->whereNull('asset.archived_at')
+            ->where(function (Builder $query): void {
+                $query->whereExists(function (Builder $revision): void {
+                    $revision->selectRaw('1')
+                        ->from('catalog_rank_master_revisions as rank_revision')
+                        ->whereColumn('rank_revision.lineup_image_asset_id', 'asset.id')
+                        ->orWhereColumn('rank_revision.result_image_asset_id', 'asset.id');
+                })->orWhereExists(function (Builder $revision): void {
+                    $revision->selectRaw('1')
+                        ->from('catalog_gacha_rank_video_revisions as video_revision')
+                        ->whereColumn('video_revision.video_asset_id', 'asset.id');
+                });
+            })
+            ->first();
+        if ($asset === null) {
+            throw new V2CatalogException(
+                'CATALOG_NOT_FOUND',
+                404,
+                'The requested catalog resource was not found.'
+            );
+        }
+        $content = Storage::disk(config('filesystems.default'))
+            ->get($asset->storage_identifier);
+        if (! hash_equals($asset->checksum_sha256, hash('sha256', $content))) {
+            throw new \RuntimeException('Canonical presentation Asset checksum mismatch.');
+        }
+
+        return [
+            'content' => $content,
+            'mime_type' => $asset->mime_type,
+            'checksum' => $asset->checksum_sha256,
+        ];
     }
 
     /**
@@ -523,93 +571,90 @@ final class V2CatalogReadService
      */
     private function ranks(int $gachaVersionId): array
     {
-        $rankRows = DB::table('catalog_gacha_version_prizes as gvp')
-            ->join('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
-            ->where('gvp.gacha_version_id', $gachaVersionId)
-            ->where('gvp.is_visible', true)
-            ->where('r.is_visible', true)
-            ->select(
-                'r.id as rank_internal_id',
-                'r.public_id as rank_public_id',
-                'gvp.rank_code',
-                'gvp.rank_display_name as rank_name',
-                'gvp.rank_sort_order'
-            )
-            ->distinct()
-            ->orderBy('gvp.rank_sort_order')
-            ->orderBy('r.public_id')
-            ->get();
-        $prizeRows = DB::table('catalog_gacha_version_prizes as gvp')
-            ->join('catalog_prizes as p', 'p.id', '=', 'gvp.prize_id')
-            ->leftJoin(
-                'catalog_presentation_assets as a',
-                'a.id',
+        return DB::table('catalog_gacha_version_prizes as gvp')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'gvp.prize_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
                 '=',
-                DB::raw('COALESCE(p.presentation_asset_id, gvp.presentation_asset_id)')
+                'gvp.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
+            ->join(
+                'catalog_presentation_assets as lineup_asset',
+                'lineup_asset.id',
+                '=',
+                'revision.lineup_image_asset_id'
+            )
+            ->join(
+                'catalog_gacha_rank_video_revisions as video_revision',
+                'video_revision.id',
+                '=',
+                'gacha_rank.current_video_revision_id'
+            )
+            ->join(
+                'catalog_presentation_assets as video_asset',
+                'video_asset.id',
+                '=',
+                'video_revision.video_asset_id'
+            )
+            ->join(
+                'prize_inventories as inventory',
+                'inventory.gacha_version_prize_id',
+                '=',
+                'gvp.id'
             )
             ->where('gvp.gacha_version_id', $gachaVersionId)
-            ->where('gvp.is_visible', true)
-            ->orderBy('gvp.sort_order')
-            ->orderBy('p.public_id')
-            ->get([
-                'gvp.rank_id',
-                'p.public_id',
-                'p.display_name',
-                'gvp.description',
-                'gvp.display_price',
-                'gvp.exchange_points',
-                'a.public_id as asset_public_id',
-                'a.public_path as asset_public_path',
-                'a.checksum_sha256 as asset_checksum_sha256',
-                'a.media_type as asset_media_type',
-                'a.mime_type as asset_mime_type',
-                'a.alt_text as asset_alt_text',
-                'a.is_public as asset_is_public',
-            ])->groupBy('rank_id');
-
-        return $rankRows->map(function (object $rank) use ($prizeRows): array {
-            return [
-                'id' => $rank->rank_public_id,
-                'code' => $rank->rank_code,
-                'name' => $rank->rank_name,
-                'presentation_assets' => $this->rankAssets((int) $rank->rank_internal_id),
-                'prizes' => ($prizeRows[$rank->rank_internal_id] ?? collect())
-                    ->map(fn (object $prize): array => [
-                        'id' => $prize->public_id,
-                        'name' => $prize->display_name,
-                        'description' => $prize->description,
-                        'display_price' => (int) $prize->display_price,
-                        'exchange_points' => (int) $prize->exchange_points,
-                        'presentation_asset' => $this->asset($prize),
-                    ])->values()->all(),
-            ];
-        })->all();
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function rankAssets(int $rankId): array
-    {
-        return DB::table('catalog_rank_assets as ra')
-            ->join('catalog_presentation_assets as a', 'a.id', '=', 'ra.presentation_asset_id')
-            ->where('ra.rank_id', $rankId)
-            ->where('a.is_public', true)
-            ->orderBy('ra.sort_order')
-            ->orderBy('a.public_id')
-            ->get([
-                'ra.usage_type',
-                'a.public_id as asset_public_id',
-                'a.public_path as asset_public_path',
-                'a.checksum_sha256 as asset_checksum_sha256',
-                'a.media_type as asset_media_type',
-                'a.mime_type as asset_mime_type',
-                'a.alt_text as asset_alt_text',
-                'a.is_public as asset_is_public',
+            ->where('master.status', 'active')
+            ->groupBy([
+                'master.public_id', 'revision.rank_name', 'revision.show_total_stock',
+                'revision.display_order', 'lineup_asset.public_id',
+                'lineup_asset.public_path', 'lineup_asset.checksum_sha256',
+                'lineup_asset.media_type', 'lineup_asset.mime_type',
+                'lineup_asset.alt_text', 'video_asset.public_id',
+                'video_asset.public_path', 'video_asset.checksum_sha256',
+                'video_asset.media_type', 'video_asset.mime_type',
+                'video_asset.alt_text',
             ])
-            ->map(fn (object $asset): array => [
-                'usage_type' => $asset->usage_type,
-                ...$this->asset($asset),
+            ->orderBy('revision.display_order')
+            ->orderBy('master.public_id')
+            ->get([
+                'master.public_id as rank_id', 'revision.rank_name',
+                'revision.show_total_stock', 'revision.display_order',
+                DB::raw('SUM(inventory.total_quantity)::bigint as total_stock'),
+                'lineup_asset.public_id as lineup_public_id',
+                'lineup_asset.public_path as lineup_path',
+                'lineup_asset.checksum_sha256 as lineup_checksum',
+                'lineup_asset.media_type as lineup_media_type',
+                'lineup_asset.mime_type as lineup_mime_type',
+                'lineup_asset.alt_text as lineup_alt_text',
+                'video_asset.public_id as video_public_id',
+                'video_asset.public_path as video_path',
+                'video_asset.checksum_sha256 as video_checksum',
+                'video_asset.media_type as video_media_type',
+                'video_asset.mime_type as video_mime_type',
+                'video_asset.alt_text as video_alt_text',
+            ])->map(fn (object $rank): array => [
+                'rank_id' => $rank->rank_id,
+                'rank_name' => $rank->rank_name,
+                'lineup_image' => $this->prefixedAsset($rank, 'lineup'),
+                'show_total_stock' => (bool) $rank->show_total_stock,
+                'total_stock' => $rank->show_total_stock
+                    ? (int) $rank->total_stock
+                    : null,
+                'display_order' => (int) $rank->display_order,
+                'current_video' => $this->prefixedAsset($rank, 'video'),
             ])->all();
     }
 
@@ -630,23 +675,38 @@ final class V2CatalogReadService
                 '=',
                 'pe.gacha_version_prize_id'
             )
-            ->join('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'gvp.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
             ->whereIn('pe.probability_stage_id', $stageIds)
             ->where('pe.result_type', 'prize')
-            ->where('r.is_visible', true)
+            ->where('master.status', 'active')
             ->groupBy(
                 'pe.probability_stage_id',
-                'r.public_id',
-                'gvp.rank_code',
-                'gvp.rank_display_name',
-                'gvp.rank_sort_order'
+                'master.public_id',
+                'revision.rank_name',
+                'revision.display_order'
             )
-            ->orderBy('gvp.rank_sort_order')
+            ->orderBy('revision.display_order')
             ->get([
                 'pe.probability_stage_id',
-                'r.public_id',
-                'gvp.rank_code as code',
-                'gvp.rank_display_name as display_name',
+                'master.public_id',
+                'revision.rank_name as display_name',
                 DB::raw('SUM(pe.probability_ppm)::bigint as total_ppm'),
             ])->groupBy('probability_stage_id');
         $pointBack = DB::table('catalog_probability_entries')
@@ -664,16 +724,32 @@ final class V2CatalogReadService
                 '=',
                 'mg.gacha_version_prize_id'
             )
-            ->leftJoin('catalog_ranks as r', 'r.id', '=', 'gvp.rank_id')
+            ->leftJoin(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'gvp.gacha_rank_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->leftJoin(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
             ->whereIn('mg.probability_stage_id', $stageIds)
             ->get([
                 'mg.probability_stage_id',
                 'mg.result_type',
                 'mg.point_amount',
                 'mg.probability_ppm',
-                'r.public_id as rank_public_id',
-                'gvp.rank_code as rank_code',
-                'gvp.rank_display_name as rank_name',
+                'master.public_id as rank_public_id',
+                'revision.rank_name as rank_name',
             ])->keyBy('probability_stage_id');
         $nextDraw = $soldCount + 1;
 
@@ -688,7 +764,6 @@ final class V2CatalogReadService
                 ? [
                     'rank' => [
                         'id' => $guarantee->rank_public_id,
-                        'code' => $guarantee->rank_code,
                         'name' => $guarantee->rank_name,
                     ],
                 ]
@@ -712,7 +787,6 @@ final class V2CatalogReadService
                     ->map(fn (object $rank): array => [
                         'rank' => [
                             'id' => $rank->public_id,
-                            'code' => $rank->code,
                             'name' => $rank->display_name,
                         ],
                         'total_ppm' => (int) $rank->total_ppm,
@@ -727,9 +801,20 @@ final class V2CatalogReadService
         })->all();
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
+    /** @return array<string, mixed> */
+    private function prefixedAsset(object $row, string $prefix): array
+    {
+        return [
+            'id' => $row->{$prefix.'_public_id'},
+            'path' => $row->{$prefix.'_path'},
+            'checksum_sha256' => $row->{$prefix.'_checksum'},
+            'media_type' => $row->{$prefix.'_media_type'},
+            'mime_type' => $row->{$prefix.'_mime_type'},
+            'alt_text' => $row->{$prefix.'_alt_text'},
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
     private function asset(object $row): ?array
     {
         if ($row->asset_public_id === null || ! (bool) $row->asset_is_public) {

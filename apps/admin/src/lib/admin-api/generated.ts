@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 61829e3e8150aa92152686ca8ac0b4f9f4caaebd846049052e5f8fd913df3cac
+// Contract SHA-256: 2d4150cf557507689f5e91973d97879127020a49d2f254f69b70a2630f719ffb
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1101,25 +1101,32 @@ export interface AdminCatalogTag {
 
 export interface AdminCatalogRank {
   id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  sort_order: number;
-  is_visible: boolean;
-  image_asset?: AdminCatalogAssetReference | null;
-  video_asset?: AdminCatalogAssetReference | null;
-  is_archived?: boolean;
-  revision?: number;
-  archived_at?: string | null;
+  rank_name: string;
+  lineup_image: AdminCanonicalAssetSnapshot;
+  result_image: AdminCanonicalAssetSnapshot;
+  show_total_stock: boolean;
+  status: "active" | "inactive";
+  display_order: number;
+  revision_number: number;
+  revision: number;
+  has_usage: boolean;
+  used_by_published_gacha: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface AdminCatalogRankReference {
   id: string;
-  code: string;
+  code?: string;
   name: string;
   sort_order: number;
+}
+
+export interface AdminCanonicalAssetSnapshot {
+  id: string;
+  path: string;
+  mime_type: string;
+  alt_text: string | null;
 }
 
 export interface AdminCatalogAssetReference {
@@ -1138,6 +1145,7 @@ export interface AdminCatalogPrize {
   description: string | null;
   display_price: number;
   exchange_points: number;
+  cost_price: number;
   is_visible: boolean;
   rank: AdminCatalogRankReference;
   presentation_asset: AdminCatalogAssetReference | null;
@@ -1158,25 +1166,13 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
   updated_at: string;
 }
 
-export interface AdminRankEffectRankAssignment {
-  rank: AdminCatalogReference;
-  sort_order: number;
-}
-
 export interface AdminRankEffect extends AdminCatalogPresentationAsset {
   content_path: string;
-  rank_assignments: AdminRankEffectRankAssignment[];
-}
-
-export interface AdminRankEffectRankAssignmentInput {
-  rank_id: string;
-  sort_order: number;
 }
 
 export interface AdminRankEffectCreate {
   title: string;
   asset_type: "image" | "video";
-  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name: string;
   mime_type: string;
@@ -1187,7 +1183,6 @@ export interface AdminRankEffectUpdate {
   expected_revision: number;
   title: string;
   asset_type: "image" | "video";
-  rank_assignments?: AdminRankEffectRankAssignmentInput[];
   is_active: boolean;
   file_name?: string;
   mime_type?: string;
@@ -1228,63 +1223,81 @@ export interface AdminCatalogTagUpdate {
   is_visible: boolean;
 }
 
+export interface AdminDirectUpload {
+  file_name: string;
+  mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  content_base64: string;
+}
+
 export interface AdminCatalogRankCreate {
-  code: string;
-  name: string;
-  sort_order: number;
-  is_visible: boolean;
+  rank_name: string;
+  lineup_image: AdminDirectUpload;
+  result_image: AdminDirectUpload;
+  show_total_stock?: boolean;
+  status?: "active" | "inactive";
 }
 
 export interface AdminCatalogRankUpdate {
   expected_revision: number;
-  name: string;
-  sort_order: number;
-  is_visible: boolean;
+  rank_name: string;
+  lineup_image?: AdminDirectUpload;
+  result_image?: AdminDirectUpload;
+  show_total_stock: boolean;
+  status: "active" | "inactive";
 }
 
-export interface AdminCatalogPrizeCreate {
-  code: string;
+export interface AdminCatalogRankReorderItem {
   rank_id: string;
-  presentation_asset_id: string | null;
-  name: string;
-  description: string | null;
-  display_price: number;
-  exchange_points: number;
-  is_visible: boolean;
-}
-
-export interface AdminCatalogPrizeUpdate {
   expected_revision: number;
-  rank_id: string;
-  presentation_asset_id: string | null;
-  name: string;
-  description: string | null;
-  display_price: number;
-  exchange_points: number;
-  is_visible: boolean;
+  display_order: number;
 }
 
-export interface AdminGachaVersionRankCreate {
-  code: string;
-  name: string;
-  description: string | null;
-  image_asset_id: string | null;
-  video_asset_id: string | null;
-  expected_version_revision: number;
+export interface AdminCatalogRankReorder {
+  items: AdminCatalogRankReorderItem[];
 }
 
-export interface AdminGachaVersionRankUpdate {
-  name: string;
-  description: string | null;
-  image_asset_id: string | null;
-  video_asset_id: string | null;
+export interface AdminCatalogRankReorderResult {
+  data: { items: AdminCatalogRank[] };
+  idempotent_replay: boolean;
+}
+
+export interface AdminGachaRank {
+  id: string;
+  gacha_id: string;
+  rank: AdminCatalogRank;
+  current_video: AdminCanonicalAssetSnapshot | null;
+  video_revision_number: number | null;
+  revision: number;
+  first_published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminGachaRankListItem {
+  rank: AdminCatalogRank;
+  gacha_rank_id: string | null;
+  gacha_rank_revision: number | null;
+  video_revision_number: number | null;
+  current_video: AdminCanonicalAssetSnapshot | null;
+  can_unset_video: boolean;
+}
+
+export interface AdminGachaRankCollection {
+  items: AdminGachaRankListItem[];
+}
+
+export interface AdminGachaRankVideoSet {
+  video_asset_id: string;
+  expected_revision?: number;
+}
+
+export interface AdminGachaRankVideoUnset {
   expected_revision: number;
-  expected_version_revision: number;
 }
 
-export interface AdminGachaVersionRankCollection {
-  items: AdminCatalogRank[];
-  version_revision: number;
+export interface AdminGachaRankMutationResult {
+  data: AdminGachaRank;
+  idempotent_replay: boolean;
 }
 
 export interface AdminGachaVersionPrize extends AdminCatalogPrize {
@@ -1299,7 +1312,6 @@ export interface AdminGachaVersionPrize extends AdminCatalogPrize {
 }
 
 export interface AdminGachaVersionPrizeCreate {
-  rank_id: string;
   presentation_asset_id: string | null;
   name: string;
   total_inventory: number;

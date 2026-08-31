@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RankEffectSettingsWorkspace } from "@/components/catalog/rank-effect-settings-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import type { AdminCatalogRank, AdminRankEffect } from "@/lib/admin-api/generated";
+import type { AdminRankEffect } from "@/lib/admin-api/generated";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
@@ -28,15 +28,15 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Rank effect settings", () => {
-  it("renders the V1-equivalent ordered list, preview, rank, state, and edit route", async () => {
+  it("renders the relation-free Asset Master list and edit route", async () => {
     const list = vi.spyOn(AdminApiClient.prototype, "listRankEffects");
     render(<RankEffectSettingsWorkspace mode="list" />);
     expect(await screen.findByRole("heading", { name: "ランク演出" })).toBeVisible();
     expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
-      "種別", "タイトル", "ランク", "プレビュー", "表示順", "状態", "更新日時", "操作",
+      "種別", "タイトル", "プレビュー", "状態", "更新日時", "操作",
     ]);
     expect(screen.getByText("当選演出")).toBeVisible();
-    expect(screen.getByText("Sランク")).toBeVisible();
+    expect(screen.queryByText("Sランク")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
       "src",
       `/admin/api/v2/catalog/presentation-assets/${effect().id}/content`,
@@ -101,24 +101,6 @@ describe("Rank effect settings", () => {
   });
 });
 
-function rank(): AdminCatalogRank {
-  return {
-    archived_at: null,
-    code: "S",
-    created_at: "2026-08-05T00:00:00Z",
-    description: null,
-    id: uuid("1"),
-    image_asset: null,
-    is_archived: false,
-    is_visible: true,
-    name: "Sランク",
-    revision: 1,
-    sort_order: 4,
-    updated_at: "2026-08-05T00:00:00Z",
-    video_asset: null,
-  };
-}
-
 function effect(): AdminRankEffect {
   return {
     alt_text: "当選演出",
@@ -133,7 +115,6 @@ function effect(): AdminRankEffect {
     media_type: "image",
     mime_type: "image/png",
     public_path: `/admin/api/v2/catalog/presentation-assets/${uuid("2")}/content`,
-    rank_assignments: [{ rank: { code: "S", id: rank().id, name: "Sランク" }, sort_order: 4 }],
     revision: 1,
     updated_at: "2026-08-05T00:00:00Z",
   };

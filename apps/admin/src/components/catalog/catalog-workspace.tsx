@@ -43,7 +43,6 @@ import type {
   AdminCatalogCollection,
   AdminCatalogPresentationAsset,
   AdminCatalogPrize,
-  AdminCatalogRank,
   AdminCatalogTag,
 } from "@/lib/admin-api/generated";
 import {
@@ -52,7 +51,7 @@ import {
   type CatalogSection,
 } from "@/lib/catalog/catalog-registry";
 
-type CatalogReferenceResource = Exclude<CatalogResource, "gachas">;
+type CatalogReferenceResource = Exclude<CatalogResource, "gachas" | "ranks">;
 type CatalogReferenceSection = CatalogSection & {
   resource: CatalogReferenceResource;
 };
@@ -60,15 +59,13 @@ type CatalogReferenceSection = CatalogSection & {
 type CatalogItem =
   | AdminCatalogCategory
   | AdminCatalogTag
-  | AdminCatalogRank
   | AdminCatalogPrize
   | AdminCatalogPresentationAsset;
 
 type CatalogMasterItem =
   | AdminCatalogCategory
-  | AdminCatalogTag
-  | AdminCatalogRank;
-type CatalogMutableItem = CatalogItem;
+  | AdminCatalogTag;
+type CatalogMutableItem = AdminCatalogCategory | AdminCatalogTag | AdminCatalogPresentationAsset;
 
 type LoadState =
   | { kind: "loading" }
@@ -411,14 +408,14 @@ export function CatalogWorkspace({
               mode={mutationMode}
               onCancel={() => setMutationMode(null)}
               onSubmit={submitMutation}
-              resource={section.resource as "categories" | "tags" | "ranks"}
+              resource={section.resource as "categories" | "tags"}
             />
           ) : null}
           {mutationMode && canManage && isPrizeAssetResource(section.resource) ? (
             <CatalogPrizeAssetMutationForm
               current={
                 current
-                  ? (current as AdminCatalogPrize | AdminCatalogPresentationAsset)
+                  ? (current as AdminCatalogPresentationAsset)
                   : undefined
               }
               mode={mutationMode}
@@ -502,8 +499,6 @@ async function getList(
       return client.listCatalogCategories(query, signal);
     case "tags":
       return client.listCatalogTags(query, signal);
-    case "ranks":
-      return client.listCatalogRanks(query, signal);
     case "prizes":
       return client.listCatalogPrizes(query, signal);
     case "presentation-assets":
@@ -522,8 +517,6 @@ async function getDetail(
       return (await client.getCatalogCategory(id, signal)).data;
     case "tags":
       return (await client.getCatalogTag(id, signal)).data;
-    case "ranks":
-      return (await client.getCatalogRank(id, signal)).data;
     case "prizes":
       return (await client.getCatalogPrize(id, signal)).data;
     case "presentation-assets":
@@ -556,9 +549,7 @@ function tableRow(item: CatalogItem): CatalogTableRow {
   const secondary =
     "rank" in item
       ? `${item.rank.name} / ${item.exchange_points.toLocaleString()} Point交換`
-      : "slug" in item
-        ? item.slug
-        : `表示順 ${item.sort_order}`;
+      : item.slug;
   return {
     id: item.id,
     code: item.code,
@@ -602,7 +593,7 @@ function detailEntries(item: CatalogItem): [string, string][] {
   if ("description" in item) entries.push(["説明", item.description ?? "未設定"]);
   if ("rank" in item) {
     entries.push(
-      ["Rank", `${item.rank.name} (${item.rank.code})`],
+      ["Rank", `${item.rank.name}${item.rank.code ? ` (${item.rank.code})` : ""}`],
       ["表示価格", item.display_price.toLocaleString()],
       ["交換Point", item.exchange_points.toLocaleString()],
     );
@@ -626,14 +617,14 @@ function detailEntries(item: CatalogItem): [string, string][] {
 
 function isMasterResource(
   resource: CatalogReferenceResource,
-): resource is "categories" | "tags" | "ranks" {
-  return ["categories", "tags", "ranks"].includes(resource);
+): resource is "categories" | "tags" {
+  return ["categories", "tags"].includes(resource);
 }
 
 function isPrizeAssetResource(
   resource: CatalogReferenceResource,
-): resource is "prizes" | "presentation-assets" {
-  return resource === "prizes" || resource === "presentation-assets";
+): resource is "presentation-assets" {
+  return resource === "presentation-assets";
 }
 
 function isMutableResource(resource: CatalogReferenceResource): boolean {
@@ -717,28 +708,7 @@ async function mutateMaster(
           );
     return response.data;
   }
-  const response =
-    mode === "create"
-      ? await client.createCatalogRank(
-          {
-            code: draft.code,
-            is_visible: draft.isVisible,
-            name: draft.name,
-            sort_order: draft.sortOrder,
-          },
-          key,
-        )
-      : await client.updateCatalogRank(
-          current!.id,
-          {
-            expected_revision: revision!,
-            is_visible: draft.isVisible,
-            name: draft.name,
-            sort_order: draft.sortOrder,
-          },
-          key,
-        );
-  return response.data;
+  throw new Error("Unsupported Catalog mutation.");
 }
 
 async function archiveCatalogMaster(
@@ -753,12 +723,6 @@ async function archiveCatalogMaster(
   }
   if (resource === "tags") {
     return (await client.archiveCatalogTag(current.id, revision, key)).data;
-  }
-  if (resource === "ranks") {
-    return (await client.archiveCatalogRank(current.id, revision, key)).data;
-  }
-  if (resource === "prizes") {
-    return (await client.archiveCatalogPrize(current.id, revision, key)).data;
   }
   if (resource === "presentation-assets") {
     return (
@@ -793,27 +757,7 @@ async function mutatePrizeAsset(
     throw new Error("Unsupported Catalog mutation.");
   }
   const revision = mode === "edit" ? mutationRevision(current) : null;
-  if (resource === "prizes" && draft.kind === "prize") {
-    const body = {
-      description: draft.description,
-      display_price: draft.displayPrice,
-      exchange_points: draft.exchangePoints,
-      is_visible: draft.isVisible,
-      name: draft.name,
-      presentation_asset_id: draft.presentationAssetId,
-      rank_id: draft.rankId,
-    };
-    return mode === "create"
-      ? (await client.createCatalogPrize({ code: draft.code, ...body }, key)).data
-      : (
-          await client.updateCatalogPrize(
-            current!.id,
-            { expected_revision: revision!, ...body },
-            key,
-          )
-        ).data;
-  }
-  if (resource === "presentation-assets" && draft.kind === "asset") {
+  if (resource === "presentation-assets") {
     return mode === "create"
       ? (
           await client.createCatalogPresentationAsset(

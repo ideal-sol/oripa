@@ -150,6 +150,124 @@ final class GachaDetailPresentationContractTest extends TestCase
             ->assertJsonPath('data.sale_state', 'on_sale');
     }
 
+    public function test_public_ranks_include_only_canonical_prize_ranks_and_total_stock_is_configured_total(): void
+    {
+        $this->import();
+
+        $initial = $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
+            ->assertOk()->json('data');
+        self::assertNotEmpty($initial['ranks']);
+        $canonicalRank = $initial['ranks'][0];
+        self::assertArrayHasKey('rank_id', $canonicalRank);
+        self::assertArrayHasKey('rank_name', $canonicalRank);
+        self::assertArrayHasKey('lineup_image', $canonicalRank);
+        self::assertArrayHasKey('current_video', $canonicalRank);
+        self::assertArrayHasKey('display_order', $canonicalRank);
+        self::assertFalse($canonicalRank['show_total_stock']);
+        self::assertNull($canonicalRank['total_stock']);
+        self::assertArrayNotHasKey('available_quantity', $canonicalRank);
+
+        $gacha = DB::table('catalog_gachas')->where('public_id', self::GACHA_ID)->firstOrFail();
+        $template = DB::table('catalog_rank_masters as master')
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
+            ->first(['revision.*']);
+        $videoAssetId = (int) DB::table('catalog_gacha_rank_video_revisions')
+            ->value('video_asset_id');
+        $now = now()->startOfSecond();
+        $videoOnlyMasterId = DB::table('catalog_rank_masters')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'current_revision_id' => null,
+            'status' => 'active',
+            'revision' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $videoOnlyMasterPublicId = (string) DB::table('catalog_rank_masters')
+            ->where('id', $videoOnlyMasterId)->value('public_id');
+        $videoOnlyRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+            'rank_master_id' => $videoOnlyMasterId,
+            'revision_number' => 1,
+            'rank_name' => 'Video only Rank',
+            'lineup_image_asset_id' => $template->lineup_image_asset_id,
+            'result_image_asset_id' => $template->result_image_asset_id,
+            'show_total_stock' => false,
+            'display_order' => 9999,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_rank_masters')->where('id', $videoOnlyMasterId)->update([
+            'current_revision_id' => $videoOnlyRevisionId,
+            'updated_at' => $now,
+        ]);
+        $videoOnlyGachaRankId = DB::table('catalog_gacha_ranks')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'gacha_id' => $gacha->id,
+            'rank_master_id' => $videoOnlyMasterId,
+            'current_video_revision_id' => null,
+            'revision' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $videoOnlyRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+            'gacha_rank_id' => $videoOnlyGachaRankId,
+            'revision_number' => 1,
+            'video_asset_id' => $videoAssetId,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_gacha_ranks')->where('id', $videoOnlyGachaRankId)->update([
+            'current_video_revision_id' => $videoOnlyRevisionId,
+            'updated_at' => $now,
+        ]);
+
+        $canonicalMaster = DB::table('catalog_rank_masters')
+            ->where('public_id', $canonicalRank['rank_id'])->firstOrFail();
+        $canonicalRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', $canonicalMaster->current_revision_id)->firstOrFail();
+        $stockRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+            'rank_master_id' => $canonicalMaster->id,
+            'revision_number' => (int) $canonicalRevision->revision_number + 1,
+            'rank_name' => $canonicalRevision->rank_name,
+            'lineup_image_asset_id' => $canonicalRevision->lineup_image_asset_id,
+            'result_image_asset_id' => $canonicalRevision->result_image_asset_id,
+            'show_total_stock' => true,
+            'display_order' => $canonicalRevision->display_order,
+            'created_at' => $now,
+        ]);
+        DB::table('catalog_rank_masters')->where('id', $canonicalMaster->id)->update([
+            'current_revision_id' => $stockRevisionId,
+            'revision' => (int) $canonicalMaster->revision + 1,
+            'updated_at' => $now,
+        ]);
+        $expectedStock = (int) DB::table('prize_inventories as inventory')
+            ->join(
+                'catalog_gacha_version_prizes as relation',
+                'relation.id',
+                '=',
+                'inventory.gacha_version_prize_id'
+            )
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'relation.gacha_rank_id')
+            ->where('gacha_rank.gacha_id', $gacha->id)
+            ->where('gacha_rank.rank_master_id', $canonicalMaster->id)
+            ->sum('inventory.total_quantity');
+
+        $updated = $this->getJson('/api/v2/gachas/'.self::GACHA_ID)
+            ->assertOk()->json('data.ranks');
+        self::assertFalse(collect($updated)->contains(
+            fn (array $rank): bool => $rank['rank_id'] === $videoOnlyMasterPublicId
+        ));
+        $stockRank = collect($updated)->first(
+            fn (array $rank): bool => $rank['rank_id'] === $canonicalRank['rank_id']
+        );
+        self::assertNotNull($stockRank);
+        self::assertTrue($stockRank['show_total_stock']);
+        self::assertSame($expectedStock, $stockRank['total_stock']);
+        self::assertArrayNotHasKey('available_quantity', $stockRank);
+    }
+
     public function test_anonymous_and_all_user_states_are_private_and_machine_readable(): void
     {
         $this->import(allowedDrawCounts: [1, 5, 10, 100, 1000]);

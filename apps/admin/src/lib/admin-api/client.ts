@@ -25,10 +25,10 @@ import {
   type AdminCatalogPresentationAssetCreate,
   type AdminCatalogPresentationAssetUpdate,
   type AdminCatalogPrize,
-  type AdminCatalogPrizeCreate,
-  type AdminCatalogPrizeUpdate,
   type AdminCatalogRank,
   type AdminCatalogRankCreate,
+  type AdminCatalogRankReorder,
+  type AdminCatalogRankReorderResult,
   type AdminCatalogRankUpdate,
   type AdminRankEffect,
   type AdminRankEffectCreate,
@@ -61,12 +61,13 @@ import {
   type AdminGachaUsageHistoryCollection,
   type AdminGachaUsageHistoryDetailResponse,
   type AdminGachaThumbnailUpload,
+  type AdminGachaRankCollection,
+  type AdminGachaRankMutationResult,
+  type AdminGachaRankVideoSet,
+  type AdminGachaRankVideoUnset,
   type AdminGachaVersionPrizeCollection,
   type AdminGachaVersionPrizeCreate,
   type AdminGachaVersionPrizeUpdate,
-  type AdminGachaVersionRankCollection,
-  type AdminGachaVersionRankCreate,
-  type AdminGachaVersionRankUpdate,
   type AdminGachaPublishSchedule,
   type AdminGachaPublishScheduleCancelRequest,
   type AdminGachaPublishSchedulePreflight,
@@ -257,7 +258,7 @@ export interface AdminCatalogQuery {
   rank_id?: string;
   sort?: string;
   state?: "all" | "draft" | "active" | "disabled";
-  status?: "all" | "draft" | "published";
+  status?: "all" | "active" | "inactive" | "draft" | "published";
   visibility?: AdminCatalogVisibility;
 }
 
@@ -1253,13 +1254,16 @@ export class AdminApiClient {
     return this.catalogMutation("PUT", "ranks", id, body, idempotencyKey, signal);
   }
 
-  archiveCatalogRank(
-    id: string,
-    expectedRevision: number,
+  reorderCatalogRanks(
+    body: AdminCatalogRankReorder,
     idempotencyKey: string,
     signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
-    return this.catalogArchive("ranks", id, expectedRevision, idempotencyKey, signal);
+  ): Promise<AdminCatalogRankReorderResult> {
+    return this.request("PUT", "/catalog/ranks/reorder", {
+      body,
+      idempotencyKey,
+      signal,
+    });
   }
 
   listCatalogPrizes(
@@ -1274,32 +1278,6 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminCatalogDetail<AdminCatalogPrize>> {
     return this.catalogDetail("prizes", id, signal);
-  }
-
-  createCatalogPrize(
-    body: AdminCatalogPrizeCreate,
-    idempotencyKey: string,
-    signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
-    return this.catalogMutation("POST", "prizes", null, body, idempotencyKey, signal);
-  }
-
-  updateCatalogPrize(
-    id: string,
-    body: AdminCatalogPrizeUpdate,
-    idempotencyKey: string,
-    signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
-    return this.catalogMutation("PUT", "prizes", id, body, idempotencyKey, signal);
-  }
-
-  archiveCatalogPrize(
-    id: string,
-    expectedRevision: number,
-    idempotencyKey: string,
-    signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
-    return this.catalogArchive("prizes", id, expectedRevision, idempotencyKey, signal);
   }
 
   listCatalogPresentationAssets(
@@ -1523,45 +1501,43 @@ export class AdminApiClient {
     );
   }
 
-  listGachaVersionRanks(
+  listGachaRanks(
     gachaId: string,
-    versionId: string,
     signal?: AbortSignal,
-  ): Promise<AdminGachaVersionRankCollection> {
-    return this.gachaVersionResourceRequest(
+  ): Promise<AdminGachaRankCollection> {
+    if (!isGachaIdentifier(gachaId)) {
+      return Promise.reject(
+        new AdminApiError(404, "CATALOG_RESOURCE_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
       "GET",
-      gachaId,
-      versionId,
-      "ranks",
-      null,
-      null,
-      null,
-      signal,
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/ranks`,
+      { signal },
     );
   }
 
-  createGachaVersionRank(
+  setGachaRankVideo(
     gachaId: string,
-    versionId: string,
-    body: AdminGachaVersionRankCreate,
-    idempotencyKey: string,
-    signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
-    return this.gachaVersionResourceRequest(
-      "POST", gachaId, versionId, "ranks", null, body, idempotencyKey, signal,
-    );
-  }
-
-  updateGachaVersionRank(
-    gachaId: string,
-    versionId: string,
     rankId: string,
-    body: AdminGachaVersionRankUpdate,
+    body: AdminGachaRankVideoSet,
     idempotencyKey: string,
     signal?: AbortSignal,
-  ): Promise<AdminCatalogMutationResult<AdminCatalogRank>> {
-    return this.gachaVersionResourceRequest(
-      "PUT", gachaId, versionId, "ranks", rankId, body, idempotencyKey, signal,
+  ): Promise<AdminGachaRankMutationResult> {
+    return this.gachaRankMutation(
+      "PUT", gachaId, rankId, "video", body, idempotencyKey, signal,
+    );
+  }
+
+  unsetGachaRankVideo(
+    gachaId: string,
+    rankId: string,
+    body: AdminGachaRankVideoUnset,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaRankMutationResult> {
+    return this.gachaRankMutation(
+      "POST", gachaId, rankId, "video/unset", body, idempotencyKey, signal,
     );
   }
 
@@ -1575,28 +1551,30 @@ export class AdminApiClient {
     );
   }
 
-  createGachaVersionPrize(
+  createGachaRankPrize(
     gachaId: string,
     versionId: string,
+    rankId: string,
     body: AdminGachaVersionPrizeCreate,
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
-    return this.gachaVersionResourceRequest(
-      "POST", gachaId, versionId, "prizes", null, body, idempotencyKey, signal,
+    return this.gachaRankPrizeMutation(
+      "POST", gachaId, versionId, rankId, null, body, idempotencyKey, signal,
     );
   }
 
-  updateGachaVersionPrize(
+  updateGachaRankPrize(
     gachaId: string,
     versionId: string,
+    rankId: string,
     prizeId: string,
     body: AdminGachaVersionPrizeUpdate,
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
-    return this.gachaVersionResourceRequest(
-      "PUT", gachaId, versionId, "prizes", prizeId, body, idempotencyKey, signal,
+    return this.gachaRankPrizeMutation(
+      "PUT", gachaId, versionId, rankId, prizeId, body, idempotencyKey, signal,
     );
   }
 
@@ -2636,7 +2614,7 @@ export class AdminApiClient {
     method: "GET" | "POST" | "PUT",
     gachaId: string,
     versionId: string,
-    resource: "ranks" | "prizes",
+    resource: "prizes",
     resourceId: string | null,
     body: unknown,
     idempotencyKey: string | null,
@@ -2657,6 +2635,60 @@ export class AdminApiClient {
       method,
       `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/${resource}${suffix}`,
       { body, idempotencyKey: idempotencyKey ?? undefined, signal },
+    );
+  }
+
+  private gachaRankMutation<TResult>(
+    method: "POST" | "PUT",
+    gachaId: string,
+    rankId: string,
+    action: "video" | "video/unset",
+    body: unknown,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<TResult> {
+    if (
+      !isGachaIdentifier(gachaId) ||
+      !isOpaqueId(rankId) ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    return this.request(
+      method,
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/ranks/${encodeURIComponent(rankId)}/${action}`,
+      { body, idempotencyKey, signal },
+    );
+  }
+
+  private gachaRankPrizeMutation<TResult>(
+    method: "POST" | "PUT",
+    gachaId: string,
+    versionId: string,
+    rankId: string,
+    prizeId: string | null,
+    body: unknown,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<TResult> {
+    if (
+      !isGachaIdentifier(gachaId) ||
+      !isOpaqueId(versionId) ||
+      !isOpaqueId(rankId) ||
+      (prizeId !== null && !isOpaqueId(prizeId)) ||
+      !isIdempotencyKey(idempotencyKey)
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false),
+      );
+    }
+    const suffix = prizeId === null ? "" : `/${encodeURIComponent(prizeId)}`;
+    return this.request(
+      method,
+      `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/ranks/${encodeURIComponent(rankId)}/prizes${suffix}`,
+      { body, idempotencyKey, signal },
     );
   }
 

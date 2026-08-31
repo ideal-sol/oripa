@@ -143,6 +143,10 @@ final class V2DrawService
                     );
                 }
                 $context = $this->publishedContext($gacha, $state);
+                $drawMetadata = $this->drawMetadata(
+                    (int) $context['probability']->id,
+                    (int) $context['version']->id
+                );
                 $qaSelection = $this->qaDraw->resolve(
                     $user,
                     (int) $gacha->id,
@@ -168,6 +172,7 @@ final class V2DrawService
                     );
                 }
                 $inventories = $this->lockInventories($state);
+                $this->assertPresentationInventories($drawMetadata, $inventories);
                 $remainingCount = $this->remainingInventory($inventories);
                 $this->qaDraw->validateInventory($qaSelection, $inventories);
                 if (
@@ -260,11 +265,6 @@ final class V2DrawService
                     $drawRequest->id,
                     $drawRequest->public_id,
                     $occurredAt
-                );
-                $drawMetadata = $this->drawMetadata(
-                    (int) $context['probability']->id,
-                    (int) $context['version']->id,
-                    $inventories
                 );
                 $outcomes = $qaSelection['kind'] === 'legacy_plan'
                     ? $this->selectQaOutcomes(
@@ -756,17 +756,10 @@ final class V2DrawService
         return $remaining;
     }
 
-    /**
-     * @param Collection<int, PrizeInventory> $inventories
-     * @return array{
-     *   legacy_stage: object,
-     *   prizes: array<int, array<string, mixed>>
-     * }
-     */
+    /** @return array{legacy_stage: object, prizes: array<int, array<string, mixed>>} */
     private function drawMetadata(
         int $probabilityVersionId,
-        int $gachaVersionId,
-        Collection $inventories
+        int $gachaVersionId
     ): array {
         $legacyStage = DB::table('catalog_probability_stages')
             ->where('probability_version_id', $probabilityVersionId)
@@ -775,10 +768,45 @@ final class V2DrawService
             ->first();
         $prizeRows = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
+            ->join(
+                'catalog_presentation_assets as result_asset',
+                'result_asset.id',
+                '=',
+                'rank_revision.result_image_asset_id'
+            )
+            ->join(
+                'catalog_gacha_rank_video_revisions as video_revision',
+                'video_revision.id',
+                '=',
+                'gacha_rank.current_video_revision_id'
+            )
+            ->join(
+                'catalog_presentation_assets as video_asset',
+                'video_asset.id',
+                '=',
+                'video_revision.video_asset_id'
+            )
             ->leftJoin(
-                'catalog_presentation_assets as asset',
-                'asset.id',
+                'catalog_presentation_assets as prize_asset',
+                'prize_asset.id',
                 '=',
                 DB::raw(
                     'COALESCE(prize.presentation_asset_id, relation.presentation_asset_id)'
@@ -791,59 +819,59 @@ final class V2DrawService
                 'prize.public_id as prize_public_id',
                 'prize.display_name as prize_name',
                 'relation.exchange_points as prize_exchange_points',
-                'rank.id as rank_id',
-                'rank.public_id as rank_public_id',
-                'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
-                'relation.rank_sort_order as rank_sort_order',
-                'asset.public_id as asset_public_id',
-                'asset.public_path as asset_path',
-                'asset.checksum_sha256 as asset_checksum',
-                'asset.media_type as asset_media_type',
-                'asset.mime_type as asset_mime_type',
-                'asset.alt_text as asset_alt_text',
+                'rank_revision.id as rank_master_revision_id',
+                'video_revision.id as gacha_rank_video_revision_id',
+                'rank_master.public_id as rank_public_id',
+                'rank_revision.rank_name',
+                'rank_revision.display_order as rank_sort_order',
+                'prize_asset.public_id as asset_public_id',
+                'prize_asset.public_path as asset_path',
+                'prize_asset.checksum_sha256 as asset_checksum',
+                'prize_asset.media_type as asset_media_type',
+                'prize_asset.mime_type as asset_mime_type',
+                'prize_asset.alt_text as asset_alt_text',
+                'result_asset.public_id as result_asset_public_id',
+                'result_asset.public_path as result_asset_path',
+                'result_asset.checksum_sha256 as result_asset_checksum',
+                'result_asset.media_type as result_asset_media_type',
+                'result_asset.mime_type as result_asset_mime_type',
+                'result_asset.alt_text as result_asset_alt_text',
+                'video_asset.public_id as video_asset_public_id',
+                'video_asset.public_path as video_asset_path',
+                'video_asset.checksum_sha256 as video_asset_checksum',
+                'video_asset.media_type as video_asset_media_type',
+                'video_asset.mime_type as video_asset_mime_type',
+                'video_asset.alt_text as video_asset_alt_text',
             ])
             ->orderBy('relation.id')
             ->get();
-        $rankAssets = DB::table('catalog_rank_assets as relation')
-            ->join(
-                'catalog_presentation_assets as asset',
-                'asset.id',
-                '=',
-                'relation.presentation_asset_id'
-            )
-            ->whereIn('relation.rank_id', $prizeRows->pluck('rank_id')->unique())
-            ->where('asset.is_public', true)
-            ->orderBy('relation.rank_id')
-            ->orderBy('relation.sort_order')
-            ->orderBy('relation.id')
-            ->get()
-            ->groupBy('rank_id');
+        $relationCount = DB::table('catalog_gacha_version_prizes')
+            ->where('gacha_version_id', $gachaVersionId)
+            ->count();
+        if ($relationCount === 0 || $prizeRows->count() !== $relationCount) {
+            throw new V2DrawException(
+                'PRESENTATION_CONFIGURATION_INVALID',
+                409,
+                'Canonical Rank presentation is incomplete for this Gacha.'
+            );
+        }
         $prizes = [];
         foreach ($prizeRows as $row) {
-            if (! $inventories->has($row->relation_id)) {
-                throw new V2DrawException(
-                    'PRIZE_INVENTORY_UNAVAILABLE',
-                    409,
-                    'Prize Inventory is not initialized for this Gacha.'
-                );
-            }
-            $animations = $rankAssets->get($row->rank_id, collect());
             $prizes[(int) $row->relation_id] = [
                 'relation_id' => (int) $row->relation_id,
                 'relation_sort_order' => (int) $row->relation_sort_order,
                 'prize_public_id' => $row->prize_public_id,
                 'prize_name' => $row->prize_name,
                 'exchange_points' => (int) $row->prize_exchange_points,
-                'rank_id' => (int) $row->rank_id,
+                'rank_master_revision_id' => (int) $row->rank_master_revision_id,
+                'gacha_rank_video_revision_id' =>
+                    (int) $row->gacha_rank_video_revision_id,
                 'rank_public_id' => $row->rank_public_id,
-                'rank_code' => $row->rank_code,
                 'rank_name' => $row->rank_name,
                 'rank_sort_order' => (int) $row->rank_sort_order,
                 'asset' => $this->asset($row),
-                'animation_image' => $this->animation($animations, 'result_image')
-                    ?? $this->animation($animations, 'image'),
-                'animation_video' => $this->animation($animations, 'video'),
+                'animation_image' => $this->prefixedAsset($row, 'result_asset'),
+                'animation_video' => $this->prefixedAsset($row, 'video_asset'),
             ];
         }
         if ($legacyStage === null) {
@@ -858,6 +886,22 @@ final class V2DrawService
             'legacy_stage' => $legacyStage,
             'prizes' => $prizes,
         ];
+    }
+
+    /** @param Collection<int, PrizeInventory> $inventories */
+    private function assertPresentationInventories(
+        array $drawMetadata,
+        Collection $inventories
+    ): void {
+        foreach (array_keys($drawMetadata['prizes']) as $relationId) {
+            if (! $inventories->has($relationId)) {
+                throw new V2DrawException(
+                    'PRIZE_INVENTORY_UNAVAILABLE',
+                    409,
+                    'Prize Inventory is not initialized for this Gacha.'
+                );
+            }
+        }
     }
 
     /**
@@ -1013,17 +1057,15 @@ final class V2DrawService
             'result_type' => 'prize',
             'rank' => [
                 'id' => $prize['rank_public_id'],
-                'code' => $prize['rank_code'],
                 'name' => $prize['rank_name'],
             ],
+            'rank_name_snapshot' => $prize['rank_name'],
+            'result_image_snapshot' => $prize['animation_image'],
+            'video_snapshot' => $prize['animation_video'],
             'prize' => [
                 'id' => $prize['prize_public_id'],
                 'name' => $prize['prize_name'],
                 'presentation_asset' => $prize['asset'],
-            ],
-            'animation' => [
-                'image' => $prize['animation_image'],
-                'video' => $prize['animation_video'],
             ],
         ];
 
@@ -1035,7 +1077,9 @@ final class V2DrawService
             $legacyRandomValue,
             'prize',
             $relationId,
-            $prize['rank_id'],
+            null,
+            $prize['rank_master_revision_id'],
+            $prize['gacha_rank_video_revision_id'],
             0,
             $consumedPoints,
             $snapshot,
@@ -1208,6 +1252,8 @@ final class V2DrawService
         string $resultType,
         ?int $relationId,
         ?int $rankId,
+        ?int $rankMasterRevisionId,
+        ?int $gachaRankVideoRevisionId,
         int $pointBackAmount,
         int $consumedPoints,
         array $snapshot,
@@ -1230,6 +1276,8 @@ final class V2DrawService
             'result_type' => $resultType,
             'gacha_version_prize_id' => $relationId,
             'rank_id' => $rankId,
+            'rank_master_revision_id' => $rankMasterRevisionId,
+            'gacha_rank_video_revision_id' => $gachaRankVideoRevisionId,
             'consumed_points' => $consumedPoints,
             'point_back_amount' => $pointBackAmount,
             'random_value' => $randomValue,
@@ -1326,6 +1374,8 @@ final class V2DrawService
                 'result_type' => $row['result_type'],
                 'gacha_version_prize_id' => $row['gacha_version_prize_id'],
                 'rank_id' => $row['rank_id'],
+                'rank_master_revision_id' => $row['rank_master_revision_id'],
+                'gacha_rank_video_revision_id' => $row['gacha_rank_video_revision_id'],
                 'consumed_points' => $row['consumed_points'],
                 'point_back_amount' => $row['point_back_amount'],
                 'random_value' => $row['random_value'],
@@ -1448,9 +1498,13 @@ final class V2DrawService
                 'sequence_number' => $row['draw_sequence_number'],
                 'result_type' => $row['result_type'],
                 'rank' => $row['display_snapshot']['rank'] ?? null,
+                'rank_name_snapshot' =>
+                    $row['display_snapshot']['rank_name_snapshot'] ?? null,
+                'result_image_snapshot' =>
+                    $row['display_snapshot']['result_image_snapshot'] ?? null,
+                'video_snapshot' => $row['display_snapshot']['video_snapshot'] ?? null,
                 'prize' => $row['display_snapshot']['prize'] ?? null,
                 'point_back' => $row['display_snapshot']['point_back'] ?? null,
-                'animation' => $row['display_snapshot']['animation'] ?? null,
             ];
             if (count($rows) < (int) config('v2_draw.bulk_threshold', 100)) {
                 $individual[] = $publicResult;
@@ -1463,7 +1517,6 @@ final class V2DrawService
             $rankCounts[$rankKey] ??= [
                 'rank' => [
                     'id' => $prize['rank_public_id'],
-                    'code' => $prize['rank_code'],
                     'name' => $prize['rank_name'],
                 ],
                 'count' => 0,
@@ -1636,6 +1689,46 @@ final class V2DrawService
             );
         }
 
+        foreach (['rank_counts', 'prize_counts'] as $collection) {
+            if (! is_array($response[$collection] ?? null)) {
+                continue;
+            }
+            $response[$collection] = array_map(function (mixed $item): mixed {
+                if (is_array($item) && is_array($item['rank'] ?? null)) {
+                    unset($item['rank']['code']);
+                }
+
+                return $item;
+            }, $response[$collection]);
+        }
+        foreach (['high_rank_results', 'results'] as $collection) {
+            if (! is_array($response[$collection] ?? null)) {
+                continue;
+            }
+            $response[$collection] = array_map(
+                function (mixed $item): mixed {
+                    if (! is_array($item)) {
+                        return $item;
+                    }
+                    $rank = is_array($item['rank'] ?? null) ? $item['rank'] : null;
+                    if ($rank !== null) {
+                        unset($rank['code']);
+                    }
+                    $animation = is_array($item['animation'] ?? null)
+                        ? $item['animation']
+                        : [];
+                    $item['rank'] = $rank;
+                    $item['rank_name_snapshot'] ??= $rank['name'] ?? null;
+                    $item['result_image_snapshot'] ??= $animation['image'] ?? null;
+                    $item['video_snapshot'] ??= $animation['video'] ?? null;
+                    unset($item['animation']);
+
+                    return $item;
+                },
+                $response[$collection]
+            );
+        }
+
         return $response;
     }
 
@@ -1698,17 +1791,24 @@ final class V2DrawService
         ];
     }
 
-    private function animation(Collection $assets, string $usageType): ?array
+    private function prefixedAsset(object $row, string $prefix): array
     {
-        $asset = $assets->firstWhere('usage_type', $usageType);
+        $publicId = $row->{$prefix.'_public_id'};
+        if ($publicId === null) {
+            throw new V2DrawException(
+                'PRESENTATION_CONFIGURATION_INVALID',
+                409,
+                'Canonical Draw presentation Asset is unavailable.'
+            );
+        }
 
-        return $asset === null ? null : [
-            'id' => $asset->public_id,
-            'path' => $asset->public_path,
-            'checksum_sha256' => $asset->checksum_sha256,
-            'media_type' => $asset->media_type,
-            'mime_type' => $asset->mime_type,
-            'alt_text' => $asset->alt_text,
+        return [
+            'id' => $publicId,
+            'path' => $row->{$prefix.'_path'},
+            'checksum_sha256' => $row->{$prefix.'_checksum'},
+            'media_type' => $row->{$prefix.'_media_type'},
+            'mime_type' => $row->{$prefix.'_mime_type'},
+            'alt_text' => $row->{$prefix.'_alt_text'},
         ];
     }
 }

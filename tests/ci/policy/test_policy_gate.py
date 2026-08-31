@@ -418,6 +418,27 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
 
+    def test_mig_099_rank_master_workspace_is_registered_exactly(self):
+        expected_admin = {
+            "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_099_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_admin))
+
+    def test_mig_099_rank_master_status_constraint_migration_is_safe(self):
+        migration = (
+            ROOT
+            / "apps/api/database/migrations-v2/"
+            "2026_09_26_000070_normalize_v2_rank_master_status_check.php"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("catalog_rank_masters_status_check", migration)
+        self.assertIn("status::text = ANY", migration)
+        self.assertNotIn("DISABLE TRIGGER", migration)
+        self.assertNotIn("DELETE FROM", migration)
+
     def test_mig_061r_gacha_master_edit_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",
@@ -742,7 +763,7 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_released_alpha_33_and_retired_alpha_32(self):
+    def test_storefront_release_governance_accepts_alpha_34_canonical_candidate(self):
         value = policy_gate.storefront_release_governance(ROOT)
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.33")
         self.assertEqual(value["latest_immutable"]["handoff_status"], "released")
@@ -750,7 +771,9 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(value["immutable_history"][-2]["bundle_version"], "2.0.0-alpha.32")
         self.assertEqual(value["immutable_history"][-2]["handoff_status"], "retired")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.34")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-breaking")
+        self.assertTrue(value["candidate"]["breaking_change"])
         self.assertEqual(value["latest_immutable"]["source_commit"], "9867c1ea50140efd1eff7a652d3da5bd36665e1d")
         self.assertEqual(value["latest_immutable"]["manifest_sha256"], "b6522d16230734ea7f4604be59a2585c29bcf03a2b447269e824e712759d893c")
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 74)
@@ -1791,6 +1814,8 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_21_000065_add_fincode_payment_backend_core.php",
             "apps/api/database/migrations-v2/2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
             "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
+            "apps/api/database/migrations-v2/2026_09_25_000069_create_v2_canonical_rank_domain.php",
+            "apps/api/database/migrations-v2/2026_09_26_000070_normalize_v2_rank_master_status_check.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2926,7 +2951,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.33",
+                    "version": "2.0.0-alpha.34",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2964,11 +2989,12 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.29",
+                        "minimumPublicApiContract": "2.0.0-alpha.30",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
                             "gacha.presentation.v2",
+                            "gacha.rank-master.v2",
                             "payment.fincode.v2",
                             "prize.fulfillment-browser-mutation.v2",
                             "user-draw-history.read.v2",
@@ -3299,8 +3325,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
+                    "operation_count: 75",
                     "operation_count: 74",
-                    "operation_count: 73",
                 ),
                 encoding="utf-8",
             )

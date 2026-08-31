@@ -7,6 +7,7 @@ import { CatalogGachaProfitSimulation } from "@/components/catalog/catalog-gacha
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
 import { CatalogWorkspace } from "@/components/catalog/catalog-workspace";
 import { RankEffectSettingsWorkspace } from "@/components/catalog/rank-effect-settings-workspace";
+import { RankMasterWorkspace } from "@/components/catalog/rank-master-workspace";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -90,9 +91,14 @@ export default async function CatalogResourcePage({
     }
     notFound();
   }
+  if (segments[0] === "ranks") {
+    if (segments.length === 1) return <RankMasterWorkspace />;
+    if (segments.length === 2) return <RankMasterWorkspace id={segments[1]} />;
+    notFound();
+  }
   if (segments.length < 1 || segments.length > 2) notFound();
   const section = catalogSection(segments[0]);
-  if (!section || section.resource === "gachas") notFound();
+  if (!section || section.resource === "gachas" || section.resource === "ranks") notFound();
 
   return <CatalogWorkspace id={segments[1]} resource={section.resource} />;
 }

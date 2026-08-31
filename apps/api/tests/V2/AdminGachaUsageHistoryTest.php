@@ -345,7 +345,15 @@ final class AdminGachaUsageHistoryTest extends TestCase
             ->value('id');
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->join('catalog_rank_masters as rank_master', 'rank_master.id', '=', 'gacha_rank.rank_master_id')
+            ->join(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
+            ->leftJoin('catalog_ranks as legacy_rank', 'legacy_rank.public_id', '=', 'rank_master.public_id')
             ->leftJoin('catalog_presentation_assets as asset', 'asset.id', '=', 'prize.presentation_asset_id')
             ->where('relation.gacha_version_id', $versionId)
             ->orderBy('relation.sort_order')
@@ -355,10 +363,10 @@ final class AdminGachaUsageHistoryTest extends TestCase
                 'prize.public_id as prize_public_id',
                 'prize.display_name as prize_name',
                 'prize.exchange_points',
-                'rank.id as rank_id',
-                'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
+                'legacy_rank.id as rank_id',
+                'rank_master.public_id as rank_public_id',
+                'legacy_rank.code as rank_code',
+                'rank_revision.rank_name',
                 'asset.public_id as asset_public_id',
                 'asset.public_path',
                 'asset.media_type',

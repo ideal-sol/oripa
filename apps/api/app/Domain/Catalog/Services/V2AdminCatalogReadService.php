@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -103,14 +104,50 @@ final class V2AdminCatalogReadService
         array $filters
     ): array {
         $this->authorize($context);
-
-        return $this->masterList(
-            'ranks',
-            'catalog_ranks',
+        $status = $this->enum(
             $filters,
-            ['sort_order', 'name', 'code'],
-            'sort_order',
-            fn (object $row): array => $this->mapRank($row)
+            'status',
+            ['active', 'inactive', 'all'],
+            'active'
+        );
+        $sort = $this->enum(
+            $filters,
+            'sort',
+            ['display_order', 'rank_name', 'created_at'],
+            'display_order'
+        );
+        $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'asc');
+        $sortColumns = [
+            'display_order' => 'current.display_order',
+            'rank_name' => 'current.rank_name',
+            'created_at' => 'master.created_at',
+        ];
+        $query = DB::table('catalog_rank_masters as master')
+            ->join(
+                'catalog_rank_master_revisions as current',
+                'current.id',
+                '=',
+                'master.current_revision_id'
+            )
+            ->select('master.*', 'current.display_order', 'current.rank_name');
+        if ($status !== 'all') {
+            $query->where('master.status', $status);
+        }
+        $this->applySearch($query, $filters, ['current.rank_name']);
+
+        return $this->paginate(
+            'ranks',
+            $query,
+            $filters,
+            $sortColumns[$sort],
+            'master.public_id',
+            $sort,
+            $direction,
+            $this->limit($filters),
+            fn (object $row): array => $this->mapRankMaster($row),
+            $sort === 'rank_name' ? 'rank_name' : ($sort === 'display_order'
+                ? 'display_order'
+                : 'created_at')
         );
     }
 
@@ -120,9 +157,82 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
 
-        return ['data' => $this->mapRank(
-            $this->find('catalog_ranks', $publicId)
+        return ['data' => $this->mapRankMaster(
+            $this->find('catalog_rank_masters', $publicId)
         )];
+    }
+
+    public function gachaRanks(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId
+    ): array {
+        $this->authorize($context);
+        $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $rows = DB::table('catalog_rank_masters as master')
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
+            ->leftJoin('catalog_gacha_ranks as gacha_rank', function (JoinClause $join) use ($gacha): void {
+                $join->on('gacha_rank.rank_master_id', '=', 'master.id')
+                    ->where('gacha_rank.gacha_id', '=', $gacha->id);
+            })
+            ->leftJoin(
+                'catalog_gacha_rank_video_revisions as video_revision',
+                'video_revision.id',
+                '=',
+                'gacha_rank.current_video_revision_id'
+            )
+            ->leftJoin(
+                'catalog_presentation_assets as video_asset',
+                'video_asset.id',
+                '=',
+                'video_revision.video_asset_id'
+            )
+            ->where('master.status', 'active')
+            ->orderBy('revision.display_order')
+            ->orderBy('master.public_id')
+            ->get([
+                'master.*',
+                'gacha_rank.id as gacha_rank_internal_id',
+                'gacha_rank.public_id as gacha_rank_public_id',
+                'gacha_rank.revision as gacha_rank_revision',
+                'video_revision.id as video_revision_id',
+                'video_revision.revision_number as video_revision_number',
+                'video_asset.public_id as video_asset_public_id',
+                'video_asset.mime_type as video_asset_mime_type',
+                'video_asset.alt_text as video_asset_alt_text',
+                'video_asset.public_path as video_asset_public_path',
+            ]);
+
+        return [
+            'items' => $rows->map(function (object $row): array {
+                $prizeExists = $row->gacha_rank_internal_id !== null
+                    && DB::table('catalog_prizes')
+                        ->where('gacha_rank_id', $row->gacha_rank_internal_id)
+                        ->exists();
+
+                return [
+                    'rank' => $this->mapRankMaster($row),
+                    'gacha_rank_id' => $row->gacha_rank_public_id,
+                    'gacha_rank_revision' => $row->gacha_rank_revision === null
+                        ? null
+                        : (int) $row->gacha_rank_revision,
+                    'video_revision_number' => $row->video_revision_number === null
+                        ? null
+                        : (int) $row->video_revision_number,
+                    'current_video' => $row->video_asset_public_id === null ? null : [
+                        'id' => $row->video_asset_public_id,
+                        'path' => $row->video_asset_public_path,
+                        'mime_type' => $row->video_asset_mime_type,
+                        'alt_text' => $row->video_asset_alt_text,
+                    ],
+                    'can_unset_video' => ! $prizeExists,
+                ];
+            })->all(),
+        ];
     }
 
     /** @param array<string, mixed> $filters */
@@ -474,7 +584,7 @@ final class V2AdminCatalogReadService
         $assetsByRank = DB::table('catalog_rank_assets as relation')
             ->join(
                 'catalog_presentation_assets as asset',
-                'asset.id',
+                'id',
                 '=',
                 'relation.presentation_asset_id'
             )
@@ -516,7 +626,25 @@ final class V2AdminCatalogReadService
             === (int) $version->id;
         $rows = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
@@ -552,10 +680,14 @@ final class V2AdminCatalogReadService
                 'prize.archived_at',
                 'prize.created_at',
                 'prize.updated_at',
-                'rank.public_id as rank_public_id',
+                DB::raw('COALESCE(rank_master.public_id, rank.public_id) as rank_public_id'),
                 'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
-                'relation.rank_sort_order as rank_sort_order',
+                DB::raw(
+                    'COALESCE(rank_revision.rank_name, relation.rank_display_name) as rank_name'
+                ),
+                DB::raw(
+                    'COALESCE(rank_revision.display_order, relation.rank_sort_order) as rank_sort_order'
+                ),
                 'asset.public_id as asset_public_id',
                 'asset.public_path as asset_public_path',
                 'asset.media_type as asset_media_type',
@@ -978,10 +1110,27 @@ final class V2AdminCatalogReadService
         $columns = [
             'name' => 'prize.display_name',
             'code' => 'prize.code',
-            'rank' => 'rank.sort_order',
+            'rank' => 'rank_revision.display_order',
         ];
         $query = DB::table('catalog_prizes as prize')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'prize.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
@@ -995,15 +1144,16 @@ final class V2AdminCatalogReadService
                 'prize.description',
                 'prize.display_price',
                 'prize.exchange_points',
+                'prize.cost_price',
                 'prize.is_visible',
                 'prize.revision',
                 'prize.archived_at',
                 'prize.created_at',
                 'prize.updated_at',
-                'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
-                'rank.sort_order as rank_sort_order',
+                'rank_master.public_id as rank_public_id',
+                DB::raw('NULL::varchar as rank_code'),
+                'rank_revision.rank_name',
+                'rank_revision.display_order as rank_sort_order',
                 'asset.public_id as asset_public_id',
                 'asset.public_path as asset_public_path',
                 'asset.media_type as asset_media_type',
@@ -1015,13 +1165,12 @@ final class V2AdminCatalogReadService
             'prize.code',
             'prize.display_name',
             'prize.description',
-            'rank.code',
-            'rank.display_name',
+            'rank_revision.rank_name',
         ]);
         $this->applyVisibility($query, $filters, 'prize.is_visible');
         $rankId = $this->optionalUuid($filters, 'rank_id');
         if ($rankId !== null) {
-            $query->where('rank.public_id', $rankId);
+            $query->where('rank_master.public_id', $rankId);
         }
 
         return $this->paginate(
@@ -1045,7 +1194,24 @@ final class V2AdminCatalogReadService
         $this->authorize($context);
         $this->assertUuid($publicId);
         $row = DB::table('catalog_prizes as prize')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'prize.rank_id')
+            ->join(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'prize.gacha_rank_id'
+            )
+            ->join(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
                 'asset.id',
@@ -1060,15 +1226,16 @@ final class V2AdminCatalogReadService
                 'prize.description',
                 'prize.display_price',
                 'prize.exchange_points',
+                'prize.cost_price',
                 'prize.is_visible',
                 'prize.revision',
                 'prize.archived_at',
                 'prize.created_at',
                 'prize.updated_at',
-                'rank.public_id as rank_public_id',
-                'rank.code as rank_code',
-                'rank.display_name as rank_name',
-                'rank.sort_order as rank_sort_order',
+                'rank_master.public_id as rank_public_id',
+                DB::raw('NULL::varchar as rank_code'),
+                'rank_revision.rank_name',
+                'rank_revision.display_order as rank_sort_order',
                 'asset.public_id as asset_public_id',
                 'asset.public_path as asset_public_path',
                 'asset.media_type as asset_media_type',
@@ -1185,13 +1352,13 @@ final class V2AdminCatalogReadService
         $this->authorize($context);
         $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
         $query = DB::table('catalog_presentation_assets as asset')
+            ->join(
+                'catalog_rank_effect_materials as material',
+                'material.presentation_asset_id',
+                '=',
+                'asset.id'
+            )
             ->whereIn('asset.media_type', ['image', 'video'])
-            ->whereExists(function (Builder $relation): void {
-                $relation->selectRaw('1')
-                    ->from('catalog_rank_assets as relation')
-                    ->whereColumn('relation.presentation_asset_id', 'asset.id')
-                    ->whereIn('relation.usage_type', ['image', 'video']);
-            })
             ->select([
                 'asset.id',
                 'asset.public_id',
@@ -1229,23 +1396,26 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
 
-        return ['data' => $this->mapRankEffect(
-            $this->find('catalog_presentation_assets', $publicId, [
-                'id',
-                'public_id',
-                'public_path',
-                'checksum_sha256',
-                'media_type',
-                'mime_type',
-                'byte_size',
-                'alt_text',
-                'is_public',
-                'revision',
-                'archived_at',
-                'created_at',
-                'updated_at',
-            ])
-        )];
+        $row = DB::table('catalog_presentation_assets as asset')
+            ->join(
+                'catalog_rank_effect_materials as material',
+                'material.presentation_asset_id',
+                '=',
+                'asset.id'
+            )
+            ->where('asset.public_id', $publicId)
+            ->first([
+                'asset.id',
+                'asset.public_id', 'asset.public_path', 'asset.checksum_sha256',
+                'asset.media_type', 'asset.mime_type', 'asset.byte_size',
+                'asset.alt_text', 'asset.is_public', 'asset.revision',
+                'asset.archived_at', 'asset.created_at', 'asset.updated_at',
+            ]);
+        if ($row === null) {
+            throw $this->notFound();
+        }
+
+        return ['data' => $this->mapRankEffect($row)];
     }
 
     private function authorize(V2AdminAuthorizationContext $context): void
@@ -1643,6 +1813,73 @@ final class V2AdminCatalogReadService
     }
 
     /** @return array<string, mixed> */
+    private function mapRankMaster(object $row): array
+    {
+        $current = DB::table('catalog_rank_master_revisions as revision')
+            ->join(
+                'catalog_presentation_assets as lineup_asset',
+                'lineup_asset.id',
+                '=',
+                'revision.lineup_image_asset_id'
+            )
+            ->join(
+                'catalog_presentation_assets as result_asset',
+                'result_asset.id',
+                '=',
+                'revision.result_image_asset_id'
+            )
+            ->where('revision.id', $row->current_revision_id)
+            ->first([
+                'revision.*',
+                'lineup_asset.public_id as lineup_public_id',
+                'lineup_asset.public_path as lineup_public_path',
+                'lineup_asset.mime_type as lineup_mime_type',
+                'lineup_asset.alt_text as lineup_alt_text',
+                'result_asset.public_id as result_public_id',
+                'result_asset.public_path as result_public_path',
+                'result_asset.mime_type as result_mime_type',
+                'result_asset.alt_text as result_alt_text',
+            ]);
+        if ($current === null) {
+            throw new \RuntimeException('Rank Master current Revision is unavailable.');
+        }
+        $hasPrizeUsage = DB::table('catalog_prizes as prize')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'prize.gacha_rank_id')
+            ->where('gacha_rank.rank_master_id', $row->id)
+            ->exists();
+        $usedByPublishedGacha = DB::table('catalog_gacha_ranks')
+            ->where('rank_master_id', $row->id)
+            ->whereNotNull('first_published_at')
+            ->exists();
+
+        return [
+            'id' => $row->public_id,
+            'rank_name' => $current->rank_name,
+            'lineup_image' => [
+                'id' => $current->lineup_public_id,
+                'path' => $current->lineup_public_path,
+                'mime_type' => $current->lineup_mime_type,
+                'alt_text' => $current->lineup_alt_text,
+            ],
+            'result_image' => [
+                'id' => $current->result_public_id,
+                'path' => $current->result_public_path,
+                'mime_type' => $current->result_mime_type,
+                'alt_text' => $current->result_alt_text,
+            ],
+            'show_total_stock' => (bool) $current->show_total_stock,
+            'status' => $row->status,
+            'display_order' => (int) $current->display_order,
+            'revision_number' => (int) $current->revision_number,
+            'revision' => (int) $row->revision,
+            'has_usage' => $hasPrizeUsage || $usedByPublishedGacha,
+            'used_by_published_gacha' => $usedByPublishedGacha,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+        ];
+    }
+
+    /** @return array<string, mixed> */
     private function mapGacha(object $row): array
     {
         $publishedVersion = $row->published_version_id === null
@@ -1832,7 +2069,25 @@ final class V2AdminCatalogReadService
                 ->firstOrFail();
         $prizes = DB::table('catalog_gacha_version_prizes as relation')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
+            ->leftJoin(
+                'catalog_gacha_ranks as gacha_rank',
+                'gacha_rank.id',
+                '=',
+                'relation.gacha_rank_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'rank_master.current_revision_id'
+            )
             ->where('relation.gacha_version_id', $row->id)
             ->orderBy('relation.sort_order')
             ->orderBy('relation.id')
@@ -1840,9 +2095,11 @@ final class V2AdminCatalogReadService
                 'prize.public_id as prize_id',
                 'prize.code as prize_code',
                 'relation.display_name as prize_name',
-                'rank.public_id as rank_id',
+                DB::raw('COALESCE(rank_master.public_id, rank.public_id) as rank_id'),
                 'relation.rank_code as rank_code',
-                'relation.rank_display_name as rank_name',
+                DB::raw(
+                    'COALESCE(rank_revision.rank_name, relation.rank_display_name) as rank_name'
+                ),
                 'relation.initial_inventory',
                 'relation.sort_order',
             ])->map(fn (object $relation): array => [
@@ -1852,7 +2109,9 @@ final class V2AdminCatalogReadService
                     'name' => $relation->prize_name,
                     'rank' => [
                         'id' => $relation->rank_id,
-                        'code' => $relation->rank_code,
+                        ...($relation->rank_code === null
+                            ? []
+                            : ['code' => $relation->rank_code]),
                         'name' => $relation->rank_name,
                     ],
                 ],
@@ -1917,7 +2176,7 @@ final class V2AdminCatalogReadService
             'is_visible' => (bool) $row->is_visible,
             'rank' => [
                 'id' => $row->rank_public_id,
-                'code' => $row->rank_code,
+                ...($row->rank_code === null ? [] : ['code' => $row->rank_code]),
                 'name' => $row->rank_name,
                 'sort_order' => (int) $row->rank_sort_order,
             ],
@@ -1981,31 +2240,10 @@ final class V2AdminCatalogReadService
     /** @return array<string, mixed> */
     private function mapRankEffect(object $row): array
     {
-        $relations = DB::table('catalog_rank_assets as relation')
-            ->join('catalog_ranks as rank', 'rank.id', '=', 'relation.rank_id')
-            ->where('relation.presentation_asset_id', $row->id)
-            ->whereIn('relation.usage_type', ['image', 'video'])
-            ->orderBy('relation.sort_order')
-            ->orderBy('rank.public_id')
-            ->get([
-                'rank.public_id',
-                'rank.code',
-                'rank.display_name',
-                'relation.sort_order',
-            ]);
-
         return [
             ...$this->mapAsset($row),
             'content_path' => '/admin/api/v2/catalog/presentation-assets/'
                 .$row->public_id.'/content',
-            'rank_assignments' => $relations->map(fn (object $relation): array => [
-                'rank' => [
-                    'id' => $relation->public_id,
-                    'code' => $relation->code,
-                    'name' => $relation->display_name,
-                ],
-                'sort_order' => (int) $relation->sort_order,
-            ])->values()->all(),
         ];
     }
 

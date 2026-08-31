@@ -66,7 +66,7 @@ final class AdminGachaPrizeOwnershipTest extends TestCase
             self::fail('Cross-Gacha Prize association was accepted.');
         } catch (QueryException $exception) {
             self::assertStringContainsString(
-                'Cross-Gacha Prize association is not allowed',
+                'Cross-Gacha canonical Version Prize relation is not allowed',
                 $exception->getMessage()
             );
         }
@@ -93,15 +93,11 @@ final class AdminGachaPrizeOwnershipTest extends TestCase
         self::assertSame($before->display_name, $after->display_name);
         self::assertSame((int) $before->exchange_points, (int) $after->exchange_points);
         self::assertSame('Fixture S景品', $after->display_name);
-        self::assertSame('Sランク', $after->rank_display_name);
+        self::assertNull($after->rank_display_name);
 
         $detail = app(V2CatalogReadService::class)->getByPublicId(self::GACHA_ID);
-        self::assertSame('Sランク', $detail['ranks'][0]['name']);
-        self::assertSame('編集中の景品名', $detail['ranks'][0]['prizes'][0]['name']);
-        self::assertSame(
-            (int) $before->exchange_points,
-            $detail['ranks'][0]['prizes'][0]['exchange_points']
-        );
+        self::assertSame('Sランク', $detail['ranks'][0]['rank_name']);
+        self::assertArrayNotHasKey('prizes', $detail['ranks'][0]);
     }
 
     private function copyGacha(object $source): int

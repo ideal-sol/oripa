@@ -208,6 +208,18 @@ final class V2ExportRowSource
             ->join('catalog_gacha_versions as version', 'version.id', '=', 'request.gacha_version_id')
             ->leftJoin('catalog_ranks as rank', 'rank.id', '=', 'result.rank_id')
             ->leftJoin(
+                'catalog_rank_master_revisions as rank_revision',
+                'rank_revision.id',
+                '=',
+                'result.rank_master_revision_id'
+            )
+            ->leftJoin(
+                'catalog_rank_masters as rank_master',
+                'rank_master.id',
+                '=',
+                'rank_revision.rank_master_id'
+            )
+            ->leftJoin(
                 'catalog_gacha_version_prizes as version_prize',
                 'version_prize.id',
                 '=',
@@ -222,7 +234,7 @@ final class V2ExportRowSource
                 'version.public_id as version_public_id',
                 'result.request_sequence',
                 'result.result_type',
-                'rank.public_id as rank_public_id',
+                DB::raw('COALESCE(rank_master.public_id, rank.public_id) as rank_public_id'),
                 'prize.public_id as prize_public_id',
                 'result.consumed_points',
                 'result.point_back_amount',

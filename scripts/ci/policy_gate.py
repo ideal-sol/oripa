@@ -917,6 +917,9 @@ MIG_084_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/payments/admin-payment-history.tsx",
     "apps/admin/test/admin-payment-history.test.tsx",
 }
+MIG_099_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -1039,6 +1042,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062Q_ADMIN_SKELETON_FILES,
     *MIG_078_ADMIN_SKELETON_FILES,
     *MIG_084_ADMIN_SKELETON_FILES,
+    *MIG_099_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
@@ -2256,6 +2260,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
             "draw.browser-mutation.v2",
             "gacha.catalog-display.v2",
             "gacha.presentation.v2",
+            "gacha.rank-master.v2",
             "payment.fincode.v2",
             "prize.fulfillment-browser-mutation.v2",
             "user-draw-history.read.v2",
@@ -2536,7 +2541,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -2930,6 +2935,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_22_000066_add_v2_verification_failed_user_state.php",
         "2026_09_23_000067_add_fincode_card_registration_3ds_authority.php",
         "2026_09_24_000068_add_v2_account_security.php",
+        "2026_09_25_000069_create_v2_canonical_rank_domain.php",
+        "2026_09_26_000070_normalize_v2_rank_master_status_check.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4354,10 +4361,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "archiveAdminCatalogTag",
         "createAdminCatalogRank",
         "updateAdminCatalogRank",
-        "archiveAdminCatalogRank",
-        "createAdminCatalogPrize",
-        "updateAdminCatalogPrize",
-        "archiveAdminCatalogPrize",
+        "reorderAdminCatalogRanks",
         "createAdminCatalogPresentationAsset",
         "updateAdminCatalogPresentationAsset",
         "archiveAdminCatalogPresentationAsset",
@@ -4402,12 +4406,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "preflightAdminCatalogProbabilityPublish",
         "publishAdminCatalogProbabilityDraft",
         "archiveAdminCatalogProbabilityDraft",
-        "listAdminGachaVersionRanks",
-        "createAdminGachaVersionRank",
-        "updateAdminGachaVersionRank",
+        "listAdminGachaRanks",
+        "setAdminGachaRankVideo",
+        "unsetAdminGachaRankVideo",
         "listAdminGachaVersionPrizes",
-        "createAdminGachaVersionPrize",
-        "updateAdminGachaVersionPrize",
+        "createAdminGachaRankPrize",
+        "updateAdminGachaRankPrize",
         "listAdminGachaUsageHistory",
         "getAdminGachaUsageHistory",
     }
@@ -4421,11 +4425,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/tags/{catalog_resource_id}": {"get", "put"},
         "/catalog/tags/{catalog_resource_id}/archive": {"post"},
         "/catalog/ranks": {"get", "post"},
+        "/catalog/ranks/reorder": {"put"},
         "/catalog/ranks/{catalog_resource_id}": {"get", "put"},
-        "/catalog/ranks/{catalog_resource_id}/archive": {"post"},
-        "/catalog/prizes": {"get", "post"},
-        "/catalog/prizes/{catalog_resource_id}": {"get", "put"},
-        "/catalog/prizes/{catalog_resource_id}/archive": {"post"},
+        "/catalog/prizes": {"get"},
+        "/catalog/prizes/{catalog_resource_id}": {"get"},
         "/catalog/presentation-assets": {"get", "post"},
         "/catalog/presentation-assets/{catalog_resource_id}": {"get", "put"},
         "/catalog/presentation-assets/{catalog_resource_id}/archive": {"post"},
@@ -4443,18 +4446,14 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/clone": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
-        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks": {
-            "get",
+        "/catalog/gachas/{gacha_id}/ranks": {"get"},
+        "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video": {"put"},
+        "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {"get"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes": {
             "post",
         },
-        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}": {
-            "put",
-        },
-        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {
-            "get",
-            "post",
-        },
-        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes/{prize_id}": {
             "put",
         },
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/published-probability-candidates": {

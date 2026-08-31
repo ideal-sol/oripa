@@ -20,6 +20,7 @@ final class GachaLifecyclePresentationTest extends TestCase
     private const CATEGORY_ID = '0198a001-0000-7000-8000-000000000001';
     private const TAG_ID = '0198a001-0000-7000-8000-000000000002';
     private const GACHA_ASSET_ID = '0198a001-0000-7000-8000-000000000005';
+    private const VIDEO_ASSET_ID = '0198a001-0000-7000-8000-000000000006';
     private const PRIZE_ASSET_ID = '0198a001-0000-7000-8000-000000000007';
 
     protected function setUp(): void
@@ -633,7 +634,14 @@ final class GachaLifecyclePresentationTest extends TestCase
         $this->updatePublishedPrize($token, $prepared, '現在表示景品');
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertOk()
-            ->assertJsonPath('data.ranks.0.prizes.0.name', '現在表示景品');
+            ->assertJsonPath('data.ranks.0.rank_name', 'Sランク')
+            ->assertJsonMissingPath('data.ranks.0.prizes');
+        self::assertSame(
+            '現在表示景品',
+            DB::table('catalog_prizes')
+                ->where('public_id', $prepared['prize_id'])
+                ->value('display_name')
+        );
         self::assertSame($prizeSnapshot->display_name, DB::table('catalog_gacha_version_prizes')
             ->where('id', $prizeSnapshot->id)->value('display_name'));
 
@@ -1218,23 +1226,31 @@ final class GachaLifecyclePresentationTest extends TestCase
         )->assertCreated()->json('data');
         $root = '/admin/api/v2/catalog/gachas/'.$core['id'].'/versions/'.
             $core['current_version']['id'];
-        $rank = $this->mutate($token, 'POST', $root.'/ranks', [
-            'code' => 's',
-            'name' => 'Sランク',
-            'description' => null,
-            'image_asset_id' => null,
-            'video_asset_id' => null,
-            'expected_version_revision' => 1,
-        ], $slug.'-rank')->assertCreated()->json('data');
-        $prize = $this->mutate($token, 'POST', $root.'/prizes', [
-            'rank_id' => $rank['id'],
+        $rankMasterId = (string) DB::table('catalog_rank_masters as master')
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                'master.current_revision_id'
+            )
+            ->where('master.status', 'active')
+            ->where('revision.rank_name', 'Sランク')
+            ->value('master.public_id');
+        $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$core['id'].'/ranks/'.$rankMasterId.'/video',
+            ['video_asset_id' => self::VIDEO_ASSET_ID],
+            $slug.'-rank-video'
+        )->assertOk();
+        $prize = $this->mutate($token, 'POST', $root.'/ranks/'.$rankMasterId.'/prizes', [
             'presentation_asset_id' => self::PRIZE_ASSET_ID,
             'name' => 'Lifecycle Prize',
             'total_inventory' => 10,
             'exchange_points' => 100,
             'cost_price' => 50,
             'is_active' => true,
-            'expected_version_revision' => 2,
+            'expected_version_revision' => 1,
         ], $slug.'-prize')->assertCreated()->json('data');
         $versionRevision = (int) DB::table('catalog_gacha_versions')
             ->where('public_id', $core['current_version']['id'])->value('revision');
@@ -1246,7 +1262,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             'version_id' => $core['current_version']['id'],
             'version_revision' => $versionRevision,
             'prize_id' => $prize['id'],
-            'rank_id' => $rank['id'],
+            'rank_id' => $rankMasterId,
             'input' => $input,
         ];
     }
@@ -1394,9 +1410,9 @@ final class GachaLifecyclePresentationTest extends TestCase
         $this->mutate(
             $token,
             'PUT',
-            $this->versionRoot($prepared).'/prizes/'.$prepared['prize_id'],
+            $this->versionRoot($prepared).'/ranks/'.$prepared['rank_id'].'/prizes/'.
+                $prepared['prize_id'],
             [
-                'rank_id' => $prepared['rank_id'],
                 'presentation_asset_id' => self::PRIZE_ASSET_ID,
                 'name' => $name,
                 'total_inventory' => 10,

@@ -6,6 +6,7 @@ use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -32,6 +33,26 @@ final class V2CatalogController
             $request,
             (string) config('v2_catalog.master_cache_control')
         );
+    }
+
+    public function presentationAssetContent(
+        Request $request,
+        string $assetId
+    ): Response|JsonResponse {
+        try {
+            $asset = $this->catalog->presentationAssetContent($assetId);
+
+            return response($asset['content'], 200, [
+                'Content-Type' => $asset['mime_type'],
+                'Cache-Control' => 'public, max-age=31536000, immutable',
+                'ETag' => '"'.$asset['checksum'].'"',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $this->requestId($request),
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        } catch (V2CatalogException $exception) {
+            return $this->problem($request, $exception);
+        }
     }
 
     public function index(Request $request): JsonResponse

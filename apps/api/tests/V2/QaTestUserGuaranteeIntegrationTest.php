@@ -241,6 +241,38 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
         $prize['public_id'] = (string) Str::uuid7();
         $prize['code'] = 'qa-cross-prize-'.Str::lower(Str::random(8));
         $prize['gacha_id'] = $otherGachaId;
+        $rankMasterId = DB::table('catalog_gacha_ranks')
+            ->where('id', $prize['gacha_rank_id'])
+            ->value('rank_master_id');
+        $videoAssetId = DB::table('catalog_gacha_rank_video_revisions')
+            ->where(
+                'id',
+                DB::table('catalog_gacha_ranks')
+                    ->where('id', $prize['gacha_rank_id'])
+                    ->value('current_video_revision_id')
+            )
+            ->value('video_asset_id');
+        $otherGachaRankId = DB::table('catalog_gacha_ranks')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'gacha_id' => $otherGachaId,
+            'rank_master_id' => $rankMasterId,
+            'current_video_revision_id' => null,
+            'first_published_at' => null,
+            'revision' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+            'gacha_rank_id' => $otherGachaRankId,
+            'revision_number' => 1,
+            'video_asset_id' => $videoAssetId,
+            'created_at' => now(),
+        ]);
+        DB::table('catalog_gacha_ranks')->where('id', $otherGachaRankId)->update([
+            'current_video_revision_id' => $videoRevisionId,
+            'updated_at' => now(),
+        ]);
+        $prize['gacha_rank_id'] = $otherGachaRankId;
         $prize['revision'] = 1;
         $otherPrizeId = DB::table('catalog_prizes')->insertGetId($prize);
         try {

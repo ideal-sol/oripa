@@ -67,6 +67,18 @@ This separate reconciliation preserves one Task, one PR, protected-main
 provenance, and immutable version history. The publication workflow does not
 edit the ledger, does not open a PR, and does not push or commit to `main`.
 
+## MIG-099 Canonical Rank Cutover
+
+MIG-099 records the Human-authorized Rank Master and Gacha Rank Clean Cutover
+as `contract-breaking` for the Alpha channel. Its pending artifact must set
+`breaking_change` to `true`, advance the Public, Admin, and Webhook contract
+versions together, and publish the matching Client and Testkit bundle. The
+OpenAPI contract gate accepts this only for the exact documented authority,
+scope, and alpha.29-to-alpha.30 transition on the Public and Admin surfaces.
+It does not authorize other breaking changes. Storefront adoption remains an
+explicit exact-pin update and separate UI implementation; no Runtime Activation
+is performed by the artifact workflow.
+
 ## Immutable Alpha 24
 
 STORE-SITE-034 adopted the canonical package-only `2.0.0-alpha.24` Artifact from

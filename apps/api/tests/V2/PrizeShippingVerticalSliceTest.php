@@ -103,7 +103,8 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             $page['items'][0]['presentation']['prize_id']
         );
         self::assertSame('Fixture S景品', $page['items'][0]['presentation']['name']);
-        self::assertSame('S', $page['items'][0]['presentation']['rank']['code']);
+        self::assertSame('Sランク', $page['items'][0]['presentation']['rank']['name']);
+        self::assertArrayNotHasKey('code', $page['items'][0]['presentation']['rank']);
         self::assertTrue($page['items'][0]['allowed_actions']['shipping']['allowed']);
         self::assertTrue($page['items'][0]['allowed_actions']['point_exchange']['allowed']);
         self::assertTrue($page['items'][0]['allowed_actions']['selection']['allowed']);

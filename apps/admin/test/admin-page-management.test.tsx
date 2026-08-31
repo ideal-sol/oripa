@@ -49,7 +49,7 @@ describe("Page management", () => {
     vi.spyOn(AdminApiClient.prototype, "createPageCategory").mockResolvedValue(created);
     render(<PageManagementWorkspace mode="create" />);
     await screen.findByRole("heading", { name: "ページ新規登録" });
-    fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    fireEvent.click(await screen.findByRole("button", { name: "カテゴリ追加" }));
     const dialog = screen.getByRole("dialog", { name: "カテゴリ追加" });
     fireEvent.change(within(dialog).getByLabelText("カテゴリ名"), { target: { value: "規約" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "登録" }));

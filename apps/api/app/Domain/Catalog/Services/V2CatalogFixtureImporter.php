@@ -196,23 +196,29 @@ final class V2CatalogFixtureImporter
             $count++;
         }
         foreach ($manifest['rank_assets'] as $relation) {
+            $assetId = $this->id(
+                'catalog_presentation_assets',
+                'storage_identifier',
+                $relation['asset_storage_identifier']
+            );
             DB::table('catalog_rank_assets')->insert([
                 'rank_id' => $this->rankId(
                     $relation['gacha_code'],
                     $relation['rank_code']
                 ),
-                'presentation_asset_id' => $this->id(
-                    'catalog_presentation_assets',
-                    'storage_identifier',
-                    $relation['asset_storage_identifier']
-                ),
+                'presentation_asset_id' => $assetId,
                 'usage_type' => $relation['usage_type'],
                 'sort_order' => $relation['sort_order'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            DB::table('catalog_rank_effect_materials')->insertOrIgnore([
+                'presentation_asset_id' => $assetId,
+                'created_at' => $now,
+            ]);
             $count++;
         }
+        $this->createCanonicalFixtureRanks($now);
         foreach ($manifest['prizes'] as $prize) {
             $gachaCode = $this->fixturePrizeGachaCode($manifest, $prize['code']);
             DB::table('catalog_prizes')->insert([
@@ -223,7 +229,8 @@ final class V2CatalogFixtureImporter
                     'code',
                     $gachaCode
                 ),
-                'rank_id' => $this->rankId($gachaCode, $prize['rank_code']),
+                'rank_id' => null,
+                'gacha_rank_id' => $this->gachaRankId($gachaCode, $prize['rank_code']),
                 'presentation_asset_id' => $this->id(
                     'catalog_presentation_assets',
                     'storage_identifier',
@@ -294,24 +301,17 @@ final class V2CatalogFixtureImporter
                     'A Catalog fixture Prize reference is missing.'
                 );
             }
-            $rank = DB::table('catalog_ranks')->where('id', $prize->rank_id)->first();
-            if ($rank === null) {
-                throw new V2CatalogException(
-                    'CATALOG_IMPORT_REFERENCE_MISSING',
-                    422,
-                    'A Catalog fixture Rank reference is missing.'
-                );
-            }
             DB::table('catalog_gacha_version_prizes')->insert([
                 'gacha_version_id' => $this->gachaVersionId(
                     $relation['gacha_code'],
                     $relation['gacha_version_number']
                 ),
                 'prize_id' => $prize->id,
-                'rank_id' => $prize->rank_id,
-                'rank_code' => $rank->code,
-                'rank_display_name' => $rank->display_name,
-                'rank_sort_order' => $rank->sort_order,
+                'rank_id' => null,
+                'gacha_rank_id' => $prize->gacha_rank_id,
+                'rank_code' => null,
+                'rank_display_name' => null,
+                'rank_sort_order' => null,
                 'presentation_asset_id' => $prize->presentation_asset_id,
                 'display_name' => $prize->display_name,
                 'description' => $prize->description,
@@ -511,6 +511,18 @@ final class V2CatalogFixtureImporter
                     'updated_at' => $now,
                 ]);
             }
+            $gachaRanks = DB::table('catalog_gacha_ranks')
+                ->where('gacha_id', $gachaRow->id)
+                ->whereNull('first_published_at')
+                ->orderBy('id')
+                ->get(['id', 'revision']);
+            foreach ($gachaRanks as $gachaRank) {
+                DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
+                    'first_published_at' => $version->published_at ?? $now,
+                    'revision' => (int) $gachaRank->revision + 1,
+                    'updated_at' => $now,
+                ]);
+            }
 
             $relations = DB::table('catalog_gacha_version_prizes')
                 ->where('gacha_version_id', $version->id)
@@ -637,6 +649,92 @@ final class V2CatalogFixtureImporter
         )) && in_array(1, $value, true);
     }
 
+    private function createCanonicalFixtureRanks(mixed $now): void
+    {
+        $fallbackImage = DB::table('catalog_presentation_assets')
+            ->where('media_type', 'image')
+            ->where('is_public', true)
+            ->whereNull('archived_at')
+            ->orderBy('id')
+            ->first(['id']);
+        $fallbackVideo = DB::table('catalog_presentation_assets')
+            ->where('media_type', 'video')
+            ->where('is_public', true)
+            ->whereNull('archived_at')
+            ->orderBy('id')
+            ->first(['id']);
+        $ranks = DB::table('catalog_ranks')->orderBy('id')->get();
+        foreach ($ranks as $rank) {
+            $assets = DB::table('catalog_rank_assets as relation')
+                ->join(
+                    'catalog_presentation_assets as asset',
+                    'asset.id',
+                    '=',
+                    'relation.presentation_asset_id'
+                )
+                ->where('relation.rank_id', $rank->id)
+                ->orderBy('relation.sort_order')
+                ->get(['relation.usage_type', 'asset.id', 'asset.media_type'])
+                ->keyBy('usage_type');
+            $lineup = $assets->get('image')
+                ?? $assets->get('result_image')
+                ?? $fallbackImage;
+            $result = $assets->get('result_image')
+                ?? $assets->get('image')
+                ?? $fallbackImage;
+            $video = $assets->get('video') ?? $fallbackVideo;
+            if ($lineup === null || $result === null || $video === null) {
+                throw new V2CatalogException(
+                    'INVALID_CATALOG_FIXTURE',
+                    422,
+                    'Each fixture Rank requires Canonical image and video Assets.'
+                );
+            }
+            $masterId = DB::table('catalog_rank_masters')->insertGetId([
+                'public_id' => $rank->public_id,
+                'current_revision_id' => null,
+                'status' => 'active',
+                'revision' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $masterRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
+                'rank_master_id' => $masterId,
+                'revision_number' => 1,
+                'rank_name' => $rank->display_name,
+                'lineup_image_asset_id' => $lineup->id,
+                'result_image_asset_id' => $result->id,
+                'show_total_stock' => false,
+                'display_order' => $rank->sort_order,
+                'created_at' => $now,
+            ]);
+            DB::table('catalog_rank_masters')->where('id', $masterId)->update([
+                'current_revision_id' => $masterRevisionId,
+                'updated_at' => $now,
+            ]);
+            $gachaRankId = DB::table('catalog_gacha_ranks')->insertGetId([
+                'public_id' => (string) Str::uuid7(),
+                'gacha_id' => $rank->gacha_id,
+                'rank_master_id' => $masterId,
+                'current_video_revision_id' => null,
+                'first_published_at' => null,
+                'revision' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+                'gacha_rank_id' => $gachaRankId,
+                'revision_number' => 1,
+                'video_asset_id' => $video->id,
+                'created_at' => $now,
+            ]);
+            DB::table('catalog_gacha_ranks')->where('id', $gachaRankId)->update([
+                'current_video_revision_id' => $videoRevisionId,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
     /** @param array<string, mixed> $manifest */
     private function fixturePrizeGachaCode(array $manifest, string $prizeCode): string
     {
@@ -682,6 +780,31 @@ final class V2CatalogFixtureImporter
                 'CATALOG_IMPORT_REFERENCE_MISSING',
                 422,
                 'A Catalog fixture Rank reference is missing.'
+            );
+        }
+
+        return (int) $id;
+    }
+
+    private function gachaRankId(string $gachaCode, string $rankCode): int
+    {
+        $id = DB::table('catalog_gacha_ranks as gacha_rank')
+            ->join(
+                'catalog_rank_masters as master',
+                'master.id',
+                '=',
+                'gacha_rank.rank_master_id'
+            )
+            ->join('catalog_ranks as rank', 'rank.public_id', '=', 'master.public_id')
+            ->join('catalog_gachas as gacha', 'gacha.id', '=', 'gacha_rank.gacha_id')
+            ->where('gacha.code', $gachaCode)
+            ->where('rank.code', $rankCode)
+            ->value('gacha_rank.id');
+        if ($id === null) {
+            throw new V2CatalogException(
+                'CATALOG_IMPORT_REFERENCE_MISSING',
+                422,
+                'A Canonical fixture Gacha Rank reference is missing.'
             );
         }
 

@@ -325,6 +325,7 @@ function mockVersionSelections() {
     items: [
       {
         code: "prize-s",
+        cost_price: 0,
         created_at: "2026-08-01T00:00:00Z",
         description: null,
         display_price: 10_000,
