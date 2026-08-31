@@ -418,6 +418,15 @@ class PolicyGateTest(unittest.TestCase):
         self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
 
+    def test_mig_099_rank_master_workspace_is_registered_exactly(self):
+        expected_admin = {
+            "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+        }
+
+        self.assertEqual(policy_gate.MIG_099_ADMIN_SKELETON_FILES, expected_admin)
+        self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected_admin))
+
     def test_mig_061r_gacha_master_edit_path_registration_is_exact(self):
         expected_catalog = {
             "apps/api/app/Domain/Catalog/Services/V2GachaPublicCodeGenerator.php",

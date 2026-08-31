@@ -917,6 +917,9 @@ MIG_084_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/payments/admin-payment-history.tsx",
     "apps/admin/test/admin-payment-history.test.tsx",
 }
+MIG_099_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -1039,6 +1042,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062Q_ADMIN_SKELETON_FILES,
     *MIG_078_ADMIN_SKELETON_FILES,
     *MIG_084_ADMIN_SKELETON_FILES,
+    *MIG_099_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
