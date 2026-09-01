@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "task_id": "RANK-IMG-REPAIR-001",
+  "task_id": "REPAIR-001",
   "risk": "R4",
   "lane": "Strict Change",
   "activation": "immediate",
