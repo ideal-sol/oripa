@@ -409,6 +409,87 @@ jobs:
           git diff --check
           git diff --exit-code
 
+  production-arm64-artifact:
+    name: production-arm64-artifact
+    needs: policy-gate
+    if: needs.policy-gate.outputs.lane_key == 'strict' && github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact pull request head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify native ARM64 build authority
+        run: |
+          test "$(uname -m)" = "aarch64"
+          test "$(docker info --format '{{.Architecture}}')" = "aarch64"
+          command -v zstd >/dev/null
+          python3 scripts/ops/preview_image_artifact.py host-check --architecture arm64
+
+      - name: Build and package Production candidate images
+        id: identity
+        env:
+          INPUT_PR_NUMBER: ${{ github.event.number }}
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          created_at="$(git show -s --format=%cI "$source_sha")"
+          target_platform="$(python3 scripts/ops/preview_image_artifact.py target --architecture arm64 --field platform)"
+          api_image="oripa-v2-api:production-candidate-PLATFORM-ARM64-${source_sha:0:12}-arm64"
+          admin_image="oripa-v2-admin:production-candidate-PLATFORM-ARM64-${source_sha:0:12}-arm64"
+          docker build --platform "$target_platform" \
+            --target production \
+            --build-arg "OCI_VERSION=production-candidate-PLATFORM-ARM64" \
+            --build-arg "OCI_REVISION=${source_sha}" \
+            --build-arg "OCI_CREATED=${created_at}" \
+            --file infra/docker/backend/Dockerfile \
+            --tag "$api_image" .
+          docker build --platform "$target_platform" \
+            --target production \
+            --build-arg "OCI_VERSION=production-candidate-PLATFORM-ARM64" \
+            --build-arg "OCI_REVISION=${source_sha}" \
+            --build-arg "OCI_CREATED=${created_at}" \
+            --file apps/admin/Dockerfile \
+            --tag "$admin_image" .
+          python3 scripts/ops/preview_image_artifact.py package \
+            --output "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id PLATFORM-ARM64 \
+            --pr-number "$INPUT_PR_NUMBER" \
+            --source-sha "$source_sha" \
+            --created-at "$created_at" \
+            --image-mode normal \
+            --artifact-kind production-candidate \
+            --architecture arm64 \
+            --api-image "$api_image" \
+            --admin-image "$admin_image"
+          python3 scripts/ops/preview_image_artifact.py verify \
+            --directory "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id PLATFORM-ARM64 \
+            --pr-number "$INPUT_PR_NUMBER" \
+            --source-sha "$source_sha" \
+            --artifact-kind production-candidate \
+            --architecture arm64
+          python3 scripts/ops/preview_image_artifact.py load \
+            --directory "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id PLATFORM-ARM64 \
+            --pr-number "$INPUT_PR_NUMBER" \
+            --source-sha "$source_sha" \
+            --artifact-kind production-candidate \
+            --architecture arm64
+          echo "artifact_name=oripa-platform-arm64-verification-${source_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ARM64 verification artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.identity.outputs.artifact_name }}
+          path: ${{ runner.temp }}/platform-production-arm64/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   integration-gate:
     name: integration-gate
     if: always()
@@ -445,6 +526,7 @@ jobs:
       - quality-gate
       - security-gate
       - integration-gate
+      - production-arm64-artifact
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -454,6 +536,9 @@ jobs:
           QUALITY_GATE_RESULT: ${{ needs.quality-gate.result }}
           SECURITY_GATE_RESULT: ${{ needs.security-gate.result }}
           INTEGRATION_GATE_RESULT: ${{ needs.integration-gate.result }}
+          PRODUCTION_ARM64_RESULT: ${{ needs.production-arm64-artifact.result }}
+          LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           for result in \
             "$POLICY_GATE_RESULT" \
@@ -465,3 +550,12 @@ jobs:
               exit 1
             fi
           done
+          if [ "$LANE_KEY" = "strict" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$PRODUCTION_ARM64_RESULT" != "success" ]; then
+              echo "Strict pull request ARM64 artifact verification did not succeed"
+              exit 1
+            fi
+          elif [ "$PRODUCTION_ARM64_RESULT" != "skipped" ]; then
+            echo "ARM64 artifact verification ran outside its authority boundary"
+            exit 1
+          fi

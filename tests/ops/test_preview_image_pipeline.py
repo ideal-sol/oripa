@@ -44,17 +44,31 @@ BASE_LABELS = {
 
 
 def create_docker_archive(
-    directory: Path, name: str, *, oci_config_path: bool = False
+    directory: Path,
+    name: str,
+    *,
+    architecture: str = "amd64",
+    artifact_kind: str = "preview",
+    oci_config_path: bool = False,
+    revision: str = HEAD,
 ) -> dict:
-    reference = f"oripa-v2-{name}:preview-OPS-005-aaaaaaaaaaaa"
+    reference, version = artifact.image_identity(
+        name,
+        artifact_kind=artifact_kind,
+        architecture=architecture,
+        task_id=TASK,
+        source_sha=HEAD,
+    )
     labels = {
         **BASE_LABELS,
+        "org.opencontainers.image.revision": revision,
+        "org.opencontainers.image.version": version,
         "org.opencontainers.image.title": (
             "Oripa V2 API" if name == "api" else "Oripa V2 Admin"
         ),
     }
     config = {
-        "architecture": "amd64",
+        "architecture": architecture,
         "os": "linux",
         "config": {"Labels": labels},
         "rootfs": {"type": "layers", "diff_ids": []},
@@ -78,7 +92,7 @@ def create_docker_archive(
         manifest_info.size = len(manifest_bytes)
         bundle.addfile(manifest_info, io.BytesIO(manifest_bytes))
     raw_size = raw.stat().st_size
-    archive = directory / artifact.ARCHIVE_NAMES[name]
+    archive = directory / artifact.archive_names(architecture)[name]
     subprocess.run(
         ["zstd", "--quiet", "--force", str(raw), "-o", str(archive)], check=True
     )
@@ -91,27 +105,53 @@ def create_docker_archive(
         "archive_bytes": archive.stat().st_size,
         "archive_uncompressed_bytes": raw_size,
         "image_id": f"sha256:{config_digest}",
-        "architecture": "amd64",
+        "architecture": architecture,
         "os": "linux",
         "labels": labels,
     }
 
 
-def create_artifact(directory: Path, image_names=artifact.IMAGE_NAMES) -> None:
-    images = [create_docker_archive(directory, name) for name in image_names]
+def create_artifact(
+    directory: Path,
+    image_names=artifact.IMAGE_NAMES,
+    *,
+    architecture: str = "amd64",
+    artifact_kind: str = "preview",
+    legacy: bool = False,
+    revision: str = HEAD,
+) -> None:
+    images = [
+        create_docker_archive(
+            directory,
+            name,
+            architecture=architecture,
+            artifact_kind=artifact_kind,
+            revision=revision,
+        )
+        for name in image_names
+    ]
     manifest = {
-        "schema_version": artifact.SCHEMA_VERSION,
+        "schema_version": (
+            artifact.LEGACY_SCHEMA_VERSION if legacy else artifact.SCHEMA_VERSION
+        ),
         "task_id": TASK,
         "repository": "ideal-sol/oripa",
         "pull_request": PR,
         "source_commit": HEAD,
         "created_at": "2026-08-12T00:00:00Z",
-        "platform": "linux/amd64",
+        "platform": f"linux/{architecture}",
         "images": images,
     }
+    if not legacy:
+        manifest["artifact_kind"] = artifact_kind
+        manifest["architecture"] = architecture
+    write_artifact_metadata(directory, manifest)
+
+
+def write_artifact_metadata(directory: Path, manifest: dict) -> None:
     manifest_path = directory / "manifest.json"
     manifest_path.write_bytes(artifact.canonical_json(manifest))
-    paths = [directory / item["archive"] for item in images] + [manifest_path]
+    paths = [directory / item["archive"] for item in manifest["images"]] + [manifest_path]
     (directory / "SHA256SUMS").write_text(
         "".join(f"{artifact.sha256_file(path)}  {path.name}\n" for path in paths),
         encoding="ascii",
@@ -129,6 +169,52 @@ class PreviewImageArtifactTest(unittest.TestCase):
         self.assertEqual(result["status"], "verified")
         self.assertEqual(result["platform"], "linux/amd64")
         self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
+
+    def test_default_target_and_preview_artifact_remain_amd64(self):
+        parsed = artifact.parser().parse_args(["target"])
+        self.assertEqual(parsed.architecture, "amd64")
+        self.assertEqual(artifact.target_platform(parsed.architecture), "linux/amd64")
+        with self.assertRaisesRegex(artifact.ArtifactError, "preview_architecture_invalid"):
+            artifact.validate_target("preview", "arm64")
+
+    def test_production_candidate_arm64_artifact_verifies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(
+                directory,
+                architecture="arm64",
+                artifact_kind="production-candidate",
+            )
+            result = artifact.verify_artifact(
+                directory,
+                task_id=TASK,
+                pr_number=PR,
+                source_sha=HEAD,
+                artifact_kind="production-candidate",
+                architecture="arm64",
+            )
+        self.assertEqual(result["architecture"], "arm64")
+        self.assertEqual(result["platform"], "linux/arm64")
+
+    def test_legacy_preview_v1_artifact_remains_accepted_only_as_amd64(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, legacy=True)
+            result = artifact.verify_artifact(
+                directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+            )
+            self.assertEqual(result["platform"], "linux/amd64")
+            with self.assertRaisesRegex(
+                artifact.ArtifactError, "legacy_artifact_target_invalid"
+            ):
+                artifact.verify_artifact(
+                    directory,
+                    task_id=TASK,
+                    pr_number=PR,
+                    source_sha=HEAD,
+                    artifact_kind="production-candidate",
+                    architecture="arm64",
+                )
 
     def test_api_only_artifact_verifies_without_admin_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -201,12 +287,84 @@ class PreviewImageArtifactTest(unittest.TestCase):
                     directory, task_id=TASK, pr_number=PR, source_sha="b" * 40
                 )
 
+    def test_missing_or_invalid_manifest_architecture_is_rejected(self):
+        for value in (None, "riscv64"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                create_artifact(
+                    directory,
+                    architecture="arm64",
+                    artifact_kind="production-candidate",
+                )
+                manifest = artifact.load_json(directory / "manifest.json")
+                if value is None:
+                    manifest.pop("architecture")
+                else:
+                    manifest["architecture"] = value
+                write_artifact_metadata(directory, manifest)
+                with self.assertRaisesRegex(
+                    artifact.ArtifactError,
+                    "manifest_schema_invalid|manifest_identity_mismatch",
+                ):
+                    artifact.verify_artifact(
+                        directory,
+                        task_id=TASK,
+                        pr_number=PR,
+                        source_sha=HEAD,
+                        artifact_kind="production-candidate",
+                        architecture="arm64",
+                    )
+
+    def test_arm64_artifact_claimed_as_amd64_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(
+                directory,
+                architecture="arm64",
+                artifact_kind="production-candidate",
+            )
+            with self.assertRaisesRegex(artifact.ArtifactError, "manifest_identity_mismatch"):
+                artifact.verify_artifact(
+                    directory,
+                    task_id=TASK,
+                    pr_number=PR,
+                    source_sha=HEAD,
+                    artifact_kind="production-candidate",
+                    architecture="amd64",
+                )
+
+    def test_oci_revision_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, revision="b" * 40)
+            with self.assertRaisesRegex(artifact.ArtifactError, "oci_revision_mismatch"):
+                artifact.verify_artifact(
+                    directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+                )
+
+    def test_image_digest_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory)
+            manifest = artifact.load_json(directory / "manifest.json")
+            manifest["images"][0]["image_id"] = "sha256:" + "0" * 64
+            write_artifact_metadata(directory, manifest)
+            with self.assertRaisesRegex(artifact.ArtifactError, "image_metadata_mismatch"):
+                artifact.verify_artifact(
+                    directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+                )
+
     def test_load_refuses_non_amd64_host_before_docker_load(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             create_artifact(directory)
             arguments = mock.Mock(
-                directory=directory, task_id=TASK, pr_number=PR, source_sha=HEAD
+                directory=directory,
+                task_id=TASK,
+                pr_number=PR,
+                source_sha=HEAD,
+                artifact_kind="preview",
+                architecture="amd64",
             )
             with mock.patch.object(
                 artifact, "verify_artifact", return_value={"status": "verified"}
@@ -219,6 +377,35 @@ class PreviewImageArtifactTest(unittest.TestCase):
                     with mock.patch.object(artifact.subprocess, "Popen") as popen:
                         with self.assertRaisesRegex(artifact.ArtifactError, "host_architecture_mismatch"):
                             artifact.load_artifact(arguments)
+            popen.assert_not_called()
+
+    def test_arm64_artifact_refuses_amd64_host_before_docker_load(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(
+                directory,
+                architecture="arm64",
+                artifact_kind="production-candidate",
+            )
+            arguments = mock.Mock(
+                directory=directory,
+                task_id=TASK,
+                pr_number=PR,
+                source_sha=HEAD,
+                artifact_kind="production-candidate",
+                architecture="arm64",
+            )
+            with mock.patch.object(
+                artifact, "verify_artifact", return_value={"status": "verified"}
+            ), mock.patch.object(
+                artifact,
+                "host_architectures",
+                return_value={"machine": "amd64", "docker": "amd64"},
+            ), mock.patch.object(artifact.subprocess, "Popen") as popen:
+                with self.assertRaisesRegex(
+                    artifact.ArtifactError, "host_architecture_mismatch"
+                ):
+                    artifact.load_artifact(arguments)
             popen.assert_not_called()
 
     def test_host_helper_has_no_image_build_command(self):
@@ -428,6 +615,44 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
         self.assertIn('--admin-image "$admin_image"', guard.group("body"))
         self.assertNotIn("storefront_contract_artifact.py", workflow)
         self.assertNotIn("storefront-contract", workflow)
+
+    def test_preview_remains_amd64_while_arm64_paths_are_additive(self):
+        preview = (ROOT / ".github/workflows/preview-image-build.yml").read_text()
+        platform_ci = (ROOT / ".github/workflows/platform-ci.yml").read_text()
+        production = (
+            ROOT / ".github/workflows/platform-production-arm64-artifact.yml"
+        ).read_text()
+
+        self.assertIn("name: build-preview-images-amd64", preview)
+        self.assertIn("runs-on: ubuntu-24.04", preview)
+        self.assertNotIn("ubuntu-24.04-arm", preview)
+        self.assertIn("production-arm64-artifact:", platform_ci)
+        self.assertIn("oripa-platform-arm64-verification-${source_sha}", platform_ci)
+        self.assertIn("source SHA is not current protected main", production)
+        self.assertIn("required checks not successful", production)
+        self.assertIn("--artifact-kind production-candidate", production)
+        self.assertIn("--architecture arm64", production)
+        self.assertIn("--target production", production)
+        self.assertNotIn("ssh", production.lower())
+
+
+class ProductionImageDefinitionTest(unittest.TestCase):
+    def test_api_and_admin_have_explicit_production_targets(self):
+        api = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        admin = (ROOT / "apps/admin/Dockerfile").read_text()
+        apache = (ROOT / "infra/docker/backend/apache-production.conf").read_text()
+
+        self.assertIn("AS production", api)
+        self.assertIn("composer install", api)
+        self.assertIn("--no-dev", api)
+        self.assertIn("USER www-data", api)
+        self.assertIn("EXPOSE 8000", api)
+        self.assertIn("FallbackResource /index.php", apache)
+        self.assertIn("AS preview", api)
+        self.assertIn("AS production", admin)
+        self.assertIn("pnpm install --frozen-lockfile", admin)
+        self.assertIn("USER node", admin)
+        self.assertIn("EXPOSE 3000", admin)
 
 
 class PreviewActivationRunbookTest(unittest.TestCase):

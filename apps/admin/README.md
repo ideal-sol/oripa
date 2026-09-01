@@ -41,8 +41,10 @@ Draw／Point／Payment判断、Site固有Design、User Cookie、V1 CodeをCopy�
 * `/catalog`、`/qa`、`/shipping`、`/reports`、`/content`、`/contacts`
 * 未実装Moduleは架空Dataを表示しない準備中画面
 
-業務データ画面、Domain／TLS設定、Staging／Production Deploymentは未実装であり、
-本ApplicationはProduction利用不可。
+`OPS-027`でnative `linux/arm64`のProduction candidate image targetと、Admin
+processだけを表すscoped health contractを定義した。Domain／TLS／Routing／Secret、
+Storefront、DB／Redis、Production DeploymentとCommercial GOは未実装・未承認であり、
+image build成立だけをProduction利用やActivationとは扱わない。
 
 ## Local Verification
 

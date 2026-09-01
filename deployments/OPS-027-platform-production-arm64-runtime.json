@@ -1,0 +1,36 @@
+{
+  "task_id": "OPS-027",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "application_runtime_activation": "none",
+  "base_branch": "main",
+  "base_sha": "a8a45a5673ca603b8fe1abaf5b9642038776e37e",
+  "status": "artifact_runtime_authority_implemented_no_deployment",
+  "preview": {
+    "platform": "linux/amd64",
+    "behavior": "unchanged"
+  },
+  "production_candidate": {
+    "platform": "linux/arm64",
+    "components": [
+      "api",
+      "admin"
+    ],
+    "artifact_creation_only": true,
+    "deployment": "NONE"
+  },
+  "registry": "NONE",
+  "new_secret": "NONE",
+  "runtime_deployment": "NONE",
+  "deferred": [
+    "storefront_runtime",
+    "postgresql_production_design",
+    "redis_production_design",
+    "asset_persistence",
+    "nginx",
+    "alb",
+    "dns",
+    "production_secrets",
+    "production_activation"
+  ]
+}

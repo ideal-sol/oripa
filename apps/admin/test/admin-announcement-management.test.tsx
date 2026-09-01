@@ -43,6 +43,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("Announcement management", () => {
   it("renders the V1-derived list order, publication state, preview, and cursor", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-08-15T00:00:00Z").getTime());
     const list = vi.spyOn(AdminApiClient.prototype, "listContentNotices")
       .mockResolvedValueOnce({ items: [summary()], next_cursor: "opaque-next" })
       .mockResolvedValueOnce({ items: [], next_cursor: null });

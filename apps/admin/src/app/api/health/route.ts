@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 export function GET() {
   return Response.json({
+    checks: {
+      process: "ok",
+    },
     component: "apps/admin",
-    production_ready: false,
-    stage: "skeleton",
+    readiness_scope: "process",
     status: "ok",
   });
 }
