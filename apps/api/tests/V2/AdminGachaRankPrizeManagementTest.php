@@ -112,6 +112,70 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         DB::table('catalog_rank_masters')->where('id', $firstInternalId)->delete();
     }
 
+    public function test_rank_master_image_assets_persist_and_revisions_remain_immutable(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $created = $this->createRankMaster($owner, '画像Revision');
+        $master = DB::table('catalog_rank_masters')
+            ->where('public_id', $created['id'])->firstOrFail();
+        $firstRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', $master->current_revision_id)->firstOrFail();
+        $lineupAsset = DB::table('catalog_presentation_assets')
+            ->where('id', $firstRevision->lineup_image_asset_id)->firstOrFail();
+        $resultAsset = DB::table('catalog_presentation_assets')
+            ->where('id', $firstRevision->result_image_asset_id)->firstOrFail();
+
+        self::assertNotSame($lineupAsset->public_id, $resultAsset->public_id);
+        self::assertSame($lineupAsset->public_id, $created['lineup_image']['id']);
+        self::assertSame($resultAsset->public_id, $created['result_image']['id']);
+        self::assertSame('image', $lineupAsset->media_type);
+        self::assertSame('image/png', $lineupAsset->mime_type);
+        self::assertTrue((bool) $lineupAsset->is_public);
+        Storage::disk('local')->assertExists($lineupAsset->storage_identifier);
+        Storage::disk('local')->assertExists($resultAsset->storage_identifier);
+
+        $this->asAdmin($owner)
+            ->get('/admin/api/v2/catalog/presentation-assets/'.$lineupAsset->public_id.'/content')
+            ->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->asAdmin($owner)
+            ->get('/admin/api/v2/catalog/presentation-assets/'.$resultAsset->public_id.'/content')
+            ->assertOk()->assertHeader('Content-Type', 'image/png');
+
+        Auth::forgetGuards();
+        $updated = $this->mutate(
+            $owner,
+            'PUT',
+            '/admin/api/v2/catalog/ranks/'.$created['id'],
+            [
+                'expected_revision' => 1,
+                'rank_name' => $created['rank_name'],
+                'lineup_image' => $this->imageInput('replacement-lineup.png'),
+                'show_total_stock' => false,
+                'status' => 'active',
+            ]
+        )->assertOk()->json('data');
+
+        $secondRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', DB::table('catalog_rank_masters')
+                ->where('public_id', $created['id'])->value('current_revision_id'))
+            ->firstOrFail();
+        $persistedFirstRevision = DB::table('catalog_rank_master_revisions')
+            ->where('id', $firstRevision->id)->firstOrFail();
+
+        self::assertSame(2, $updated['revision_number']);
+        self::assertNotSame($created['lineup_image']['id'], $updated['lineup_image']['id']);
+        self::assertSame($created['result_image']['id'], $updated['result_image']['id']);
+        self::assertSame($firstRevision->lineup_image_asset_id, $persistedFirstRevision->lineup_image_asset_id);
+        self::assertSame($firstRevision->result_image_asset_id, $persistedFirstRevision->result_image_asset_id);
+        self::assertNotSame($firstRevision->lineup_image_asset_id, $secondRevision->lineup_image_asset_id);
+        self::assertSame($firstRevision->result_image_asset_id, $secondRevision->result_image_asset_id);
+
+        $replacement = DB::table('catalog_presentation_assets')
+            ->where('id', $secondRevision->lineup_image_asset_id)->firstOrFail();
+        Storage::disk('local')->assertExists($replacement->storage_identifier);
+        Storage::disk('local')->assertExists($lineupAsset->storage_identifier);
+    }
+
     public function test_active_master_union_is_lazy_and_video_revisions_reuse_registry_assets(): void
     {
         $owner = $this->createAdminSession(V2AdminRole::Owner);

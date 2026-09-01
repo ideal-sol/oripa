@@ -9,7 +9,7 @@ function safePublicPath(path: string | null): path is string {
   return path !== null && path.startsWith("/") && !path.startsWith("//");
 }
 
-function assetContentPath(id: string): string {
+export function assetContentPath(id: string): string {
   return `/admin/api/v2/catalog/presentation-assets/${id}/content`;
 }
 

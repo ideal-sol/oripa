@@ -47,6 +47,14 @@ describe("Canonical Gacha Rank and Prize manager", () => {
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
     expect(await screen.findByText("SSランク")).toBeVisible();
+    expect(screen.getByRole("img", { name: "SSランク ラインナップ画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910196/content`,
+    );
+    expect(screen.getByRole("img", { name: "SSランク 抽選結果画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910197/content`,
+    );
     expect(screen.getByText("未設定")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Rank追加/u })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Rank削除/u })).not.toBeInTheDocument();
@@ -213,9 +221,13 @@ describe("Canonical Gacha Rank and Prize manager", () => {
 function asset(id: string, mediaType: "image" | "video" = "image") {
   return {
     id,
-    path: `/admin/api/v2/catalog/presentation-assets/${id}/content`,
+    path: `/api/v2/catalog/presentation-assets/${id}/content`,
     mime_type: mediaType === "video" ? "video/mp4" : "image/png",
-    alt_text: mediaType === "video" ? "共通動画演出" : "SSランク画像",
+    alt_text: mediaType === "video"
+      ? "共通動画演出"
+      : id.endsWith("196")
+        ? "SSランク ラインナップ画像"
+        : "SSランク 抽選結果画像",
   };
 }
 

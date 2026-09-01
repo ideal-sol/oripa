@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { assetContentPath } from "@/components/catalog/public-asset-preview";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -280,7 +281,7 @@ function RankModal({
 }
 
 function RankImage({ asset }: { asset: AdminCatalogRank["lineup_image"] }) {
-  return <Image alt={asset.alt_text ?? "Rank image"} className="rank-effect-thumbnail" height={72} src={asset.path} unoptimized width={96} />;
+  return <Image alt={asset.alt_text ?? "Rank image"} className="rank-effect-thumbnail" height={72} src={assetContentPath(asset.id)} unoptimized width={96} />;
 }
 
 function RankState({ loading = false, message }: { loading?: boolean; message: string }) {

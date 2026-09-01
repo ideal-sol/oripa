@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
-import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
+import { assetContentPath, PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
@@ -344,7 +344,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankNa
 }
 
 function RankImage({ asset }: { asset: AdminGachaRankListItem["rank"]["lineup_image"] }) {
-  return <Image alt={asset.alt_text ?? "Rank image"} height={56} src={asset.path} unoptimized width={96} />;
+  return <Image alt={asset.alt_text ?? "Rank image"} height={56} src={assetContentPath(asset.id)} unoptimized width={96} />;
 }
 
 async function listAllRankEffects(client: AdminApiClient, signal?: AbortSignal): Promise<AdminRankEffect[]> {
