@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
+import { RankMasterWorkspace } from "@/components/catalog/rank-master-workspace";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
@@ -17,7 +18,22 @@ const RANK_ID = "01910191-0191-7191-8191-019101910193";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910194";
 const VIDEO_ASSET_ID = "01910191-0191-7191-8191-019101910195";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("@/components/shell/admin-shell", () => ({
+  AdminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/permissions/protected-admin-route", () => ({
+  ProtectedAdminRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/permissions/permission-provider", () => ({
+  usePermissions: () => ({ hasPermission: () => true }),
+}));
+
 beforeEach(() => {
+  vi.spyOn(AdminApiClient.prototype, "listCatalogRanks").mockResolvedValue({
+    items: [gachaRank().rank],
+    next_cursor: null,
+  });
   vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
     items: [gachaRank()],
   });
@@ -41,12 +57,34 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Canonical Gacha Rank and Prize manager", () => {
+  it("renders Rank Master Public snapshots through authenticated Admin asset URLs", async () => {
+    render(<RankMasterWorkspace />);
+
+    expect(await screen.findByText("SSランク")).toBeVisible();
+    expect(screen.getByRole("img", { name: "SSランク ラインナップ画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910196/content`,
+    );
+    expect(screen.getByRole("img", { name: "SSランク 抽選結果画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910197/content`,
+    );
+  });
+
   it("renders every active Rank Master without creating a GachaRank row", async () => {
     const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
       .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
     expect(await screen.findByText("SSランク")).toBeVisible();
+    expect(screen.getByRole("img", { name: "SSランク ラインナップ画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910196/content`,
+    );
+    expect(screen.getByRole("img", { name: "SSランク 抽選結果画像" })).toHaveAttribute(
+      "src",
+      `/admin/api/v2/catalog/presentation-assets/01910191-0191-7191-8191-019101910197/content`,
+    );
     expect(screen.getByText("未設定")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Rank追加/u })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Rank削除/u })).not.toBeInTheDocument();
@@ -213,9 +251,13 @@ describe("Canonical Gacha Rank and Prize manager", () => {
 function asset(id: string, mediaType: "image" | "video" = "image") {
   return {
     id,
-    path: `/admin/api/v2/catalog/presentation-assets/${id}/content`,
+    path: `/api/v2/catalog/presentation-assets/${id}/content`,
     mime_type: mediaType === "video" ? "video/mp4" : "image/png",
-    alt_text: mediaType === "video" ? "共通動画演出" : "SSランク画像",
+    alt_text: mediaType === "video"
+      ? "共通動画演出"
+      : id.endsWith("196")
+        ? "SSランク ラインナップ画像"
+        : "SSランク 抽選結果画像",
   };
 }
 

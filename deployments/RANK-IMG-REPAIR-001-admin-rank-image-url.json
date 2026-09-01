@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "task_id": "REPAIR-001",
+  "risk": "R4",
+  "lane": "Strict Change",
+  "activation": "immediate",
+  "status": "source_validated_activation_pending",
+  "issue": null,
+  "base_sha": "4b1cf658ca2f008e0e69161e276d21676964b38d",
+  "root_cause": {
+    "classification": "D_ADMIN_RENDERING_DEFECT",
+    "file": "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+    "function": "RankImage",
+    "detail": "The Admin rendered the Public API relative path on the Admin origin. The same valid path returned 200 from the Test Public origin and 404 from the Admin origin."
+  },
+  "human_rank": {
+    "public_id": "01a05ced-5762-7331-971e-71147842b012",
+    "created_at": "2026-09-01T21:24:13+09:00",
+    "current_revision_id": 1,
+    "revision_number": 1,
+    "rank_name": "１等賞",
+    "lineup_asset_id": "01a05ced-5759-70af-8788-2d95147743e5",
+    "result_asset_id": "01a05ced-575f-7300-9e84-7cd603c80f87"
+  },
+  "before": {
+    "api_revision": "279d196130f0205df995bbf56ff415a763478c2b",
+    "admin_revision": "0944ca837dc980a7a2650421c4ce2e8f774d22b4",
+    "database": "oripa_v2_mig061a",
+    "migrations_000069_000070": "APPLIED_BATCH_35",
+    "lineup_public_origin": "200_image_png_2501566_bytes",
+    "result_public_origin": "200_image_png_2315009_bytes",
+    "lineup_admin_origin": "404_text_html",
+    "result_admin_origin": "404_text_html",
+    "nginx_broken_requests_observed": true
+  },
+  "storage": {
+    "disk": "local",
+    "root": "/var/www/backend/storage/app/private",
+    "persistent_volume": "mig061a-v2-preview_v2_api_assets",
+    "lineup_file": "PRESENT_SIZE_AND_SHA256_MATCH_DATABASE",
+    "result_file": "PRESENT_SIZE_AND_SHA256_MATCH_DATABASE",
+    "asset_rows": "PRESENT_PUBLIC_IMAGE_ROWS",
+    "revision_relations": "MATCH_CURRENT_REVISION_FOREIGN_KEYS",
+    "data_repair_required": false
+  },
+  "fix": {
+    "behavior": "Render Rank image snapshots through the existing authenticated same-origin Admin presentation asset content route derived from the Asset public ID.",
+    "backend_changed": false,
+    "storage_changed": false,
+    "public_contract_changed": false,
+    "storefront_artifact_republish": false,
+    "migration_created": false,
+    "migration_applied_to_test_runtime": false
+  },
+  "local_validation": {
+    "admin_tests": "PASS_36_FILES_201_TESTS",
+    "rank_backend_tests": "PASS_6_TESTS_110_ASSERTIONS",
+    "asset_upload_regression": "PASS_20_TESTS_252_ASSERTIONS",
+    "admin_typecheck": "PASS",
+    "admin_lint": "PASS",
+    "admin_build": "PASS",
+    "browser_e2e": "NOT_RUN_NO_CODEX_ADMIN_MFA_SESSION"
+  },
+  "delivery": {
+    "pull_request": "PENDING",
+    "final_head": "PENDING",
+    "required_checks": "PENDING",
+    "self_review": "PENDING",
+    "squash_sha": "PENDING",
+    "test_admin_activation": "PENDING",
+    "production_activation": 0,
+    "production_data_mutation": 0
+  }
+}
