@@ -70,26 +70,35 @@ def git_environment() -> dict[str, str]:
     return environment
 
 
-def git_command(arguments: list[str]) -> list[str]:
-    return [
+def git_command(
+    arguments: list[str],
+    *,
+    safe_directory: Path | None = None,
+) -> list[str]:
+    command = [
         GIT,
         "--no-optional-locks",
         "-c",
         "core.fsmonitor=false",
         "-c",
         "core.hooksPath=/dev/null",
-        *arguments,
     ]
+    if safe_directory is not None:
+        validated_root = validate_repository_root(safe_directory)
+        command.extend(["-c", f"safe.directory={validated_root}"])
+    command.extend(arguments)
+    return command
 
 
 def run_git(
     arguments: list[str],
     classification: str,
     *,
+    safe_directory: Path | None = None,
     text: bool = True,
 ) -> str | bytes:
     result = subprocess.run(
-        git_command(arguments),
+        git_command(arguments, safe_directory=safe_directory),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         check=False,
@@ -178,7 +187,8 @@ def require_commit_ancestor(root: Path, ancestor: str, descendant: str) -> None:
                 "--is-ancestor",
                 ancestor,
                 descendant,
-            ]
+            ],
+            safe_directory=root,
         ),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -214,6 +224,7 @@ def head_blob_payload(
     entry = run_git(
         ["-C", str(root), "ls-tree", "-z", head_sha, "--", relative],
         f"{classification}_head_check_failed",
+        safe_directory=root,
         text=False,
     )
     entries = [value for value in entry.split(b"\0") if value]
@@ -231,6 +242,7 @@ def head_blob_payload(
     head_payload = run_git(
         ["-C", str(root), "show", f"{head_sha}:{relative}"],
         f"{classification}_head_read_failed",
+        safe_directory=root,
         text=False,
     )
     return head_payload
@@ -251,6 +263,7 @@ def require_repository_authority(
     top_level = run_git(
         ["-C", str(root), "rev-parse", "--show-toplevel"],
         "repository_git_worktree_invalid",
+        safe_directory=root,
     ).strip()
     try:
         top_level_path = Path(top_level).resolve(strict=True)
@@ -269,6 +282,7 @@ def require_repository_authority(
             "remote.origin.url",
         ],
         "repository_origin_check_failed",
+        safe_directory=root,
     ).splitlines()
     if len(origin_urls) != 1 or origin_urls[0] not in CANONICAL_ORIGIN_URLS:
         fail("repository_origin_invalid")
@@ -281,16 +295,19 @@ def require_repository_authority(
             "--untracked-files=all",
         ],
         "repository_status_check_failed",
+        safe_directory=root,
         text=False,
     ):
         fail("repository_not_clean")
     branch = run_git(
         ["-C", str(root), "branch", "--show-current"],
         "repository_branch_check_failed",
+        safe_directory=root,
     ).strip()
     head_sha = run_git(
         ["-C", str(root), "rev-parse", "--verify", "HEAD^{commit}"],
         "repository_head_check_failed",
+        safe_directory=root,
     ).strip()
     if not FULL_SHA.fullmatch(head_sha):
         fail("repository_head_invalid")
@@ -310,6 +327,7 @@ def require_repository_authority(
             "refs/remotes/origin/main^{commit}",
         ],
         "repository_origin_check_failed",
+        safe_directory=root,
     ).strip()
     live_sha = live_main_sha()
     if origin_sha != live_sha:

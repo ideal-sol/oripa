@@ -611,6 +611,39 @@ class GitWrapperProvisionTest(unittest.TestCase):
 
         self.assertEqual(authority["head_sha"], expected_head)
 
+    def test_sanitized_git_uses_exact_root_safe_directory(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        actual_run = subprocess.run
+        repository_commands = []
+
+        def reject_untrusted_repository(command, *arguments, **keywords):
+            if command[0] == self.provision.GIT and "-C" in command:
+                command_root = command[command.index("-C") + 1]
+                exact_setting = f"safe.directory={command_root}"
+                self.assertEqual(keywords["env"]["GIT_CONFIG_GLOBAL"], os.devnull)
+                self.assertEqual(keywords["env"]["GIT_CONFIG_NOSYSTEM"], "1")
+                if exact_setting not in command:
+                    return subprocess.CompletedProcess(command, 128, "", "")
+                self.assertNotIn("safe.directory=*", command)
+                repository_commands.append(command)
+            return actual_run(command, *arguments, **keywords)
+
+        with (
+            self.authority_context(checkout, expected_head),
+            mock.patch.object(
+                self.provision.subprocess,
+                "run",
+                side_effect=reject_untrusted_repository,
+            ),
+        ):
+            authority = self.provision.require_repository_authority(
+                checkout, expected_head
+            )
+
+        self.assertEqual(authority["head_sha"], expected_head)
+        self.assertGreaterEqual(len(repository_commands), 8)
+
     def test_explicit_detached_verify_source_cli_passes(self):
         repository, expected_head = self.canonical_repository()
         checkout = self.detached_checkout(repository, expected_head)
