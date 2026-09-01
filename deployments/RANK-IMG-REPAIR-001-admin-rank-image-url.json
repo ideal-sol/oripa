@@ -53,7 +53,7 @@
     "migration_applied_to_test_runtime": false
   },
   "local_validation": {
-    "admin_tests": "PASS_37_FILES_201_TESTS",
+    "admin_tests": "PASS_36_FILES_201_TESTS",
     "rank_backend_tests": "PASS_6_TESTS_110_ASSERTIONS",
     "asset_upload_regression": "PASS_20_TESTS_252_ASSERTIONS",
     "admin_typecheck": "PASS",
