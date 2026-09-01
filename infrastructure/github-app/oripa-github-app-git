@@ -335,6 +335,15 @@ def changed_paths(older_sha, newer_sha):
     return {entry.decode("utf-8") for entry in output.split(b"\0") if entry}
 
 
+def exact_changed_paths(older_sha, newer_sha):
+    output = run_local_git(
+        ["diff", "--name-only", "--no-renames", "-z", older_sha, newer_sha],
+        "changed_path_check_failed",
+        text=False,
+    )
+    return {entry.decode("utf-8") for entry in output.split(b"\0") if entry}
+
+
 def policy_path_allowed(path, allowed_paths):
     for allowed in allowed_paths:
         if path == allowed:
@@ -448,19 +457,13 @@ def commit_parents(commit_sha):
     return output[1:]
 
 
-def tree_blob(commit_sha, path):
-    result = subprocess.run(
-        [GIT, "-C", REPOSITORY_ROOT, "rev-parse", f"{commit_sha}:{path}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-        text=True,
-    )
-    if result.returncode:
-        return None
-    value = result.stdout.strip()
-    if not re.fullmatch(r"[0-9a-f]{40}", value):
-        raise GitWrapperError("candidate_blob_invalid")
+def commit_tree(commit_sha):
+    value = run_local_git(
+        ["show", "-s", "--format=%T", commit_sha],
+        "candidate_tree_read_failed",
+    ).strip()
+    if not FULL_SHA_PATTERN.fullmatch(value):
+        raise GitWrapperError("candidate_tree_invalid")
     return value
 
 
@@ -472,63 +475,32 @@ def merge_tree(task_head, base_sha):
         check=False,
         text=True,
     )
-    if result.returncode not in {0, 1}:
+    if result.returncode == 1:
+        raise GitWrapperError("sync_conflict_required")
+    if result.returncode != 0:
         raise GitWrapperError("merge_tree_failed")
     lines = result.stdout.splitlines()
     if not lines or not FULL_SHA_PATTERN.fullmatch(lines[0]):
         raise GitWrapperError("merge_tree_invalid")
-    conflicts = []
-    for line in lines:
-        if not line.startswith("CONFLICT "):
-            continue
-        match = re.fullmatch(r"CONFLICT \([^)]*\): .* in (.+)", line)
-        if not match:
-            raise GitWrapperError("merge_tree_invalid")
-        conflicts.append(match.group(1))
-    if len(conflicts) != len(set(conflicts)):
-        raise GitWrapperError("merge_tree_invalid")
-    return lines[0], conflicts
+    return lines[0], []
 
 
 def validate_sync_candidate(policy, task_head, base_sha, candidate_sha):
-    tree_sha, conflict_paths = merge_tree(task_head, base_sha)
-    if not conflict_paths:
-        raise GitWrapperError("sync_conflict_required")
-    net_changed_paths = sorted(changed_paths(base_sha, candidate_sha))
-    automatic_merge_mismatches = sorted(
-        changed_paths(tree_sha, candidate_sha) - set(conflict_paths)
-    )
-    unresolved_conflict_paths = []
-    for path in net_changed_paths:
-        blob = tree_blob(candidate_sha, path)
-        if blob is None:
-            continue
-        content = run_local_git(
-            ["show", f"{candidate_sha}:{path}"],
-            "candidate_blob_read_failed",
-            text=False,
-        )
-        if BASE_SYNC_GATE["contains_unresolved_markers"](content):
-            unresolved_conflict_paths.append(path)
-    resolved_blobs = {
-        path: (
-            tree_blob(candidate_sha, path),
-            tree_blob(task_head, path),
-            tree_blob(base_sha, path),
-        )
-        for path in conflict_paths
-    }
+    canonical_tree_sha, conflict_paths = merge_tree(task_head, base_sha)
+    candidate_tree_sha = commit_tree(candidate_sha)
+    net_changed_paths = sorted(exact_changed_paths(base_sha, candidate_sha))
     try:
-        BASE_SYNC_GATE["validate_candidate"](
+        validation = BASE_SYNC_GATE["validate_candidate"](
             task_head=task_head,
             base_sha=base_sha,
             candidate_sha=candidate_sha,
             parents=commit_parents(candidate_sha),
+            task_head_is_ancestor=is_ancestor(task_head, candidate_sha),
+            base_is_ancestor=is_ancestor(base_sha, candidate_sha),
+            candidate_tree_sha=candidate_tree_sha,
+            canonical_tree_sha=canonical_tree_sha,
             net_changed_paths=net_changed_paths,
             conflict_paths=conflict_paths,
-            automatic_merge_mismatches=automatic_merge_mismatches,
-            unresolved_conflict_paths=unresolved_conflict_paths,
-            resolved_blobs=resolved_blobs,
             allowed_paths=policy["allowed_paths"],
         )
     except BASE_SYNC_GATE["TaskBranchBaseSyncError"] as error:
@@ -549,8 +521,7 @@ def validate_sync_candidate(policy, task_head, base_sha, candidate_sha):
             )
         ):
             raise GitWrapperError("sensitive_path_rejected")
-        blob = tree_blob(candidate_sha, path)
-        if blob is None:
+        if not object_exists(candidate_sha, path):
             continue
         content = run_local_git(
             ["show", f"{candidate_sha}:{path}"],
@@ -559,7 +530,7 @@ def validate_sync_candidate(policy, task_head, base_sha, candidate_sha):
         )
         if any(pattern.search(content) for pattern in HIGH_CONFIDENCE_SECRET_PATTERNS):
             raise GitWrapperError("secret_candidate_rejected")
-    return {"conflict_paths": sorted(conflict_paths), "net_changed_paths": net_changed_paths}
+    return validation
 
 
 def require_operation(policy, operation):
@@ -659,6 +630,7 @@ def sync_task_branch_base(policy, arguments):
         raise GitWrapperError("sync_arguments_invalid")
     expected_task_head, expected_base_sha, candidate_sha = arguments
     validate_policy_branch(policy, policy["branch"])
+    validate_commit_sha(policy["base_sha"], "policy_base")
     validate_commit_sha(expected_task_head, "expected_task_head")
     validate_commit_sha(expected_base_sha, "expected_base")
     validate_commit_sha(candidate_sha, "candidate")
@@ -673,22 +645,38 @@ def sync_task_branch_base(policy, arguments):
         )
     except BASE_SYNC_GATE["TaskBranchBaseSyncError"] as error:
         raise GitWrapperError(str(error)) from error
+    if not is_ancestor(policy["base_sha"], expected_task_head):
+        raise GitWrapperError("sync_task_head_not_on_policy_base")
+    if not is_ancestor(policy["base_sha"], expected_base_sha):
+        raise GitWrapperError("sync_base_not_on_policy_base")
     if not is_ancestor(expected_task_head, candidate_sha):
         raise GitWrapperError("sync_non_fast_forward_rejected")
     validation = validate_sync_candidate(
         policy, expected_task_head, expected_base_sha, candidate_sha
     )
-    if public_remote_branch_sha(policy) != expected_task_head:
-        raise GitWrapperError("REMOTE_BRANCH_CHANGED")
-    if public_main_sha() != expected_base_sha:
-        raise GitWrapperError("sync_base_changed")
+    try:
+        BASE_SYNC_GATE["validate_current_refs"](
+            task_head=expected_task_head,
+            base_sha=expected_base_sha,
+            remote_task_head=public_remote_branch_sha(policy),
+            remote_base_sha=public_main_sha(),
+        )
+    except BASE_SYNC_GATE["TaskBranchBaseSyncError"] as error:
+        raise GitWrapperError(str(error)) from error
     remote_ref = f"refs/heads/{policy['branch']}"
     run_authenticated_git(
         ["-C", REPOSITORY_ROOT, "push", "--porcelain", REPOSITORY_URL, f"{candidate_sha}:{remote_ref}"],
         "git_sync_task_branch_failed",
     )
-    if public_remote_branch_sha(policy) != candidate_sha:
-        raise GitWrapperError("git_sync_task_branch_verify_mismatch")
+    try:
+        BASE_SYNC_GATE["validate_current_refs"](
+            task_head=candidate_sha,
+            base_sha=expected_base_sha,
+            remote_task_head=public_remote_branch_sha(policy),
+            remote_base_sha=public_main_sha(),
+        )
+    except BASE_SYNC_GATE["TaskBranchBaseSyncError"] as error:
+        raise GitWrapperError(str(error)) from error
     print(
         json.dumps(
             {
