@@ -52,6 +52,7 @@ const groups = [
   ["お問い合わせ", ["/contacts"]],
   ["各種設定", [
     "/settings/pages",
+    "/catalog/ranks",
     "/catalog/presentation-assets",
     "/settings/referral",
     "/settings/line",
@@ -114,6 +115,37 @@ test("Owner navigates the approved hierarchy and every route returns 200", async
     "true",
   );
   expect(consoleErrors).toEqual([]);
+});
+
+test("Rank settings is immediately above rank effects and opens the canonical active list", async ({ page }) => {
+  await page.goto("/");
+  const navigation = page.getByRole("navigation", { name: "管理ナビゲーション" });
+  const settings = navigation.getByRole("button", { name: "各種設定", exact: true });
+  await settings.click();
+  const settingsControls = page.locator(`#${await settings.getAttribute("aria-controls")}`);
+  const settingsLinks = settingsControls.getByRole("link");
+  await expect(settingsLinks).toHaveText([
+    "ページ設定",
+    "ランク設定",
+    "ランク演出",
+    "LINE設定",
+    "メール設定",
+  ]);
+  const rankSettings = settingsControls.getByRole("link", { name: "ランク設定" });
+  await expect(rankSettings).toHaveCount(1);
+  await expect(rankSettings).toHaveAttribute("href", "/catalog/ranks");
+  await expect(settingsControls.getByRole("link", { name: "ランク演出" })).toHaveAttribute(
+    "href",
+    "/catalog/presentation-assets",
+  );
+  const rankListRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname.endsWith("/catalog/ranks") && url.searchParams.get("status") === "active";
+  });
+  await rankSettings.click();
+  await rankListRequest;
+  await expect(page).toHaveURL(/\/catalog\/ranks$/u);
+  await expect(page.getByRole("heading", { name: "ランク", exact: true })).toBeVisible();
 });
 
 test("Payment navigation follows Gacha and opens Payment status", async ({ page }) => {
@@ -289,7 +321,7 @@ async function installPreviewApi(page: Page): Promise<void> {
     if (path.endsWith("/user-prizes")) {
       return json(route, { items: [], next_cursor: null, request_id: "01910191-0191-7191-8191-019101910193" });
     }
-    if (/\/catalog\/(gachas|categories|tags|presentation-assets)$/u.test(path)) {
+    if (/\/catalog\/(gachas|categories|tags|rank-effects|presentation-assets|ranks)$/u.test(path)) {
       return json(route, { items: [], next_cursor: null });
     }
     if (path.endsWith("/identity/line-messaging")) {

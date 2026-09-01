@@ -18,6 +18,12 @@
 - 修正前はfocused unitで`公開`要素2件期待に対して1件を再現した。final sourceでは`pnpm exec vitest run test/admin-announcement-management.test.tsx --reporter=verbose`が3 tests、`pnpm exec playwright test e2e/admin-announcement-management.spec.ts`がdesktop list／mobile editor各1件、`pnpm admin:typecheck`、`pnpm admin:lint`、`pnpm admin:test`が35 files／199 tests、`pnpm admin:generate:check`、`pnpm admin:build`、policy tests 203、local `policy-gate`、quality tests 4、local `quality-gate`、`git diff --check`をPASSした。E2E web-serverの2回とfinal Admin buildの計3回はlocal validationだけであり、Shared Preview／ProductionのRuntime Activation、migration作成／適用、API／database mutationは0である。
 - Diffの3 changed pathsとexternal policy scopeは一致し、binary、dependency／lockfile、generated contract、secret／PII候補の追加はない。既存mock CSRF token名だけを確認し、credential値は存在しない。PR #435のbranch、release verifier source、PR metadataに対するmutationは0である。
 
+## MIG-101 Rank Settings Navigation + Test Rank Effect Disable
+
+- Base `2a76698b78093d03b266b864ebd25c720d29a667`、Issue `none`、Branch `fix/MIG-101-rank-settings-navigation`、current worktree、Risk R3、Lane `Strict Change`、Application Runtime Activation `immediate`（Test Admin only）で開始した。Dedicated Worktree、Source Lock、Migration Allocation Lockは使用しない。Production Activation、Production data mutation、Production Rank Effect mutationは0とする。
+- Live sourceで既存Rank Master一覧のCanonical destinationが`/catalog/ranks`であること、`RankMasterWorkspace`のDefault Filterが`active`であることを確認した。Rank Master Domain、Gacha Rank Domain、Rank EffectのAsset Master責務、migration `000069`／`000070`、Public Contract、Storefront、Payment、Coin、Production infrastructureは変更しない。
+- Admin左メニューの`各種設定`に`ランク設定`を`ランク演出`の直上で一件だけ追加し、既存`catalog.read` permissionと`/catalog/ranks` routeを再利用する。Focused navigation coverageはラベル数、順序、destination、active-only list request、既存ランク演出導線を確認する。Merge後だけ、既存governed Test Admin Activation pathを用いてTest環境の既存Rank EffectをCanonical Admin APIまたはDomain mutation path経由でinactiveへ変更し、Asset／historyを削除しない。
+
 ## 運用ルール
 
 - 今後の新Version関連作業は、各Task完了時にこのFileへ追記する。

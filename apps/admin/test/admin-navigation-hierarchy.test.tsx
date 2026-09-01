@@ -80,7 +80,7 @@ describe("Admin sidebar hierarchy", () => {
       ["お知らせ", ["一覧", "登録"]],
       ["バナー", ["一覧", "登録"]],
       ["お問い合わせ", ["一覧"]],
-      ["各種設定", ["ページ設定", "ランク演出", "紹介ポイント設定", "LINE設定", "メール設定"]],
+      ["各種設定", ["ページ設定", "ランク設定", "ランク演出", "紹介ポイント設定", "LINE設定", "メール設定"]],
     ]);
     for (const [parent, labels] of expectedChildren) {
       const button = screen.getByRole("button", { name: parent });
@@ -89,6 +89,15 @@ describe("Admin sidebar hierarchy", () => {
       expect(controls).not.toBeNull();
       expect(within(controls!).getAllByRole("link").map((link) => link.textContent)).toEqual(labels);
     }
+
+    const settings = screen.getByRole("button", { name: "各種設定" });
+    expect(settings).toHaveAttribute("aria-expanded", "true");
+    const settingsControls = document.getElementById(settings.getAttribute("aria-controls")!);
+    expect(within(settingsControls!).getAllByRole("link", { name: "ランク設定" })).toHaveLength(1);
+    expect(within(settingsControls!).getByRole("link", { name: "ランク設定" })).toHaveAttribute(
+      "href",
+      "/catalog/ranks",
+    );
   });
 
   it("uses one-open accordion behavior and exposes control state", () => {
@@ -128,6 +137,12 @@ describe("Admin sidebar hierarchy", () => {
       navigationForPermissions(permissionState.permissions, true),
     );
     expect(active?.id).toBe("gachas-create");
+
+    const rankSettings = activeNavigationItem(
+      "/catalog/ranks",
+      navigationForPermissions(permissionState.permissions, true),
+    );
+    expect(rankSettings?.id).toBe("rank-settings");
   });
 
   it("shows the User list while keeping owner-only scaffolds hidden", () => {

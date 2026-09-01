@@ -22,6 +22,7 @@ export type AdminRouteId =
   | "banners-create"
   | "contacts"
   | "page-settings"
+  | "rank-settings"
   | "presentation-assets"
   | "referral-settings"
   | "line-settings"
@@ -106,6 +107,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("banners-create", "登録", "/banners/new", "content.manage", "banners", "scaffold"),
   route("contacts", "一覧", "/contacts", "contact.read", "contacts"),
   route("page-settings", "ページ設定", "/settings/pages", "content.read", "content", "scaffold"),
+  route("rank-settings", "ランク設定", "/catalog/ranks", "catalog.read", "catalog"),
   route("presentation-assets", "ランク演出", "/catalog/presentation-assets", "catalog.read", "catalog"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", "referral.settings.read", "settings"),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
@@ -148,6 +150,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
   group("contacts", "お問い合わせ", "contacts", ["contacts"]),
   group("settings", "各種設定", "settings", [
     "page-settings",
+    "rank-settings",
     "presentation-assets",
     "referral-settings",
     "line-settings",
