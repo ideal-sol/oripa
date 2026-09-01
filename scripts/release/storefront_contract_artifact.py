@@ -83,6 +83,23 @@ def run(command: list[str], *, cwd: Path, capture: bool = False) -> str:
     return result.stdout.strip() if capture else ""
 
 
+def canonical_breaking_change(value: dict, error: str) -> bool:
+    breaking_change = value.get("breaking_change", False)
+    if (
+        not isinstance(breaking_change, bool)
+        or (
+            value.get("release_mode") == "contract-breaking"
+            and breaking_change is not True
+        )
+        or (
+            value.get("release_mode") != "contract-breaking"
+            and breaking_change is not False
+        )
+    ):
+        raise ArtifactError(error)
+    return breaking_change
+
+
 def validate_immutable_release(value: dict) -> None:
     required = {
         "bundle_version",
@@ -112,17 +129,9 @@ def validate_immutable_release(value: dict) -> None:
             "contract-additive",
             "contract-breaking",
         }
-        or not isinstance(value.get("breaking_change", False), bool)
-        or (
-            value["release_mode"] == "contract-breaking"
-            and value.get("breaking_change") is not True
-        )
-        or (
-            value["release_mode"] != "contract-breaking"
-            and value.get("breaking_change", False)
-        )
     ):
         raise ArtifactError("immutable release evidence invalid")
+    canonical_breaking_change(value, "immutable release evidence invalid")
     publication = value.get("publication")
     if release_sequence >= 33 and publication is None:
         raise ArtifactError("immutable publication evidence missing")
@@ -270,12 +279,9 @@ def validate_governance(value: dict) -> dict:
         "contract-breaking",
     }:
         raise ArtifactError("unsupported release mode")
-    breaking_change = candidate.get("breaking_change", False)
-    if (
-        not isinstance(breaking_change, bool)
-        or (release_mode == "contract-breaking") != breaking_change
-    ):
-        raise ArtifactError("contract-breaking candidate authority mismatch")
+    breaking_change = canonical_breaking_change(
+        candidate, "contract-breaking candidate authority mismatch"
+    )
 
     latest_packages = latest["packages"]
     candidate_packages = candidate.get("packages")
@@ -402,6 +408,9 @@ def verification_target(value: dict) -> dict:
         "public_openapi_sha256": latest["public_openapi"]["sha256"],
         "public_api_operation_count": latest["public_openapi"]["operation_count"],
         "packages": packages,
+        "breaking_change": canonical_breaking_change(
+            latest, "immutable release evidence invalid"
+        ),
         "source_commit": latest["source_commit"],
         "manifest_sha256": latest["manifest_sha256"],
     }
