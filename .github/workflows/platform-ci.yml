@@ -48,6 +48,15 @@ jobs:
       - name: Test the policy gate
         run: python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
 
+      - name: Test GitHub delivery infrastructure
+        run: >-
+          python3 -m unittest
+          tests.ops.test_check_run_gate
+          tests.ops.test_github_app_git_wrapper
+          tests.ops.test_self_review_policy
+          tests.ops.test_task_branch_base_sync
+          tests.ops.test_task_policy
+
       - name: Validate repository policy
         env:
           POLICY_EVENT_NAME: ${{ github.event_name }}

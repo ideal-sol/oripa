@@ -18,6 +18,7 @@ TASK = "a" * 40
 BASE = "b" * 40
 CANDIDATE = "c" * 40
 ALLOWED = ["worklogs/new_ver_main.md", "infrastructure/github-app/**"]
+TREE = "d" * 40
 
 
 def candidate(**overrides):
@@ -26,13 +27,12 @@ def candidate(**overrides):
         "base_sha": BASE,
         "candidate_sha": CANDIDATE,
         "parents": [TASK, BASE],
+        "task_head_is_ancestor": True,
+        "base_is_ancestor": True,
+        "candidate_tree_sha": TREE,
+        "canonical_tree_sha": TREE,
         "net_changed_paths": ["worklogs/new_ver_main.md"],
-        "conflict_paths": ["worklogs/new_ver_main.md"],
-        "automatic_merge_mismatches": [],
-        "unresolved_conflict_paths": [],
-        "resolved_blobs": {
-            "worklogs/new_ver_main.md": ("candidate", "task", "base")
-        },
+        "conflict_paths": [],
         "allowed_paths": ALLOWED,
     }
     values.update(overrides)
@@ -68,10 +68,12 @@ class TaskBranchBaseSyncTest(unittest.TestCase):
                 remote_base_sha="d" * 40,
             )
 
-    def test_valid_conflict_resolution_passes(self):
+    def test_valid_clean_exact_scope_candidate_passes(self):
         result = candidate()
         self.assertTrue(result["passed"])
         self.assertEqual(result["task_head"], TASK)
+        self.assertEqual(result["candidate_tree_sha"], TREE)
+        self.assertEqual(result["canonical_tree_sha"], TREE)
 
     def test_stale_or_invalid_sha_rejects(self):
         with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_sha_invalid"):
@@ -81,37 +83,42 @@ class TaskBranchBaseSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_parent_mismatch"):
             candidate(parents=[BASE, TASK])
 
-    def test_net_scope_rejects_base_side_loss(self):
+    def test_net_scope_rejects_task_change_outside_policy(self):
         with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_net_scope_rejected"):
             candidate(net_changed_paths=["apps/api/routes/api.php"])
 
-    def test_automatic_merge_mismatch_rejects_base_side_loss(self):
-        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_base_change_lost"):
-            candidate(automatic_merge_mismatches=["infrastructure/github-app/check_run_gate.py"])
+    def test_empty_task_scope_rejects_task_omission(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_net_scope_rejected"):
+            candidate(net_changed_paths=[])
 
-    def test_conflict_resolution_cannot_select_either_parent(self):
-        with self.assertRaisesRegex(
-            gate.TaskBranchBaseSyncError, "sync_conflict_resolution_rejected"
-        ):
+    def test_task_head_must_be_ancestor(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_task_change_lost"):
+            candidate(task_head_is_ancestor=False)
+
+    def test_base_must_be_ancestor(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_base_change_lost"):
+            candidate(base_is_ancestor=False)
+
+    def test_conflict_rejects_without_manual_resolution(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_conflict_required"):
+            candidate(conflict_paths=["worklogs/new_ver_main.md"])
+
+    def test_candidate_tree_must_equal_canonical_clean_merge_tree(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_tree_mismatch"):
+            candidate(candidate_tree_sha="e" * 40)
+
+    def test_duplicate_scope_path_rejects(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_net_scope_rejected"):
             candidate(
-                resolved_blobs={
-                    "worklogs/new_ver_main.md": ("base", "task", "base")
-                }
+                net_changed_paths=[
+                    "worklogs/new_ver_main.md",
+                    "worklogs/new_ver_main.md",
+                ]
             )
 
-    def test_unresolved_conflict_rejects(self):
-        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_unresolved_conflict"):
-            candidate(unresolved_conflict_paths=["worklogs/new_ver_main.md"])
-
-    def test_conflict_path_must_be_in_net_scope(self):
-        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_conflict_scope_rejected"):
-            candidate(conflict_paths=["infrastructure/github-app/check_run_gate.py"])
-
-    def test_unresolved_markers_detected(self):
-        self.assertTrue(gate.contains_unresolved_markers(b"x\n<<<<<<< task\ny"))
-        self.assertTrue(gate.contains_unresolved_markers(b"x\n=======\ny"))
-        self.assertTrue(gate.contains_unresolved_markers(b"x\n>>>>>>> base\ny"))
-        self.assertFalse(gate.contains_unresolved_markers(b"resolved content"))
+    def test_candidate_cannot_reuse_a_parent(self):
+        with self.assertRaisesRegex(gate.TaskBranchBaseSyncError, "sync_candidate_invalid"):
+            candidate(candidate_sha=TASK)
 
 
 if __name__ == "__main__":

@@ -67,6 +67,13 @@ This separate reconciliation preserves one Task, one PR, protected-main
 provenance, and immutable version history. The publication workflow does not
 edit the ledger, does not open a PR, and does not push or commit to `main`.
 
+After reconciliation, readback reconstructs its verification target from the
+canonical `latest_immutable` record. It preserves the record's validated
+`breaking_change` value, so a contract-breaking manifest has identical
+verification semantics before and after the pending candidate is cleared.
+Missing or contradictory breaking metadata remains invalid; non-breaking
+records retain their canonical false value.
+
 ## MIG-099 Canonical Rank Cutover
 
 MIG-099 records the Human-authorized Rank Master and Gacha Rank Clean Cutover

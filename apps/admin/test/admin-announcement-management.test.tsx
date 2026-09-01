@@ -162,7 +162,7 @@ function version() {
     id: versionId,
     is_important: true,
     link_url: null,
-    publish_end_at: "2026-08-31T14:59:59Z",
+    publish_end_at: "2099-08-31T14:59:59Z",
     publish_start_at: "2026-08-01T00:00:00Z",
     published_at: "2026-08-01T00:00:00Z",
     sort_order: 0,

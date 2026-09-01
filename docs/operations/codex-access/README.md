@@ -31,6 +31,10 @@ requirements and approved trust exceptions.
 The machine-readable current profile is
 [platform-access-profile.json](platform-access-profile.json).
 
+The repository-managed Git delivery wrapper, clean exact-scope base sync, and
+atomic host provisioning contract are documented in
+[github-app-git-wrapper.md](github-app-git-wrapper.md).
+
 ## Root Trust Exception
 
 Platform Codex continues to run as `root`. Human approval permits this process
