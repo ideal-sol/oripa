@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -6,6 +7,7 @@ from pathlib import Path
 import runpy
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -504,6 +506,43 @@ class GitWrapperProvisionTest(unittest.TestCase):
     def setUp(self):
         self.provision = load_provision()
 
+    def canonical_repository(
+        self,
+        origin="git@github.com:ideal-sol/oripa.git",
+    ):
+        repository = TemporaryGitRepository()
+        self.addCleanup(repository.close)
+        for path in (PROVISION, MANIFEST, WRAPPER_SOURCE):
+            relative = path.relative_to(ROOT)
+            repository.write(relative, path.read_text(encoding="utf-8"))
+        source_head = repository.commit("merged canonical source")
+        repository.git("remote", "add", "origin", origin)
+        repository.git("update-ref", "refs/remotes/origin/main", source_head)
+        return repository, source_head
+
+    def detached_checkout(self, repository, head):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        checkout = Path(temporary.name) / "detached"
+        repository.git("worktree", "add", "--detach", str(checkout), head)
+        return checkout
+
+    @contextmanager
+    def authority_context(self, checkout, live_main):
+        with (
+            mock.patch.object(
+                self.provision,
+                "__file__",
+                str(checkout / PROVISION.relative_to(ROOT)),
+            ),
+            mock.patch.object(
+                self.provision,
+                "live_main_sha",
+                return_value=live_main,
+            ),
+        ):
+            yield
+
     def test_manifest_binds_source_runtime_role_mode_and_checksums(self):
         manifest, source_path, source_payload = self.provision.load_manifest(ROOT)
 
@@ -542,6 +581,442 @@ class GitWrapperProvisionTest(unittest.TestCase):
                 self.provision.ProvisionFailure, "repository_root_invalid"
             ):
                 self.provision.require_merged_main(Path(temporary))
+
+    def test_clean_exact_detached_checkout_is_valid_provision_authority(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+
+        self.assertEqual(
+            subprocess.run(
+                ["git", "-C", str(checkout), "status", "--porcelain"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout,
+            "",
+        )
+        self.assertEqual(
+            subprocess.run(
+                ["git", "-C", str(checkout), "branch", "--show-current"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout,
+            "",
+        )
+        with self.authority_context(checkout, expected_head):
+            authority = self.provision.require_repository_authority(
+                checkout, expected_head
+            )
+
+        self.assertEqual(authority["head_sha"], expected_head)
+
+    def test_explicit_detached_verify_source_cli_passes(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+
+        with (
+            self.authority_context(checkout, expected_head),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "provision_git_wrapper.py",
+                    "--repo-root",
+                    str(checkout),
+                    "--expected-head",
+                    expected_head,
+                    "verify-source",
+                ],
+            ),
+            mock.patch("builtins.print") as output,
+        ):
+            self.provision.main()
+
+        result = json.loads(output.call_args.args[0])
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(
+            result["source"],
+            str(checkout / WRAPPER_SOURCE.relative_to(ROOT)),
+        )
+
+    def test_default_clean_main_remains_valid_provision_authority(self):
+        repository, expected_head = self.canonical_repository()
+
+        with (
+            self.authority_context(repository.path, expected_head),
+            mock.patch.object(
+                self.provision,
+                "EXPECTED_REPOSITORY_ROOT",
+                repository.path,
+            ),
+        ):
+            actual_head = self.provision.require_merged_main(repository.path)
+
+        self.assertEqual(actual_head, expected_head)
+
+    def test_default_verify_source_cli_remains_backward_compatible(self):
+        repository, expected_head = self.canonical_repository()
+
+        with (
+            self.authority_context(repository.path, expected_head),
+            mock.patch.object(
+                self.provision,
+                "EXPECTED_REPOSITORY_ROOT",
+                repository.path,
+            ),
+            mock.patch.object(
+                sys,
+                "argv",
+                ["provision_git_wrapper.py", "verify-source"],
+            ),
+            mock.patch("builtins.print") as output,
+        ):
+            self.provision.main()
+
+        result = json.loads(output.call_args.args[0])
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(
+            result["source_sha256"],
+            hashlib.sha256(WRAPPER_SOURCE.read_bytes()).hexdigest(),
+        )
+
+    def test_active_primary_task_branch_is_unchanged_by_detached_install(self):
+        repository, source_head = self.canonical_repository()
+        repository.git("switch", "-q", "-c", "chore/OPS-027-active-task")
+        repository.write("ops-027.txt", "active task\n")
+        task_head = repository.commit("active task")
+        checkout = self.detached_checkout(repository, source_head)
+        before = {
+            "branch": repository.git("branch", "--show-current").stdout.strip(),
+            "head": repository.git("rev-parse", "HEAD").stdout.strip(),
+            "status": repository.git("status", "--porcelain").stdout,
+        }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime_root = Path(temporary)
+            destination_directory = runtime_root / "bin"
+            destination_directory.mkdir(mode=0o700)
+            destination = destination_directory / "oripa-github-app-git"
+            old_payload = b"#!/usr/bin/env python3\nprint('old')\n"
+            destination.write_bytes(old_payload)
+            destination.chmod(0o700)
+            backup_directory = runtime_root / "backups"
+            with self.authority_context(checkout, source_head):
+                manifest, _, source_payload = self.provision.load_manifest(
+                    checkout, source_head
+                )
+                with (
+                    mock.patch.object(
+                        self.provision,
+                        "current_contract",
+                        return_value=(
+                            destination,
+                            backup_directory,
+                            os.getuid(),
+                            os.getgid(),
+                            0o700,
+                        ),
+                    ),
+                    mock.patch.object(self.provision, "require_root"),
+                ):
+                    result = self.provision.install_current(
+                        manifest,
+                        source_payload,
+                        hashlib.sha256(old_payload).hexdigest(),
+                        checkout,
+                        source_head,
+                    )
+
+        after = {
+            "branch": repository.git("branch", "--show-current").stdout.strip(),
+            "head": repository.git("rev-parse", "HEAD").stdout.strip(),
+            "status": repository.git("status", "--porcelain").stdout,
+        }
+        self.assertEqual(before, after)
+        self.assertEqual(after["branch"], "chore/OPS-027-active-task")
+        self.assertEqual(after["head"], task_head)
+        self.assertEqual(result["repository_head"], source_head)
+
+    def test_older_merged_source_is_valid_when_live_main_is_newer(self):
+        repository, source_head = self.canonical_repository()
+        repository.write("newer-main.txt", "later merge\n")
+        live_main = repository.commit("later main merge")
+        repository.git("update-ref", "refs/remotes/origin/main", live_main)
+        checkout = self.detached_checkout(repository, source_head)
+
+        with self.authority_context(checkout, live_main):
+            authority = self.provision.require_repository_authority(
+                checkout, source_head
+            )
+
+        self.assertEqual(authority["head_sha"], source_head)
+        self.assertEqual(authority["live_main_sha"], live_main)
+
+    def test_relative_repository_root_rejects(self):
+        with self.assertRaisesRegex(
+            self.provision.ProvisionFailure,
+            "repository_root_not_absolute",
+        ):
+            self.provision.validate_repository_root(Path("relative/repository"))
+
+    def test_non_git_repository_root_rejects(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_git_worktree_invalid",
+            ):
+                self.provision.require_repository_authority(
+                    Path(temporary), "a" * 40
+                )
+
+    def test_wrong_repository_origin_rejects(self):
+        repository, expected_head = self.canonical_repository(
+            "git@github.com:ideal-sol/not-oripa.git"
+        )
+        checkout = self.detached_checkout(repository, expected_head)
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_origin_invalid",
+            ):
+                self.provision.require_repository_authority(
+                    checkout, expected_head
+                )
+
+    def test_dirty_detached_checkout_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        (checkout / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_not_clean",
+            ):
+                self.provision.require_repository_authority(
+                    checkout, expected_head
+                )
+
+    def test_tracked_mutation_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        helper_path = checkout / PROVISION.relative_to(ROOT)
+        helper_path.write_text(
+            helper_path.read_text(encoding="utf-8") + "\n",
+            encoding="utf-8",
+        )
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_not_clean",
+            ):
+                self.provision.require_repository_authority(
+                    checkout, expected_head
+                )
+
+    def test_expected_head_mismatch_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_head_mismatch",
+            ):
+                self.provision.require_repository_authority(checkout, "f" * 40)
+
+    def test_unmerged_detached_head_rejects(self):
+        repository, live_main = self.canonical_repository()
+        repository.git("switch", "-q", "-c", "unmerged-task")
+        repository.write("unmerged.txt", "not merged\n")
+        unmerged_head = repository.commit("unmerged task")
+        checkout = self.detached_checkout(repository, unmerged_head)
+
+        with self.authority_context(checkout, live_main):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_head_not_merged",
+            ):
+                self.provision.require_repository_authority(
+                    checkout, unmerged_head
+                )
+
+    def test_stale_origin_main_rejects_before_ancestry_trust(self):
+        repository, source_head = self.canonical_repository()
+        repository.write("newer-main.txt", "later merge\n")
+        live_main = repository.commit("later main merge")
+        checkout = self.detached_checkout(repository, source_head)
+
+        with self.authority_context(checkout, live_main):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_origin_main_mismatch",
+            ):
+                self.provision.require_repository_authority(
+                    checkout, source_head
+                )
+
+    def test_manifest_bytes_must_match_expected_head(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        manifest_path = checkout / MANIFEST.relative_to(ROOT)
+        manifest_path.write_text(
+            manifest_path.read_text(encoding="utf-8") + "\n",
+            encoding="utf-8",
+        )
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "manifest_head_mismatch",
+            ):
+                self.provision.load_manifest(checkout, expected_head)
+
+    def test_source_checksum_mismatch_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        source_path = checkout / WRAPPER_SOURCE.relative_to(ROOT)
+        source_path.write_text(
+            source_path.read_text(encoding="utf-8") + "\n",
+            encoding="utf-8",
+        )
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "source_sha_mismatch",
+            ):
+                self.provision.load_manifest(checkout)
+
+    def test_source_syntax_mismatch_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        source_path = checkout / WRAPPER_SOURCE.relative_to(ROOT)
+        source_path.write_text("def invalid(:\n", encoding="utf-8")
+        manifest_path = checkout / MANIFEST.relative_to(ROOT)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["repository_source"]["sha256"] = hashlib.sha256(
+            source_path.read_bytes()
+        ).hexdigest()
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        with self.authority_context(checkout, expected_head):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "source_syntax_invalid",
+            ):
+                self.provision.load_manifest(checkout)
+
+    def test_wrapper_source_symlink_escape_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        source_path = checkout / WRAPPER_SOURCE.relative_to(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            external = Path(temporary) / "external-wrapper"
+            external.write_text(
+                WRAPPER_SOURCE.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            source_path.unlink()
+            source_path.symlink_to(external)
+            with self.authority_context(checkout, expected_head):
+                with self.assertRaisesRegex(
+                    self.provision.ProvisionFailure,
+                    "source_path_invalid",
+                ):
+                    self.provision.load_manifest(checkout)
+
+    def test_manifest_symlink_escape_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        manifest_path = checkout / MANIFEST.relative_to(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            external = Path(temporary) / "external-manifest.json"
+            external.write_text(
+                MANIFEST.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            manifest_path.unlink()
+            manifest_path.symlink_to(external)
+            with self.authority_context(checkout, expected_head):
+                with self.assertRaisesRegex(
+                    self.provision.ProvisionFailure,
+                    "manifest_path_invalid",
+                ):
+                    self.provision.load_manifest(checkout)
+
+    def test_helper_from_different_checkout_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+
+        with self.assertRaisesRegex(
+            self.provision.ProvisionFailure,
+            "helper_checkout_mismatch",
+        ):
+            self.provision.load_manifest(checkout)
+
+    def test_loaded_source_substitution_rejects_before_install(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        with self.authority_context(checkout, expected_head):
+            manifest, _, _ = self.provision.load_manifest(
+                checkout, expected_head
+            )
+            substituted_payload = b"#!/usr/bin/env python3\nprint('substitute')\n"
+            substituted_manifest = json.loads(json.dumps(manifest))
+            substituted_manifest["repository_source"]["sha256"] = hashlib.sha256(
+                substituted_payload
+            ).hexdigest()
+
+            with (
+                mock.patch.object(self.provision, "require_root"),
+                self.assertRaisesRegex(
+                    self.provision.ProvisionFailure,
+                    "provision_source_changed",
+                ),
+            ):
+                self.provision.install_current(
+                    substituted_manifest,
+                    substituted_payload,
+                    "0" * 64,
+                    checkout,
+                    expected_head,
+                )
+
+    def test_repository_root_symlink_rejects(self):
+        repository, expected_head = self.canonical_repository()
+        checkout = self.detached_checkout(repository, expected_head)
+        with tempfile.TemporaryDirectory() as temporary:
+            linked_root = Path(temporary) / "linked-root"
+            linked_root.symlink_to(checkout, target_is_directory=True)
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "repository_root_invalid|repository_root_not_canonical",
+            ):
+                self.provision.validate_repository_root(linked_root)
+
+    def test_explicit_repository_root_requires_expected_head(self):
+        with mock.patch.object(
+            sys,
+            "argv",
+            [
+                "provision_git_wrapper.py",
+                "--repo-root",
+                "/var/tmp/detached",
+                "status",
+            ],
+        ):
+            with self.assertRaisesRegex(
+                self.provision.ProvisionFailure,
+                "explicit_authority_arguments_required",
+            ):
+                self.provision.main()
 
     def test_installed_runtime_drift_is_detected(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -32,7 +32,9 @@ symlink, and pre-install SHA drift. It has no credential input and never reads
 or copies a GitHub App key or token.
 
 The wrapper does not update itself. Provisioning is a separate root operation
-run only from an exact merged `main` checkout.
+run either from the default exact merged `main` checkout or from an explicitly
+selected clean exact merged checkout that satisfies the detached provision
+authority below.
 
 ## Clean Task Branch Base Sync
 
@@ -80,9 +82,9 @@ Task ID, or permit force push.
 
 ## Provision
 
-Provision only after the Change is squash merged, local `main` equals live
-protected `main`, and the source plus manifest are read from that exact merged
-commit.
+The default interface remains fixed to `/var/www/oripa`. Provision only after
+the Change is squash merged, local `main` equals live protected `main`, and the
+helper, source, and manifest are read from that exact merged commit.
 
 ```text
 python3 infrastructure/github-app/provision_git_wrapper.py verify-source
@@ -102,6 +104,39 @@ the private backup directory under its SHA-256. A failure before replacement
 leaves the prior wrapper untouched; a post-replacement verification failure
 or merged-main authority change atomically restores and verifies the prior
 bytes.
+
+### Explicit Detached Checkout
+
+When the Primary `/var/www/oripa` worktree holds an active Change, do not switch
+its branch, reset it, stash it, or repurpose it for provisioning. Refresh the
+canonical `origin/main` remote-tracking ref without switching the Primary
+branch, then create a separate clean detached worktree at the exact merged
+provision commit. The selected commit may be older than live protected `main`,
+but it must remain an ancestor of live protected `main`.
+
+The detached commit must contain the provision helper version that supports
+the explicit interface. Invoke that helper from the same detached checkout as
+the manifest and wrapper source:
+
+```text
+python3 <absolute-detached-root>/infrastructure/github-app/provision_git_wrapper.py --repo-root <absolute-detached-root> --expected-head <exact-full-merged-sha> verify-source
+python3 <absolute-detached-root>/infrastructure/github-app/provision_git_wrapper.py --repo-root <absolute-detached-root> --expected-head <exact-full-merged-sha> status
+python3 <absolute-detached-root>/infrastructure/github-app/provision_git_wrapper.py --repo-root <absolute-detached-root> --expected-head <exact-full-merged-sha> install <exact-current-runtime-sha256>
+python3 <absolute-detached-root>/infrastructure/github-app/provision_git_wrapper.py --repo-root <absolute-detached-root> --expected-head <exact-full-merged-sha> verify-installed
+```
+
+`--repo-root` and `--expected-head` must be supplied together. The helper
+rejects a relative, missing, non-canonical, or symlinked root; a non-Git
+worktree; a non-canonical `ideal-sol/oripa` origin; tracked or untracked worktree
+changes; a HEAD mismatch; a stale local `origin/main`; or a HEAD that is not an
+ancestor of live protected `main`. The helper path, manifest, and wrapper source
+must be regular non-symlink files in the same checkout and byte-identical to
+their blobs at the expected HEAD. The manifest continues to fix the source
+path, checksum, runtime destination, backup directory, owner, group, and mode.
+
+After source verification, install, installed verification, and the required
+read-only wrapper checks pass, the temporary detached worktree may be removed.
+Removing it does not authorize changing or cleaning the Primary active Change.
 
 Minimal non-mutating host verification is:
 
