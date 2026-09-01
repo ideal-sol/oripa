@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "platform-maintainers",
-    "reason": "Exact V1 lint findings preserved during governance-only CI introduction; application fixes are outside GOV-009.",
+    "reason": "Fresh exact-fingerprint review completed on 2026-09-01 in GOV-029 against unchanged V1 source from main@2bc8598867391d6d50c6e3d10cd9f90a5677a6c7; all 9 existing findings remain exact and V1 application fixes are outside this delivery-infrastructure Change.",
     "removal_condition": "Remove each fingerprint only with the approved application fix that makes the finding disappear.",
-    "expires_at": "2026-08-31",
-    "tracking_task": "QUALITY-001"
+    "expires_at": "2026-09-08",
+    "tracking_task": "GOV-029"
   },
   "findings": [
     {

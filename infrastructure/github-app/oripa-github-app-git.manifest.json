@@ -1,0 +1,21 @@
+{
+  "component": "oripa-github-app-git",
+  "repository_source": {
+    "imported_sha256": "81a5cba7ff3f8dc3ba7eb4decce2aec74fc83b11996e3c43fa7b6cfb0851114f",
+    "path": "infrastructure/github-app/oripa-github-app-git",
+    "sha256": "b5415d916a2a0e2263b51d57e955b3c97154cbe23c02b37f32a0837b9433e90f"
+  },
+  "role": "GitHub App Git delivery wrapper",
+  "rollback": {
+    "directory": "/var/lib/oripa-github-app-wrapper-backups"
+  },
+  "runtime": {
+    "destination": "/usr/local/bin/oripa-github-app-git",
+    "gid": 0,
+    "group": "root",
+    "mode": "0700",
+    "owner": "root",
+    "uid": 0
+  },
+  "schema_version": "1.0"
+}
