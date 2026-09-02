@@ -8335,7 +8335,7 @@ components:
         - $ref: '#/components/schemas/AdminUserSummary'
         - type: object
           additionalProperties: false
-          required: [email, email_verified_at, sms_verified, phone, verified_at, state_revision, updated_at]
+          required: [email, email_verified_at, state_revision, updated_at]
           properties:
             email:
               type: string

@@ -7191,7 +7191,6 @@
         "required": [
           "id",
           "status",
-          "delivery_state",
           "expires_at"
         ],
         "properties": {
@@ -7229,8 +7228,6 @@
           "accepted",
           "challenge_id",
           "phone_masked",
-          "status",
-          "delivery_state",
           "expires_at"
         ],
         "properties": {
@@ -7263,9 +7260,7 @@
         "additionalProperties": false,
         "required": [
           "verified",
-          "phone",
           "phone_masked",
-          "verified_at",
           "challenge"
         ],
         "properties": {

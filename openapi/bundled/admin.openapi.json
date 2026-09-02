@@ -20625,9 +20625,6 @@
             "required": [
               "email",
               "email_verified_at",
-              "sms_verified",
-              "phone",
-              "verified_at",
               "state_revision",
               "updated_at"
             ],

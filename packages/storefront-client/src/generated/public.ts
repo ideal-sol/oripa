@@ -2214,7 +2214,7 @@ export interface components {
              * @description Provider固有情報を含まないsafe delivery lifecycle。
              * @enum {string}
              */
-            delivery_state: "pending" | "accepted" | "failed";
+            delivery_state?: "pending" | "accepted" | "failed";
             expires_at: components["schemas"]["UtcDateTime"];
         };
         SmsVerificationAccepted: {
@@ -2224,18 +2224,18 @@ export interface components {
             challenge_id: string;
             phone_masked: string;
             /** @constant */
-            status: "pending";
+            status?: "pending";
             /** @constant */
-            delivery_state: "pending";
+            delivery_state?: "pending";
             expires_at: components["schemas"]["UtcDateTime"];
         };
         SmsVerificationStatus: {
             verified: boolean;
             /** @description 認証済みの場合にCurrent Userへ表示するcanonical E.164電話番号。 */
-            phone: string | null;
+            phone?: string | null;
             phone_masked: string | null;
             /** Format: date-time */
-            verified_at: string | null;
+            verified_at?: string | null;
             challenge: components["schemas"]["SmsVerificationChallenge"] | null;
         };
         VerificationResendRequest: {

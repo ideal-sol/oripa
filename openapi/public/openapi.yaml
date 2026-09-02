@@ -4312,7 +4312,7 @@ components:
     SmsVerificationChallenge:
       type: object
       additionalProperties: false
-      required: [id, status, delivery_state, expires_at]
+      required: [id, status, expires_at]
       properties:
         id:
           type: string
@@ -4329,7 +4329,7 @@ components:
     SmsVerificationAccepted:
       type: object
       additionalProperties: false
-      required: [accepted, challenge_id, phone_masked, status, delivery_state, expires_at]
+      required: [accepted, challenge_id, phone_masked, expires_at]
       properties:
         accepted:
           type: boolean
@@ -4350,7 +4350,7 @@ components:
     SmsVerificationStatus:
       type: object
       additionalProperties: false
-      required: [verified, phone, phone_masked, verified_at, challenge]
+      required: [verified, phone_masked, challenge]
       properties:
         verified:
           type: boolean
