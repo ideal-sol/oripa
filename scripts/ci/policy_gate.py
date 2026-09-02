@@ -2308,6 +2308,7 @@ def validate_storefront_client(repository: Path, paths: Iterable[str]) -> None:
             "gacha.catalog-display.v2",
             "gacha.presentation.v2",
             "gacha.rank-master.v2",
+            "identity.sms-phone-ownership.v2",
             "payment.fincode.v2",
             "prize.fulfillment-browser-mutation.v2",
             "user-draw-history.read.v2",
@@ -2984,6 +2985,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_24_000068_add_v2_account_security.php",
         "2026_09_25_000069_create_v2_canonical_rank_domain.php",
         "2026_09_26_000070_normalize_v2_rank_master_status_check.php",
+        "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -2999,6 +3001,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "2026_08_07_000018_add_line_external_identity_provider.php",
             "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
             "2026_09_24_000068_add_v2_account_security.php",
+            "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
         ]
     )
     for required in (
@@ -3037,6 +3040,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "code_verifier_ciphertext",
         "user_email_change_requests",
         "initiating_session_hash",
+        "delivery_state",
+        "provider_request_id",
     ):
         if required not in identity_migrations:
             raise PolicyFailure(f"V2 Identity migration boundary missing {required}")
@@ -3091,9 +3096,11 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "'email_change_day' => [10, 86400]",
         "'email_change_confirm' => [5, 1800]",
         "'password_change' => [5, 900]",
+        "'ttl_minutes' => 5",
+        "'resend_cooldown_seconds' => 60",
+        "'maximum_attempts' => 5",
         "'sms_phone_hour' => [3, 3600]",
         "'sms_phone_day' => [10, 86400]",
-        "'sms_ip' => [5, 3600]",
         "'sms_verify' => [5, 300]",
         "'oidc_login_start' => [10, 600]",
         "'oidc_link_start' => [5, 600]",
@@ -3101,6 +3108,8 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
     ):
         if required not in config:
             raise PolicyFailure(f"V2 Identity secure default missing {required}")
+    if "'sms_ip'" in config:
+        raise PolicyFailure("V2 SMS send must not use an IP rate limit")
 
     password_policy = (
         repository

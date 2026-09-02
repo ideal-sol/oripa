@@ -392,6 +392,17 @@ Migration application, Provider integration, and Production remain separate
 states. A released Artifact is read back from the canonical GitHub Artifact,
 rehashed, and compared with its Manifest and `SHA256SUMS` before GO.
 
+## Pending SMS Phone Ownership Contract
+
+SMS-001 reserves immutable bundle `2.0.0-alpha.35` as the next additive
+contract candidate. It advances Public, Admin, and Webhook contract metadata to
+`2.0.0-alpha.31`, publishes matching Client and Testkit packages, and adds the
+`identity.sms-phone-ownership.v2` compatibility capability. The candidate adds
+delivery lifecycle, retry timing, verified phone metadata, generic ownership
+conflict, and SMS-required fulfillment contracts without adding operations.
+Provider credentials, real SMS delivery, Runtime Activation, and Migration
+application remain deferred and are not authorized by Artifact publication.
+
 ## Storefront Handoff
 
 Storefront adoption pins the formally released immutable Artifact by exact

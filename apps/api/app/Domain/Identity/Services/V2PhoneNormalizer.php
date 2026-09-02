@@ -12,12 +12,20 @@ final class V2PhoneNormalizer
         if (class_exists(Normalizer::class)) {
             $value = Normalizer::normalize($value, Normalizer::FORM_C) ?: $value;
         }
-        $value = preg_replace('/[\x{00A0}\s().-]+/u', '', $value) ?? '';
-        if (! preg_match('/\A\+[1-9][0-9]{7,14}\z/', $value)) {
-            throw new \InvalidArgumentException('Phone numbers must use E.164 format.');
+        if (! preg_match('/\A(?:070|080|090)(?:[0-9]{8}|-[0-9]{4}-[0-9]{4})\z/', $value)) {
+            throw new \InvalidArgumentException('Phone numbers must be Japanese mobile numbers.');
         }
 
-        return $value;
+        return '+81'.substr(str_replace('-', '', $value), 1);
+    }
+
+    public function toDomestic(string $canonicalPhone): string
+    {
+        if (! preg_match('/\A\+81(70|80|90)([0-9]{8})\z/', $canonicalPhone, $matches)) {
+            throw new \InvalidArgumentException('Canonical phone number is invalid.');
+        }
+
+        return '0'.$matches[1].$matches[2];
     }
 
     public function mask(string $phone): string

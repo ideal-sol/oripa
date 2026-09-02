@@ -13,6 +13,7 @@ return [
         'email_change_verification' => 'メールアドレス変更認証時',
         'email_change_completed' => 'メールアドレス変更完了時',
         'password_changed' => 'パスワード変更完了時',
+        'phone_changed' => '電話番号変更完了時',
     ],
     'variables' => [
         'user_name' => 'ユーザー名',

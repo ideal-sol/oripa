@@ -45,35 +45,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
 
     def next_candidate_governance(self):
-        value = copy.deepcopy(self.governance())
-        latest = value["latest_immutable"]
-        packages = copy.deepcopy(latest["packages"])
-        packages["@oripa/storefront-client"].update(
-            {"version": "2.0.0-alpha.35", "disposition": "publish"}
-        )
-        packages["@oripa/storefront-client"].pop("sha256")
-        packages["@oripa/site-schema"]["disposition"] = "reference"
-        packages["@oripa/storefront-testkit"].update(
-            {
-                "version": "2.0.0-alpha.35",
-                "disposition": "publish",
-                "storefront_client_version": "2.0.0-alpha.35",
-            }
-        )
-        packages["@oripa/storefront-testkit"].pop("sha256")
-        value["candidate"] = {
-            "release_state": "pending",
-            "bundle_version": "2.0.0-alpha.35",
-            "predecessor_bundle_version": latest["bundle_version"],
-            "release_mode": "package-only",
-            "platform_version": latest["platform_version"],
-            "application_versions": latest["application_versions"],
-            "contract_versions": latest["contract_versions"],
-            "public_openapi_sha256": latest["public_openapi"]["sha256"],
-            "public_api_operation_count": latest["public_openapi"]["operation_count"],
-            "packages": packages,
-        }
-        return value
+        return copy.deepcopy(self.governance())
 
     def schema_candidate_governance(self):
         value = self.next_candidate_governance()
@@ -97,32 +69,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return value
 
     def breaking_candidate_governance(self):
-        value = copy.deepcopy(self.governance())
-        breaking_release = copy.deepcopy(value["latest_immutable"])
-        value["immutable_history"] = value["immutable_history"][:-1]
-        value["latest_immutable"] = copy.deepcopy(value["immutable_history"][-1])
-        packages = copy.deepcopy(breaking_release["packages"])
-        for name, details in packages.items():
-            if name == "@oripa/site-schema":
-                details["disposition"] = "reference"
-            else:
-                details.pop("sha256")
-                details["disposition"] = "publish"
-        value["candidate"] = {
-            "release_state": "pending",
-            "bundle_version": breaking_release["bundle_version"],
-            "predecessor_bundle_version": value["latest_immutable"]["bundle_version"],
-            "release_mode": breaking_release["release_mode"],
-            "breaking_change": breaking_release["breaking_change"],
-            "platform_version": breaking_release["platform_version"],
-            "application_versions": breaking_release["application_versions"],
-            "contract_versions": breaking_release["contract_versions"],
-            "public_openapi_sha256": breaking_release["public_openapi"]["sha256"],
-            "public_api_operation_count": breaking_release["public_openapi"][
-                "operation_count"
-            ],
-            "packages": packages,
-        }
+        value = self.next_candidate_governance()
+        value["candidate"]["release_mode"] = "contract-breaking"
+        value["candidate"]["breaking_change"] = True
         return artifact.validate_governance(value)
 
     def settled_governance(self, value, manifest, output: Path):
@@ -172,7 +121,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
         self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
 
-    def test_alpha_34_is_released_and_prior_releases_are_preserved(self):
+    def test_alpha_34_is_released_and_alpha_35_is_pending(self):
         value = artifact.validate_governance(self.governance())
         latest = value["latest_immutable"]
         alpha_32 = value["immutable_history"][-3]
@@ -183,7 +132,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.35")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertFalse(value["candidate"]["breaking_change"])
         self.assertEqual(latest["source_commit"], "576c35137946e5effcda63d6bf750d5ecc41150f")
         self.assertEqual(latest["manifest_sha256"], "42f4bee68b787dac16d07accee1c6154c7cea392c521c41b14461d6b56221464")
         self.assertEqual(latest["release_mode"], "contract-breaking")
@@ -212,10 +163,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             },
         )
 
-    def test_settled_alpha_34_target_preserves_breaking_metadata(self):
+    def test_pending_alpha_35_target_preserves_additive_metadata(self):
         target = artifact.verification_target(self.governance())
 
-        self.assertTrue(target["breaking_change"])
+        self.assertFalse(target["breaking_change"])
 
     def test_settled_breaking_release_missing_metadata_fails_closed(self):
         value = copy.deepcopy(self.governance())
@@ -339,7 +290,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_governance(self.next_candidate_governance())["candidate"]
         self.assertEqual(result["bundle_version"], "2.0.0-alpha.35")
         self.assertEqual(result["platform_version"], "2.0.0-alpha.23")
-        self.assertEqual(result["contract_versions"]["public"], "2.0.0-alpha.30")
+        self.assertEqual(result["contract_versions"]["public"], "2.0.0-alpha.31")
         self.assertEqual(result["packages"]["@oripa/site-schema"]["version"], "2.0.0-alpha.23")
         self.assertEqual(result["packages"]["@oripa/storefront-client"]["version"], "2.0.0-alpha.35")
         self.assertEqual(result["packages"]["@oripa/storefront-testkit"]["version"], "2.0.0-alpha.35")
@@ -348,7 +299,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.34",
+            "2.0.0-alpha.35",
         )
         with mock.patch.object(
             artifact,
@@ -388,12 +339,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         artifact.write_checksums(output)
         return governance
 
-    def test_settled_alpha_34_ledger_has_no_pending_candidate(self):
-        self.assertIsNone(artifact.governance(ROOT)["candidate"])
-        with self.assertRaisesRegex(
-            artifact.ArtifactError, "no pending Storefront artifact candidate"
-        ):
-            artifact.pending_candidate(ROOT)
+    def test_alpha_35_ledger_has_one_pending_candidate(self):
+        candidate = artifact.pending_candidate(ROOT)
+
+        self.assertEqual(candidate["bundle_version"], "2.0.0-alpha.35")
+        self.assertEqual(candidate["predecessor_bundle_version"], "2.0.0-alpha.34")
 
     def test_nonbreaking_candidate_and_settled_manifest_verification(self):
         with tempfile.TemporaryDirectory() as temporary:

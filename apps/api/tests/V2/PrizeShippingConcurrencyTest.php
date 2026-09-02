@@ -14,6 +14,7 @@ use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 use Throwable;
@@ -172,6 +173,15 @@ final class PrizeShippingConcurrencyTest extends TestCase
             'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
             'state' => V2UserState::Active,
+        ]);
+        DB::table('user_phone_numbers')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $user->getKey(),
+            'phone_ciphertext' => Crypt::encryptString('+819012345678'),
+            'phone_hmac' => hash('sha256', 'prize-shipping-concurrency-phone'),
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
         app(V2PointService::class)->grantFree(
             $user->id,

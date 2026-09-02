@@ -36,6 +36,8 @@ final class IdentitySchemaTest extends TestCase
         'admin_totp_methods',
         'admin_recovery_codes',
         'admin_authentication_policy',
+        'user_phone_numbers',
+        'sms_verification_challenges',
     ];
 
     public function test_identity_tables_and_sensitive_storage_boundaries_exist(): void
@@ -71,6 +73,67 @@ final class IdentitySchemaTest extends TestCase
         self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'mfa_required'));
         self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'invitation_required'));
         self::assertTrue(Schema::hasColumn('admin_authentication_policy', 'revision'));
+        foreach ([
+            'delivery_state',
+            'provider_identifier',
+            'provider_request_id',
+            'delivery_error_category',
+            'delivery_attempted_at',
+            'delivery_accepted_at',
+            'delivery_failed_at',
+        ] as $column) {
+            self::assertTrue(Schema::hasColumn('sms_verification_challenges', $column));
+        }
+        self::assertTrue(Schema::hasColumn('sms_verification_challenges', 'code_hash'));
+        self::assertFalse(Schema::hasColumn('sms_verification_challenges', 'code'));
+        self::assertTrue(DB::table('mail_templates')->where('template_key', 'phone_changed')->exists());
+    }
+
+    public function test_sms_delivery_migration_rolls_back_and_reapplies_in_isolation(): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $migration = require database_path(
+                'migrations-v2/2026_09_27_000071_add_v2_sms_delivery_lifecycle.php'
+            );
+            $migration->down();
+            self::assertFalse(Schema::hasColumn(
+                'sms_verification_challenges',
+                'delivery_state'
+            ));
+            self::assertFalse(DB::table('mail_templates')
+                ->where('template_key', 'phone_changed')->exists());
+
+            $userId = $this->insertUser('legacy-sms-challenge@example.test', true);
+            $challengeId = DB::table('sms_verification_challenges')->insertGetId([
+                'public_id' => (string) Str::uuid7(),
+                'user_id' => $userId,
+                'phone_ciphertext' => 'legacy-encrypted-envelope',
+                'phone_hmac' => hash('sha256', 'legacy-phone'),
+                'code_hash' => hash('sha256', '123456'),
+                'purpose' => 'registration',
+                'failed_attempts' => 0,
+                'expires_at' => now()->addMinutes(5),
+                'sent_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $migration->up();
+            self::assertTrue(Schema::hasColumn(
+                'sms_verification_challenges',
+                'delivery_state'
+            ));
+            self::assertTrue(DB::table('mail_templates')
+                ->where('template_key', 'phone_changed')->exists());
+            $legacy = DB::table('sms_verification_challenges')->find($challengeId);
+            self::assertSame('failed', $legacy->delivery_state);
+            self::assertSame('legacy_delivery_unconfirmed', $legacy->delivery_error_category);
+            self::assertNotNull($legacy->revoked_at);
+        } finally {
+            DB::rollBack();
+        }
     }
 
     public function test_pending_user_email_can_repeat_but_verified_email_is_unique(): void

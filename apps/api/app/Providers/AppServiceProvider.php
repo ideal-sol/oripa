@@ -10,6 +10,8 @@ use App\Domain\Line\Contracts\V2LineMessagingTransport;
 use App\Domain\Line\Services\V2LineMessagingHttpTransport;
 use App\Domain\Notification\Contracts\SmsSender;
 use App\Domain\Notification\Services\LogSmsSender;
+use App\Domain\Sms\Contracts\V2SmsProvider;
+use App\Domain\Sms\Services\V2FourSSmsProvider;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -23,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
             V2LineMessagingTransport::class,
             V2LineMessagingHttpTransport::class
         );
+        $this->app->bind(V2SmsProvider::class, V2FourSSmsProvider::class);
         $this->app->bind(SmsSender::class, function (): SmsSender {
             return match ((string) config('services.sms.driver', 'log')) {
                 'log' => new LogSmsSender(),

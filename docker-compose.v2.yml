@@ -101,6 +101,44 @@ services:
       - v2_private
       - v2_api_egress
 
+  sms-delivery-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - sms-fours
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          php artisan v2:identity:work-sms-outbox --worker=sms-delivery-worker --limit=10
+          sleep 5
+        done
+    environment:
+      <<: *v2_api_environment
+      APP_NAME: ${V2_APP_NAME:-Oripa}
+      V2_SMS_FOURS_ENDPOINT: ${V2_SMS_FOURS_ENDPOINT:-https://4sm.jp/api/sms_send}
+      V2_SMS_FOURS_CP_USERID: ${V2_SMS_FOURS_CP_USERID:-}
+      V2_SMS_FOURS_CP_PASSWORD: ${V2_SMS_FOURS_CP_PASSWORD:-}
+      V2_SMS_FOURS_USER_AGENT: ${V2_SMS_FOURS_USER_AGENT:-OripaV2-SMS/2}
+      V2_SMS_FOURS_TIMEOUT_SECONDS: ${V2_SMS_FOURS_TIMEOUT_SECONDS:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - v2_private
+      - v2_api_egress
+
   admin:
     build:
       context: .

@@ -14,10 +14,12 @@ use App\Domain\PrizeShipping\Exceptions\V2PrizeShippingException;
 use App\Domain\PrizeShipping\Services\V2PrizeShippingService;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
+use App\Models\V2\UserPhoneNumber;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -113,6 +115,59 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertStringNotContainsString('exchange_point_snapshot', $serialized);
         self::assertStringNotContainsString('individual_ppm', $serialized);
         self::assertStringNotContainsString('cost_price', $serialized);
+    }
+
+    public function test_unverified_user_cannot_use_any_address_operation_or_create_shipping(): void
+    {
+        [$user, $prizes] = $this->fixture(1);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $shipping = $service->createShippingRequest(
+            $user,
+            $address['id'],
+            $prizes,
+            'sms-gate-shipping-'.Str::uuid(),
+            (string) Str::uuid7()
+        );
+        UserPhoneNumber::query()->where('user_id', $user->getKey())->update([
+            'revoked_at' => now(),
+        ]);
+
+        $operations = [
+            fn () => $service->addresses($user),
+            fn () => $service->addressDetail($user, $address['id'], (string) Str::uuid7()),
+            fn () => $service->createAddress($user, $this->address(), (string) Str::uuid7()),
+            fn () => $service->updateAddress(
+                $user,
+                $address['id'],
+                $this->address(),
+                (string) Str::uuid7()
+            ),
+            fn () => $service->deleteAddress($user, $address['id'], (string) Str::uuid7()),
+            fn () => $service->createShippingRequest(
+                $user,
+                $address['id'],
+                $prizes,
+                'sms-gate-shipping-retry-'.Str::uuid(),
+                (string) Str::uuid7()
+            ),
+        ];
+        foreach ($operations as $operation) {
+            try {
+                $operation();
+                self::fail('SMS verification must gate the operation.');
+            } catch (V2PrizeShippingException $exception) {
+                self::assertSame('SMS_VERIFICATION_REQUIRED', $exception->errorCode);
+                self::assertSame(403, $exception->status);
+            }
+        }
+
+        self::assertSame($shipping['id'], $service->shippingRequests($user, null, 20)['items'][0]['id']);
+        self::assertSame($shipping['id'], $service->shippingDetail(
+            $user,
+            $shipping['id'],
+            (string) Str::uuid7()
+        )['id']);
     }
 
     public function test_prize_presentation_actions_are_backend_authoritative_and_private(): void
@@ -867,13 +922,21 @@ final class PrizeShippingVerticalSliceTest extends TestCase
 
     private function user(): User
     {
-        return User::query()->create([
+        $user = User::query()->create([
             'email_display' => 'prize-'.Str::uuid().'@example.test',
             'email_normalized' => 'prize-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
             'state' => V2UserState::Active,
         ]);
+        UserPhoneNumber::query()->create([
+            'user_id' => $user->getKey(),
+            'phone_ciphertext' => Crypt::encryptString('+8190'.random_int(10_000_000, 99_999_999)),
+            'phone_hmac' => hash('sha256', 'shipping-phone-'.Str::uuid()),
+            'verified_at' => now(),
+        ]);
+
+        return $user;
     }
 
     private function admin(): Admin
