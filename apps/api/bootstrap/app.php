@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        using: function (): void {
+        then: function (): void {
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
