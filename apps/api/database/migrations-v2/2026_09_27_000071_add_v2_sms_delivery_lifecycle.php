@@ -78,7 +78,7 @@ return new class extends Migration
                         AND delivery_failed_at IS NULL
                         AND provider_request_id IS NOT NULL
                         AND delivery_error_category IS NULL)
-                    OR (delivery_state IN ('failed', 'unknown')
+                    OR (delivery_state::text = ANY (ARRAY['failed'::text, 'unknown'::text])
                         AND delivery_attempted_at IS NOT NULL
                         AND delivery_accepted_at IS NULL
                         AND delivery_failed_at IS NOT NULL
