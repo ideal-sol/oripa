@@ -303,6 +303,11 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
           <Definition label="メール確認">
             {user.email_verified_at ? formatDateTime(user.email_verified_at) : "未確認"}
           </Definition>
+          <Definition label="SMS認証">{user.sms_verified ? "認証済み" : "未認証"}</Definition>
+          <Definition label="電話番号">{user.phone ?? "未登録"}</Definition>
+          <Definition label="SMS認証日時">
+            {user.verified_at ? formatDateTime(user.verified_at) : "未認証"}
+          </Definition>
           <Definition label="登録日">{formatDateTime(user.created_at)}</Definition>
           <Definition label="更新日">{formatDateTime(user.updated_at)}</Definition>
         </dl>

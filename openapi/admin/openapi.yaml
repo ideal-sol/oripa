@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.30
+  version: 2.0.0-alpha.31
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -6715,7 +6715,7 @@ components:
         [email_verification, registration_completed, coin_purchase_completed,
          shipping_requested, shipping_completed, user_closed, contact_received,
          password_reset, email_change_verification, email_change_completed,
-         password_changed]
+         password_changed, phone_changed]
     AdminMailTemplateVariable:
       type: object
       additionalProperties: false
@@ -8335,7 +8335,7 @@ components:
         - $ref: '#/components/schemas/AdminUserSummary'
         - type: object
           additionalProperties: false
-          required: [email, email_verified_at, state_revision, updated_at]
+          required: [email, email_verified_at, sms_verified, phone, verified_at, state_revision, updated_at]
           properties:
             email:
               type: string
@@ -8343,6 +8343,17 @@ components:
             email_verified_at:
               type: [string, 'null']
               format: date-time
+            sms_verified:
+              type: boolean
+              readOnly: true
+            phone:
+              type: [string, 'null']
+              pattern: '^\\+81(?:70|80|90)[0-9]{8}$'
+              readOnly: true
+            verified_at:
+              type: [string, 'null']
+              format: date-time
+              readOnly: true
             state_revision:
               type: integer
               minimum: 1

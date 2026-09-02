@@ -14,6 +14,7 @@ use App\Models\V2\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -50,6 +51,15 @@ final class AdminUserStateManagementTest extends TestCase
         $user = $this->user(V2UserState::Active);
         $userSession = $this->userSession($user);
         $this->rememberDevice($user);
+        DB::table('user_phone_numbers')->insert([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $user->getKey(),
+            'phone_ciphertext' => Crypt::encryptString('+819012345678'),
+            'phone_hmac' => hash('sha256', 'admin-state-phone-'.$user->public_id),
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $owner = $this->adminSession(V2AdminRole::Owner);
 
         $suspended = $this->mutate($owner, $user, 'suspended', 1, 'Support investigation.')
@@ -62,6 +72,8 @@ final class AdminUserStateManagementTest extends TestCase
             ->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($userSession))
             ->value('revoked_at'));
         self::assertNotNull(DB::table('user_remember_devices')
+            ->where('user_id', $user->id)->value('revoked_at'));
+        self::assertNull(DB::table('user_phone_numbers')
             ->where('user_id', $user->id)->value('revoked_at'));
 
         Auth::forgetGuards();
@@ -81,6 +93,8 @@ final class AdminUserStateManagementTest extends TestCase
         self::assertNotNull(DB::table('user_sessions')
             ->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($secondSession))
             ->value('revoked_at'));
+        self::assertNotNull(DB::table('user_phone_numbers')
+            ->where('user_id', $user->id)->value('revoked_at'));
         self::assertSame(3, DB::table('audit_logs')->where('action_code', 'user.state.updated')->count());
         self::assertDatabaseHas('wallets', [
             'user_id' => $user->id,

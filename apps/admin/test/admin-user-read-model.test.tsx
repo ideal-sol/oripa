@@ -126,6 +126,9 @@ describe("Admin User Read workspace", () => {
       ...userSummary(),
       email: "user@example.test",
       email_verified_at: "2026-08-03T00:00:00Z",
+      sms_verified: true,
+      phone: "+819012345678",
+      verified_at: "2026-08-03T00:30:00Z",
       state_revision: 1,
       tag_assignment_revision: 1,
       tags: [],
@@ -134,6 +137,10 @@ describe("Admin User Read workspace", () => {
     render(<AdminUserReadWorkspace mode="detail" userPublicId={uuid("1")} />);
 
     expect(screen.getByRole("heading", { name: "基本情報" })).toBeVisible();
+    expect(screen.getByText("SMS認証")).toBeVisible();
+    expect(screen.getByText("認証済み")).toBeVisible();
+    expect(screen.getByText("+819012345678")).toBeVisible();
+    expect(screen.getByText("SMS認証日時")).toBeVisible();
     expect(screen.getByRole("heading", { name: "コイン残高" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "紹介履歴" })).toBeVisible();
     expect(screen.getByText("合計コイン")).toBeVisible();
@@ -157,6 +164,9 @@ describe("Admin User Read workspace", () => {
       ...userSummary(),
       email: "user@example.test",
       email_verified_at: "2026-08-03T00:00:00Z",
+      sms_verified: false,
+      phone: null,
+      verified_at: null,
       state_revision: 1,
       tag_assignment_revision: 1,
       tags: [],
@@ -185,6 +195,9 @@ describe("Admin User Read workspace", () => {
       ...userSummary(),
       email: "user@example.test",
       email_verified_at: "2026-08-03T00:00:00Z",
+      sms_verified: false,
+      phone: null,
+      verified_at: null,
       state_revision: 1,
       tag_assignment_revision: 1,
       tags: [],

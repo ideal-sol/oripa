@@ -118,6 +118,7 @@ final class V2AdminUserStateService
 
                 $revokedSessions = 0;
                 $revokedRememberDevices = 0;
+                $releasedVerifiedPhones = 0;
                 if (in_array($after, [V2UserState::Suspended, V2UserState::Closed], true)) {
                     $revokedSessions = DB::table('user_sessions')
                         ->where('user_id', $user->getKey())
@@ -127,6 +128,16 @@ final class V2AdminUserStateService
                         ->where('user_id', $user->getKey())
                         ->whereNull('revoked_at')
                         ->update(['revoked_at' => $now]);
+                }
+                if ($after === V2UserState::Closed) {
+                    $releasedVerifiedPhones = DB::table('user_phone_numbers')
+                        ->where('user_id', $user->getKey())
+                        ->whereNotNull('verified_at')
+                        ->whereNull('revoked_at')
+                        ->update([
+                            'revoked_at' => $now,
+                            'updated_at' => $now,
+                        ]);
                 }
 
                 $data = [
@@ -150,6 +161,7 @@ final class V2AdminUserStateService
                     'metadata' => [
                         'revoked_active_access_count' => $revokedSessions,
                         'revoked_remember_device_count' => $revokedRememberDevices,
+                        'released_verified_phone_count' => $releasedVerifiedPhones,
                         'request_fingerprint' => $claim->record->key_hash,
                     ],
                 ]);

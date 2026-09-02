@@ -14,6 +14,7 @@ use App\Models\V2\PrizeExchangeRequest;
 use App\Models\V2\ShippingAddress;
 use App\Models\V2\ShippingRequest;
 use App\Models\V2\User;
+use App\Models\V2\UserPhoneNumber;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
@@ -256,6 +257,7 @@ final class V2PrizeShippingService
     /** @return array<string, mixed> */
     public function addresses(User $user): array
     {
+        $this->assertSmsVerified($user);
         $items = ShippingAddress::query()
             ->where('user_id', $user->id)
             ->orderByDesc('id')
@@ -269,6 +271,7 @@ final class V2PrizeShippingService
     /** @return array<string, mixed> */
     public function addressDetail(User $user, string $publicId, string $requestId): array
     {
+        $this->assertSmsVerified($user);
         $address = $this->ownedAddress($user, $publicId);
         $this->audit->record('shipping.address_read', $this->auditAttributes(
             $user,
@@ -287,6 +290,7 @@ final class V2PrizeShippingService
         string $requestId
     ): array
     {
+        $this->assertSmsVerified($user);
         $plain = $this->validatedAddress($input);
 
         return $this->transaction(
@@ -304,6 +308,7 @@ final class V2PrizeShippingService
         string $idempotencyKey,
         string $requestId
     ): array {
+        $this->assertSmsVerified($user);
         $plain = $this->validatedAddress($input);
         $this->idempotencyKey($idempotencyKey);
 
@@ -379,6 +384,7 @@ final class V2PrizeShippingService
         array $input,
         string $requestId
     ): array {
+        $this->assertSmsVerified($user);
         $plain = $this->validatedAddress($input);
 
         return $this->transaction(function () use (
@@ -402,6 +408,7 @@ final class V2PrizeShippingService
 
     public function deleteAddress(User $user, string $publicId, string $requestId): void
     {
+        $this->assertSmsVerified($user);
         $this->transaction(function () use ($user, $publicId, $requestId): void {
             $address = $this->ownedAddress($user, $publicId);
             $address->delete();
@@ -425,6 +432,7 @@ final class V2PrizeShippingService
         string $idempotencyKey,
         string $requestId
     ): array {
+        $this->assertSmsVerified($user);
         $ids = $this->publicIds($prizeIds);
         $this->idempotencyKey($idempotencyKey);
 
@@ -1377,6 +1385,22 @@ final class V2PrizeShippingService
         return preg_match('/\A[a-z][a-z0-9_]{0,63}\z/', $value)
             ? $value
             : 'shipping_status_updated';
+    }
+
+    private function assertSmsVerified(User $user): void
+    {
+        $verified = UserPhoneNumber::query()
+            ->where('user_id', $user->getKey())
+            ->whereNotNull('verified_at')
+            ->whereNull('revoked_at')
+            ->exists();
+        if (! $verified) {
+            throw new V2PrizeShippingException(
+                'SMS_VERIFICATION_REQUIRED',
+                403,
+                'SMS phone verification is required.'
+            );
+        }
     }
 
     private function notFound(string $code): V2PrizeShippingException

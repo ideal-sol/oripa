@@ -10,6 +10,7 @@ use App\Models\V2\Admin;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -33,7 +34,7 @@ final class AdminUserReadModelApiTest extends TestCase
 
     public function test_all_active_admin_roles_can_read_list_detail_and_history(): void
     {
-        $user = $this->user();
+        $user = $this->user(smsVerified: true);
         foreach ([V2AdminRole::Owner, V2AdminRole::Admin, V2AdminRole::Operator] as $role) {
             Auth::forgetGuards();
             $client = $this->asAdmin($this->sessionToken($role));
@@ -48,6 +49,9 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertOk()
                 ->assertJsonPath('data.id', $user['public_id'])
                 ->assertJsonPath('data.email', $user['email'])
+                ->assertJsonPath('data.sms_verified', true)
+                ->assertJsonPath('data.phone', '+819012345678')
+                ->assertJsonPath('data.verified_at', fn (?string $value): bool => $value !== null)
                 ->assertJsonPath('data.state_revision', 1)
                 ->assertJsonPath('data.point_balance.total_balance', 270)
                 ->assertJsonPath('data.point_balance.paid_balance', 90)
@@ -74,6 +78,20 @@ final class AdminUserReadModelApiTest extends TestCase
                 ->assertJsonCount(0, 'items');
             $this->assertPrivateContract($referrals);
         }
+    }
+
+    public function test_unverified_admin_user_detail_has_read_only_empty_sms_state(): void
+    {
+        $user = $this->user();
+        $detail = $this->asAdmin($this->sessionToken(V2AdminRole::Operator))
+            ->getJson('/admin/api/v2/users/'.$user['public_id'])
+            ->assertOk()
+            ->assertJsonPath('data.sms_verified', false)
+            ->assertJsonPath('data.phone', null)
+            ->assertJsonPath('data.verified_at', null)
+            ->assertJsonMissingPath('data.otp')
+            ->assertJsonMissingPath('data.sms_actions');
+        $this->assertPrivateContract($detail);
     }
 
     public function test_referral_history_is_referrer_only_and_cursor_paginated(): void
@@ -286,7 +304,8 @@ final class AdminUserReadModelApiTest extends TestCase
     private function user(
         ?string $displayName = '表示名',
         string $state = 'active',
-        ?string $createdAt = null
+        ?string $createdAt = null,
+        bool $smsVerified = false
     ): array
     {
         $publicId = (string) Str::uuid7();
@@ -313,6 +332,17 @@ final class AdminUserReadModelApiTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        if ($smsVerified) {
+            DB::table('user_phone_numbers')->insert([
+                'public_id' => (string) Str::uuid7(),
+                'user_id' => $userId,
+                'phone_ciphertext' => Crypt::encryptString('+819012345678'),
+                'phone_hmac' => hash('sha256', 'admin-user-read-phone-'.$publicId),
+                'verified_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         return [
             'id' => $userId,

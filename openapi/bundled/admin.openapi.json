@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.30",
+    "version": "2.0.0-alpha.31",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -16421,7 +16421,8 @@
           "password_reset",
           "email_change_verification",
           "email_change_completed",
-          "password_changed"
+          "password_changed",
+          "phone_changed"
         ]
       },
       "AdminMailTemplateVariable": {
@@ -20624,6 +20625,9 @@
             "required": [
               "email",
               "email_verified_at",
+              "sms_verified",
+              "phone",
+              "verified_at",
               "state_revision",
               "updated_at"
             ],
@@ -20638,6 +20642,26 @@
                   "null"
                 ],
                 "format": "date-time"
+              },
+              "sms_verified": {
+                "type": "boolean",
+                "readOnly": true
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\\\+81(?:70|80|90)[0-9]{8}$",
+                "readOnly": true
+              },
+              "verified_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "readOnly": true
               },
               "state_revision": {
                 "type": "integer",

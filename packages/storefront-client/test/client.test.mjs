@@ -363,6 +363,16 @@ test("認証Problem Codeを型付きGuardで判定する", () => {
   assert.equal(isAuthProblemError(error), true);
   assert.equal(isAuthProblemError(error, "EMAIL_VERIFICATION_REQUIRED"), true);
   assert.equal(isAuthProblemError(error, "INVALID_CREDENTIALS"), false);
+
+  const phoneUnavailable = new ApiProblemError({
+    type: "https://oripa.example/problems/phone_number_unavailable",
+    title: "This phone number is unavailable. Enter another phone number.",
+    status: 409,
+    code: "PHONE_NUMBER_UNAVAILABLE",
+    request_id: "request-sms-phone-unavailable",
+    retryable: false,
+  });
+  assert.equal(isAuthProblemError(phoneUnavailable, "PHONE_NUMBER_UNAVAILABLE"), true);
 });
 
 test("Draw Problem Codeは実在Codeだけを型付きGuardで判定する", () => {
@@ -531,7 +541,7 @@ test("Identity FacadeはAccount SecurityとSMSをCSRF付き単一Requestで送�
     options,
   );
   await identity.getSmsVerificationStatus();
-  await identity.sendSmsVerification({ phone: "+819012345678" }, options);
+  await identity.sendSmsVerification({ phone: "090-1234-5678" }, options);
   await identity.resendSmsVerification(options);
   await identity.verifySmsCode(
     {
@@ -1084,6 +1094,7 @@ test("Fulfillment Problem Codeは実在Codeだけを型付きGuardで判定す�
     "IDEMPOTENCY_KEY_REUSED",
     "CONCURRENT_OPERATION_RETRY_EXHAUSTED",
     "SHIPPING_ADDRESS_NOT_FOUND",
+    "SMS_VERIFICATION_REQUIRED",
   ]) {
     const error = new ApiProblemError({
       type: `https://oripa.example/problems/${code.toLowerCase()}`,

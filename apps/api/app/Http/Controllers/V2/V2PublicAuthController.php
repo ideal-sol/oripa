@@ -527,8 +527,7 @@ final class V2PublicAuthController
             $this->smsVerification->send(
                 $this->currentUser(),
                 $request,
-                $data['phone'],
-                $request->ip() ?? 'unknown'
+                $data['phone']
             ),
             202
         );
@@ -539,8 +538,7 @@ final class V2PublicAuthController
         return response()->json(
             $this->smsVerification->resend(
                 $this->currentUser(),
-                $request,
-                $request->ip() ?? 'unknown'
+                $request
             ),
             202
         );

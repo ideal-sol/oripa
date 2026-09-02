@@ -62,6 +62,7 @@ return [
 
     'sms_verification' => [
         'ttl_minutes' => 5,
+        'resend_cooldown_seconds' => 60,
         'maximum_attempts' => 5,
         'code_digits' => 6,
         'phone_hmac_key' => env('V2_PII_CORRELATION_KEY'),
@@ -139,7 +140,6 @@ return [
         'password_change' => [5, 900],
         'sms_phone_hour' => [3, 3600],
         'sms_phone_day' => [10, 86400],
-        'sms_ip' => [5, 3600],
         'sms_verify' => [5, 300],
         'oidc_login_start' => [10, 600],
         'oidc_callback_failure' => [5, 600],

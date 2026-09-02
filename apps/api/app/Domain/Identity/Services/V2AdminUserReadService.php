@@ -10,6 +10,7 @@ use App\Domain\Reporting\Services\V2ReportingCursor;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 final class V2AdminUserReadService
@@ -169,6 +170,11 @@ final class V2AdminUserReadService
         $operationAt = CarbonImmutable::now()->startOfSecond();
         $row = DB::table('users')
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
+            ->leftJoin('user_phone_numbers as verified_phone', function ($join): void {
+                $join->on('verified_phone.user_id', '=', 'users.id')
+                    ->whereNotNull('verified_phone.verified_at')
+                    ->whereNull('verified_phone.revoked_at');
+            })
             ->leftJoinSub(
                 $this->canonicalAvailableBalances($operationAt),
                 'available_points',
@@ -202,6 +208,8 @@ final class V2AdminUserReadService
                 'users.created_at',
                 'users.updated_at',
                 'users.tag_assignment_revision',
+                'verified_phone.phone_ciphertext',
+                'verified_phone.verified_at as phone_verified_at',
                 'wallets.id as wallet_id',
                 'wallets.paid_balance',
                 'wallets.free_balance',
@@ -230,6 +238,13 @@ final class V2AdminUserReadService
                 'email_verified_at' => $row->email_verified_at === null
                     ? null
                     : $this->timestamp($row->email_verified_at),
+                'sms_verified' => $row->phone_verified_at !== null,
+                'phone' => $row->phone_ciphertext === null
+                    ? null
+                    : Crypt::decryptString((string) $row->phone_ciphertext),
+                'verified_at' => $row->phone_verified_at === null
+                    ? null
+                    : $this->timestamp($row->phone_verified_at),
                 'status' => (string) $row->state,
                 'state_revision' => (int) $row->state_revision,
                 'point_balance' => $this->pointBalance($row),

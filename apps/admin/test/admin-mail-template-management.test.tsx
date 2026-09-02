@@ -42,6 +42,7 @@ const keys: MailTemplateKey[] = [
   "email_change_verification",
   "email_change_completed",
   "password_changed",
+  "phone_changed",
 ];
 
 beforeEach(() => {
@@ -55,12 +56,12 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Mail Template management", () => {
-  it("shows exactly eleven fixed templates without create or delete controls", async () => {
+  it("shows exactly twelve fixed templates without create or delete controls", async () => {
     render(<MailTemplateWorkspace />);
 
     const table = await screen.findByRole("table");
-    expect(within(table).getAllByRole("row")).toHaveLength(12);
-    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(11);
+    expect(within(table).getAllByRole("row")).toHaveLength(13);
+    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(12);
     expect(screen.queryByRole("button", { name: /新規|追加|削除/u })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "メール設定" })).toBeVisible();
   });

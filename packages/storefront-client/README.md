@@ -35,8 +35,8 @@ Admin／Webhook型、React State、UI、Routing、Cache、LocalStorage Token、P
 
 ## Status
 
-Package Version候補は`2.0.0-alpha.34`、Public OpenAPI Contract Versionは
-`2.0.0-alpha.30`。Public OpenAPIから生成した型と、Contractに実在する薄い
+Package Version候補は`2.0.0-alpha.35`、Public OpenAPI Contract Versionは
+`2.0.0-alpha.31`。Public OpenAPIから生成した型と、Contractに実在する薄い
 Facadeだけを提供する。Packageは非公開Alphaであり、承認されたArtifactをVersionと
 SHA-256で固定して導入する。
 

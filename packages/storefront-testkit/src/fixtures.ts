@@ -227,6 +227,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
         "draw.browser-mutation.v2",
         "gacha.catalog-display.v2",
         "gacha.presentation.v2",
+        "identity.sms-phone-ownership.v2",
         "payment.fincode.v2",
         "prize.fulfillment-browser-mutation.v2",
         "user-line-friend-state.read.v2",
@@ -243,6 +244,7 @@ export const CAPABILITY_SITE_MANIFEST_FIXTURE = Object.freeze(
           "draw.browser-mutation.v2",
           "gacha.catalog-display.v2",
           "gacha.presentation.v2",
+          "identity.sms-phone-ownership.v2",
           "payment.fincode.v2",
           "prize.fulfillment-browser-mutation.v2",
           "user-line-friend-state.read.v2",
@@ -263,6 +265,7 @@ export const PLATFORM_COMPATIBILITY_FIXTURE = Object.freeze({
     "draw.browser-mutation.v2",
     "gacha.catalog-display.v2",
     "gacha.presentation.v2",
+    "identity.sms-phone-ownership.v2",
     "payment.fincode.v2",
     "prize.fulfillment-browser-mutation.v2",
     "user-line-friend-state.read.v2",
@@ -1243,16 +1246,168 @@ export const PUBLIC_IDENTITY_RECOVERY_FIXTURE = Object.freeze({
   },
   sms_status: {
     verified: false,
+    phone: null,
     phone_masked: "+819****5678",
+    verified_at: null,
     challenge: {
       id: "0198a001-0000-7000-8000-000000000302",
       status: "pending",
+      delivery_state: "pending",
       expires_at: "2026-07-28T10:05:00Z",
     },
   },
 } as const satisfies {
   password_reset: PublicComponents["schemas"]["PasswordResetAccepted"];
   sms_status: PublicComponents["schemas"]["SmsVerificationStatus"];
+});
+
+export const PUBLIC_SMS_VERIFICATION_FIXTURES = Object.freeze({
+  unverified: {
+    verified: false,
+    phone: null,
+    phone_masked: null,
+    verified_at: null,
+    challenge: null,
+  },
+  pending: {
+    verified: false,
+    phone: null,
+    phone_masked: null,
+    verified_at: null,
+    challenge: {
+      id: "0198a001-0000-7000-8000-000000000701",
+      status: "pending",
+      delivery_state: "pending",
+      expires_at: "2026-09-02T10:05:00Z",
+    },
+  },
+  accepted: {
+    verified: false,
+    phone: null,
+    phone_masked: null,
+    verified_at: null,
+    challenge: {
+      id: "0198a001-0000-7000-8000-000000000702",
+      status: "accepted",
+      delivery_state: "accepted",
+      expires_at: "2026-09-02T10:05:00Z",
+    },
+  },
+  failed: {
+    verified: false,
+    phone: null,
+    phone_masked: null,
+    verified_at: null,
+    challenge: {
+      id: "0198a001-0000-7000-8000-000000000703",
+      status: "failed",
+      delivery_state: "failed",
+      expires_at: "2026-09-02T10:05:00Z",
+    },
+  },
+  expired: {
+    verified: false,
+    phone: null,
+    phone_masked: null,
+    verified_at: null,
+    challenge: {
+      id: "0198a001-0000-7000-8000-000000000704",
+      status: "expired",
+      delivery_state: "accepted",
+      expires_at: "2026-09-02T09:55:00Z",
+    },
+  },
+  verified: {
+    verified: true,
+    phone: "+819012345678",
+    phone_masked: "+819****5678",
+    verified_at: "2026-09-02T10:00:00Z",
+    challenge: null,
+  },
+  phone_change: {
+    verified: true,
+    phone: "+818012345678",
+    phone_masked: "+818****5678",
+    verified_at: "2026-09-02T10:10:00Z",
+    challenge: null,
+  },
+  send_pending: {
+    accepted: true,
+    challenge_id: "0198a001-0000-7000-8000-000000000705",
+    phone_masked: "+819****5678",
+    status: "pending",
+    delivery_state: "pending",
+    expires_at: "2026-09-02T10:05:00Z",
+  },
+  problems: {
+    phone_unavailable: {
+      type: "https://oripa.example/problems/phone_number_unavailable",
+      title: "This phone number is unavailable. Enter another phone number.",
+      status: 409,
+      code: "PHONE_NUMBER_UNAVAILABLE",
+      request_id: "request-fixture-sms-problem-001",
+      retryable: false,
+    },
+    rate_limited: {
+      type: "https://oripa.example/problems/rate_limited",
+      title: "Too many authentication attempts.",
+      status: 429,
+      code: "RATE_LIMITED",
+      request_id: "request-fixture-sms-problem-002",
+      retryable: true,
+      retry_after_seconds: 3600,
+    },
+    cooldown: {
+      type: "https://oripa.example/problems/rate_limited",
+      title: "Another SMS request is available after the cooldown.",
+      status: 429,
+      code: "RATE_LIMITED",
+      request_id: "request-fixture-sms-problem-003",
+      retryable: true,
+      retry_after_seconds: 59,
+    },
+    five_failed_attempts: {
+      type: "https://oripa.example/problems/invalid_sms_verification",
+      title: "The SMS verification request could not be completed.",
+      status: 422,
+      code: "INVALID_SMS_VERIFICATION",
+      request_id: "request-fixture-sms-problem-004",
+      retryable: false,
+    },
+    address_sms_required: {
+      type: "https://oripa.example/problems/sms_verification_required",
+      title: "SMS phone verification is required.",
+      status: 403,
+      code: "SMS_VERIFICATION_REQUIRED",
+      request_id: "request-fixture-sms-problem-005",
+      retryable: false,
+    },
+    shipping_sms_required: {
+      type: "https://oripa.example/problems/sms_verification_required",
+      title: "SMS phone verification is required.",
+      status: 403,
+      code: "SMS_VERIFICATION_REQUIRED",
+      request_id: "request-fixture-sms-problem-006",
+      retryable: false,
+    },
+  },
+} as const satisfies {
+  unverified: PublicComponents["schemas"]["SmsVerificationStatus"];
+  pending: PublicComponents["schemas"]["SmsVerificationStatus"];
+  accepted: PublicComponents["schemas"]["SmsVerificationStatus"];
+  failed: PublicComponents["schemas"]["SmsVerificationStatus"];
+  expired: PublicComponents["schemas"]["SmsVerificationStatus"];
+  verified: PublicComponents["schemas"]["SmsVerificationStatus"];
+  phone_change: PublicComponents["schemas"]["SmsVerificationStatus"];
+  send_pending: PublicComponents["schemas"]["SmsVerificationAccepted"];
+  problems: {
+    phone_unavailable: PublicComponents["schemas"]["PublicAuthProblemDetails"];
+    rate_limited: PublicComponents["schemas"]["PublicAuthProblemDetails"];
+    cooldown: PublicComponents["schemas"]["PublicAuthProblemDetails"];
+    five_failed_attempts: PublicComponents["schemas"]["PublicAuthProblemDetails"];
+    address_sms_required: PublicComponents["schemas"]["FulfillmentProblemDetails"];
+    shipping_sms_required: PublicComponents["schemas"]["FulfillmentProblemDetails"];
+  };
 });
 
 export const PUBLIC_ACCOUNT_SECURITY_FIXTURE = Object.freeze({

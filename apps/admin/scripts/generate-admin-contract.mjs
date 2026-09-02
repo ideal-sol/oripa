@@ -724,6 +724,9 @@ export interface AdminUserCollection {
 export interface AdminUserDetail extends AdminUserSummary {
   email: string;
   email_verified_at: string | null;
+  sms_verified: boolean;
+  phone: string | null;
+  verified_at: string | null;
   state_revision: number;
   tag_assignment_revision?: number;
   tags?: AdminUserTagAssignment[];
@@ -2564,7 +2567,8 @@ export type MailTemplateKey =
   | "password_reset"
   | "email_change_verification"
   | "email_change_completed"
-  | "password_changed";
+  | "password_changed"
+  | "phone_changed";
 
 export interface AdminMailTemplateVariable {
   key: string;

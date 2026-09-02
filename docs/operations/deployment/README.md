@@ -15,6 +15,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 - [V2 Preview API Egress Boundary](api-egress.md)
 - [Shared Preview Credential Rotation](preview-credential-rotation.md)
 - [Shared Preview fincode Callbacks](preview-fincode-callbacks.md)
+- [SMS FourS Worker Activation](sms-fours-worker.md)
 
 Provider-neutralな構造Example:
 

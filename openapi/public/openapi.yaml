@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.30
+  version: 2.0.0-alpha.31
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -597,7 +597,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShippingAddressCollection'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
     post:
       operationId: createShippingAddress
       summary: 配送先を作成する
@@ -647,7 +647,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShippingAddress'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/FulfillmentProblem'
     put:
       operationId: updateShippingAddress
       summary: User本人の配送先を更新する
@@ -1455,12 +1455,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/SmsVerificationStatus'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
     post:
       operationId: sendSmsVerification
-      summary: E.164電話番号へSMS認証Challengeを発行する
+      summary: 日本国内携帯番号へSMS認証Challengeを発行する
+      description: >-
+        初回認証は通常の認証済みSessionで利用できる。認証済み電話番号の変更は
+        Fresh Reauthenticationを要求し、Challenge作成時点では旧番号のOwnershipを維持する。
       x-idempotency: not-supported
-      x-rate-limit: phone-3-per-hour-10-per-day-and-ip-5-per-hour
+      x-rate-limit: phone-3-per-hour-10-per-day-and-resend-cooldown-60-seconds
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -1475,19 +1478,20 @@ paths:
               $ref: '#/components/schemas/SmsVerificationSendRequest'
       responses:
         '202':
-          description: SMS通知Outboxを受理した。
+          description: PlatformがChallengeと暗号化SMS Outboxを受理した。Provider受付前はpendingである。
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SmsVerificationAccepted'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /me/sms-verification/resend:
     post:
       operationId: resendSmsVerification
       summary: 旧Challengeを失効してSMS認証を再送する
       x-idempotency: not-supported
-      x-rate-limit: phone-3-per-hour-10-per-day-and-ip-5-per-hour
+      description: 直前のsend/resendから60秒後に利用でき、旧Challengeを失効させる。
+      x-rate-limit: phone-3-per-hour-10-per-day-and-resend-cooldown-60-seconds
       x-cache-policy: no-store
       x-stability: alpha
       security:
@@ -1503,17 +1507,20 @@ paths:
               additionalProperties: false
       responses:
         '202':
-          description: SMS通知Outboxを再発行した。
+          description: 新Challengeと暗号化SMS Outboxを受理した。Provider受付前はpendingである。
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SmsVerificationAccepted'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /me/sms-verification/verify:
     post:
       operationId: verifySmsCode
       summary: One-time SMS Codeで電話番号を検証する
+      description: >-
+        Provider accepted済みChallengeだけを検証する。初回Ownership claimはFresh Reauthentication不要。
+        電話番号変更はFresh Reauthentication必須で、成功Transaction内で新番号へatomic switchする。
       x-idempotency: one-time-code
       x-rate-limit: challenge-5-attempts
       x-cache-policy: no-store
@@ -1536,7 +1543,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SmsVerificationStatus'
         default:
-          $ref: '#/components/responses/Problem'
+          $ref: '#/components/responses/PublicAuthProblem'
   /payments:
     post:
       operationId: createPayment
@@ -2988,14 +2995,20 @@ components:
         - INVALID_CREDENTIALS
         - INVALID_EMAIL_CHANGE_REQUEST
         - INVALID_PASSWORD_RESET
+        - INVALID_SMS_VERIFICATION
         - INVALID_REDIRECT
         - INVALID_REAUTHENTICATION
         - INVALID_REQUEST
         - INVALID_VERIFICATION_LINK
         - PASSWORD_POLICY_VIOLATION
         - PASSWORD_UNCHANGED
+        - PHONE_ALREADY_VERIFIED
+        - PHONE_NUMBER_UNAVAILABLE
         - RATE_LIMITED
         - SESSION_EXPIRED
+        - SMS_DELIVERY_PENDING
+        - SMS_DELIVERY_UNAVAILABLE
+        - FRESH_AUTHENTICATION_REQUIRED
         - UNSUPPORTED_MEDIA_TYPE
         - VERIFICATION_LINK_EXPIRED
     PublicAuthProblemDetails:
@@ -3056,6 +3069,7 @@ components:
         - SESSION_EXPIRED
         - SHIPPING_ADDRESS_NOT_FOUND
         - SHIPPING_REQUEST_NOT_FOUND
+        - SMS_VERIFICATION_REQUIRED
         - UNSUPPORTED_MEDIA_TYPE
         - USER_PRIZE_NOT_FOUND
     FulfillmentProblemDetails:
@@ -4280,7 +4294,8 @@ components:
       properties:
         phone:
           type: string
-          pattern: '^\+[1-9][0-9]{7,14}$'
+          pattern: '^(?:070|080|090)(?:[0-9]{8}|-[0-9]{4}-[0-9]{4})$'
+          description: 070/080/090で始まる国内携帯番号。ハイフンなし、またはNNN-NNNN-NNNN。
           writeOnly: true
     SmsVerificationConfirmRequest:
       type: object
@@ -4297,20 +4312,24 @@ components:
     SmsVerificationChallenge:
       type: object
       additionalProperties: false
-      required: [id, status, expires_at]
+      required: [id, status, delivery_state, expires_at]
       properties:
         id:
           type: string
           format: uuid
         status:
           type: string
-          enum: [pending, expired]
+          enum: [pending, accepted, failed, expired]
+        delivery_state:
+          type: string
+          enum: [pending, accepted, failed]
+          description: Provider固有情報を含まないsafe delivery lifecycle。
         expires_at:
           $ref: '#/components/schemas/UtcDateTime'
     SmsVerificationAccepted:
       type: object
       additionalProperties: false
-      required: [accepted, challenge_id, phone_masked, expires_at]
+      required: [accepted, challenge_id, phone_masked, status, delivery_state, expires_at]
       properties:
         accepted:
           type: boolean
@@ -4320,17 +4339,30 @@ components:
           format: uuid
         phone_masked:
           type: string
+        status:
+          type: string
+          const: pending
+        delivery_state:
+          type: string
+          const: pending
         expires_at:
           $ref: '#/components/schemas/UtcDateTime'
     SmsVerificationStatus:
       type: object
       additionalProperties: false
-      required: [verified, phone_masked, challenge]
+      required: [verified, phone, phone_masked, verified_at, challenge]
       properties:
         verified:
           type: boolean
+        phone:
+          type: [string, 'null']
+          pattern: '^\+81(?:70|80|90)[0-9]{8}$'
+          description: 認証済みの場合にCurrent Userへ表示するcanonical E.164電話番号。
         phone_masked:
           type: [string, 'null']
+        verified_at:
+          type: [string, 'null']
+          format: date-time
         challenge:
           oneOf:
             - $ref: '#/components/schemas/SmsVerificationChallenge'

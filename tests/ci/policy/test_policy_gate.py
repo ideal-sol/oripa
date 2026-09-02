@@ -763,7 +763,7 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_reconciled_alpha_34(self):
+    def test_storefront_release_governance_accepts_alpha_35_candidate(self):
         value = policy_gate.storefront_release_governance(ROOT)
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["latest_immutable"]["handoff_status"], "released")
@@ -772,7 +772,10 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(value["immutable_history"][-3]["bundle_version"], "2.0.0-alpha.32")
         self.assertEqual(value["immutable_history"][-3]["handoff_status"], "retired")
-        self.assertIsNone(value["candidate"])
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.35")
+        self.assertEqual(value["candidate"]["release_state"], "pending")
+        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
+        self.assertFalse(value["candidate"]["breaking_change"])
         self.assertEqual(value["latest_immutable"]["source_commit"], "576c35137946e5effcda63d6bf750d5ecc41150f")
         self.assertEqual(value["latest_immutable"]["manifest_sha256"], "42f4bee68b787dac16d07accee1c6154c7cea392c521c41b14461d6b56221464")
         self.assertEqual(value["latest_immutable"]["public_openapi"]["operation_count"], 75)
@@ -1815,6 +1818,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_24_000068_add_v2_account_security.php",
             "apps/api/database/migrations-v2/2026_09_25_000069_create_v2_canonical_rank_domain.php",
             "apps/api/database/migrations-v2/2026_09_26_000070_normalize_v2_rank_master_status_check.php",
+            "apps/api/database/migrations-v2/2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative
@@ -2950,7 +2954,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.34",
+                    "version": "2.0.0-alpha.35",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -2988,12 +2992,13 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.30",
+                        "minimumPublicApiContract": "2.0.0-alpha.31",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
                             "gacha.presentation.v2",
                             "gacha.rank-master.v2",
+                            "identity.sms-phone-ownership.v2",
                             "payment.fincode.v2",
                             "prize.fulfillment-browser-mutation.v2",
                             "user-draw-history.read.v2",

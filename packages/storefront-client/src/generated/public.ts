@@ -868,7 +868,10 @@ export interface paths {
         /** User自身のSMS認証状態を取得する */
         get: operations["getSmsVerificationStatus"];
         put?: never;
-        /** E.164電話番号へSMS認証Challengeを発行する */
+        /**
+         * 日本国内携帯番号へSMS認証Challengeを発行する
+         * @description 初回認証は通常の認証済みSessionで利用できる。認証済み電話番号の変更は Fresh Reauthenticationを要求し、Challenge作成時点では旧番号のOwnershipを維持する。
+         */
         post: operations["sendSmsVerification"];
         delete?: never;
         options?: never;
@@ -885,7 +888,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 旧Challengeを失効してSMS認証を再送する */
+        /**
+         * 旧Challengeを失効してSMS認証を再送する
+         * @description 直前のsend/resendから60秒後に利用でき、旧Challengeを失効させる。
+         */
         post: operations["resendSmsVerification"];
         delete?: never;
         options?: never;
@@ -902,7 +908,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** One-time SMS Codeで電話番号を検証する */
+        /**
+         * One-time SMS Codeで電話番号を検証する
+         * @description Provider accepted済みChallengeだけを検証する。初回Ownership claimはFresh Reauthentication不要。 電話番号変更はFresh Reauthentication必須で、成功Transaction内で新番号へatomic switchする。
+         */
         post: operations["verifySmsCode"];
         delete?: never;
         options?: never;
@@ -1694,7 +1703,7 @@ export interface components {
         /** @description Card Registrationの既知Problemまたは安全に汎用処理する未知のProblem Details。 pendingはProblemではなくPaymentCardRegistration.statusで表現する。 */
         CardRegistrationProblemResponse: components["schemas"]["CardRegistrationProblemDetails"] | components["schemas"]["ProblemDetails"];
         /** @enum {string} */
-        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_UNCHANGED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_EMAIL_CHANGE_REQUEST" | "INVALID_PASSWORD_RESET" | "INVALID_REDIRECT" | "INVALID_REAUTHENTICATION" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "PASSWORD_POLICY_VIOLATION" | "PASSWORD_UNCHANGED" | "RATE_LIMITED" | "SESSION_EXPIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
+        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_UNCHANGED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_EMAIL_CHANGE_REQUEST" | "INVALID_PASSWORD_RESET" | "INVALID_SMS_VERIFICATION" | "INVALID_REDIRECT" | "INVALID_REAUTHENTICATION" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "PASSWORD_POLICY_VIOLATION" | "PASSWORD_UNCHANGED" | "PHONE_ALREADY_VERIFIED" | "PHONE_NUMBER_UNAVAILABLE" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SMS_DELIVERY_PENDING" | "SMS_DELIVERY_UNAVAILABLE" | "FRESH_AUTHENTICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
         PublicAuthProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
@@ -1706,7 +1715,7 @@ export interface components {
         /** @description 既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。 */
         DrawProblemResponse: components["schemas"]["DrawProblemDetails"] | components["schemas"]["ProblemDetails"];
         /** @enum {string} */
-        FulfillmentProblemCode: "AUTHENTICATION_REQUIRED" | "CONCURRENT_OPERATION_RETRY_EXHAUSTED" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_FAILURE" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INVALID_EXCHANGE_REQUEST" | "INVALID_IDEMPOTENCY_KEY" | "INVALID_PRIZE_SELECTION" | "INVALID_SHIPPING_ADDRESS" | "INVALID_SHIPPING_REQUEST" | "PII_PROTECTION_UNAVAILABLE" | "PRIZE_NOT_EXCHANGEABLE" | "PRIZE_NOT_SHIPPABLE" | "PRIZE_ON_PAYMENT_HOLD" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SHIPPING_ADDRESS_NOT_FOUND" | "SHIPPING_REQUEST_NOT_FOUND" | "UNSUPPORTED_MEDIA_TYPE" | "USER_PRIZE_NOT_FOUND";
+        FulfillmentProblemCode: "AUTHENTICATION_REQUIRED" | "CONCURRENT_OPERATION_RETRY_EXHAUSTED" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_FAILURE" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INVALID_EXCHANGE_REQUEST" | "INVALID_IDEMPOTENCY_KEY" | "INVALID_PRIZE_SELECTION" | "INVALID_SHIPPING_ADDRESS" | "INVALID_SHIPPING_REQUEST" | "PII_PROTECTION_UNAVAILABLE" | "PRIZE_NOT_EXCHANGEABLE" | "PRIZE_NOT_SHIPPABLE" | "PRIZE_ON_PAYMENT_HOLD" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SHIPPING_ADDRESS_NOT_FOUND" | "SHIPPING_REQUEST_NOT_FOUND" | "SMS_VERIFICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "USER_PRIZE_NOT_FOUND";
         FulfillmentProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["FulfillmentProblemCode"];
         };
@@ -2188,6 +2197,7 @@ export interface components {
             next_action: "return_to_account";
         };
         SmsVerificationSendRequest: {
+            /** @description 070/080/090で始まる国内携帯番号。ハイフンなし、またはNNN-NNNN-NNNN。 */
             phone: string;
         };
         SmsVerificationConfirmRequest: {
@@ -2199,7 +2209,12 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            status: "pending" | "expired";
+            status: "pending" | "accepted" | "failed" | "expired";
+            /**
+             * @description Provider固有情報を含まないsafe delivery lifecycle。
+             * @enum {string}
+             */
+            delivery_state: "pending" | "accepted" | "failed";
             expires_at: components["schemas"]["UtcDateTime"];
         };
         SmsVerificationAccepted: {
@@ -2208,11 +2223,19 @@ export interface components {
             /** Format: uuid */
             challenge_id: string;
             phone_masked: string;
+            /** @constant */
+            status: "pending";
+            /** @constant */
+            delivery_state: "pending";
             expires_at: components["schemas"]["UtcDateTime"];
         };
         SmsVerificationStatus: {
             verified: boolean;
+            /** @description 認証済みの場合にCurrent Userへ表示するcanonical E.164電話番号。 */
+            phone: string | null;
             phone_masked: string | null;
+            /** Format: date-time */
+            verified_at: string | null;
             challenge: components["schemas"]["SmsVerificationChallenge"] | null;
         };
         VerificationResendRequest: {
@@ -3016,7 +3039,7 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddressCollection"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     createShippingAddress: {
@@ -3068,7 +3091,7 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddress"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["FulfillmentProblem"];
         };
     };
     updateShippingAddress: {
@@ -3840,7 +3863,7 @@ export interface operations {
                     "application/json": components["schemas"]["SmsVerificationStatus"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     sendSmsVerification: {
@@ -3858,7 +3881,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SMS通知Outboxを受理した。 */
+            /** @description PlatformがChallengeと暗号化SMS Outboxを受理した。Provider受付前はpendingである。 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -3867,7 +3890,7 @@ export interface operations {
                     "application/json": components["schemas"]["SmsVerificationAccepted"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     resendSmsVerification: {
@@ -3885,7 +3908,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SMS通知Outboxを再発行した。 */
+            /** @description 新Challengeと暗号化SMS Outboxを受理した。Provider受付前はpendingである。 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -3894,7 +3917,7 @@ export interface operations {
                     "application/json": components["schemas"]["SmsVerificationAccepted"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     verifySmsCode: {
@@ -3921,7 +3944,7 @@ export interface operations {
                     "application/json": components["schemas"]["SmsVerificationStatus"];
                 };
             };
-            default: components["responses"]["Problem"];
+            default: components["responses"]["PublicAuthProblem"];
         };
     };
     createPayment: {

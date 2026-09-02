@@ -31,6 +31,7 @@ import {
   PUBLIC_GACHA_PRESENTATION_FIXTURE,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
+  PUBLIC_SMS_VERIFICATION_FIXTURES,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_LINE_FRIEND_STATE_FIXTURES,
   PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES,
@@ -437,6 +438,25 @@ test("Identity Recovery FixtureはToken、Code、Full PIIを公開しない", ()
     /"(?:password|token|verification_code|full_email|full_phone|secret)"\s*:/i,
   );
   assert.doesNotMatch(serialized, /@[a-z0-9.-]+|\+819[0-9]{9}/i);
+});
+
+test("SMS Verification Fixtureはdelivery、change、safe Problemを網羅する", () => {
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.unverified.verified, false);
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.pending.challenge.delivery_state, "pending");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.accepted.challenge.delivery_state, "accepted");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.failed.challenge.delivery_state, "failed");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.expired.challenge.status, "expired");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.verified.phone, "+819012345678");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.phone_change.phone, "+818012345678");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.problems.phone_unavailable.code, "PHONE_NUMBER_UNAVAILABLE");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.problems.cooldown.retry_after_seconds, 59);
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.problems.five_failed_attempts.code, "INVALID_SMS_VERIFICATION");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.problems.address_sms_required.code, "SMS_VERIFICATION_REQUIRED");
+  assert.equal(PUBLIC_SMS_VERIFICATION_FIXTURES.problems.shipping_sms_required.code, "SMS_VERIFICATION_REQUIRED");
+  assert.doesNotMatch(
+    JSON.stringify(PUBLIC_SMS_VERIFICATION_FIXTURES.problems),
+    /verification_code|provider_request_id|error_message|user_id/i,
+  );
 });
 
 function browserContactClient(mock, authenticated, csrf = "a".repeat(64)) {
@@ -1081,6 +1101,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_POINT_READ_PROBLEM_FIXTURES",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
+    "PUBLIC_SMS_VERIFICATION_FIXTURES",
     "PUBLIC_TOP_BANNERS_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",
     "TestkitAssertionError",

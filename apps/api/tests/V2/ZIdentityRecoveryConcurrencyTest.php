@@ -241,7 +241,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
     public function test_concurrent_sms_verification_confirms_once(): void
     {
         $runId = bin2hex(random_bytes(6));
-        $phone = '+8190'.random_int(10_000_000, 99_999_999);
+        $phone = '090'.random_int(10_000_000, 99_999_999);
         $user = $this->user("concurrent-sms-{$runId}@example.test");
         $session = app(V2SessionManager::class)->issue(
             V2Realm::User,
@@ -251,12 +251,12 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
         app(V2SmsVerificationService::class)->send(
             $user,
             $request,
-            $phone,
-            '192.0.2.140'
+            $phone
         );
         $challenge = SmsVerificationChallenge::query()
             ->where('user_id', $user->getKey())
             ->sole();
+        $this->acceptChallenge($challenge);
         $code = $this->delivery('identity.sms-verification')['verification_code'];
 
         $statuses = $this->concurrent(
@@ -289,15 +289,74 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
             ->where('user_id', $user->getKey())
             ->whereNull('revoked_at')
             ->count());
-        self::assertSame(1, OutboxMessage::query()
-            ->where('topic', 'identity.phone-verified')
-            ->where('aggregate_public_id', $user->public_id)
+        self::assertSame(0, DB::table('mail_deliveries as delivery')
+            ->join('mail_templates as template', 'template.id', '=', 'delivery.mail_template_id')
+            ->where('template.template_key', 'phone_changed')
+            ->where('delivery.source_public_id', $user->public_id)
+            ->count());
+    }
+
+    public function test_concurrent_same_phone_claim_has_exactly_one_owner(): void
+    {
+        $runId = bin2hex(random_bytes(6));
+        $phone = '080'.random_int(10_000_000, 99_999_999);
+        $users = [
+            $this->user("concurrent-claim-a-{$runId}@example.test"),
+            $this->user("concurrent-claim-b-{$runId}@example.test"),
+        ];
+        $sessions = [];
+        $challenges = [];
+        $codes = [];
+        foreach ($users as $index => $user) {
+            $sessions[$index] = app(V2SessionManager::class)->issue(
+                V2Realm::User,
+                (int) $user->getKey()
+            );
+            app(V2SmsVerificationService::class)->send(
+                $user,
+                $this->request($sessions[$index]['token']),
+                $phone
+            );
+            $challenges[$index] = SmsVerificationChallenge::query()
+                ->where('user_id', $user->getKey())
+                ->sole();
+            $this->acceptChallenge($challenges[$index]);
+            $codes[$index] = $this->delivery(
+                'identity.sms-verification',
+                $challenges[$index]->public_id
+            )['verification_code'];
+        }
+
+        $results = $this->concurrent(
+            function (int $worker) use ($users, $sessions, $challenges, $codes): string {
+                try {
+                    app(V2SmsVerificationService::class)->verify(
+                        $users[$worker],
+                        $this->request($sessions[$worker]['token']),
+                        $challenges[$worker]->public_id,
+                        $codes[$worker]
+                    );
+
+                    return 'success';
+                } catch (V2AuthenticationException $exception) {
+                    return $exception->errorCode;
+                }
+            },
+            'sms-phone-claim'
+        );
+
+        sort($results);
+        self::assertSame(['PHONE_NUMBER_UNAVAILABLE', 'success'], $results);
+        self::assertSame(1, DB::table('user_phone_numbers')
+            ->whereNotNull('verified_at')
+            ->whereNull('revoked_at')
+            ->whereIn('user_id', [$users[0]->getKey(), $users[1]->getKey()])
             ->count());
     }
 
     /**
-     * @param callable(int): bool $operation
-     * @return list<bool>
+     * @param callable(int): mixed $operation
+     * @return list<mixed>
      */
     private function concurrent(callable $operation, string $scenario): array
     {
@@ -316,15 +375,15 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
                 }
                 DB::disconnect();
                 DB::reconnect();
-                $succeeded = false;
+                $value = false;
                 try {
-                    $succeeded = $operation($worker);
+                    $value = $operation($worker);
                 } catch (\Throwable) {
-                    $succeeded = false;
+                    $value = false;
                 }
                 file_put_contents(
                     "{$directory}/{$worker}.json",
-                    json_encode(['succeeded' => $succeeded], JSON_THROW_ON_ERROR),
+                    json_encode(['value' => $value], JSON_THROW_ON_ERROR),
                     LOCK_EX
                 );
                 exit(0);
@@ -346,7 +405,7 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
                 true,
                 flags: JSON_THROW_ON_ERROR
             );
-            $statuses[] = $result['succeeded'];
+            $statuses[] = $result['value'];
             unlink("{$directory}/{$worker}.json");
         }
         rmdir($directory);
@@ -377,14 +436,29 @@ final class ZIdentityRecoveryConcurrencyTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function delivery(string $topic): array
+    private function delivery(string $topic, ?string $challengePublicId = null): array
     {
-        $message = OutboxMessage::query()->where('topic', $topic)->latest('id')->firstOrFail();
+        $query = OutboxMessage::query()->where('topic', $topic);
+        if ($challengePublicId !== null) {
+            $query->where('deduplication_key', 'sms-verification:'.$challengePublicId);
+        }
+        $message = $query->latest('id')->firstOrFail();
 
         return json_decode(
             Crypt::decryptString($message->payload['message_ciphertext']),
             true,
             flags: JSON_THROW_ON_ERROR
         );
+    }
+
+    private function acceptChallenge(SmsVerificationChallenge $challenge): void
+    {
+        $now = now()->startOfSecond();
+        $challenge->forceFill([
+            'delivery_state' => 'accepted',
+            'provider_request_id' => 'concurrency-request-'.$challenge->getKey(),
+            'delivery_attempted_at' => $now,
+            'delivery_accepted_at' => $now,
+        ])->save();
     }
 }
