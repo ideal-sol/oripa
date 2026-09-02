@@ -13,7 +13,7 @@
 - Base SHA: `94c92f000997049eca65c197c99e6fb8bdde1416`
 - Risk / Lane / Activation: `R4` / `Strict Change` / `none`
 - Task Policy: exact three paths, root-owned mode `0600`, SHA-256 `5fb6286284179242ff48e888538130bb7faaef5105a5f7191199731c529f148a`
-- PR / Final Head / Merge SHA: pending / not fixed / not merged
+- PR: draft `#448` (`https://github.com/ideal-sol/oripa/pull/448`). Initial implementation-and-evidence head: `c0fdb7f2f33453a6913889a4945d9937df152849`. Formal reviewed Final Head: not fixed while HOLD. Merge SHA: none.
 - Required Checks and formal fresh exact-head self-review are withheld because the independent Composer blocker prevents acceptance. No bypass or merge is attempted.
 
 ## Advisory Authority
