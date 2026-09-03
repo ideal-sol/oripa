@@ -1052,11 +1052,11 @@ PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
-    "@tiptap/extension-image": "3.30.3",
-    "@tiptap/extension-table": "3.30.3",
-    "@tiptap/extension-text-align": "3.30.3",
-    "@tiptap/react": "3.30.3",
-    "@tiptap/starter-kit": "3.30.3",
+    "@tiptap/extension-image": "3.30.4",
+    "@tiptap/extension-table": "3.30.4",
+    "@tiptap/extension-text-align": "3.30.4",
+    "@tiptap/react": "3.30.4",
+    "@tiptap/starter-kit": "3.30.4",
     "lucide-react": "0.468.0",
     "next": "16.2.11",
     "react": "19.2.7",
@@ -1855,8 +1855,10 @@ def validate_workspace_configuration(repository: Path) -> None:
         )
     if package.get("pnpm") != {
         "overrides": {
+            "@tiptap/extension-bubble-menu": "3.30.4",
+            "@tiptap/extension-floating-menu": "3.30.4",
             "brace-expansion": "5.0.9",
-            "fast-uri": "3.1.5",
+            "fast-uri": "3.1.7",
             "js-yaml": "4.3.1",
             "minimatch": "10.2.5",
             "nanoid": "3.3.18",
