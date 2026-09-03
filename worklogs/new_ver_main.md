@@ -9688,3 +9688,17 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 ### Result
 
 `HOLD_PUBLIC_FINCODE_WEBHOOK_ROUTE_NOT_ROUTED`
+
+## OPS-036 fincode Public Webhook Routing And Runtime Activation
+
+- Humanの必要最小限Nginx変更とProduction Runtime Activation承認をAuthorityに、Issue `none`、Branch `chore/OPS-036-fincode-webhook-activation-record`、通常Worktree、Base `d9b64f75ff005be5794f7d8e7d1e82a7c99dd51b`、Risk `R4`、Lane `Strict Change`、Activation `immediate`で開始した。指定Payment authority `758eb9cbfe170fc2d76cf1783a7861fa4c76ad42`以後のprotected `main`差分はOPS-035 Worklogだけで、Runtime code movementは0、Task Policyは本Worklogだけのexact scopeである。
+- active Nginx config `11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32`をAuthorityとし、Public `oripa-z.com` serverのStorefront catch-all直前に`location ^~ /webhooks/`を追加した。既存`/api/v2/` stanzaと同じAPI upstream `127.0.0.1:8611`、Host、X-Real-IP、X-Forwarded-For、X-Forwarded-Proto patternだけを再利用し、after SHA-256は`17575b4d019bbf0d439f72a3fa797ae327057f23639f9beb4a19bc9825854d71`。ALB／DNS／Security Group／Storefront／Admin routing変更は0である。
+- `nginx -t`を変更前後ともPASSし、Nginx reloadは1回、restartは0、MainPID `1703`を維持した。Public non-mutation `GET https://oripa-z.com/webhooks/v2/fincode`は変更前Storefront 404から変更後405、`Allow: POST`、PHP responseとなり、loopback API 405と一致した。人工Webhook POSTとWebhook business mutationは0である。
+- Canonical Build Run `33776581295`の既存API image `sha256:c633d9adcdd9c8c2e403f0646a0d8b5aaa6de58ecad1a5624ee7823dfbe5ef51`を再Buildなしで使用し、arm64、OCI revision `758eb9cbfe170fc2d76cf1783a7861fa4c76ad42`を再検証した。8612 candidateは同一network／asset bind／memory-only env cloneで`/up`／deep health各200、fincode Public Configuration／Card Bootstrap config READYをProvider request 0でPASSした。
+- root:root mode 0600 Production API EnvironmentFileはbefore SHA-256 `f2b14548ab23502f98f54fd08649886513f91716fe65eace72a5411d76a4e70a`から、`FINCODE_ALLOW_TEST_IN_PRODUCTION=true`と`FINCODE_PAYMENT_ENABLED=true`だけをatomic更新したafter SHA-256 `e60ce0f802c608bbc08a5e07c52fe249047c36df0d1b3555afca54aec0ac4896`へ移行した。`APP_ENV=production`、Test endpoint、Test Public／Secret keyとWebhook signature PRESENTをSecret-Zeroで確認した。
+- APIだけを同一private network、loopback `8611`、asset bind、`unless-stopped`条件で新imageへ最小recreateした。安定待機後もAPI deep health／Public Storefront／Admin各200、Public Webhook 405、restart 0、fincode Bootstrap READY、Card Bootstrap config READY、Application production、opt-in enabled、endpoint test、Payment enabled。Activation window 7 requests中500／502／504各0、Nginx error 0である。
+- Payment／Provider event／fincode／Wallet／Point関連14 tableは変更前後すべて0。Migration作成／適用0、Storefront change／Build／redeploy 0、Admin activation 0、Nginx reload 1、Provider request 0、Payment／Coin／Webhook business mutation 0、人工Webhook 0。Schedulerはcreated／not startedを維持し、verified candidateと旧containerを削除、旧imageはrollback用に保持した。fincode Test Dashboard Webhook URLをHumanが`https://oripa-z.com/webhooks/v2/fincode`へ変更してよいが、変更完了前にCard決済を開始しない。
+
+### Result
+
+`GO_WEBHOOK_CHANGE`
