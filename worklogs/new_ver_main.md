@@ -9479,3 +9479,43 @@ curl -fsS -o /dev/null http://127.0.0.1/
 - Point of No Return前、real Production write／Webhookが0ならNginx candidate removalとreloadによるrouting rollbackが可能。最初のProduction User Registration、Payment、Point Grant、Draw、Prize、Shipping Requestまたはbusiness Webhook mutation後は旧DBをwriterへ戻さず、V2 application rollback／forward fix／maintenanceだけを使う。
 - Remaining Human Actionsは、(1) Blocker修正済みStorefront protected mainとimmutable artifactの再固定、(2) Production worker authority確立、(3) Secret handling remediation、(4) ALB Console 12項目確認、(5) Human GO、(6) Nginx activation、(7) Public acceptance、(8) Owner browser login、(9) launch scope分だけのProvider acceptance、(10) Commercial Production GOである。次Stage／Public Cutoverは自動開始しない。
 - Task metrics at record time: CI wait 0、Check rerun 0、Build 0、Runtime Activation 0、Human wait 0。Storefront env creation 1、Storefront source fast-forward 1、Nginx reload 0、DB mutation 0、Provider request 0である。
+
+## OPS-031 Stage 7C Final Storefront Release + Human Cutover Readiness
+
+- Issue none、Branch chore/OPS-031-stage-7c-storefront-release-readiness、通常Worktree、Base f72c7b692b5e48161716ec5e51883788e3fc368a、Risk R4、Lane Strict Change、Activation immediateで開始した。Production readbackとGitHub deliveryのためWorklogだけを許可するroot-owned mode 0600 transient Task Policyを使用する。Migration Allocation Lock／Source LockはN/Aである。
+- Task開始時のlocal／origin／live protected Platform mainはHuman expected f72c7b692b5e48161716ec5e51883788e3fc368aへexact一致し、unexpected movement 0。Runtime Application Authorityはb6541e526c4943c03c3533f7cbc9d3ca560a2567で、b6541e5..f72c7b6のApplication／Migration／Composer／dependency差分は0、Worklogだけである。
+- Storefront ideal-sol/luxe-pack-storefrontはclean local／origin main@35a3a6eddff858971df7b9f3c2b5d85f031d318eに対してlive protected main@39ba749914aec1142e5618aa7f5688f93feff5f7だった。approved public Repository accessでfetch 1回、旧HEADがorigin/main ancestorであること、force／reset／stash不要を確認し、fast-forward 1回だけでlocal／origin／live protected mainを39ba749914aec1142e5618aa7f5688f93feff5f7へexact一致させた。source edit／Storefront Branch／PRは0である。
+- Storefront PR #99はFinal Head 7a8f8391773b3122917edfefbd7cd612d70d5b60、Squash Merge 39ba749914aec1142e5618aa7f5688f93feff5f7、両Tree 1d7cb74488a911e95a907de292d586f37833f06d一致。Run 33728623840 attempt 1でRequired 5が全PASSし、integration-gateはproduction buildとclean-directory buildをPASSした。
+- Storefront exact sourceは@oripa/storefront-client／@oripa/storefront-testkit 2.0.0-alpha.35、Public OpenAPI 2.0.0-alpha.31／75 operations／breaking false、Site Schema 2.0.0-alpha.23をimmutable SMS-001 ManifestとSHA256SUMSへexact pinする。Artifact source 7942268281450257dcb76f38c8be8743b1c66be6、required identity.sms-phone-ownership.v2 capability、formal file checksumsをNode 22.22.3／pnpm 10.12.1でartifact:check PASSした。
+- Shared Preview Platform Authority 6fbf41374edd23b30c4c2fb5672c0be4823c66cbからProduction Runtime Authority b6541e526c4943c03c3533f7cbc9d3ca560a2567への差分はpersistent Audit allowlist実装、対応test、Worklogだけである。OpenAPI、Client／Testkit source、migration、route、Public API contract差分は0のためbreaking incompatibility 0と判定した。Artifact pin変更は0である。
+- SMS UIはchallenge.expires_atをAsia/Tokyoで表示し、resend responseのexpires_atへ更新する。固定「認証コードの有効期限は5分」表示は0、5分文字列はその不在を確認するtest assertion 1件だけである。LOCAL_COOLDOWN_SECONDS=60は再送cooldownでありOTP TTLと混同しない。stale node_modulesでfocused test初回9 failures／6 passを記録し、frozen installでalpha.35 Client／Testkitへ同期後、focused 15 testsとsource secret scanをPASSした。tracked worktreeはcleanを保持する。
+- Production build-time public valuesはNEXT_PUBLIC_SITE_URL=https://oripa-z.comとNEXT_PUBLIC_PLATFORM_API_BASE_URL=/api/v2の2件だけである。runtime env fileはroot:root mode 0600で同じ2 namesだけを持つ。Secretをbuild／envへ追加・表示した件数は0である。
+- Production foundationはrelease root /var/lib/luxe-pack-storefront-production/releasesが空、current symlink targetなし、service disabled／inactive／restart 0、listener 3200なし。unitはroot:root mode 0644、runtime user luxe-pack-storefront、exact Node 22.22.3／pnpm 10.12.1、127.0.0.1:3200 bind commandを保持し、systemd-analyze verify PASSした。
+- Canonical Storefront CIは39ba... Merge Treeと同一のFinal HeadをBuildしたがdeployable filesystem artifactをuploadせず、Run 33728623840 artifacts count 0、Repository artifacts count 0である。local Production evidence／release rootにも39ba... artifact 0。既存local .next Build ID yr81BJLo-bpN8YcWbxqHHは2026-08-31生成のstale sourceで採用しない。
+- V1 to V2 Migration PlanとInfrastructure AGENTSのProduction Server build禁止は現在も有効である。よってad-hoc host build、stale .next copy、source SHA不明release、Storefront Docker化を実行せず、exact immutable filesystem artifactを安全に成立させるapproved pathがないためRelease GateをFAIL Closedした。
+- Release target Source SHAは39ba749914aec1142e5618aa7f5688f93feff5f7へ固定した。Release Build ID、release path、artifact checksum、current symlink switch、service enable／start、127.0.0.1:3200 root／points／SMS route smoke、built bundle public-value／5分／secret-like guardは全てNOT_STARTED。Release validation前のsymlink／service mutationは0、rollback対象のprevious currentも存在しない。
+- Production PlatformはAPI／Admin／Mail worker／SMS workerがb6541e... OCI revisionを保持する。API image sha256:12ea2a5b47ce1986894e817150d5439d0ac2edccd14f69a8acfbcc770d8a1380、Admin image sha256:e86907d16a6f9f103f23b8d8471564bb6c2f6e33c415a9f799a7af2c07463315、全4 runtime restart 0。Redis authenticated PONG、host publish 0、API /up 200、API /api/health 200、Admin /api/health 200、known Asset GET 200 image/pngをPASSした。
+- Production migration path database/migrations-v2は000001–000072の72件が全てRan、ledger total 72、latest 2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling。Migration作成／変更／適用0、Business data mutation 0。Ownerはexact 1／active 1／verified 1、User 0、Owner creation 0である。
+- AssetsはBusiness files 76、61,799,877 bytesでexpected一致し、recopy／mutation 0。Production Outbox pending／processing 0、SMS pending／processing 0、Mail pending／processing 0、Mail delivery pending／sending 0。Provider real request、Mail、SMS、fincode、Payment、Webhook mutationは各0である。
+- Mailgun env/runtime readiness PASS、Mail worker running／restart 0。SMS env/runtime readiness PASS、SMS worker running／restart 0、runtime TTL 60分。FINCODE_PAYMENT_ENABLED=falseをenvとLaravel configで確認し、fincodeはDEFERRED／DISABLED。Scheduler unit/processはinactiveでHuman deferredを維持する。
+- Nginx candidate /var/lib/oripa-v2/runtime/nginx-candidate/oripa-production.confはexpected SHA-256 11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32一致。oripa-z.comの/api/v2／api/assets→8611、/→3200、admin.oripa-z.comのAdmin API→8611、/→3611、default /healthz→200をread-only確認した。isolated candidate syntaxとactive syntaxはPASS、active conf.dは空でinstall／reload／restart mutation 0である。
+- AWS credentialは探索せず、ALB／ACM／Target Group／Security Group／Host ruleの12項目はHuman Console final confirmation待ち。ALB mutation 0、DNS mutation 0、Public activation 0である。
+
+### Result
+
+HOLD
+
+BlockerはStorefront final Merge SHA 39ba749914aec1142e5618aa7f5688f93feff5f7 exactのdeployable immutable filesystem artifactが存在せず、current AuthorityがProduction Server上のad-hoc Buildを禁止していることである。Source／Contract／SMS TTL／Platform Runtime／Worker／Assets／Owner／Nginx candidate gateはPASSしたが、Storefront Release、Built Bundle Guard、Private Acceptanceは未成立である。
+
+### Human Cutover Commands
+
+Private Storefront acceptanceが全PASSしていないため、A. Pre-cutover、B. Activate Nginx、C. Public acceptance、D. Rollbackのexact command setは生成しない。Nginx candidate install／reload、ALB／DNS mutation、Public Provider smoke、real Mail／SMS／fincode／Payment／Webhookは実行していない。
+
+### Remaining Human Actions
+
+1. exact 39ba749914aec1142e5618aa7f5688f93feff5f7 sourceのcanonical CI deployable immutable filesystem artifactを提供またはその発行を明示承認する。
+2. Stage 7Cを再実行し、release validation、atomic current switch、private systemd activation、loopback acceptance、built bundle guardを完了する。
+3. そのPASS後にALB Console final confirmation、Human GO、Nginx activation、Public acceptance、Owner browser login、Commercial Production GOを順に行う。
+
+- Point of No Returnには未到達。Public routing／real Production business write／Webhookは0であり、旧DB writerへ戻す判断は発生していない。
+- Task metrics at record time: CI wait 0、Check rerun 0、Build 0、Runtime Activation 0、Human wait 0。Storefront source fetch 1、fast-forward 1、frozen install 1、Nginx reload 0、DB mutation 0、Provider request 0である。
