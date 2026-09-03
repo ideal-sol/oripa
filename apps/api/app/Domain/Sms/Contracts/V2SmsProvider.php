@@ -9,6 +9,7 @@ interface V2SmsProvider
 {
     public function deliver(
         #[SensitiveParameter] string $canonicalPhone,
-        #[SensitiveParameter] string $verificationCode
+        #[SensitiveParameter] string $verificationCode,
+        int $ttlMinutes
     ): V2SmsDeliveryResult;
 }

@@ -3,6 +3,7 @@
 namespace App\Domain\Sms\Services;
 
 use App\Domain\Identity\Services\V2PhoneNormalizer;
+use App\Domain\Identity\Services\V2SmsOtpConfiguration;
 use App\Domain\Sms\Contracts\V2SmsProvider;
 use App\Domain\Sms\Values\V2SmsDeliveryResult;
 use Illuminate\Http\Client\ConnectionException;
@@ -19,7 +20,8 @@ final class V2FourSSmsProvider implements V2SmsProvider
 
     public function deliver(
         #[SensitiveParameter] string $canonicalPhone,
-        #[SensitiveParameter] string $verificationCode
+        #[SensitiveParameter] string $verificationCode,
+        int $ttlMinutes
     ): V2SmsDeliveryResult {
         $endpoint = (string) config('v2_sms.fours.endpoint');
         $userId = (string) config('v2_sms.fours.cp_userid');
@@ -34,6 +36,8 @@ final class V2FourSSmsProvider implements V2SmsProvider
             || $timeout < 1
             || $timeout > 30
             || ! preg_match('/\A[0-9]{6}\z/', $verificationCode)
+            || $ttlMinutes < 1
+            || $ttlMinutes > V2SmsOtpConfiguration::MAXIMUM_TTL_MINUTES
         ) {
             return V2SmsDeliveryResult::failed('provider_configuration_unavailable');
         }
@@ -51,7 +55,7 @@ final class V2FourSSmsProvider implements V2SmsProvider
                 ->timeout($timeout)
                 ->post($endpoint, [
                     'carrier_id' => '99',
-                    'message' => $this->message($verificationCode),
+                    'message' => $this->message($verificationCode, $ttlMinutes),
                     'address' => $address,
                     'send_date' => '',
                     'urlshorterflg' => '0',
@@ -106,10 +110,13 @@ final class V2FourSSmsProvider implements V2SmsProvider
             && parse_url($endpoint, PHP_URL_SCHEME) === 'https';
     }
 
-    private function message(#[SensitiveParameter] string $verificationCode): string
+    private function message(
+        #[SensitiveParameter] string $verificationCode,
+        int $ttlMinutes
+    ): string
     {
         return (string) config('app.name').'の認証コードは「'.$verificationCode."」です。\n\n".
-            "有効期限は5分です。\n\n".
+            "有効期限は{$ttlMinutes}分です。\n\n".
             'このコードを第三者に教えないでください。';
     }
 }

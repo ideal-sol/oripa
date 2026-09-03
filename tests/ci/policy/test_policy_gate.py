@@ -1819,6 +1819,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_25_000069_create_v2_canonical_rank_domain.php",
             "apps/api/database/migrations-v2/2026_09_26_000070_normalize_v2_rank_master_status_check.php",
             "apps/api/database/migrations-v2/2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
+            "apps/api/database/migrations-v2/2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

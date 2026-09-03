@@ -12,6 +12,7 @@ use App\Domain\Identity\Services\V2PhoneNormalizer;
 use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Identity\Services\V2SmsVerificationService;
+use App\Domain\Identity\Services\V2SmsOtpConfiguration;
 use App\Models\V2\OutboxMessage;
 use App\Models\V2\PasswordResetToken;
 use App\Models\V2\SmsVerificationChallenge;
@@ -371,6 +372,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
 
     public function test_sms_send_verify_encrypts_phone_hashes_code_and_rotates_session(): void
     {
+        self::assertSame(60, app(V2SmsOtpConfiguration::class)->ttlMinutes());
         $user = $this->user('sms@example.test');
         [$request, $oldSession] = $this->authenticatedRequest($user);
         $service = app(V2SmsVerificationService::class);
@@ -383,7 +385,12 @@ final class PasswordResetSmsVerificationTest extends TestCase
         self::assertSame($accepted['challenge_id'], $challenge->public_id);
         self::assertMatchesRegularExpression('/\A[0-9]{6}\z/', $delivery['verification_code']);
         self::assertSame(hash('sha256', $delivery['verification_code']), $challenge->code_hash);
-        self::assertSame(300, (int) $challenge->created_at->diffInSeconds($challenge->expires_at));
+        self::assertSame(3600, (int) $challenge->created_at->diffInSeconds($challenge->expires_at));
+        self::assertSame($challenge->expires_at->toIso8601String(), $accepted['expires_at']);
+        self::assertSame(
+            $challenge->expires_at->toIso8601String(),
+            $service->status($user)['challenge']['expires_at']
+        );
         self::assertStringNotContainsString('+819012345678', $challenge->phone_ciphertext);
         self::assertStringNotContainsString(
             '+819012345678',
@@ -412,6 +419,81 @@ final class PasswordResetSmsVerificationTest extends TestCase
             'session_id_hash' => hash('sha256', $verified['session']['token']),
             'revoked_at' => null,
         ]);
+    }
+
+    public function test_sms_otp_is_valid_during_minute_59_and_expires_at_minute_60(): void
+    {
+        $service = app(V2SmsVerificationService::class);
+        $validUser = $this->user('sms-ttl-valid@example.test');
+        [$validRequest] = $this->authenticatedRequest($validUser);
+        $service->send($validUser, $validRequest, '09011112222');
+        $validChallenge = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
+        $this->acceptChallenge($validChallenge);
+        $validCode = $this->decryptedOutbox(
+            'identity.sms-verification',
+            $validChallenge->public_id
+        )['verification_code'];
+
+        $this->travel(59)->minutes();
+        $this->travel(59)->seconds();
+        self::assertSame('accepted', $service->status($validUser)['challenge']['status']);
+        self::assertTrue($service->verify(
+            $validUser,
+            $validRequest,
+            $validChallenge->public_id,
+            $validCode
+        )['status']['verified']);
+        $this->travelBack();
+
+        $expiredUser = $this->user('sms-ttl-expired@example.test');
+        [$expiredRequest] = $this->authenticatedRequest($expiredUser);
+        $service->send($expiredUser, $expiredRequest, '08011112222');
+        $expiredChallenge = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
+        $this->acceptChallenge($expiredChallenge);
+        $expiredCode = $this->decryptedOutbox(
+            'identity.sms-verification',
+            $expiredChallenge->public_id
+        )['verification_code'];
+
+        $this->travel(60)->minutes();
+        self::assertSame('expired', $service->status($expiredUser)['challenge']['status']);
+        try {
+            $service->verify(
+                $expiredUser,
+                $expiredRequest,
+                $expiredChallenge->public_id,
+                $expiredCode
+            );
+            self::fail('An SMS OTP must expire at minute 60.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('INVALID_SMS_VERIFICATION', $exception->errorCode);
+        }
+        self::assertNotNull($expiredChallenge->refresh()->revoked_at);
+    }
+
+    public function test_invalid_sms_otp_ttl_configuration_fails_before_persistence(): void
+    {
+        $service = app(V2SmsVerificationService::class);
+        foreach ([0, 1441, '60.5', 'invalid'] as $index => $invalidTtl) {
+            config(['v2_identity.sms_verification.ttl_minutes' => $invalidTtl]);
+            $user = $this->user("sms-invalid-ttl-{$index}@example.test");
+            [$request] = $this->authenticatedRequest($user);
+            $challengeCount = SmsVerificationChallenge::query()->count();
+            $outboxCount = OutboxMessage::query()
+                ->where('topic', 'identity.sms-verification')
+                ->count();
+            try {
+                $service->send($user, $request, '0701111222'.($index + 1));
+                self::fail('An invalid SMS OTP TTL must fail closed.');
+            } catch (\RuntimeException $exception) {
+                self::assertSame('SMS OTP TTL configuration is invalid.', $exception->getMessage());
+            }
+            self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+            self::assertSame(
+                $outboxCount,
+                OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+            );
+        }
     }
 
     public function test_phone_ownership_lookup_rejects_previous_key_match_after_rotation(): void
@@ -445,24 +527,19 @@ final class PasswordResetSmsVerificationTest extends TestCase
         ]);
         $second = $this->user('rotation-phone-second@example.test');
         [$secondRequest] = $this->authenticatedRequest($second);
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
         try {
             $service->send($second, $secondRequest, '09077778888');
-            $secondChallenge = SmsVerificationChallenge::query()
-                ->where('user_id', $second->getKey())->sole();
-            $this->acceptChallenge($secondChallenge);
-            $service->verify(
-                $second,
-                $secondRequest,
-                $secondChallenge->public_id,
-                $this->decryptedOutbox(
-                    'identity.sms-verification',
-                    $secondChallenge->public_id
-                )['verification_code']
-            );
-            self::fail('A previous-key phone ownership match must remain unavailable at claim.');
+            self::fail('A previous-key phone ownership match must be unavailable before send.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
         }
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
     }
 
     public function test_sms_resend_revokes_old_challenge_preserves_failures_and_rejects_replay(): void
@@ -535,6 +612,26 @@ final class PasswordResetSmsVerificationTest extends TestCase
         $this->acceptChallenge($secondChallenge);
         $service->verify($second, $secondRequest, $secondChallenge->public_id, $secondCode);
 
+        $third = $this->user('phone-third@example.test');
+        [$thirdRequest] = $this->authenticatedRequest($third);
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
+        try {
+            $service->send($third, $thirdRequest, '09033334444');
+            self::fail('An active verified phone must be rejected before send.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
+            self::assertSame(
+                'This phone number is unavailable. Enter another phone number.',
+                $exception->getMessage()
+            );
+        }
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
+
         $firstChallenge = SmsVerificationChallenge::query()
             ->where('user_id', $first->getKey())
             ->sole();
@@ -581,24 +678,19 @@ final class PasswordResetSmsVerificationTest extends TestCase
 
         $claimant = $this->user('suspended-holder-claimant@example.test');
         [$claimantRequest] = $this->authenticatedRequest($claimant);
-        $service->send($claimant, $claimantRequest, '09066667777');
-        $claim = SmsVerificationChallenge::query()
-            ->where('user_id', $claimant->getKey())->sole();
-        $this->acceptChallenge($claim);
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
         try {
-            $service->verify(
-                $claimant,
-                $claimantRequest,
-                $claim->public_id,
-                $this->decryptedOutbox(
-                    'identity.sms-verification',
-                    $claim->public_id
-                )['verification_code']
-            );
-            self::fail('A suspended holder phone must remain unavailable.');
+            $service->send($claimant, $claimantRequest, '09066667777');
+            self::fail('A suspended holder phone must be rejected before send.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
         }
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
     }
 
     public function test_closed_account_phone_can_be_reused_and_phone_change_resets_verification(): void
@@ -722,6 +814,52 @@ final class PasswordResetSmsVerificationTest extends TestCase
             '__Host-oripa_user_session',
             $initialResult['session']['token']
         );
+        $this->travel(60)->seconds();
+
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
+        try {
+            $service->send($user, $changeRequest, '09044445555');
+            self::fail('A User self-number must remain already verified.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('PHONE_ALREADY_VERIFIED', $exception->errorCode);
+        }
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
+
+        $targetOwner = $this->user('phone-change-target-owner@example.test');
+        [$targetOwnerRequest] = $this->authenticatedRequest($targetOwner);
+        $service->send($targetOwner, $targetOwnerRequest, '07044445555');
+        $targetChallenge = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
+        $this->acceptChallenge($targetChallenge);
+        $service->verify(
+            $targetOwner,
+            $targetOwnerRequest,
+            $targetChallenge->public_id,
+            $this->decryptedOutbox(
+                'identity.sms-verification',
+                $targetChallenge->public_id
+            )['verification_code']
+        );
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
+        try {
+            $service->send($user, $changeRequest, '07044445555');
+            self::fail('A used phone-change target must be rejected before send.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
+        }
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
+        self::assertSame('+819044445555', Crypt::decryptString(
+            UserPhoneNumber::query()->where('user_id', $user->getKey())->sole()->phone_ciphertext
+        ));
 
         $service->send($user, $changeRequest, '08044445555');
         $change = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
@@ -813,7 +951,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             'identity.sms-verification',
             $change->public_id
         )['verification_code'];
-        $this->travel(5)->minutes();
+        $this->travel(60)->minutes();
 
         try {
             $service->verify($user, $changeRequest, $change->public_id, $changeCode);
