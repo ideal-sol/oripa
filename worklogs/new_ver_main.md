@@ -9519,3 +9519,115 @@ Private Storefront acceptanceが全PASSしていないため、A. Pre-cutover、
 
 - Point of No Returnには未到達。Public routing／real Production business write／Webhookは0であり、旧DB writerへ戻す判断は発生していない。
 - Task metrics at record time: CI wait 0、Check rerun 0、Build 0、Runtime Activation 0、Human wait 0。Storefront source fetch 1、fast-forward 1、frozen install 1、Nginx reload 0、DB mutation 0、Provider request 0である。
+
+## OPS-032 Stage 7D Storefront Artifact Retrieval / Private Activation
+
+- Issue none、Branch `chore/OPS-032-stage-7d-storefront-private-activation`、通常Worktree、Base `00eef8227edd7e4bd0e0f13c7d42c8fc9d03585c`、Risk `R4`、Lane `Strict Change`、Activation `immediate`で開始した。Production readbackとGitHub deliveryのためRepository変更を本Worklogだけに限定するroot-owned mode `0600` transient Task Policyを使用する。Migration Allocation Lock／Source LockはN/Aである。
+- Task開始時のlocal／origin／live protected Platform `main`はexpected `00eef8227edd7e4bd0e0f13c7d42c8fc9d03585c`へ一致した。Runtime Authority `b6541e526c4943c03c3533f7cbc9d3ca560a2567`との差分はWorklogだけで、Application／Migration／Composer／dependency差分0である。Storefront live protected `main`はexpected `c0455220761ac752a9acf22c6914df748ae51d55`、Application Authorityは`39ba749914aec1142e5618aa7f5688f93feff5f7`で、両者の差分は`.github/workflows/production-artifact.yml`追加だけである。clean local／origin Storefront `main`をfetch＋fast-forward各1回で`c045522...`へ同期し、以後mainの自動再同期は行わない。
+- Exact ArtifactはRun `33736499932`、ID `9885981378`、name `luxe-pack-storefront-production-39ba749914aec1142e5618aa7f5688f93feff5f7-arm64-run-33736499932-1`でavailable／unexpired、GitHub metadata上のworkflow headは`c045522...`である。expected archive SHA-256 `1ee7c0fb82834aa6bbe5e770498a778bcddaf53962e4585d26c761d2e163e04f`、manifest SHA-256 `34e7bc0ed7aea7cb19dec6cb9e34fdb4fcfbc2c3f4eeffa9da52aea1f1943d67`、file manifest SHA-256 `6c0a2fc1232912f03384ddde8aade7d34252bdaa187106b77b103c9d737992e6`を固定した。
+- Priority Aの`gh` CLIはhostに存在しない。Priority Bの既設root-owned GitHub App read wrapperはPlatform Repositoryのapproved operationだけに固定され、Storefront Artifact download経路を持たない。他のwrapperは存在せず、credential／PAT探索・生成は0である。既知host pathにもexact archiveは存在しないため、`/home/ec2-user/OPS-032-storefront-artifact-transfer`をowner `ec2-user:ec2-user`、mode `0700`で作成し、Human manual transfer待ちとした。
+- Artifact未取得のためpre-extraction checksum、release作成、`FILE_SHA256SUMS`、Build ID、architecture native file、bundle guard、atomic current switch、service enable／start、127.0.0.1:3200 acceptanceはNOT_STARTEDである。release target／current symlinkは不存在、unitはdisabled／inactive／restart 0、unit validationはTask外のlegacy `/var/run/acpid.socket` warningだけで完了した。Nginx／ALB／DNS／Public routing mutationは0である。
+- 非破壊再受入はHost `aarch64`、Redis authenticated `PONG`、API `/up` 200、API `/api/health` 200、Admin `/api/health` 200、API／Admin／Mail worker／SMS worker exact OCI revision `b6541e...`、running／restart 0をPASSした。Migration ledger 72／latest `000072`／batch 3、SMS TTL 60、fincode disabled、Scheduler inactiveを維持する。AssetsはBusiness 76 files／61,799,877 bytes、known loopback Asset GET 200 image/png、Owner exact 1／active 1／verified 1で、DB／Asset／Provider／Owner mutationは0である。
+- Nginx candidateはSHA-256 `11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32`一致、routing readback、isolated candidate syntax、active Nginx syntaxをPASSし、active `conf.d`は空である。candidate install／Nginx reload／restart、ALB／DNS mutation、real Mail／SMS／fincode／Payment／Webhook requestは各0である。
+
+### Artifact Retrieval / Release
+
+- Human transferした未展開ZIPはsize `128,966,741` bytes、GitHub outer SHA-256 `78c6aa5224db7692dfa17516c608bdc3e26e2107dca190bd824b6e16eb311ba6`がlive metadataと一致した。ZIP inventoryは通常file 5件だけで、Archive／Manifestの`sha256sum --check`、actual Archive `1ee7c0...e04f`、Manifest `34e7bc...3d67`、top-level `FILE_SHA256SUMS` `6c0a2f...92e6`をpre-extraction PASSした。
+- tar 14,613 entriesを全件検査し、absolute／parent traversal／duplicate／special device 0、pnpm symlink 195件とhardlink 510件は全targetがrelease root内、top-levelは`.next`、`public`、`node_modules`、`package.json`、`pnpm-lock.yaml`、`next.config.ts`、`artifact-manifest.json`、`FILE_SHA256SUMS`だけである。
+- 新規release `/var/lib/luxe-pack-storefront-production/releases/39ba749914aec1142e5618aa7f5688f93feff5f7`へ一度だけ展開した。全`FILE_SHA256SUMS` PASS、Build ID `d1KU3RU0iwhO7hTiwX7vu`、Manifest Source／Tree／Workflow／Node／pnpm／Next／Client／Testkit／OpenAPI／site URL／API baseはAuthorityと一致した。`.git`、`src`、`.env`、`.env.production`、`.next/cache`は0である。
+- releaseは全entry root:root、非symlink world-writable 0、runtime user read／execute PASS。Sharp／SWC／libvips native 6 filesは全てARM AArch64、x64 package directory 0である。artifact-owned bundleのexisting high-confidence secret pattern候補0。第三者Next.js docs 2 pathだけが公開example patternへ一致し、bundle対象ではない。固定user-facing `5分`はbundle 0、`expires_at`／expiry message／60秒resend cooldownはpresent、same-origin `/api/v2` present。`site_url=https://oripa-z.com`はManifestのbuild authorityで、Application Sourceはこの値をruntime参照しない。
+- 初回のためprevious currentは不存在。全validation後、`current`をexact releaseへatomic switchした。rollbackはfirst business write前にservice stop後currentを外す初回rollbackとなる。Artifact ZIPとstaging 5 filesはvalidation完了後にexact削除し、release／currentは保持した。root-only evidence `/var/lib/luxe-pack-storefront-production/evidence/39ba749914aec1142e5618aa7f5688f93feff5f7/artifact-evidence.json`、mode `0600`、SHA-256 `0a4e86f4b63a0206620aeaa2d32966b46bada405432a4b10a370efe41a5a0e54`を保持する。
+
+### Private Activation / Acceptance
+
+- unitは既存sourceを変更せず`systemd-analyze verify` PASS（Task外system `acpid.socket` legacy path warningのみ）。exact Node `22.22.3`、pnpm `10.12.1`、runtime user/group `luxe-pack-storefront`、WorkingDirectory `current`、bind command `127.0.0.1:3200`を維持する。daemon-reload 0、enable 1、start 1、active／running、restart 0、listenerは`127.0.0.1:3200`だけで`0.0.0.0:3200`／`[::]:3200`は0。
+- Loopback `/` 200、`/points` 200、`/mypage/sms-verification`はcurrent unauthenticated semanticsどおり200。SMS responseとbundleの固定`5分`は0、dynamic `expires_at`表示実装とresend cooldownはbundle present。Provider request、real Mail／SMS／fincode／Payment／Webhook、business mutationは各0である。
+- Activation後もRedis authenticated PONG、API `/up` 200、API `/api/health` 200、Admin `/api/health` 200。API／Admin／Mail worker／SMS workerはexact OCI revision `b6541e...`、running／restart 0、SMS TTL 60、fincode disabled、Scheduler inactiveを維持した。Migration ledger 72／latest `000072`／batch 3、Assets 76 files／61,799,877 bytes、known Asset GET 200 image/png、Owner exact 1／active 1／verified 1である。
+- Nginx candidate SHA-256 `11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32`、isolated syntax、oripa-z.com `/api/v2`／`/api/assets`→8611・`/`→3200、admin.oripa-z.com Admin API→8611・`/`→3611、default `/healthz`→200を再確認した。active `conf.d`は空、candidate install／Nginx reload／restart、ALB／DNS mutation、Public routingは0。
+
+### Result
+
+`READY_FOR_HUMAN_GO`
+
+### Human Cutover Commands — DO NOT EXECUTE IN THIS TASK
+
+```bash
+# A. PRE-CUTOVER
+set -euo pipefail
+PLATFORM_REPO=/var/www/oripa
+STOREFRONT_REPO=/var/www/luxe-pack-storefront
+PLATFORM_RUNTIME=b6541e526c4943c03c3533f7cbc9d3ca560a2567
+STOREFRONT_SOURCE=39ba749914aec1142e5618aa7f5688f93feff5f7
+STOREFRONT_TREE=1d7cb74488a911e95a907de292d586f37833f06d
+RELEASE=/var/lib/luxe-pack-storefront-production/releases/39ba749914aec1142e5618aa7f5688f93feff5f7
+CURRENT=/var/lib/luxe-pack-storefront-production/current
+ARTIFACT_EVIDENCE=/var/lib/luxe-pack-storefront-production/evidence/39ba749914aec1142e5618aa7f5688f93feff5f7/artifact-evidence.json
+CANDIDATE=/var/lib/oripa-v2/runtime/nginx-candidate/oripa-production.conf
+ACTIVE=/etc/nginx/conf.d/oripa-production.conf
+EXPECTED_CANDIDATE=11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32
+
+git -C "$PLATFORM_REPO" diff --quiet "$PLATFORM_RUNTIME" main -- apps packages database composer.json composer.lock
+test "$(git -C "$STOREFRONT_REPO" rev-parse "$STOREFRONT_SOURCE^{tree}")" = "$STOREFRONT_TREE"
+test "$(sudo readlink "$CURRENT")" = "$RELEASE"
+test "$(sudo sha256sum "$RELEASE/artifact-manifest.json" | awk '{print $1}')" = 34e7bc0ed7aea7cb19dec6cb9e34fdb4fcfbc2c3f4eeffa9da52aea1f1943d67
+test "$(sudo sha256sum "$RELEASE/FILE_SHA256SUMS" | awk '{print $1}')" = 6c0a2fc1232912f03384ddde8aade7d34252bdaa187106b77b103c9d737992e6
+sudo env -C "$RELEASE" /usr/bin/sha256sum --check --quiet FILE_SHA256SUMS
+test "$(sudo tr -d '\n' < "$RELEASE/.next/BUILD_ID")" = d1KU3RU0iwhO7hTiwX7vu
+sudo jq -e '.archive_sha256 == "1ee7c0fb82834aa6bbe5e770498a778bcddaf53962e4585d26c761d2e163e04f" and .private_activation == "PASS"' "$ARTIFACT_EVIDENCE" >/dev/null
+sudo systemctl is-enabled --quiet luxe-pack-storefront-production.service
+sudo systemctl is-active --quiet luxe-pack-storefront-production.service
+test "$(sudo systemctl show luxe-pack-storefront-production.service -p NRestarts --value)" = 0
+sudo ss -lnt | grep -F '127.0.0.1:3200'
+! sudo ss -lnt | grep -E '(0\.0\.0\.0|\[::\]):3200'
+curl -fsS -o /dev/null http://127.0.0.1:3200/
+curl -fsS -o /dev/null http://127.0.0.1:3200/points
+curl -fsS -o /dev/null http://127.0.0.1:3200/mypage/sms-verification
+curl -fsS -o /dev/null http://127.0.0.1:8611/up
+curl -fsS -o /dev/null http://127.0.0.1:8611/api/health
+curl -fsS -o /dev/null http://127.0.0.1:3611/api/health
+sudo docker exec oripa-v2-production-api php artisan tinker --execute="echo Illuminate\\Support\\Facades\\Redis::connection()->ping();"
+test "$(sudo find /var/lib/oripa-v2/assets/private -type f ! -name .healthcheck | wc -l)" = 76
+test "$(sudo sha256sum "$CANDIDATE" | awk '{print $1}')" = "$EXPECTED_CANDIDATE"
+test ! -e "$ACTIVE"
+sudo /usr/sbin/nginx -t
+
+# B. NGINX ACTIVATE — Human GO後のみ
+CUTOVER_EVIDENCE=/var/lib/oripa-v2/runtime/nginx-cutover-$(date -u +%Y%m%dT%H%M%SZ)
+sudo install -d -o root -g root -m 0700 "$CUTOVER_EVIDENCE"
+sudo install -o root -g root -m 0600 /etc/nginx/nginx.conf "$CUTOVER_EVIDENCE/nginx.conf.before"
+sudo tar -czf "$CUTOVER_EVIDENCE/conf.d.before.tar.gz" -C /etc/nginx conf.d
+sudo sha256sum /etc/nginx/nginx.conf "$CANDIDATE" | sudo tee "$CUTOVER_EVIDENCE/SHA256SUMS.before" >/dev/null
+test "$(sudo sha256sum "$CANDIDATE" | awk '{print $1}')" = "$EXPECTED_CANDIDATE"
+sudo install -o root -g root -m 0644 "$CANDIDATE" "$ACTIVE"
+test "$(sudo sha256sum "$ACTIVE" | awk '{print $1}')" = "$EXPECTED_CANDIDATE"
+sudo /usr/sbin/nginx -t
+sudo systemctl reload nginx
+sudo systemctl is-active --quiet nginx
+
+# C. IMMEDIATE PUBLIC ACCEPTANCE — read-only GET only
+curl -fsS -o /dev/null http://127.0.0.1/healthz
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/points
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/mypage/sms-verification
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' 'http://127.0.0.1/api/v2/gachas?limit=1'
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/api/assets/admin-assets/rank-masters/2026/09/01a05ced-5759-70af-8788-2d95147743e5-lineup.png
+curl -fsS -o /dev/null -H 'Host: admin.oripa-z.com' http://127.0.0.1/
+curl -fsS -o /dev/null https://oripa-z.com/
+curl -fsS -o /dev/null https://oripa-z.com/points
+curl -fsS -o /dev/null https://oripa-z.com/mypage/sms-verification
+curl -fsS -o /dev/null 'https://oripa-z.com/api/v2/gachas?limit=1'
+curl -fsS -o /dev/null https://oripa-z.com/api/assets/admin-assets/rank-masters/2026/09/01a05ced-5759-70af-8788-2d95147743e5-lineup.png
+curl -fsS -o /dev/null https://admin.oripa-z.com/
+
+# D. ROLLBACK — first real Production business write/webhook前のみ
+sudo rm -f "$ACTIVE"
+sudo /usr/sbin/nginx -t
+sudo systemctl reload nginx
+test ! -e "$ACTIVE"
+curl -fsS -o /dev/null http://127.0.0.1/healthz
+```
+
+- ALB Human Console remaining checklistはinternet-facing、HTTPS 443、ACM両host、HTTP 80 redirect、Production TG HTTP:80、target type、new EC2 registration、`/healthz` matcher 200、ALB SG public 443、EC2 SG ALB SG→80、両Host rule→Production TGの12項目である。
+- Remaining Human Actionsは(1) ALB Console final confirmation、(2) Human GO、(3)上記BのNginx activation、(4)上記CのPublic acceptance、(5) Owner browser login、(6) Commercial Production GOだけである。次Stage／Public Cutoverは自動開始しない。
+- Point of No Return前でreal Production business write／Webhookは0。最初のProduction User Registration／Payment／Point Grant／Draw／Prize／Shipping Request／business Webhook後は旧DBをwriterへ戻さず、V2 runtime rollback／forward fix／maintenanceを使用する。
+- Task metrics at private readiness: active elapsed約26分、CI wait 0、Check rerun 0、Build 0、Runtime Activation 1、Human waitはconversation境界のため未計測。Storefront source fetch 1／fast-forward 1、Artifact transfer 1、release extraction 1、systemd enable 1／start 1、daemon-reload 0、Nginx reload 0、DB migration／business mutation 0、Provider request 0である。
