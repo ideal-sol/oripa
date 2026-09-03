@@ -136,6 +136,93 @@ final class IdentitySchemaTest extends TestCase
         }
     }
 
+    public function test_sms_otp_ttl_ceiling_migration_replaces_fixed_product_ttl_without_rewriting_rows(): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $migration = require database_path(
+                'migrations-v2/2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php'
+            );
+            $migration->down();
+            $before = (string) DB::table('pg_constraint')
+                ->where('conname', 'sms_verification_challenges_ttl_check')
+                ->selectRaw('pg_get_constraintdef(oid) AS definition')
+                ->value('definition');
+            self::assertStringContainsString("'00:05:00'::interval", $before);
+
+            $createdAt = now()->startOfSecond();
+            $userId = $this->insertUser('sms-ttl-migration@example.test', true, 'active');
+            $historicalId = $this->insertSmsChallenge(
+                $userId,
+                'historical-five-minute',
+                $createdAt,
+                $createdAt->copy()->addMinutes(5)
+            );
+            $historicalExpiry = DB::table('sms_verification_challenges')
+                ->where('id', $historicalId)
+                ->value('expires_at');
+
+            $migration->up();
+            $after = (string) DB::table('pg_constraint')
+                ->where('conname', 'sms_verification_challenges_ttl_check')
+                ->selectRaw('pg_get_constraintdef(oid) AS definition')
+                ->value('definition');
+            self::assertStringContainsString('(expires_at > created_at)', $after);
+            self::assertStringContainsString("'24:00:00'::interval", $after);
+            self::assertSame(
+                $historicalExpiry,
+                DB::table('sms_verification_challenges')
+                    ->where('id', $historicalId)
+                    ->value('expires_at')
+            );
+            DB::table('sms_verification_challenges')->where('id', $historicalId)->delete();
+
+            $sixtyMinuteId = $this->insertSmsChallenge(
+                $this->insertUser('sms-ttl-sixty@example.test', true, 'active'),
+                'sixty-minute',
+                $createdAt,
+                $createdAt->copy()->addMinutes(60)
+            );
+            DB::table('sms_verification_challenges')->where('id', $sixtyMinuteId)->delete();
+            $safetyCeilingId = $this->insertSmsChallenge(
+                $this->insertUser('sms-ttl-ceiling@example.test', true, 'active'),
+                'safety-ceiling',
+                $createdAt,
+                $createdAt->copy()->addHours(24)
+            );
+            DB::table('sms_verification_challenges')->where('id', $safetyCeilingId)->delete();
+
+            DB::statement('SAVEPOINT sms_ttl_not_future');
+            try {
+                $this->insertSmsChallenge(
+                    $this->insertUser('sms-ttl-not-future@example.test', true, 'active'),
+                    'not-future',
+                    $createdAt,
+                    $createdAt
+                );
+                self::fail('SMS Challenge expiry must be after creation.');
+            } catch (QueryException) {
+                DB::statement('ROLLBACK TO SAVEPOINT sms_ttl_not_future');
+            }
+
+            DB::statement('SAVEPOINT sms_ttl_above_ceiling');
+            try {
+                $this->insertSmsChallenge(
+                    $this->insertUser('sms-ttl-above-ceiling@example.test', true, 'active'),
+                    'above-safety-ceiling',
+                    $createdAt,
+                    $createdAt->copy()->addHours(24)->addSecond()
+                );
+                self::fail('SMS Challenge expiry must not exceed the safety ceiling.');
+            } catch (QueryException) {
+                DB::statement('ROLLBACK TO SAVEPOINT sms_ttl_above_ceiling');
+            }
+        } finally {
+            DB::rollBack();
+        }
+    }
+
     public function test_pending_user_email_can_repeat_but_verified_email_is_unique(): void
     {
         DB::beginTransaction();
@@ -406,6 +493,28 @@ final class IdentitySchemaTest extends TestCase
             'password_hash' => (new V2PasswordPolicy())->hash('valid admin password'),
             'role' => $role,
             'state' => $state,
+        ]);
+    }
+
+    private function insertSmsChallenge(
+        int $userId,
+        string $seed,
+        \DateTimeInterface $createdAt,
+        \DateTimeInterface $expiresAt
+    ): int {
+        return (int) DB::table('sms_verification_challenges')->insertGetId([
+            'public_id' => (string) Str::uuid7(),
+            'user_id' => $userId,
+            'phone_ciphertext' => 'encrypted-'.$seed,
+            'phone_hmac' => hash('sha256', 'phone-'.$seed),
+            'code_hash' => hash('sha256', 'code-'.$seed),
+            'purpose' => 'registration',
+            'failed_attempts' => 0,
+            'revoked_at' => $createdAt,
+            'expires_at' => $expiresAt,
+            'sent_at' => $createdAt,
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
         ]);
     }
 }

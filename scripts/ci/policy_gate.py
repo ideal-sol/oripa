@@ -310,6 +310,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/app/Domain/Identity/Services/V2GoogleOidcHttpTransport.php",
     "apps/api/app/Domain/Identity/Services/V2PasswordRecoveryService.php",
     "apps/api/app/Domain/Identity/Services/V2PhoneNormalizer.php",
+    "apps/api/app/Domain/Identity/Services/V2SmsOtpConfiguration.php",
     "apps/api/app/Domain/Identity/Services/V2SmsVerificationService.php",
     "apps/api/app/Console/Commands/V2/CreateInitialOwnerInvitation.php",
     "apps/api/app/Http/Controllers/V2/V2PublicAuthController.php",
@@ -2986,6 +2987,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_25_000069_create_v2_canonical_rank_domain.php",
         "2026_09_26_000070_normalize_v2_rank_master_status_check.php",
         "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
+        "2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -3002,6 +3004,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
             "2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",
             "2026_09_24_000068_add_v2_account_security.php",
             "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
+            "2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
         ]
     )
     for required in (
@@ -3096,7 +3099,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "'email_change_day' => [10, 86400]",
         "'email_change_confirm' => [5, 1800]",
         "'password_change' => [5, 900]",
-        "'ttl_minutes' => 5",
+        "V2_SMS_OTP_TTL_MINUTES",
         "'resend_cooldown_seconds' => 60",
         "'maximum_attempts' => 5",
         "'sms_phone_hour' => [3, 3600]",

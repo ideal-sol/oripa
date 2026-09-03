@@ -61,7 +61,7 @@ return [
     ],
 
     'sms_verification' => [
-        'ttl_minutes' => 5,
+        'ttl_minutes' => env('V2_SMS_OTP_TTL_MINUTES', 60),
         'resend_cooldown_seconds' => 60,
         'maximum_attempts' => 5,
         'code_digits' => 6,

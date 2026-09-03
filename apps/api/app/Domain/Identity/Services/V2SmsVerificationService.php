@@ -24,6 +24,7 @@ final class V2SmsVerificationService
         private readonly V2PhoneNormalizer $phones,
         private readonly V2IdentityCorrelation $correlation,
         private readonly V2SecureToken $tokens,
+        private readonly V2SmsOtpConfiguration $otpConfiguration,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2SessionManager $sessions,
         private readonly V2ReferralRewardService $referrals,
@@ -278,6 +279,7 @@ final class V2SmsVerificationService
         bool $resend
     ): array {
         $phoneHashes = $this->correlation->hashes($normalized);
+        $ttlMinutes = $this->otpConfiguration->ttlMinutes();
         $this->assertCooldown($user, $phoneHashes);
         try {
             $this->rateLimiter->assertSubject('sms_phone_hour', $phoneHashes[0]);
@@ -294,6 +296,7 @@ final class V2SmsVerificationService
             $normalized,
             $phoneHashes,
             $code,
+            $ttlMinutes,
             $resend
         ): array {
             User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
@@ -313,6 +316,7 @@ final class V2SmsVerificationService
             }
             $purpose = $currentPhone === null ? 'registration' : 'phone_change';
             $this->session($request, $user, $purpose === 'phone_change', true);
+            $this->assertPhoneAvailableForChallenge($phoneHashes, (int) $user->getKey());
             $old = SmsVerificationChallenge::query()
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
@@ -331,9 +335,7 @@ final class V2SmsVerificationService
                 'code_hash' => $this->tokens->hash($code),
                 'purpose' => $purpose,
                 'failed_attempts' => 0,
-                'expires_at' => $now->copy()->addMinutes(
-                    (int) config('v2_identity.sms_verification.ttl_minutes', 5)
-                ),
+                'expires_at' => $now->copy()->addMinutes($ttlMinutes),
                 'sent_at' => $now,
                 'delivery_state' => 'pending',
                 'provider_identifier' => 'sms_fours',
@@ -348,6 +350,7 @@ final class V2SmsVerificationService
                         'challenge_public_id' => $challenge->public_id,
                         'recipient' => $normalized,
                         'verification_code' => $code,
+                        'ttl_minutes' => $ttlMinutes,
                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
                     'encryption_format' => 'laravel-v1',
                 ],
@@ -368,6 +371,30 @@ final class V2SmsVerificationService
                 'expires_at' => $challenge->expires_at->toIso8601String(),
             ];
         }, 3);
+    }
+
+    /** @param list<string> $phoneHashes */
+    private function assertPhoneAvailableForChallenge(array $phoneHashes, int $userId): void
+    {
+        $holder = UserPhoneNumber::query()
+            ->whereIn('phone_hmac', $phoneHashes)
+            ->where('user_id', '<>', $userId)
+            ->whereNotNull('verified_at')
+            ->whereNull('revoked_at')
+            ->first();
+        if ($holder === null) {
+            return;
+        }
+        $releasedOwner = User::query()
+            ->whereKey($holder->user_id)
+            ->whereIn('state', [
+                V2UserState::Closed->value,
+                V2UserState::Anonymized->value,
+            ])
+            ->exists();
+        if (! $releasedOwner) {
+            throw $this->phoneUnavailable();
+        }
     }
 
     /** @param list<string> $phoneHashes */

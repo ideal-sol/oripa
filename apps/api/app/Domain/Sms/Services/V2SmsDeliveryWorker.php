@@ -3,6 +3,7 @@
 namespace App\Domain\Sms\Services;
 
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Identity\Services\V2SmsOtpConfiguration;
 use App\Domain\Sms\Contracts\V2SmsProvider;
 use App\Domain\Sms\Values\V2SmsDeliveryResult;
 use App\Models\V2\OutboxMessage;
@@ -36,7 +37,7 @@ final class V2SmsDeliveryWorker
     private function process(OutboxMessage $message, string $worker): void
     {
         try {
-            [$challenge, $phone, $code] = $this->prepare($message);
+            [$challenge, $phone, $code, $ttlMinutes] = $this->prepare($message);
         } catch (Throwable) {
             $this->outbox->markFailed($message->public_id, $worker, 'sms_delivery_payload_invalid');
 
@@ -63,7 +64,7 @@ final class V2SmsDeliveryWorker
         }
 
         try {
-            $result = $this->provider->deliver($phone, $code);
+            $result = $this->provider->deliver($phone, $code, $ttlMinutes);
         } catch (Throwable) {
             $result = V2SmsDeliveryResult::unknown('provider_unavailable');
         }
@@ -79,19 +80,26 @@ final class V2SmsDeliveryWorker
         }
     }
 
-    /** @return array{0: ?SmsVerificationChallenge, 1: string, 2: string} */
+    /** @return array{0: ?SmsVerificationChallenge, 1: string, 2: string, 3: int} */
     private function prepare(OutboxMessage $message): array
     {
-        [$challengePublicId, $phone, $code] = $this->payload($message);
+        [$challengePublicId, $phone, $code, $payloadTtlMinutes] = $this->payload($message);
 
-        return DB::transaction(function () use ($message, $challengePublicId, $phone, $code): array {
+        return DB::transaction(function () use (
+            $message,
+            $challengePublicId,
+            $phone,
+            $code,
+            $payloadTtlMinutes
+        ): array {
             $challenge = SmsVerificationChallenge::query()
                 ->where('public_id', $challengePublicId)
                 ->lockForUpdate()
                 ->first();
             if ($challenge === null) {
-                return [null, $phone, $code];
+                return [null, $phone, $code, $payloadTtlMinutes ?? 1];
             }
+            $challengeTtlMinutes = $this->challengeTtlMinutes($challenge);
             $userPublicId = DB::table('users')
                 ->where('id', $challenge->user_id)
                 ->value('public_id');
@@ -106,6 +114,7 @@ final class V2SmsDeliveryWorker
                 || ! is_string($challengePhone)
                 || ! hash_equals($challengePhone, $phone)
                 || ! hash_equals($challenge->code_hash, hash('sha256', $code))
+                || ($payloadTtlMinutes !== null && $payloadTtlMinutes !== $challengeTtlMinutes)
             ) {
                 $now = now()->startOfSecond();
                 $challenge->forceFill([
@@ -116,10 +125,10 @@ final class V2SmsDeliveryWorker
                     'revoked_at' => $challenge->revoked_at ?? $now,
                 ])->save();
 
-                return [$challenge->refresh(), $phone, $code];
+                return [$challenge->refresh(), $phone, $code, $challengeTtlMinutes];
             }
             if ($challenge->delivery_state === 'accepted') {
-                return [$challenge, $phone, $code];
+                return [$challenge, $phone, $code, $challengeTtlMinutes];
             }
             if ($challenge->delivery_state === 'sending') {
                 $challenge->forceFill([
@@ -129,7 +138,7 @@ final class V2SmsDeliveryWorker
                     'revoked_at' => $challenge->revoked_at ?? now()->startOfSecond(),
                 ])->save();
 
-                return [$challenge->refresh(), $phone, $code];
+                return [$challenge->refresh(), $phone, $code, $challengeTtlMinutes];
             }
             if (
                 $challenge->delivery_state !== 'pending'
@@ -148,15 +157,30 @@ final class V2SmsDeliveryWorker
                     ])->save();
                 }
 
-                return [$challenge->refresh(), $phone, $code];
+                return [$challenge->refresh(), $phone, $code, $challengeTtlMinutes];
             }
             $challenge->forceFill([
                 'delivery_state' => 'sending',
                 'delivery_attempted_at' => now()->startOfSecond(),
             ])->save();
 
-            return [$challenge->refresh(), $phone, $code];
+            return [$challenge->refresh(), $phone, $code, $challengeTtlMinutes];
         }, 3);
+    }
+
+    private function challengeTtlMinutes(SmsVerificationChallenge $challenge): int
+    {
+        $ttlSeconds = $challenge->expires_at->getTimestamp()
+            - $challenge->created_at->getTimestamp();
+        if (
+            $ttlSeconds < 60
+            || $ttlSeconds > V2SmsOtpConfiguration::MAXIMUM_TTL_MINUTES * 60
+            || $ttlSeconds % 60 !== 0
+        ) {
+            throw new RuntimeException('SMS Challenge TTL is invalid.');
+        }
+
+        return intdiv($ttlSeconds, 60);
     }
 
     private function persist(int $challengeId, V2SmsDeliveryResult $result): string
@@ -180,7 +204,7 @@ final class V2SmsDeliveryWorker
         }, 3);
     }
 
-    /** @return array{0: string, 1: string, 2: string} */
+    /** @return array{0: string, 1: string, 2: string, 3: ?int} */
     private function payload(OutboxMessage $message): array
     {
         if (
@@ -198,16 +222,23 @@ final class V2SmsDeliveryWorker
             true,
             flags: JSON_THROW_ON_ERROR
         );
-        if (! is_array($payload) || array_keys($payload) !== [
+        $keys = is_array($payload) ? array_keys($payload) : [];
+        if ($keys !== [
             'challenge_public_id',
             'recipient',
             'verification_code',
+        ] && $keys !== [
+            'challenge_public_id',
+            'recipient',
+            'verification_code',
+            'ttl_minutes',
         ]) {
             throw new RuntimeException('SMS Outbox payload is invalid.');
         }
         $challengePublicId = $payload['challenge_public_id'] ?? null;
         $phone = $payload['recipient'] ?? null;
         $code = $payload['verification_code'] ?? null;
+        $ttlMinutes = $payload['ttl_minutes'] ?? null;
         if (
             ! is_string($challengePublicId)
             || ! Str::isUuid($challengePublicId)
@@ -215,10 +246,15 @@ final class V2SmsDeliveryWorker
             || ! preg_match('/\A\+81(?:70|80|90)[0-9]{8}\z/', $phone)
             || ! is_string($code)
             || ! preg_match('/\A[0-9]{6}\z/', $code)
+            || ($ttlMinutes !== null && (
+                ! is_int($ttlMinutes)
+                || $ttlMinutes < 1
+                || $ttlMinutes > V2SmsOtpConfiguration::MAXIMUM_TTL_MINUTES
+            ))
         ) {
             throw new RuntimeException('SMS Outbox payload is invalid.');
         }
 
-        return [$challengePublicId, $phone, $code];
+        return [$challengePublicId, $phone, $code, $ttlMinutes];
     }
 }

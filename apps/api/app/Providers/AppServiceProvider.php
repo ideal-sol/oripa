@@ -6,6 +6,7 @@ use App\Domain\Identity\Contracts\V2GoogleOidcTransport;
 use App\Domain\Identity\Contracts\V2LineOidcTransport;
 use App\Domain\Identity\Services\V2GoogleOidcHttpTransport;
 use App\Domain\Identity\Services\V2LineOidcHttpTransport;
+use App\Domain\Identity\Services\V2SmsOtpConfiguration;
 use App\Domain\Line\Contracts\V2LineMessagingTransport;
 use App\Domain\Line\Services\V2LineMessagingHttpTransport;
 use App\Domain\Notification\Contracts\SmsSender;
@@ -36,5 +37,6 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->app->make(V2SmsOtpConfiguration::class)->ttlMinutes();
     }
 }

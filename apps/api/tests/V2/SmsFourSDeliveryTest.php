@@ -65,7 +65,7 @@ final class SmsFourSDeliveryTest extends TestCase
             ]),
         ]);
 
-        $result = app(V2FourSSmsProvider::class)->deliver('+819012345678', '123456');
+        $result = app(V2FourSSmsProvider::class)->deliver('+819012345678', '123456', 60);
 
         self::assertSame('accepted', $result->state);
         self::assertSame('request-safe-001', $result->providerRequestId);
@@ -76,13 +76,41 @@ final class SmsFourSDeliveryTest extends TestCase
             self::assertSame('OripaV2-SMS-Test/2', $request->header('User-Agent')[0]);
             self::assertSame([
                 'carrier_id' => '99',
-                'message' => "オリパの認証コードは「123456」です。\n\n有効期限は5分です。\n\nこのコードを第三者に教えないでください。",
+                'message' => "オリパの認証コードは「123456」です。\n\n有効期限は60分です。\n\nこのコードを第三者に教えないでください。",
                 'address' => '09012345678',
                 'send_date' => '',
                 'urlshorterflg' => '0',
                 'cp_userid' => 'fixture-user-placeholder',
                 'cp_password' => 'fixture-password-placeholder',
             ], $request->data());
+
+            return true;
+        });
+    }
+
+    public function test_configured_ttl_drives_challenge_and_sms_message_together(): void
+    {
+        config(['v2_identity.sms_verification.ttl_minutes' => '30']);
+        Http::fake([
+            'https://4sm.jp/api/sms_send' => Http::response([
+                'result' => 'SUCCESS',
+                'request_id' => 'request-ttl-030',
+                'request_date' => '2026-09-03 10:00:00',
+            ]),
+        ]);
+        [$user, $request] = $this->userRequest('worker-ttl@example.test');
+        app(V2SmsVerificationService::class)->send($user, $request, '08022223333');
+        $challenge = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
+        $outbox = OutboxMessage::query()->where('topic', 'identity.sms-verification')->sole();
+        $verificationCode = $this->delivery($outbox)['verification_code'];
+
+        self::assertSame(1800, (int) $challenge->created_at->diffInSeconds($challenge->expires_at));
+        self::assertSame(1, app(V2SmsDeliveryWorker::class)->run('sms-worker-ttl', 10));
+        Http::assertSent(function (HttpRequest $request) use ($verificationCode): bool {
+            self::assertSame(
+                "オリパの認証コードは「{$verificationCode}」です。\n\n有効期限は30分です。\n\nこのコードを第三者に教えないでください。",
+                $request['message']
+            );
 
             return true;
         });
@@ -112,7 +140,7 @@ final class SmsFourSDeliveryTest extends TestCase
             ['unknown', 'provider_unavailable'],
         ];
         foreach ($cases as [$state, $category]) {
-            $result = $provider->deliver('+818012345678', '654321');
+            $result = $provider->deliver('+818012345678', '654321', 60);
             self::assertSame($state, $result->state);
             self::assertSame($category, $result->errorCategory);
             $serialized = json_encode($result, JSON_THROW_ON_ERROR);
@@ -122,12 +150,12 @@ final class SmsFourSDeliveryTest extends TestCase
             self::assertStringNotContainsString('+818012345678', $serialized);
         }
 
-        $timeout = $provider->deliver('+817012345678', '111222');
+        $timeout = $provider->deliver('+817012345678', '111222', 60);
         self::assertSame('unknown', $timeout->state);
         self::assertSame('provider_timeout', $timeout->errorCategory);
 
         config(['v2_sms.fours.endpoint' => 'http://4sm.jp/api/sms_send']);
-        $configuration = $provider->deliver('+817012345678', '111222');
+        $configuration = $provider->deliver('+817012345678', '111222', 60);
         self::assertSame('failed', $configuration->state);
         self::assertSame('provider_configuration_unavailable', $configuration->errorCategory);
         Http::assertSentCount(5);
@@ -188,6 +216,44 @@ final class SmsFourSDeliveryTest extends TestCase
             self::assertSame('SMS_DELIVERY_UNAVAILABLE', $exception->errorCode);
             self::assertStringNotContainsString('provider', $exception->getMessage());
         }
+    }
+
+    public function test_unavailable_verified_phone_creates_no_delivery_or_provider_call(): void
+    {
+        $provider = new QueuedSmsProvider([
+            V2SmsDeliveryResult::accepted('worker-request-holder'),
+        ]);
+        $this->app->instance(V2SmsProvider::class, $provider);
+        [$holder, $holderRequest] = $this->userRequest('worker-holder@example.test');
+        $service = app(V2SmsVerificationService::class);
+        $service->send($holder, $holderRequest, '09022223333');
+        $holderChallenge = SmsVerificationChallenge::query()->latest('id')->firstOrFail();
+        $holderMessage = OutboxMessage::query()->where('topic', 'identity.sms-verification')->sole();
+        self::assertSame(1, app(V2SmsDeliveryWorker::class)->run('sms-worker-holder', 10));
+        $service->verify(
+            $holder,
+            $holderRequest,
+            $holderChallenge->public_id,
+            $this->delivery($holderMessage)['verification_code']
+        );
+
+        [$claimant, $claimantRequest] = $this->userRequest('worker-claimant@example.test');
+        $challengeCount = SmsVerificationChallenge::query()->count();
+        $outboxCount = OutboxMessage::query()->where('topic', 'identity.sms-verification')->count();
+        try {
+            $service->send($claimant, $claimantRequest, '09022223333');
+            self::fail('An unavailable verified phone must be rejected before delivery.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('PHONE_NUMBER_UNAVAILABLE', $exception->errorCode);
+        }
+
+        self::assertSame($challengeCount, SmsVerificationChallenge::query()->count());
+        self::assertSame(
+            $outboxCount,
+            OutboxMessage::query()->where('topic', 'identity.sms-verification')->count()
+        );
+        self::assertSame(0, app(V2SmsDeliveryWorker::class)->run('sms-worker-unavailable', 10));
+        self::assertSame(1, $provider->calls);
     }
 
     public function test_worker_rejects_outbox_and_challenge_ownership_mismatch(): void
@@ -309,7 +375,8 @@ final class QueuedSmsProvider implements V2SmsProvider
 
     public function deliver(
         #[\SensitiveParameter] string $canonicalPhone,
-        #[\SensitiveParameter] string $verificationCode
+        #[\SensitiveParameter] string $verificationCode,
+        int $ttlMinutes
     ): V2SmsDeliveryResult {
         $this->calls++;
         $result = array_shift($this->results);
