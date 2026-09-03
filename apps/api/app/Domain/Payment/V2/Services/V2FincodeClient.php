@@ -230,7 +230,11 @@ final class V2FincodeClient
                 'The payment provider configuration is unavailable.'
             );
         }
-        if (app()->environment('production') && $baseUrl !== 'https://api.fincode.jp') {
+        if (
+            app()->environment('production')
+            && $baseUrl === 'https://api.test.fincode.jp'
+            && config('v2_fincode.allow_test_in_production') !== true
+        ) {
             throw new V2FincodeException(
                 'FINCODE_PRODUCTION_ENDPOINT_REQUIRED',
                 503,

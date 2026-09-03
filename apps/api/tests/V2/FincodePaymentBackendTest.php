@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Services\V2AdminPaymentReadService;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
+use App\Domain\Payment\V2\Services\V2FincodeClient;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodeReconciliationService;
 use App\Domain\Payment\V2\Services\V2FincodeReturnUrl;
@@ -184,6 +185,146 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame(0, DB::table('fincode_card_registration_intents')->count());
         self::assertSame(0, DB::table('fincode_cards')->count());
         self::assertSame(0, DB::table('payment_point_grants')->count());
+    }
+
+    public function test_production_test_endpoint_is_rejected_when_opt_in_is_unset(): void
+    {
+        self::assertFalse(config('v2_fincode.allow_test_in_production'));
+
+        $this->assertProductionTestEndpointRejected(true);
+    }
+
+    public function test_production_test_endpoint_is_rejected_when_opt_in_is_false(): void
+    {
+        $this->assertProductionTestEndpointRejected(false);
+    }
+
+    public function test_production_test_endpoint_is_allowed_only_with_explicit_opt_in(): void
+    {
+        Http::fake([
+            'https://api.test.fincode.jp/v1/customers' => Http::response(['id' => 'customer-test'], 200),
+        ]);
+        config(['v2_fincode.allow_test_in_production' => true]);
+        app()->detectEnvironment(fn (): string => 'production');
+        Auth::guard('v2_user')->setUser($this->user('production-test-opt-in'));
+        $before = $this->paymentMutationCounts();
+
+        $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+            ->assertOk()
+            ->assertExactJson([
+                'provider' => 'fincode',
+                'public_api_key' => 'p_test_public-key',
+                'is_live_mode' => false,
+            ]);
+        app(V2FincodeClient::class)->createCustomer('customer-test', 'production-test-opt-in');
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->url()
+            === 'https://api.test.fincode.jp/v1/customers');
+        self::assertSame($before, $this->paymentMutationCounts());
+    }
+
+    public function test_production_endpoint_remains_allowed_in_production(): void
+    {
+        Http::fake([
+            'https://api.fincode.jp/v1/customers' => Http::response(['id' => 'customer-live'], 200),
+        ]);
+        config([
+            'v2_fincode.allow_test_in_production' => false,
+            'v2_fincode.base_url' => 'https://api.fincode.jp',
+            'v2_fincode.secret_api_key' => 'm_prod_secret-not-real',
+            'v2_fincode.public_api_key' => 'p_prod_public-not-real',
+        ]);
+        app()->detectEnvironment(fn (): string => 'production');
+        Auth::guard('v2_user')->setUser($this->user('production-live-endpoint'));
+        $before = $this->paymentMutationCounts();
+
+        $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+            ->assertOk()
+            ->assertExactJson([
+                'provider' => 'fincode',
+                'public_api_key' => 'p_prod_public-not-real',
+                'is_live_mode' => true,
+            ]);
+        app(V2FincodeClient::class)->createCustomer('customer-live', 'production-live-endpoint');
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->url()
+            === 'https://api.fincode.jp/v1/customers');
+        self::assertSame($before, $this->paymentMutationCounts());
+    }
+
+    public function test_opt_in_never_bypasses_environment_endpoint_or_key_mode_validation(): void
+    {
+        Http::fake();
+        $user = $this->user('production-mode-mismatch');
+        Auth::guard('v2_user')->setUser($user);
+        $before = $this->paymentMutationCounts();
+        $cases = [
+            [
+                'environment' => 'testing',
+                'base_url' => 'https://api.fincode.jp',
+                'public_key' => 'p_prod_public-not-real',
+                'secret_key' => 'm_prod_secret-not-real',
+            ],
+            [
+                'environment' => 'production',
+                'base_url' => 'https://api.test.fincode.jp',
+                'public_key' => 'p_prod_public-not-real',
+                'secret_key' => 'm_test_secret-not-production',
+            ],
+            [
+                'environment' => 'production',
+                'base_url' => 'https://api.test.fincode.jp',
+                'public_key' => 'p_test_public-key',
+                'secret_key' => 'm_prod_secret-not-real',
+            ],
+            [
+                'environment' => 'production',
+                'base_url' => 'https://unknown.fincode.jp',
+                'public_key' => 'p_test_public-key',
+                'secret_key' => 'm_test_secret-not-production',
+            ],
+        ];
+
+        foreach ($cases as $case) {
+            app()->detectEnvironment(fn (): string => $case['environment']);
+            config([
+                'v2_fincode.allow_test_in_production' => true,
+                'v2_fincode.base_url' => $case['base_url'],
+                'v2_fincode.public_api_key' => $case['public_key'],
+                'v2_fincode.secret_api_key' => $case['secret_key'],
+            ]);
+
+            $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+                ->assertStatus(503)
+                ->assertJsonPath('code', 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE');
+            try {
+                app(V2FincodePaymentService::class)->start(
+                    $user,
+                    (string) Str::uuid7(),
+                    'paypay',
+                    'mode-mismatch-'.Str::uuid7()
+                );
+                self::fail('Environment, endpoint, and key modes must remain fail closed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE', $exception->errorCode);
+            }
+        }
+
+        config([
+            'v2_fincode.base_url' => 'https://unknown.fincode.jp',
+            'v2_fincode.secret_api_key' => 'm_test_secret-not-production',
+        ]);
+        try {
+            app(V2FincodeClient::class)->createCustomer('unknown-endpoint', 'unknown-endpoint');
+            self::fail('Unknown endpoints must remain rejected when the opt-in is true.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_CONFIGURATION_UNAVAILABLE', $exception->errorCode);
+        }
+
+        self::assertCount(0, Http::recorded());
+        self::assertSame($before, $this->paymentMutationCounts());
     }
 
     public function test_platform_generates_canonical_return_urls_for_all_payment_methods(): void
@@ -2248,6 +2389,62 @@ final class FincodePaymentBackendTest extends TestCase
         ]);
 
         return DB::table('point_purchase_plans')->where('id', $id)->firstOrFail();
+    }
+
+    /** @return array<string, int> */
+    private function paymentMutationCounts(): array
+    {
+        return collect([
+            'payments',
+            'fincode_payment_attempts',
+            'payment_point_grants',
+            'wallets',
+            'point_lots',
+            'point_operations',
+            'point_ledger_entries',
+        ])->mapWithKeys(fn (string $table): array => [$table => DB::table($table)->count()])->all();
+    }
+
+    private function assertProductionTestEndpointRejected(bool $unset): void
+    {
+        Http::fake();
+        if ($unset) {
+            app('config')->offsetUnset('v2_fincode.allow_test_in_production');
+            self::assertNull(config('v2_fincode.allow_test_in_production'));
+        } else {
+            config(['v2_fincode.allow_test_in_production' => false]);
+            self::assertFalse(config('v2_fincode.allow_test_in_production'));
+        }
+        app()->detectEnvironment(fn (): string => 'production');
+        $user = $this->user($unset ? 'production-test-unset' : 'production-test-false');
+        Auth::guard('v2_user')->setUser($user);
+        $before = $this->paymentMutationCounts();
+
+        $this->getJson('/api/v2/me/payment-card-ui-bootstrap')
+            ->assertStatus(503)
+            ->assertJsonPath('code', 'FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE');
+        try {
+            app(V2FincodePaymentService::class)->start(
+                $user,
+                (string) Str::uuid7(),
+                'paypay',
+                'production-test-payment-rejected'
+            );
+            self::fail('Payment start must fail before mutation without explicit opt-in.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_PUBLIC_CONFIGURATION_UNAVAILABLE', $exception->errorCode);
+            self::assertSame(503, $exception->status);
+        }
+        try {
+            app(V2FincodeClient::class)->createCustomer('customer-test', 'production-test-rejected');
+            self::fail('The fincode Test endpoint must fail closed in Production without explicit opt-in.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_PRODUCTION_ENDPOINT_REQUIRED', $exception->errorCode);
+            self::assertSame(503, $exception->status);
+        }
+
+        self::assertCount(0, Http::recorded());
+        self::assertSame($before, $this->paymentMutationCounts());
     }
 
     private function user(string $name): User

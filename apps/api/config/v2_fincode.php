@@ -2,6 +2,7 @@
 
 return [
     'enabled' => (bool) env('FINCODE_PAYMENT_ENABLED', false),
+    'allow_test_in_production' => env('FINCODE_ALLOW_TEST_IN_PRODUCTION', false),
     'base_url' => env('FINCODE_API_BASE_URL', 'https://api.test.fincode.jp'),
     'secret_api_key' => env('FINCODE_SECRET_API_KEY'),
     'public_api_key' => env('FINCODE_PUBLIC_API_KEY'),

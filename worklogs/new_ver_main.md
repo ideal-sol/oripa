@@ -9665,3 +9665,11 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 ### Result
 
 `ADMIN_LOGIN_READY_FOR_HUMAN_RETEST`
+
+## PAY-002 fincode Test-in-Production Explicit Opt-in
+
+- Human明示DecisionをAuthorityに、clean local／origin／live protected `main@3da00ab9716d9cff6749f202b14896ca3a939ce8`からIssue `#461`、Branch `fix/PAY-002-fincode-test-in-production-opt-in`、専用Worktree `/var/www/oripa-worktrees/PAY-002`、Risk `R4`、Lane `Strict Change`、Application Runtime Activation `deferred`で開始した。GitHub transport用のexact 6-path transient Task Policyを使用し、Migration Allocation Lock／Source LockはN/Aである。
+- `FINCODE_ALLOW_TEST_IN_PRODUCTION`をdefault `false`でLaravel config化した。既存のexact endpoint allowlistを維持し、Productionでexact fincode Test endpointを許可する条件をconfig値がboolean `true`の場合だけに限定した。Production＋Production endpointは従来どおり許可し、未設定／false／非boolean、unknown endpoint、non-Production＋Production endpoint、Public／Secret keyとendpointのmode mismatchはFail Closedを維持する。
+- 隔離Docker networkと一時PostgreSQLだけを使用し、追加5 testsを44 assertions、`FincodePaymentBackendTest`全45 testsを541 assertionsでwarningなしPASSした。拒否ケースはBootstrap 503、Provider request 0、Payment／fincode attempt／Point Grant／Wallet／Point Lot／Point Operation／Ledger mutation 0をassertした。一時test DBへ既存Migrationを適用後に一時container／networkを削除したが、Migration作成、Shared Preview／Staging／Production migration適用は各0である。
+- 実変更はAPI config、`V2FincodeClient`、`V2FincodePublicConfiguration`、同focused test、API env example、本Worklogだけである。Storefront、OpenAPI／Contract、DB Migration、Coin Grant、Webhook、Save Card、Nginx／ALB／DNS、`APP_ENV`、Production Runtime env、`FINCODE_PAYMENT_ENABLED`、credential、Webhook Dashboardは変更0。実Provider request、Payment作成、Coin mutation、Webhook business mutation、Build、Runtime Activationは各0である。
+- 2026-09-03T14:47:00Z時点でlocal focused verification完了。PR、Required 5 Checks、fresh exact-head self-review、Squash Merge、Issue／Remote branch／専用Worktree／transient Task Policy cleanup、local main syncはCloseoutで確定する。Production Runtime Activationは開始しない。
