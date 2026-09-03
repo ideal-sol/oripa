@@ -61,6 +61,7 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
 
     private const CONTEXT_KEYS = [
         'method',
+        'mode',
         'realm',
         'reason',
         'result',
@@ -90,7 +91,7 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         }
         $request = app()->bound('request') ? app('request') : null;
         $request = $request instanceof Request ? $request : null;
-        $metadata = array_intersect_key($context, array_flip(['method', 'result', 'stage']));
+        $metadata = array_intersect_key($context, array_flip(['method', 'mode', 'result', 'stage']));
         $failure = str_ends_with($event, '_failure')
             || str_ends_with($event, '_failed')
             || str_ends_with($event, '_rejected')
