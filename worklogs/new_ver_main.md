@@ -9403,3 +9403,79 @@ Local `main`と`origin/main`の間に、以下の差分はない。
 - 新規focused 4 tests／32 assertions、隣接Identity／Admin／Audit 42 tests／295 assertions、full V2 606 tests／6,167 assertions（既定skip 10）、default Laravel Unit／Feature 344 tests／1,865 assertions、Policy Unit 203、Quality Unit 4、Security Unit 10、GitHub delivery 82、PHP syntax、Composer strict validation、`git diff --check`をPASSした。full V2の初回128M exhaustion、local filesystem env欠落、先行rowを絶対0／単一とした新fixture不備は環境／test isolationだけを補正し、最終fresh runをPASSした。
 - Migrationは000001–000072の72 files、content-set SHA-256 `4c322c18887b5b3634e759aeb2ae3dd0dcc75acf627cb282569f5c7d4df45cdb`でBaseと一致し、作成／変更／Production適用0。isolated test DBだけへ既存migrationを適用した。`apps/api/composer.json`／`apps/api/composer.lock`／root package manifests／locksはBaseと一致し、dependency mutation 0である。
 - Production RDS／SQL／Seeder／Owner／Admin／Redis／API／Admin／Storefront／Nginx／ALB／DNS／Secrets mutationとRuntime Activationは各0。Final Headのlocal gates、Required 5、fresh Strict self-review、squash merge、merged-main exact native ARM64 API/Admin artifact buildとisolated API `/up`、Issue／branch／worktree／policy／test resource cleanupを継続する。Production Owner bootstrapは再実行しない。
+
+## OPS-030 Stage 7A Final Cutover Preparation
+
+- Issue `none`、Branch `chore/OPS-030-stage-7a-final-cutover-preparation`、通常Worktree、Base `b6541e526c4943c03c3533f7cbc9d3ca560a2567`、Risk `R4`、Lane `Strict Change`、Activation `immediate`で開始した。privileged Production readbackとGitHub deliveryのためWorklogだけを許可するroot-owned mode `0600` transient Task Policyを使用する。Migration Allocation Lock／Source LockはN/Aである。
+- local／origin／live protected Platform `main`は開始時とfinal readbackでexpected `b6541e526c4943c03c3533f7cbc9d3ca560a2567`に一致し、movement 0。Production APIはexact OPS-029 ARM64 image `sha256:12ea2a5b47ce1986894e817150d5439d0ac2edccd14f69a8acfbcc770d8a1380`、Adminは`sha256:e86907d16a6f9f103f23b8d8471564bb6c2f6e33c415a9f799a7af2c07463315`で、両OCI revisionはPlatform Baseと一致する。API／Admin／Redisはrestart 0を保持した。
+- Production V2 migration pathは000001–000072の72件が全てRan、ledger count 72、latest `2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling`、max batch 3である。Migration作成／変更／適用、Production DB business mutation、Seeder実行は各0。Ownerはexact 1、active 1、verified 1、non-owner Admin 0、User 0。Owner credential候補fileは既知root配下に存在せず、内容read／Owner作成／bootstrap再実行は0である。
+- Storefront `ideal-sol/luxe-pack-storefront`は開始時live protected `main@35a3a6eddff858971df7b9f3c2b5d85f031d318e`に対してclean local／originが`f66110ec72c1c574e210e5515551723f21bf7202`でbehindだったため、force／reset／stashなしのfetch＋fast-forwardをexact 1回行った。以後live／local／originはfixed `35a3a6eddff858971df7b9f3c2b5d85f031d318e`に一致し、movement 0、source mutation／Branch／PRは各0である。
+- Storefrontはimmutable SMS-001 Artifact `2.0.0-alpha.35`のClient／Testkitをexact pinし、Public OpenAPI `2.0.0-alpha.31`、75 operations、required `identity.sms-phone-ownership.v2` capability、Artifact Manifest／SHA256SUMS／package／OpenAPI checksumsをcanonical Node 22.22.3で`artifact:check` PASSした。Next.jsは16.3.0、pnpmは10.12.1、browser API baseの唯一のsource useは`NEXT_PUBLIC_PLATFORM_API_BASE_URL`でsame-origin `/api/v2`を要求する。
+- Storefront current sourceはSMS入力画面へ「認証コードの有効期限は5分」と固定表示する一方、Platform current source／tests／Production envは60分をAuthorityとする。Platform Contract package pin自体はintegrity PASSだが、launch-visible SMS semanticsは不一致のため推測修正／pin変更を行わずHOLDする。
+- Storefront CIはproduction buildを検証するがdeployable immutable filesystem artifactをuploadしない。Production release rootは空、`current` symlinkなし、serviceはdisabled／inactive／restart 0、listener 3200なし。local `.next`は2026-08-31生成でcurrent Source以前のため採用0。Production host build禁止を維持し、release path／Build ID／current symlink／service startは全てNOT_STARTEDでHOLDする。root-owned mode `0600` `/etc/oripa-v2/storefront-production.env`だけをnon-secret `NEXT_PUBLIC_SITE_URL`／`NEXT_PUBLIC_PLATFORM_API_BASE_URL` namesで作成し、値のsecret 0、build-time authority代替とは扱わない。
+- Provider envは値を記録せずreadbackした。Mailgunは`MAIL_MAILER`、`MAILGUN_DOMAIN`、`MAILGUN_SECRET`、`MAIL_FROM_ADDRESS`、`MAIL_FROM_NAME`がPRESENTでtransport class Mailgun。SMSは`V2_APP_NAME`、FourS credential 2 names、endpoint、User-Agent、timeout、OTP TTLがPRESENT。fincodeはenable、test endpoint classification、Public／Secret key、Webhook signature、Platform／Storefront originがPRESENTで、実Provider request／Mail／SMS／Payment／tokenization／Webhook mutationは各0。LINE Login／Messaging、Google OIDC、WebAuthn optional configurationはMISSINGだがcurrent minimal Storefront launch navigationとOwner TOTP authorityではBlockerにしない。
+- Production Outboxはpending／processing total 0、SMS 0、Identity Mail 0、mail delivery pending／sending 0。現行hostにはStorefront以外のProduction worker unit/containerがなく、repository ComposeのMail／SMS profilesは明示的にdevelopment/ephemeral-onlyである。Production Mail worker、SMS worker、fincode reconciliation runtimeを推測作成／起動せず、launch-critical Worker Authority不在としてHOLDする。
+- Redisはauthenticated PONG、private Docker network、host publish none。API loopback `/up` 200、deep `/api/health` 200、Admin loopback `/api/health` 200。listenerは127.0.0.1:8611／3611だけで、0.0.0.0 publishなし。Storefront 127.0.0.1:3200 acceptanceはrelease HOLDのためNOT_RUNである。
+- Asset root `/var/lib/oripa-v2/assets/private`はowner 33:33、mode 0750、Business files 76、bytes 61,799,877でexpected一致し、`.healthcheck`を含むtotalは77 files／61,799,902 bytes。API mountはRWで、known transferred Rank assets 2件のdirect loopback GETは200 image/png。recopy／checksum rewrite／Asset mutationは0である。
+- Nginx candidate `/var/lib/oripa-v2/runtime/nginx-candidate/oripa-production.conf`はSHA-256 `11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32`一致、isolated candidate syntaxとactive `/etc/nginx/nginx.conf` syntaxをPASSした。expected public/API/Asset/Admin/default-health/unknown-host routingとAdmin 64mを確認した。active `/etc/nginx/conf.d`は空でcandidate install／active config mutation／reload／restart各0。current active base config SHA-256は`ddb11315ef7e5ddc1f409048895adc6b95d960ca29489e61340a6d14e3f8b35a`である。
+- DNSは`oripa-z.com`と`admin.oripa-z.com`が同じ3 A recordsへ解決し、mutation 0。AWS control-plane credentialは探索せず、ALB scheme／443 listener／ACM coverage／80 redirect／Target Group HTTP:80／target type／new EC2 registration／`/healthz` matcher 200／ALB SG／EC2 SG／2 Host rulesはHuman Console未確認のまま残す。
+- Secret handling gateはFAILで、詳細はPublic Repositoryへ記録しない。secret valueをRepository／Worklogへ保存した件数は0だが、Human remediationと再validationが完了するまでCutover不可である。
+
+### Result
+
+`HOLD`
+
+BlockerはStorefront SMS 5分／Platform 60分のsemantic mismatch、current exact Sourceのimmutable deployable Storefront artifact不在、Production Mail／SMS／fincode worker authority不在、Secret handling gate FAIL、ALB Human Console未確認である。Public routing、Storefront private activation、worker activation、Nginx／ALB／DNS mutationを開始しない。
+
+### Exact Human Cutover Commands — DO NOT EXECUTE IN THIS TASK
+
+以下は全Blocker解消後、Human GOの同一windowでのみ使用する。Storefront exact release／workerは現在未成立のため、pre-cutover verificationがFail Closedする状態を維持する。
+
+```bash
+# A. Pre-cutover verification
+set -euo pipefail
+CANDIDATE=/var/lib/oripa-v2/runtime/nginx-candidate/oripa-production.conf
+ACTIVE=/etc/nginx/conf.d/oripa-production.conf
+EXPECTED=11ec446db8295c9bf2624aa8f4dcb350102d23d05adb513d7c3b3f063c2b3e32
+test "$(sudo sha256sum "$CANDIDATE" | awk '{print $1}')" = "$EXPECTED"
+test ! -e "$ACTIVE"
+sudo systemctl is-active --quiet luxe-pack-storefront-production.service
+sudo ss -lnt | grep -F '127.0.0.1:3200'
+curl -fsS -o /dev/null http://127.0.0.1:3200/
+curl -fsS -o /dev/null http://127.0.0.1:8611/up
+curl -fsS -o /dev/null http://127.0.0.1:8611/api/health
+curl -fsS -o /dev/null http://127.0.0.1:3611/api/health
+sudo /usr/sbin/nginx -t
+
+# B. Nginx activation
+EVIDENCE=/var/lib/oripa-v2/runtime/nginx-cutover-$(date -u +%Y%m%dT%H%M%SZ)
+sudo install -d -o root -g root -m 0700 "$EVIDENCE"
+sudo install -o root -g root -m 0600 /etc/nginx/nginx.conf "$EVIDENCE/nginx.conf.before"
+sudo sha256sum /etc/nginx/nginx.conf "$CANDIDATE" | sudo tee "$EVIDENCE/SHA256SUMS.before" >/dev/null
+sudo install -o root -g root -m 0644 "$CANDIDATE" "$ACTIVE"
+sudo /usr/sbin/nginx -t
+sudo systemctl reload nginx
+
+# C. Immediate private and public acceptance
+curl -fsS -o /dev/null http://127.0.0.1/healthz
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/api/v2/gachas?limit=1
+curl -fsS -o /dev/null -H 'Host: oripa-z.com' http://127.0.0.1/api/assets/admin-assets/rank-masters/2026/09/01a05ced-5759-70af-8788-2d95147743e5-lineup.png
+curl -fsS -o /dev/null -H 'Host: admin.oripa-z.com' http://127.0.0.1/
+curl -fsS -o /dev/null https://oripa-z.com/
+curl -fsS -o /dev/null https://oripa-z.com/points
+curl -fsS -o /dev/null https://oripa-z.com/register
+curl -fsS -o /dev/null 'https://oripa-z.com/api/v2/gachas?limit=1'
+curl -fsS -o /dev/null https://oripa-z.com/api/assets/admin-assets/rank-masters/2026/09/01a05ced-5759-70af-8788-2d95147743e5-lineup.png
+curl -fsS -o /dev/null https://admin.oripa-z.com/
+
+# D. Rollback only before the first real V2 Production write/webhook
+sudo rm -f "$ACTIVE"
+sudo /usr/sbin/nginx -t
+sudo systemctl reload nginx
+curl -fsS -o /dev/null http://127.0.0.1/
+```
+
+- Point of No Return前、real Production write／Webhookが0ならNginx candidate removalとreloadによるrouting rollbackが可能。最初のProduction User Registration、Payment、Point Grant、Draw、Prize、Shipping Requestまたはbusiness Webhook mutation後は旧DBをwriterへ戻さず、V2 application rollback／forward fix／maintenanceだけを使う。
+- Remaining Human Actionsは、(1) Blocker修正済みStorefront protected mainとimmutable artifactの再固定、(2) Production worker authority確立、(3) Secret handling remediation、(4) ALB Console 12項目確認、(5) Human GO、(6) Nginx activation、(7) Public acceptance、(8) Owner browser login、(9) launch scope分だけのProvider acceptance、(10) Commercial Production GOである。次Stage／Public Cutoverは自動開始しない。
+- Task metrics at record time: CI wait 0、Check rerun 0、Build 0、Runtime Activation 0、Human wait 0。Storefront env creation 1、Storefront source fast-forward 1、Nginx reload 0、DB mutation 0、Provider request 0である。
