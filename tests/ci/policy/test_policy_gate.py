@@ -2748,8 +2748,10 @@ This is a non-Production Skeleton and contains no application implementation.
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
                     "pnpm": {
                         "overrides": {
+                            "@tiptap/extension-bubble-menu": "3.30.4",
+                            "@tiptap/extension-floating-menu": "3.30.4",
                             "brace-expansion": "5.0.9",
-                            "fast-uri": "3.1.5",
+                            "fast-uri": "3.1.7",
                             "js-yaml": "4.3.1",
                             "minimatch": "10.2.5",
                             "nanoid": "3.3.18",
