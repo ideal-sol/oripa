@@ -48,10 +48,15 @@ final class V2FincodePublicConfiguration
 
         $publicIsLive = str_starts_with($publicKey, 'p_prod_');
         $secretIsLive = str_starts_with($secretKey, 'm_prod_');
+        $isProduction = app()->environment('production');
+        $environmentAllowed = $isProduction === $isLiveMode
+            || ($isProduction
+                && $isLiveMode === false
+                && config('v2_fincode.allow_test_in_production') === true);
         if (
             $publicIsLive !== $isLiveMode
             || $secretIsLive !== $isLiveMode
-            || app()->environment('production') !== $isLiveMode
+            || ! $environmentAllowed
         ) {
             throw $this->unavailable();
         }
