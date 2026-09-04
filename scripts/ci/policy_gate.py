@@ -924,6 +924,11 @@ MIG_084_ADMIN_SKELETON_FILES = {
 MIG_099_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-master-workspace.tsx",
 }
+SHIP_001_ADMIN_SKELETON_FILES = {
+    "apps/admin/src/app/shipping/[shippingRequestId]/page.tsx",
+    "apps/admin/src/components/shipping/admin-shipping-management.tsx",
+    "apps/admin/test/admin-shipping-management.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
@@ -1048,6 +1053,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_078_ADMIN_SKELETON_FILES,
     *MIG_084_ADMIN_SKELETON_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
+    *SHIP_001_ADMIN_SKELETON_FILES,
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
