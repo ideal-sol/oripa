@@ -43,6 +43,7 @@ final class AdminUserPrizeReadTest extends TestCase
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo',
+            'v2_identity.origins.admin' => 'https://admin.example.test',
             'v2_prize_shipping.address_hmac_key' => 'base64:'.base64_encode(str_repeat('p', 32)),
         ]);
         $this->createFixture();
