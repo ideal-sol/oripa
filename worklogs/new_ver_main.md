@@ -9702,3 +9702,17 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 ### Result
 
 `GO_WEBHOOK_CHANGE`
+
+## OPS-037 Card Test Payment Acceptance Read-only Verification
+
+- Humanがfincode Test Dashboard Webhook URLをcanonical `https://oripa-z.com/webhooks/v2/fincode`へ変更し、Human BrowserからCard Test Paymentを1件実行済みとの明示をAuthorityに、Issue `none`、Branch `chore/OPS-037-card-payment-acceptance-record`、通常Worktree、Base `f4b76503ad5f3e221b3c9fdc217aa06b07371cd4`、Risk `R4`、Lane `Strict Change`、Activation `none`でSecret-Zero read-only確認を行った。Production env／Runtime／Nginx／Scheduler／DB business data変更は0である。
+- Production DBのfincode Card Paymentは対象1件かつ全Payment 1件で、Canonical state `succeeded`、保存済みProvider再照会classificationは`CAPTURED -> succeeded`、provider confirmed／succeeded timestamp／points granted timestampはすべてPRESENT、fincode attemptはcompletedかつerrorなしであった。
+- 対象Paymentには署名検証済みWebhook event 4件が到達し、全4件にfailureなし、Nginx accessはWebhook POST 4件すべて2xx、4xx／5xx各0。Canonical success eventは2件記録されたが、成功処理attemptは1件、Payment Point Grant 1件、payment grant Point Operation 1件で、DB unique authorityどおりCoin Grantはexactly onceである。
+- Grantに紐づくPoint Lot 1件／Ledger Entry 1件を確認し、paid／free grantおよびLedger合計はPayment snapshotと一致した。Payment failure／cancel／expire transition 0、adjustment 0、Provider event error 0、Provider attempt error 0である。
+- Normal Returnは303が1件、Thanks GET 2xxが1件、同一opaque Payment correlationが1件で一致した。Canonical Thanks URL生成も`https://oripa-z.com/points/purchase/thanks`と対象Payment correlationへ一致した。
+- 対象UserのCanonical succeeded Purchase History read modelに対象Paymentがexact 1件、status succeeded、grant PRESENTとして反映可能である。API／Storefront／Adminは各200、Nginx error 0、API log 5xx／error level／fincode errorは各0であった。
+- 本確認による人工Webhook POST、Payment作成、Coin手動付与、DB business mutation、env変更、Runtime recreate、Nginx変更、Scheduler開始、Provider requestはすべて0。Secret、API Key、Webhook Signature、Provider ID、Payment ID、User ID、payloadは表示／記録していない。
+
+### Result
+
+`CARD_TEST_PAYMENT_ACCEPTANCE_PASS`
