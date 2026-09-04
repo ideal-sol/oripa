@@ -6,12 +6,12 @@ use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2SessionPolicy;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Carbon;
 
 final class V2RealmSessionGuard implements Guard
 {
@@ -49,12 +49,18 @@ final class V2RealmSessionGuard implements Guard
             return null;
         }
 
+        $connection = DB::connection();
+        $databaseTimezone = $connection->getConfig('timezone');
+        $canonicalTimezone = is_string($databaseTimezone) && $databaseTimezone !== ''
+            ? $databaseTimezone
+            : (string) config('app.timezone');
+        $current = now()->toImmutable()->setTimezone($canonicalTimezone)->startOfSecond();
         $identityColumn = $this->realm === V2Realm::User ? 'user_id' : 'admin_id';
-        $query = DB::table($policy['table'])
+        $query = $connection->table($policy['table'])
             ->where('session_id_hash', $this->sessionPolicy->hashSessionId($rawSessionId))
             ->whereNull('revoked_at')
-            ->where('idle_expires_at', '>', now())
-            ->where('absolute_expires_at', '>', now());
+            ->where('idle_expires_at', '>', $current)
+            ->where('absolute_expires_at', '>', $current);
 
         if ($this->realm === V2Realm::Admin) {
             $query
@@ -79,15 +85,18 @@ final class V2RealmSessionGuard implements Guard
             return null;
         }
 
-        $absoluteExpiresAt = Carbon::parse($session->absolute_expires_at);
-        $idleExpiresAt = now()->addMinutes($policy['idle_minutes']);
+        $absoluteExpiresAt = CarbonImmutable::parse(
+            $session->absolute_expires_at,
+            $canonicalTimezone
+        )->setTimezone($canonicalTimezone);
+        $idleExpiresAt = $current->addMinutes($policy['idle_minutes']);
         if ($idleExpiresAt->greaterThan($absoluteExpiresAt)) {
             $idleExpiresAt = $absoluteExpiresAt;
         }
-        DB::table($policy['table'])
+        $connection->table($policy['table'])
             ->where('session_id_hash', $session->session_id_hash)
             ->update([
-                'last_activity_at' => now(),
+                'last_activity_at' => $current,
                 'idle_expires_at' => $idleExpiresAt,
             ]);
 
