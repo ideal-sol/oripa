@@ -9716,3 +9716,15 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 ### Result
 
 `CARD_TEST_PAYMENT_ACCEPTANCE_PASS`
+
+## OPS-038 support.oripa-z.com Static FAQ Nginx Activation
+
+- Human確認済みのDNS／ACM／ALB routingをAuthorityに、Issue `none`、Branch `chore/OPS-038-support-faq-nginx-record`、通常Worktree、Base `68e8cc7f56a33d977074e2b4bba1e4f27a0aa4ae`、Risk `R4`、Lane `Strict Change`、Activation `immediate`で開始した。`/var/www/faq/index.html`はregular file、root:root mode 0644、Nginx userからreadable、SHA-256 `c839b4dda75c594bea418b7a6e8b94f18f583413879df84095de97a42843a8d2`を確認した。
+- 既存Nginx server blockを変更せず、独立`/etc/nginx/conf.d/support-oripa-production.conf`をroot:root mode 0644で追加した。内容はlisten 80、`server_name support.oripa-z.com`、root `/var/www/faq`、index `index.html`、`location /`の`try_files $uri $uri/ =404`だけで、config SHA-256は`31767fef4bfe0bb50bb72112f691f1d3f1fb24498dc0984c5c8f5236eb85fc66`である。
+- config追加後`nginx -t` PASSを確認してからreloadをexact 1回実施した。restart 0、MainPID `1703`維持、Nginx activeで、reload後`nginx -t`もPASSした。
+- Local Host routingは`Host: support.oripa-z.com`の`http://127.0.0.1/`がHTTP 200。Public `https://support.oripa-z.com/`はTLS検証PASSかつHTTP/2 200。Local／Public response body SHA-256はいずれもFAQ source SHAとbyte-identicalである。
+- 既存Public Storefront `https://oripa-z.com/`とAdmin `https://admin.oripa-z.com/`は各200。既存API／fincode／Storefront／Admin routing、Application、Container、ALB、DNS、ACM、Security Group、Provider、DB、Schedulerは変更0、Application Build／Container recreate／Provider操作は0である。
+
+### Result
+
+`SUPPORT_FAQ_READY`
