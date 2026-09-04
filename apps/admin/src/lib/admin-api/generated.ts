@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7a993c33b06a84582003ba05dba0bc2b80e64fe5817c30393b8c5988566c4400
+// Contract SHA-256: 7b891803b21832261c6d02e4e65c7809544f132ecd7d48449685b73e677a3aa7
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -327,10 +327,10 @@ export type AdminShippingStatus =
 
 export interface AdminShippingRequestSummary {
   id: string;
-  user_id: string;
+  user_id?: string;
   status: AdminShippingStatus;
   prize_count: number;
-  created_at: string;
+  created_at?: string;
   requested_at: string;
   shipped_at: string | null;
   carrier_code: string | null;
@@ -344,7 +344,7 @@ export interface AdminShippingItem {
 
 export interface AdminShippingRequestDetail extends AdminShippingRequestSummary {
   prize_ids: string[];
-  items: AdminShippingItem[];
+  items?: AdminShippingItem[];
   tracking_number: string | null;
   shipping_address: {
     recipient_name: string;
@@ -450,15 +450,15 @@ export interface AdminUserPrizeDetail extends AdminUserPrizeSummary {
   }>;
   shipping: {
     id: string;
-    user_id: string;
+    user_id?: string;
     status: string;
     prize_count: number;
-    created_at: string;
+    created_at?: string;
     requested_at: string;
     shipped_at: string | null;
     carrier_code: string | null;
     prize_ids: string[];
-    items: AdminShippingItem[];
+    items?: AdminShippingItem[];
     tracking_number: string | null;
     shipping_address: {
       recipient_name: string;

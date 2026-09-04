@@ -19109,10 +19109,8 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "user_id",
           "status",
           "prize_count",
-          "created_at",
           "requested_at"
         ],
         "properties": {
@@ -19159,7 +19157,6 @@
             "type": "object",
             "required": [
               "prize_ids",
-              "items",
               "tracking_number",
               "shipping_address",
               "status_history"

@@ -921,10 +921,10 @@ export type AdminShippingStatus =
 
 export interface AdminShippingRequestSummary {
   id: string;
-  user_id: string;
+  user_id?: string;
   status: AdminShippingStatus;
   prize_count: number;
-  created_at: string;
+  created_at?: string;
   requested_at: string;
   shipped_at: string | null;
   carrier_code: string | null;
@@ -938,7 +938,7 @@ export interface AdminShippingItem {
 
 export interface AdminShippingRequestDetail extends AdminShippingRequestSummary {
   prize_ids: string[];
-  items: AdminShippingItem[];
+  items?: AdminShippingItem[];
   tracking_number: string | null;
   shipping_address: {
     recipient_name: string;
@@ -1044,15 +1044,15 @@ export interface AdminUserPrizeDetail extends AdminUserPrizeSummary {
   }>;
   shipping: {
     id: string;
-    user_id: string;
+    user_id?: string;
     status: string;
     prize_count: number;
-    created_at: string;
+    created_at?: string;
     requested_at: string;
     shipped_at: string | null;
     carrier_code: string | null;
     prize_ids: string[];
-    items: AdminShippingItem[];
+    items?: AdminShippingItem[];
     tracking_number: string | null;
     shipping_address: {
       recipient_name: string;

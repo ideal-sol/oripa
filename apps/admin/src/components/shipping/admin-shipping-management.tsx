@@ -280,7 +280,7 @@ export function AdminShippingList({
                       />
                     </td>
                     <td><code>{item.id}</code></td>
-                    <td><code>{item.user_id}</code></td>
+                    <td><code>{item.user_id ?? "-"}</code></td>
                     <td>{item.prize_count}</td>
                     <td><ShippingStatusBadge status={item.status} /></td>
                     <td>{formatJst(item.created_at)}</td>
@@ -394,6 +394,7 @@ export function AdminShippingDetail({ shippingRequestId }: { shippingRequestId: 
 
   const trackingRequired = status === "shipped" || status === "delivered";
   const address = data.shipping_address;
+  const items = data.items ?? [];
 
   return (
     <main className="workspace admin-user-prize-detail-stack">
@@ -405,7 +406,7 @@ export function AdminShippingDetail({ shippingRequestId }: { shippingRequestId: 
         </div>
         <dl className="admin-user-prize-definition-grid">
           <Definition label="配送ID"><code>{data.id}</code></Definition>
-          <Definition label="User Public ID"><code>{data.user_id}</code></Definition>
+          <Definition label="User Public ID"><code>{data.user_id ?? "-"}</code></Definition>
           <Definition label="現在状態"><ShippingStatusBadge status={data.status} /></Definition>
           <Definition label="作成日時">{formatJst(data.created_at)}</Definition>
           <Definition label="配送依頼日時">{formatJst(data.requested_at)}</Definition>
@@ -418,11 +419,11 @@ export function AdminShippingDetail({ shippingRequestId }: { shippingRequestId: 
       </section>
 
       <section className="admin-user-prize-detail-section" aria-labelledby="shipping-items-heading">
-        <div className="admin-user-prize-detail-heading"><div><h2 id="shipping-items-heading">配送対象商品</h2><p>{data.items.length}商品を同一配送で処理します。</p></div></div>
+        <div className="admin-user-prize-detail-heading"><div><h2 id="shipping-items-heading">配送対象商品</h2><p>{items.length}商品を同一配送で処理します。</p></div></div>
         <div className="admin-user-prize-table-region" tabIndex={0}>
           <table className="admin-user-prize-history-table">
             <thead><tr><th>商品名</th><th>商品ID</th><th>保有景品ID</th></tr></thead>
-            <tbody>{data.items.map((item) => <tr key={item.user_prize_id}><td>{item.name}</td><td><code>{item.product_id}</code></td><td><code>{item.user_prize_id}</code></td></tr>)}</tbody>
+            <tbody>{items.map((item) => <tr key={item.user_prize_id}><td>{item.name}</td><td><code>{item.product_id}</code></td><td><code>{item.user_prize_id}</code></td></tr>)}</tbody>
           </table>
         </div>
       </section>
@@ -463,7 +464,7 @@ function shippingStatusLabel(status: string): string {
   return statusOptions.find((option) => option.value === status)?.label ?? status;
 }
 
-function formatJst(value: string | null): string {
+function formatJst(value: string | null | undefined): string {
   if (!value) return "未設定";
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date(value));
 }

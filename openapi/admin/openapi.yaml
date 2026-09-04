@@ -7701,7 +7701,7 @@ components:
     AdminShippingRequestSummary:
       type: object
       additionalProperties: false
-      required: [id, user_id, status, prize_count, created_at, requested_at]
+      required: [id, status, prize_count, requested_at]
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
@@ -7725,7 +7725,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminShippingRequestSummary'
         - type: object
-          required: [prize_ids, items, tracking_number, shipping_address, status_history]
+          required: [prize_ids, tracking_number, shipping_address, status_history]
           properties:
             prize_ids:
               type: array
