@@ -9716,3 +9716,10 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 ### Result
 
 `CARD_TEST_PAYMENT_ACCEPTANCE_PASS`
+
+## SHIP-001 Admin Shipping Management
+
+- Issue `none`、Branch `feat/SHIP-001-admin-shipping-management`、通常Worktree、Original Base `b6541e526c4943c03c3533f7cbc9d3ca560a2567`、Resume protected main `68e8cc7f56a33d977074e2b4bba1e4f27a0aa4ae`、Risk `R2`、Lane `Standard Change`、Activation `none`。Resume時の未コミット変更をstashで保全し、最新mainへ1回だけfast-forward後に競合0で復元した。
+- 既存Shipping Domain、状態履歴、Mail Template、CSV Writerを再利用し、Admin配送一覧・詳細、status／作成日Filter、通常4状態の前後変更、carrier／tracking編集、初回shippedのみの発送完了Mail scheduling、選択配送のみの1配送1行CSVを実装した。複数商品の商品名／商品IDは各セル内で ` / ` 区切りに集約する。
+- V2 Migration `000001`〜`000072`をTask専用一時DBへ適用し、Schema追加不要を確認した。Migration作成0、Shared Preview／Production Activation 0、Production mutation 0、実User PII／Secret出力0。
+- Backend focused tests 20件334 assertions、Admin focused tests 39件、Admin typecheck／lint、OpenAPI bundle／drift、Admin generated contract drift、変更PHP syntaxをPASSした。Repository全Suite、Browser/E2E、実Mail送信はScope外のため未実行。

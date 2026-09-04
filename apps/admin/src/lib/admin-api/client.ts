@@ -151,6 +151,10 @@ import {
   type AdminReauthenticationRequest,
   type AdminReauthenticationResponse,
   type AdminSession,
+  type AdminShippingRequestCollection,
+  type AdminShippingRequestDetail,
+  type AdminShippingStatus,
+  type AdminShippingTransition,
   type AdminUserCollection,
   type AdminUserDetailResponse,
   type AdminUserStateMutationResult,
@@ -226,6 +230,20 @@ export const ADMIN_USER_STATUS_FILTERS = [
 ] as const;
 
 export type AdminUserStatusFilter = typeof ADMIN_USER_STATUS_FILTERS[number];
+
+export const ADMIN_SHIPPING_STATUS_FILTERS = [
+  "all",
+  "requested",
+  "packing",
+  "shipped",
+  "delivered",
+  "hold",
+  "return_requested",
+  "returned",
+  "canceled",
+] as const;
+
+export type AdminShippingStatusFilter = typeof ADMIN_SHIPPING_STATUS_FILTERS[number];
 
 export interface AdminUserQuery {
   cursor?: string;
@@ -305,6 +323,14 @@ export interface AdminUserPrizeQuery {
   prize_name?: string;
   status?: AdminUserPrizeStatus;
   user?: string;
+}
+
+export interface AdminShippingQuery {
+  cursor?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  status?: AdminShippingStatus | "all";
 }
 
 export type AdminCatalogResource =
@@ -400,6 +426,67 @@ export class AdminApiClient {
     return this.request("GET", `/user-prizes/${encodeURIComponent(userPrizeId)}`, {
       signal,
     });
+  }
+
+  listAdminShippingRequests(
+    query: AdminShippingQuery = {},
+    signal?: AbortSignal,
+  ): Promise<AdminShippingRequestCollection> {
+    const parameters = new URLSearchParams({ limit: String(query.limit ?? 20) });
+    for (const key of ["cursor", "date_from", "date_to", "status"] as const) {
+      const value = query[key];
+      if (value) parameters.set(key, String(value));
+    }
+    return this.request("GET", `/shipping-requests?${parameters.toString()}`, { signal });
+  }
+
+  getAdminShippingRequest(
+    shippingRequestId: string,
+    signal?: AbortSignal,
+  ): Promise<AdminShippingRequestDetail> {
+    if (!isOpaqueId(shippingRequestId)) {
+      return Promise.reject(
+        new AdminApiError(404, "SHIPPING_REQUEST_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "GET",
+      `/shipping-requests/${encodeURIComponent(shippingRequestId)}`,
+      { signal },
+    );
+  }
+
+  updateAdminShippingRequest(
+    shippingRequestId: string,
+    input: AdminShippingTransition,
+    signal?: AbortSignal,
+  ): Promise<AdminShippingRequestDetail> {
+    if (!isOpaqueId(shippingRequestId)) {
+      return Promise.reject(
+        new AdminApiError(404, "SHIPPING_REQUEST_NOT_FOUND", null, null, false),
+      );
+    }
+    return this.request(
+      "PUT",
+      `/shipping-requests/${encodeURIComponent(shippingRequestId)}`,
+      { body: input, signal },
+    );
+  }
+
+  exportAdminShippingRequests(
+    shippingIds: string[],
+    signal?: AbortSignal,
+  ): Promise<{ blob: Blob; filename: string }> {
+    if (
+      shippingIds.length < 1
+      || shippingIds.length > 500
+      || shippingIds.some((id) => !isOpaqueId(id))
+    ) {
+      return Promise.reject(
+        new AdminApiError(422, "ADMIN_SHIPPING_REQUEST_INVALID", null, null, false),
+      );
+    }
+    return this.requestCsv("/shipping-requests/export", { shipping_ids: shippingIds }, signal);
   }
 
   updateAdminUserState(
@@ -2876,6 +2963,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | `/shipping-requests${string}`
       | `/user-prizes${string}`
       | `/user-tags${string}`
       | `/users${string}`,
@@ -2897,6 +2985,7 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        !path.startsWith("/shipping-requests") &&
         path !== "/user-prizes" &&
         !path.startsWith("/user-prizes?") &&
         !path.startsWith("/user-prizes/") &&
@@ -2973,6 +3062,58 @@ export class AdminApiClient {
     } finally {
       window.clearTimeout(timeoutId);
       options.signal?.removeEventListener("abort", abort);
+    }
+  }
+
+  private async requestCsv(
+    path: "/shipping-requests/export",
+    body: { shipping_ids: string[] },
+    signal?: AbortSignal,
+  ): Promise<{ blob: Blob; filename: string }> {
+    const requestId = crypto.randomUUID();
+    const csrf = this.csrfToken();
+    if (!csrf) {
+      throw new AdminApiError(403, "CSRF_TOKEN_MISSING", requestId, null, false);
+    }
+    const timeout = new AbortController();
+    const timeoutId = window.setTimeout(() => timeout.abort("timeout"), REQUEST_TIMEOUT_MS);
+    const abort = () => timeout.abort(signal?.reason);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+    try {
+      const response = await this.fetchImplementation.call(
+        globalThis,
+        `${ADMIN_API_BASE_PATH}${path}`,
+        {
+          body: JSON.stringify(body),
+          cache: "no-store",
+          credentials: "include",
+          headers: new Headers({
+            Accept: "text/csv, application/problem+json",
+            "Content-Type": "application/json",
+            "X-Request-Id": requestId,
+            "X-XSRF-TOKEN": csrf,
+          }),
+          method: "POST",
+          redirect: "error",
+          signal: timeout.signal,
+        },
+      );
+      const responseRequestId = response.headers.get("X-Request-Id") ?? requestId;
+      if (!response.ok) throw await toAdminApiError(response, responseRequestId);
+      return {
+        blob: await response.blob(),
+        filename: "oripa-v2-selected-shipping.csv",
+      };
+    } catch (error) {
+      if (error instanceof AdminApiError) throw error;
+      if (timeout.signal.aborted) {
+        throw new AdminApiError(0, "REQUEST_ABORTED", requestId, null, true);
+      }
+      throw new AdminApiError(0, "NETWORK_ERROR", requestId, null, true);
+    } finally {
+      window.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", abort);
     }
   }
 

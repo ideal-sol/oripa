@@ -449,6 +449,8 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.qa-management.gacha-guarantees.disable');
         Route::get('/shipping-requests', [V2AdminShippingController::class, 'index'])
             ->name('v2.admin.shipping-requests.index');
+        Route::post('/shipping-requests/export', [V2AdminShippingController::class, 'export'])
+            ->name('v2.admin.shipping-requests.export');
         Route::get('/shipping-requests/{shippingRequestId}', [V2AdminShippingController::class, 'show'])
             ->whereUuid('shippingRequestId')
             ->name('v2.admin.shipping-requests.show');

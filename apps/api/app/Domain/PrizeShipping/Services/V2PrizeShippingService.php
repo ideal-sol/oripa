@@ -28,17 +28,19 @@ final class V2PrizeShippingService
     private const USER_PRIZE_TRANSITIONS = [
         'stored' => ['exchange_processing', 'shipping_requested', 'hold', 'expired'],
         'exchange_processing' => ['converted', 'stored'],
-        'shipping_requested' => ['packing', 'hold', 'stored'],
-        'packing' => ['shipped', 'hold', 'stored'],
-        'shipped' => ['delivered', 'return_requested'],
+        'shipping_requested' => ['packing', 'shipped', 'delivered', 'hold', 'stored'],
+        'packing' => ['shipping_requested', 'shipped', 'delivered', 'hold', 'stored'],
+        'shipped' => ['shipping_requested', 'packing', 'delivered', 'return_requested'],
+        'delivered' => ['shipping_requested', 'packing', 'shipped'],
         'hold' => ['stored', 'shipping_requested', 'packing', 'return_requested'],
         'return_requested' => ['returned'],
     ];
 
     private const SHIPPING_TRANSITIONS = [
-        'requested' => ['packing', 'hold', 'canceled'],
-        'packing' => ['shipped', 'hold', 'canceled'],
-        'shipped' => ['delivered', 'return_requested'],
+        'requested' => ['requested', 'packing', 'shipped', 'delivered', 'hold', 'canceled'],
+        'packing' => ['requested', 'packing', 'shipped', 'delivered', 'hold', 'canceled'],
+        'shipped' => ['requested', 'packing', 'shipped', 'delivered', 'return_requested'],
+        'delivered' => ['requested', 'packing', 'shipped', 'delivered'],
         'hold' => ['requested', 'packing', 'return_requested'],
         'return_requested' => ['returned'],
     ];
@@ -594,9 +596,29 @@ final class V2PrizeShippingService
     }
 
     /** @return array<string, mixed> */
-    public function adminShippingRequests(?string $cursor, int $limit): array
+    public function adminShippingRequests(
+        ?string $cursor,
+        int $limit,
+        mixed $status = 'requested',
+        mixed $dateFrom = null,
+        mixed $dateTo = null
+    ): array
     {
-        return $this->shippingPage(DB::table('shipping_requests'), $cursor, $limit, true);
+        [$status, $from, $to] = $this->shippingFilters($status, $dateFrom, $dateTo);
+        $query = DB::table('shipping_requests')
+            ->join('users', 'users.id', '=', 'shipping_requests.user_id')
+            ->select(['shipping_requests.*', 'users.public_id as user_public_id']);
+        if ($status !== 'all') {
+            $query->where('shipping_requests.status', $status);
+        }
+        if ($from !== null) {
+            $query->where('shipping_requests.created_at', '>=', $from->utc()->toIso8601String());
+        }
+        if ($to !== null) {
+            $query->where('shipping_requests.created_at', '<', $to->addDay()->utc()->toIso8601String());
+        }
+
+        return $this->shippingPage($query, $cursor, $limit, true);
     }
 
     /** @return array<string, mixed> */
@@ -627,6 +649,10 @@ final class V2PrizeShippingService
         ?string $reason,
         string $requestId
     ): array {
+        $carrierCode = $this->optionalShippingValue($carrierCode, 64);
+        $trackingNumber = $this->optionalShippingValue($trackingNumber, 191);
+        $reason = $this->optionalShippingValue($reason, 191);
+
         return $this->transaction(function () use (
             $admin,
             $publicId,
@@ -667,6 +693,11 @@ final class V2PrizeShippingService
                 );
             }
             $now = CarbonImmutable::parse(now())->startOfSecond();
+            $previouslyShipped = $from === 'shipped'
+                || DB::table('shipping_request_status_histories')
+                    ->where('shipping_request_id', $shipping->id)
+                    ->where('to_status', 'shipped')
+                    ->exists();
             $items = DB::table('shipping_request_items as item')
                 ->join('user_prizes as prize', 'prize.id', '=', 'item.user_prize_id')
                 ->where('item.shipping_request_id', $shipping->id)
@@ -675,6 +706,9 @@ final class V2PrizeShippingService
                 ->get(['prize.*']);
             $targetPrizeStatus = $this->prizeStatusForShipping($toStatus);
             foreach ($items as $prize) {
+                if ($prize->status === $targetPrizeStatus) {
+                    continue;
+                }
                 $this->changePrizeStatus(
                     $prize,
                     $targetPrizeStatus,
@@ -684,9 +718,11 @@ final class V2PrizeShippingService
                     $reason ?: 'shipping_status_updated',
                     $requestId,
                     $now,
-                    in_array($targetPrizeStatus, ['delivered', 'returned', 'canceled'], true)
-                        ? ['terminal_at' => $now]
-                        : []
+                    ['terminal_at' => in_array(
+                        $targetPrizeStatus,
+                        ['delivered', 'returned', 'canceled'],
+                        true
+                    ) ? $now : null]
                 );
             }
             $trackingCiphertext = $trackingNumber === null
@@ -696,7 +732,10 @@ final class V2PrizeShippingService
                 'status' => $toStatus,
                 'carrier_code' => $carrierCode === null ? $shipping->carrier_code : trim($carrierCode),
                 'tracking_number_ciphertext' => $trackingCiphertext,
-                'shipped_at' => $toStatus === 'shipped' ? $now : $shipping->shipped_at,
+                'shipped_at' => in_array($toStatus, ['shipped', 'delivered'], true)
+                    && $shipping->shipped_at === null
+                        ? $now
+                        : $shipping->shipped_at,
                 'terminal_at' => in_array($toStatus, ['delivered', 'returned', 'canceled'], true)
                     ? $now
                     : null,
@@ -727,9 +766,9 @@ final class V2PrizeShippingService
                 $shipping->public_id,
                 'shipping.status.changed',
                 ['from_status' => $from, 'to_status' => $toStatus],
-                'shipping.status.changed:'.$shipping->public_id.':'.$toStatus
+                'shipping.status.changed:'.$shipping->public_id.':'.$requestId
             );
-            if ($toStatus === 'shipped') {
+            if ($toStatus === 'shipped' && ! $previouslyShipped) {
                 $this->templateMail->schedule(
                     'shipping_completed',
                     'shipping.completed:'.$shipping->public_id,
@@ -740,6 +779,76 @@ final class V2PrizeShippingService
 
             return $this->shipping($shipping->refresh(), true, true);
         });
+    }
+
+    /**
+     * @param array<mixed> $publicIds
+     * @return list<array<string, string>>
+     */
+    public function adminShippingCsvRows(
+        Admin $admin,
+        array $publicIds,
+        string $requestId
+    ): array {
+        $ids = [];
+        foreach ($publicIds as $publicId) {
+            if (! is_string($publicId) || ! Str::isUuid($publicId)) {
+                throw $this->invalidShippingQuery();
+            }
+            $ids[$publicId] = true;
+        }
+        $ids = array_keys($ids);
+        if ($ids === [] || count($ids) > 500) {
+            throw $this->invalidShippingQuery();
+        }
+
+        $requests = DB::table('shipping_requests as shipping')
+            ->join('users as user', 'user.id', '=', 'shipping.user_id')
+            ->whereIn('shipping.public_id', $ids)
+            ->orderBy('shipping.id')
+            ->get([
+                'shipping.*',
+                'user.public_id as user_public_id',
+            ]);
+        if ($requests->count() !== count($ids)) {
+            throw $this->notFound('SHIPPING_REQUEST_NOT_FOUND');
+        }
+
+        $itemGroups = $this->adminShippingItems(
+            $requests->pluck('id')->map(fn ($id): int => (int) $id)->all()
+        );
+        $rows = $requests->map(function (object $shipping) use ($itemGroups): array {
+            $address = $this->decryptedAddress($shipping);
+            $items = $itemGroups->get((int) $shipping->id, collect());
+
+            return [
+                '氏名' => (string) $address['recipient_name'],
+                '郵便番号' => (string) $address['postal_code'],
+                '住所' => implode('', array_filter([
+                    (string) $address['prefecture'],
+                    (string) $address['city'],
+                    (string) $address['street'],
+                    $address['building'] === null ? '' : ' '.(string) $address['building'],
+                ], static fn (string $part): bool => $part !== '')),
+                '電話番号' => (string) $address['phone_number'],
+                '商品名' => $items->pluck('name')->implode(' / '),
+                'ユーザーID（Public ID）' => (string) $shipping->user_public_id,
+                '配送ID' => (string) $shipping->public_id,
+                '商品ID' => $items->pluck('product_id')->implode(' / '),
+                '状態' => $this->shippingStatusLabel((string) $shipping->status),
+            ];
+        })->values()->all();
+
+        $this->audit->record('shipping.csv_exported', $this->auditAttributes(
+            $admin,
+            'shipping_request_selection',
+            null,
+            $requestId,
+            ['row_count' => count($rows)],
+            'shipping.request.manage'
+        ));
+
+        return $rows;
     }
 
     private function prizeQuery(int $userId): \Illuminate\Database\Query\Builder
@@ -990,8 +1099,11 @@ final class V2PrizeShippingService
         $limit = $this->limit($limit);
         $after = $this->decodeCursor($cursor);
         $rows = $query
-            ->when($after !== null, fn ($builder) => $builder->where('id', '<', $after))
-            ->orderByDesc('id')
+            ->when(
+                $after !== null,
+                fn ($builder) => $builder->where('shipping_requests.id', '<', $after)
+            )
+            ->orderByDesc('shipping_requests.id')
             ->limit($limit + 1)
             ->get();
         $hasMore = $rows->count() > $limit;
@@ -1004,7 +1116,8 @@ final class V2PrizeShippingService
         $items = $pageRows->map(
             fn (object $row): array => $this->shippingSummary(
                 $row,
-                (int) ($counts[$row->id] ?? 0)
+                (int) ($counts[$row->id] ?? 0),
+                $admin
             )
         )->all();
 
@@ -1017,9 +1130,9 @@ final class V2PrizeShippingService
     }
 
     /** @return array<string, mixed> */
-    private function shippingSummary(object $request, int $prizeCount): array
+    private function shippingSummary(object $request, int $prizeCount, bool $admin): array
     {
-        return [
+        $result = [
             'id' => $request->public_id,
             'status' => $request->status,
             'prize_count' => $prizeCount,
@@ -1031,6 +1144,13 @@ final class V2PrizeShippingService
                 : CarbonImmutable::parse($request->shipped_at)->toIso8601String(),
             'carrier_code' => $request->carrier_code,
         ];
+        if ($admin) {
+            $result['user_id'] = (string) $request->user_public_id;
+            $result['created_at'] = CarbonImmutable::parse($request->created_at)->utc()
+                ->toIso8601String();
+        }
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
@@ -1068,9 +1188,69 @@ final class V2PrizeShippingService
                         $history->occurred_at
                     )->toIso8601String(),
                 ])->all();
+            if ($admin) {
+                $result['user_id'] = (string) DB::table('users')
+                    ->where('id', $request->user_id)
+                    ->value('public_id');
+                $result['created_at'] = $request->created_at?->utc()->toIso8601String();
+                $result['items'] = $this->adminShippingItems([(int) $request->id])
+                    ->get((int) $request->id, collect())
+                    ->values()
+                    ->all();
+            }
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<int> $shippingRequestIds
+     * @return Collection<int, Collection<int, array{user_prize_id: string, product_id: string, name: string}>>
+     */
+    private function adminShippingItems(array $shippingRequestIds): Collection
+    {
+        return DB::table('shipping_request_items as item')
+            ->join('user_prizes as ownership', 'ownership.id', '=', 'item.user_prize_id')
+            ->join('draw_results as result', 'result.id', '=', 'ownership.draw_result_id')
+            ->whereIn('item.shipping_request_id', $shippingRequestIds)
+            ->orderBy('item.id')
+            ->get([
+                'item.shipping_request_id',
+                'ownership.public_id as user_prize_id',
+                'result.display_snapshot',
+            ])
+            ->map(function (object $item): array {
+                $snapshot = is_string($item->display_snapshot)
+                    ? json_decode($item->display_snapshot, true, 32, JSON_THROW_ON_ERROR)
+                    : (array) $item->display_snapshot;
+                $prize = is_array($snapshot['prize'] ?? null) ? $snapshot['prize'] : null;
+                if (
+                    $prize === null
+                    || ! is_string($prize['id'] ?? null)
+                    || ! is_string($prize['name'] ?? null)
+                ) {
+                    throw new V2PrizeShippingException(
+                        'USER_PRIZE_PRESENTATION_UNAVAILABLE',
+                        500,
+                        'The User Prize presentation is unavailable.'
+                    );
+                }
+
+                return [
+                    'shipping_request_id' => (int) $item->shipping_request_id,
+                    'user_prize_id' => (string) $item->user_prize_id,
+                    'product_id' => $prize['id'],
+                    'name' => $prize['name'],
+                ];
+            })
+            ->groupBy('shipping_request_id')
+            ->map(static fn (Collection $items): Collection => $items->map(
+                static fn (array $item): array => [
+                    'user_prize_id' => $item['user_prize_id'],
+                    'product_id' => $item['product_id'],
+                    'name' => $item['name'],
+                ]
+            ));
     }
 
     private function changePrizeStatus(
@@ -1164,6 +1344,89 @@ final class V2PrizeShippingService
             ->whereIn('action_type', ['hold', 'return_request'])
             ->whereIn('status', ['pending', 'completed', 'manual_review'])
             ->groupBy('user_prize_id');
+    }
+
+    /** @return array{string, ?CarbonImmutable, ?CarbonImmutable} */
+    private function shippingFilters(mixed $status, mixed $dateFrom, mixed $dateTo): array
+    {
+        $statuses = [
+            'all',
+            'requested',
+            'packing',
+            'shipped',
+            'delivered',
+            'hold',
+            'return_requested',
+            'returned',
+            'canceled',
+        ];
+        if (! is_string($status) || ! in_array($status, $statuses, true)) {
+            throw $this->invalidShippingQuery();
+        }
+        $from = $this->shippingDate($dateFrom);
+        $to = $this->shippingDate($dateTo);
+        if ($from !== null && $to !== null && $to->lessThan($from)) {
+            throw $this->invalidShippingQuery();
+        }
+
+        return [$status, $from, $to];
+    }
+
+    private function shippingDate(mixed $value): ?CarbonImmutable
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (! is_string($value)) {
+            throw $this->invalidShippingQuery();
+        }
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, 'Asia/Tokyo');
+        } catch (Throwable) {
+            throw $this->invalidShippingQuery();
+        }
+        if ($date->format('Y-m-d') !== $value) {
+            throw $this->invalidShippingQuery();
+        }
+
+        return $date;
+    }
+
+    private function optionalShippingValue(?string $value, int $maximum): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+        $value = trim($value);
+        if (mb_strlen($value) > $maximum) {
+            throw $this->invalidShippingQuery();
+        }
+
+        return $value;
+    }
+
+    private function invalidShippingQuery(): V2PrizeShippingException
+    {
+        return new V2PrizeShippingException(
+            'ADMIN_SHIPPING_REQUEST_INVALID',
+            422,
+            'The Shipping Request input is invalid.'
+        );
+    }
+
+    private function shippingStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'requested' => '未配送',
+            'packing' => '配送手配済み',
+            'shipped' => '配送済み',
+            'delivered' => '配送完了',
+            'hold' => '保留',
+            'return_requested' => '返送依頼中',
+            'returned' => '返送済み',
+            'canceled' => '取消',
+            default => $status,
+        };
     }
 
     private function prizeStatusForShipping(string $shippingStatus): string

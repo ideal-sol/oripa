@@ -27,6 +27,10 @@ const operations = {
   listUserPayments: ["get", "/users/{user_id}/payments"],
   listAdminUserPrizes: ["get", "/user-prizes"],
   getAdminUserPrize: ["get", "/user-prizes/{user_prize_id}"],
+  listAdminShippingRequests: ["get", "/shipping-requests"],
+  getAdminShippingRequest: ["get", "/shipping-requests/{shipping_request_id}"],
+  updateAdminShippingRequest: ["put", "/shipping-requests/{shipping_request_id}"],
+  exportSelectedAdminShippingRequests: ["post", "/shipping-requests/export"],
   updateAdminUserState: ["put", "/users/{user_id}/state"],
   listAdminUserTags: ["get", "/user-tags"],
   createAdminUserTag: ["post", "/user-tags"],
@@ -424,6 +428,10 @@ const requiredSchemas = [
   "AdminUserPrizeCollection",
   "AdminUserPrizeDetailResponse",
   "AdminUserPrizeStatus",
+  "AdminShippingSelection",
+  "AdminShippingRequestCollection",
+  "AdminShippingRequestDetail",
+  "AdminShippingTransition",
   "AdminPointAdjustmentRequest",
   "AdminPointAdjustmentMutationResult",
   "RecoveryCodes",
@@ -901,6 +909,66 @@ export interface AdminPaymentCollection {
   request_id: string;
 }
 
+export type AdminShippingStatus =
+  | "requested"
+  | "packing"
+  | "shipped"
+  | "delivered"
+  | "hold"
+  | "return_requested"
+  | "returned"
+  | "canceled";
+
+export interface AdminShippingRequestSummary {
+  id: string;
+  user_id: string;
+  status: AdminShippingStatus;
+  prize_count: number;
+  created_at: string;
+  requested_at: string;
+  shipped_at: string | null;
+  carrier_code: string | null;
+}
+
+export interface AdminShippingItem {
+  user_prize_id: string;
+  product_id: string;
+  name: string;
+}
+
+export interface AdminShippingRequestDetail extends AdminShippingRequestSummary {
+  prize_ids: string[];
+  items: AdminShippingItem[];
+  tracking_number: string | null;
+  shipping_address: {
+    recipient_name: string;
+    postal_code: string;
+    prefecture: string;
+    city: string;
+    street: string;
+    building: string | null;
+    phone_number: string;
+  };
+  status_history: Array<{
+    from_status: string | null;
+    to_status: string;
+    reason_code: string;
+    occurred_at: string;
+  }>;
+}
+
+export interface AdminShippingRequestCollection {
+  items: AdminShippingRequestSummary[];
+  next_cursor: string | null;
+}
+
+export interface AdminShippingTransition {
+  status: AdminShippingStatus;
+  carrier_code?: string | null;
+  tracking_number?: string | null;
+  reason?: string | null;
+}
+
 export type AdminUserPrizeStatus =
   | "stored"
   | "exchange_processing"
@@ -976,12 +1044,15 @@ export interface AdminUserPrizeDetail extends AdminUserPrizeSummary {
   }>;
   shipping: {
     id: string;
+    user_id: string;
     status: string;
     prize_count: number;
+    created_at: string;
     requested_at: string;
     shipped_at: string | null;
     carrier_code: string | null;
     prize_ids: string[];
+    items: AdminShippingItem[];
     tracking_number: string | null;
     shipping_address: {
       recipient_name: string;
