@@ -572,6 +572,39 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             (string) Str::uuid7()
         );
         self::assertSame('packing', $packing['status']);
+        $requestedAgain = $service->transitionShipping(
+            $admin,
+            $first['id'],
+            'requested',
+            null,
+            null,
+            'packing_corrected',
+            (string) Str::uuid7()
+        );
+        self::assertSame('requested', $requestedAgain['status']);
+        $service->transitionShipping(
+            $admin,
+            $first['id'],
+            'packing',
+            null,
+            null,
+            'packing_restarted',
+            (string) Str::uuid7()
+        );
+        try {
+            $service->transitionShipping(
+                $admin,
+                $first['id'],
+                'shipped',
+                null,
+                null,
+                null,
+                (string) Str::uuid7()
+            );
+            self::fail('Shipping without Carrier and Tracking Number must fail.');
+        } catch (V2PrizeShippingException $exception) {
+            self::assertSame('TRACKING_REQUIRED', $exception->errorCode);
+        }
         $shipped = $service->transitionShipping(
             $admin,
             $first['id'],
@@ -582,6 +615,29 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             (string) Str::uuid7()
         );
         self::assertSame('fixture-tracking-reference', $shipped['tracking_number']);
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'shipping.completed:'.$first['id'])->count());
+        $packingAgain = $service->transitionShipping(
+            $admin,
+            $first['id'],
+            'packing',
+            null,
+            null,
+            'shipment_corrected',
+            (string) Str::uuid7()
+        );
+        self::assertSame('fixture-carrier', $packingAgain['carrier_code']);
+        self::assertSame('fixture-tracking-reference', $packingAgain['tracking_number']);
+        $shippedAgain = $service->transitionShipping(
+            $admin,
+            $first['id'],
+            'shipped',
+            null,
+            null,
+            'shipment_reconfirmed',
+            (string) Str::uuid7()
+        );
+        self::assertSame('fixture-tracking-reference', $shippedAgain['tracking_number']);
         self::assertSame(1, DB::table('mail_deliveries')
             ->where('event_key', 'shipping.completed:'.$first['id'])->count());
         $delivered = $service->transitionShipping(
@@ -595,22 +651,34 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         );
         self::assertSame('delivered', $delivered['status']);
         self::assertSame(3, DB::table('user_prizes')->where('status', 'delivered')->count());
-        try {
-            $service->transitionShipping(
-                $admin,
-                $first['id'],
-                'packing',
-                null,
-                null,
-                null,
-                (string) Str::uuid7()
-            );
-            self::fail('Terminal Shipping transition must not rewind.');
-        } catch (V2PrizeShippingException $exception) {
-            self::assertSame('SHIPPING_TRANSITION_NOT_ALLOWED', $exception->errorCode);
-        }
+        $shippedAfterDelivery = $service->transitionShipping(
+            $admin,
+            $first['id'],
+            'shipped',
+            'fixture-carrier-updated',
+            'fixture-tracking-updated',
+            'delivery_corrected',
+            (string) Str::uuid7()
+        );
+        self::assertSame('shipped', $shippedAfterDelivery['status']);
+        self::assertSame('fixture-carrier-updated', $shippedAfterDelivery['carrier_code']);
+        self::assertSame('fixture-tracking-updated', $shippedAfterDelivery['tracking_number']);
+        self::assertSame(3, DB::table('user_prizes')->where('status', 'shipped')->count());
+        self::assertSame(1, DB::table('mail_deliveries')
+            ->where('event_key', 'shipping.completed:'.$first['id'])->count());
+        self::assertSame(9, DB::table('shipping_request_status_histories')->count());
         self::assertDatabaseHas('audit_logs', ['action_code' => 'shipping.status_changed']);
         self::assertDatabaseHas('outbox_messages', ['event_type' => 'shipping.status.changed']);
+        try {
+            $shippingId = DB::table('shipping_requests')
+                ->where('public_id', $first['id'])
+                ->value('id');
+            DB::table('shipping_request_status_histories')->where('shipping_request_id', $shippingId)
+                ->update(['reason_code' => 'tampered']);
+            self::fail('Shipping Request history update must fail.');
+        } catch (QueryException) {
+            self::assertTrue(true);
+        }
     }
 
     public function test_payment_adjustment_hold_denies_exchange_and_shipping_with_audit(): void

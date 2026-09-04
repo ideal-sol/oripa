@@ -8350,6 +8350,43 @@
           },
           {
             "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "未指定時は未配送。allを明示すると全状態。",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ShippingStatus"
+                },
+                {
+                  "type": "string",
+                  "const": "all"
+                }
+              ]
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "description": "JSTの配送依頼レコード作成日開始日（created_at）。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "description": "JSTの配送依頼レコード作成日終了日（created_at）。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -8359,6 +8396,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminShippingRequestCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/shipping-requests/export": {
+      "post": {
+        "operationId": "exportSelectedAdminShippingRequests",
+        "summary": "選択されたShipping RequestだけをCSV出力する",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "admin-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminShippingSelection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "UTF-8 BOM付きの選択配送CSV Stream。",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -19003,6 +19086,24 @@
           }
         }
       },
+      "AdminShippingSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shipping_ids"
+        ],
+        "properties": {
+          "shipping_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        }
+      },
       "AdminShippingRequestSummary": {
         "type": "object",
         "additionalProperties": false,
@@ -19016,6 +19117,9 @@
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
+          "user_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
           "status": {
             "$ref": "#/components/schemas/ShippingStatus"
           },
@@ -19024,6 +19128,9 @@
             "minimum": 1
           },
           "requested_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "created_at": {
             "$ref": "#/components/schemas/UtcDateTime"
           },
           "shipped_at": {
@@ -19066,6 +19173,13 @@
                   "string",
                   "null"
                 ]
+              },
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/AdminShippingItem"
+                }
               },
               "shipping_address": {
                 "type": "object",
@@ -19139,6 +19253,26 @@
             }
           }
         ]
+      },
+      "AdminShippingItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_prize_id",
+          "product_id",
+          "name"
+        ],
+        "properties": {
+          "user_prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "product_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
       },
       "AdminShippingRequestCollection": {
         "type": "object",

@@ -151,7 +151,9 @@ function detail(): AdminUserPrizeDetailResponse {
       point_exchange: null,
       shipping: {
         carrier_code: null,
+        created_at: "2026-08-10T01:00:00Z",
         id: uuid("8"),
+        items: [{ name: "取得景品A", product_id: uuid("2"), user_prize_id: uuid("1") }],
         prize_count: 1,
         prize_ids: [uuid("1")],
         requested_at: "2026-08-10T01:00:00Z",
@@ -168,6 +170,7 @@ function detail(): AdminUserPrizeDetailResponse {
         status: "requested",
         status_history: [],
         tracking_number: null,
+        user_id: uuid("4"),
       },
       status_history: [{
         from_status: "stored",

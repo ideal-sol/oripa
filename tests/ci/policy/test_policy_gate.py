@@ -20,6 +20,16 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_ship_001_admin_shipping_paths_are_registered_exactly(self):
+        expected = {
+            "apps/admin/src/app/shipping/[shippingRequestId]/page.tsx",
+            "apps/admin/src/components/shipping/admin-shipping-management.tsx",
+            "apps/admin/test/admin-shipping-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.SHIP_001_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_mig_073_closed_email_reregistration_migration_is_registered_exactly(self):
         expected = {
             "apps/api/database/migrations-v2/2026_09_17_000063_allow_v2_closed_user_email_reregistration.php",

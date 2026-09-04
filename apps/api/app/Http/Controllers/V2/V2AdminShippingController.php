@@ -6,26 +6,36 @@ use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
 use App\Domain\PrizeShipping\Exceptions\V2PrizeShippingException;
 use App\Domain\PrizeShipping\Services\V2PrizeShippingService;
+use App\Domain\Reporting\Services\V2CsvWriter;
 use App\Models\V2\Admin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class V2AdminShippingController
 {
     public function __construct(
         private readonly V2PrizeShippingService $service,
-        private readonly V2PermissionAuthorizer $permissions
+        private readonly V2PermissionAuthorizer $permissions,
+        private readonly V2CsvWriter $csv
     ) {
     }
 
     public function index(Request $request): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->service->adminShippingRequests(
-            $request->query('cursor'),
-            (int) $request->query('limit', config('v2_prize_shipping.cursor_page_size', 20))
-        ));
+        return $this->handle($request, function () use ($request): array {
+            $this->admin();
+
+            return $this->service->adminShippingRequests(
+                $request->query('cursor'),
+                (int) $request->query('limit', config('v2_prize_shipping.cursor_page_size', 20)),
+                $request->query('status', 'requested'),
+                $request->query('date_from'),
+                $request->query('date_to')
+            );
+        });
     }
 
     public function show(Request $request, string $shippingRequestId): JsonResponse
@@ -65,6 +75,47 @@ final class V2AdminShippingController
         });
     }
 
+    public function export(Request $request): JsonResponse|StreamedResponse
+    {
+        $requestId = $this->requestId($request);
+        try {
+            $rows = $this->service->adminShippingCsvRows(
+                $this->admin(),
+                is_array($request->input('shipping_ids'))
+                    ? $request->input('shipping_ids')
+                    : [],
+                $requestId
+            );
+
+            return response()->streamDownload(function () use ($rows): void {
+                $stream = fopen('php://output', 'wb');
+                if ($stream === false) {
+                    throw new \RuntimeException('CSV stream could not be opened.');
+                }
+                $this->csv->write($stream, [
+                    '氏名',
+                    '郵便番号',
+                    '住所',
+                    '電話番号',
+                    '商品名',
+                    'ユーザーID（Public ID）',
+                    '配送ID',
+                    '商品ID',
+                    '状態',
+                ], $rows);
+                fclose($stream);
+            }, 'oripa-v2-selected-shipping.csv', [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+            ]);
+        } catch (V2PrizeShippingException $exception) {
+            return $this->problem($exception, $requestId);
+        }
+    }
+
     private function admin(): Admin
     {
         $admin = Auth::guard('v2_admin')->user();
@@ -95,20 +146,25 @@ final class V2AdminShippingController
                 'X-Oripa-Api-Version' => '2',
             ]);
         } catch (V2PrizeShippingException $exception) {
-            return response()->json([
-                'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
-                'title' => $exception->getMessage(),
-                'status' => $exception->status,
-                'code' => $exception->errorCode,
-                'request_id' => $requestId,
-                'retryable' => $exception->retryable,
-            ], $exception->status, [
-                'Content-Type' => 'application/problem+json',
-                'Cache-Control' => 'no-store',
-                'X-Request-Id' => $requestId,
-                'X-Oripa-Api-Version' => '2',
-            ]);
+            return $this->problem($exception, $requestId);
         }
+    }
+
+    private function problem(V2PrizeShippingException $exception, string $requestId): JsonResponse
+    {
+        return response()->json([
+            'type' => 'https://oripa.example/problems/'.strtolower($exception->errorCode),
+            'title' => $exception->getMessage(),
+            'status' => $exception->status,
+            'code' => $exception->errorCode,
+            'request_id' => $requestId,
+            'retryable' => $exception->retryable,
+        ], $exception->status, [
+            'Content-Type' => 'application/problem+json',
+            'Cache-Control' => 'private, no-store',
+            'X-Request-Id' => $requestId,
+            'X-Oripa-Api-Version' => '2',
+        ]);
     }
 
     private function requestId(Request $request): string

@@ -43,6 +43,7 @@ final class AdminUserPrizeReadTest extends TestCase
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo',
+            'v2_identity.origins.admin' => 'https://admin.example.test',
             'v2_prize_shipping.address_hmac_key' => 'base64:'.base64_encode(str_repeat('p', 32)),
         ]);
         $this->createFixture();
@@ -164,6 +165,105 @@ final class AdminUserPrizeReadTest extends TestCase
         }
     }
 
+    public function test_admin_shipping_list_detail_filters_and_selected_csv_use_canonical_records(): void
+    {
+        $shipping = app(V2PrizeShippingService::class);
+        $firstAddress = $shipping->createAddress(
+            $this->user,
+            [...$this->address(), 'recipient_name' => '=Synthetic Recipient'],
+            (string) Str::uuid7()
+        );
+        $first = $shipping->createShippingRequest(
+            $this->user,
+            $firstAddress['id'],
+            [$this->prizeIds[0], $this->prizeIds[1]],
+            'admin-shipping-first-'.Str::uuid(),
+            (string) Str::uuid7()
+        );
+        DB::table('shipping_requests')->where('public_id', $first['id'])->update([
+            'created_at' => '2026-09-04 03:00:00+00',
+            'updated_at' => '2026-09-04 03:00:00+00',
+        ]);
+        $secondAddress = $shipping->createAddress(
+            $this->user,
+            $this->address(),
+            (string) Str::uuid7()
+        );
+        $second = $shipping->createShippingRequest(
+            $this->user,
+            $secondAddress['id'],
+            [$this->prizeIds[2]],
+            'admin-shipping-second-'.Str::uuid(),
+            (string) Str::uuid7()
+        );
+
+        $this->getJson('/admin/api/v2/shipping-requests')->assertUnauthorized();
+        $session = $this->adminSession(V2AdminRole::Operator);
+        $admin = Admin::query()->findOrFail($session['context']->adminId);
+        $shipping->transitionShipping(
+            $admin,
+            $second['id'],
+            'packing',
+            null,
+            null,
+            'packing_started',
+            (string) Str::uuid7()
+        );
+        Auth::forgetGuards();
+
+        $client = $this->asAdmin($session['token']);
+        $client->getJson('/admin/api/v2/shipping-requests')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $first['id'])
+            ->assertJsonPath('items.0.user_id', $this->user->public_id)
+            ->assertJsonPath('items.0.created_at', '2026-09-04T03:00:00+00:00');
+        $client->getJson('/admin/api/v2/shipping-requests?status=packing')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $second['id']);
+        $client->getJson('/admin/api/v2/shipping-requests?status=all&date_from=2026-09-04&date_to=2026-09-04')
+            ->assertOk()
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.id', $first['id']);
+        $client->getJson('/admin/api/v2/shipping-requests?status=unknown')
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'ADMIN_SHIPPING_REQUEST_INVALID');
+        $client->getJson('/admin/api/v2/shipping-requests/'.$first['id'])
+            ->assertOk()
+            ->assertJsonPath('user_id', $this->user->public_id)
+            ->assertJsonPath('items.0.name', 'Fixture S景品')
+            ->assertJsonCount(2, 'items')
+            ->assertJsonPath('shipping_address.city', '検証市');
+
+        $csv = $this->mutatingShippingRequest(
+            $session['token'],
+            '/admin/api/v2/shipping-requests/export',
+            ['shipping_ids' => [$first['id']]]
+        )->assertOk();
+        $content = $csv->streamedContent();
+        self::assertStringStartsWith("\xEF\xBB\xBF", $content);
+        $lines = preg_split('/\r?\n/', trim($content));
+        self::assertIsArray($lines);
+        self::assertCount(2, $lines);
+        $header = str_getcsv(substr($lines[0], 3));
+        $row = str_getcsv($lines[1]);
+        self::assertCount(9, $header);
+        self::assertCount(9, $row);
+        self::assertSame($first['id'], $row[6]);
+        self::assertStringContainsString(' / ', $row[4]);
+        self::assertStringContainsString(' / ', $row[7]);
+        self::assertStringStartsWith("'=Synthetic", $row[0]);
+        self::assertStringNotContainsString($second['id'], $content);
+        self::assertDatabaseHas('audit_logs', ['action_code' => 'shipping.csv_exported']);
+
+        $this->mutatingShippingRequest(
+            $session['token'],
+            '/admin/api/v2/shipping-requests/export',
+            ['shipping_ids' => [(string) Str::uuid7()]]
+        )->assertNotFound();
+    }
+
     private function createFixture(): void
     {
         $fixture = json_decode(
@@ -282,6 +382,22 @@ final class AdminUserPrizeReadTest extends TestCase
     {
         return $this->withCredentials()
             ->withUnencryptedCookie('__Host-oripa_admin_session', $token);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function mutatingShippingRequest(string $token, string $uri, array $payload)
+    {
+        $csrf = str_repeat('a', 64);
+
+        return $this->asAdmin($token)
+            ->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_admin_xsrf', $csrf)
+            ->withHeaders([
+                'Origin' => 'https://admin.example.test',
+                'Sec-Fetch-Site' => 'same-origin',
+                'X-XSRF-TOKEN' => $csrf,
+            ])
+            ->postJson($uri, $payload);
     }
 
     private function assertPrivate(\Illuminate\Testing\TestResponse $response): void
