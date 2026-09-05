@@ -21,7 +21,7 @@ final class V2SessionManager
     }
 
     /**
-     * @return array{token: string, absolute_expires_at: \Illuminate\Support\Carbon}
+     * @return array{token: string, absolute_expires_at: CarbonImmutable}
      */
     public function issue(
         V2Realm $realm,
@@ -31,14 +31,15 @@ final class V2SessionManager
     ): array {
         $configuration = $this->policy->forRealm($realm);
         $token = $this->tokens->generate();
-        $now = now();
-        $absolute = $now->copy()->addMinutes($configuration['absolute_minutes']);
+        $now = $this->policy->currentTime();
+        $absolute = $now->addMinutes($configuration['absolute_minutes']);
+        $idle = $now->addMinutes($configuration['idle_minutes'])->min($absolute);
         $row = [
             'session_id_hash' => $this->policy->hashSessionId($token),
             $realm === V2Realm::User ? 'user_id' : 'admin_id' => $identityId,
             'created_at' => $now,
             'last_activity_at' => $now,
-            'idle_expires_at' => $now->copy()->addMinutes($configuration['idle_minutes']),
+            'idle_expires_at' => $idle,
             'absolute_expires_at' => $absolute,
             'revoked_at' => null,
         ];
@@ -63,7 +64,7 @@ final class V2SessionManager
         DB::table($configuration['table'])
             ->where('session_id_hash', $this->policy->hashSessionId($raw))
             ->whereNull('revoked_at')
-            ->update(['revoked_at' => now()]);
+            ->update(['revoked_at' => $this->policy->currentTime()]);
     }
 
     public function rawToken(Request $request, V2Realm $realm): ?string
@@ -89,9 +90,11 @@ final class V2SessionManager
     ): UserSession {
         $session = $this->requireActiveUserSession($request, $userId, $lock);
         $freshMinutes ??= (int) config('v2_identity.user_fresh_auth.minutes', 10);
+        $current = $this->policy->currentTime();
         if (
             $session->reauthenticated_at === null
-            || ! $session->reauthenticated_at->copy()->addMinutes($freshMinutes)->isFuture()
+            || $session->reauthenticated_at->greaterThan($current)
+            || ! $session->reauthenticated_at->addMinutes($freshMinutes)->greaterThan($current)
         ) {
             throw new \RuntimeException('Fresh User Authentication is required.');
         }
@@ -108,12 +111,14 @@ final class V2SessionManager
         if ($raw === null) {
             throw new \RuntimeException('A current User Session is required.');
         }
+        $current = $this->policy->currentTime();
         $query = UserSession::query()
             ->whereKey($this->policy->hashSessionId($raw))
             ->where('user_id', $userId)
             ->whereNull('revoked_at')
-            ->where('idle_expires_at', '>', now())
-            ->where('absolute_expires_at', '>', now());
+            ->where('created_at', '<=', $current)
+            ->where('idle_expires_at', '>', $current)
+            ->where('absolute_expires_at', '>', $current);
         if ($lock) {
             $query->lockForUpdate();
         }
@@ -133,9 +138,9 @@ final class V2SessionManager
         if ($session->revoked_at !== null) {
             throw new \RuntimeException('The Admin Session is no longer active.');
         }
-        $now = CarbonImmutable::now()->startOfSecond();
-        $absolute = CarbonImmutable::parse($session->absolute_expires_at);
-        if (! $absolute->greaterThan($now)) {
+        $now = $this->policy->currentTime();
+        $absolute = $this->policy->canonicalTime($session->absolute_expires_at);
+        if ($session->created_at->greaterThan($now) || ! $absolute->greaterThan($now)) {
             throw new \RuntimeException('The Admin Session has expired.');
         }
         $configuration = $this->policy->forRealm(V2Realm::Admin);
@@ -189,9 +194,9 @@ final class V2SessionManager
         if ($session->revoked_at !== null) {
             throw new \RuntimeException('The User Session is no longer active.');
         }
-        $now = CarbonImmutable::now()->startOfSecond();
-        $absolute = CarbonImmutable::parse($session->absolute_expires_at);
-        if (! $absolute->greaterThan($now)) {
+        $now = $this->policy->currentTime();
+        $absolute = $this->policy->canonicalTime($session->absolute_expires_at);
+        if ($session->created_at->greaterThan($now) || ! $absolute->greaterThan($now)) {
             throw new \RuntimeException('The User Session has expired.');
         }
         $configuration = $this->policy->forRealm(V2Realm::User);
@@ -201,10 +206,10 @@ final class V2SessionManager
         }
         $createdAt = $refreshReauthentication
             ? $now
-            : CarbonImmutable::parse($session->created_at);
+            : $this->policy->canonicalTime($session->created_at);
         $reauthenticatedAt = $refreshReauthentication
             ? $now
-            : CarbonImmutable::parse($session->reauthenticated_at);
+            : $this->policy->canonicalTime($session->reauthenticated_at);
         $token = $this->tokens->generate();
         $session->forceFill(['revoked_at' => $now])->save();
         DB::table($configuration['table'])->insert([
