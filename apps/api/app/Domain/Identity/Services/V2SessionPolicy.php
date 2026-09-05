@@ -3,11 +3,29 @@
 namespace App\Domain\Identity\Services;
 
 use App\Domain\Identity\Enums\V2Realm;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use SensitiveParameter;
 
 final class V2SessionPolicy
 {
+    public function currentTime(): CarbonImmutable
+    {
+        return $this->canonicalTime(now())->startOfSecond();
+    }
+
+    public function canonicalTime(DateTimeInterface|string $instant): CarbonImmutable
+    {
+        $databaseTimezone = DB::connection()->getConfig('timezone');
+        $canonicalTimezone = is_string($databaseTimezone) && $databaseTimezone !== ''
+            ? $databaseTimezone
+            : (string) config('app.timezone');
+
+        return CarbonImmutable::parse($instant, $canonicalTimezone)->setTimezone($canonicalTimezone);
+    }
+
     /**
      * @return array{table: string, cookie: string, idle_minutes: int, absolute_minutes: int, same_site: string, remember: bool}
      */

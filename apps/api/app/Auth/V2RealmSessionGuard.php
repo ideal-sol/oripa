@@ -6,7 +6,6 @@ use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2SessionPolicy;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\UserProvider;
@@ -50,15 +49,12 @@ final class V2RealmSessionGuard implements Guard
         }
 
         $connection = DB::connection();
-        $databaseTimezone = $connection->getConfig('timezone');
-        $canonicalTimezone = is_string($databaseTimezone) && $databaseTimezone !== ''
-            ? $databaseTimezone
-            : (string) config('app.timezone');
-        $current = now()->toImmutable()->setTimezone($canonicalTimezone)->startOfSecond();
+        $current = $this->sessionPolicy->currentTime();
         $identityColumn = $this->realm === V2Realm::User ? 'user_id' : 'admin_id';
         $query = $connection->table($policy['table'])
             ->where('session_id_hash', $this->sessionPolicy->hashSessionId($rawSessionId))
             ->whereNull('revoked_at')
+            ->where('created_at', '<=', $current)
             ->where('idle_expires_at', '>', $current)
             ->where('absolute_expires_at', '>', $current);
 
@@ -85,10 +81,7 @@ final class V2RealmSessionGuard implements Guard
             return null;
         }
 
-        $absoluteExpiresAt = CarbonImmutable::parse(
-            $session->absolute_expires_at,
-            $canonicalTimezone
-        )->setTimezone($canonicalTimezone);
+        $absoluteExpiresAt = $this->sessionPolicy->canonicalTime($session->absolute_expires_at);
         $idleExpiresAt = $current->addMinutes($policy['idle_minutes']);
         if ($idleExpiresAt->greaterThan($absoluteExpiresAt)) {
             $idleExpiresAt = $absoluteExpiresAt;
