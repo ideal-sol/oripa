@@ -35,7 +35,7 @@ return new class extends Migration
                 AND length(btrim(company_name)) > 0 AND length(btrim(contact_name)) > 0
                 AND length(btrim(phone)) > 0 AND length(btrim(address)) > 0
                 AND password_hash LIKE '$argon2id$%'
-                AND status IN ('active', 'suspended') AND revision > 0
+                AND status::text IN ('active', 'suspended') AND revision > 0
             )
         SQL);
         Schema::create('agency_advertising_codes', function (Blueprint $table): void {
@@ -127,7 +127,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE mail_deliveries DROP CONSTRAINT mail_deliveries_values_check');
         $sources = "'user','payment','shipping_request','contact_inquiry'".($agency ? ",'agency'" : '');
         DB::statement("ALTER TABLE mail_deliveries ADD CONSTRAINT mail_deliveries_values_check CHECK (".
-            "source_type IN ($sources) AND status IN ('pending','sending','sent','failed') AND attempts <= 1 AND ".
+            "source_type::text IN ($sources) AND status::text IN ('pending','sending','sent','failed') AND attempts <= 1 AND ".
             "((status = 'pending' AND attempts = 0 AND sent_at IS NULL AND failure_code IS NULL) OR ".
             "(status = 'sending' AND attempts = 1 AND sent_at IS NULL AND failure_code IS NULL) OR ".
             "(status = 'sent' AND attempts = 1 AND sent_at IS NOT NULL AND failure_code IS NULL) OR ".

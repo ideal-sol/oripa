@@ -18,6 +18,7 @@
 - Chromium focused E2Eはdesktopの登録→編集→停止/再有効化→PW再設定/再発行とmobile Operator閲覧専用／編集route拒否の2 tests PASS。初回はbuild待ちtimeout、次回はAdminApiClient runtime path allowlist不足を検出し修正した。既存build済みsourceで再実行しPASS。実Mail送信0。全体Backend/Admin回帰とRequired ChecksはPR Final Headで継続確認する。旧Shared Previewのbounded readbackはlocal environment、72 applied／latest000072。実装・local検証とShared Migration/Activationは別状態で、Merge前のShared mutationは0。
 
 - 初回GitHub policy-gateで新規Admin 7 filesのexact registry不足を検出した。既存登録表へ当該7 pathsのみ追加し、exact-set回帰testを追加した。同じPRの直接必要blockerとして修正し、wildcard化やgate弱化は行わない。Admin全215 tests PASS、最終Headの全Required Checksは再実行する。
+- 隔離DBのfresh後、Backend全635 tests／6691 assertions（既存10 skipped）がPASS。実commit後のarray通知1回・Idempotency replay通知増加0もPASS。CI backup/restoreで追加CHECKのvarchar IN式がPostgreSQL restore時にarray castを再表現することを再現した。新Migrationの比較対象を既存patternと同じ明示text castにし、制約内容とchecksum厳密比較は維持する。既存Migration・DB guardの弱化は0。
 
 このFileは、V1から新Version構造へ移行するMain Codexの作業記録です。
 
