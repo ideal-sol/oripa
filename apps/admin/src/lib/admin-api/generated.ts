@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7b891803b21832261c6d02e4e65c7809544f132ecd7d48449685b73e677a3aa7
+// Contract SHA-256: 15795d435c4376612d5ea319aa9d5521d55562059477bae97eb83f3e6945c684
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -10,6 +10,8 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.line.read",
   "identity.line.manage",
   "user.tag.read",
+  "agency.read",
+  "agency.manage",
   "user.tag.manage",
   "user.state.manage",
   "point.ledger.read",
@@ -39,6 +41,49 @@ export type AdminRole = "owner" | "admin" | "operator";
 export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshAuthenticationMethod = "password" | "totp" | "webauthn";
+
+export interface AdminAgencyInput {
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  memo?: string | null;
+}
+
+export interface AdminAgency extends AdminAgencyInput {
+  id: string;
+  memo: string | null;
+  login_id: string;
+  advertising_code: string;
+  status: "active" | "suspended";
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminAgencyDraft {
+  login_id: string;
+  advertising_code: string;
+  issuance_token: string;
+  request_id: string;
+}
+
+export interface AdminAgencyCreate extends AdminAgencyInput {
+  issuance_token: string;
+  password: string;
+}
+
+export interface AdminAgencyUpdate extends AdminAgencyInput {
+  login_id: string;
+  expected_revision: number;
+}
+
+export interface AdminAgencyRevision { expected_revision: number; }
+export interface AdminAgencyCredential extends AdminAgencyRevision { password: string; }
+export interface AdminAgencyResponse { data: AdminAgency; request_id: string; }
+export interface AdminAgencyMutationResult extends AdminAgencyResponse { idempotent_replay: boolean; }
+export interface AdminAgencyCollection { items: AdminAgency[]; next_cursor: string | null; request_id: string; }
 
 export interface AdminIdentity {
   id: string;
@@ -2045,7 +2090,10 @@ export type MailTemplateKey =
   | "email_change_verification"
   | "email_change_completed"
   | "password_changed"
-  | "phone_changed";
+  | "phone_changed"
+  | "agency_account_created"
+  | "agency_password_changed"
+  | "agency_login_information_reissued";
 
 export interface AdminMailTemplateVariable {
   key: string;

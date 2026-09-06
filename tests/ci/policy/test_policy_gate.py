@@ -20,6 +20,20 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_agency_001_admin_paths_are_registered_exactly(self):
+        expected = {
+            "apps/admin/e2e/agency-management.spec.ts",
+            "apps/admin/src/app/agencies/[agencyPublicId]/edit/page.tsx",
+            "apps/admin/src/app/agencies/[agencyPublicId]/page.tsx",
+            "apps/admin/src/app/agencies/new/page.tsx",
+            "apps/admin/src/app/agencies/page.tsx",
+            "apps/admin/src/components/agencies/agency-workspace.tsx",
+            "apps/admin/test/agency-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.AGENCY_001_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_ship_001_admin_shipping_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/src/app/shipping/[shippingRequestId]/page.tsx",
@@ -1830,6 +1844,7 @@ python3 scripts/db/v2_database.py smoke \\
             "apps/api/database/migrations-v2/2026_09_26_000070_normalize_v2_rank_master_status_check.php",
             "apps/api/database/migrations-v2/2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
             "apps/api/database/migrations-v2/2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
+            "apps/api/database/migrations-v2/2026_09_29_000073_create_v2_agency_foundation.php",
         }
         for relative in paths | supporting:
             source = ROOT / relative

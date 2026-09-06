@@ -12,6 +12,15 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  listAdminAgencies: ["get", "/agencies"],
+  createAdminAgency: ["post", "/agencies"],
+  issueAdminAgencyIdentifiers: ["post", "/agencies/issuance"],
+  getAdminAgency: ["get", "/agencies/{agency_id}"],
+  updateAdminAgency: ["put", "/agencies/{agency_id}"],
+  suspendAdminAgency: ["post", "/agencies/{agency_id}/suspend"],
+  reactivateAdminAgency: ["post", "/agencies/{agency_id}/reactivate"],
+  resetAdminAgencyPassword: ["post", "/agencies/{agency_id}/password-reset"],
+  reissueAdminAgencyLoginInformation: ["post", "/agencies/{agency_id}/login-information-reissue"],
   beginAdminLogin: ["post", "/auth/login"],
   acceptAdminInvitation: ["post", "/auth/invitations/accept"],
   getAdminAuthenticationPolicy: ["get", "/auth/policy"],
@@ -394,6 +403,15 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
+  "AdminAgency",
+  "AdminAgencyDraft",
+  "AdminAgencyCreate",
+  "AdminAgencyUpdate",
+  "AdminAgencyCredential",
+  "AdminAgencyRevision",
+  "AdminAgencyResponse",
+  "AdminAgencyMutationResult",
+  "AdminAgencyCollection",
   "AdminIdentity",
   "AdminEffectivePermissions",
   "AdminLoginRequest",
@@ -633,6 +651,49 @@ export type AdminRole = "owner" | "admin" | "operator";
 export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshAuthenticationMethod = "password" | "totp" | "webauthn";
+
+export interface AdminAgencyInput {
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  memo?: string | null;
+}
+
+export interface AdminAgency extends AdminAgencyInput {
+  id: string;
+  memo: string | null;
+  login_id: string;
+  advertising_code: string;
+  status: "active" | "suspended";
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminAgencyDraft {
+  login_id: string;
+  advertising_code: string;
+  issuance_token: string;
+  request_id: string;
+}
+
+export interface AdminAgencyCreate extends AdminAgencyInput {
+  issuance_token: string;
+  password: string;
+}
+
+export interface AdminAgencyUpdate extends AdminAgencyInput {
+  login_id: string;
+  expected_revision: number;
+}
+
+export interface AdminAgencyRevision { expected_revision: number; }
+export interface AdminAgencyCredential extends AdminAgencyRevision { password: string; }
+export interface AdminAgencyResponse { data: AdminAgency; request_id: string; }
+export interface AdminAgencyMutationResult extends AdminAgencyResponse { idempotent_replay: boolean; }
+export interface AdminAgencyCollection { items: AdminAgency[]; next_cursor: string | null; request_id: string; }
 
 export interface AdminIdentity {
   id: string;
@@ -2639,7 +2700,10 @@ export type MailTemplateKey =
   | "email_change_verification"
   | "email_change_completed"
   | "password_changed"
-  | "phone_changed";
+  | "phone_changed"
+  | "agency_account_created"
+  | "agency_password_changed"
+  | "agency_login_information_reissued";
 
 export interface AdminMailTemplateVariable {
   key: string;

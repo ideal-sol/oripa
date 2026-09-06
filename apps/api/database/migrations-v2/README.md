@@ -35,7 +35,23 @@ devices, and Admin MFA credential storage.
 ## Status
 
 This append-only root contains the current V2 migration source through
-`2026_09_24_000068_add_v2_account_security.php`. Runtime applied/pending state
+`2026_09_29_000073_create_v2_agency_foundation.php`. Runtime applied/pending state
 must always be read from the guarded environment migration ledger; source
 presence alone is not evidence that a migration was applied. Production
 application remains a separate Human-authorized Release Gate action.
+
+AGENCY-001 adds Agency credentials, immutable Advertising Codes, and an empty
+User Attribution foundation. No registration hook or existing-User backfill is
+included. Rollback of `000073` is allowed only before Agency business history
+exists; after use, retain the schema and roll application images back or use a
+forward correction migration.
+
+Agency notifications extend the fixed Mail Template catalog. Password-bearing
+mail is attempted once after commit using request-local values; delivery rows
+store status and identifiers only. A failed or interrupted notification requires
+an explicit Admin login-information reissue with a newly entered password.
+`V2_AGENCY_MAILER` defaults to the existing `MAIL_MAILER` configuration. QA
+verification explicitly selects the non-external `array` transport or a fake.
+Delivery configuration may select an existing SMTP or Mailgun mailer; log,
+failover, and queued persistence are not supported for Agency credentials.
+`V2_AGENCY_LOGIN_URL` configures the future Portal link and does not activate it.
