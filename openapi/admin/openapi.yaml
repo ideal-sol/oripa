@@ -14,6 +14,30 @@ x-oripa-breaking-change:
   change_id: MIG-099
   scope: rank-master-gacha-rank-clean-cutover
 x-oripa-error-codes:
+  AGENCY_INVALID:
+    status: 422
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
+  AGENCY_NOT_FOUND:
+    status: 404
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
+  AGENCY_REVISION_CONFLICT:
+    status: 409
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
+  AGENCY_IDENTITY_CONFLICT:
+    status: 409
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
+  AGENCY_IDENTIFIER_EXHAUSTED:
+    status: 409
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
+  AGENCY_SAVE_FAILED:
+    status: 503
+    retryable: false
+    description: 代理店の入力・存在・更新競合または保存状態を確認してください。
   FRESH_AUTHENTICATION_REQUIRED:
     status: 403
     retryable: false
@@ -105,6 +129,13 @@ x-oripa-error-codes:
 servers:
   - url: /admin/api/v2
 paths:
+  /agencies: {"get":{"operationId":"listAdminAgencies","summary":"代理店一覧","description":"Owner/Admin/Operatorが参照可能。","x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"$ref":"#/components/parameters/PageLimit"},{"$ref":"#/components/parameters/PageCursor"}],"responses":{"200":{"description":"代理店一覧","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCollection"}}}},"default":{"$ref":"#/components/responses/Problem"}}},"post":{"operationId":"createAdminAgency","summary":"代理店作成","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCreate"}}}},"responses":{"201":{"description":"代理店作成","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/issuance: {"post":{"operationId":"issueAdminAgencyIdentifiers","summary":"Login ID・広告コード候補を自動発行","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"safe","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"responses":{"200":{"description":"Login ID・広告コード候補を自動発行","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyDraft"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/{agency_id}: {"get":{"operationId":"getAdminAgency","summary":"代理店詳細","description":"Owner/Admin/Operatorが参照可能。","x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}}],"responses":{"200":{"description":"代理店詳細","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}}},"put":{"operationId":"updateAdminAgency","summary":"代理店編集","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyUpdate"}}}},"responses":{"200":{"description":"代理店編集","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/{agency_id}/suspend: {"post":{"operationId":"suspendAdminAgency","summary":"代理店停止","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyRevision"}}}},"responses":{"200":{"description":"代理店停止","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/{agency_id}/reactivate: {"post":{"operationId":"reactivateAdminAgency","summary":"代理店再有効化","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyRevision"}}}},"responses":{"200":{"description":"代理店再有効化","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/{agency_id}/password-reset: {"post":{"operationId":"resetAdminAgencyPassword","summary":"PW再設定","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCredential"}}}},"responses":{"200":{"description":"PW再設定","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
+  /agencies/{agency_id}/login-information-reissue: {"post":{"operationId":"reissueAdminAgencyLoginInformation","summary":"ログイン情報を再発行","description":"Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"critical-admin-mutation","x-fresh-mfa":"5-minutes","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"agency_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCredential"}}}},"responses":{"200":{"description":"ログイン情報を再発行","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
   /auth/invitations/accept:
     post:
       operationId: acceptAdminInvitation
@@ -6760,7 +6791,7 @@ components:
         [email_verification, registration_completed, coin_purchase_completed,
          shipping_requested, shipping_completed, user_closed, contact_received,
          password_reset, email_change_verification, email_change_completed,
-         password_changed, phone_changed]
+         password_changed, phone_changed, agency_account_created, agency_password_changed, agency_login_information_reissued]
     AdminMailTemplateVariable:
       type: object
       additionalProperties: false
@@ -8224,6 +8255,8 @@ components:
         - identity.line.read
         - identity.line.manage
         - user.tag.read
+        - agency.read
+        - agency.manage
         - user.tag.manage
         - user.state.manage
         - point.ledger.read
@@ -8487,6 +8520,16 @@ components:
         request_id:
           type: string
           format: uuid
+    AgencyPassword: {"type":"string","writeOnly":true,"minLength":6,"maxLength":20,"pattern":"^[A-Za-z0-9]{6,20}$"}
+    AdminAgency: {"type":"object","additionalProperties":false,"required":["id","company_name","contact_name","phone","email","address","memo","login_id","advertising_code","status","revision","created_at","updated_at"],"properties":{"id":{"$ref":"#/components/schemas/OpaqueId"},"company_name":{"type":"string","minLength":1,"maxLength":200},"contact_name":{"type":"string","minLength":1,"maxLength":200},"phone":{"type":"string","minLength":1,"maxLength":40},"email":{"type":"string","format":"email","maxLength":320},"address":{"type":"string","minLength":1,"maxLength":1000},"memo":{"type":["string","null"],"maxLength":5000},"login_id":{"type":"string","pattern":"^[0-9]{6}$","minLength":6,"maxLength":6},"advertising_code":{"type":"string","pattern":"^[A-Za-z0-9]{8}$","minLength":8,"maxLength":8},"status":{"type":"string","enum":["active","suspended"]},"revision":{"type":"integer","minimum":1},"created_at":{"$ref":"#/components/schemas/UtcDateTime"},"updated_at":{"$ref":"#/components/schemas/UtcDateTime"}}}
+    AdminAgencyDraft: {"type":"object","additionalProperties":false,"required":["login_id","advertising_code","issuance_token","request_id"],"properties":{"login_id":{"type":"string","pattern":"^[0-9]{6}$","minLength":6,"maxLength":6},"advertising_code":{"type":"string","pattern":"^[A-Za-z0-9]{8}$","minLength":8,"maxLength":8},"issuance_token":{"type":"string"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
+    AdminAgencyCreate: {"type":"object","additionalProperties":false,"required":["company_name","contact_name","phone","email","address","issuance_token","password"],"properties":{"company_name":{"type":"string","minLength":1,"maxLength":200},"contact_name":{"type":"string","minLength":1,"maxLength":200},"phone":{"type":"string","minLength":1,"maxLength":40},"email":{"type":"string","format":"email","maxLength":320},"address":{"type":"string","minLength":1,"maxLength":1000},"memo":{"type":["string","null"],"maxLength":5000},"issuance_token":{"type":"string","maxLength":4096},"password":{"$ref":"#/components/schemas/AgencyPassword"}}}
+    AdminAgencyUpdate: {"type":"object","additionalProperties":false,"required":["company_name","contact_name","phone","email","address","login_id","expected_revision"],"properties":{"company_name":{"type":"string","minLength":1,"maxLength":200},"contact_name":{"type":"string","minLength":1,"maxLength":200},"phone":{"type":"string","minLength":1,"maxLength":40},"email":{"type":"string","format":"email","maxLength":320},"address":{"type":"string","minLength":1,"maxLength":1000},"memo":{"type":["string","null"],"maxLength":5000},"login_id":{"type":"string","pattern":"^[0-9]{6}$","minLength":6,"maxLength":6},"expected_revision":{"type":"integer","minimum":1}}}
+    AdminAgencyRevision: {"type":"object","additionalProperties":false,"required":["expected_revision"],"properties":{"expected_revision":{"type":"integer","minimum":1}}}
+    AdminAgencyCredential: {"type":"object","additionalProperties":false,"required":["expected_revision","password"],"properties":{"expected_revision":{"type":"integer","minimum":1},"password":{"$ref":"#/components/schemas/AgencyPassword"}}}
+    AdminAgencyResponse: {"type":"object","additionalProperties":false,"required":["data","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminAgency"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
+    AdminAgencyMutationResult: {"type":"object","additionalProperties":false,"required":["data","idempotent_replay","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminAgency"},"idempotent_replay":{"type":"boolean"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
+    AdminAgencyCollection: {"type":"object","additionalProperties":false,"required":["items","next_cursor","request_id"],"properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/AdminAgency"}},"next_cursor":{"type":["string","null"]},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
     AdminUserTag:
       type: object
       additionalProperties: false

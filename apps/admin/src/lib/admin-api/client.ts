@@ -165,6 +165,14 @@ import {
   type AdminUserPrizeDetailResponse,
   type AdminUserPrizeStatus,
   type AdminUserTagAssignmentChange,
+  type AdminAgencyCollection,
+  type AdminAgencyResponse,
+  type AdminAgencyDraft,
+  type AdminAgencyCreate,
+  type AdminAgencyUpdate,
+  type AdminAgencyRevision,
+  type AdminAgencyCredential,
+  type AdminAgencyMutationResult,
   type AdminUserTagCollection,
   type AdminUserTagInput,
   type AdminUserTagMutationResult,
@@ -506,6 +514,45 @@ export class AdminApiClient {
       signal,
     });
   }
+
+  listAgencies(cursor?: string, signal?: AbortSignal): Promise<AdminAgencyCollection> {
+    const query = new URLSearchParams({ limit: "50" });
+    if (cursor) query.set("cursor", cursor);
+    return this.request("GET", `/agencies?${query}`, { signal });
+  }
+
+  getAgency(agencyId: string, signal?: AbortSignal): Promise<AdminAgencyResponse> {
+    return this.request("GET", `/agencies/${encodeURIComponent(agencyId)}`, { signal });
+  }
+
+  issueAgencyIdentifiers(): Promise<AdminAgencyDraft> {
+    return this.request("POST", "/agencies/issuance", {});
+  }
+
+  createAgency(input: AdminAgencyCreate, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("POST", "/agencies", { body: input, idempotencyKey });
+  }
+
+  updateAgency(agencyId: string, input: AdminAgencyUpdate, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("PUT", `/agencies/${encodeURIComponent(agencyId)}`, { body: input, idempotencyKey });
+  }
+
+  suspendAgency(agencyId: string, input: AdminAgencyRevision, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("POST", `/agencies/${encodeURIComponent(agencyId)}/suspend`, { body: input, idempotencyKey });
+  }
+
+  reactivateAgency(agencyId: string, input: AdminAgencyRevision, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("POST", `/agencies/${encodeURIComponent(agencyId)}/reactivate`, { body: input, idempotencyKey });
+  }
+
+  resetAgencyPassword(agencyId: string, input: AdminAgencyCredential, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("POST", `/agencies/${encodeURIComponent(agencyId)}/password-reset`, { body: input, idempotencyKey });
+  }
+
+  reissueAgencyLoginInformation(agencyId: string, input: AdminAgencyCredential, idempotencyKey: string): Promise<AdminAgencyMutationResult> {
+    return this.request("POST", `/agencies/${encodeURIComponent(agencyId)}/login-information-reissue`, { body: input, idempotencyKey });
+  }
+
 
   listUserTags(
     cursor?: string,
@@ -2950,6 +2997,7 @@ export class AdminApiClient {
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
       | `/auth/${string}`
+      | `/agencies${string}`
       | `/banner-management/${string}`
       | `/page-management/${string}`
       | `/point-purchase-plans${string}`
@@ -2971,6 +3019,9 @@ export class AdminApiClient {
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
+        path !== "/agencies" &&
+        !path.startsWith("/agencies?") &&
+        !path.startsWith("/agencies/") &&
         !path.startsWith("/banner-management/") &&
         !path.startsWith("/page-management/") &&
         !path.startsWith("/point-purchase-plans") &&

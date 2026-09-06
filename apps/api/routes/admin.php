@@ -47,6 +47,7 @@ use App\Http\Controllers\V2\V2AdminUserController;
 use App\Http\Controllers\V2\V2AdminUserStateController;
 use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminUserTagController;
+use App\Http\Controllers\V2\V2AdminAgencyController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
@@ -105,6 +106,15 @@ Route::prefix('v2/auth')
 Route::prefix('v2')
     ->middleware(['v2.browser:admin', 'auth:v2_admin'])
     ->group(function () use ($v2GachaIdentifierPattern): void {
+        Route::get('/agencies', [V2AdminAgencyController::class, 'index'])->name('v2.admin.agencies.index');
+        Route::post('/agencies', [V2AdminAgencyController::class, 'store'])->name('v2.admin.agencies.store');
+        Route::post('/agencies/issuance', [V2AdminAgencyController::class, 'issue'])->name('v2.admin.agencies.issuance');
+        Route::get('/agencies/{agencyId}', [V2AdminAgencyController::class, 'show'])->whereUuid('agencyId')->name('v2.admin.agencies.show');
+        Route::put('/agencies/{agencyId}', [V2AdminAgencyController::class, 'update'])->whereUuid('agencyId')->name('v2.admin.agencies.update');
+        Route::post('/agencies/{agencyId}/suspend', [V2AdminAgencyController::class, 'suspend'])->whereUuid('agencyId')->name('v2.admin.agencies.suspend');
+        Route::post('/agencies/{agencyId}/reactivate', [V2AdminAgencyController::class, 'reactivate'])->whereUuid('agencyId')->name('v2.admin.agencies.reactivate');
+        Route::post('/agencies/{agencyId}/password-reset', [V2AdminAgencyController::class, 'resetPassword'])->whereUuid('agencyId')->name('v2.admin.agencies.password-reset');
+        Route::post('/agencies/{agencyId}/login-information-reissue', [V2AdminAgencyController::class, 'reissue'])->whereUuid('agencyId')->name('v2.admin.agencies.login-information-reissue');
         Route::get('/users', [V2AdminUserController::class, 'index'])
             ->name('v2.admin.users.index');
         Route::get('/user-tags', [V2AdminUserTagController::class, 'index'])

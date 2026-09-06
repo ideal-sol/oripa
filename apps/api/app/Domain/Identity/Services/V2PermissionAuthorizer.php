@@ -9,6 +9,8 @@ final class V2PermissionAuthorizer
 {
     private const ROLE_PERMISSIONS = [
         'owner' => [
+            'agency.read',
+            'agency.manage',
             'identity.admin.read',
             'identity.admin.manage',
             'identity.admin.session.revoke',
@@ -40,6 +42,8 @@ final class V2PermissionAuthorizer
             'contact.manage',
         ],
         'admin' => [
+            'agency.read',
+            'agency.manage',
             'identity.admin.read',
             'identity.admin.session.revoke',
             'identity.line.read',
@@ -68,6 +72,7 @@ final class V2PermissionAuthorizer
             'contact.manage',
         ],
         'operator' => [
+            'agency.read',
             'identity.admin.read',
             'identity.line.read',
             'user.tag.read',

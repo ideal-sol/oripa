@@ -41,12 +41,12 @@ final class MailTemplateVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_fixed_twelve_templates_expose_all_variables_and_no_create_or_delete_routes(): void
+    public function test_fixed_fifteen_templates_expose_all_variables_and_no_create_or_delete_routes(): void
     {
         $service = app(V2MailTemplateService::class);
         $result = $service->templates($this->context(V2AdminRole::Admin));
 
-        self::assertCount(12, $result['items']);
+        self::assertCount(15, $result['items']);
         self::assertSame([
             'email_verification',
             'registration_completed',
@@ -60,9 +60,12 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'email_change_completed',
             'password_changed',
             'phone_changed',
+            'agency_account_created',
+            'agency_password_changed',
+            'agency_login_information_reissued',
         ], array_column($result['items'], 'key'));
         foreach ($result['items'] as $template) {
-            self::assertCount(13, $template['variables']);
+            self::assertCount(20, $template['variables']);
         }
         self::assertSame([
             'メールアドレス認証のお願い',
@@ -77,6 +80,9 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'メールアドレス変更完了のお知らせ',
             'パスワード変更完了のお知らせ',
             '電話番号変更完了のお知らせ',
+            '代理店アカウント作成通知',
+            '代理店パスワード変更通知',
+            '代理店ログイン情報再発行通知',
         ], array_column($result['items'], 'subject'));
 
         $methods = collect(app('router')->getRoutes())

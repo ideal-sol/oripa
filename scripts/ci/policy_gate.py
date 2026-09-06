@@ -2996,6 +2996,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_26_000070_normalize_v2_rank_master_status_check.php",
         "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
         "2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
+        "2026_09_29_000073_create_v2_agency_foundation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

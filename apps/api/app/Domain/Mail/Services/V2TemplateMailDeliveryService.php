@@ -142,6 +142,79 @@ final class V2TemplateMailDeliveryService
         }
     }
 
+    public function scheduleAgency(
+        string $templateKey,
+        string $agencyPublicId,
+        int $revision,
+        #[\SensitiveParameter] string $recipient,
+        #[\SensitiveParameter] array $values
+    ): void {
+        if (DB::transactionLevel() < 1 || ! in_array($templateKey, [
+            'agency_account_created', 'agency_password_changed', 'agency_login_information_reissued',
+        ], true)) {
+            throw new RuntimeException('Agency Mail scheduling input is invalid.');
+        }
+        if ($templateKey === 'agency_password_changed') {
+            unset($values['agency_password']);
+        }
+        $template = $this->template($templateKey);
+        $publicId = (string) Str::uuid7();
+        DB::table('mail_deliveries')->insert([
+            'public_id' => $publicId,
+            'mail_template_id' => $template->id,
+            'event_key' => 'agency.'.$agencyPublicId.'.'.$revision.'.'.$templateKey,
+            'source_type' => 'agency',
+            'source_public_id' => $agencyPublicId,
+            'status' => 'pending',
+            'attempts' => 0,
+            'created_at' => now()->startOfSecond(),
+            'updated_at' => now()->startOfSecond(),
+        ]);
+        DB::afterCommit(function () use ($publicId, $recipient, $values): void {
+            $this->deliverAgency($publicId, $recipient, $values);
+        });
+    }
+
+    private function deliverAgency(
+        string $publicId,
+        #[\SensitiveParameter] string $recipient,
+        #[\SensitiveParameter] array $values
+    ): void {
+        try {
+            $claimed = DB::table('mail_deliveries')->where('public_id', $publicId)
+                ->where('status', 'pending')->update([
+                    'status' => 'sending', 'attempts' => 1, 'updated_at' => now()->startOfSecond(),
+                ]);
+            if ($claimed !== 1) {
+                return;
+            }
+            $delivery = MailDelivery::query()->where('public_id', $publicId)->firstOrFail();
+            $template = MailTemplate::query()->findOrFail($delivery->mail_template_id);
+            $mailer = config('v2_agency.mailer', 'array');
+            $transport = config('mail.mailers.'.$mailer.'.transport');
+            if (! in_array($transport, ['array', 'smtp', 'mailgun'], true)) {
+                throw new RuntimeException('Agency Mail requires a non-persistent transport.');
+            }
+            $variables = $this->variables($values);
+            $subject = $this->renderer->subject($template->subject_template, $variables);
+            $body = $this->renderer->html($template->body_html, $variables);
+            Mail::mailer($mailer)->html($body, static function ($message) use ($recipient, $subject): void {
+                $message->to($recipient)->subject($subject);
+            });
+            DB::table('mail_deliveries')->where('id', $delivery->id)->where('status', 'sending')->update([
+                'status' => 'sent', 'sent_at' => now()->startOfSecond(), 'updated_at' => now()->startOfSecond(),
+            ]);
+            $this->safeAudit('mail.template.sent', $delivery, 'success');
+        } catch (Throwable) {
+            try {
+                DB::table('mail_deliveries')->where('public_id', $publicId)->where('status', 'sending')->update([
+                    'status' => 'failed', 'failure_code' => 'delivery_failed', 'updated_at' => now()->startOfSecond(),
+                ]);
+            } catch (Throwable) {
+            }
+        }
+    }
+
     /** @return array{0: string, 1: array<string, string|list<string>|null>} */
     private function resolve(MailDelivery $delivery): array
     {

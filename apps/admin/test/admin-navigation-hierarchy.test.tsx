@@ -60,6 +60,7 @@ describe("Admin sidebar hierarchy", () => {
     expect(topLevel).toEqual([
       "ダッシュボード",
       expect.stringContaining("ユーザー"),
+      "代理店",
       expect.stringContaining("ガチャ"),
       expect.stringContaining("決済"),
       expect.stringContaining("配送"),

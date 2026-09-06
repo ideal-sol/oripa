@@ -7,6 +7,16 @@
 
 # New Version Main Worklog
 
+## AGENCY-001 Platform Foundation + Admin Agency Management
+
+- Base/local/live main `bdcef261e340b577ded384e67a37c04af2c2eafc`、Issue `none`、Branch `feat/AGENCY-001-platform-admin-agencies`、current worktree、Risk R4、Lane `Strict Change`、Activation `immediate`（旧Shared Preview API/Admin only）。Migration Allocation Lock取得後、latest `000072`／next `000073`を確認した。Source collisionなし。GitHub App transportには必要時だけrepository外transient policyを使用する。
+- ScopeはAgency authority、immutable Advertising Code、空Attribution foundation、Admin contract/UI/API、専用Password Policy、固定Mail Template catalogと秘密非保存通知、Audit、focused tests。Owner/Admin full、Operator read-onlyをBackendで強制する。CredentialはIdempotency fingerprintから除外し、同一キーは最初の完了結果を返す。PWを含む通知はcommit後一度だけ試行し、失敗・中断時は明示的な新PW入力による再発行で回復する。
+- Agency Realm/Session/Portal/settings/domain switch/color distinctionは002、集計は003、Last Click/registration hook/Public contract/Storefront artifactsは004へDeferred。Payment/Refund/SMS/Registration write path、Storefront、V1、Nginx/DNS/TLS、Productionは対象外。Production mutation 0。実外部メール送信は承認されておらずFake/QA-safe検証のみ。
+- Migration `2026_09_29_000073_create_v2_agency_foundation.php`は3 tables、immutable bigint/public identity、6-digit Login ID、COLLATE Cの8-character Code、restrict FK、Code/Attribution UPDATE・DELETE拒否を追加する。固定Mail Template 3件とDB guard・15件catalog・sample variables・Admin編集導線を整合させた。初回隔離migrate-freshの反復で残存function重複を検出し、既存patternのCREATE OR REPLACEで修正。Task DBの73 migrations／pending 0／inventory／latest rollback-reapplyがPASS。Business history存在後のdownはfail closedで、旧image rollback時もSchema/historyを維持する。
+- 既存DB runnerのTask markerがMIG限定だったため、AGENCY-001だけを明示追加し、Task ID・project/database照合、environment・migration root・V1除外guardを保持した。CIのexact migration registryとfixtureへ000073を追加した。DB guard tests 45、Policy tests 204、local policy/qualityがPASS。既存Migration編集0、チェック削除・assertion緩和・scope bypassは0。
+- Backend focusedは29 tests／364 assertions PASS（Owner/Admin HTTP全操作、Operator direct mutation拒否、Fresh MFA/CSRF、専用/既存Password Policy、unique bounded retry、不変FK/history、revision/idempotency、通知本文・sample preview・ledger/Audit/response/log秘密非保存）。Admin focusedはAgency＋Mail 13 tests、Agency＋navigation 17 tests PASS。既存navigationの期待値は代理店導線追加に合わせて更新した。OpenAPI bundle/generator・OpenAPI tests 10・Admin typecheck/lint/buildがPASS。既存Admin endpointsの意味変更0、既存schema差分はMailTemplateKey/AdminPermissionCodeの追加のみ。
+- Chromium focused E2Eはdesktopの登録→編集→停止/再有効化→PW再設定/再発行とmobile Operator閲覧専用／編集route拒否の2 tests PASS。初回はbuild待ちtimeout、次回はAdminApiClient runtime path allowlist不足を検出し修正した。既存build済みsourceで再実行しPASS。実Mail送信0。全体Backend/Admin回帰とRequired ChecksはPR Final Headで継続確認する。旧Shared Previewのbounded readbackはlocal environment、72 applied／latest000072。実装・local検証とShared Migration/Activationは別状態で、Merge前のShared mutationは0。
+
 このFileは、V1から新Version構造へ移行するMain Codexの作業記録です。
 
 ## SEC-019 Session Lifecycle Canonical Time Repair
