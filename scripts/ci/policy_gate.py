@@ -929,7 +929,18 @@ SHIP_001_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/shipping/admin-shipping-management.tsx",
     "apps/admin/test/admin-shipping-management.test.tsx",
 }
+AGENCY_001_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/agency-management.spec.ts",
+    "apps/admin/src/app/agencies/[agencyPublicId]/edit/page.tsx",
+    "apps/admin/src/app/agencies/[agencyPublicId]/page.tsx",
+    "apps/admin/src/app/agencies/new/page.tsx",
+    "apps/admin/src/app/agencies/page.tsx",
+    "apps/admin/src/components/agencies/agency-workspace.tsx",
+    "apps/admin/test/agency-management.test.tsx",
+}
+
 ADMIN_SKELETON_FILES = {
+    *AGENCY_001_ADMIN_SKELETON_FILES,
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
     "apps/admin/Dockerfile",

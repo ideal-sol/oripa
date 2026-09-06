@@ -17,6 +17,8 @@
 - Backend focusedは29 tests／364 assertions PASS（Owner/Admin HTTP全操作、Operator direct mutation拒否、Fresh MFA/CSRF、専用/既存Password Policy、unique bounded retry、不変FK/history、revision/idempotency、通知本文・sample preview・ledger/Audit/response/log秘密非保存）。Admin focusedはAgency＋Mail 13 tests、Agency＋navigation 17 tests PASS。既存navigationの期待値は代理店導線追加に合わせて更新した。OpenAPI bundle/generator・OpenAPI tests 10・Admin typecheck/lint/buildがPASS。既存Admin endpointsの意味変更0、既存schema差分はMailTemplateKey/AdminPermissionCodeの追加のみ。
 - Chromium focused E2Eはdesktopの登録→編集→停止/再有効化→PW再設定/再発行とmobile Operator閲覧専用／編集route拒否の2 tests PASS。初回はbuild待ちtimeout、次回はAdminApiClient runtime path allowlist不足を検出し修正した。既存build済みsourceで再実行しPASS。実Mail送信0。全体Backend/Admin回帰とRequired ChecksはPR Final Headで継続確認する。旧Shared Previewのbounded readbackはlocal environment、72 applied／latest000072。実装・local検証とShared Migration/Activationは別状態で、Merge前のShared mutationは0。
 
+- 初回GitHub policy-gateで新規Admin 7 filesのexact registry不足を検出した。既存登録表へ当該7 pathsのみ追加し、exact-set回帰testを追加した。同じPRの直接必要blockerとして修正し、wildcard化やgate弱化は行わない。Admin全215 tests PASS、最終Headの全Required Checksは再実行する。
+
 このFileは、V1から新Version構造へ移行するMain Codexの作業記録です。
 
 ## SEC-019 Session Lifecycle Canonical Time Repair

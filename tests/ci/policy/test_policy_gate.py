@@ -20,6 +20,20 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_agency_001_admin_paths_are_registered_exactly(self):
+        expected = {
+            "apps/admin/e2e/agency-management.spec.ts",
+            "apps/admin/src/app/agencies/[agencyPublicId]/edit/page.tsx",
+            "apps/admin/src/app/agencies/[agencyPublicId]/page.tsx",
+            "apps/admin/src/app/agencies/new/page.tsx",
+            "apps/admin/src/app/agencies/page.tsx",
+            "apps/admin/src/components/agencies/agency-workspace.tsx",
+            "apps/admin/test/agency-management.test.tsx",
+        }
+        self.assertEqual(policy_gate.AGENCY_001_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
     def test_ship_001_admin_shipping_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/src/app/shipping/[shippingRequestId]/page.tsx",
