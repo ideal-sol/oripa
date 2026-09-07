@@ -9772,6 +9772,8 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 
 ## AGENCY-002-FIX Preview Agency Artifact Title
 
+- Canonical Task IDは元の`AGENCY-002`を継続する。`AGENCY-002-FIX`は修正PRの識別labelでありTask IDではない。初回修正PR metadataの非canonical IDをpolicy-gateが拒否したため、保護を変更せずPR／transport policyのTask metadataを整合した。
+
 - AGENCY-002 PR #472はFinal Head `589f478bc4e765c56c9f80f947edc56232ccef4c`でRequired Checks全PASS、fresh review SEV-0/1=0、Squash `4a6cde36e177e705817112d9a7b73dcde449dfb2`へMerge済み。全V2 local suiteは645 tests／6868 assertions、既存opt-in skip 10、failure 0。
 - Merge後のcanonical Preview buildで3 imageのbuildは完了したが、artifact検証器のOCI titleがAPI/Admin二択のままでAgencyを拒否した。誤ったAdmin titleをfixtureも複製していたためunit testだけでは検出できなかった。検証のskipやtitle偽装は行わず、exact Agency titleと他Realm title拒否を実装する。
 - 原則1 PRだったが既にMerge済みのため、同一AGENCY-002を完遂する直接必要な3-path corrective PRとして`AGENCY-002-FIX`を切り出す。Issue `none`、Risk `R4`、Lane `Strict Change`、Activation `immediate`、通常Worktree、Base `4a6cde36e177e705817112d9a7b73dcde449dfb2`、Branch `fix/AGENCY-002-FIX-preview-agency-title`。新たなGovernanceは追加せず、全Required Checksと新Headのfresh reviewを再通過する。
