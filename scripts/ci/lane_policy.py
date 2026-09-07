@@ -31,6 +31,7 @@ HIGH_CONFIDENCE_SECRET_PATTERNS = (
 
 STRICT_EXACT_PATHS = {
     ".dockerignore",
+    ".gitignore",
     ".github/CODEOWNERS",
     ".github/dependabot.yml",
     ".github/pull_request_template.md",

@@ -25,12 +25,12 @@ final class EnforceV2Realm
 
         try {
             $this->boundary->assertAllowed(
-            surface: $realm,
-            userAuthenticated: $this->auth->guard('v2_user')->check(),
-            adminAuthenticated: $this->auth->guard('v2_admin')->check(),
-            existingRealm: $existingRealm,
-            adminMfaVerified: $request->attributes->getBoolean('v2_admin_mfa_verified'),
-            agencyAuthenticated: $this->auth->guard('v2_agency')->check()
+                surface: $realm,
+                userAuthenticated: $this->auth->guard('v2_user')->check(),
+                adminAuthenticated: $this->auth->guard('v2_admin')->check(),
+                existingRealm: $existingRealm,
+                adminMfaVerified: $request->attributes->getBoolean('v2_admin_mfa_verified'),
+                agencyAuthenticated: $this->auth->guard('v2_agency')->check()
             );
         } catch (\Illuminate\Auth\Access\AuthorizationException $exception) {
             if ($realm === V2Realm::Agency) {

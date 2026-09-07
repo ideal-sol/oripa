@@ -29,10 +29,12 @@ Storefront contracts and artifacts are outside this change.
 ## Rollback
 
 Restore the exact backed-up Agency vhost and validate/reload Nginx. Retain other
-domains and V1 services. Restore prior API/Admin image identities using preserved
-runtime configuration. Stop only the newly added Agency runtime if necessary.
+domains and V1 services. Stop only the newly added Agency runtime if necessary.
 Once security history exists, retain migration `000074`; rollback its schema is
-prohibited. Use a forward correction for data changes.
+prohibited. Retain a compatible API image and use a forward correction: the prior
+API's fixed mail catalog expects 15 templates, not the new 16-template catalog.
+Restore prior API/Admin images only after verifying schema and catalog compatibility;
+never discard security history to make an old image compatible.
 
 ## Build And Contract Gates
 

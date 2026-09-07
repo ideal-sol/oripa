@@ -60,6 +60,7 @@ class LanePolicyTest(unittest.TestCase):
 
     def test_strict_path_requires_strict_and_strict_passes(self):
         for path in (
+            ".gitignore",
             ".github/workflows/platform-ci.yml",
             ".github/ISSUE_TEMPLATE/task.yml",
             ".github/pull_request_template.md",
