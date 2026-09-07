@@ -30,7 +30,9 @@ final class V2AgencyService
         private readonly V2ReportingCursor $cursor,
         private readonly V2AgencyIdentifierGenerator $identifiers,
         private readonly V2AgencyPasswordPolicy $passwords,
-        private readonly V2TemplateMailDeliveryService $mail
+        private readonly V2TemplateMailDeliveryService $mail,
+        private readonly V2SessionManager $sessions,
+        private readonly V2AgencyContactFields $contacts
     ) {
     }
 
@@ -115,6 +117,9 @@ final class V2AgencyService
                         ...$changes, 'revision' => $agency->revision + 1, 'updated_at' => now()->startOfSecond(),
                     ]);
                     $agency = $this->row($publicId);
+                    if (in_array($operation, ['suspend', 'password-reset', 'login-information-reissue'], true)) {
+                        $this->sessions->revokeAgencySessions((int) $agency->id);
+                    }
                 }
                 $data = $this->resource($agency);
                 $this->audit->record('agency.'.$operation, [
@@ -213,8 +218,7 @@ final class V2AgencyService
         if (in_array($operation, ['create', 'update'], true)) {
             $rules = [
                 'company_name' => ['required', 'string', 'max:200'],
-                'contact_name' => ['required', 'string', 'max:200'],
-                'phone' => ['required', 'string', 'max:40', 'regex:/\A[0-9+() .-]+\z/'],
+                ...$this->contacts->rules(),
                 'email' => ['required', 'string', 'email:rfc', 'max:320'],
                 'address' => ['required', 'string', 'max:1000'],
                 'memo' => ['nullable', 'string', 'max:5000'],
@@ -256,7 +260,7 @@ final class V2AgencyService
         $fields['normalized_email'] = mb_strtolower($fields['email'], 'UTF-8');
         $fields['memo'] = $payload['memo'] ?? null;
 
-        return $fields;
+        return [...$fields, ...$this->contacts->normalize($payload)];
     }
 
     private function resource(object $agency): array

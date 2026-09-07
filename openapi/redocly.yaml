@@ -1,4 +1,6 @@
 apis:
+  agency@v2:
+    root: agency/openapi.yaml
   public@v2:
     root: public/openapi.yaml
   admin@v2:

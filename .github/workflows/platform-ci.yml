@@ -149,6 +149,10 @@ jobs:
           pnpm admin:test
           pnpm admin:build
 
+      - name: Validate Agency Portal and generated contract
+        if: needs.policy-gate.outputs.lane_key != 'lite'
+        run: pnpm agency:check
+
       - name: Compare legacy frontend lint findings with the exact baseline
         if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |

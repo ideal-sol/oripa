@@ -49,6 +49,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.admins",
     "public.agencies",
     "public.agency_advertising_codes",
+    "public.agency_sessions",
     "public.audit_daily_digests",
     "public.audit_logs",
     "public.catalog_categories",
@@ -580,7 +581,7 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
 
 def task_marker(task_id: str) -> str:
     marker = re.sub(r"[^a-z0-9]+", "", task_id.lower())
-    if not re.fullmatch(r"(?:mig[0-9]{3}[a-z]?|agency001)", marker):
+    if not re.fullmatch(r"(?:mig[0-9]{3}[a-z]?|agency00[12])", marker):
         raise GuardFailure("Task ID marker is invalid")
     return marker
 

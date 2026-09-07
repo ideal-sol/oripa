@@ -23,13 +23,21 @@ final class EnforceV2Realm
         $existing = $request->attributes->get('v2_realm');
         $existingRealm = is_string($existing) ? V2Realm::tryFrom($existing) : null;
 
-        $this->boundary->assertAllowed(
+        try {
+            $this->boundary->assertAllowed(
             surface: $realm,
             userAuthenticated: $this->auth->guard('v2_user')->check(),
             adminAuthenticated: $this->auth->guard('v2_admin')->check(),
             existingRealm: $existingRealm,
-            adminMfaVerified: $request->attributes->getBoolean('v2_admin_mfa_verified')
-        );
+            adminMfaVerified: $request->attributes->getBoolean('v2_admin_mfa_verified'),
+            agencyAuthenticated: $this->auth->guard('v2_agency')->check()
+            );
+        } catch (\Illuminate\Auth\Access\AuthorizationException $exception) {
+            if ($realm === V2Realm::Agency) {
+                throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('AUTHORIZATION_DENIED', 403);
+            }
+            throw $exception;
+        }
 
         $request->attributes->set('v2_realm', $realm->value);
 

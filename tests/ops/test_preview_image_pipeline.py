@@ -234,6 +234,18 @@ class PreviewImageArtifactTest(unittest.TestCase):
                     directory, task_id=TASK, pr_number=PR, source_sha=HEAD
                 )
 
+    def test_agency_artifact_verifies_all_three_and_rejects_missing_api(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("api", "admin", "agency"))
+            result = artifact.verify_artifact(directory, task_id=TASK, pr_number=PR, source_sha=HEAD)
+            self.assertEqual([item["name"] for item in result["images"]], ["api", "admin", "agency"])
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("admin", "agency"))
+            with self.assertRaisesRegex(artifact.ArtifactError, "manifest_images_invalid"):
+                artifact.verify_artifact(directory, task_id=TASK, pr_number=PR, source_sha=HEAD)
+
     def test_package_parser_rejects_unknown_image_mode(self):
         with self.assertRaises(SystemExit):
             artifact.parser().parse_args(
@@ -601,12 +613,12 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
         self.assertIn("image_mode:", workflow)
         self.assertIn("default: normal", workflow)
         self.assertIn("- api-only", workflow)
-        self.assertIn('image_mode not in {"normal", "api-only"}', workflow)
+        self.assertIn('image_mode not in {"normal", "api-only", "agency"}', workflow)
         self.assertIn("pull request is neither open nor merged", workflow)
         self.assertEqual(workflow.count("--file infra/docker/backend/Dockerfile"), 1)
         self.assertEqual(workflow.count("--file apps/admin/Dockerfile"), 1)
         guard = re.search(
-            r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
+            r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \|\| "\$INPUT_IMAGE_MODE" == "agency" \]\]; then(?P<body>.*?)\n\s*fi',
             workflow,
             re.DOTALL,
         )

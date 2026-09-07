@@ -31,11 +31,18 @@ final class V2RateLimiter
         $this->hit($name.':account:'.$this->opaque($account).'|'.$this->opaque($ip), $name);
     }
 
-    public function assertSubject(string $name, #[SensitiveParameter] string $subject): void
+    public function assertSubject(string $name, #[SensitiveParameter] string $subject, bool $hit = true): void
     {
         $key = $name.':subject:'.$this->opaque($subject);
         $this->assertNotLimited($key, $name);
-        $this->hit($key, $name);
+        if ($hit) {
+            $this->hit($key, $name);
+        }
+    }
+
+    public function hitSubject(string $name, #[SensitiveParameter] string $subject): void
+    {
+        $this->hit($name.':subject:'.$this->opaque($subject), $name);
     }
 
     private function assertNotLimited(string $key, string $name): void

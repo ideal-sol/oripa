@@ -52,7 +52,7 @@ final class V2AuthorizationServiceProvider extends ServiceProvider
                 $realm = V2Realm::tryFrom((string) ($config['realm'] ?? ''));
                 $provider = Auth::createUserProvider($config['provider'] ?? null);
                 if (
-                    ! in_array($realm, [V2Realm::User, V2Realm::Admin], true)
+                    ! in_array($realm, [V2Realm::User, V2Realm::Admin, V2Realm::Agency], true)
                     || $provider === null
                 ) {
                     throw new RuntimeException('Invalid V2 Realm Guard configuration.');

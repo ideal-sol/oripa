@@ -1,0 +1,581 @@
+{
+  "openapi": "3.1.1",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Oripa Agency API",
+    "version": "2.0.0-alpha.1",
+    "description": "Agency専用Realm。自社scopeはSessionのみ。Emailは即時変更・新Emailのみ通知。Credential変更時はSessionとCSRFをrotation。",
+    "license": {
+      "name": "UNLICENSED",
+      "identifier": "LicenseRef-Proprietary"
+    },
+    "x-status": "alpha"
+  },
+  "x-oripa-surface": "agency",
+  "servers": [
+    {
+      "url": "/agency/api/v2"
+    }
+  ],
+  "paths": {
+    "/auth/session": {
+      "get": {
+        "operationId": "agencySession",
+        "summary": "agencySession",
+        "security": [],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencySession"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "agencyLogin",
+        "summary": "agencyLogin",
+        "security": [],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyLogin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "agencyLogout",
+        "summary": "agencyLogout",
+        "security": [
+          {
+            "agencySession": []
+          }
+        ],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyLogout"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "agencyProfile",
+        "summary": "agencyProfile",
+        "security": [
+          {
+            "agencySession": []
+          }
+        ],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/contact": {
+      "patch": {
+        "operationId": "agencyContact",
+        "summary": "agencyContact",
+        "security": [
+          {
+            "agencySession": []
+          }
+        ],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyContact"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/email": {
+      "post": {
+        "operationId": "agencyEmailChange",
+        "summary": "agencyEmailChange",
+        "security": [
+          {
+            "agencySession": []
+          }
+        ],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyEmailChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/password": {
+      "post": {
+        "operationId": "agencyPasswordChange",
+        "summary": "agencyPasswordChange",
+        "security": [
+          {
+            "agencySession": []
+          }
+        ],
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "agency-identity",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyPasswordChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authentication, authorization, validation, conflict or rate limit failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "agencySession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-oripa_agency_session"
+      }
+    },
+    "schemas": {
+      "OpaqueId": {
+        "$ref": "../components/common.yaml#/schemas/OpaqueId"
+      },
+      "SemanticVersion": {
+        "$ref": "../components/common.yaml#/schemas/SemanticVersion"
+      },
+      "UtcDateTime": {
+        "$ref": "../components/common.yaml#/schemas/UtcDateTime"
+      },
+      "BusinessDate": {
+        "$ref": "../components/common.yaml#/schemas/BusinessDate"
+      },
+      "ProblemDetails": {
+        "$ref": "../components/common.yaml#/schemas/ProblemDetails"
+      },
+      "AgencyProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "company_name",
+          "contact_name",
+          "phone",
+          "email",
+          "address",
+          "login_id",
+          "advertising_code",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "company_name": {
+            "type": "string"
+          },
+          "contact_name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "address": {
+            "type": "string"
+          },
+          "login_id": {
+            "type": "string"
+          },
+          "advertising_code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended"
+            ]
+          }
+        }
+      },
+      "AgencyLogin": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "login_id",
+          "password"
+        ],
+        "properties": {
+          "login_id": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 128
+          }
+        }
+      },
+      "AgencyContact": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contact_name",
+          "phone"
+        ],
+        "properties": {
+          "contact_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[0-9+() .-]+$"
+          }
+        }
+      },
+      "AgencyEmailChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_password",
+          "email"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 128
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          }
+        }
+      },
+      "AgencyPasswordChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_password",
+          "password",
+          "password_confirmation"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 128
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 6,
+            "maxLength": 20,
+            "pattern": "^[A-Za-z0-9]{6,20}$"
+          },
+          "password_confirmation": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 6,
+            "maxLength": 20,
+            "pattern": "^[A-Za-z0-9]{6,20}$"
+          }
+        }
+      },
+      "AgencySession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "authenticated",
+          "agency"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "agency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgencyProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AgencyProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgencyProfile"
+          }
+        }
+      },
+      "AgencyLogout": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "logged_out"
+          }
+        }
+      }
+    }
+  }
+}

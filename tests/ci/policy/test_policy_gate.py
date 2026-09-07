@@ -1267,7 +1267,7 @@ jobs:
             workflow = root / ".github/workflows/preview-image-build.yml"
             workflow.write_text(
                 workflow.read_text().replace(
-                    'image_mode not in {"normal", "api-only"}', "False"
+                    'image_mode not in {"normal", "api-only", "agency"}', "False"
                 )
             )
             with self.assertRaisesRegex(
@@ -1289,7 +1289,7 @@ jobs:
             workflow = root / ".github/workflows/preview-image-build.yml"
             workflow.write_text(
                 workflow.read_text().replace(
-                    'if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then',
+                    'if [[ "$INPUT_IMAGE_MODE" == "normal" || "$INPUT_IMAGE_MODE" == "agency" ]]; then',
                     'if [[ "$INPUT_IMAGE_MODE" == "api-only" ]]; then',
                 )
             )
@@ -2791,7 +2791,7 @@ This is a non-Production Skeleton and contains no application implementation.
             encoding="utf-8",
         )
         (root / "pnpm-workspace.yaml").write_text(
-            "packages:\n  - apps/admin\n  - packages/*\n",
+            "packages:\n  - apps/admin\n  - apps/agency\n  - packages/*\n",
             encoding="utf-8",
         )
         (root / ".github/dependabot.yml").write_text(
@@ -2812,6 +2812,8 @@ importers:
   .: {}
 
   apps/admin: {}
+
+  apps/agency: {}
 
   packages/platform: {}
 

@@ -15,10 +15,16 @@ final class V2RealmBoundary
         bool $userAuthenticated,
         bool $adminAuthenticated,
         ?V2Realm $existingRealm = null,
-        bool $adminMfaVerified = false
+        bool $adminMfaVerified = false,
+        bool $agencyAuthenticated = false
     ): void {
         if ($surface === V2Realm::Unknown) {
             throw new AuthorizationException('Unknown HTTP surface is denied.');
+        }
+
+        if (($agencyAuthenticated && $surface !== V2Realm::Agency)
+            || ($surface === V2Realm::Agency && ($userAuthenticated || $adminAuthenticated))) {
+            throw new AuthorizationException('Agency realm isolation is required.');
         }
 
         if ($existingRealm !== null && $existingRealm !== $surface) {

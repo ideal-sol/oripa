@@ -16,6 +16,7 @@ return [
         'phone_changed' => '電話番号変更完了時',
         'agency_account_created' => '代理店アカウント作成通知',
         'agency_password_changed' => '代理店パスワード変更通知',
+        'agency_email_changed' => '代理店メールアドレス変更通知',
         'agency_login_information_reissued' => '代理店ログイン情報再発行通知',
     ],
     'variables' => [

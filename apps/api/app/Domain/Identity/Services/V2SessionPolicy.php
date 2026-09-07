@@ -31,7 +31,7 @@ final class V2SessionPolicy
      */
     public function forRealm(V2Realm $realm): array
     {
-        if (! in_array($realm, [V2Realm::User, V2Realm::Admin], true)) {
+        if (! in_array($realm, [V2Realm::User, V2Realm::Admin, V2Realm::Agency], true)) {
             throw new InvalidArgumentException('Browser session is prohibited for this HTTP surface.');
         }
 

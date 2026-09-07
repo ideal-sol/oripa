@@ -23,6 +23,7 @@ on:
         options:
           - normal
           - api-only
+          - agency
 
 permissions:
   checks: read
@@ -68,7 +69,7 @@ jobs:
               raise SystemExit("invalid PR number")
           if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
               raise SystemExit("invalid head SHA")
-          if image_mode not in {"normal", "api-only"}:
+          if image_mode not in {"normal", "api-only", "agency"}:
               raise SystemExit("invalid image mode")
           request = urllib.request.Request(
               f"https://api.github.com/repos/{repository}/pulls/{pr_number}",
@@ -179,7 +180,7 @@ jobs:
             --image-mode "$INPUT_IMAGE_MODE"
             --api-image "$api_image"
           )
-          if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then
+          if [[ "$INPUT_IMAGE_MODE" == "normal" || "$INPUT_IMAGE_MODE" == "agency" ]]; then
             docker build --platform "$target_platform" \
               --build-arg "OCI_VERSION=preview-${INPUT_TASK_ID}" \
               --build-arg "OCI_REVISION=${INPUT_HEAD_SHA}" \
@@ -187,6 +188,16 @@ jobs:
               --file apps/admin/Dockerfile \
               --tag "$admin_image" .
             package_arguments+=(--admin-image "$admin_image")
+          fi
+          if [[ "$INPUT_IMAGE_MODE" == "agency" ]]; then
+            agency_image="oripa-v2-agency:preview-${INPUT_TASK_ID}-${INPUT_HEAD_SHA:0:12}"
+            docker build --platform "$target_platform" \
+              --build-arg "OCI_VERSION=preview-${INPUT_TASK_ID}" \
+              --build-arg "OCI_REVISION=${INPUT_HEAD_SHA}" \
+              --build-arg "OCI_CREATED=${created_at}" \
+              --file apps/agency/Dockerfile \
+              --tag "$agency_image" .
+            package_arguments+=(--agency-image "$agency_image")
           fi
           python3 scripts/ops/preview_image_artifact.py package "${package_arguments[@]}"
           python3 scripts/ops/preview_image_artifact.py verify \

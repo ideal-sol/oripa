@@ -50,7 +50,7 @@ final class V2RealmSessionGuard implements Guard
 
         $connection = DB::connection();
         $current = $this->sessionPolicy->currentTime();
-        $identityColumn = $this->realm === V2Realm::User ? 'user_id' : 'admin_id';
+        $identityColumn = $this->realm->value.'_id';
         $query = $connection->table($policy['table'])
             ->where('session_id_hash', $this->sessionPolicy->hashSessionId($rawSessionId))
             ->whereNull('revoked_at')
@@ -75,6 +75,7 @@ final class V2RealmSessionGuard implements Guard
             ($this->realm === V2Realm::User
                 && ! in_array($this->user?->state, [V2UserState::Active, V2UserState::Restricted], true))
             || ($this->realm === V2Realm::Admin && $this->user?->state !== V2AdminState::Active)
+            || ($this->realm === V2Realm::Agency && $this->user?->status !== 'active')
         ) {
             $this->user = null;
 

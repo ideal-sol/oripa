@@ -282,6 +282,7 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_09_30_000074_add_v2_agency_realm.php",
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminState.php",
@@ -1410,8 +1411,8 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
         "image_mode:",
         "default: normal",
         "- api-only",
-        'image_mode not in {"normal", "api-only"}',
-        'if [[ "$INPUT_IMAGE_MODE" == "normal" ]]; then',
+        'image_mode not in {"normal", "api-only", "agency"}',
+        'if [[ "$INPUT_IMAGE_MODE" == "normal" || "$INPUT_IMAGE_MODE" == "agency" ]]; then',
         '--image-mode "$INPUT_IMAGE_MODE"',
         "preview_image_artifact.py target --field platform",
         "preview_image_artifact.py host-check",
@@ -1436,7 +1437,7 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     if "storefront_contract_artifact.py" in workflow or "storefront-contract" in workflow:
         raise PolicyFailure("Preview image workflow must not publish Storefront contract artifacts")
     admin_guard = re.search(
-        r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \]\]; then(?P<body>.*?)\n\s*fi',
+        r'if \[\[ "\$INPUT_IMAGE_MODE" == "normal" \|\| "\$INPUT_IMAGE_MODE" == "agency" \]\]; then(?P<body>.*?)\n\s*fi',
         workflow,
         re.DOTALL,
     )
@@ -1891,10 +1892,10 @@ def validate_workspace_configuration(repository: Path) -> None:
         match.group(1).strip().strip("'\"")
         for match in re.finditer(r"^\s*-\s+(.+?)\s*$", workspace_text, re.MULTILINE)
     }
-    expected = {"apps/admin", "packages/*"}
+    expected = {"apps/admin", "apps/agency", "packages/*"}
     if members != expected:
         raise PolicyFailure(
-            "pnpm-workspace.yaml: workspace members must be apps/admin and packages/*"
+            "pnpm-workspace.yaml: workspace members must be apps/admin, apps/agency and packages/*"
         )
     if re.search(
         r"(?:^|/)(?:apps/api|backend|frontend|legacy/v1-frontend)(?:/|$)",
@@ -1914,6 +1915,7 @@ def validate_workspace_configuration(repository: Path) -> None:
     expected_importers = {
         ".",
         "apps/admin",
+        "apps/agency",
         "packages/platform",
         "packages/site-schema",
         "packages/storefront-client",
@@ -3008,6 +3010,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_27_000071_add_v2_sms_delivery_lifecycle.php",
         "2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
         "2026_09_29_000073_create_v2_agency_foundation.php",
+        "2026_09_30_000074_add_v2_agency_realm.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

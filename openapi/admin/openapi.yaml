@@ -6791,7 +6791,7 @@ components:
         [email_verification, registration_completed, coin_purchase_completed,
          shipping_requested, shipping_completed, user_closed, contact_received,
          password_reset, email_change_verification, email_change_completed,
-         password_changed, phone_changed, agency_account_created, agency_password_changed, agency_login_information_reissued]
+         password_changed, phone_changed, agency_account_created, agency_password_changed, agency_login_information_reissued, agency_email_changed]
     AdminMailTemplateVariable:
       type: object
       additionalProperties: false
