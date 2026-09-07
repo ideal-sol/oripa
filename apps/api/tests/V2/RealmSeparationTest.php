@@ -27,6 +27,7 @@ final class RealmSeparationTest extends TestCase
         $policy = app(V2SessionPolicy::class);
         $user = $policy->forRealm(V2Realm::User);
         $admin = $policy->forRealm(V2Realm::Admin);
+        $agency = $policy->forRealm(V2Realm::Agency);
 
         self::assertSame('user_sessions', $user['table']);
         self::assertSame('__Host-oripa_user_session', $user['cookie']);
@@ -43,6 +44,13 @@ final class RealmSeparationTest extends TestCase
         self::assertFalse($admin['remember']);
         self::assertNotSame($user['cookie'], $admin['cookie']);
         self::assertNotSame($user['table'], $admin['table']);
+        self::assertSame('agency_sessions', $agency['table']);
+        self::assertSame('__Host-oripa_agency_session', $agency['cookie']);
+        self::assertSame('__Host-oripa_agency_xsrf', $agency['csrf_cookie']);
+        self::assertSame(360, $agency['idle_minutes']);
+        self::assertSame(720, $agency['absolute_minutes']);
+        self::assertSame('strict', $agency['same_site']);
+        self::assertFalse($agency['remember']);
 
         self::assertTrue(config('v2_identity.cookie_security.secure'));
         self::assertTrue(config('v2_identity.cookie_security.http_only'));
@@ -157,6 +165,18 @@ final class RealmSeparationTest extends TestCase
         $boundary->assertAllowed(V2Realm::User, true, false);
         $boundary->assertAllowed(V2Realm::Admin, false, true, null, true);
         $boundary->assertAllowed(V2Realm::Webhook, false, false);
+        $boundary->assertAllowed(V2Realm::Agency, false, false, null, false, true);
+        foreach ([V2Realm::Admin, V2Realm::User, V2Realm::Webhook] as $surface) {
+            $this->expectAuthorizationFailure(
+                fn () => $boundary->assertAllowed($surface, false, false, null, true, true)
+            );
+        }
+        $this->expectAuthorizationFailure(
+            fn () => $boundary->assertAllowed(V2Realm::Agency, true, false)
+        );
+        $this->expectAuthorizationFailure(
+            fn () => $boundary->assertAllowed(V2Realm::Agency, false, true, null, true)
+        );
         self::assertTrue(true);
     }
 
@@ -165,10 +185,13 @@ final class RealmSeparationTest extends TestCase
         $auth = Mockery::mock(AuthFactory::class);
         $userGuard = Mockery::mock(Guard::class);
         $adminGuard = Mockery::mock(Guard::class);
+        $agencyGuard = Mockery::mock(Guard::class);
         $auth->shouldReceive('guard')->with('v2_user')->andReturn($userGuard);
         $auth->shouldReceive('guard')->with('v2_admin')->andReturn($adminGuard);
+        $auth->shouldReceive('guard')->with('v2_agency')->andReturn($agencyGuard);
         $userGuard->shouldReceive('check')->andReturnFalse();
         $adminGuard->shouldReceive('check')->andReturnTrue();
+        $agencyGuard->shouldReceive('check')->andReturnFalse();
 
         $middleware = new EnforceV2Realm($auth, new V2RealmBoundary());
         $request = Request::create('/testing-only', 'GET');

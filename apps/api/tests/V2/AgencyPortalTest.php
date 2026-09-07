@@ -99,6 +99,8 @@ final class AgencyPortalTest extends TestCase
         foreach (['agency_id', 'agencyPublicId', 'company_name', 'address', 'memo', 'login_id', 'advertising_code', 'status'] as $field) {
             $this->request('PATCH', '/me/contact', ['contact_name' => 'Changed', 'phone' => '03-1111-2222', $field => $other->public_id])->assertStatus(422);
         }
+        $this->request('PATCH', '/me/contact', ['contact_name' => "Invalid\nName", 'phone' => '03-1111-2222'])
+            ->assertStatus(422)->assertJsonPath('code', 'AGENCY_INVALID');
         $this->request('PATCH', '/me/contact', ['contact_name' => ' Changed ', 'phone' => ' 03-1111-2222 '])->assertOk()->assertJsonPath('data.contact_name', 'Changed')->assertJsonPath('data.phone', '03-1111-2222');
         self::assertSame('QA Contact', DB::table('agencies')->where('id', $other->id)->value('contact_name'));
         self::assertSame('QA Company', DB::table('agencies')->where('id', $this->agency->id)->value('company_name'));

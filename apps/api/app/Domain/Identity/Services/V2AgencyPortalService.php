@@ -5,6 +5,7 @@ namespace App\Domain\Identity\Services;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Domain\Identity\Exceptions\V2AgencyException;
 use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\Agency;
 use App\Models\V2\AgencySession;
@@ -135,6 +136,8 @@ final class V2AgencyPortalService
 
                 return ['data' => $this->profile($agency), 'session' => $rotated];
             }, 3);
+        } catch (V2AgencyException $exception) {
+            throw new V2AuthenticationException($exception->errorCode, $exception->status);
         } catch (QueryException $exception) {
             throw new V2AuthenticationException(
                 $exception->getCode() === '23505' ? 'AGENCY_IDENTITY_CONFLICT' : 'AUTH_SERVICE_UNAVAILABLE',
