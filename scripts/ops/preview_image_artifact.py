@@ -462,7 +462,11 @@ def verify_artifact(
             fail("oci_version_mismatch")
         if labels["org.opencontainers.image.created"] != created_at:
             fail("oci_created_mismatch")
-        expected_title = "Oripa V2 API" if expected_name == "api" else "Oripa V2 Admin"
+        expected_title = {
+            "api": "Oripa V2 API",
+            "admin": "Oripa V2 Admin",
+            "agency": "Oripa V2 Agency",
+        }[expected_name]
         if labels["org.opencontainers.image.title"] != expected_title:
             fail("oci_title_mismatch")
         verified_images.append({"name": expected_name, "image_id": image["image_id"], "reference": image["reference"]})
