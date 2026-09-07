@@ -24,6 +24,7 @@ const TEMPLATE_KEYS = new Set<MailTemplateKey>([
   "agency_account_created",
   "agency_password_changed",
   "agency_login_information_reissued",
+  "agency_email_changed",
   "email_verification",
   "registration_completed",
   "coin_purchase_completed",

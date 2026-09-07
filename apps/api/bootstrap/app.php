@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         then: function (): void {
             Route::middleware('api')
+                ->prefix('agency/api/v2')
+                ->group(base_path('routes/agency.php'));
+            Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
 
@@ -47,7 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (V2AuthenticationException $exception, $request) {
-            if ($request->is('api/v2/*') || $request->is('admin/api/v2/*')) {
+            if ($request->is('api/v2/*') || $request->is('admin/api/v2/*') || $request->is('agency/api/v2/*')) {
                 return V2ProblemDetails::fromAuthentication($request, $exception);
             }
 

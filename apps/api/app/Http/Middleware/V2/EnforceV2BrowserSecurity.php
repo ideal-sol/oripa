@@ -18,7 +18,7 @@ final class EnforceV2BrowserSecurity
     public function handle(Request $request, Closure $next, string $realm): Response
     {
         $resolvedRealm = V2Realm::tryFrom($realm);
-        if (! in_array($resolvedRealm, [V2Realm::User, V2Realm::Admin], true)) {
+        if (! in_array($resolvedRealm, [V2Realm::User, V2Realm::Admin, V2Realm::Agency], true)) {
             throw new V2AuthenticationException('AUTHORIZATION_DENIED', 403);
         }
 

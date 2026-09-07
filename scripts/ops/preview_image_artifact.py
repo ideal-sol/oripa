@@ -29,6 +29,7 @@ IMAGE_NAMES = ("api", "admin")
 IMAGE_MODES = {
     "normal": IMAGE_NAMES,
     "api-only": ("api",),
+    "agency": ("api", "admin", "agency"),
 }
 TARGET_OS = "linux"
 TARGET_ARCHITECTURE = "amd64"
@@ -38,6 +39,7 @@ ARTIFACT_KINDS = ("preview", "production-candidate")
 ARCHIVE_NAMES = {
     "api": "oripa-v2-api-linux-amd64.docker.tar.zst",
     "admin": "oripa-v2-admin-linux-amd64.docker.tar.zst",
+    "agency": "oripa-v2-agency-linux-amd64.docker.tar.zst",
 }
 REQUIRED_LABELS = {
     "org.opencontainers.image.revision",
@@ -111,7 +113,7 @@ def archive_names(architecture: str) -> dict[str, str]:
         fail("architecture_invalid")
     return {
         name: f"oripa-v2-{name}-linux-{architecture}.docker.tar.zst"
-        for name in IMAGE_NAMES
+        for name in (*IMAGE_NAMES, "agency")
     }
 
 
@@ -179,9 +181,11 @@ def package_images(arguments: argparse.Namespace) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     image_names = IMAGE_MODES[arguments.image_mode]
     archives = archive_names(arguments.architecture)
-    references = {"api": arguments.api_image, "admin": arguments.admin_image}
-    if (arguments.image_mode == "normal") != (arguments.admin_image is not None):
+    references = {"api": arguments.api_image, "admin": arguments.admin_image, "agency": getattr(arguments, 'agency_image', None)}
+    if (arguments.image_mode in {"normal", "agency"}) != (arguments.admin_image is not None):
         fail("admin_image_mode_mismatch")
+    if (arguments.image_mode == "agency") != (references['agency'] is not None):
+        fail("agency_image_mode_mismatch")
     images = []
     for name in image_names:
         reference = references[name]
@@ -557,6 +561,7 @@ def parser() -> argparse.ArgumentParser:
     )
     package.add_argument("--api-image", required=True)
     package.add_argument("--admin-image")
+    package.add_argument("--agency-image")
     for name in ("verify", "load"):
         command = commands.add_parser(name)
         command.add_argument("--directory", type=Path, required=True)

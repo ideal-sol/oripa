@@ -386,6 +386,7 @@ def safe_extract(source: Path, destination: Path) -> None:
     allowed_sets = (
         common,
         common | {"oripa-v2-admin-linux-amd64.docker.tar.zst"},
+        common | {"oripa-v2-admin-linux-amd64.docker.tar.zst", "oripa-v2-agency-linux-amd64.docker.tar.zst"},
     )
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]

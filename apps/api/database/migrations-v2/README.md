@@ -35,7 +35,7 @@ devices, and Admin MFA credential storage.
 ## Status
 
 This append-only root contains the current V2 migration source through
-`2026_09_29_000073_create_v2_agency_foundation.php`. Runtime applied/pending state
+`2026_09_30_000074_add_v2_agency_realm.php`. Runtime applied/pending state
 must always be read from the guarded environment migration ledger; source
 presence alone is not evidence that a migration was applied. Production
 application remains a separate Human-authorized Release Gate action.
@@ -54,4 +54,11 @@ an explicit Admin login-information reissue with a newly entered password.
 verification explicitly selects the non-external `array` transport or a fake.
 Delivery configuration may select an existing SMTP or Mailgun mailer; log,
 failover, and queued persistence are not supported for Agency credentials.
-`V2_AGENCY_LOGIN_URL` configures the future Portal link and does not activate it.
+`V2_AGENCY_LOGIN_URL` configures the Portal link and does not activate it.
+
+AGENCY-002 adds dedicated `agency_sessions`, the Agency audit realm, and the
+fixed `agency_email_changed` template. Sessions use the canonical V2 persisted
+time policy with idle 6 hours / absolute 12 hours. Migration `000074` can roll
+back only before Agency session, audit, or email-change delivery history exists.
+After use, retain schema and roll back the API/Portal images or apply a forward
+correction. Migration application and domain routing activation are independent.

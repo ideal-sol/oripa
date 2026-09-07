@@ -7,6 +7,11 @@ return [
     ],
 
     'guards' => [
+        'v2_agency' => [
+            'driver' => 'v2_realm_session',
+            'provider' => 'v2_agency',
+            'realm' => 'agency',
+        ],
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
@@ -24,6 +29,10 @@ return [
     ],
 
     'providers' => [
+        'v2_agency' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\V2\Agency::class,
+        ],
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,

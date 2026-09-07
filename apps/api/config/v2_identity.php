@@ -11,6 +11,15 @@ return [
     ],
 
     'sessions' => [
+        'agency' => [
+            'table' => 'agency_sessions',
+            'cookie' => '__Host-oripa_agency_session',
+            'csrf_cookie' => '__Host-oripa_agency_xsrf',
+            'idle_minutes' => 360,
+            'absolute_minutes' => 720,
+            'same_site' => 'strict',
+            'remember' => false,
+        ],
         'user' => [
             'table' => 'user_sessions',
             'cookie' => '__Host-oripa_user_session',
@@ -39,6 +48,7 @@ return [
     ],
 
     'origins' => [
+        'agency' => env('V2_AGENCY_ORIGIN'),
         'user' => env('V2_PUBLIC_ORIGIN'),
         'admin' => env('V2_ADMIN_ORIGIN'),
     ],
@@ -117,6 +127,9 @@ return [
     ],
 
     'rate_limits' => [
+        'agency_login_failure' => [5, 900],
+        'agency_login_ip' => [20, 3600],
+        'agency_credential_change' => [5, 900],
         'user_login_failure' => [5, 900],
         'user_login_ip' => [30, 3600],
         'admin_login_failure' => [5, 900],

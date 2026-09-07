@@ -36,7 +36,7 @@ final class V2SessionManager
         $idle = $now->addMinutes($configuration['idle_minutes'])->min($absolute);
         $row = [
             'session_id_hash' => $this->policy->hashSessionId($token),
-            $realm === V2Realm::User ? 'user_id' : 'admin_id' => $identityId,
+            $realm->value.'_id' => $identityId,
             'created_at' => $now,
             'last_activity_at' => $now,
             'idle_expires_at' => $idle,
@@ -45,7 +45,7 @@ final class V2SessionManager
         ];
         if ($realm === V2Realm::User) {
             $row['reauthenticated_at'] = $now;
-        } else {
+        } elseif ($realm === V2Realm::Admin) {
             $row['mfa_verified_at'] = $mfaVerified ? $now : null;
             $row['requires_mfa_enrollment'] = $requiresMfaEnrollment;
         }
@@ -224,6 +224,37 @@ final class V2SessionManager
         ]);
 
         return ['token' => $token, 'absolute_expires_at' => $absolute];
+    }
+
+    public function rotateLockedAgencySession(\App\Models\V2\AgencySession $session): array
+    {
+        $now = $this->policy->currentTime();
+        $absolute = $this->policy->canonicalTime($session->absolute_expires_at);
+        if ($session->revoked_at !== null || $session->created_at->greaterThan($now)
+            || ! $session->idle_expires_at->greaterThan($now) || ! $absolute->greaterThan($now)) {
+            throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('AUTHENTICATION_REQUIRED', 401);
+        }
+        $configuration = $this->policy->forRealm(V2Realm::Agency);
+        $token = $this->tokens->generate();
+        $session->forceFill(['revoked_at' => $now])->save();
+        DB::table($configuration['table'])->insert([
+            'session_id_hash' => $this->policy->hashSessionId($token),
+            'agency_id' => $session->agency_id,
+            'created_at' => $this->policy->canonicalTime($session->created_at),
+            'last_activity_at' => $now,
+            'idle_expires_at' => $now->addMinutes($configuration['idle_minutes'])->min($absolute),
+            'absolute_expires_at' => $absolute,
+            'revoked_at' => null,
+        ]);
+
+        return ['token' => $token, 'absolute_expires_at' => $absolute];
+    }
+
+    public function revokeAgencySessions(int $agencyId): void
+    {
+        DB::table($this->policy->forRealm(V2Realm::Agency)['table'])
+            ->where('agency_id', $agencyId)->whereNull('revoked_at')
+            ->update(['revoked_at' => $this->policy->currentTime()]);
     }
 
     public function attachSession(

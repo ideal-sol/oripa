@@ -21,6 +21,7 @@
     }
   },
   "scripts": {
+    "agency:check": "pnpm --filter @oripa/agency generate:check && pnpm --filter @oripa/agency typecheck && pnpm --filter @oripa/agency lint && pnpm --filter @oripa/agency test && pnpm --filter @oripa/agency build",
     "admin:build": "pnpm --filter @oripa/admin build",
     "admin:generate": "pnpm --filter @oripa/admin generate",
     "admin:generate:check": "pnpm --filter @oripa/admin generate:check",

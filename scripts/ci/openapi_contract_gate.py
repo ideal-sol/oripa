@@ -15,6 +15,12 @@ from typing import Any, Iterable
 
 
 SURFACES = {
+    "agency": {
+        "source": "openapi/agency/openapi.yaml",
+        "bundle": "openapi/bundled/agency.openapi.json",
+        "title": "Oripa Agency API",
+        "server": "/agency/api/v2",
+    },
     "public": {
         "source": "openapi/public/openapi.yaml",
         "bundle": "openapi/bundled/public.openapi.json",

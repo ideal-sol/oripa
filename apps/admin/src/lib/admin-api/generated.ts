@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 15795d435c4376612d5ea319aa9d5521d55562059477bae97eb83f3e6945c684
+// Contract SHA-256: 7b9ae61eeb14563ffa592427d0e407dcf646972d2a06151ada2fb8419e8ba9fe
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2093,7 +2093,8 @@ export type MailTemplateKey =
   | "phone_changed"
   | "agency_account_created"
   | "agency_password_changed"
-  | "agency_login_information_reissued";
+  | "agency_login_information_reissued"
+  | "agency_email_changed";
 
 export interface AdminMailTemplateVariable {
   key: string;

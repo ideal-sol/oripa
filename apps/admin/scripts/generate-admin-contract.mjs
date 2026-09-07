@@ -2703,7 +2703,8 @@ export type MailTemplateKey =
   | "phone_changed"
   | "agency_account_created"
   | "agency_password_changed"
-  | "agency_login_information_reissued";
+  | "agency_login_information_reissued"
+  | "agency_email_changed";
 
 export interface AdminMailTemplateVariable {
   key: string;

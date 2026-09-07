@@ -82,6 +82,9 @@ legacy/v1-frontend/next-env.d.ts
 apps/admin/.next/
 apps/admin/out/
 apps/admin/tsconfig.tsbuildinfo
+apps/agency/.next/
+apps/agency/out/
+apps/agency/tsconfig.tsbuildinfo
 
 # Python test and CI bytecode
 __pycache__/

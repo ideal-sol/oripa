@@ -151,10 +151,11 @@ final class V2TemplateMailDeliveryService
     ): void {
         if (DB::transactionLevel() < 1 || ! in_array($templateKey, [
             'agency_account_created', 'agency_password_changed', 'agency_login_information_reissued',
+            'agency_email_changed',
         ], true)) {
             throw new RuntimeException('Agency Mail scheduling input is invalid.');
         }
-        if ($templateKey === 'agency_password_changed') {
+        if (in_array($templateKey, ['agency_password_changed', 'agency_email_changed'], true)) {
             unset($values['agency_password']);
         }
         $template = $this->template($templateKey);
