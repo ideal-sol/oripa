@@ -51,6 +51,7 @@ def create_docker_archive(
     artifact_kind: str = "preview",
     oci_config_path: bool = False,
     revision: str = HEAD,
+    title: str = "",
 ) -> dict:
     reference, version = artifact.image_identity(
         name,
@@ -63,9 +64,11 @@ def create_docker_archive(
         **BASE_LABELS,
         "org.opencontainers.image.revision": revision,
         "org.opencontainers.image.version": version,
-        "org.opencontainers.image.title": (
-            "Oripa V2 API" if name == "api" else "Oripa V2 Admin"
-        ),
+        "org.opencontainers.image.title": title or {
+            "api": "Oripa V2 API",
+            "admin": "Oripa V2 Admin",
+            "agency": "Oripa V2 Agency",
+        }[name],
     }
     config = {
         "architecture": architecture,
@@ -235,6 +238,7 @@ class PreviewImageArtifactTest(unittest.TestCase):
                 )
 
     def test_agency_artifact_verifies_all_three_and_rejects_missing_api(self):
+        self.assertIn('org.opencontainers.image.title="Oripa V2 Agency"', (ROOT / "apps/agency/Dockerfile").read_text())
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             create_artifact(directory, ("api", "admin", "agency"))
@@ -245,6 +249,17 @@ class PreviewImageArtifactTest(unittest.TestCase):
             create_artifact(directory, ("admin", "agency"))
             with self.assertRaisesRegex(artifact.ArtifactError, "manifest_images_invalid"):
                 artifact.verify_artifact(directory, task_id=TASK, pr_number=PR, source_sha=HEAD)
+
+    def test_agency_archive_rejects_other_realm_titles(self):
+        for title in ("Oripa V2 Admin", "Oripa V2 API"):
+            with self.subTest(title=title), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                create_artifact(directory, ("api", "admin", "agency"))
+                manifest = artifact.load_json(directory / "manifest.json")
+                manifest["images"][2] = create_docker_archive(directory, "agency", title=title)
+                write_artifact_metadata(directory, manifest)
+                with self.assertRaisesRegex(artifact.ArtifactError, "oci_title_mismatch"):
+                    artifact.verify_artifact(directory, task_id=TASK, pr_number=PR, source_sha=HEAD)
 
     def test_package_parser_rejects_unknown_image_mode(self):
         with self.assertRaises(SystemExit):

@@ -9769,3 +9769,10 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 - PR #472初回CIで`.gitignore`のLane分類漏れを検出し、直接必要なblockerとしてStrict exact pathへ追加した。Lite/Standard拒否の回帰assertionを追加し、fail-closedと全Required Checksを維持する。追加Backend focused 63 tests／841 assertions、Authentication/Agency 28 tests／309 assertionsをPASS。既存Admin invitation時刻境界の初回1 failureは無変更rerunでPASSし、検証結果を区別して記録する。
 - 統合CIの645件V2 suiteで既存RealmSeparationTestの二Realm固定mockが1 errorとなった。Agency guard expectationと専用policy／cross-realm拒否assertionを追加し、既存User/Adminのassertionは保持した。Final Headを更新して全Required Checksを再実行する。
 - Fresh reviewで共通Agency連絡先normalizerの例外をPortalのProblem Detailsへ変換する接続漏れを修正した。制御文字を含む担当者名が500ではなく422となる回帰assertionを追加した。
+
+## AGENCY-002-FIX Preview Agency Artifact Title
+
+- AGENCY-002 PR #472はFinal Head `589f478bc4e765c56c9f80f947edc56232ccef4c`でRequired Checks全PASS、fresh review SEV-0/1=0、Squash `4a6cde36e177e705817112d9a7b73dcde449dfb2`へMerge済み。全V2 local suiteは645 tests／6868 assertions、既存opt-in skip 10、failure 0。
+- Merge後のcanonical Preview buildで3 imageのbuildは完了したが、artifact検証器のOCI titleがAPI/Admin二択のままでAgencyを拒否した。誤ったAdmin titleをfixtureも複製していたためunit testだけでは検出できなかった。検証のskipやtitle偽装は行わず、exact Agency titleと他Realm title拒否を実装する。
+- 原則1 PRだったが既にMerge済みのため、同一AGENCY-002を完遂する直接必要な3-path corrective PRとして`AGENCY-002-FIX`を切り出す。Issue `none`、Risk `R4`、Lane `Strict Change`、Activation `immediate`、通常Worktree、Base `4a6cde36e177e705817112d9a7b73dcde449dfb2`、Branch `fix/AGENCY-002-FIX-preview-agency-title`。新たなGovernanceは追加せず、全Required Checksと新Headのfresh reviewを再通過する。
+- 修正Scopeはartifact verifier、対応test、Worklogのみ。Laravel／UI／contract／Migrationの追加変更0。この時点で旧Test Migration apply／API/Admin/Agency Activation／Nginx切替は未実施、Production mutation 0。元のMigration Allocation LockとPreview Deployment Lockを維持し、image再検証後に旧Test反映を継続する。
