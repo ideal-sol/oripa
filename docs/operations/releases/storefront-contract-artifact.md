@@ -450,3 +450,39 @@ is exact-pinned to alpha.33 and reads `ranks[].id`, `name`, `code`, and
 API upstream; a Preview Platform deployment could therefore change the
 Production-facing API. No Preview migration, API/Admin activation, routing
 change, or Production operation is authorized by this release reconciliation.
+
+## Immutable Alpha 36 — AGENCY-004A / REL-036
+
+AGENCY-004A Source PR [#475](https://github.com/ideal-sol/oripa/pull/475) merged
+as `aa5049f7efa63e9cff67b10d93e768b4006b0c09` after reviewed head
+`80f589fad90b9d8a61220792f84a390aaa0901f4` passed all Required Checks and
+exact-head self-review. The dedicated contract-only workflow
+[34188731627](https://github.com/ideal-sol/oripa/actions/runs/34188731627)
+published and read back immutable Artifact `10041438541` without overwrite.
+
+- Bundle / Client / Testkit: `2.0.0-alpha.36` (contract-additive, not breaking).
+- Public OpenAPI: alpha.32 / 76 operations; Admin and Webhook remain alpha.31.
+- Site Schema: existing immutable alpha.23 reference, not republished.
+- Outer SHA-256: `5e6dba27ce3745bbbec27d662f2e271dafec63eded0c0f5d11788b69c7298e2e`.
+- Manifest SHA-256: `101ec49daf4e30bcd2fecd10e3314d96604bd86ea0f6029de4b5fc2bf0a39292`.
+- Client SHA-256: `1f1b096c5e807ea89d1e316755c5f51d80a8aab7fb9597a775e20c2e7a3c84b9`.
+- Testkit SHA-256: `9b8a4b41a5b60efc6e6869ac9b9ecfea8a36119fff3244662ce83ead3eae4a82`.
+- Public SHA-256: `18233166690c6433582f3528f09e329d7cd0ea5c62d14e86faccbc8072810d9a`.
+
+REL-036 generates the ledger entry from the verified five-file bundle and GitHub
+metadata, preserves all historical records, sets latest immutable to alpha.36
+and clears candidate. Historical candidate validation is exercised in isolated
+test fixtures; the settled source rejects another publication attempt. The
+Artifact Release Lock remains held through reconciliation.
+
+This release adds anonymous `validateAdvertisingCode`, optional
+`advertising_code` on registration and Google/LINE login start, and typed Client
+and Testkit support. It does not implement Storefront cookies, URL query keys,
+consent UI, or exact-pin adoption. Follow the
+[AGENCY-004B handoff](../reporting/agency-attribution.md).
+
+AGENCY-004A separately activates only its approved old Shared Preview API and
+nullable migration075; this metadata task has Activation `none`. Admin/Agency/
+Storefront activation and Production mutation are 0. The earlier alpha.34
+release's historical hold does not grant or change runtime authority for either
+task. No Stable Tag or Release is created.

@@ -45,7 +45,18 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
 
     def next_candidate_governance(self):
-        return copy.deepcopy(self.governance())
+        value = copy.deepcopy(self.governance())
+        released = value['immutable_history'].pop()
+        candidate = copy.deepcopy(artifact.release_source(value))
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
+        candidate.update(release_state='pending', breaking_change=released['breaking_change'],
+                         predecessor_bundle_version=value['latest_immutable']['bundle_version'])
+        for name, details in candidate['packages'].items():
+            details['disposition'] = 'reference' if name == '@oripa/site-schema' else 'publish'
+            if details['disposition'] == 'publish':
+                details.pop('sha256')
+        value['candidate'] = candidate
+        return value
 
     def schema_candidate_governance(self):
         value = self.next_candidate_governance()
@@ -123,10 +134,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         parsed = artifact.parse_git_time("2026-08-24T13:08:57Z")
         self.assertEqual(parsed.isoformat(), "2026-08-24T13:08:57+00:00")
 
-    def test_alpha_34_history_is_preserved_and_alpha_36_is_pending(self):
+    def test_alpha_34_history_is_preserved_and_alpha_36_is_released(self):
         value = artifact.validate_governance(self.governance())
-        latest = value["immutable_history"][-2]
-        alpha_32 = value["immutable_history"][-4]
+        latest = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.34')
+        alpha_32 = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.32')
         canonical = lambda item: hashlib.sha256(
             json.dumps(item, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -134,9 +145,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.36")
-        self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
-        self.assertFalse(value["candidate"]["breaking_change"])
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.36")
+        self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
+        self.assertFalse(value["latest_immutable"]["breaking_change"])
         self.assertEqual(latest["source_commit"], "576c35137946e5effcda63d6bf750d5ecc41150f")
         self.assertEqual(latest["manifest_sha256"], "42f4bee68b787dac16d07accee1c6154c7cea392c521c41b14461d6b56221464")
         self.assertEqual(latest["release_mode"], "contract-breaking")
@@ -145,7 +157,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["public_openapi"]["operation_count"], 75)
         self.assertEqual(latest["packages"]["@oripa/storefront-client"]["sha256"], "3363ebf849e3c7165b89ea9f037c681ab889d16539ce290383cad41d31c134c6")
         self.assertEqual(latest["packages"]["@oripa/storefront-testkit"]["sha256"], "07916ff69e2e6882aa0e62ee676a65652382413f14f65459ba4e773a41f8a440")
-        self.assertEqual(canonical(value["immutable_history"][:-4]), "5e286877a462d29e643b2fc4e2a0040221e42be9687e31f378e857b28a51026c")
+        self.assertEqual(canonical(value["immutable_history"][:value['immutable_history'].index(alpha_32)]), "5e286877a462d29e643b2fc4e2a0040221e42be9687e31f378e857b28a51026c")
         self.assertEqual(canonical(alpha_32), "fdeee7026dccefe4d212516e2c692eefcf99940545623aa3227bda202768a0ae")
         self.assertEqual(alpha_32["handoff_status"], "retired")
         self.assertEqual(alpha_32["manifest_sha256"], "263955a5521a863635bf6ad23d604e52b1319e84052178288bad7b7c308de564")
@@ -172,7 +184,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_settled_breaking_release_missing_metadata_fails_closed(self):
         value = copy.deepcopy(self.governance())
-        value['immutable_history'].pop()
+        while value['immutable_history'][-1]['bundle_version'] != '2.0.0-alpha.34':
+            value['immutable_history'].pop()
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         value["latest_immutable"].pop("breaking_change")
         value["immutable_history"][-1].pop("breaking_change")
@@ -344,14 +357,17 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         artifact.write_checksums(output)
         return governance
 
-    def test_alpha_36_ledger_has_one_pending_candidate(self):
-        candidate = artifact.pending_candidate(ROOT)
-
-        self.assertEqual(candidate["bundle_version"], "2.0.0-alpha.36")
-        self.assertEqual(candidate["predecessor_bundle_version"], "2.0.0-alpha.35")
+    def test_alpha_36_settled_ledger_rejects_republication(self):
+        with self.assertRaises(artifact.ArtifactError):
+            artifact.pending_candidate(ROOT)
+        released = self.governance()['latest_immutable']
+        self.assertEqual(released['source_commit'], 'aa5049f7efa63e9cff67b10d93e768b4006b0c09')
+        self.assertEqual(released['manifest_sha256'], '101ec49daf4e30bcd2fecd10e3314d96604bd86ea0f6029de4b5fc2bf0a39292')
+        self.assertEqual(released['publication']['artifact_id'], 10041438541)
+        self.assertEqual(released['publication']['github_digest'], 'sha256:5e6dba27ce3745bbbec27d662f2e271dafec63eded0c0f5d11788b69c7298e2e')
 
     def test_public_only_additive_contract_keeps_other_versions_without_regression(self):
-        value = self.governance()
+        value = self.next_candidate_governance()
         self.assertEqual(value['candidate']['contract_versions'], {'public': '2.0.0-alpha.32', 'admin': '2.0.0-alpha.31', 'webhook': '2.0.0-alpha.31'})
         artifact.validate_governance(value)
         for surface in ['public', 'admin', 'webhook']:
