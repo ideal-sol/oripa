@@ -342,10 +342,22 @@ def validate_governance(value: dict) -> dict:
             raise ArtifactError("public OpenAPI immutable reference mismatch")
     else:
         public_family, public_sequence = alpha_identity(public["version"])
-        contract_versions = {alpha_identity(version) for version in contracts.values()}
+        public_version = alpha_identity(contracts['public'])
+        other_contracts_valid = all(
+            alpha_identity(contracts[surface]) in {
+                alpha_identity(latest['contract_versions'][surface]),
+                (family, alpha_identity(latest['contract_versions'][surface])[1] + 1),
+            }
+            for surface in ['admin', 'webhook']
+        )
+        if release_mode == 'contract-breaking':
+            other_contracts_valid = all(
+                alpha_identity(contracts[surface]) == (public_family, public_sequence + 1)
+                for surface in ['admin', 'webhook']
+            )
         if (
-            len(contract_versions) != 1
-            or contract_versions != {(public_family, public_sequence + 1)}
+            public_version != (public_family, public_sequence + 1)
+            or not other_contracts_valid
             or not SHA256.fullmatch(str(candidate.get("public_openapi_sha256", "")))
             or candidate.get("public_openapi_sha256") == public["sha256"]
             or not isinstance(candidate.get("public_api_operation_count"), int)

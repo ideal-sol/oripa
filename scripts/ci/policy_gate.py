@@ -282,6 +282,7 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     "apps/api/database/migrations-v2/2026_09_30_000074_add_v2_agency_realm.php",
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -2618,7 +2619,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3018,6 +3019,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_28_000072_relax_v2_sms_otp_ttl_ceiling.php",
         "2026_09_29_000073_create_v2_agency_foundation.php",
         "2026_09_30_000074_add_v2_agency_realm.php",
+        "2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

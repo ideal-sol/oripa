@@ -105,6 +105,122 @@ final class GoogleOidcVerticalSliceTest extends TestCase
             'user_id' => $result['user']->getKey(),
             'revoked_at' => null,
         ]);
+        self::assertSame(0, DB::table('user_advertising_attributions')->count());
+    }
+
+    public function test_new_external_users_attribute_only_current_active_candidates(): void
+    {
+        $agencyId = $this->advertisingAgency();
+        foreach (['Ab12Cd34', null, 'bad', 'Xx00Yy99', 'ab12cd34', 'Ab12Cd34'] as $index => $candidate) {
+            $started = $this->start('login', advertisingCode: $candidate);
+            if ($index === 5) DB::table('agencies')->where('id', $agencyId)->update(['status' => 'suspended']);
+            $this->provider->issue($started['nonce'], 'advertised-subject-'.$index, 'advertised-'.$index.'@example.test');
+            $result = app(V2ExternalIdentityService::class)->callback(
+                $started['state'], 'one-time-authorization-code', $started['binding'], $this->callbackUrl,
+                '192.0.2.10', $this->callbackRequest($started['binding'])
+            );
+            self::assertSame(V2UserState::Active, $result['user']->state);
+            self::assertSame($index === 0 ? 1 : 0, DB::table('user_advertising_attributions')->where('user_id', $result['user']->id)->count());
+        }
+    }
+
+    public function test_external_existing_login_and_link_never_attach_or_overwrite_attribution(): void
+    {
+        $this->advertisingAgency();
+        foreach ([false, true] as $attributed) {
+            $user = $this->user('existing-'.(int) $attributed.'@example.test');
+            if ($attributed) {
+                DB::table('user_advertising_attributions')->insert(['user_id' => $user->id,
+                    'advertising_code_id' => DB::table('agency_advertising_codes')->value('id'), 'attributed_at' => now()]);
+            }
+            $before = DB::table('user_advertising_attributions')->get()->toJson();
+            [$request, $session] = $this->authenticatedRequest($user);
+            $started = $this->start('link', $user, $request, 'Ab12Cd34');
+            self::assertNull(ExternalIdentityTransaction::query()->latest('id')->first()->advertising_code_candidate);
+            $this->provider->issue($started['nonce'], 'existing-subject-'.(int) $attributed, 'existing-'.(int) $attributed.'@example.test');
+            $linked = app(V2ExternalIdentityService::class)->callback(
+                $started['state'], 'one-time-authorization-code', $started['binding'], $this->callbackUrl,
+                '192.0.2.10', $this->callbackRequest($started['binding'], $session)
+            );
+            self::assertSame($user->id, $linked['user']->id);
+            $started = $this->start('login', advertisingCode: 'Ab12Cd34');
+            $this->provider->issue($started['nonce'], 'existing-subject-'.(int) $attributed, 'ignored@example.test');
+            $loggedIn = app(V2ExternalIdentityService::class)->callback(
+                $started['state'], 'one-time-authorization-code', $started['binding'], $this->callbackUrl,
+                '192.0.2.10', $this->callbackRequest($started['binding'])
+            );
+            self::assertSame($user->id, $loggedIn['user']->id);
+            self::assertSame($before, DB::table('user_advertising_attributions')->get()->toJson());
+        }
+    }
+
+    public function test_advertising_candidate_is_immutable_and_callback_query_cannot_supply_it(): void
+    {
+        $this->advertisingAgency();
+        $started = $this->start('login');
+        DB::beginTransaction();
+        try {
+            ExternalIdentityTransaction::query()->sole()->update(['advertising_code_candidate' => 'Ab12Cd34', 'status' => 'processing', 'processing_at' => now()]);
+            self::fail('Candidate mutation must be rejected');
+        } catch (\Illuminate\Database\QueryException $exception) {
+            self::assertStringContainsString('advertising candidate is immutable', $exception->getMessage());
+        } finally {
+            DB::rollBack();
+        }
+        $this->provider->issue($started['nonce'], 'query-injection-subject', 'query-injection@example.test');
+        $request = $this->callbackRequest($started['binding']);
+        $request->query->set('advertising_code', 'Ab12Cd34');
+        $result = app(V2ExternalIdentityService::class)->callback($started['state'], 'one-time-authorization-code',
+            $started['binding'], $this->callbackUrl, '192.0.2.10', $request);
+        self::assertDatabaseMissing('user_advertising_attributions', ['user_id' => $result['user']->id]);
+    }
+
+    private function advertisingAgency(): int
+    {
+        $identity = DB::table('agencies')->insertGetId([
+            'public_id' => (string) Str::uuid7(), 'company_name' => 'Synthetic Agency', 'contact_name' => 'QA',
+            'phone' => '0311112222', 'email' => 'external-attribution@example.test', 'normalized_email' => 'external-attribution@example.test',
+            'address' => 'Synthetic', 'login_id' => '000001', 'password_hash' => app(V2PasswordPolicy::class)->hash('Initial123'),
+            'status' => 'active', 'revision' => 1, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('agency_advertising_codes')->insert(['agency_id' => $identity, 'code' => 'Ab12Cd34']);
+
+        return $identity;
+    }
+
+    public function test_external_attribution_and_user_roll_back_when_completion_fails(): void
+    {
+        $this->advertisingAgency();
+        $started = $this->start('login', advertisingCode: 'Ab12Cd34');
+        $this->provider->issue($started['nonce'], 'rollback-subject', 'rollback@example.test');
+        $this->mock(\App\Domain\Identity\Contracts\V2SecurityEventSink::class)
+            ->shouldReceive('record')->andReturnUsing(function (string $event): void {
+                if ($event === 'external_user_created') {
+                    self::assertGreaterThan(1, DB::transactionLevel());
+                    self::assertSame(1, DB::table('user_advertising_attributions')->count());
+                    throw new \RuntimeException('Synthetic completion failure');
+                }
+            });
+        $this->expectAuthenticationCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
+            fn () => app(V2ExternalIdentityService::class)->callback($started['state'], 'rollback-code',
+                $started['binding'], $this->callbackUrl, '192.0.2.10', $this->callbackRequest($started['binding'])));
+        self::assertSame(0, User::count());
+        self::assertSame(0, DB::table('user_advertising_attributions')->count());
+        self::assertSame(0, ExternalIdentityAccount::count());
+    }
+
+    public function test_http_external_start_keeps_candidate_exact_and_out_of_provider_url(): void
+    {
+        $csrf = str_repeat('a', 64);
+        foreach (['Ab12Cd34', ' Ab12Cd34'] as $candidate) {
+            $response = $this->withCredentials()->withServerVariables(['HTTPS' => 'on'])
+                ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+                ->withHeaders(['Origin' => 'https://storefront.example.test', 'Sec-Fetch-Site' => 'same-origin', 'X-XSRF-TOKEN' => $csrf])
+                ->postJson('/api/v2/auth/external/google/start', ['return_path' => '/', 'advertising_code' => $candidate])->assertOk();
+            self::assertStringNotContainsString('Ab12Cd34', $response->getContent());
+            self::assertSame($candidate === 'Ab12Cd34' ? $candidate : null,
+                ExternalIdentityTransaction::query()->latest('id')->first()->advertising_code_candidate);
+        }
     }
 
     public function test_existing_subject_logs_in_without_using_changed_provider_email(): void
@@ -537,16 +653,19 @@ final class GoogleOidcVerticalSliceTest extends TestCase
     private function start(
         string $purpose,
         ?User $user = null,
-        ?Request $request = null
+        ?Request $request = null,
+        ?string $advertisingCode = null
     ): array {
         $request ??= Request::create('/api/v2/auth/external/google/start', 'POST');
-        $result = app(V2ExternalIdentityService::class)->start(
+        $result = app(V2ExternalIdentityService::class)->startForProvider(
+            'google',
             $purpose,
             '/',
             '192.0.2.1',
             (string) Str::uuid7(),
             $user,
-            $request
+            $request,
+            $advertisingCode
         );
         parse_str(parse_url($result['authorization_url'], PHP_URL_QUERY), $query);
         self::assertSame('S256', $query['code_challenge_method']);

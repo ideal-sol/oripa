@@ -16,6 +16,7 @@ final class ExternalIdentityTransaction extends Model
         'state_hash',
         'nonce_hash',
         'code_verifier_ciphertext',
+        'advertising_code_candidate',
         'browser_binding_hash',
         'user_id',
         'user_session_hash',
@@ -30,6 +31,7 @@ final class ExternalIdentityTransaction extends Model
     ];
 
     protected $hidden = [
+        'advertising_code_candidate',
         'id',
         'state_hash',
         'nonce_hash',

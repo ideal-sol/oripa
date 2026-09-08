@@ -11,6 +11,7 @@ export interface IdentityMutationOptions {
 }
 
 export interface StorefrontIdentityClient {
+  validateAdvertisingCode(code: string): Promise<StorefrontResponse<Schemas["AdvertisingCodeValidity"]>>;
   initializeCsrf(): Promise<StorefrontResponse<Schemas["UserSession"]>>;
   register(
     input: Schemas["UserRegistrationRequest"],
@@ -144,6 +145,10 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    validateAdvertisingCode: (code) =>
+      transport.request({
+        path: `/advertising-code-validation?${new URLSearchParams({ advertising_code: code }).toString()}`,
+      }),
     initializeCsrf: () =>
       transport.request({ path: "/auth/session", retry: false }),
     register: (input, options = {}) =>

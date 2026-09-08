@@ -1513,6 +1513,27 @@ export const PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES = Object.freeze({
   PublicComponents["schemas"]["PublicAuthProblemDetails"]
 >);
 
+export const PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES = Object.freeze({
+  valid: { valid: true },
+  invalid: { valid: false },
+  stopped_agency: { valid: false },
+  registration: { email: "advertised@example.test", password: "synthetic password", redirect_path: "/", advertising_code: "Ab12Cd34" },
+  registration_without_code: { email: "organic@example.test", password: "synthetic password", redirect_path: "/" },
+  external_start: { return_path: "/", advertising_code: "Ab12Cd34" },
+  external_new_user: {
+    authenticated: true, purpose: "login", provider: "google", return_path: "/",
+    user: { id: "0198a001-0000-7000-8000-000000000504", state: "active", email_verified: true },
+  },
+} as const satisfies {
+  valid: PublicComponents["schemas"]["AdvertisingCodeValidity"];
+  invalid: PublicComponents["schemas"]["AdvertisingCodeValidity"];
+  stopped_agency: PublicComponents["schemas"]["AdvertisingCodeValidity"];
+  registration: PublicComponents["schemas"]["UserRegistrationRequest"];
+  registration_without_code: PublicComponents["schemas"]["UserRegistrationRequest"];
+  external_start: PublicComponents["schemas"]["ExternalIdentityStartRequest"];
+  external_new_user: PublicComponents["schemas"]["ExternalIdentitySession"];
+});
+
 export const PUBLIC_AUTH_FIXTURE = Object.freeze({
   anonymous_session: {
     authenticated: false,
