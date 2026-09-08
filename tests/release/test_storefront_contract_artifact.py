@@ -358,7 +358,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return governance
 
     def test_alpha_36_settled_ledger_rejects_republication(self):
-        with self.assertRaises(artifact.ArtifactError):
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
             artifact.pending_candidate(ROOT)
         released = self.governance()['latest_immutable']
         self.assertEqual(released['source_commit'], 'aa5049f7efa63e9cff67b10d93e768b4006b0c09')
