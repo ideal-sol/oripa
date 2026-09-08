@@ -8,6 +8,8 @@
 - Backend focused初回40 testsでTrimStringsの空白／改行とfixture mass-assignmentの3問題を検出・修正。再検証112 tests／952 assertions PASS。Client 34 tests／typecheck／lint／build／drift PASS、OpenAPI15 tests、Release48 tests、Policy206 tests、DB45 tests PASS。追加の実DB lock競合／rollbackとfull suite、final-head Required Checks／fresh review／merge／API activation／Artifact publication結果はPR closeoutへ別途固定する。Migrationの隔離DB re-create時のfunction再作成はCREATE OR REPLACEで既存guard強度を保ち修正した。
 - 004B仕様は[Platform handoff](../docs/operations/reporting/agency-attribution.md)へ固定。30-day Last Click、valid A→BはB、invalidならA維持、code-less維持、expired候補なし、停止Code新規保存なし、既存User attributionなし。Cookie consent UI／banner／popup／button／alert／CMPすべて0。Storefront query key未決定。Real Provider／Payment／SMS／External Mail／Shared Preview User registration mutationは0。Human Browser Acceptanceは004AではNOT REQUIRED。
 
+- Full Suite初回は683 testsで2件FAIL（rollback testの全User数0仮定、PostgreSQL統計snapshot固定）。前者は開始時件数との差分と作成対象User不存在を検証し、既存fixtureに依存しない厳密なrollback assertionへ修正。後者はlock待機観測前に統計snapshotをclearし、実row lock待機を確認する。final focused44 tests／293 assertionsはPASS、修正後headでFull SuiteとCIを再実行する。
+
 ## AGENCY-003 Agency User And Sales Aggregation
 
 - Issue `none`、Branch `feat/AGENCY-003-agency-aggregation`、通常Worktree、Base `ac2d28fded9bbeb69f0da1ad57f6d0a7840de8b8`、Risk `R3`、Lane `Strict Change`、Activation `immediate`。開始時のlocal main／origin/main／live protected mainはBaseと一致しclean。旧Shared Preview API/Admin/Agency Sourceは`4dd41154d69cb1bbc3f90812d3e13f19f73a3c6d`、Migration `000074`／pending 0。GitHub App transport用exact-path transient Task Policyを使用し、並行作業・Source Lock・専用Worktreeは不要。

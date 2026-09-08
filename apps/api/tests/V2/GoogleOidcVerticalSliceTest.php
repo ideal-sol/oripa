@@ -190,23 +190,28 @@ final class GoogleOidcVerticalSliceTest extends TestCase
 
     public function test_external_attribution_and_user_roll_back_when_completion_fails(): void
     {
+        $userCount = User::count();
+        $attributionCount = DB::table('user_advertising_attributions')->count();
+        $accountCount = ExternalIdentityAccount::count();
         $this->advertisingAgency();
         $started = $this->start('login', advertisingCode: 'Ab12Cd34');
         $this->provider->issue($started['nonce'], 'rollback-subject', 'rollback@example.test');
         $this->mock(\App\Domain\Identity\Contracts\V2SecurityEventSink::class)
-            ->shouldReceive('record')->andReturnUsing(function (string $event): void {
+            ->shouldReceive('record')->andReturnUsing(function (string $event) use ($userCount, $attributionCount): void {
                 if ($event === 'external_user_created') {
                     self::assertGreaterThan(1, DB::transactionLevel());
-                    self::assertSame(1, DB::table('user_advertising_attributions')->count());
+                    self::assertSame($userCount + 1, User::count());
+                    self::assertSame($attributionCount + 1, DB::table('user_advertising_attributions')->count());
                     throw new \RuntimeException('Synthetic completion failure');
                 }
             });
         $this->expectAuthenticationCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
             fn () => app(V2ExternalIdentityService::class)->callback($started['state'], 'rollback-code',
                 $started['binding'], $this->callbackUrl, '192.0.2.10', $this->callbackRequest($started['binding'])));
-        self::assertSame(0, User::count());
-        self::assertSame(0, DB::table('user_advertising_attributions')->count());
-        self::assertSame(0, ExternalIdentityAccount::count());
+        self::assertSame($userCount, User::count());
+        self::assertSame($attributionCount, DB::table('user_advertising_attributions')->count());
+        self::assertSame($accountCount, ExternalIdentityAccount::count());
+        self::assertDatabaseMissing('users', ['email_normalized' => 'rollback@example.test']);
     }
 
     public function test_http_external_start_keeps_candidate_exact_and_out_of_provider_url(): void
