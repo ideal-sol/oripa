@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7b9ae61eeb14563ffa592427d0e407dcf646972d2a06151ada2fb8419e8ba9fe
+// Contract SHA-256: 8ba2d31631e80ea870add14a3ff6fd493f460c24a1ad95d94b02c63634f0fe55
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -41,6 +41,12 @@ export type AdminRole = "owner" | "admin" | "operator";
 export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshAuthenticationMethod = "password" | "totp" | "webauthn";
+
+export interface AgencyAggregatePeriod { start_date: string; end_date: string; timezone: "Asia/Tokyo"; }
+export interface AdminAgencyUserAggregateRow { company_name: string; advertising_code: string; temporary_users: number; full_users: number; }
+export interface AdminAgencySalesAggregateRow { company_name: string; advertising_code: string; temporary_paying_users: number; temporary_amount: number; full_paying_users: number; full_amount: number; }
+export interface AdminAgencyUserAggregate { items: AdminAgencyUserAggregateRow[]; period: AgencyAggregatePeriod; next_cursor: string | null; }
+export interface AdminAgencySalesAggregate { items: AdminAgencySalesAggregateRow[]; period: AgencyAggregatePeriod; next_cursor: string | null; }
 
 export interface AdminAgencyInput {
   company_name: string;

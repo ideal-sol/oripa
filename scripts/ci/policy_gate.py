@@ -941,6 +941,13 @@ AGENCY_001_ADMIN_SKELETON_FILES = {
 }
 
 ADMIN_SKELETON_FILES = {
+    "apps/admin/src/app/agencies/aggregates/users/page.tsx",
+    "apps/admin/src/app/agencies/aggregates/sales/page.tsx",
+    "apps/admin/src/components/agencies/agency-aggregate-table.tsx",
+    "apps/admin/src/components/agencies/agency-aggregate-workspace.tsx",
+    "apps/admin/src/lib/format/jpy.ts",
+    "apps/admin/test/agency-aggregation.test.tsx",
+    "apps/admin/e2e/agency-aggregation.spec.ts",
     *AGENCY_001_ADMIN_SKELETON_FILES,
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",

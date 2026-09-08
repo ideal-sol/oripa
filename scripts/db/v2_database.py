@@ -581,7 +581,7 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
 
 def task_marker(task_id: str) -> str:
     marker = re.sub(r"[^a-z0-9]+", "", task_id.lower())
-    if not re.fullmatch(r"(?:mig[0-9]{3}[a-z]?|agency00[12])", marker):
+    if not re.fullmatch(r"(?:mig[0-9]{3}[a-z]?|agency00[123])", marker):
         raise GuardFailure("Task ID marker is invalid")
     return marker
 

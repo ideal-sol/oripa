@@ -22,8 +22,9 @@ class V2DatabaseGuardTest(unittest.TestCase):
     def test_agency_task_marker_keeps_existing_isolation_checks(self):
         self.assertEqual(v2_database.task_marker("AGENCY-001"), "agency001")
         self.assertEqual(v2_database.task_marker("AGENCY-002"), "agency002")
+        self.assertEqual(v2_database.task_marker("AGENCY-003"), "agency003")
         self.assertEqual(v2_database.task_marker("MIG-073"), "mig073")
-        for task in ("AGENCY-003", "production", "AGENCY-001-extra"):
+        for task in ("AGENCY-004", "production", "AGENCY-001-extra", "AGENCY-003-extra"):
             with self.assertRaises(v2_database.GuardFailure):
                 v2_database.task_marker(task)
 

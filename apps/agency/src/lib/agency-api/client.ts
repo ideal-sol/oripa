@@ -1,4 +1,5 @@
 import { operations, type AgencyContact, type AgencyEmailChange, type AgencyLogin, type AgencyPasswordChange, type AgencyProfileResponse, type AgencySession } from "./generated";
+import type { AgencyUserAggregate, AgencySalesAggregate } from "./generated";
 
 export class AgencyApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -6,10 +7,11 @@ export class AgencyApiError extends Error {
   }
 }
 
-async function request<Result>(operation: keyof typeof operations, input?: unknown): Promise<Result> {
+async function request<Result>(operation: keyof typeof operations, input?: unknown, query?: Record<string, string>, signal?: AbortSignal): Promise<Result> {
   const { path, method } = operations[operation];
   const csrf = document.cookie.split("; ").find(value => value.startsWith("__Host-oripa_agency_xsrf="))?.split("=")[1];
-  const response = await fetch(path, {
+  const response = await fetch(query ? `${path}?${new URLSearchParams(query)}` : path, {
+    signal,
     method, credentials: "same-origin", cache: "no-store",
     headers: { Accept: "application/json", ...(method === "GET" ? {} : { "Content-Type": "application/json", "X-XSRF-TOKEN": csrf ?? "" }) },
     ...(method === "GET" ? {} : { body: JSON.stringify(input ?? {}) }),
@@ -22,6 +24,8 @@ async function request<Result>(operation: keyof typeof operations, input?: unkno
 }
 
 export const agencyApi = {
+  userAggregate: (query: Record<string, string>, signal?: AbortSignal) => request<AgencyUserAggregate>("getAgencyUserAggregate", undefined, query, signal),
+  salesAggregate: (query: Record<string, string>, signal?: AbortSignal) => request<AgencySalesAggregate>("getAgencySalesAggregate", undefined, query, signal),
   session: () => request<AgencySession>("agencySession"),
   login: (input: AgencyLogin) => request<AgencyProfileResponse>("agencyLogin", input),
   profile: () => request<AgencyProfileResponse>("agencyProfile"),

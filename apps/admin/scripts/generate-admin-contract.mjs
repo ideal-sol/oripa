@@ -12,6 +12,8 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminAgencyUserAggregate: ["get", "/agencies/aggregates/users"],
+  getAdminAgencySalesAggregate: ["get", "/agencies/aggregates/sales"],
   listAdminAgencies: ["get", "/agencies"],
   createAdminAgency: ["post", "/agencies"],
   issueAdminAgencyIdentifiers: ["post", "/agencies/issuance"],
@@ -404,6 +406,11 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
   "AdminAgency",
+  "AgencyAggregatePeriod",
+  "AdminAgencyUserAggregateRow",
+  "AdminAgencySalesAggregateRow",
+  "AdminAgencyUserAggregate",
+  "AdminAgencySalesAggregate",
   "AdminAgencyDraft",
   "AdminAgencyCreate",
   "AdminAgencyUpdate",
@@ -651,6 +658,12 @@ export type AdminRole = "owner" | "admin" | "operator";
 export type AdminPermissionCode = (typeof ADMIN_PERMISSION_CODES)[number];
 export type AdminMfaMethod = "totp" | "webauthn" | "recovery_code";
 export type AdminFreshAuthenticationMethod = "password" | "totp" | "webauthn";
+
+export interface AgencyAggregatePeriod { start_date: string; end_date: string; timezone: "Asia/Tokyo"; }
+export interface AdminAgencyUserAggregateRow { company_name: string; advertising_code: string; temporary_users: number; full_users: number; }
+export interface AdminAgencySalesAggregateRow { company_name: string; advertising_code: string; temporary_paying_users: number; temporary_amount: number; full_paying_users: number; full_amount: number; }
+export interface AdminAgencyUserAggregate { items: AdminAgencyUserAggregateRow[]; period: AgencyAggregatePeriod; next_cursor: string | null; }
+export interface AdminAgencySalesAggregate { items: AdminAgencySalesAggregateRow[]; period: AgencyAggregatePeriod; next_cursor: string | null; }
 
 export interface AdminAgencyInput {
   company_name: string;

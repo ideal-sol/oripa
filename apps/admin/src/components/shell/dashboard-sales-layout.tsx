@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Download, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import { jpy } from "../../lib/format/jpy";
 
 import type {
   AdminDashboardDailyPoints,
@@ -28,11 +29,7 @@ const salesViews: { id: DashboardSalesView; label: string }[] = [
 ];
 
 const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-const currency = new Intl.NumberFormat("ja-JP", {
-  currency: "JPY",
-  maximumFractionDigits: 0,
-  style: "currency",
-});
+const currency = jpy;
 const number = new Intl.NumberFormat("ja-JP");
 const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
   dateStyle: "medium",

@@ -1,3 +1,16 @@
+## AGENCY-003 Agency User And Sales Aggregation
+
+- Issue `none`、Branch `feat/AGENCY-003-agency-aggregation`、通常Worktree、Base `ac2d28fded9bbeb69f0da1ad57f6d0a7840de8b8`、Risk `R3`、Lane `Strict Change`、Activation `immediate`。開始時のlocal main／origin/main／live protected mainはBaseと一致しclean。旧Shared Preview API/Admin/Agency Sourceは`4dd41154d69cb1bbc3f90812d3e13f19f73a3c6d`、Migration `000074`／pending 0。GitHub App transport用exact-path transient Task Policyを使用し、並行作業・Source Lock・専用Worktreeは不要。
+- AdminとAgencyへUser／Sales集計の計4画面を追加。Userは`users.created_at`、Salesはcanonical succeeded Paymentの`succeeded_at`で独立集計。現在のactive verified SMSで本登録、Email verifiedかつSMSなしで仮登録、未分類は除外。過去snapshot・Attribution書込みは追加しない。
+- Refundは`refund/succeeded`をPayment単位に先行SUMし、元Payment成功期間から控除する。Chargeback控除0、全額返金でもunique payer countを維持。広告Codeを基準にLEFT JOINし、0件Codeと停止AgencyのAdmin履歴を保持。既存Agency Guard／Sessionのinternal identityだけから自社Scopeを決定し、query/body識別子は422、集計responseの個別User/Payment ID・PII・Admin memoは0。
+- 既存`V2ReportingPeriod`のAsia/Tokyo当月／任意期間を再利用。終了日を含みDBはUTC offset付き`[start, next-day-end)`比較。初回境界testでCarbon bindingのoffset脱落を検出し、既存Reportingと同じ`toIso8601String()`へ修正した。UI初期値もAPIのcanonical期間を使う。既存opaque cursorによるCode ID昇順、50件既定／100件上限、各集計1 query。
+- 既存IndexとShared Preview volumeをread-onlyで確認。attributionのUser PK、Code agency/ID、SMS user unique、Payment status/succeeded_atとuser、Adjustment paymentとtype/statusを使用可能。Attribution code／users.created_at専用Indexは未作成だが現在volumeとisolated EXPLAINで追加必要性なし。Migration追加0、隔離DBへ既存74本を適用、Preview／Production migration apply 0。
+- Backend Agency／Reporting focusedは31 tests／467 assertions PASS。A/B/Cの9月User 2/0、Sales仮1人4000円／本1人4000円、SMS移動後1/1と本2人8000円、全額返金payer維持、複数返金、非成功状態、chargeback、境界日・閏日、Operator閲覧、Realm隔離を検証。EXPLAIN ANALYZEで28 Codeを1 query、User 0.775ms／Sales 1.078ms（隔離fixture）を実測。SQL helperの既存exact allowlistへAGENCY-003を追加、未承認ID拒否を維持した。
+- Admin／Agency OpenAPIと各bundle／generated clientを更新。OpenAPI 13 tests、Agency frontend 11 tests、DB helper 45 tests、Policy 206 testsをPASS。Admin全Suite初回はNavigation期待値差分1件と並行検証時のUI timing failure 2件を検出し、Navigation期待値を新仕様へ更新、timingはassertionを変更せずfocused rerunで確認する。Admin新規画面の既存exact skeleton登録、Agency Dockerfileへの共通表示部品COPYだけを必要なCI/Build接続として追加した。
+- Storefront／Public OpenAPI／Webhook／Provider／SMS／Agency auth・本人設定仕様／Attribution hook／Graph・CSV・Commission／ProductionはScope外。実Provider request、Coin mutation、Payment/Refund QA mutation、外部Mail、SMSは0。Build、Browser、Required Checks、fresh review、Merge、Shared Preview ActivationとTechnical Acceptanceは完了後PR closeoutへ記録し、Human Browser AcceptanceはPENDINGを維持する。Rollbackは従前の互換API/Admin/Agency imageへ戻す。
+
+- Final local確認でAdmin／Agency typecheck・lint・Build、OpenAPI bundle/drift、両generated drift、policy／qualityをPASS。Frontend初回失敗3項目はfocused再実行14 tests PASSで解消、assertion／timeout緩和0。Admin Chromium E2E 1件、Agency Chromium mock flowもdesktop/mobile・期間Filter・自社列・Error/Empty・teal・overflow 0・pageerror 0・500/502/504=0を確認した。Shared Preview実認証Technical AcceptanceとRequired ChecksはMerge/Activation工程のPR evidenceで別途確定する。
+
 # MIG-062F バナー公開URL修正
 
 - Base `f66209549dfc9c8fae4acaa51645710040694d1c`からIssue #237、Branch `fix/MIG-062F-banner-public-url`、Risk R3で開始した。

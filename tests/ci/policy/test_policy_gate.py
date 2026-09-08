@@ -20,6 +20,19 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_agency_003_admin_paths_are_registered_exactly(self):
+        expected = {
+            "apps/admin/src/app/agencies/aggregates/users/page.tsx",
+            "apps/admin/src/app/agencies/aggregates/sales/page.tsx",
+            "apps/admin/src/components/agencies/agency-aggregate-table.tsx",
+            "apps/admin/src/components/agencies/agency-aggregate-workspace.tsx",
+            "apps/admin/src/lib/format/jpy.ts",
+            "apps/admin/test/agency-aggregation.test.tsx",
+            "apps/admin/e2e/agency-aggregation.spec.ts",
+        }
+        self.assertTrue(expected <= policy_gate.ADMIN_SKELETON_FILES)
+        self.assertNotIn("apps/admin/src/app/agencies/aggregates/export/page.tsx", policy_gate.ADMIN_SKELETON_FILES)
+
     def test_agency_001_admin_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/e2e/agency-management.spec.ts",

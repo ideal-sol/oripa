@@ -14,14 +14,14 @@ const agency = { id: "synthetic", company_name: "QA Company", contact_name: "QA 
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(agencyApi.session).mockResolvedValue({ authenticated: true, agency }); });
 
 describe("Agency Portal", () => {
-  it("shows loading, authenticated Admin layout and own profile without deferred navigation", async () => {
+  it("shows loading, authenticated Admin layout and own profile with aggregation navigation", async () => {
     const { container } = render(<AgencyPortal />);
     expect(screen.getByRole("status")).toHaveTextContent("読み込み中");
     expect(await screen.findByText("QA Company")).toBeVisible();
     expect(container.querySelector(".admin-shell.agency-shell .admin-sidebar")).toBeTruthy();
     expect(screen.getAllByText("代理店管理").length).toBeGreaterThan(0);
-    expect(screen.queryByText("売上集計")).toBeNull();
-    expect(screen.queryByText("ユーザー集計")).toBeNull();
+    expect(screen.getByRole("link", { name: "売上集計" })).toHaveAttribute("href", "/aggregates/sales");
+    expect(screen.getByRole("link", { name: "ユーザー集計" })).toHaveAttribute("href", "/aggregates/users");
   });
 
   it("logs in and shows generic error", async () => {

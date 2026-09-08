@@ -1,5 +1,7 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminAgencyUserAggregate,
+  type AdminAgencySalesAggregate,
   type AdminEffectivePermissions,
   type AdminDashboardDailyPoints,
   type AdminDashboardDailySales,
@@ -519,6 +521,14 @@ export class AdminApiClient {
     const query = new URLSearchParams({ limit: "50" });
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/agencies?${query}`, { signal });
+  }
+
+  agencyUserAggregate(query: Record<string, string>, signal?: AbortSignal): Promise<AdminAgencyUserAggregate> {
+    return this.request("GET", `/agencies/aggregates/users?${new URLSearchParams(query)}`, { signal });
+  }
+
+  agencySalesAggregate(query: Record<string, string>, signal?: AbortSignal): Promise<AdminAgencySalesAggregate> {
+    return this.request("GET", `/agencies/aggregates/sales?${new URLSearchParams(query)}`, { signal });
   }
 
   getAgency(agencyId: string, signal?: AbortSignal): Promise<AdminAgencyResponse> {

@@ -60,7 +60,7 @@ describe("Admin sidebar hierarchy", () => {
     expect(topLevel).toEqual([
       "ダッシュボード",
       expect.stringContaining("ユーザー"),
-      "代理店",
+      expect.stringContaining("代理店管理"),
       expect.stringContaining("ガチャ"),
       expect.stringContaining("決済"),
       expect.stringContaining("配送"),
@@ -73,6 +73,7 @@ describe("Admin sidebar hierarchy", () => {
     ]);
 
     const expectedChildren = new Map([
+      ["代理店管理", ["代理店一覧", "ユーザー集計", "売上集計"]],
       ["ユーザー", ["一覧", "会員タグ", "履歴"]],
       ["ガチャ", ["一覧", "登録", "シミュレーション", "カテゴリ", "タグ", "履歴"]],
       ["決済", ["決済状況"]],
