@@ -74,6 +74,26 @@ are recorded separately from Source merge. No Storefront pin is changed.
 
 ## AGENCY-004B locked handoff
 
+Publication completed from Source PR [#475](https://github.com/ideal-sol/oripa/pull/475),
+reviewed head `80f589fad90b9d8a61220792f84a390aaa0901f4`, squash
+`aa5049f7efa63e9cff67b10d93e768b4006b0c09`. Immutable bundle is
+`2.0.0-alpha.36`, Artifact `10041438541`, canonical workflow
+`34188731627`. Outer SHA-256:
+`5e6dba27ce3745bbbec27d662f2e271dafec63eded0c0f5d11788b69c7298e2e`.
+Manifest SHA-256:
+`101ec49daf4e30bcd2fecd10e3314d96604bd86ea0f6029de4b5fc2bf0a39292`.
+REL-036 records verified publication metadata and clears the candidate. No
+package is rebuilt or republished by reconciliation.
+
+Old Shared Preview API runs the reviewed head above. Migration `000075` is
+applied with pending 0. Active/suspended/invalid validation, health and the
+code-less registration validation boundary pass without creating a User or
+sending mail. The existing configured Origin and CSRF boundary are unchanged;
+technical HTTP checks use that configured Origin against the Preview API only.
+Final isolated V2 suite: 684 tests / 7191 assertions PASS, 10 existing opt-in
+load/performance skips. Final attribution/Google/race focus: 44 / 295 PASS.
+Admin, Agency and Storefront activations remain 0.
+
 Cookie and URL parsing remain unimplemented here. AGENCY-004B chooses the URL
 query key from Storefront source and consumes the published immutable bundle.
 
