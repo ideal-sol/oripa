@@ -2,6 +2,8 @@ import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 
 export type AdminRouteId =
   | "agencies"
+  | "agency-users"
+  | "agency-sales"
   | "dashboard"
   | "users-list"
   | "users-history"
@@ -36,6 +38,7 @@ export type AdminRouteId =
   | "authentication-settings";
 
 export type AdminNavigationGroupId =
+  | "agencies"
   | "users"
   | "gacha"
   | "payment"
@@ -87,7 +90,9 @@ export interface AdminNavigationGroup {
 export type AdminNavigationNode = AdminNavigationItem | AdminNavigationGroup;
 
 const ADMIN_ROUTE_ITEMS = validateRoutes([
-  route("agencies", "代理店", "/agencies", "agency.read", "users", "available"),
+  route("agencies", "代理店一覧", "/agencies", "agency.read", "users", "available"),
+  route("agency-users", "ユーザー集計", "/agencies/aggregates/users", "agency.read", "reports", "available", "none"),
+  route("agency-sales", "売上集計", "/agencies/aggregates/sales", "agency.read", "reports", "available", "none"),
   route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
   route("users-list", "一覧", "/users", null, "users", "available", "none"),
   route("users-tags", "会員タグ", "/users/tags", "user.tag.read", "users", "available"),
@@ -129,7 +134,7 @@ const ROUTES_BY_ID = new Map(ADMIN_ROUTE_ITEMS.map((item) => [item.id, item]));
 export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigation([
   navigationItem("dashboard"),
   group("users", "ユーザー", "users", ["users-list", "users-tags", "users-history"]),
-  navigationItem("agencies"),
+  group("agencies", "代理店管理", "users", ["agencies", "agency-users", "agency-sales"]),
   group("gacha", "ガチャ", "gacha", [
     "gachas",
     "gachas-create",

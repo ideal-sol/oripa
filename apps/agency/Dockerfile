@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile
 COPY apps/agency apps/agency
 COPY apps/admin/src/app/globals.css apps/admin/src/app/globals.css
 COPY apps/admin/src/components/shell/admin-page-header.tsx apps/admin/src/components/shell/admin-page-header.tsx
+COPY apps/admin/src/components/agencies/agency-aggregate-table.tsx apps/admin/src/components/agencies/agency-aggregate-table.tsx
+COPY apps/admin/src/lib/format/jpy.ts apps/admin/src/lib/format/jpy.ts
 RUN pnpm --filter @oripa/agency build
 
 FROM node:22.22.3-alpine@sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd AS production

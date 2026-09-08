@@ -3,7 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 import { AdminPageHeader } from "../../../admin/src/components/shell/admin-page-header";
+import { AgencyAggregateTable } from "../../../admin/src/components/agencies/agency-aggregate-table";
 import { agencyApi, AgencyApiError } from "../lib/agency-api/client";
 import type { AgencyProfile, AgencyProfileResponse } from "../lib/agency-api/generated";
 
@@ -12,7 +14,7 @@ const labels: Record<keyof Omit<AgencyProfile, "id">, string> = {
   address: "住所", login_id: "Login ID", advertising_code: "Advertising Code", status: "状態",
 };
 
-export function AgencyPortal() {
+export function AgencyPortal({ view = "account" }: { view?: "account" | "users" | "sales" }) {
   const router = useRouter();
   const [agency, setAgency] = useState<AgencyProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,11 +27,12 @@ export function AgencyPortal() {
     agencyApi.session().then(session => {
       if (!active) return;
       setAgency(session.agency);
-      router.replace(session.authenticated ? "/" : "/login");
+      if (!session.authenticated) router.replace("/login");
+      else if (view === "account") router.replace("/");
     }).catch(() => { if (active) setError("接続できませんでした。ページを再読み込みしてください。"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [router]);
+  }, [router, view]);
 
   async function submit(event: FormEvent<HTMLFormElement>, operation: string) {
     event.preventDefault();
@@ -79,10 +82,16 @@ export function AgencyPortal() {
   return <><a className="skip-link" href="#main-content">メインコンテンツへ</a><div className="admin-shell agency-shell">
     <aside className="admin-sidebar" aria-label="代理店ナビゲーション">
       <div className="sidebar-heading"><div className="sidebar-brand"><Building2 color="var(--forest)" /><span className="sidebar-brand-copy"><strong>代理店管理</strong><small>Agency Portal</small></span></div></div>
-      <nav><a className="nav-item active" href="#account" aria-current="page"><Settings size={18} />アカウント設定</a><a className="nav-item" href="#contact">担当者情報</a><a className="nav-item" href="#email">メールアドレス変更</a><a className="nav-item" href="#password">パスワード変更</a></nav>
+      <nav>
+        <Link className={`nav-item${view === "users" ? " active" : ""}`} href="/aggregates/users" aria-current={view === "users" ? "page" : undefined}>ユーザー集計</Link>
+        <Link className={`nav-item${view === "sales" ? " active" : ""}`} href="/aggregates/sales" aria-current={view === "sales" ? "page" : undefined}>売上集計</Link>
+        <Link className={`nav-item${view === "account" ? " active" : ""}`} href="/" aria-current={view === "account" ? "page" : undefined}><Settings size={18} />アカウント設定</Link>
+        {view === "account" ? <><a className="nav-item" href="#contact">担当者情報</a><a className="nav-item" href="#email">メールアドレス変更</a><a className="nav-item" href="#password">パスワード変更</a></> : null}
+      </nav>
     </aside><div className="admin-shell-body"><header className="admin-header"><span className="agency-identifier">代理店管理</span><button type="button" className="icon-button agency-logout" disabled={busy} onClick={logout}><LogOut size={18} />ログアウト</button></header>
     <main id="main-content" className="admin-main"><div className="workspace">
-      <nav aria-label="パンくず"><ol className="breadcrumb"><li>ホーム / アカウント設定</li></ol></nav>
+      <nav aria-label="パンくず"><ol className="breadcrumb"><li>ホーム / {view === "account" ? "アカウント設定" : view === "users" ? "ユーザー集計" : "売上集計"}</li></ol></nav>
+      {view !== "account" ? <>{messages}<AgencyAggregateTable key={view} kind={view} load={view === "users" ? agencyApi.userAggregate : agencyApi.salesAggregate} /></> : <>
       <AdminPageHeader eyebrow="AGENCY PORTAL" title="アカウント設定" description="自社情報の確認と担当者・ログイン情報の変更ができます。" />{messages}
       <section id="account" className="agency-card"><h2>自社情報</h2><dl className="agency-profile">{Object.entries(labels).map(([key, label]) => <ProfileField key={key} label={label} value={key === "status" ? "有効" : agency[key as keyof AgencyProfile]} />)}</dl></section>
       <section id="contact" className="agency-card"><h2>担当者情報</h2><form key={agency.contact_name + agency.phone} aria-label="担当者情報" className="agency-form" onSubmit={event => submit(event, "contact")}>
@@ -101,6 +110,7 @@ export function AgencyPortal() {
         <label>新しいパスワード（確認）<input name="password_confirmation" type="password" autoComplete="new-password" required /></label>
         <button className="agency-primary" disabled={busy}>パスワードを変更</button>
       </form></section>
+      </>}
     </div></main></div>
   </div></>;
 }

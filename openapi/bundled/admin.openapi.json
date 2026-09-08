@@ -17,6 +17,154 @@
     }
   ],
   "paths": {
+    "/agencies/aggregates/users": {
+      "get": {
+        "operationId": "getAdminAgencyUserAggregate",
+        "summary": "本登録・仮登録ユーザー集計",
+        "description": "期間省略時はAsia/Tokyoの当月。monthまたはstart_dateとend_date（両端の日を含む）を指定し、DBはUTCの[start,翌日end)で比較。未知のquery/body fieldは422。現在のactive verified SMSが本登録、メール認証済みかつSMSなしが仮登録。未分類は除外。広告コードID昇順のcursor pagination。0件コードも残す。users.created_atで登録期間を判定。Owner/Admin/Operatorのagency.read。停止代理店も含む。",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "集計値のみ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAgencyUserAggregate"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/agencies/aggregates/sales": {
+      "get": {
+        "operationId": "getAdminAgencySalesAggregate",
+        "summary": "広告コード別売上集計",
+        "description": "期間省略時はAsia/Tokyoの当月。monthまたはstart_dateとend_date（両端の日を含む）を指定し、DBはUTCの[start,翌日end)で比較。未知のquery/body fieldは422。現在のactive verified SMSが本登録、メール認証済みかつSMSなしが仮登録。未分類は除外。広告コードID昇順のcursor pagination。0件コードも残す。payments.status=succeededかつsucceeded_atで対象を判定し登録日は条件にしない。課金人数はunique user_idで全額返金後も残る。refund/typeかつsucceeded/statusの金額をPaymentごとに先に合算し、返金日に関係なく元Payment期間から控除。chargebackは控除しない。Owner/Admin/Operatorのagency.read。停止代理店も含む。",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "集計値のみ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAgencySalesAggregate"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/agencies": {
       "get": {
         "operationId": "listAdminAgencies",
@@ -10577,6 +10725,145 @@
       }
     },
     "schemas": {
+      "AgencyAggregatePeriod": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_date",
+          "end_date",
+          "timezone"
+        ],
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Tokyo"
+          }
+        }
+      },
+      "AdminAgencyUserAggregateRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "company_name",
+          "advertising_code",
+          "temporary_users",
+          "full_users"
+        ],
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "advertising_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{8}$"
+          },
+          "temporary_users": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "full_users": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminAgencyUserAggregate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "period",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAgencyUserAggregateRow"
+            }
+          },
+          "period": {
+            "$ref": "#/components/schemas/AgencyAggregatePeriod"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminAgencySalesAggregateRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "company_name",
+          "advertising_code",
+          "temporary_paying_users",
+          "temporary_amount",
+          "full_paying_users",
+          "full_amount"
+        ],
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "advertising_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{8}$"
+          },
+          "temporary_paying_users": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "temporary_amount": {
+            "type": "integer",
+            "description": "JPY。元Paymentに紐づく確定refundのみ控除。"
+          },
+          "full_paying_users": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "full_amount": {
+            "type": "integer",
+            "description": "JPY。元Paymentに紐づく確定refundのみ控除。"
+          }
+        }
+      },
+      "AdminAgencySalesAggregate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "period",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAgencySalesAggregateRow"
+            }
+          },
+          "period": {
+            "$ref": "#/components/schemas/AgencyAggregatePeriod"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminPaymentMethod": {
         "enum": [
           "credit_card",

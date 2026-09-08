@@ -1,4 +1,9 @@
-export const contractSha256 = "0451b9b320a27df893634f0b1e47c59c7b7bd521b6e70fc9d8f094d2d1dfac60";
+export const contractSha256 = "9fc4776d7dca09ca4cc31e8253940817990b4571fc3fbbb9948c41818705aea1";
+export type AgencyAggregatePeriod = { "start_date": string; "end_date": string; "timezone": "Asia/Tokyo" };
+export type AgencyUserAggregateRow = { "advertising_code": string; "temporary_users": number; "full_users": number };
+export type AgencyUserAggregate = { "items": (AgencyUserAggregateRow)[]; "period": AgencyAggregatePeriod; "next_cursor": string | null };
+export type AgencySalesAggregateRow = { "advertising_code": string; "temporary_paying_users": number; "temporary_amount": number; "full_paying_users": number; "full_amount": number };
+export type AgencySalesAggregate = { "items": (AgencySalesAggregateRow)[]; "period": AgencyAggregatePeriod; "next_cursor": string | null };
 export type OpaqueId = string;
 export type SemanticVersion = string;
 export type UtcDateTime = string;
@@ -14,6 +19,14 @@ export type AgencyProfileResponse = { "data": AgencyProfile };
 export type AgencyLogout = { "status": "logged_out" };
 export type ValidationErrors = {  };
 export const operations = {
+  "getAgencyUserAggregate": {
+    "path": "/agency/api/v2/aggregates/users",
+    "method": "GET"
+  },
+  "getAgencySalesAggregate": {
+    "path": "/agency/api/v2/aggregates/sales",
+    "method": "GET"
+  },
   "agencySession": {
     "path": "/agency/api/v2/auth/session",
     "method": "GET"

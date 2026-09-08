@@ -109,6 +109,8 @@ Route::prefix('v2')
         Route::get('/agencies', [V2AdminAgencyController::class, 'index'])->name('v2.admin.agencies.index');
         Route::post('/agencies', [V2AdminAgencyController::class, 'store'])->name('v2.admin.agencies.store');
         Route::post('/agencies/issuance', [V2AdminAgencyController::class, 'issue'])->name('v2.admin.agencies.issuance');
+        Route::get('/agencies/aggregates/users', [\App\Http\Controllers\V2\V2AgencyAggregationController::class, 'adminUsers']);
+        Route::get('/agencies/aggregates/sales', [\App\Http\Controllers\V2\V2AgencyAggregationController::class, 'adminSales']);
         Route::get('/agencies/{agencyId}', [V2AdminAgencyController::class, 'show'])->whereUuid('agencyId')->name('v2.admin.agencies.show');
         Route::put('/agencies/{agencyId}', [V2AdminAgencyController::class, 'update'])->whereUuid('agencyId')->name('v2.admin.agencies.update');
         Route::post('/agencies/{agencyId}/suspend', [V2AdminAgencyController::class, 'suspend'])->whereUuid('agencyId')->name('v2.admin.agencies.suspend');
