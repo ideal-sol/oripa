@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trimStrings(except: ['advertising_code']);
         $middleware->redirectGuestsTo(fn ($request) => null);
         $middleware->alias([
             'v2.browser' => EnforceV2BrowserSecurity::class,

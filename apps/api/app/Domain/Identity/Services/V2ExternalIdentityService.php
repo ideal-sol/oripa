@@ -36,7 +36,8 @@ final class V2ExternalIdentityService
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2OutboxService $outbox,
         private readonly V2SecurityEventSink $events,
-        private readonly V2LineFriendService $lineFriends
+        private readonly V2LineFriendService $lineFriends,
+        private readonly V2AgencyAttributionService $attributions
     ) {
     }
 
@@ -72,7 +73,8 @@ final class V2ExternalIdentityService
         string $ip,
         string $requestId,
         ?User $user,
-        Request $request
+        Request $request,
+        mixed $advertisingCode = null
     ): array {
         if (! in_array($purpose, ['login', 'link', 'reauthentication'], true)) {
             throw $this->invalidRequest();
@@ -142,6 +144,8 @@ final class V2ExternalIdentityService
             'state_hash' => $this->tokens->hash($state),
             'nonce_hash' => $this->tokens->hash($nonce),
             'code_verifier_ciphertext' => Crypt::encryptString($verifier),
+            'advertising_code_candidate' => $purpose === 'login'
+                ? $this->attributions->candidate($advertisingCode) : null,
             'browser_binding_hash' => $this->tokens->hash($binding),
             'user_id' => $user?->getKey(),
             'user_session_hash' => $sessionHash,
@@ -664,6 +668,7 @@ final class V2ExternalIdentityService
             'password_login_enabled' => false,
             'state' => V2UserState::Active,
         ]);
+        $this->attributions->attributeNewUserFromAdvertisingCode($user, $transaction->advertising_code_candidate);
         $account = ExternalIdentityAccount::query()->create([
             'user_id' => $user->getKey(),
             'provider' => $provider->code(),

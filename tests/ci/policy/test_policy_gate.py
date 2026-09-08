@@ -1,3 +1,4 @@
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -800,8 +801,13 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_storefront_release_governance_accepts_alpha_35_candidate(self):
+    def test_storefront_release_governance_accepts_alpha_36_preserving_alpha_34_history(self):
         value = policy_gate.storefront_release_governance(ROOT)
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.35')
+        self.assertEqual(value['latest_immutable']['source_commit'], '7942268281450257dcb76f38c8be8743b1c66be6')
+        value = copy.deepcopy(value)
+        value['immutable_history'].pop()
+        value['latest_immutable'] = value['immutable_history'][-1]
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["latest_immutable"]["handoff_status"], "released")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-breaking")
@@ -809,7 +815,7 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(value["immutable_history"][-3]["bundle_version"], "2.0.0-alpha.32")
         self.assertEqual(value["immutable_history"][-3]["handoff_status"], "retired")
-        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.35")
+        self.assertEqual(value["candidate"]["bundle_version"], "2.0.0-alpha.36")
         self.assertEqual(value["candidate"]["release_state"], "pending")
         self.assertEqual(value["candidate"]["release_mode"], "contract-additive")
         self.assertFalse(value["candidate"]["breaking_change"])
@@ -2997,7 +3003,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.35",
+                    "version": "2.0.0-alpha.36",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3035,7 +3041,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.31",
+                        "minimumPublicApiContract": "2.0.0-alpha.32",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -3372,8 +3378,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
+                    "operation_count: 76",
                     "operation_count: 75",
-                    "operation_count: 74",
                 ),
                 encoding="utf-8",
             )

@@ -25,7 +25,8 @@ final class V2UserAuthenticationService
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2SessionManager $sessions,
         private readonly V2SecurityEventSink $events,
-        private readonly V2TemplateMailDeliveryService $templateMail
+        private readonly V2TemplateMailDeliveryService $templateMail,
+        private readonly V2AgencyAttributionService $attributions
     ) {
     }
 
@@ -33,7 +34,8 @@ final class V2UserAuthenticationService
         string $email,
         #[SensitiveParameter] string $password,
         string $redirectPath,
-        string $ip
+        string $ip,
+        mixed $advertisingCode = null
     ): User {
         $normalized = $this->emails->normalize($email);
         $this->assertRedirectAllowed($redirectPath);
@@ -54,7 +56,8 @@ final class V2UserAuthenticationService
             $email,
             $normalized,
             $passwordHash,
-            $redirectPath
+            $redirectPath,
+            $advertisingCode
         ): User {
             $user = User::query()->create([
                 'email_display' => trim($email),
@@ -62,6 +65,7 @@ final class V2UserAuthenticationService
                 'password_hash' => $passwordHash,
                 'state' => V2UserState::PendingVerification,
             ]);
+            $this->attributions->attributeNewUserFromAdvertisingCode($user, $advertisingCode);
             $rawToken = $this->tokens->generate();
             $verificationCreatedAt = now()->startOfSecond();
             $verification = UserEmailVerification::query()->create([

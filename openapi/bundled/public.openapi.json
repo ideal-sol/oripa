@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.31",
+    "version": "2.0.0-alpha.32",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -1254,6 +1254,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShippingRequestDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/advertising-code-validation": {
+      "get": {
+        "operationId": "validateAdvertisingCode",
+        "summary": "Advertising Codeの現在の有効性だけを確認する",
+        "description": "Cookie保存候補の確認。登録時にPlatformが再検証し、新規UserだけへAttributionを確定する。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "advertising_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "大文字小文字を区別する候補。形式不正・不存在・停止Agencyはvalid false。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agency情報を含まない現在の有効性。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvertisingCodeValidity"
                 }
               }
             }
@@ -6922,6 +6960,22 @@
           }
         }
       },
+      "AdvertisingCodeValidity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "valid"
+        ],
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdvertisingCodeCandidate": {
+        "type": "string",
+        "description": "Optional case-sensitive ASCII alphanumeric 8-character candidate. Malformed, nonexistent or suspended Agency codes are ignored without rejecting registration. Platform revalidates during new User creation; existing Users are never attributed."
+      },
       "UserRegistrationRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -6930,6 +6984,9 @@
           "password"
         ],
         "properties": {
+          "advertising_code": {
+            "$ref": "#/components/schemas/AdvertisingCodeCandidate"
+          },
           "email": {
             "type": "string",
             "format": "email",
@@ -7393,6 +7450,9 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "advertising_code": {
+            "$ref": "#/components/schemas/AdvertisingCodeCandidate"
+          },
           "return_path": {
             "type": "string",
             "default": "/",

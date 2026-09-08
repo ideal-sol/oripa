@@ -24,6 +24,7 @@ import {
   PUBLIC_ACCOUNT_SECURITY_FIXTURE,
   PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES,
   PUBLIC_AUTH_FIXTURE,
+  PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES,
   PUBLIC_CONTACT_FIXTURE,
   PUBLIC_CONTACT_PROBLEM_FIXTURES,
   PUBLIC_CATALOG_FIXTURE,
@@ -839,9 +840,20 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
-test("Public OpenAPIは3.1.1かつCanonical Rank Assetを含むOperation 75件である", () => {
+test("Advertising fixtures keep validity minimal and new registration candidates optional", () => {
+  const fixtures = PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES;
+  assert.deepEqual(fixtures.valid, { valid: true });
+  assert.deepEqual(fixtures.invalid, { valid: false });
+  assert.deepEqual(fixtures.stopped_agency, { valid: false });
+  assert.equal(fixtures.registration.advertising_code, "Ab12Cd34");
+  assert.equal(fixtures.external_start.advertising_code, "Ab12Cd34");
+  assert.equal(Object.hasOwn(fixtures.registration_without_code, "advertising_code"), false);
+  assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
+});
+
+test("Public OpenAPIは3.1.1かつAdvertising Validationを含むOperation 76件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 75);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 76);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -916,6 +928,7 @@ test("Public OpenAPIは3.1.1かつCanonical Rank Assetを含むOperation 75件�
     "unlinkGoogleIdentity",
     "unlinkLineIdentity",
     "updateShippingAddress",
+    "validateAdvertisingCode",
     "verifySmsCode",
     "verifyUserEmail",
   ]);
@@ -1071,6 +1084,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PLATFORM_COMPATIBILITY_FIXTURE",
     "PUBLIC_ACCOUNT_SECURITY_FIXTURE",
     "PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES",
+    "PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES",
     "PUBLIC_AUTH_FIXTURE",
     "PUBLIC_CATALOG_FIXTURE",
     "PUBLIC_CONTACT_FIXTURE",

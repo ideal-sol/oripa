@@ -48,7 +48,8 @@ final class V2PublicAuthController
             $data['email'],
             $data['password'],
             $data['redirect_path'] ?? '/',
-            $request->ip() ?? 'unknown'
+            $request->ip() ?? 'unknown',
+            $request->input('advertising_code')
         );
 
         return $this->privateResponse(response()->json([
@@ -172,7 +173,8 @@ final class V2PublicAuthController
             $request->ip() ?? 'unknown',
             (string) $request->header('X-Request-ID'),
             null,
-            $request
+            $request,
+            $request->input('advertising_code')
         );
         $response = response()->json([
             'provider' => $provider,

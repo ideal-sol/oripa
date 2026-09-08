@@ -467,6 +467,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/advertising-code-validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Advertising Codeの現在の有効性だけを確認する
+         * @description Cookie保存候補の確認。登録時にPlatformが再検証し、新規UserだけへAttributionを確定する。
+         */
+        get: operations["validateAdvertisingCode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -2130,7 +2150,13 @@ export interface components {
             created_at: components["schemas"]["UtcDateTime"];
             results?: components["schemas"]["DrawResult"][];
         };
+        AdvertisingCodeValidity: {
+            valid: boolean;
+        };
+        /** @description Optional case-sensitive ASCII alphanumeric 8-character candidate. Malformed, nonexistent or suspended Agency codes are ignored without rejecting registration. Platform revalidates during new User creation; existing Users are never attributed. */
+        AdvertisingCodeCandidate: string;
         UserRegistrationRequest: {
+            advertising_code?: components["schemas"]["AdvertisingCodeCandidate"];
             /** Format: email */
             email: string;
             password: string;
@@ -2264,6 +2290,7 @@ export interface components {
             redirect_path?: string;
         };
         ExternalIdentityStartRequest: {
+            advertising_code?: components["schemas"]["AdvertisingCodeCandidate"];
             /** @default / */
             return_path: string;
         };
@@ -3221,6 +3248,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShippingRequestDetail"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    validateAdvertisingCode: {
+        parameters: {
+            query: {
+                /** @description 大文字小文字を区別する候補。形式不正・不存在・停止Agencyはvalid false。 */
+                advertising_code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agency情報を含まない現在の有効性。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertisingCodeValidity"];
                 };
             };
             default: components["responses"]["Problem"];

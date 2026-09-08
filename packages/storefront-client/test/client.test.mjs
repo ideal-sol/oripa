@@ -45,6 +45,28 @@ const jsonResponse = (body, init = {}) =>
     ...init,
   });
 
+test("advertising validity and optional identity candidates preserve exact input", async () => {
+  const calls = [];
+  const transport = {
+    request: async (options) => {
+      calls.push(options);
+      return { data: { valid: true } };
+    },
+  };
+  const identity = createStorefrontIdentityClient(transport);
+  await identity.validateAdvertisingCode("Ab12Cd34");
+  assert.equal(calls[0].path, "/advertising-code-validation?advertising_code=Ab12Cd34");
+  await identity.register({ email: "qa@example.test", password: "synthetic password", advertising_code: "Ab12Cd34" });
+  await identity.startGoogleLogin({ advertising_code: "Ab12Cd34" }, {});
+  await identity.startLineLogin({ advertising_code: "Ab12Cd34" }, {});
+  for (const call of calls.slice(1)) {
+    assert.equal(call.body.advertising_code, "Ab12Cd34");
+    assert.equal(call.csrf, "required");
+  }
+  await identity.register({ email: "organic@example.test", password: "synthetic password" });
+  assert.equal(Object.hasOwn(calls.at(-1).body, "advertising_code"), false);
+});
+
 const browserConfig = (fetch) => ({
   base_url: "/api/v2",
   site_version: "1.0.0",

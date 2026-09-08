@@ -37,6 +37,8 @@ use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/advertising-code-validation', \App\Http\Controllers\V2\V2AdvertisingCodeController::class)
+        ->name('v2.public.advertising-code-validation');
     Route::post('/payment-returns/fincode/normal', [V2FincodeReturnController::class, 'normal'])
         ->name('v2.public.payment-returns.fincode.normal');
     Route::post('/payment-returns/fincode/failure', [V2FincodeReturnController::class, 'failure'])
