@@ -23,7 +23,8 @@ final class V2AdminFreshMfaAuthorizer
         private readonly V2PermissionAuthorizer $permissions,
         private readonly V2RateLimiter $rateLimiter,
         private readonly V2AuditLogService $audit,
-        private readonly V2AuditHasher $auditHasher
+        private readonly V2AuditHasher $auditHasher,
+        private readonly V2SessionPolicy $sessionPolicy
     ) {
     }
 
@@ -240,12 +241,13 @@ final class V2AdminFreshMfaAuthorizer
 
     private function validSession(string $hash, bool $lock = false): ?AdminSession
     {
+        $current = $this->sessionPolicy->currentTime();
         $query = AdminSession::query()
             ->with('admin')
             ->whereKey($hash)
             ->whereNull('revoked_at')
-            ->where('idle_expires_at', '>', now())
-            ->where('absolute_expires_at', '>', now())
+            ->where('idle_expires_at', '>', $current)
+            ->where('absolute_expires_at', '>', $current)
             ->where('requires_mfa_enrollment', false);
         if ($lock) {
             $query->lockForUpdate();
