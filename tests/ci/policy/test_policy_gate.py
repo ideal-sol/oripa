@@ -548,7 +548,8 @@ class PolicyGateTest(unittest.TestCase):
         api_dockerfile = (ROOT / "infra/docker/backend/Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertIn("linux-libc-dev=6.1.180-1", api_dockerfile)
+        self.assertIn("linux-libc-dev=6.1.187-1", api_dockerfile)
+        self.assertNotIn("linux-libc-dev=6.1.180-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.177-1", api_dockerfile)
 
     def test_mig_061n_announcement_path_registration_is_exact(self):
