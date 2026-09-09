@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "platform-maintainers",
-    "reason": "Fresh exact-fingerprint review completed on 2026-09-01 in GOV-029 against unchanged V1 source from main@2bc8598867391d6d50c6e3d10cd9f90a5677a6c7; all 9 existing findings remain exact and V1 application fixes are outside this delivery-infrastructure Change.",
+    "reason": "Fresh exact-fingerprint review completed on 2026-09-09 in SEC-020 (Issue #478) against unchanged V1 source from main@c421f580210bb3bc37af4641ebf4d67d9cb16e9d and remediated dependencies; all 9 existing findings remain exact with the existing eslint-config-next rules preserved. No finding was added, removed, or suppressed. Retains the established seven-day review window used by GOV-029; V1 application fixes remain outside this security Change.",
     "removal_condition": "Remove each fingerprint only with the approved application fix that makes the finding disappear.",
-    "expires_at": "2026-09-08",
-    "tracking_task": "GOV-029"
+    "expires_at": "2026-09-16",
+    "tracking_task": "SEC-020"
   },
   "findings": [
     {
