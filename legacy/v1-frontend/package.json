@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "16.2.11",
+    "next": "16.3.3",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
@@ -25,11 +25,11 @@
   "pnpm": {
     "overrides": {
       "brace-expansion": "5.0.9",
-      "js-yaml": "4.3.1",
+      "js-yaml": "4.3.2",
       "minimatch": "10.2.5",
       "nanoid": "3.3.18",
       "postcss": "8.5.23",
-      "sharp": "0.35.3"
+      "sharp": "0.35.4"
     }
   },
   "packageManager": "pnpm@10.12.1"

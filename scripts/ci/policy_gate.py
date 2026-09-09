@@ -1074,18 +1074,19 @@ ADMIN_SKELETON_FILES = {
     *MIG_084_ADMIN_SKELETON_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
+    "apps/admin/test/rich-text-editor-compatibility.test.tsx",
 }
 PACKAGE_SKELETONS = {
     "packages/platform/package.json": "@oripa/platform",
 }
 ADMIN_DEPENDENCY_VERSIONS = {
-    "@tiptap/extension-image": "3.30.4",
-    "@tiptap/extension-table": "3.30.4",
-    "@tiptap/extension-text-align": "3.30.4",
-    "@tiptap/react": "3.30.4",
-    "@tiptap/starter-kit": "3.30.4",
+    "@tiptap/extension-image": "3.30.5",
+    "@tiptap/extension-table": "3.30.5",
+    "@tiptap/extension-text-align": "3.30.5",
+    "@tiptap/react": "3.30.5",
+    "@tiptap/starter-kit": "3.30.5",
     "lucide-react": "0.468.0",
-    "next": "16.2.11",
+    "next": "16.3.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
 }
@@ -1097,10 +1098,10 @@ ADMIN_DEV_DEPENDENCY_VERSIONS = {
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "16.3.3",
     "jsdom": "30.0.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
 }
 WORKSPACE_REQUIRED_FILES.update(
     ADMIN_SKELETON_FILES | {".github/workflows/platform-ci.yml"}
@@ -1882,15 +1883,15 @@ def validate_workspace_configuration(repository: Path) -> None:
         )
     if package.get("pnpm") != {
         "overrides": {
-            "@tiptap/extension-bubble-menu": "3.30.4",
-            "@tiptap/extension-floating-menu": "3.30.4",
+            "@tiptap/extension-bubble-menu": "3.30.5",
+            "@tiptap/extension-floating-menu": "3.30.5",
             "brace-expansion": "5.0.9",
             "fast-uri": "3.1.7",
-            "js-yaml": "4.3.1",
+            "js-yaml": "4.3.2",
             "minimatch": "10.2.5",
             "nanoid": "3.3.18",
             "postcss": "8.5.23",
-            "sharp": "0.35.0",
+            "sharp": "0.35.4",
         }
     }:
         raise PolicyFailure("package.json: audited exact pnpm overrides are invalid")
