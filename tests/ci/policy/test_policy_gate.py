@@ -548,7 +548,8 @@ class PolicyGateTest(unittest.TestCase):
         api_dockerfile = (ROOT / "infra/docker/backend/Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertIn("linux-libc-dev=6.1.180-1", api_dockerfile)
+        self.assertIn("linux-libc-dev=6.1.187-1", api_dockerfile)
+        self.assertNotIn("linux-libc-dev=6.1.180-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.177-1", api_dockerfile)
 
     def test_mig_061n_announcement_path_registration_is_exact(self):
@@ -2796,15 +2797,15 @@ This is a non-Production Skeleton and contains no application implementation.
                     "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
                     "pnpm": {
                         "overrides": {
-                            "@tiptap/extension-bubble-menu": "3.30.4",
-                            "@tiptap/extension-floating-menu": "3.30.4",
+                            "@tiptap/extension-bubble-menu": "3.30.5",
+                            "@tiptap/extension-floating-menu": "3.30.5",
                             "brace-expansion": "5.0.9",
                             "fast-uri": "3.1.7",
-                            "js-yaml": "4.3.1",
+                            "js-yaml": "4.3.2",
                             "minimatch": "10.2.5",
                             "nanoid": "3.3.18",
                             "postcss": "8.5.23",
-                            "sharp": "0.35.0",
+                            "sharp": "0.35.4",
                         }
                     },
                     "devDependencies": policy_gate.ROOT_DEV_DEPENDENCY_VERSIONS,
@@ -3492,6 +3493,26 @@ services:
                 policy_gate.PolicyFailure, "exact runtime dependencies"
             ):
                 policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_pre_remediation_admin_dependency_pins_fail(self):
+        for section, name, version in (
+            ("dependencies", "next", "16.2.11"),
+            ("dependencies", "@tiptap/react", "3.30.4"),
+            ("devDependencies", "vitest", "4.1.10"),
+        ):
+            with self.subTest(package=name):
+                package = {
+                    "dependencies": dict(policy_gate.ADMIN_DEPENDENCY_VERSIONS),
+                    "devDependencies": dict(policy_gate.ADMIN_DEV_DEPENDENCY_VERSIONS),
+                }
+                package[section][name] = version
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "exact .* dependencies"):
+                    policy_gate.validate_exact_dependency_versions(
+                        package,
+                        policy_gate.ADMIN_DEPENDENCY_VERSIONS,
+                        policy_gate.ADMIN_DEV_DEPENDENCY_VERSIONS,
+                        "apps/admin/package.json",
+                    )
 
     def test_tiptap_dependency_removal_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
