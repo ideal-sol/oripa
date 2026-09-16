@@ -7,9 +7,11 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Models\V2\Admin;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class DashboardSalesAggregationApiTest extends TestCase
@@ -84,7 +86,8 @@ final class DashboardSalesAggregationApiTest extends TestCase
             ->assertJsonPath('code', 'REPORTING_CURSOR_INVALID');
     }
 
-    public function test_public_response_excludes_internal_and_provider_identifiers(): void
+    #[DataProvider('paymentMethods')]
+    public function test_public_response_excludes_internal_and_provider_identifiers(?string $method): void
     {
         $userId = $this->user();
         DB::table('payments')->insert([
@@ -92,6 +95,7 @@ final class DashboardSalesAggregationApiTest extends TestCase
             'user_id' => $userId,
             'point_purchase_plan_id' => null,
             'provider_code' => 'synthetic',
+            'payment_method' => $method,
             'provider_payment_id' => 'private-provider-reference',
             'status' => 'succeeded',
             'amount' => 1000,
@@ -115,6 +119,29 @@ final class DashboardSalesAggregationApiTest extends TestCase
         self::assertStringNotContainsString('private-provider-reference', $encoded);
         self::assertStringNotContainsString('password', $encoded);
         self::assertArrayNotHasKey('id', $payload['items'][0]);
+        self::assertSame($method, $payload['items'][0]['payment_method']);
+        self::assertSame('synthetic', $payload['items'][0]['provider']);
+        self::assertSame('Synthetic Plan', $payload['items'][0]['plan_name']);
+        self::assertSame(1000, $payload['items'][0]['amount']);
+        self::assertSame('JPY', $payload['items'][0]['currency']);
+        self::assertSame('succeeded', $payload['items'][0]['status']);
+        self::assertSame(
+            '2026-07-31T15:00:00Z',
+            CarbonImmutable::parse($payload['items'][0]['succeeded_at'])->utc()->toIso8601ZuluString()
+        );
+        self::assertSame(
+            (string) DB::table('users')->where('id', $userId)->value('public_id'),
+            $payload['items'][0]['user_id']
+        );
+        self::assertSame(1, $payload['summary']['payment_count']);
+        self::assertSame(1000, $payload['summary']['gross_sales_amount']);
+        self::assertSame(1000, $payload['summary']['net_sales_amount']);
+        self::assertNull($payload['next_cursor']);
+    }
+
+    public static function paymentMethods(): array
+    {
+        return [['credit_card'], ['paypay'], ['konbini'], ['virtual_account'], [null]];
     }
 
     private function sessionToken(V2AdminRole $role): string

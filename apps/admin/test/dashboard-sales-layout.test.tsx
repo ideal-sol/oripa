@@ -80,6 +80,41 @@ describe("Dashboard sales layout", () => {
     expect(screen.getByText("30 pt")).toBeVisible();
   });
 
+  it.each([
+    ["credit_card", "クレジットカード"],
+    ["paypay", "PayPay"],
+    ["konbini", "コンビニ決済"],
+    ["virtual_account", "銀行振込"],
+    ["unknown_method", "-"],
+    ["all", "-"],
+    ["", "-"],
+    [null, "-"],
+    [undefined, "-"],
+  ])("shows the stored daily payment method %s without changing other cells", (method, label) => {
+    const daily = dailySales();
+    reports.set("daily-sales", {
+      ...daily,
+      report: {
+        ...daily.report,
+        items: daily.report.items.map((item) => ({ ...item, provider: "fincode", payment_method: method })),
+      },
+    });
+    render(<DashboardSalesLayout />);
+    fireEvent.click(screen.getByRole("tab", { name: "日別売上" }));
+
+    const row = screen.getByText("Synthetic Plan").closest("tr") as HTMLTableRowElement;
+    const cells = within(row).getAllByRole("cell");
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      "2026/08/03 10:00", label, "Synthetic Plan", "￥12,000", "成功", "01910191…",
+    ]);
+    expect(within(row).getByTitle(uuid("2"))).toBeVisible();
+    expect(screen.queryByText("fincode")).toBeNull();
+    expect(screen.getByText("￥9,500")).toBeVisible();
+    expect(screen.getByText("返金")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "次の50件を表示" }));
+    expect(loadMore).toHaveBeenCalledWith("primary");
+  });
+
   it("shows an explicit empty state instead of fabricated zero values", () => {
     reports.set("monthly-sales", {
       kind: "monthly-sales",

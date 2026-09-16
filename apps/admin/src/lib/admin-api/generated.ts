@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 8ba2d31631e80ea870add14a3ff6fd493f460c24a1ad95d94b02c63634f0fe55
+// Contract SHA-256: 9fd617d6ba771dc80cafe48af123f4f93b18171ef40ed6f05856662931e8bbd9
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -595,6 +595,7 @@ export interface AdminDashboardPayment {
   currency: "JPY";
   plan_name: string;
   provider: string;
+  payment_method?: AdminPaymentMethod | null;
   status: "succeeded";
   succeeded_at: string;
 }

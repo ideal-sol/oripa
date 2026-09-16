@@ -287,6 +287,7 @@ final class V2ReportingService
                 'payments.currency',
                 'payments.plan_name_snapshot',
                 'payments.provider_code',
+                'payments.payment_method',
                 'payments.status',
                 'payments.succeeded_at',
             ]);
@@ -297,6 +298,7 @@ final class V2ReportingService
             'currency' => $row->currency,
             'plan_name' => $row->plan_name_snapshot,
             'provider' => $row->provider_code,
+            'payment_method' => $row->payment_method,
             'status' => $row->status,
             'succeeded_at' => (string) $row->succeeded_at,
         ]);
