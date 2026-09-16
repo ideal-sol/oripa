@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import BannersPage from "@/app/banners/page";
 import { BannerManagementWorkspace } from "@/components/banners/banner-management-workspace";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminManagedBanner } from "@/lib/admin-api/generated";
@@ -49,6 +50,30 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Banner management", () => {
+  it.each([undefined, "all", "published", "draft", ["draft", "published"]])("honors the page status query %j", async (status) => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners");
+    render(await BannersPage({ searchParams: Promise.resolve({ status }) }));
+    await screen.findByText("メインバナー");
+    const expected = Array.isArray(status) ? status[0] : status ?? "all";
+    expect(screen.getByLabelText("状態")).toHaveValue(expected);
+    expect(list).toHaveBeenCalledWith(
+      { category_id: undefined, cursor: undefined, status: expected === "all" ? undefined : expected },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("shows published and draft banners together by default", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
+      items: [banner(), { ...banner(), id: uuid("8"), title: "公開バナー", status: "published" }],
+      next_cursor: null,
+    });
+    render(<BannerManagementWorkspace />);
+    expect(await screen.findByText("メインバナー")).toBeVisible();
+    expect(screen.getByText("公開バナー")).toBeVisible();
+    expect(screen.getByText("Draft")).toBeVisible();
+    expect(screen.getByText("Published")).toBeVisible();
+  });
+
   it("previews changed local files without a blob URL and preserves registration", async () => {
     const upload = vi.spyOn(AdminApiClient.prototype, "uploadBannerAsset")
       .mockResolvedValue({
@@ -124,9 +149,9 @@ describe("Banner management", () => {
     expect(screen.getByText(
       "https://storefront.example.test/api/v2/content/assets/01910191-0191-7191-8191-019101910192",
     )).toBeVisible();
-    expect(screen.getByLabelText("状態")).toHaveValue("published");
+    expect(screen.getByLabelText("状態")).toHaveValue("all");
     expect(list).toHaveBeenCalledWith(
-      { category_id: undefined, cursor: undefined, status: "published" },
+      { category_id: undefined, cursor: undefined, status: undefined },
       expect.any(AbortSignal),
     );
 
@@ -134,13 +159,23 @@ describe("Banner management", () => {
       target: { value: category.id },
     });
     await waitFor(() => expect(list).toHaveBeenLastCalledWith(
-      { category_id: category.id, cursor: undefined, status: "published" },
+      { category_id: category.id, cursor: undefined, status: undefined },
       expect.any(AbortSignal),
     ));
 
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "published" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { category_id: category.id, cursor: undefined, status: "published" },
+      expect.any(AbortSignal),
+    ));
     fireEvent.change(screen.getByLabelText("状態"), { target: { value: "draft" } });
     await waitFor(() => expect(list).toHaveBeenLastCalledWith(
       { category_id: category.id, cursor: undefined, status: "draft" },
+      expect.any(AbortSignal),
+    ));
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "all" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { category_id: category.id, cursor: undefined, status: undefined },
       expect.any(AbortSignal),
     ));
 

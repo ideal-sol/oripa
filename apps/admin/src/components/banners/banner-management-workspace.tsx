@@ -48,7 +48,7 @@ const EMPTY_DRAFT: BannerDraft = {
   title: "",
 };
 
-export function BannerManagementWorkspace({ initialStatus = "published" }: { initialStatus?: "all" | "draft" | "published" }) {
+export function BannerManagementWorkspace({ initialStatus = "all" }: { initialStatus?: "all" | "draft" | "published" }) {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="content.read">

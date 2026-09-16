@@ -54,7 +54,7 @@ const EMPTY_CAMPAIGN: CampaignDraft = {
   bonusAmount: "",
 };
 
-export function PointPurchaseManagementWorkspace({ initialStatus = "published", mode, planId }: { initialStatus?: "all" | "draft" | "published"; mode: Mode; planId?: string }) {
+export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, planId }: { initialStatus?: "all" | "draft" | "published"; mode: Mode; planId?: string }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const navigation = navigationItem(mode === "create" ? "purchase-plans-create" : "purchase-plans");
   const { permissions } = usePermissions();

@@ -9,5 +9,5 @@ const STATUS_FILTERS = ["all", "published", "draft"] as const;
 
 export default async function PurchasePlansPage({ searchParams }: { searchParams: Promise<PageSearchParams> }) {
   const query = await searchParams;
-  return <PointPurchaseManagementWorkspace initialStatus={initialListFilter(query.status, STATUS_FILTERS, "published")} mode="list" />;
+  return <PointPurchaseManagementWorkspace initialStatus={initialListFilter(query.status, STATUS_FILTERS, "all")} mode="list" />;
 }

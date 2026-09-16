@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import PurchasePlansPage from "@/app/purchase-plans/page";
 import { PointPurchaseManagementWorkspace } from "@/components/point-purchases/point-purchase-management-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
 import type { AdminLimitedBonusCampaign, AdminPointPurchasePlan, AdminUserTag } from "@/lib/admin-api/generated";
@@ -39,23 +40,41 @@ afterEach(() => {
 });
 
 describe("Point purchase management", () => {
-  it("renders the V1 list columns plus audience and target tag", async () => {
+  it.each([undefined, "all", "published", "draft", ["draft", "published"]])("honors the page status query %j", async (status) => {
     const list = vi.spyOn(AdminApiClient.prototype, "listPointPurchasePlans");
+    render(await PurchasePlansPage({ searchParams: Promise.resolve({ status }) }));
+    await screen.findByText("スタンダード");
+    const expected = Array.isArray(status) ? status[0] : status ?? "all";
+    expect(screen.getByLabelText("状態")).toHaveValue(expected);
+    expect(list).toHaveBeenCalledWith({ cursor: undefined, status: expected === "all" ? undefined : expected });
+  });
+
+  it("renders the V1 list columns plus audience and target tag", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listPointPurchasePlans").mockResolvedValue({
+      items: [plan(), { ...plan(), id: uuid("8"), name: "無効商品", is_active: false, status: "draft" }],
+      next_cursor: null,
+      request_id: uuid("9"),
+    });
     render(<PointPurchaseManagementWorkspace mode="list" />);
     expect(await screen.findByText("スタンダード")).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
       "ID", "商品名", "支払金額", "有償P", "無償P", "販売期間", "並び順", "対象カテゴリ", "対象タグ", "状態", "編集",
     ]);
-    expect(screen.getByText("すべてのユーザー")).toBeVisible();
-    expect(screen.getByText("VIP")).toBeVisible();
+    expect(screen.getAllByText("すべてのユーザー")).toHaveLength(2);
+    expect(screen.getAllByText("VIP")).toHaveLength(2);
+    expect(screen.getByText("無効商品")).toBeVisible();
     expect(screen.getByRole("link", { name: "スタンダードを編集" })).toHaveAttribute(
       "href",
       `/purchase-plans/${plan().id}`,
     );
-    expect(screen.getByLabelText("状態")).toHaveValue("published");
-    expect(list).toHaveBeenCalledWith({ cursor: undefined, status: "published" });
+    expect(screen.getByLabelText("状態")).toHaveValue("all");
+    expect(list).toHaveBeenCalledWith({ cursor: undefined, status: undefined });
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "published" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ cursor: undefined, status: "published" }));
     fireEvent.change(screen.getByLabelText("状態"), { target: { value: "draft" } });
     await waitFor(() => expect(list).toHaveBeenLastCalledWith({ cursor: undefined, status: "draft" }));
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "all" } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ cursor: undefined, status: undefined }));
   });
 
   it("defaults a new product to all users and no target tag", async () => {
