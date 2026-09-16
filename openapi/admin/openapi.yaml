@@ -8998,6 +8998,10 @@ components:
         provider:
           type: string
           maxLength: 64
+        payment_method:
+          type: [string, 'null']
+          enum: [credit_card, paypay, konbini, virtual_account, null]
+          description: Stored payment method; null for legacy payments without a method.
         status:
           type: string
           const: succeeded

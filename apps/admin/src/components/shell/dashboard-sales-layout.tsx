@@ -3,6 +3,7 @@
 import { AlertTriangle, Download, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { jpy } from "../../lib/format/jpy";
+import { paymentMethodLabel } from "@/components/payments/admin-payment-history";
 
 import type {
   AdminDashboardDailyPoints,
@@ -428,7 +429,7 @@ function PaymentTable({ loading, onLoadMore, report }: {
         <thead><tr>{["決済日時", "決済種別", "購入プラン", "決済金額", "状態", "ユーザー"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>{report.items.map((item) => (
           <tr key={item.payment_id}>
-            <td>{formatDateTime(item.succeeded_at)}</td><td>{item.provider}</td><td>{item.plan_name}</td>
+            <td>{formatDateTime(item.succeeded_at)}</td><td>{dailyPaymentMethodLabel(item.payment_method)}</td><td>{item.plan_name}</td>
             <td>{currency.format(item.amount)}</td><td>成功</td><td><PublicId value={item.user_id} /></td>
           </tr>
         ))}</tbody>
@@ -436,6 +437,18 @@ function PaymentTable({ loading, onLoadMore, report }: {
       <CursorNotice cursor={report.next_cursor} loading={loading} onLoadMore={onLoadMore} />
     </div>
   );
+}
+
+function dailyPaymentMethodLabel(method: string | null | undefined): string {
+  switch (method) {
+    case "credit_card":
+    case "paypay":
+    case "konbini":
+    case "virtual_account":
+      return paymentMethodLabel(method);
+    default:
+      return "-";
+  }
 }
 
 function ReversalTable({ loading, onLoadMore, report }: {

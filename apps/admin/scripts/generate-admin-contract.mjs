@@ -1212,6 +1212,7 @@ export interface AdminDashboardPayment {
   currency: "JPY";
   plan_name: string;
   provider: string;
+  payment_method?: AdminPaymentMethod | null;
   status: "succeeded";
   succeeded_at: string;
 }
