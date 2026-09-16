@@ -5,6 +5,7 @@ namespace App\Domain\Mail\Services;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Models\V2\MailDelivery;
 use App\Models\V2\MailTemplate;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -249,20 +250,36 @@ final class V2TemplateMailDeliveryService
     {
         $row = DB::table('payments as payment')
             ->join('users as user', 'user.id', '=', 'payment.user_id')
+            ->join('payment_point_grants as grant', 'grant.payment_id', '=', 'payment.id')
             ->where('payment.public_id', $publicId)
             ->first([
                 'user.email_display', 'user.display_name', 'payment.plan_name_snapshot',
                 'payment.amount', 'payment.currency',
+                'payment.succeeded_at', 'payment.payment_method', 'grant.point_operation_id',
             ]);
         if ($row === null) {
             throw new RuntimeException('Template Mail Payment is unavailable.');
         }
         $amount = number_format((int) $row->amount).($row->currency === 'JPY' ? '円' : ' '.$row->currency);
+        $acquiredCoins = DB::table('point_ledger_entries')
+            ->where('point_operation_id', $row->point_operation_id)
+            ->where('entry_type', 'grant')
+            ->sum('amount_delta');
 
         return [(string) $row->email_display, $this->variables([
             'user_name' => (string) ($row->display_name ?? ''),
             'purchase_plan' => (string) $row->plan_name_snapshot,
             'purchase_amount' => $amount,
+            'purchase_date' => $row->succeeded_at === null ? '' : CarbonImmutable::parse($row->succeeded_at)
+                ->setTimezone('Asia/Tokyo')->format('Y年n月j日'),
+            'payment_method' => match ($row->payment_method) {
+                'credit_card' => 'クレジットカード',
+                'paypay' => 'PayPay',
+                'konbini' => 'コンビニ決済',
+                'virtual_account' => '銀行振込',
+                default => '',
+            },
+            'acquired_coins' => number_format((int) $acquiredCoins).' コイン',
         ])];
     }
 

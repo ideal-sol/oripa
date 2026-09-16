@@ -1,3 +1,14 @@
+## MAIL-20260916 Mail Template Variables and HTML Source
+
+- Human指定の旧Server `/var/www/oripa` / Platform Admin・既存Mailを対象とする。開始時local HEAD／live mainは`c8248297cbf995b7e78369b4e018a73da9faf986`で一致しdirty／untrackedなし。Issue `none`、Risk `R3`、Lane `Strict Change`、Activation `immediate`（旧Testのみ）、Branch `fix/MAIL-20260916-variables-html`、通常Worktree。GitHub App transportと既存Preview import用にroot-owned mode 0600のtransient exact-path policyを使用する。Source／Migration Allocation Lockは不要。Production／新ServerはNOT RUN。
+- Sourceの現行変数は20個の全Template共通catalogであり、`purchase_date`／`payment_method`／`acquired_coins`を同じ規則で追加する。値はpayment sourceだけで解決し、他source・未定義・未設定は既存の空文字置換を維持する。購入日はcanonical `confirmSucceeded`が保存する`payments.succeeded_at`をtimezone付きでparseしAsia/Tokyoの`Y年n月j日`へ表示変換する。決済方法は`payments.payment_method`と既存Admin決済履歴の4表示名を再利用し、未知／nullは空文字にする。
+- 獲得コインは`payment_point_grants.point_operation_id`に紐付くimmutable `point_ledger_entries`のgrant `amount_delta`合計（paid＋通常bonus＋期間bonus）を使用し`10,000 コイン`形式にする。商品masterからの再計算、Payment判定、Exactly Once、Grant／Wallet／Lot処理、DB／Session timezone変更は0。
+- Mail画面だけ既存RichTextEditorのHTML sourceを有効化し、monospace textareaとTiptap `getHTML`／`setContent`を使う。HTML側も同じ`body_html`、保存API、Preview API、変数挿入を使用する。依存追加0。リッチテキストへ戻す際にTiptapの正常なHTML normalizationを行う。完全HTML文書ではなく既存本文fragmentを扱う。
+- HTML直接入力の安全確認で既存sanitizerの未許可wrapper unwrap時に子を走査しない欠陥を検出した。許可listは広げず、unwrap前に子を既存sanitizeへ通す1行の直接必要な修正と回帰testを同PRに含める。保存／Preview／配信rendererのsanitize経路を維持する。script／style／iframe／form／svg等は内容ごと除去、div／span等はunwrap、event属性・危険URL・任意CSSは不許可。CSSは既存の段落／見出しtext-alignのみ。
+- Focused verificationはAdmin Mail 5 tests、既存RichText互換／Admin API client 36 tests、分離PHP 8.4／PostgreSQL上のMail／sanitize／購入成功Exactly Once 15 testsを対象とする。HTML往復・token・保存・再読込・Preview、UTC→JST日跨ぎ／offset付き日時／全4決済方式／null、8000 paid＋1500 bonus＋500期間bonus、購入後campaign／plan表示変更の影響なしを確認。初回追加UI testの別Document matcherと型指定を修正しPASS、typecheck／変更Admin ESLintはPASS。誤ったtest CLI区切りで広いVitest起動を検出し停止した実行はPASS根拠にしない。分離DB helperの歴史的Task ID制約は既存MIG-076検証namespaceにこのTask固有project／DBを作り対応し、repository guard変更0。
+- 追加assertion後の再実行で既存Payment testの固定provider IDが前回fixtureと衝突したため、その再実行はFAILと記録する。変更対象Mail／sanitizeの14 testsを最終再実行し、既存Exactly Once 1 testは初回PASS証拠を採用する。既存testやconstraintは変更しない。
+- Migration作成0、旧Test／Production適用0。分離test DBのみ既存75 migrationsを適用する。API schema／OpenAPI／Auth／Point accounting／Payment／Draw／Infrastructure source／依存・lockfile変更0。Browser／visual／実外部メール送信はNOT RUN、最終Human browser確認はHUMAN PENDING。旧Testにはcanonical CI imageでAPI＋Adminのみを反映し、既存imageをrollback用に保持する。Checks／exact-head self-review／merge／image authority／technical acceptance／cleanup／最終metricsは同一PR closeoutへ記録する。
+
 ## REL-036 AGENCY-004A Immutable Artifact Metadata
 
 - Issue `none`、Risk `R3`、Lane `Strict Change`、Activation `none`、通常Worktree、Branch `chore/REL-036-agency004a-artifact-metadata`、Base `aa5049f7efa63e9cff67b10d93e768b4006b0c09`。Canonical publication後の独立Metadata Task/PRとして開始。Artifact Release LockはAGENCY-004Aから保持し、他candidate・version・Storefront checkoutへの介入0。
