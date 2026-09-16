@@ -62,6 +62,7 @@ final class V2ContentHtmlSanitizer
                     continue;
                 }
                 if (! in_array($tag, self::ALLOWED_TAGS, true)) {
+                    $this->cleanChildren($node);
                     while ($node->firstChild !== null) {
                         $parent->insertBefore($node->firstChild, $node);
                     }

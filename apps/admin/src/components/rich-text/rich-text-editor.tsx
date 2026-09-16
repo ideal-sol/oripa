@@ -9,6 +9,8 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useRef,
+  useState,
 } from "react";
 
 export interface RichTextEditorHandle {
@@ -17,10 +19,13 @@ export interface RichTextEditorHandle {
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, {
   disabled?: boolean;
+  allowHtmlSource?: boolean;
   label: string;
   onChange: (value: string) => void;
   value: string;
-}>(function RichTextEditor({ disabled = false, label, onChange, value }, ref) {
+}>(function RichTextEditor({ disabled = false, allowHtmlSource = false, label, onChange, value }, ref) {
+  const [htmlMode, setHtmlMode] = useState(false);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
   const editor = useEditor({
     immediatelyRender: false,
     content: value,
@@ -60,16 +65,28 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, {
   }, [disabled, editor]);
 
   useEffect(() => {
-    if (editor && editor.getHTML() !== value) {
+    if (editor && !htmlMode && editor.getHTML() !== value) {
       editor.commands.setContent(value, { emitUpdate: false });
     }
-  }, [editor, value]);
+  }, [editor, htmlMode, value]);
 
   useImperativeHandle(ref, () => ({
     insertText(token: string) {
+      if (disabled) return;
+      if (htmlMode) {
+        const source = sourceRef.current;
+        const start = source?.selectionStart ?? value.length;
+        const end = source?.selectionEnd ?? start;
+        onChange(`${value.slice(0, start)}${token}${value.slice(end)}`);
+        requestAnimationFrame(() => {
+          source?.focus();
+          source?.setSelectionRange(start + token.length, start + token.length);
+        });
+        return;
+      }
       editor?.chain().focus().insertContent(token).run();
     },
-  }), [editor]);
+  }), [disabled, editor, htmlMode, onChange, value]);
 
   if (!editor) return <div aria-label={`${label}を準備中`} className="rich-text-editor is-loading" />;
 
@@ -112,6 +129,34 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, {
 
   return (
     <div className={`rich-text-editor${disabled ? " is-disabled" : ""}`}>
+      {allowHtmlSource ? (
+        <div aria-label={`${label}の編集モード`} className="rich-text-toolbar" role="group">
+          {button("リッチテキスト", () => {
+            editor.commands.setContent(value, { emitUpdate: false });
+            onChange(editor.getHTML());
+            setHtmlMode(false);
+          }, !htmlMode)}
+          {button("HTML", () => {
+            if (!htmlMode) onChange(editor.getHTML());
+            setHtmlMode(true);
+          }, htmlMode)}
+        </div>
+      ) : null}
+      {htmlMode ? (
+        <label>HTMLソース
+          <textarea
+            aria-label={`${label}のHTMLソース`}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            ref={sourceRef}
+            rows={16}
+            spellCheck={false}
+            style={{ fontFamily: "monospace", width: "100%" }}
+            value={value}
+          />
+          <span className="form-hint">本文のHTMLを編集します。未対応のタグ・属性・CSSは切替・保存・プレビュー時に除去されます。</span>
+        </label>
+      ) : <>
       <div aria-label={`${label}の書式`} className="rich-text-toolbar" role="toolbar">
         {button("段落", () => editor.chain().focus().setParagraph().run(), editor.isActive("paragraph"))}
         {button("H2", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
@@ -132,6 +177,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, {
         {button("やり直す", () => editor.chain().focus().redo().run(), false, !editor.can().redo())}
       </div>
       <EditorContent editor={editor} />
+      </>}
     </div>
   );
 });

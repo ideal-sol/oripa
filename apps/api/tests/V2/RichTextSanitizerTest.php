@@ -54,6 +54,15 @@ final class RichTextSanitizerTest extends TestCase
         }
     }
 
+    public function test_unwrapped_elements_cannot_hide_unsafe_descendants(): void
+    {
+        $html = '<div><section><span><script>bad()</script><p onclick="bad()">{{acquired_coins}}</p><a href="javascript:bad()">link</a><img src="data:image/png;base64,AAAA"><style>bad</style><iframe src="https://example.test"></iframe></span></section></div>';
+        self::assertSame(
+            '<p>{{acquired_coins}}</p><a>link</a>',
+            app(V2ContentHtmlSanitizer::class)->sanitize($html)
+        );
+    }
+
     public function test_template_values_are_escaped_unknowns_are_empty_and_lists_use_system_hr(): void
     {
         $renderer = app(V2TemplateVariableRenderer::class);
@@ -82,6 +91,10 @@ final class RichTextSanitizerTest extends TestCase
         self::assertSame(
             '<Sample & User> next line',
             $renderer->subject('{{user_name}}', ['user_name' => "<Sample & User>\r\nnext line"])
+        );
+        self::assertSame(
+            '<p>||</p>',
+            $renderer->html('<p>{{purchase_date}}|{{payment_method}}|{{acquired_coins}}</p>', [])
         );
     }
 }

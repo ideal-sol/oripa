@@ -23,6 +23,9 @@ const variables: AdminMailTemplateVariable[] = [
   ["prize_names", "景品名"],
   ["purchase_plan", "コイン購入プラン"],
   ["purchase_amount", "購入金額"],
+  ["purchase_date", "購入日"],
+  ["payment_method", "お支払方法"],
+  ["acquired_coins", "獲得コイン"],
   ["verification_url", "認証リンク"],
   ["reset_url", "パスワード再設定リンク"],
   ["email_change_verification_url", "メールアドレス変更認証リンク"],
@@ -137,6 +140,73 @@ describe("Mail Template management", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("件名と本文を入力してください。");
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("round trips HTML source, inserts tokens, saves, reloads and previews through the existing API", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateMailTemplate")
+      .mockImplementation(async (_key, input) => ({
+        ...template("coin_purchase_completed", "コイン購入完了時"),
+        ...input, revision: 2, idempotent_replay: false,
+      }));
+    const preview = vi.spyOn(AdminApiClient.prototype, "previewMailTemplate")
+      .mockResolvedValue({ body_html: "<p><strong>獲得コイン：</strong>10,000 コイン</p>" });
+    const previewDocument = document.implementation.createHTMLDocument("preview");
+    vi.spyOn(window, "open").mockReturnValue({ document: previewDocument, close: vi.fn() } as unknown as Window);
+    const mounted = render(<MailTemplateWorkspace templateKey="coin_purchase_completed" />);
+    const richText = await screen.findByLabelText("メール本文");
+    const initialHtml = richText.innerHTML;
+    fireEvent.click(screen.getByRole("button", { name: "HTML" }));
+    const source = screen.getByRole("textbox", { name: "メール本文のHTMLソース" });
+    expect(source).toHaveValue(initialHtml);
+    const body = "<p>ご購入ありがとうございます。</p><p><strong>獲得コイン：</strong>{{acquired_coins}}</p>";
+    fireEvent.change(source, { target: { value: body } });
+    fireEvent.click(screen.getByRole("button", { name: "リッチテキスト" }));
+    expect(screen.getByLabelText("メール本文").innerHTML).toBe(body);
+    expect(screen.getByLabelText("メール本文").querySelector("strong")).toHaveTextContent("獲得コイン：");
+    fireEvent.click(screen.getByRole("button", { name: "HTML" }));
+    const sourceAgain = screen.getByRole("textbox", { name: "メール本文のHTMLソース" });
+    expect(sourceAgain).toHaveValue(body);
+    (sourceAgain as HTMLTextAreaElement).setSelectionRange(body.length, body.length);
+    fireEvent.change(screen.getByLabelText("本文へ変数を挿入"), { target: { value: "{{purchase_date}}" } });
+    expect(sourceAgain).toHaveValue(`${body}{{purchase_date}}`);
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("メールTemplateを保存しました。");
+    expect(update.mock.calls[0]?.[1].body_html).toBe(`${body}{{purchase_date}}`);
+    vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue({
+      ...template("coin_purchase_completed", "コイン購入完了時"),
+      body_html: `${body}{{purchase_date}}`, revision: 2,
+    });
+    mounted.unmount();
+    render(<MailTemplateWorkspace templateKey="coin_purchase_completed" />);
+    expect((await screen.findByLabelText("メール本文")).innerHTML).toContain("{{acquired_coins}}");
+    fireEvent.click(screen.getByRole("button", { name: "HTML" }));
+    fireEvent.click(screen.getByRole("button", { name: "プレビュー" }));
+    await waitFor(() => expect(previewDocument.body.textContent).toContain("10,000 コイン"));
+    expect(preview.mock.calls[0]?.[1].body_html).toContain("{{acquired_coins}}");
+  });
+
+  it("sends raw source through the same save and preview endpoints and accepts sanitized responses", async () => {
+    const unsafe = '<div><script>bad()</script><p onclick="bad()">{{acquired_coins}}</p></div>';
+    const safe = '<p>{{acquired_coins}}</p>';
+    const update = vi.spyOn(AdminApiClient.prototype, "updateMailTemplate").mockResolvedValue({
+      ...template("coin_purchase_completed", "コイン購入完了時"),
+      body_html: safe, revision: 2, idempotent_replay: false,
+    });
+    const preview = vi.spyOn(AdminApiClient.prototype, "previewMailTemplate")
+      .mockResolvedValue({ body_html: '<p onclick="bad()">10,000 コイン</p><script>bad()</script>' });
+    const previewDocument = document.implementation.createHTMLDocument("preview");
+    vi.spyOn(window, "open").mockReturnValue({ document: previewDocument, close: vi.fn() } as unknown as Window);
+    render(<MailTemplateWorkspace templateKey="coin_purchase_completed" />);
+    fireEvent.click(await screen.findByRole("button", { name: "HTML" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "メール本文のHTMLソース" }), { target: { value: unsafe } });
+    fireEvent.click(screen.getByRole("button", { name: "プレビュー" }));
+    await waitFor(() => expect(previewDocument.body.textContent).toContain("10,000 コイン"));
+    expect(preview.mock.calls[0]?.[1].body_html).toBe(unsafe);
+    expect(previewDocument.body.innerHTML).toBe("<p>10,000 コイン</p>");
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("メールTemplateを保存しました。");
+    expect(update.mock.calls[0]?.[1].body_html).toBe(unsafe);
+    expect(screen.getByRole("textbox", { name: "メール本文のHTMLソース" })).toHaveValue(safe);
   });
 });
 

@@ -213,7 +213,7 @@ function MailTemplateEditor({ templateKey }: { templateKey: MailTemplateKey }) {
         {success ? <div className="form-success" role="status">{success}</div> : null}
         <label>件名<input disabled={!canManage} maxLength={191} ref={subjectRef} required value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
         {canManage ? <VariableSelect label="件名へ変数を挿入" onSelect={insertSubjectVariable} variables={template.variables} /> : null}
-        <div className="rich-text-field"><span>本文</span><RichTextEditor disabled={!canManage} label="メール本文" onChange={setBodyHtml} ref={bodyRef} value={bodyHtml} /></div>
+        <div className="rich-text-field"><span>本文</span><RichTextEditor allowHtmlSource disabled={!canManage} label="メール本文" onChange={setBodyHtml} ref={bodyRef} value={bodyHtml} /></div>
         {canManage ? <VariableSelect label="本文へ変数を挿入" onSelect={(token) => bodyRef.current?.insertText(token)} variables={template.variables} /> : null}
         <p className="form-hint">未定義または値がない変数は、プレビューと送信時に空文字へ置換されます。</p>
         <div className="announcement-form-actions">
