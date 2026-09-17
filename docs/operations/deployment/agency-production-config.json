@@ -1,0 +1,32 @@
+{
+  "schema_version": "oripa.agency-production-config.v1",
+  "activation_authorized": false,
+  "agency_public_url": "https://agent.oripa-z.com",
+  "agency_api_prefix": "/agency/api/v2",
+  "admin_public_url": "https://admin.oripa-z.com",
+  "storefront_public_url": "https://oripa-z.com",
+  "required_api_environment": {
+    "V2_AGENCY_LOGIN_URL": "https://agent.oripa-z.com/login",
+    "V2_AGENCY_ORIGIN": "https://agent.oripa-z.com",
+    "V2_ADMIN_ORIGIN": "https://admin.oripa-z.com",
+    "V2_PUBLIC_ORIGIN": "https://oripa-z.com"
+  },
+  "agency_session": {
+    "idle_minutes": 360,
+    "absolute_minutes": 720,
+    "cookie": "__Host-oripa_agency_session",
+    "same_site": "strict",
+    "secure": true,
+    "http_only": true,
+    "host_only": true,
+    "path": "/"
+  },
+  "activation_hard_gates": [
+    "Read back these exact effective Laravel values after applying the existing Production config-cache procedure; missing or stale values block activation.",
+    "Keep Agency API same-origin and verify Origin/Referer, Fetch Metadata, CSRF and realm-specific cookies through the actual Production routing.",
+    "Read back the existing approved smtp/mailgun mailer and credentials without disclosure; no real provider call is authorized by this manifest.",
+    "Verify Agency mail template bodies use agency_login_url and contain no hardcoded Old Test URL before bounded Production delivery acceptance.",
+    "Preserve existing Production Public/Admin routing and Admin allowed-host authority; no Test upstream or loopback port is prescribed.",
+    "Read back current images, schema, backup and rollback authority on NEW Server in a separately authorized task."
+  ]
+}

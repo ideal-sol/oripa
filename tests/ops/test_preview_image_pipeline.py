@@ -3,6 +3,7 @@ import importlib.util
 from importlib.machinery import SourceFileLoader
 import io
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -29,6 +30,9 @@ artifact = load_module(
 )
 wrapper = load_module(
     "oripa_github_app_api", ROOT / "infrastructure/github-app/oripa-github-app-api"
+)
+readiness = load_module(
+    "agency_production_readiness", ROOT / "scripts/ops/agency_production_readiness.py"
 )
 
 
@@ -198,6 +202,28 @@ class PreviewImageArtifactTest(unittest.TestCase):
             )
         self.assertEqual(result["architecture"], "arm64")
         self.assertEqual(result["platform"], "linux/arm64")
+
+    def test_production_agency_artifact_verifies_all_three_exact_arm64_images(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("api", "admin", "agency"),
+                            architecture="arm64", artifact_kind="production-candidate")
+            result = artifact.verify_artifact(
+                directory, task_id=TASK, pr_number=PR, source_sha=HEAD,
+                architecture="arm64", artifact_kind="production-candidate",
+            )
+            self.assertEqual([image["name"] for image in result["images"]], ["api", "admin", "agency"])
+            manifest = artifact.load_json(directory / "manifest.json")
+            manifest["images"][2] = create_docker_archive(
+                directory, "agency", architecture="arm64",
+                artifact_kind="production-candidate", revision="b" * 40,
+            )
+            write_artifact_metadata(directory, manifest)
+            with self.assertRaisesRegex(artifact.ArtifactError, "oci_revision_mismatch"):
+                artifact.verify_artifact(
+                    directory, task_id=TASK, pr_number=PR, source_sha=HEAD,
+                    architecture="arm64", artifact_kind="production-candidate",
+                )
 
     def test_legacy_preview_v1_artifact_remains_accepted_only_as_amd64(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -664,6 +690,18 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
 
 
 class ProductionImageDefinitionTest(unittest.TestCase):
+    def test_both_arm64_workflows_require_agency_and_offline_production_checks(self):
+        for filename in ("platform-ci.yml", "platform-production-arm64-artifact.yml"):
+            with self.subTest(workflow=filename):
+                workflow = (ROOT / ".github/workflows" / filename).read_text()
+                self.assertIn('agency_image="oripa-v2-agency:production-candidate-', workflow)
+                self.assertIn("--file apps/agency/Dockerfile", workflow)
+                self.assertIn('--tag "$agency_image"', workflow)
+                self.assertIn("--image-mode agency", workflow)
+                self.assertEqual(workflow.count('--agency-image "$agency_image"'), 2)
+                self.assertIn("scripts/ops/agency_production_readiness.py", workflow)
+                self.assertIn("runs-on: ubuntu-24.04-arm", workflow)
+
     def test_api_and_admin_have_explicit_production_targets(self):
         api = (ROOT / "infra/docker/backend/Dockerfile").read_text()
         admin = (ROOT / "apps/admin/Dockerfile").read_text()
@@ -680,6 +718,50 @@ class ProductionImageDefinitionTest(unittest.TestCase):
         self.assertIn("pnpm install --frozen-lockfile", admin)
         self.assertIn("USER node", admin)
         self.assertIn("EXPOSE 3000", admin)
+
+
+class AgencyProductionReadinessTest(unittest.TestCase):
+    def test_checks_use_only_public_config_and_isolated_read_only_images(self):
+        config = json.loads(readiness.CONFIG.read_text())
+        self.assertEqual(config["required_api_environment"]["V2_AGENCY_LOGIN_URL"],
+                         "https://agent.oripa-z.com/login")
+        self.assertEqual(config["agency_api_prefix"], "/agency/api/v2")
+        self.assertFalse(config["activation_authorized"])
+        with mock.patch.object(readiness.subprocess, "run") as run:
+            readiness.image_checks("api-candidate", "admin-candidate", "agency-candidate")
+        self.assertEqual(run.call_count, 3)
+        for call in run.call_args_list:
+            command = call.args[0]
+            self.assertEqual(command[:6], ["docker", "run", "--rm", "--read-only", "--network", "none"])
+            self.assertTrue(call.kwargs["check"])
+        self.assertIn("V2_AGENCY_LOGIN_URL=https://agent.oripa-z.com/login", run.call_args_list[0].args[0])
+        self.assertIn("APP_ENV=production", run.call_args_list[0].args[0])
+
+    def test_frontend_scanner_accepts_same_origin_and_rejects_each_old_test_value(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / ".next/static").mkdir(parents=True)
+            (directory / ".next/server").mkdir()
+            (directory / ".next/BUILD_ID").write_text("unit-fixture")
+            asset = directory / ".next/static/app.js"
+            asset.write_text("fetch('/agency/api/v2/auth/session')")
+            command = ["node", "-e", readiness.FRONTEND_CHECK]
+            options = dict(cwd=directory, capture_output=True, text=True,
+                           env={**os.environ, "ORIPA_COMPONENT": "agency"})
+            accepted = subprocess.run(command, **options)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertEqual(json.loads(accepted.stdout)["old_test_values"], 0)
+            for value in ("ad.luxe-pack.biz", "test.luxe-pack.biz", "127.0.0.1:8621"):
+                with self.subTest(value=value):
+                    asset.write_text("/agency/api/v2 " + value)
+                    self.assertNotEqual(subprocess.run(command, **options).returncode, 0)
+            asset.write_text("no Agency API")
+            self.assertNotEqual(subprocess.run(command, **options).returncode, 0)
+
+    def test_embedded_api_probe_has_valid_php_syntax(self):
+        result = subprocess.run(["php", "-l"], input="<?php\n" + readiness.API_CHECK,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class PreviewActivationRunbookTest(unittest.TestCase):
