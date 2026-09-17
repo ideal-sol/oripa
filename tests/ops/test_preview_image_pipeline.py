@@ -743,7 +743,7 @@ class AgencyProductionReadinessTest(unittest.TestCase):
             "V2_AGENCY_ORIGIN": "https://agency.customer.example",
             "V2_AGENCY_LOGIN_URL": "https://agency.customer.example/login",
         }
-        patcher = mock.patch.dict(os.environ, self.environment, clear=True)
+        patcher = mock.patch.dict(os.environ, self.environment)
         patcher.start()
         self.addCleanup(patcher.stop)
 
