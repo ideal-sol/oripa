@@ -1,15 +1,12 @@
 {
-  "schema_version": "oripa.agency-production-config.v1",
+  "schema_version": "oripa.agency-production-config.v2",
   "activation_authorized": false,
-  "agency_public_url": "https://agent.oripa-z.com",
   "agency_api_prefix": "/agency/api/v2",
-  "admin_public_url": "https://admin.oripa-z.com",
-  "storefront_public_url": "https://oripa-z.com",
-  "required_api_environment": {
-    "V2_AGENCY_LOGIN_URL": "https://agent.oripa-z.com/login",
-    "V2_AGENCY_ORIGIN": "https://agent.oripa-z.com",
-    "V2_ADMIN_ORIGIN": "https://admin.oripa-z.com",
-    "V2_PUBLIC_ORIGIN": "https://oripa-z.com"
+  "domain_environment_authority": {
+    "public_origin": "V2_PUBLIC_ORIGIN",
+    "admin_origin": "V2_ADMIN_ORIGIN",
+    "agency_origin": "V2_AGENCY_ORIGIN",
+    "agency_login_url": "V2_AGENCY_LOGIN_URL"
   },
   "agency_session": {
     "idle_minutes": 360,
