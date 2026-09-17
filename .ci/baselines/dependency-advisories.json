@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "security-owners",
-    "reason": "Fresh dependency remediation review completed on 2026-09-09 in SEC-020 (Issue #478), based on main@c421f580210bb3bc37af4641ebf4d67d9cb16e9d; patched Next, sharp, js-yaml, aligned Tiptap, Vitest/mocker, and baseline-browser-mapping dependencies produce zero Composer, workspace pnpm, and legacy pnpm advisories. Retains the established seven-day review window used by SEC-011, SEC-013, and GOV-029.",
+    "reason": "Fresh locked dependency audits completed on 2026-09-17 in AGENCYREADY-20260917 against protected main@a3a38c0a334028ad943da90e7d968250dd5ae42f: Composer, workspace pnpm, and legacy pnpm findings are all zero and exactly match the approved empty baseline. Failure was expiry only. No dependency, finding, severity, or gate change. Retains the established seven-day review window used by SEC-011, SEC-013, GOV-029, and SEC-020.",
     "removal_condition": "Keep the Composer and pnpm baseline arrays empty; any future finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
-    "expires_at": "2026-09-16",
-    "tracking_task": "SEC-020"
+    "expires_at": "2026-09-24",
+    "tracking_task": "AGENCYREADY-20260917"
   },
   "composer": [],
   "pnpm": []

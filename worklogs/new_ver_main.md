@@ -1,3 +1,12 @@
+## AGENCYREADY-20260917 Agency Production Readiness
+
+- Human continuation: OLD Platform only、Risk R4、Lane `Strict Change`、Activation `none`、通常Worktree。Live protected main／fetch済みorigin/main／local mainは `a3a38c0a334028ad943da90e7d968250dd5ae42f` で一致、cleanから新規Branch `ci/AGENCYREADY-20260917-production-readiness`。PR #483とそのbranchは未変更・未merge・Source再利用0。既存Issue #484を追跡に使用し、新規Issueは作らない。GitHub App用transient exact-path policyを使用、Source／Migration Lockは不要。
+- Fresh locked Composer／workspace pnpm／legacy pnpm auditは全0。ESLintはapproved 9 fingerprints（8 errors／1 warning）と完全一致、新規・欠落0。既存gateでexpiry FAILを再現し `BASELINE_EXPIRY_ONLY` と判定。既存7日review運用に従い2026-09-24までrenewし、finding／severity／dependency／lockfile／gate policy変更0。
+- 既存Agency production Docker stageをcanonical native ARM64 PR検証とmerge後candidate buildへ追加。既存3-image packaging／OCI revision／digest／checksum／architecture検証を使用し、Previewは不変。Production config/renderとfrontend bundle検査はnetworkなし・read-onlyのCI候補image上で実行する。新規testは3-image provenance、stale Agency revision拒否、workflow support、public config、Old Test URL拒否を検証する。
+- API fallbackはCase A。`V2_AGENCY_LOGIN_URL`を両Agency mail call siteが参照し、独立した旧URL redirect／API responseはない。API business source変更0。`agency-production-config.json`を後続NEW Serverの必須effective-config readback gateとし、public Origin／login URL／same-origin API／6h・12hを固定。inactive fallback文字列の存在とeffective runtime／bundle混入を区別する。
+- OLD開始時free約1.9GB／inode使用51%／Docker build cache ACTIVE=0・SIZE=0。prune、image削除、local application build／loadなし。BuildはGitHub native runner、download／単一archive検証前に容量再確認する。Migration source73–75あり・76以降なし、作成・OLD／NEW／Production適用0。Required CIのephemeral fixtureは稼働DB適用と分離して報告する。
+- API／Admin／Agency業務挙動、Auth／Session／Advertising、Migration、Provider、Production runtime、Nginx／DNS／TLS／Secret、Storefront repoは変更0。Focused domain testsはfinal SHAの既存CI suiteで確認し、実Provider／Human BrowserはNOT RUN。全checks／fresh self-review／squash／最終3 Artifact／cleanup・metricsは同一Readiness PR closeoutに記録し、前回ArtifactはProduction Authorityへ流用しない。
+
 ## MAIL-20260916 Mail Template Variables and HTML Source
 
 - Human指定の旧Server `/var/www/oripa` / Platform Admin・既存Mailを対象とする。開始時local HEAD／live mainは`c8248297cbf995b7e78369b4e018a73da9faf986`で一致しdirty／untrackedなし。Issue `none`、Risk `R3`、Lane `Strict Change`、Activation `immediate`（旧Testのみ）、Branch `fix/MAIL-20260916-variables-html`、通常Worktree。GitHub App transportと既存Preview import用にroot-owned mode 0600のtransient exact-path policyを使用する。Source／Migration Allocation Lockは不要。Production／新ServerはNOT RUN。

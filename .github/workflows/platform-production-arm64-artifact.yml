@@ -146,6 +146,7 @@ jobs:
           target_platform="$(python3 scripts/ops/preview_image_artifact.py target --architecture arm64 --field platform)"
           api_image="oripa-v2-api:production-candidate-${CHANGE_ID}-${SOURCE_SHA:0:12}-arm64"
           admin_image="oripa-v2-admin:production-candidate-${CHANGE_ID}-${SOURCE_SHA:0:12}-arm64"
+          agency_image="oripa-v2-agency:production-candidate-${CHANGE_ID}-${SOURCE_SHA:0:12}-arm64"
           docker build --platform "$target_platform" \
             --target production \
             --build-arg "OCI_VERSION=production-candidate-${CHANGE_ID}" \
@@ -160,17 +161,29 @@ jobs:
             --build-arg "OCI_CREATED=${created_at}" \
             --file apps/admin/Dockerfile \
             --tag "$admin_image" .
+          docker build --platform "$target_platform" \
+            --target production \
+            --build-arg "OCI_VERSION=production-candidate-${CHANGE_ID}" \
+            --build-arg "OCI_REVISION=${SOURCE_SHA}" \
+            --build-arg "OCI_CREATED=${created_at}" \
+            --file apps/agency/Dockerfile \
+            --tag "$agency_image" .
+          python3 scripts/ops/agency_production_readiness.py \
+            --api-image "$api_image" \
+            --admin-image "$admin_image" \
+            --agency-image "$agency_image"
           python3 scripts/ops/preview_image_artifact.py package \
             --output "$RUNNER_TEMP/platform-production-arm64" \
             --task-id "$CHANGE_ID" \
             --pr-number "$PR_NUMBER" \
             --source-sha "$SOURCE_SHA" \
             --created-at "$created_at" \
-            --image-mode normal \
+            --image-mode agency \
             --artifact-kind production-candidate \
             --architecture arm64 \
             --api-image "$api_image" \
-            --admin-image "$admin_image"
+            --admin-image "$admin_image" \
+            --agency-image "$agency_image"
           python3 scripts/ops/preview_image_artifact.py verify \
             --directory "$RUNNER_TEMP/platform-production-arm64" \
             --task-id "$CHANGE_ID" \
