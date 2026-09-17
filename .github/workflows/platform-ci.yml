@@ -439,6 +439,10 @@ jobs:
         id: identity
         env:
           INPUT_PR_NUMBER: ${{ github.event.number }}
+          V2_PUBLIC_ORIGIN: https://public.artifact-validation.invalid
+          V2_ADMIN_ORIGIN: https://admin.artifact-validation.invalid
+          V2_AGENCY_ORIGIN: https://agency.artifact-validation.invalid
+          V2_AGENCY_LOGIN_URL: https://agency.artifact-validation.invalid/login
         run: |
           source_sha="$(git rev-parse HEAD)"
           created_at="$(git show -s --format=%cI "$source_sha")"
@@ -468,6 +472,8 @@ jobs:
             --file apps/agency/Dockerfile \
             --tag "$agency_image" .
           python3 scripts/ops/agency_production_readiness.py \
+            --source-sha "$source_sha" \
+            --evidence "$RUNNER_TEMP/production-readiness.json" \
             --api-image "$api_image" \
             --admin-image "$admin_image" \
             --agency-image "$agency_image"
@@ -498,6 +504,9 @@ jobs:
             --artifact-kind production-candidate \
             --architecture arm64
           echo "artifact_name=oripa-platform-arm64-verification-${source_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Include fixture domain validation evidence
+        run: cp "$RUNNER_TEMP/production-readiness.json" "$RUNNER_TEMP/platform-production-arm64/production-readiness.json"
 
       - name: Upload ARM64 verification artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -690,6 +690,21 @@ class PreviewImageWorkflowDefinitionTest(unittest.TestCase):
 
 
 class ProductionImageDefinitionTest(unittest.TestCase):
+    def test_production_dispatch_requires_domain_inputs_without_defaults(self):
+        workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
+        for field, name in readiness.DOMAIN_ENVIRONMENT_AUTHORITY.items():
+            block = re.search(r"      " + field + r":\n(?P<body>(?:        .*\n)+)", workflow)
+            self.assertIsNotNone(block)
+            self.assertIn("required: true", block.group("body"))
+            self.assertNotIn("default:", block.group("body"))
+            self.assertIn(name + ": ${{ inputs." + field + " }}", workflow)
+        self.assertNotIn("ori-poke.com", workflow)
+        self.assertNotIn("oripa-z.com", workflow)
+        for filename in ("platform-ci.yml", "platform-production-arm64-artifact.yml"):
+            content = (ROOT / ".github/workflows" / filename).read_text()
+            self.assertIn('--evidence "$RUNNER_TEMP/production-readiness.json"', content)
+            self.assertIn('"$RUNNER_TEMP/platform-production-arm64/production-readiness.json"', content)
+
     def test_both_arm64_workflows_require_agency_and_offline_production_checks(self):
         for filename in ("platform-ci.yml", "platform-production-arm64-artifact.yml"):
             with self.subTest(workflow=filename):
@@ -721,21 +736,135 @@ class ProductionImageDefinitionTest(unittest.TestCase):
 
 
 class AgencyProductionReadinessTest(unittest.TestCase):
+    def setUp(self):
+        self.environment = {
+            "V2_PUBLIC_ORIGIN": "https://public.customer.example",
+            "V2_ADMIN_ORIGIN": "https://admin.customer.example",
+            "V2_AGENCY_ORIGIN": "https://agency.customer.example",
+            "V2_AGENCY_LOGIN_URL": "https://agency.customer.example/login",
+        }
+        patcher = mock.patch.dict(os.environ, self.environment, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_checks_use_only_public_config_and_isolated_read_only_images(self):
         config = json.loads(readiness.CONFIG.read_text())
-        self.assertEqual(config["required_api_environment"]["V2_AGENCY_LOGIN_URL"],
-                         "https://agent.oripa-z.com/login")
+        self.assertEqual(config["domain_environment_authority"], readiness.DOMAIN_ENVIRONMENT_AUTHORITY)
+        self.assertNotIn("https://", readiness.CONFIG.read_text())
+        self.assertNotIn("required_api_environment", config)
         self.assertEqual(config["agency_api_prefix"], "/agency/api/v2")
         self.assertFalse(config["activation_authorized"])
         with mock.patch.object(readiness.subprocess, "run") as run:
-            readiness.image_checks("api-candidate", "admin-candidate", "agency-candidate")
+            effective = readiness.image_checks("api-candidate", "admin-candidate", "agency-candidate")
+        self.assertEqual(effective, {
+            field: self.environment[name] for field, name in config["domain_environment_authority"].items()
+        })
         self.assertEqual(run.call_count, 3)
         for call in run.call_args_list:
             command = call.args[0]
             self.assertEqual(command[:6], ["docker", "run", "--rm", "--read-only", "--network", "none"])
             self.assertTrue(call.kwargs["check"])
-        self.assertIn("V2_AGENCY_LOGIN_URL=https://agent.oripa-z.com/login", run.call_args_list[0].args[0])
+        self.assertIn("V2_AGENCY_LOGIN_URL=https://agency.customer.example/login", run.call_args_list[0].args[0])
         self.assertIn("APP_ENV=production", run.call_args_list[0].args[0])
+
+    def test_every_authority_is_required_and_nonempty_before_any_image_runs(self):
+        for name in self.environment:
+            for value in (None, "", " "):
+                with self.subTest(name=name, value=value), mock.patch.dict(os.environ, self.environment, clear=True):
+                    if value is None:
+                        del os.environ[name]
+                    else:
+                        os.environ[name] = value
+                    with mock.patch.object(readiness.subprocess, "run") as run:
+                        with self.assertRaises(ValueError):
+                            readiness.image_checks("api", "admin", "agency")
+                        run.assert_not_called()
+
+    def test_invalid_https_values_are_rejected_for_every_authority(self):
+        invalid = (
+            "not-a-url", "http://agency.customer.example", "https://",
+            "https://bad host.example", "https://-bad.example", "https://bad..example",
+            "https://host.example:bad", "https://host.example:65536", "https://host.example:0",
+            "https://host.example:", "https://user:password@host.example",
+            "https://host.example\\evil", "\nhttps://host.example", "https://host.example\t",
+            "https://[::1]evil", "https://host.example/%invalid", 'https://host.example/"',
+        )
+        for name in self.environment:
+            for value in invalid:
+                with self.subTest(name=name, value=value), mock.patch.dict(os.environ, {name: value}):
+                    with self.assertRaises(ValueError):
+                        readiness.resolve_config()
+
+    def test_origins_forbid_all_path_query_and_fragment_components(self):
+        for name in ("V2_PUBLIC_ORIGIN", "V2_ADMIN_ORIGIN", "V2_AGENCY_ORIGIN"):
+            for suffix in ("/", "/login", "?value=1", "#fragment", "?", "#"):
+                with self.subTest(name=name, suffix=suffix), mock.patch.dict(
+                    os.environ, {name: self.environment[name] + suffix}
+                ):
+                    with self.assertRaises(ValueError):
+                        readiness.resolve_config()
+
+    def test_login_origin_must_match_host_and_effective_port(self):
+        for value in ("https://other.customer.example/login", "https://agency.customer.example:444/login"):
+            with self.subTest(value=value), mock.patch.dict(os.environ, {"V2_AGENCY_LOGIN_URL": value}):
+                with self.assertRaisesRegex(ValueError, "must match"):
+                    readiness.resolve_config()
+        with mock.patch.dict(os.environ, {
+            "V2_AGENCY_LOGIN_URL": "https://AGENCY.customer.example:443/login?next=account#login"
+        }):
+            readiness.resolve_config()
+
+    def test_new_production_values_and_future_customer_values_pass(self):
+        for domain in ("ori-poke.com", "another-customer.example"):
+            environment = {
+                "V2_PUBLIC_ORIGIN": f"https://{domain}",
+                "V2_ADMIN_ORIGIN": f"https://admin.{domain}",
+                "V2_AGENCY_ORIGIN": f"https://agent.{domain}",
+                "V2_AGENCY_LOGIN_URL": f"https://agent.{domain}/login",
+            }
+            with self.subTest(domain=domain), mock.patch.dict(os.environ, environment):
+                config, effective = readiness.resolve_config()
+                self.assertEqual(config["required_api_environment"], environment)
+                self.assertEqual(effective["agency_login_url"], environment["V2_AGENCY_LOGIN_URL"])
+
+    def test_old_test_agency_login_policy_is_preserved(self):
+        with mock.patch.dict(os.environ, {
+            "V2_AGENCY_ORIGIN": "https://ad.luxe-pack.biz",
+            "V2_AGENCY_LOGIN_URL": "https://ad.luxe-pack.biz/login",
+        }):
+            with self.assertRaisesRegex(ValueError, "Old Test"):
+                readiness.resolve_config()
+
+    def test_literal_or_remapped_config_cannot_replace_environment_authority(self):
+        config = json.loads(readiness.CONFIG.read_text())
+        for value in ("https://fixed.example", "OTHER_ENV"):
+            config["domain_environment_authority"]["public_origin"] = value
+            with mock.patch.object(readiness, "CONFIG") as path:
+                path.read_text.return_value = json.dumps(config)
+                with self.assertRaisesRegex(ValueError, "environment authority"):
+                    readiness.resolve_config()
+
+    def test_success_evidence_records_only_effective_domains_and_exact_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = Path(temporary) / "readiness.json"
+            arguments = ["readiness", "--api-image", "api", "--admin-image", "admin",
+                         "--agency-image", "agency", "--evidence", str(evidence),
+                         "--source-sha", HEAD]
+            with mock.patch("sys.argv", arguments), mock.patch.object(readiness.subprocess, "run"):
+                readiness.main()
+            result = json.loads(evidence.read_text())
+            self.assertEqual(result["source_commit"], HEAD)
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["effective_domains"], {
+                field: self.environment[name] for field, name in readiness.DOMAIN_ENVIRONMENT_AUTHORITY.items()
+            })
+            evidence.unlink()
+            with mock.patch("sys.argv", arguments), mock.patch.object(
+                readiness.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "docker")
+            ):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    readiness.main()
+            self.assertFalse(evidence.exists())
 
     def test_frontend_scanner_accepts_same_origin_and_rejects_each_old_test_value(self):
         with tempfile.TemporaryDirectory() as temporary:

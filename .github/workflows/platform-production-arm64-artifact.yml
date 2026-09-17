@@ -15,6 +15,22 @@ on:
         description: Exact protected main merge SHA
         required: true
         type: string
+      public_origin:
+        description: Production public HTTPS origin (V2_PUBLIC_ORIGIN)
+        required: true
+        type: string
+      admin_origin:
+        description: Production Admin HTTPS origin (V2_ADMIN_ORIGIN)
+        required: true
+        type: string
+      agency_origin:
+        description: Production Agency HTTPS origin (V2_AGENCY_ORIGIN)
+        required: true
+        type: string
+      agency_login_url:
+        description: Production Agency HTTPS login URL (V2_AGENCY_LOGIN_URL)
+        required: true
+        type: string
 
 permissions:
   checks: read
@@ -141,6 +157,10 @@ jobs:
           CHANGE_ID: ${{ steps.authority.outputs.change_id }}
           PR_NUMBER: ${{ steps.authority.outputs.pr_number }}
           SOURCE_SHA: ${{ steps.authority.outputs.source_sha }}
+          V2_PUBLIC_ORIGIN: ${{ inputs.public_origin }}
+          V2_ADMIN_ORIGIN: ${{ inputs.admin_origin }}
+          V2_AGENCY_ORIGIN: ${{ inputs.agency_origin }}
+          V2_AGENCY_LOGIN_URL: ${{ inputs.agency_login_url }}
         run: |
           created_at="$(git show -s --format=%cI "$SOURCE_SHA")"
           target_platform="$(python3 scripts/ops/preview_image_artifact.py target --architecture arm64 --field platform)"
@@ -169,6 +189,8 @@ jobs:
             --file apps/agency/Dockerfile \
             --tag "$agency_image" .
           python3 scripts/ops/agency_production_readiness.py \
+            --source-sha "$SOURCE_SHA" \
+            --evidence "$RUNNER_TEMP/production-readiness.json" \
             --api-image "$api_image" \
             --admin-image "$admin_image" \
             --agency-image "$agency_image"
@@ -198,6 +220,9 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --artifact-kind production-candidate \
             --architecture arm64
+
+      - name: Include effective domain validation evidence
+        run: cp "$RUNNER_TEMP/production-readiness.json" "$RUNNER_TEMP/platform-production-arm64/production-readiness.json"
 
       - name: Upload immutable Production candidate artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

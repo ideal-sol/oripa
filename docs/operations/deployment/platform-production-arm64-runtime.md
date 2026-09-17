@@ -69,11 +69,28 @@ revision; no image is rebuilt during rollback.
 - Restart: the later supervisor must use a bounded restart policy such as
   `unless-stopped`; this Stage does not define or activate it.
 
-## Planned Non-secret Origins
+## Required Non-secret Domain Authority
 
-Human-planned values are `https://oripa-z.com` for the public origin,
-`https://admin.oripa-z.com` for Admin, and same-origin `/api/v2/` for the Public
-API. They are documentation only in Stage 3B and are not injected or routed.
+Production readiness resolves `V2_PUBLIC_ORIGIN`, `V2_ADMIN_ORIGIN`,
+`V2_AGENCY_ORIGIN`, and `V2_AGENCY_LOGIN_URL` from its process environment.
+[The config](agency-production-config.json) declares these environment keys,
+not expected domain values. Missing, empty, malformed or non-HTTPS values fail
+closed; the three origins allow no path, query or fragment. The Agency login
+URL must have the same origin as the Agency origin, including its effective port.
+
+The canonical `platform-production-arm64-artifact.yml` dispatch requires
+`public_origin`, `admin_origin`, `agency_origin`, and `agency_login_url` inputs
+without defaults. Operators supply the intended non-secret values explicitly.
+Changing domains requires new validation inputs, not a Platform source edit.
+The Public API retains its relative same-origin `/api/v2/` path.
+
+Each artifact includes `production-readiness.json` with the exact source SHA,
+image references and all four effective domain values after offline checks
+succeed. The immutable GitHub artifact digest covers this evidence alongside
+the image archives and their existing manifest/checksums. PR ARM64 verification
+uses explicitly supplied `.invalid` fixture origins; those artifacts are CI
+verification only. Final Production candidates use the operator dispatch inputs.
+Neither path changes deployed Runtime ENV or authorizes activation.
 
 ## Agency Runtime And Configuration Gate
 
@@ -81,14 +98,14 @@ API. They are documentation only in Stage 3B and are not injected or routed.
   `22.22.3`, pnpm `10.12.1`, frozen dependencies, `@oripa/agency` Next.js standalone
   build, non-root `node`, internal port `3000`, `node server.js`.
 - No site-specific public build argument is needed. Browser requests use the
-  relative same-origin `/agency/api/v2` prefix. The Human-confirmed public origin
-  is `https://agent.oripa-z.com`; no Test host port or upstream is prescribed.
+  relative same-origin `/agency/api/v2` prefix. `V2_AGENCY_ORIGIN` supplies the
+  intended public origin; no Test host port or upstream is prescribed.
 - No dedicated Agency readiness endpoint or Docker healthcheck exists. `/login`
   can prove process/routing availability, not API, database or mail readiness.
 - [Required non-secret config](agency-production-config.json) is an activation
   hard gate, not authorization to deploy. NEW Server must read back effective
   Laravel config after its existing config-cache procedure. In particular,
-  `V2_AGENCY_LOGIN_URL=https://agent.oripa-z.com/login` must be explicit.
+  `V2_AGENCY_LOGIN_URL` must be explicit and match the Agency origin.
 - `v2_agency.login_url` reads that environment setting before its old Test
   default. Both Agency mail call sites pass only this configured value; no
   redirect or API response uses the fallback independently. The inactive source
