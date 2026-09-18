@@ -128,7 +128,7 @@ function RankMasterContent({ id }: { id?: string }) {
   }
 
   return (
-    <section className="workspace">
+    <section className="workspace announcement-workspace">
       <AdminPageHeader
         action={canManage ? (
           <button className="primary-button" onClick={() => { setEditing(null); setModalOpen(true); setError(null); }} type="button">
@@ -139,22 +139,22 @@ function RankMasterContent({ id }: { id?: string }) {
         eyebrow="Catalog"
         title="ランク"
       />
-      <label className="announcement-filter">
+      <div className="catalog-filters"><label>
         状態
         <select value={status} onChange={(event) => setStatus(event.target.value as RankStatusFilter)}>
           <option value="active">有効</option>
           <option value="inactive">無効</option>
           <option value="all">すべて</option>
         </select>
-      </label>
+      </label></div>
       {message ? <p className="status-alert" role="status">{message}</p> : null}
       {error ? <p className="error-alert" role="alert">{error}</p> : null}
       {state.kind === "loading" ? <RankState loading message="ランクを読み込んでいます。" /> : null}
       {state.kind === "error" ? <RankState message={state.message} /> : null}
       {state.kind === "ready" && state.items.length === 0 ? <RankState message="対象のランクはありません。" /> : null}
       {state.kind === "ready" && state.items.length > 0 ? (
-        <div className="table-container">
-          <table>
+        <div className="catalog-table-wrap">
+          <table className="catalog-table">
             <thead><tr><th aria-label="並べ替え" /><th>Rank名</th><th>ラインナップ画像</th><th>抽選結果画像</th><th>総在庫表示</th><th>状態</th><th>編集</th></tr></thead>
             <tbody>
               {state.items.map((item) => (

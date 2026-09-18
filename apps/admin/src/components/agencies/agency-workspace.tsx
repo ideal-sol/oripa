@@ -59,14 +59,14 @@ function AgencyContent({ mode, agencyId }: { mode: Mode; agencyId?: string }) {
     else setReload((value) => value + 1);
   }
 
-  return <main className="workspace">
+  return <div className="workspace announcement-workspace">
     <AdminPageHeader eyebrow="Agency" title={mode === "new" ? "代理店登録" : mode === "edit" ? "代理店編集" : agencyId ? "代理店詳細" : "代理店一覧"}
       action={mode === "list" ? <PermissionGate permission="agency.manage"><Link className="primary-button" href="/agencies/new">新規代理店登録</Link></PermissionGate> : <Link className="secondary-button" href="/agencies">代理店一覧へ</Link>} />
     {message ? <p className="status-alert" role="status">{message}</p> : null}
     {error ? <p className="error-alert" role="alert">{error}<button className="secondary-button" onClick={() => setReload((value) => value + 1)} type="button">再読み込み</button></p> : null}
     {loading ? <p role="status">代理店を読み込んでいます。</p> : null}
     {!loading && !error && mode === "list" ? <>
-      {items.length === 0 ? <p>代理店はありません。</p> : <div className="table-container"><table>
+      {items.length === 0 ? <p>代理店はありません。</p> : <div className="catalog-table-wrap"><table className="announcement-table">
         <thead><tr><th>会社名</th><th>担当者名</th><th>Login ID</th><th>Advertising Code</th><th>状態</th><th>詳細</th></tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}><td>{item.company_name}</td><td>{item.contact_name}</td><td>{item.login_id}</td><td>{item.advertising_code}</td><td>{item.status === "active" ? "有効" : "停止"}</td><td><Link href={`/agencies/${item.id}`}>詳細</Link></td></tr>)}</tbody>
       </table></div>}
@@ -74,17 +74,17 @@ function AgencyContent({ mode, agencyId }: { mode: Mode; agencyId?: string }) {
     </> : null}
     {!loading && !error && (mode === "new" || (mode === "edit" && agency)) ? <AgencyForm client={client} current={agency} onSaved={saved} /> : null}
     {!loading && !error && mode === "detail" && agency ? <>
-      <section className="catalog-mutation-panel"><dl>{fields.map(([field, label]) => <div key={field}><dt>{label}</dt><dd>{agency[field]}</dd></div>)}
+      <section className="contact-detail-card"><dl className="contact-detail-list">{fields.map(([field, label]) => <div key={field}><dt>{label}</dt><dd>{agency[field]}</dd></div>)}
         <div><dt>Login ID</dt><dd>{agency.login_id}</dd></div><div><dt>Advertising Code</dt><dd>{agency.advertising_code}</dd></div>
         <div><dt>状態</dt><dd>{agency.status === "active" ? "有効" : "停止"}</dd></div><div><dt>メモ</dt><dd>{agency.memo || "なし"}</dd></div>
       </dl></section>
-      <PermissionGate permission="agency.manage"><div className="catalog-dialog-actions">
+      <PermissionGate permission="agency.manage"><div className="settings-actions">
         <Link className="secondary-button" href={`/agencies/${agency.id}/edit`}>編集</Link>
         {([agency.status === "active" ? "suspend" : "reactivate", "password-reset", "login-information-reissue"] as Action[]).map((operation) => <button className="secondary-button" key={operation} onClick={() => setAction(operation)} type="button">{labels[operation]}</button>)}
       </div></PermissionGate>
     </> : null}
     {action && agency ? <AgencyActionDialog action={action} agency={agency} client={client} onClose={() => setAction(null)} onSaved={saved} /> : null}
-  </main>;
+  </div>;
 }
 
 function AgencyForm({ client, current, onSaved }: {
@@ -144,7 +144,7 @@ function AgencyForm({ client, current, onSaved }: {
     }
   }
 
-  return <form className="catalog-mutation-form" onSubmit={(event) => void submit(event)}>
+  return <form className="catalog-core-form-card catalog-mutation-form" onSubmit={(event) => void submit(event)}>
     {error ? <p className="error-alert" role="alert">{error}</p> : null}
     {fields.map(([field, label, maxLength]) => <label key={field}>{label}<input defaultValue={current?.[field] ?? ""} disabled={busy} maxLength={maxLength} name={field} required type={field === "email" ? "email" : field === "phone" ? "tel" : "text"} /></label>)}
     <label>メモ<textarea defaultValue={current?.memo ?? ""} disabled={busy} maxLength={5000} name="memo" /></label>

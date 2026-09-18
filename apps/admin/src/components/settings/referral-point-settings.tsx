@@ -129,7 +129,7 @@ export function ReferralPointSettings() {
             <form className="referral-settings-form" onSubmit={save}>
               {error ? <SettingsError error={error} onReload={load} /> : null}
               {saved ? <p className="notice notice-success" role="status">設定を保存しました。</p> : null}
-              <section className="referral-settings-section">
+              <section className="settings-panel referral-settings-section">
                 <div className="referral-settings-heading">
                   <div>
                     <h2>ポイント付与</h2>
@@ -152,7 +152,7 @@ export function ReferralPointSettings() {
                 </div>
                 {invalid ? <p className="field-error" role="alert">ポイントは0～1,000,000、期限は1～3,650日の整数で指定してください。</p> : null}
               </section>
-              <section className="referral-settings-section">
+              <section className="settings-panel referral-settings-section">
                 <h2>適用条件</h2>
                 <dl className="referral-settings-summary">
                   <div><dt>付与条件</dt><dd>紹介されたユーザーのSMS認証完了</dd></div>
