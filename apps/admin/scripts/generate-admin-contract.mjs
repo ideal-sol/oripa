@@ -1162,6 +1162,7 @@ export interface AdminPointAdjustmentRequest {
   direction: "grant" | "deduct";
   amount: number;
   reason: string;
+  current_password?: string;
 }
 
 export interface AdminPointAdjustment {
@@ -1346,6 +1347,7 @@ export interface AdminAuthenticationPolicyUpdate {
   expected_revision: number;
   mfa_required: boolean;
   invitation_required: boolean;
+  current_password?: string;
 }
 
 export interface AdminAuthenticationPolicyMutationResult {

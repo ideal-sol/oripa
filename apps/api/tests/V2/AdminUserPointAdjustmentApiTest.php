@@ -14,9 +14,12 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Mockery;
 use Tests\TestCase;
@@ -138,14 +141,14 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         $owner = $this->adminSession(V2AdminRole::Owner);
         $this->mutate($owner, $user->public_id, [
             ...$payload,
-            'current_password' => 'incorrect password',
+            'unexpected' => 'invalid field',
         ])->assertUnprocessable()->assertJsonPath('code', 'POINT_ADJUSTMENT_INVALID');
 
         DB::table('admin_sessions')->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($owner))->update([
             'mfa_verified_at' => now()->subMinutes(5),
         ]);
         Auth::forgetGuards();
-        $this->mutate($owner, $user->public_id, $payload)
+        $this->mutate($owner, $user->public_id, [...$payload, 'current_password' => self::PASSWORD])
             ->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
 
         Auth::forgetGuards();
@@ -174,6 +177,44 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             ])
             ->postJson('/admin/api/v2/users/'.$user->public_id.'/point-adjustments', $payload)
             ->assertForbidden();
+    }
+
+    public function test_legacy_password_is_discarded_without_authentication_storage_or_logging(): void
+    {
+        $user = $this->user();
+        $session = $this->adminSession(V2AdminRole::Owner);
+        $key = (string) Str::uuid7();
+        $legacyValues = ['discarded-point-password-one', 'discarded-point-password-two'];
+        $queries = [];
+        $messages = [];
+        DB::listen(function (QueryExecuted $query) use (&$queries): void {
+            $queries[] = [$query->sql, $query->bindings];
+        });
+        Log::listen(function (MessageLogged $event) use (&$messages): void {
+            $messages[] = [$event->message, $event->context];
+        });
+
+        foreach ([...$legacyValues, null] as $index => $legacyValue) {
+            Auth::forgetGuards();
+            $payload = $this->payload();
+            if ($legacyValue !== null) {
+                $payload['current_password'] = $legacyValue;
+            }
+            $response = $this->mutate($session, $user->public_id, $payload, $key)
+                ->assertOk()->assertJsonPath('idempotent_replay', $index > 0);
+            self::assertFalse($this->app['request']->has('current_password'));
+            foreach ($legacyValues as $value) {
+                self::assertStringNotContainsString($value, $response->getContent());
+            }
+        }
+        self::assertSame(1, DB::table('point_adjustments')->count());
+        self::assertSame(1, DB::table('point_operations')->where('source_type', 'admin_adjustment')->count());
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'point.admin_adjusted')->count());
+        self::assertNotEmpty($queries);
+        $observed = json_encode([$queries, $messages], JSON_THROW_ON_ERROR);
+        foreach (['current_password', ...$legacyValues] as $value) {
+            self::assertStringNotContainsString($value, $observed);
+        }
     }
 
     public function test_validation_insufficient_balance_idempotency_and_secret_safe_audit(): void

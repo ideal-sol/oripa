@@ -20,6 +20,7 @@ final class V2AdminUserPointAdjustmentController
 
     public function __invoke(Request $request, string $userId): JsonResponse
     {
+        $request->offsetUnset('current_password');
         $requestId = $this->requestId($request);
         try {
             $this->assertExactFields($request);

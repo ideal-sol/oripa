@@ -47,7 +47,8 @@ class PolicyGateTest(unittest.TestCase):
                     ))
         for name in ("AdminPointAdjustmentRequest", "AdminAuthenticationPolicyUpdate"):
             schema = contract["components"]["schemas"][name]
-            self.assertNotIn("current_password", schema["properties"])
+            self.assertTrue(schema["properties"]["current_password"]["deprecated"])
+            self.assertTrue(schema["properties"]["current_password"]["writeOnly"])
             self.assertNotIn("current_password", schema["required"])
             self.assertFalse(schema["additionalProperties"])
 

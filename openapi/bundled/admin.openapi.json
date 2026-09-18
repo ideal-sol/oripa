@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.32",
+    "version": "2.0.0-alpha.31",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -21015,6 +21015,14 @@
           },
           "invitation_required": {
             "type": "boolean"
+          },
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true,
+            "deprecated": true,
+            "description": "旧client互換用の任意項目。送信されても破棄し、処理・認証判断・ログ・Audit・DB保存に使用しない。新clientは送信しない。"
           }
         }
       },
@@ -22207,6 +22215,14 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true,
+            "deprecated": true,
+            "description": "旧client互換用の任意項目。送信されても破棄し、処理・認証判断・ログ・Audit・DB保存に使用しない。新clientは送信しない。"
           }
         }
       },

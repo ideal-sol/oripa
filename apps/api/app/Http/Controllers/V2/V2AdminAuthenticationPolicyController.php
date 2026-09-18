@@ -30,6 +30,7 @@ final class V2AdminAuthenticationPolicyController
 
     public function update(Request $request): JsonResponse
     {
+        $request->offsetUnset('current_password');
         $this->assertExactFields($request, [
             'expected_revision',
             'mfa_required',
