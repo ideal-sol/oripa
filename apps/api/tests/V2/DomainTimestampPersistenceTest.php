@@ -36,6 +36,10 @@ final class DomainTimestampPersistenceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config([
+            'v2_audit.active_hmac_key_version' => 'v1',
+            'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
+        ]);
         self::assertSame('Asia/Tokyo', config('app.timezone'));
         self::assertSame('Asia/Tokyo', date_default_timezone_get());
         self::assertSame(DB::connection()->getConfig('timezone'), DB::selectOne('SHOW TIME ZONE')->TimeZone);

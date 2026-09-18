@@ -9969,3 +9969,5 @@ PHP構文137 files／diff whitespace／Source scope review PASS。helper／新�
 - GitHub／Artifact／Productionの実行結果はこのChangeのPRに追記し、Source/test PASSだけでProduction反映済みとしない。Security／ESLint baselineの実ファイル期限は2026-09-24、延長・内容変更なし。Required Checksを迂回せず、merge後canonical ARM64 artifactのSource／digest／architectureと固定Merge SHAを確認してからAPIと必要Mail/SMSだけを切り替える。Admin/Agency/Storefrontの生成有無を反映理由にしない。
 - 既存誤保存データ、公開期間・期限・集計・Audit検証に残る影響は別のHuman判断。Source rollbackはSchema/ENV変更不要だが元の日時バグを再導入し、特に新旧lease混在時のWorker切戻しは無条件に安全としない。Productionデータ補正／再署名・新Migration・契約／Timezone変更・Browser Login・実決済・test実送信は行わない。最終Human確認は新規作成・更新の代表操作と期待時刻／境界を中心に引き継ぐ。
 - PR #487の初回CIはPoint snapshotの静的Policyが旧offsetなしbinding文字列を要求して停止した。排他的cutoff検査を新helper付きbindingへ追従し、inclusive化／offsetなしbindingへの退行を拒否するPolicy testを追加する。Required Checkや制約の緩和・baseline期限変更は行わない。
+- 統合CIのV2 715件中、新規Domain日時testの全Audit chain検証1件がFAIL。先行AuditOutboxFoundationが保持するfixtureのv1検証鍵と、新規testが継承した環境側test鍵が異なることを、両class連結のfocused 20件で再現した。新規test側だけ既存Foundation共通のsynthetic鍵設定を明示し、履歴を削除せず全chain／digest／改竄検出の期待を維持する。Production Source・鍵・署名処理は変更しない。
+- 上記Audit連結回帰は、既存の隔離DBでUTC／Asia/Tokyoそれぞれ20 tests /197 assertions PASS。579件のcorpus内の再検証であり、件数へ重複加算しない。
