@@ -118,8 +118,7 @@ final class ZAdminAuthenticationPolicyConcurrencyTest extends TestCase
                     'expected_revision' => 1,
                     'mfa_required' => false,
                     'invitation_required' => true,
-                ],
-                self::PASSWORD
+                ]
             );
 
             return ['result' => 'success', 'code' => null];

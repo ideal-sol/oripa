@@ -2,6 +2,7 @@
 
 namespace Tests\V2;
 
+use Mockery;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
@@ -17,6 +18,8 @@ use App\Domain\Reporting\ValueObjects\V2ExportDefinition;
 use App\Models\V2\Admin;
 use App\Models\V2\ExportJob;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -35,7 +38,6 @@ final class ReportingExportVerticalSliceTest extends TestCase
             'cache.default' => 'array',
             'app.key' => 'base64:'.base64_encode(str_repeat('r', 32)),
             'v2_identity.fresh_mfa.minutes' => 5,
-            'v2_identity.rate_limits.financial_export' => [5, 3600],
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo',
@@ -251,45 +253,50 @@ final class ReportingExportVerticalSliceTest extends TestCase
         }
 
         $stale = $this->context(V2AdminRole::Owner, now()->subMinutes(5));
-        try {
-            app(V2ExportService::class)->createJob($stale, 'stale-key', [
-                'report_type' => 'sales',
-                'period_type' => 'month',
-                'month' => '2026-08',
-            ]);
-            self::fail('Financial Export requires Fresh MFA.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
+        $filters = ['report_type' => 'sales', 'period_type' => 'month', 'month' => '2026-08'];
+        foreach ([$operator, $stale] as $context) {
+            foreach ([
+                fn () => app(V2ExportService::class)->stream($context, $filters),
+                fn () => app(V2ExportService::class)->createJob($context, 'stale-key', $filters),
+                fn () => app(V2ExportService::class)->download($context, (string) Str::uuid7()),
+            ] as $operation) {
+                try {
+                    $operation();
+                    self::fail('Financial Export requires permission and Fresh Authentication.');
+                } catch (V2AuthenticationException $exception) {
+                    self::assertSame(
+                        $context === $operator ? 'AUTHORIZATION_DENIED' : 'FRESH_AUTHENTICATION_REQUIRED',
+                        $exception->errorCode
+                    );
+                }
+            }
         }
     }
 
-    public function test_financial_export_rate_limit_is_fail_closed_and_audited(): void
+    public function test_export_jobs_and_downloads_exceed_previous_limit_without_limiter_cache(): void
     {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldNotReceive('get');
+        $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
         $context = $this->context(V2AdminRole::Owner);
         $service = app(V2ExportService::class);
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
-            $service->createJob($context, 'rate-key-'.$attempt, [
-                'report_type' => 'sales',
-                'period_type' => 'month',
-                'month' => '2026-08',
-            ]);
+        $filters = [
+            'report_type' => 'sales',
+            'period_type' => 'month',
+            'month' => '2026-08',
+        ];
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $created = $service->createJob($context, 'unlimited-export-'.$attempt, $filters);
+            self::assertFalse($created['idempotent_replay']);
+            self::assertSame(1, app(V2ExportWorker::class)->run('unlimited-export-worker', 1));
+            self::assertSame(
+                $created['export_job_id'],
+                $service->download($context, $created['export_job_id'])['export_job_id']
+            );
         }
-
-        try {
-            $service->createJob($context, 'rate-key-6', [
-                'report_type' => 'sales',
-                'period_type' => 'month',
-                'month' => '2026-08',
-            ]);
-            self::fail('Financial Export must stop after five requests per hour.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('RATE_LIMITED', $exception->errorCode);
-            self::assertSame(429, $exception->status);
-        }
-        self::assertDatabaseHas('audit_logs', [
+        self::assertSame(6, ExportJob::query()->count());
+        self::assertDatabaseMissing('audit_logs', [
             'action_code' => 'report.export.rate_limited',
-            'outcome' => 'failure',
-            'reason_code' => 'rate_limited',
         ]);
     }
 

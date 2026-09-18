@@ -345,7 +345,6 @@ describe("AdminApiClient", () => {
       direction: "grant",
       amount: 100,
       reason: "Correction",
-      current_password: "not-persisted",
     }, "adjustment-key");
 
     const [url, request] = fetcher.mock.calls[0];
@@ -354,9 +353,11 @@ describe("AdminApiClient", () => {
     const headers = new Headers(request?.headers);
     expect(headers.get("X-XSRF-TOKEN")).toBe(csrf);
     expect(headers.get("Idempotency-Key")).toBe("adjustment-key");
-    expect(JSON.parse(String(request?.body))).toMatchObject({
+    expect(JSON.parse(String(request?.body))).toEqual({
+      point_type: "paid",
+      direction: "grant",
       amount: 100,
-      current_password: "not-persisted",
+      reason: "Correction",
     });
   });
 
@@ -660,7 +661,6 @@ describe("AdminApiClient", () => {
 
     await client.getAuthenticationPolicy();
     await client.updateAuthenticationPolicy({
-      current_password: "not-persisted",
       expected_revision: 1,
       invitation_required: false,
       mfa_required: true,

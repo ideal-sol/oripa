@@ -21,7 +21,6 @@ final class V2AdminFreshMfaAuthorizer
     public function __construct(
         private readonly V2SessionManager $sessions,
         private readonly V2PermissionAuthorizer $permissions,
-        private readonly V2RateLimiter $rateLimiter,
         private readonly V2AuditLogService $audit,
         private readonly V2AuditHasher $auditHasher,
         private readonly V2SessionPolicy $sessionPolicy
@@ -53,8 +52,7 @@ final class V2AdminFreshMfaAuthorizer
     }
 
     public function authorizeQa(
-        V2AdminAuthorizationContext $context,
-        bool $criticalMutation = false
+        V2AdminAuthorizationContext $context
     ): Admin {
         [$session, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, V2Permission::ManageQaDraw)) {
@@ -79,12 +77,6 @@ final class V2AdminFreshMfaAuthorizer
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
                 'Fresh authentication is required.'
-            );
-        }
-        if ($criticalMutation) {
-            $this->rateLimiter->assertSubject(
-                'critical_admin_mutation',
-                $admin->public_id
             );
         }
 
@@ -127,30 +119,6 @@ final class V2AdminFreshMfaAuthorizer
                 'Fresh authentication is required.'
             );
         }
-        try {
-            $this->rateLimiter->assertSubject(
-                'financial_export',
-                $admin->public_id
-            );
-        } catch (V2AuthenticationException $exception) {
-            $this->audit->record(
-                $exception->errorCode === 'RATE_LIMITED'
-                    ? 'report.export.rate_limited'
-                    : 'report.export.authorization_failed',
-                [
-                    'request_id' => $context->requestId,
-                    'actor_type' => 'admin',
-                    'actor_public_id' => $admin->public_id,
-                    'actor_role' => $admin->role->value,
-                    'auth_realm' => 'admin',
-                    'session_correlation_hash' => $context->sessionCorrelationHash,
-                    'action' => 'reporting.export',
-                    'outcome' => 'failure',
-                    'reason_code' => strtolower($exception->errorCode),
-                ]
-            );
-            throw $exception;
-        }
 
         return $admin;
     }
@@ -159,8 +127,7 @@ final class V2AdminFreshMfaAuthorizer
         V2AdminAuthorizationContext $context,
         V2Permission $permission,
         bool $freshMfa = false,
-        string $action = 'admin.operation',
-        bool $criticalMutation = false
+        string $action = 'admin.operation'
     ): Admin {
         [$session, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, $permission)) {
@@ -171,13 +138,6 @@ final class V2AdminFreshMfaAuthorizer
             );
         }
         if (! $freshMfa) {
-            if ($criticalMutation) {
-                $this->rateLimiter->assertSubject(
-                    'critical_admin_mutation',
-                    $admin->public_id
-                );
-            }
-
             return $admin;
         }
         if (! $this->isFresh($session)) {
@@ -196,12 +156,6 @@ final class V2AdminFreshMfaAuthorizer
                 'FRESH_AUTHENTICATION_REQUIRED',
                 403,
                 'Fresh authentication is required.'
-            );
-        }
-        if ($criticalMutation) {
-            $this->rateLimiter->assertSubject(
-                'critical_admin_mutation',
-                $admin->public_id
             );
         }
 

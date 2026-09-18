@@ -303,7 +303,7 @@ final class V2QaPlanManagementService
             'plan.archive',
             ['plan_id' => $planId, ...$input],
             function () use ($context, $planId, $input): array {
-                $admin = $this->freshMfa->authorizeQa($context, true);
+                $admin = $this->freshMfa->authorizeQa($context);
                 $plan = $this->planRow($planId, true);
                 $this->assertRevision($plan, $input);
                 if ($plan->archived_at !== null) {
@@ -434,7 +434,7 @@ final class V2QaPlanManagementService
             'guarantee.save',
             ['gacha_id' => $gachaId, ...$input],
             function () use ($context, $gachaId, $input): array {
-                $admin = $this->freshMfa->authorizeQa($context, true);
+                $admin = $this->freshMfa->authorizeQa($context);
                 $gacha = $this->gachaRow($gachaId, true);
                 $userId = $this->requiredString($input, 'user_id');
                 $prizeId = $this->requiredString($input, 'prize_id');
@@ -517,7 +517,7 @@ final class V2QaPlanManagementService
             'guarantee.disable',
             ['gacha_id' => $gachaId, 'user_id' => $userId, ...$input],
             function () use ($context, $gachaId, $userId, $input): array {
-                $admin = $this->freshMfa->authorizeQa($context, true);
+                $admin = $this->freshMfa->authorizeQa($context);
                 $gacha = $this->gachaRow($gachaId, true);
                 $assignment = QaGachaGuaranteeAssignment::query()
                     ->join('users as user', 'user.id', '=', 'qa_gacha_guarantee_assignments.user_id')
@@ -572,7 +572,7 @@ final class V2QaPlanManagementService
             'assignment.assign',
             ['plan_id' => $planId, ...$input],
             function () use ($context, $planId, $input): array {
-                $admin = $this->freshMfa->authorizeQa($context, true);
+                $admin = $this->freshMfa->authorizeQa($context);
                 $plan = $this->planRow($planId, true);
                 $this->assertRevision($plan, $input);
                 $userId = $this->requiredString($input, 'user_id');
@@ -644,7 +644,7 @@ final class V2QaPlanManagementService
             'assignment.unassign',
             ['plan_id' => $planId, ...$input],
             function () use ($context, $planId, $input): array {
-                $admin = $this->freshMfa->authorizeQa($context, true);
+                $admin = $this->freshMfa->authorizeQa($context);
                 $plan = $this->planRow($planId, true);
                 $this->assertRevision($plan, $input);
                 $userId = $this->requiredString($input, 'user_id');

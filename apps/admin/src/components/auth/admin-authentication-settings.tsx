@@ -27,7 +27,6 @@ export function AdminAuthenticationSettings() {
   const navigation = navigationItem("authentication-settings");
   const [policy, setPolicy] = useState<AdminAuthenticationPolicy | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [currentPassword, setCurrentPassword] = useState("");
   const [error, setError] = useState<AdminApiError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | "create" | null>("load");
@@ -79,20 +78,17 @@ export function AdminAuthenticationSettings() {
   }, [dirty]);
 
   async function save() {
-    if (!policy || !draft || !dirty || currentPassword.length === 0) return;
+    if (!policy || !draft || !dirty) return;
     setConfirmOpen(false);
     setBusy("save");
     setError(null);
     setNotice(null);
     pendingKey.current ??= crypto.randomUUID();
-    const password = currentPassword;
-    setCurrentPassword("");
     try {
       const response = await client.updateAuthenticationPolicy(
         {
           expected_revision: policy.revision,
           ...draft,
-          current_password: password,
         },
         pendingKey.current,
       );
@@ -186,27 +182,12 @@ export function AdminAuthenticationSettings() {
                   <div><dt>有効Owner</dt><dd>{policy.active_owner_count}人</dd></div>
                   <div><dt>Revision</dt><dd>{policy.revision}</dd></div>
                 </dl>
-                <label>
-                  <span>現在のパスワード</span>
-                  <span className="input-shell">
-                    <KeyRound size={18} aria-hidden="true" />
-                    <input
-                      autoComplete="current-password"
-                      maxLength={128}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                      required
-                      type="password"
-                      value={currentPassword}
-                    />
-                  </span>
-                </label>
                 <div className="settings-actions">
                   <button
                     className="secondary-button"
                     disabled={busy !== null || !dirty}
                     onClick={() => {
                       applyPolicy(policy);
-                      setCurrentPassword("");
                     }}
                     type="button"
                   >
@@ -215,7 +196,7 @@ export function AdminAuthenticationSettings() {
                   </button>
                   <button
                     className="primary-button"
-                    disabled={busy !== null || !dirty || currentPassword.length === 0}
+                    disabled={busy !== null || !dirty}
                     onClick={() => setConfirmOpen(true)}
                     type="button"
                   >

@@ -30,23 +30,18 @@ final class V2AdminAuthenticationPolicyController
 
     public function update(Request $request): JsonResponse
     {
+        $request->offsetUnset('current_password');
         $this->assertExactFields($request, [
             'expected_revision',
             'mfa_required',
             'invitation_required',
-            'current_password',
         ]);
         $requestId = $this->requestId($request);
         $context = $this->authorization->context($request, $requestId);
-        $currentPassword = $request->input('current_password');
-        if (! is_string($currentPassword) || $currentPassword === '') {
-            throw $this->invalid();
-        }
         $result = $this->policy->update(
             $context,
             $this->idempotencyKey($request),
-            $request->only(['expected_revision', 'mfa_required', 'invitation_required']),
-            $currentPassword
+            $request->only(['expected_revision', 'mfa_required', 'invitation_required'])
         );
 
         return $this->response([

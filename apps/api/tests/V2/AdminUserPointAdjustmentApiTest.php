@@ -14,9 +14,12 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Mockery;
 use Tests\Support\V2TimestampFixture;
@@ -64,7 +67,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'grant',
             'amount' => 500,
             'reason' => 'Paid balance correction.',
-            'current_password' => self::PASSWORD,
         ])->assertOk()
             ->assertJsonPath('data.paid_balance_before', 0)
             ->assertJsonPath('data.paid_balance_after', 500)
@@ -84,7 +86,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'grant',
             'amount' => 300,
             'reason' => 'Free balance correction.',
-            'current_password' => self::PASSWORD,
         ])->assertOk()->assertJsonPath('data.free_balance_after', 300);
         $freeLot = DB::table('point_lots')->where('point_type', 'free')->sole();
         self::assertSame(
@@ -98,7 +99,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'deduct',
             'amount' => 125,
             'reason' => 'Paid deduction correction.',
-            'current_password' => self::PASSWORD,
         ])->assertOk()
             ->assertJsonPath('data.paid_balance_after', 375)
             ->assertJsonPath('data.free_balance_after', 300);
@@ -109,7 +109,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'deduct',
             'amount' => 75,
             'reason' => 'Free deduction correction.',
-            'current_password' => self::PASSWORD,
         ])->assertOk()
             ->assertJsonPath('data.paid_balance_after', 375)
             ->assertJsonPath('data.free_balance_after', 225);
@@ -143,14 +142,14 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         $owner = $this->adminSession(V2AdminRole::Owner);
         $this->mutate($owner, $user->public_id, [
             ...$payload,
-            'current_password' => 'incorrect password',
-        ])->assertUnauthorized()->assertJsonPath('code', 'INVALID_CURRENT_PASSWORD');
+            'unexpected' => 'invalid field',
+        ])->assertUnprocessable()->assertJsonPath('code', 'POINT_ADJUSTMENT_INVALID');
 
         DB::table('admin_sessions')->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($owner))->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
         ]));
         Auth::forgetGuards();
-        $this->mutate($owner, $user->public_id, $payload)
+        $this->mutate($owner, $user->public_id, [...$payload, 'current_password' => self::PASSWORD])
             ->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
 
         Auth::forgetGuards();
@@ -179,6 +178,44 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             ])
             ->postJson('/admin/api/v2/users/'.$user->public_id.'/point-adjustments', $payload)
             ->assertForbidden();
+    }
+
+    public function test_legacy_password_is_discarded_without_authentication_storage_or_logging(): void
+    {
+        $user = $this->user();
+        $session = $this->adminSession(V2AdminRole::Owner);
+        $key = (string) Str::uuid7();
+        $legacyValues = ['discarded-point-password-one', 'discarded-point-password-two'];
+        $queries = [];
+        $messages = [];
+        DB::listen(function (QueryExecuted $query) use (&$queries): void {
+            $queries[] = [$query->sql, $query->bindings];
+        });
+        Log::listen(function (MessageLogged $event) use (&$messages): void {
+            $messages[] = [$event->message, $event->context];
+        });
+
+        foreach ([...$legacyValues, null] as $index => $legacyValue) {
+            Auth::forgetGuards();
+            $payload = $this->payload();
+            if ($legacyValue !== null) {
+                $payload['current_password'] = $legacyValue;
+            }
+            $response = $this->mutate($session, $user->public_id, $payload, $key)
+                ->assertOk()->assertJsonPath('idempotent_replay', $index > 0);
+            self::assertFalse($this->app['request']->has('current_password'));
+            foreach ($legacyValues as $value) {
+                self::assertStringNotContainsString($value, $response->getContent());
+            }
+        }
+        self::assertSame(1, DB::table('point_adjustments')->count());
+        self::assertSame(1, DB::table('point_operations')->where('source_type', 'admin_adjustment')->count());
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'point.admin_adjusted')->count());
+        self::assertNotEmpty($queries);
+        $observed = json_encode([$queries, $messages], JSON_THROW_ON_ERROR);
+        foreach (['current_password', ...$legacyValues] as $value) {
+            self::assertStringNotContainsString($value, $observed);
+        }
     }
 
     public function test_validation_insufficient_balance_idempotency_and_secret_safe_audit(): void
@@ -219,7 +256,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'deduct',
             'amount' => 1,
             'reason' => 'No paid fallback allowed.',
-            'current_password' => self::PASSWORD,
         ])->assertConflict()->assertJsonPath('code', 'POINT_ADJUSTMENT_INSUFFICIENT_BALANCE');
         self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 50, 'free_balance' => 0]);
 
@@ -254,30 +290,21 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         self::assertSame(0, DB::table('idempotency_records')->where('scope', 'point.admin_adjustment')->count());
     }
 
-    public function test_critical_rate_limit_is_fail_closed(): void
+    public function test_adjustments_without_password_exceed_previous_critical_limit(): void
     {
         $user = $this->user();
         $session = $this->adminSession(V2AdminRole::Owner);
-        $adminPublicId = DB::table('admins')
-            ->join('admin_sessions', 'admin_sessions.admin_id', '=', 'admins.id')
-            ->where(
-                'admin_sessions.session_id_hash',
-                app(V2SessionPolicy::class)->hashSessionId($session)
-            )
-            ->value('admins.public_id');
-        $limiter = app(V2RateLimiter::class);
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $limiter->assertSubject('critical_admin_mutation', $adminPublicId);
+        for ($attempt = 1; $attempt <= 11; $attempt++) {
+            Auth::forgetGuards();
+            $this->mutate($session, $user->public_id, $this->payload())
+                ->assertOk()->assertJsonPath('data.paid_balance_after', $attempt * 50);
         }
 
-        Auth::forgetGuards();
-        $this->mutate($session, $user->public_id, $this->payload())
-            ->assertStatus(429)
-            ->assertJsonPath('code', 'RATE_LIMITED');
-        self::assertDatabaseMissing('wallets', ['user_id' => $user->id]);
+        self::assertSame(11, DB::table('point_adjustments')->where('user_id', $user->id)->count());
+        self::assertSame(11, DB::table('audit_logs')->where('action_code', 'point.admin_adjusted')->count());
     }
 
-    public function test_critical_limiter_failure_is_fail_closed(): void
+    public function test_adjustment_does_not_access_unavailable_limiter(): void
     {
         $user = $this->user();
         $session = $this->adminSession(V2AdminRole::Owner);
@@ -290,9 +317,8 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
 
         Auth::forgetGuards();
         $this->mutate($session, $user->public_id, $this->payload())
-            ->assertStatus(503)
-            ->assertJsonPath('code', 'AUTH_SERVICE_UNAVAILABLE');
-        self::assertDatabaseMissing('wallets', ['user_id' => $user->id]);
+            ->assertOk()->assertJsonPath('data.paid_balance_after', 50);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 50]);
     }
 
     /** @return array<string, mixed> */
@@ -303,7 +329,6 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'direction' => 'grant',
             'amount' => 50,
             'reason' => 'Synthetic administrative correction.',
-            'current_password' => self::PASSWORD,
         ];
     }
 

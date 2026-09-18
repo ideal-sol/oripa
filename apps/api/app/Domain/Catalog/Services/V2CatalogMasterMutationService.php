@@ -9,7 +9,6 @@ use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
-use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -60,8 +59,6 @@ final class V2CatalogMasterMutationService
 
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
-        private readonly V2CatalogMutationRateLimiter $rateLimiter,
-        private readonly V2RateLimiter $criticalRateLimiter,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox,
@@ -89,7 +86,6 @@ final class V2CatalogMasterMutationService
             return $this->createAsset($context, $idempotencyKey, $input);
         }
         $admin = $this->authorize($context, 'create', $resource);
-        $this->rateLimit($context, $admin, 'create', $resource);
         $definition = $this->definition($resource);
         $payload = $this->validateCreate($definition, $input);
 
@@ -151,7 +147,6 @@ final class V2CatalogMasterMutationService
             return $this->updateAsset($context, $publicId, $idempotencyKey, $input);
         }
         $admin = $this->authorize($context, 'update', $resource);
-        $this->rateLimit($context, $admin, 'update', $resource);
         $definition = $this->definition($resource);
         $payload = $this->validateUpdate($definition, $input);
 
@@ -204,7 +199,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'rank');
-        $this->rateLimit($context, $admin, 'create', 'rank');
         $payload = $this->validateRankMaster($input, false);
         $storedPaths = [];
 
@@ -278,7 +272,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'rank');
-        $this->rateLimit($context, $admin, 'update', 'rank');
         $payload = $this->validateRankMaster($input, true);
         $storedPaths = [];
 
@@ -366,7 +359,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'rank');
-        $this->rateLimit($context, $admin, 'update', 'rank');
         $payload = $this->validateRankMasterReorder($input);
 
         return $this->execute(
@@ -469,7 +461,6 @@ final class V2CatalogMasterMutationService
             );
         }
         $admin = $this->authorize($context, 'archive', $resource);
-        $this->rateLimit($context, $admin, 'archive', $resource);
         $definition = $this->definition($resource);
         $payload = $this->validateArchive($input);
 
@@ -504,7 +495,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha');
-        $this->rateLimit($context, $admin, 'create', 'gacha');
         $payload = $this->validateGachaCreate($input);
 
         return $this->execute(
@@ -557,7 +547,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha');
-        $this->rateLimit($context, $admin, 'create', 'gacha');
         $payload = $this->validateGachaCoreCreate($input);
 
         return $this->execute(
@@ -664,9 +653,6 @@ final class V2CatalogMasterMutationService
         $admin = $changesManagementStatus
             ? $this->authorizeCatalogPublish($context, 'management_status', 'gacha')
             : $this->authorize($context, 'update', 'gacha');
-        $changesManagementStatus
-            ? $this->rateLimitCatalogPublish($context, $admin, 'management_status', 'gacha')
-            : $this->rateLimit($context, $admin, 'update', 'gacha');
         $payload = $this->validateGachaUpdate($input);
 
         return $this->execute(
@@ -871,7 +857,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'upload_thumbnail', 'asset');
-        $this->rateLimit($context, $admin, 'upload_thumbnail', 'asset');
         $payload = $this->validateGachaThumbnail($input);
         $storedPath = null;
 
@@ -939,7 +924,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'rank_effect');
-        $this->rateLimit($context, $admin, 'create', 'rank_effect');
         $payload = $this->validateRankEffect($input, false);
         $storedPath = null;
 
@@ -980,7 +964,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'rank_effect');
-        $this->rateLimit($context, $admin, 'update', 'rank_effect');
         $payload = $this->validateRankEffect($input, true);
         $storedPath = null;
 
@@ -1050,7 +1033,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'gacha_rank');
-        $this->rateLimit($context, $admin, 'update', 'gacha_rank');
         $payload = $this->validateGachaRankVideo($input, false);
 
         return $this->execute(
@@ -1171,7 +1153,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'gacha_rank');
-        $this->rateLimit($context, $admin, 'update', 'gacha_rank');
         $payload = $this->validateGachaRankVideo($input, true);
 
         return $this->execute(
@@ -1228,7 +1209,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'archive', 'gacha');
-        $this->rateLimit($context, $admin, 'archive', 'gacha');
         $payload = $this->validateArchive($input);
 
         return $this->execute(
@@ -1263,7 +1243,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha_version');
-        $this->rateLimit($context, $admin, 'create', 'gacha_version');
         $payload = $this->validateGachaVersion($input, false);
 
         return $this->execute(
@@ -1296,7 +1275,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'clone', 'gacha_version');
-        $this->rateLimit($context, $admin, 'clone', 'gacha_version');
         $this->assertFields($input, [], []);
 
         return $this->execute(
@@ -1394,7 +1372,6 @@ final class V2CatalogMasterMutationService
             }
         }
         $admin = $this->authorize($context, 'update', 'gacha_version');
-        $this->rateLimit($context, $admin, 'update', 'gacha_version');
         $payload = $this->validateGachaVersion($input, true);
 
         return $this->execute(
@@ -1451,7 +1428,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'archive', 'gacha_version');
-        $this->rateLimit($context, $admin, 'archive', 'gacha_version');
         $payload = $this->validateArchive($input);
 
         return $this->execute(
@@ -1495,7 +1471,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha_rank');
-        $this->rateLimit($context, $admin, 'create', 'gacha_rank');
         $payload = $this->validateGachaDraftRank($input, false);
 
         return $this->execute(
@@ -1567,7 +1542,6 @@ final class V2CatalogMasterMutationService
             );
         }
         $admin = $this->authorize($context, 'update', 'gacha_rank');
-        $this->rateLimit($context, $admin, 'update', 'gacha_rank');
         $payload = $this->validateGachaDraftRank($input, true);
 
         return $this->execute(
@@ -1627,7 +1601,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha_prize');
-        $this->rateLimit($context, $admin, 'create', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize($input, false);
 
         return $this->execute(
@@ -1727,7 +1700,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'gacha_prize');
-        $this->rateLimit($context, $admin, 'create', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize(
             ['rank_id' => $rankMasterPublicId, ...$input],
             false
@@ -1860,7 +1832,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'gacha_prize');
-        $this->rateLimit($context, $admin, 'update', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize($input, true);
 
         return $this->execute(
@@ -2006,7 +1977,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'gacha_prize');
-        $this->rateLimit($context, $admin, 'update', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize(
             ['rank_id' => $rankMasterPublicId, ...$input],
             true
@@ -2153,7 +2123,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'probability_version');
-        $this->rateLimit($context, $admin, 'create', 'probability_version');
         $this->assertFields($input, [], []);
 
         return $this->execute(
@@ -2189,7 +2158,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'clone', 'probability_version');
-        $this->rateLimit($context, $admin, 'clone', 'probability_version');
         $this->assertFields($input, [], []);
 
         return $this->execute(
@@ -2245,7 +2213,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'probability_version');
-        $this->rateLimit($context, $admin, 'update', 'probability_version');
         $payload = $this->validateProbabilityStructure($input);
 
         return $this->execute(
@@ -2314,7 +2281,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'validate', 'probability_version');
-        $this->rateLimit($context, $admin, 'validate', 'probability_version');
         $this->assertFields($input, ['expected_revision'], ['expected_revision']);
         $expectedRevision = $this->revision($input['expected_revision']);
 
@@ -2412,12 +2378,6 @@ final class V2CatalogMasterMutationService
             'probability_selection',
             'gacha_version'
         );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
-            'probability_selection',
-            'gacha_version'
-        );
         $this->assertFields(
             $input,
             ['expected_revision', 'probability_version_id'],
@@ -2503,12 +2463,6 @@ final class V2CatalogMasterMutationService
             'publish_preflight',
             'gacha_version'
         );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
-            'publish_preflight',
-            'gacha_version'
-        );
         $this->assertFields($input, ['expected_revision'], ['expected_revision']);
         $expectedRevision = $this->revision($input['expected_revision']);
 
@@ -2568,12 +2522,6 @@ final class V2CatalogMasterMutationService
     ): array {
         $admin = $this->authorizeCatalogPublish(
             $context,
-            'immediate_publish',
-            'gacha_version'
-        );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
             'immediate_publish',
             'gacha_version'
         );
@@ -2642,12 +2590,6 @@ final class V2CatalogMasterMutationService
             'schedule_preflight',
             'gacha_version'
         );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
-            'schedule_preflight',
-            'gacha_version'
-        );
         $payload = $this->schedulePayload($input);
 
         return $this->execute(
@@ -2698,12 +2640,6 @@ final class V2CatalogMasterMutationService
     ): array {
         $admin = $this->authorizeCatalogPublish(
             $context,
-            'schedule_create',
-            'gacha_version'
-        );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
             'schedule_create',
             'gacha_version'
         );
@@ -2841,12 +2777,6 @@ final class V2CatalogMasterMutationService
     ): array {
         $admin = $this->authorizeCatalogPublish(
             $context,
-            'schedule_cancel',
-            'gacha_version'
-        );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
             'schedule_cancel',
             'gacha_version'
         );
@@ -3073,7 +3003,6 @@ final class V2CatalogMasterMutationService
     ): array {
         $action = $preflight ? 'gacha_unpublish_preflight' : 'gacha_unpublish';
         $admin = $this->authorizeCatalogPublish($context, $action, 'gacha');
-        $this->rateLimitCatalogPublish($context, $admin, $action, 'gacha');
         $this->assertFields(
             $input,
             ['expected_gacha_revision'],
@@ -3160,7 +3089,6 @@ final class V2CatalogMasterMutationService
     ): array {
         $action = 'sales_'.$operation.($preflight ? '_preflight' : '');
         $admin = $this->authorizeCatalogPublish($context, $action, 'gacha');
-        $this->rateLimitCatalogPublish($context, $admin, $action, 'gacha');
         $allowed = $operation === 'pause'
             ? ['expected_gacha_revision', 'reason_code']
             : ['expected_gacha_revision'];
@@ -3273,12 +3201,6 @@ final class V2CatalogMasterMutationService
             $action,
             'probability_version'
         );
-        $this->rateLimitCatalogPublish(
-            $context,
-            $admin,
-            $action,
-            'probability_version'
-        );
         $this->assertFields($input, ['expected_revision'], ['expected_revision']);
         $expectedRevision = $this->revision($input['expected_revision']);
 
@@ -3355,7 +3277,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'archive', 'probability_version');
-        $this->rateLimit($context, $admin, 'archive', 'probability_version');
         $payload = $this->validateArchive($input);
 
         return $this->execute(
@@ -3457,7 +3378,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'create', 'asset');
-        $this->rateLimit($context, $admin, 'create', 'asset');
         $payload = $this->validateAssetCreate($input);
 
         return $this->execute(
@@ -3500,7 +3420,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'update', 'asset');
-        $this->rateLimit($context, $admin, 'update', 'asset');
         foreach ([
             'storage_identifier',
             'public_path',
@@ -3569,7 +3488,6 @@ final class V2CatalogMasterMutationService
         array $input
     ): array {
         $admin = $this->authorize($context, 'archive', $resource);
-        $this->rateLimit($context, $admin, 'archive', $resource);
         $payload = $this->validateArchive($input);
         $table = $resource === 'prize'
             ? 'catalog_prizes'
@@ -3929,58 +3847,6 @@ final class V2CatalogMasterMutationService
                 'outcome' => 'failure',
                 'reason_code' => strtolower($exception->errorCode),
             ]);
-            throw $exception;
-        }
-    }
-
-    private function rateLimitCatalogPublish(
-        V2AdminAuthorizationContext $context,
-        Admin $admin,
-        string $action,
-        string $resource
-    ): void {
-        $domain = $resource === 'probability_version'
-            ? 'probability'
-            : 'gacha';
-        try {
-            $this->criticalRateLimiter->assertSubject(
-                'critical_admin_mutation',
-                $admin->public_id
-            );
-        } catch (V2AuthenticationException $exception) {
-            $this->recordAudit(
-                $exception->errorCode === 'RATE_LIMITED'
-                    ? 'catalog.'.$domain.'.publish.rate_limited'
-                    : 'catalog.'.$domain.'.publish.authorization_failed',
-                $context,
-                $admin,
-                $resource,
-                $action,
-                'failure',
-                strtolower($exception->errorCode)
-            );
-            throw $exception;
-        }
-    }
-
-    private function rateLimit(
-        V2AdminAuthorizationContext $context,
-        Admin $admin,
-        string $action,
-        string $resource
-    ): void {
-        try {
-            $this->rateLimiter->assertAdmin($admin->public_id);
-        } catch (V2AuthenticationException $exception) {
-            $this->recordAudit(
-                'catalog.master.rate_limited',
-                $context,
-                $admin,
-                $resource,
-                $action,
-                'failure',
-                strtolower($exception->errorCode)
-            );
             throw $exception;
         }
     }

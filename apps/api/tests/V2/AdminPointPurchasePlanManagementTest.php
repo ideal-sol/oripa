@@ -16,8 +16,11 @@ use App\Domain\Payment\V2\Services\V2PointPurchasePlanService;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Mockery;
 use Tests\TestCase;
 
 final class AdminPointPurchasePlanManagementTest extends TestCase
@@ -124,6 +127,44 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             ->where('action_code', 'payment.plan.created')->count());
         self::assertSame(1, DB::table('audit_logs')
             ->where('action_code', 'payment.plan.updated')->count());
+    }
+
+    public function test_create_and_update_exceed_previous_limit_but_keep_fresh_authentication(): void
+    {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldNotReceive('get');
+        $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
+        $service = app(V2PointPurchasePlanService::class);
+        $context = $this->context(V2AdminRole::Owner);
+        for ($attempt = 1; $attempt <= 11; $attempt++) {
+            $created = $service->create($context, $this->payload(), (string) Str::uuid7());
+            $updated = $service->update($context, $created['data']['id'], [
+                ...$this->payload(),
+                'expected_revision' => $created['data']['revision'],
+                'name' => 'Updated plan '.$attempt,
+            ], (string) Str::uuid7());
+            self::assertSame(2, $updated['data']['version']);
+        }
+        self::assertSame(11, DB::table('audit_logs')->where('action_code', 'payment.plan.created')->count());
+        self::assertSame(11, DB::table('audit_logs')->where('action_code', 'payment.plan.updated')->count());
+
+        DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)
+            ->update(['mfa_verified_at' => CarbonImmutable::now()->subMinutes(5)]);
+        foreach (['create', 'update'] as $operation) {
+            try {
+                if ($operation === 'create') {
+                    $service->create($context, $this->payload(), (string) Str::uuid7());
+                } else {
+                    $service->update($context, $updated['data']['id'], [
+                        ...$this->payload(),
+                        'expected_revision' => $updated['data']['revision'],
+                    ], (string) Str::uuid7());
+                }
+                self::fail('Point purchase plan mutations still require Fresh Authentication.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
+            }
+        }
     }
 
     public function test_validation_revision_and_public_contract_fail_closed(): void

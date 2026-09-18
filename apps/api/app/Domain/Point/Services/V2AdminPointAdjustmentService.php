@@ -8,7 +8,6 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
-use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2PermissionAuthorizer;
 use App\Domain\Point\Exceptions\V2AdminPointAdjustmentException;
 use App\Domain\Point\Exceptions\V2PointException;
@@ -18,14 +17,12 @@ use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Normalizer;
-use SensitiveParameter;
 
 final class V2AdminPointAdjustmentService
 {
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
         private readonly V2PermissionAuthorizer $permissions,
-        private readonly V2PasswordPolicy $passwords,
         private readonly V2PointTransactionRunner $transactions,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2PointService $points,
@@ -41,23 +38,14 @@ final class V2AdminPointAdjustmentService
         V2AdminAuthorizationContext $context,
         string $userPublicId,
         string $idempotencyKey,
-        array $input,
-        #[SensitiveParameter] string $currentPassword
+        array $input
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
             V2Permission::ManagePointAdjustment,
             true,
-            'point.admin_adjustment.execute',
-            true
+            'point.admin_adjustment.execute'
         );
-        if (! $this->passwords->verify($currentPassword, $admin->password_hash)) {
-            throw new V2AuthenticationException(
-                'INVALID_CURRENT_PASSWORD',
-                401,
-                'The current password could not be verified.'
-            );
-        }
         if (! Str::isUuid($userPublicId)) {
             throw $this->invalid();
         }
@@ -69,8 +57,7 @@ final class V2AdminPointAdjustmentService
                 $admin,
                 $userPublicId,
                 $idempotencyKey,
-                $request,
-                $currentPassword
+                $request
             ): array {
                 $lockedAdmin = Admin::query()->whereKey($admin->getKey())->lockForUpdate()->first();
                 if (
@@ -85,13 +72,6 @@ final class V2AdminPointAdjustmentService
                         'AUTHORIZATION_DENIED',
                         403,
                         'The point adjustment is not permitted.'
-                    );
-                }
-                if (! $this->passwords->verify($currentPassword, $lockedAdmin->password_hash)) {
-                    throw new V2AuthenticationException(
-                        'INVALID_CURRENT_PASSWORD',
-                        401,
-                        'The current password could not be verified.'
                     );
                 }
                 $user = User::query()->where('public_id', $userPublicId)->lockForUpdate()->first();

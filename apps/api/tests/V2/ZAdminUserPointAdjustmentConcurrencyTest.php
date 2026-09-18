@@ -120,8 +120,7 @@ final class ZAdminUserPointAdjustmentConcurrencyTest extends TestCase
                     'direction' => 'grant',
                     'amount' => 50,
                     'reason' => 'Concurrent synthetic correction.',
-                ],
-                self::PASSWORD
+                ]
             );
             $payload = ['result' => 'success', 'replay' => $result['idempotent_replay']];
         } catch (Throwable $exception) {

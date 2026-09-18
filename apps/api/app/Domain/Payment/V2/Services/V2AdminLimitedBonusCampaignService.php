@@ -56,8 +56,7 @@ final class V2AdminLimitedBonusCampaignService
             $context,
             V2Permission::ManagePointPurchasePlan,
             true,
-            'payment.limited_bonus_campaign.create',
-            true
+            'payment.limited_bonus_campaign.create'
         );
         $payload = $this->input($input);
 
@@ -105,8 +104,7 @@ final class V2AdminLimitedBonusCampaignService
             $context,
             V2Permission::ManagePointPurchasePlan,
             true,
-            'payment.limited_bonus_campaign.update',
-            true
+            'payment.limited_bonus_campaign.update'
         );
         $payload = $this->input($input);
 

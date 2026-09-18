@@ -201,7 +201,7 @@ test("mobile shell remains keyboard operable without horizontal overflow", async
   });
 });
 
-test("Owner updates the canonical authentication policy with password confirmation", async ({
+test("Owner updates the canonical authentication policy without an explicit password", async ({
   page,
 }) => {
   let revision = 1;
@@ -236,13 +236,12 @@ test("Owner updates the canonical authentication policy with password confirmati
   await expect(page.getByRole("heading", { name: "管理者認証" })).toBeVisible();
   await expect(page.getByText("Revision").locator("..")).toContainText("1");
   await page.getByRole("checkbox", { name: "招待トークンを必須にする" }).check();
-  await page.getByLabel("現在のパスワード").fill("current owner password");
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
   await page.getByRole("button", { name: "保存" }).click();
   await page.getByRole("button", { name: "変更を確定" }).click();
 
   await expect(page.getByText("認証設定を保存しました。")).toBeVisible();
   expect(updatePayload).toEqual({
-    current_password: "current owner password",
     expected_revision: 1,
     invitation_required: true,
     mfa_required: false,
@@ -250,7 +249,7 @@ test("Owner updates the canonical authentication policy with password confirmati
   expect(updateHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
   await expect(page.getByText("Revision").locator("..")).toContainText("2");
   await expect(page.getByText("招待トークンを発行します。")).toBeVisible();
-  await expect(page.getByLabel("現在のパスワード")).toHaveValue("");
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
 });
 
 for (const role of ["owner", "admin", "operator"] as const) {

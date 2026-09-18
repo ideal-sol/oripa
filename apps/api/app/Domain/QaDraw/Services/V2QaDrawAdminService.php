@@ -45,7 +45,7 @@ final class V2QaDrawAdminService
         string $userPublicId,
         string $reason
     ): array {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
         if ($user->state !== V2UserState::Active) {
             throw $this->invalid('QA Mode requires an active User.');
@@ -91,7 +91,7 @@ final class V2QaDrawAdminService
         V2AdminAuthorizationContext $context,
         string $userPublicId
     ): array {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
 
         return DB::transaction(function () use ($admin, $user, $context): array {
@@ -163,7 +163,7 @@ final class V2QaDrawAdminService
         ?string $endsAt,
         array $items
     ): array {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
         $user = $this->user($userPublicId);
         $title = $this->text($title, 191, 'QA Plan title');
         $reason = $this->text($reason, 500, 'QA Plan reason');
@@ -259,7 +259,7 @@ final class V2QaDrawAdminService
         ?string $startsAt,
         ?string $endsAt
     ): array {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
         $title = $this->text($title, 191, 'QA Plan title');
         $reason = $this->text($reason, 500, 'QA Plan reason');
         [$starts, $ends] = $this->planWindow($startsAt, $endsAt);
@@ -317,7 +317,7 @@ final class V2QaDrawAdminService
         string $planPublicId
     ): array
     {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
 
         return DB::transaction(function () use ($admin, $context, $planPublicId): array {
             $plan = QaDrawPlan::query()
@@ -480,7 +480,7 @@ final class V2QaDrawAdminService
         string $planPublicId,
         string $status
     ): array {
-        $admin = $this->freshMfa->authorizeQa($context, true);
+        $admin = $this->freshMfa->authorizeQa($context);
 
         return DB::transaction(function () use (
             $admin,

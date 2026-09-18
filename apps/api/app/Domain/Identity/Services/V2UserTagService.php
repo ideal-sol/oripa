@@ -69,8 +69,7 @@ final class V2UserTagService
             $context,
             V2Permission::ManageUserTag,
             true,
-            'user.tag.create',
-            true
+            'user.tag.create'
         );
         $payload = $this->tagInput($input, false);
 
@@ -135,8 +134,7 @@ final class V2UserTagService
             $context,
             V2Permission::ManageUserTag,
             true,
-            'user.tag.update',
-            true
+            'user.tag.update'
         );
         $payload = $this->tagInput($input, true);
 
@@ -271,8 +269,7 @@ final class V2UserTagService
             $context,
             V2Permission::ManageUserTag,
             true,
-            $assign ? 'user.tag.assign' : 'user.tag.detach',
-            true
+            $assign ? 'user.tag.assign' : 'user.tag.detach'
         );
         $expectedRevision = $this->expectedRevision($input);
         $scope = $assign ? 'user.tag.assign' : 'user.tag.detach';

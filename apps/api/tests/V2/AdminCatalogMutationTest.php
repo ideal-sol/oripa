@@ -4,7 +4,6 @@ namespace Tests\V2;
 
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
-use App\Domain\Catalog\Services\V2CatalogMutationRateLimiter;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
@@ -524,57 +523,27 @@ final class AdminCatalogMutationTest extends TestCase
         }
     }
 
-    public function test_rate_limit_and_limiter_failure_are_fail_closed_and_audited(): void
+    public function test_catalog_mutations_exceed_previous_limit_without_accessing_limiter_cache(): void
     {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $context = $this->contextForSession($token, V2AdminRole::Owner);
-        $adminPublicId = $context->adminPublicId;
-        $limiter = app(V2CatalogMutationRateLimiter::class);
-        for ($attempt = 0; $attempt < 30; $attempt++) {
-            $limiter->assertAdmin($adminPublicId);
-        }
-        try {
-            app(V2CatalogMasterMutationService::class)->create(
-                $context,
-                'category',
-                'rate-limited-catalog-key',
-                $this->categoryInput('rate-limited-category')
-            );
-            self::fail('Catalog mutation rate limiting must fail closed.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('RATE_LIMITED', $exception->errorCode);
-            self::assertSame(429, $exception->status);
-            self::assertNotNull($exception->retryAfterSeconds);
-        }
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'catalog.master.rate_limited',
-            'reason_code' => 'rate_limited',
-        ]);
-
         $cache = Mockery::mock(CacheRepository::class);
-        $cache->shouldReceive('get')->andThrow(new \RuntimeException('cache unavailable'));
-        $this->app->instance(
-            V2CatalogMutationRateLimiter::class,
-            new V2CatalogMutationRateLimiter(new LaravelRateLimiter($cache))
-        );
-        try {
-            app(V2CatalogMasterMutationService::class)->create(
-                $context,
-                'category',
-                'limiter-failure-catalog-key',
-                $this->categoryInput('limiter-failure-category')
-            );
-            self::fail('Catalog mutation must reject an unavailable limiter.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('AUTH_SERVICE_UNAVAILABLE', $exception->errorCode);
-            self::assertSame(503, $exception->status);
+        $cache->shouldNotReceive('get');
+        $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+
+        for ($attempt = 1; $attempt <= 31; $attempt++) {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                '/admin/api/v2/catalog/categories',
+                $this->categoryInput('unlimited-category-'.$attempt)
+            )->assertCreated();
         }
-        self::assertDatabaseMissing('catalog_categories', [
-            'code' => 'limiter-failure-category',
-        ]);
-        self::assertDatabaseHas('audit_logs', [
+
+        self::assertSame(31, DB::table('catalog_categories')
+            ->where('code', 'like', 'unlimited-category-%')->count());
+        self::assertDatabaseMissing('audit_logs', [
             'action_code' => 'catalog.master.rate_limited',
-            'reason_code' => 'auth_service_unavailable',
         ]);
     }
 

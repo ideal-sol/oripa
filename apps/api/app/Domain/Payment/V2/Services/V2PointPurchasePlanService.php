@@ -104,8 +104,7 @@ final class V2PointPurchasePlanService
             $context,
             V2Permission::ManagePointPurchasePlan,
             true,
-            'payment.plan.create',
-            true
+            'payment.plan.create'
         );
         $payload = $this->validate($input, false);
 
@@ -168,8 +167,7 @@ final class V2PointPurchasePlanService
             $context,
             V2Permission::ManagePointPurchasePlan,
             true,
-            'payment.plan.update',
-            true
+            'payment.plan.update'
         );
         $payload = $this->validate($input, true);
 

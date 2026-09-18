@@ -75,7 +75,7 @@ final class V2QaExecutionManagementService
         string $idempotencyKey,
         array $input
     ): array {
-        $this->freshMfa->authorizeQa($context, true);
+        $this->freshMfa->authorizeQa($context);
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 255) {
             throw new V2QaDrawException(
                 'IDEMPOTENCY_KEY_REQUIRED',

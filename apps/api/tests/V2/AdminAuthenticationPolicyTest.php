@@ -2,6 +2,7 @@
 
 namespace Tests\V2;
 
+use Mockery;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
@@ -10,9 +11,14 @@ use App\Models\V2\Admin;
 use App\Models\V2\AdminAuthenticationPolicy;
 use App\Models\V2\AdminTotpMethod;
 use App\Models\V2\AdminWebauthnMethod;
+use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Database\QueryException;
 use Tests\Support\V2TimestampFixture;
@@ -91,7 +97,6 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'expected_revision' => 1,
             'mfa_required' => true,
             'invitation_required' => true,
-            'current_password' => self::PASSWORD,
         ];
         $key = (string) Str::uuid7();
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', $payload, $key)
@@ -126,7 +131,48 @@ final class AdminAuthenticationPolicyTest extends TestCase
         )->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
     }
 
-    public function test_policy_is_owner_only_fresh_and_requires_current_password_and_eligible_owner(): void
+    public function test_legacy_password_is_discarded_without_authentication_storage_or_logging(): void
+    {
+        [, $session] = $this->adminSession(V2AdminRole::Owner);
+        $key = (string) Str::uuid7();
+        $legacyValues = ['discarded-policy-password-one', 'discarded-policy-password-two'];
+        $queries = [];
+        $messages = [];
+        DB::listen(function (QueryExecuted $query) use (&$queries): void {
+            $queries[] = [$query->sql, $query->bindings];
+        });
+        Log::listen(function (MessageLogged $event) use (&$messages): void {
+            $messages[] = [$event->message, $event->context];
+        });
+
+        foreach ([...$legacyValues, null] as $index => $legacyValue) {
+            Auth::forgetGuards();
+            $payload = [
+                'expected_revision' => 1,
+                'mfa_required' => false,
+                'invitation_required' => true,
+            ];
+            if ($legacyValue !== null) {
+                $payload['current_password'] = $legacyValue;
+            }
+            $response = $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', $payload, $key)
+                ->assertOk()->assertJsonPath('idempotent_replay', $index > 0);
+            self::assertFalse($this->app['request']->has('current_password'));
+            foreach ($legacyValues as $value) {
+                self::assertStringNotContainsString($value, $response->getContent());
+            }
+        }
+        self::assertFalse(AdminAuthenticationPolicy::query()->sole()->mfa_required);
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'identity.admin.authentication_policy.updated')->count());
+        self::assertSame(1, DB::table('outbox_messages')->where('event_type', 'identity.admin.authentication_policy.updated')->count());
+        self::assertNotEmpty($queries);
+        $observed = json_encode([$queries, $messages], JSON_THROW_ON_ERROR);
+        foreach (['current_password', ...$legacyValues] as $value) {
+            self::assertStringNotContainsString($value, $observed);
+        }
+    }
+
+    public function test_policy_is_owner_only_fresh_and_requires_eligible_owner_for_mfa(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {
             [, $session] = $this->adminSession($role);
@@ -134,6 +180,12 @@ final class AdminAuthenticationPolicyTest extends TestCase
             $this->asAdmin($session)->getJson('/admin/api/v2/auth/policy')
                 ->assertForbidden()
                 ->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+            Auth::forgetGuards();
+            $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
+                'expected_revision' => 1,
+                'mfa_required' => false,
+                'invitation_required' => true,
+            ])->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
         }
 
         [$owner, $session] = $this->adminSession(V2AdminRole::Owner);
@@ -141,7 +193,6 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'expected_revision' => 1,
             'mfa_required' => true,
             'invitation_required' => false,
-            'current_password' => self::PASSWORD,
         ];
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', $payload)
             ->assertConflict()
@@ -152,8 +203,10 @@ final class AdminAuthenticationPolicyTest extends TestCase
             ...$payload,
             'mfa_required' => false,
             'invitation_required' => true,
-            'current_password' => 'incorrect password',
-        ])->assertUnauthorized()->assertJsonPath('code', 'INVALID_CURRENT_PASSWORD');
+        ])->assertOk()
+            ->assertJsonPath('data.mfa_required', false)
+            ->assertJsonPath('data.invitation_required', true);
+        self::assertFalse(AdminAuthenticationPolicy::query()->sole()->mfa_required);
 
         DB::table('admin_sessions')->where('admin_id', $owner->getKey())->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
@@ -164,6 +217,33 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'mfa_required' => false,
             'invitation_required' => true,
         ])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+
+        Auth::forgetGuards();
+        $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
+            ...$payload,
+            'current_password' => self::PASSWORD,
+        ])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+    }
+
+    public function test_policy_updates_without_password_exceed_previous_limit_and_preserve_mfa(): void
+    {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldNotReceive('get');
+        $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
+        [, $session] = $this->adminSession(V2AdminRole::Owner);
+        for ($revision = 1; $revision <= 11; $revision++) {
+            Auth::forgetGuards();
+            $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
+                'expected_revision' => $revision,
+                'mfa_required' => false,
+                'invitation_required' => $revision % 2 === 1,
+            ])->assertOk()
+                ->assertJsonPath('data.revision', $revision + 1)
+                ->assertJsonPath('data.mfa_required', false);
+        }
+        self::assertFalse(AdminAuthenticationPolicy::query()->sole()->mfa_required);
+        self::assertSame(11, DB::table('audit_logs')
+            ->where('action_code', 'identity.admin.authentication_policy.updated')->count());
     }
 
     public function test_invitation_setting_switches_admin_creation_without_affecting_existing_login(): void
@@ -182,7 +262,6 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'expected_revision' => 1,
             'mfa_required' => false,
             'invitation_required' => true,
-            'current_password' => self::PASSWORD,
         ])->assertOk();
 
         Auth::forgetGuards();
@@ -199,7 +278,6 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'expected_revision' => 2,
             'mfa_required' => false,
             'invitation_required' => false,
-            'current_password' => self::PASSWORD,
         ])->assertOk();
 
         $this->browserMutation()->postJson('/admin/api/v2/auth/invitations/accept', [
