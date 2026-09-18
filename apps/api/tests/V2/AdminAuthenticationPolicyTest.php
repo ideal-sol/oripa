@@ -2,6 +2,7 @@
 
 namespace Tests\V2;
 
+use Mockery;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
@@ -20,7 +21,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Database\QueryException;
-use Mockery;
 use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
