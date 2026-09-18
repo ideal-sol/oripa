@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Mockery;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class ReportingExportVerticalSliceTest extends TestCase

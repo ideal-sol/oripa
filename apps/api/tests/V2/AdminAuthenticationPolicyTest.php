@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Database\QueryException;
 use Mockery;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminAuthenticationPolicyTest extends TestCase
