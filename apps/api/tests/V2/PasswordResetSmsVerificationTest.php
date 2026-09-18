@@ -19,6 +19,7 @@ use App\Models\V2\SmsVerificationChallenge;
 use App\Models\V2\User;
 use App\Models\V2\UserPhoneNumber;
 use App\Models\V2\UserRememberDevice;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -386,7 +387,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
         self::assertMatchesRegularExpression('/\A[0-9]{6}\z/', $delivery['verification_code']);
         self::assertSame(hash('sha256', $delivery['verification_code']), $challenge->code_hash);
         self::assertSame(3600, (int) $challenge->created_at->diffInSeconds($challenge->expires_at));
-        self::assertSame($challenge->expires_at->toIso8601String(), $accepted['expires_at']);
+        self::assertSame($challenge->expires_at->getTimestamp(), CarbonImmutable::parse($accepted['expires_at'])->getTimestamp());
         self::assertSame(
             $challenge->expires_at->toIso8601String(),
             $service->status($user)['challenge']['expires_at']

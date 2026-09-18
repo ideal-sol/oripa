@@ -88,11 +88,11 @@ final class V2PasswordChangeService
                     ->where('user_id', $lockedUser->getKey())
                     ->where('session_id_hash', '!=', $session->getKey())
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 $revokedDevices = DB::table('user_remember_devices')
                     ->where('user_id', $lockedUser->getKey())
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 $rotated = $this->sessions->rotateLockedUserSession($session);
                 $eventId = (string) Str::uuid7();
                 $this->outbox->enqueue(

@@ -9,6 +9,8 @@ final class CatalogPrize extends Model
 {
     protected $table = 'catalog_prizes';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'code',

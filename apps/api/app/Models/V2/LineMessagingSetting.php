@@ -8,6 +8,8 @@ final class LineMessagingSetting extends Model
 {
     protected $table = 'line_messaging_settings';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected function casts(): array

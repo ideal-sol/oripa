@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class UserPrize extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'user_prizes';
 
     protected $guarded = ['*'];

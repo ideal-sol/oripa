@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
@@ -85,7 +86,7 @@ final class V2PaymentService
                 ->where('user_id', $user->id)
                 ->where('payment_method', 'konbini')
                 ->whereIn('status', ['created', 'requires_action', 'processing'])
-                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', V2DatabaseTimestamp::format(now())))
                 ->exists()) {
                 throw new V2PaymentException('KONBINI_UNPAID_LIMIT_REACHED');
             }
@@ -93,9 +94,9 @@ final class V2PaymentService
                 ->where('id', $planId)
                 ->where('status', 'published')
                 ->where(fn ($query) => $query->whereNull('available_from')
-                    ->orWhere('available_from', '<=', now()))
+                    ->orWhere('available_from', '<=', V2DatabaseTimestamp::format(now())))
                 ->where(fn ($query) => $query->whereNull('available_until')
-                    ->orWhere('available_until', '>', now()))
+                    ->orWhere('available_until', '>', V2DatabaseTimestamp::format(now())))
                 ->lockForUpdate()
                 ->first();
             if ($plan === null) {
@@ -125,8 +126,8 @@ final class V2PaymentService
                 'plan_code_snapshot' => $plan->code,
                 'idempotency_record_id' => $claim->record->id,
                 'metadata' => '{}',
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             foreach ($campaigns as $campaign) {
                 DB::table('payment_limited_bonus_snapshots')->insert([
@@ -136,7 +137,7 @@ final class V2PaymentService
                     'starts_at' => $campaign->starts_at,
                     'ends_at' => $campaign->ends_at,
                     'bonus_point_amount' => $campaign->bonus_point_amount,
-                    'snapshotted_at' => $now,
+                    'snapshotted_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             $this->paymentHistory($paymentId, null, 'created', 'user', null);
@@ -173,7 +174,7 @@ final class V2PaymentService
                     ? $payment->expires_at
                     : CarbonImmutable::parse($expiresAt->format('Y-m-d H:i:s.uP'))
                         ->utc()->startOfSecond()->toIso8601String(),
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             if ($payment->status === $platformStatus) {
                 return DB::table('payments')->where('id', $payment->id)->firstOrFail();
@@ -213,18 +214,18 @@ final class V2PaymentService
                 'event_type' => $eventType,
                 'payment_id' => $paymentId,
                 'payment_adjustment_id' => $adjustmentId,
-                'signature_verified_at' => now()->startOfSecond(),
+                'signature_verified_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'provider_occurred_at' => $providerOccurredAt === null
                     ? null
                     : CarbonImmutable::parse($providerOccurredAt->format('Y-m-d H:i:s.uP'))
                         ->utc()->startOfSecond()->toIso8601String(),
-                'received_at' => now()->startOfSecond(),
+                'received_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'payload_hash' => hash('sha256', $rawPayload),
                 'payload_ciphertext' => Crypt::encryptString($rawPayload),
                 'headers_redacted' => json_encode((object) $headers, JSON_THROW_ON_ERROR),
                 'processing_status' => 'received',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         $event = DB::table('payment_provider_events')
@@ -279,8 +280,8 @@ final class V2PaymentService
             'attempt_count' => 0,
             'timed_out' => false,
             'outcome_uncertain' => false,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         $operation = DB::table('payment_provider_operations')
@@ -332,8 +333,8 @@ final class V2PaymentService
             'attempt_count' => DB::raw('attempt_count + 1'),
             'timed_out' => $result === 'uncertain',
             'outcome_uncertain' => $result === 'uncertain',
-            'completed_at' => $result === 'uncertain' ? null : now()->startOfSecond(),
-            'updated_at' => now(),
+            'completed_at' => $result === 'uncertain' ? null : V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         return DB::table('payment_provider_operations')
@@ -373,8 +374,8 @@ final class V2PaymentService
             if ($providerStatus !== null) {
                 DB::table('payments')->where('id', $payment->id)->update([
                     'provider_status' => $providerStatus,
-                    'provider_confirmed_at' => now()->startOfSecond(),
-                    'updated_at' => now(),
+                    'provider_confirmed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
             }
             if ($payment->status === $status) {
@@ -456,13 +457,13 @@ final class V2PaymentService
             );
             DB::table('payments')->where('id', $payment->id)->update([
                 'provider_status' => $providerStatus ?? $payment->provider_status,
-                'provider_confirmed_at' => now()->startOfSecond(),
-                'updated_at' => now(),
+                'provider_confirmed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $grant = $this->grantPaymentPoints($succeededPayment);
             DB::table('payments')->where('id', $payment->id)->update([
-                'points_granted_at' => $grant->granted_at,
-                'updated_at' => now(),
+                'points_granted_at' => V2DatabaseTimestamp::format($grant->granted_at),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $this->providerAttempt($event->id, 'success');
             $this->audit->record('payment.succeeded', [
@@ -564,13 +565,13 @@ final class V2PaymentService
                     'payment_adjustment_id' => $adjustment->id,
                     'amount' => $lot->granted_amount,
                     'status' => 'active',
-                    'reserved_at' => $reservedAt,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'reserved_at' => V2DatabaseTimestamp::format($reservedAt),
+                    'created_at' => V2DatabaseTimestamp::format(now()),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
                 DB::table('point_lots')->where('id', $lot->id)->update([
                     'reserved_amount' => $lot->granted_amount,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
                 if ($lot->point_type === 'paid') {
                     $paidReserved += (int) $lot->granted_amount;
@@ -582,7 +583,7 @@ final class V2PaymentService
                 'paid_reserved_balance' => (int) $wallet->paid_reserved_balance + $paidReserved,
                 'free_reserved_balance' => (int) $wallet->free_reserved_balance + $freeReserved,
                 'lock_version' => (int) $wallet->lock_version + 1,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $this->transitionAdjustment($adjustment, 'points_reserved', 'system');
             $this->outbox->enqueue(
@@ -658,7 +659,7 @@ final class V2PaymentService
                 $amount = (int) $reservation->amount;
                 DB::table('point_lots')->where('id', $lot->id)->update([
                     'reserved_amount' => (int) $lot->reserved_amount - $amount,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
                 $lot->reserved_amount = (int) $lot->reserved_amount - $amount;
                 $this->debitLot(
@@ -672,8 +673,8 @@ final class V2PaymentService
                 );
                 DB::table('point_lot_reservations')->where('id', $reservation->id)->update([
                     'status' => 'consumed',
-                    'consumed_at' => now()->startOfSecond(),
-                    'updated_at' => now(),
+                    'consumed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
                 $lot->point_type === 'paid' ? $paid += $amount : $free += $amount;
             }
@@ -682,7 +683,7 @@ final class V2PaymentService
                 'payment_adjustment_id' => $adjustment->id,
                 'point_operation_id' => $operation->id,
                 'role' => 'reserve_consume',
-                'created_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
             DB::table('payment_adjustment_point_impacts')->insert([
                 'payment_adjustment_id' => $adjustment->id,
@@ -693,8 +694,8 @@ final class V2PaymentService
                 'reversed_paid_shortage_from_free' => 0,
                 'shortfall_paid_amount' => 0,
                 'shortfall_free_amount' => 0,
-                'completed_at' => now(),
-                'created_at' => now(),
+                'completed_at' => V2DatabaseTimestamp::format(now()),
+                'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $resolved = $this->transitionAdjustment($adjustment, 'succeeded', 'provider');
             $this->auditAdjustment($payment, $resolved, 'payment.refund_succeeded');
@@ -789,7 +790,7 @@ final class V2PaymentService
                 'payment_adjustment_id' => $adjustment->id,
                 'point_operation_id' => $operation->id,
                 'role' => 'reversal',
-                'created_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
             DB::table('payment_adjustment_point_impacts')->insert([
                 'payment_adjustment_id' => $adjustment->id,
@@ -800,8 +801,8 @@ final class V2PaymentService
                 'reversed_paid_shortage_from_free' => $paidShortageFromFree,
                 'shortfall_paid_amount' => $paidNeed,
                 'shortfall_free_amount' => $freeNeed,
-                'completed_at' => now(),
-                'created_at' => now(),
+                'completed_at' => V2DatabaseTimestamp::format(now()),
+                'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $resolved = $this->transitionAdjustment($adjustment, 'succeeded', 'provider_event');
             $this->providerAttempt($event->id, 'success');
@@ -891,12 +892,12 @@ final class V2PaymentService
             'paid_balance' => (int) $wallet->paid_balance + $paid,
             'free_balance' => (int) $wallet->free_balance + $free,
             'lock_version' => (int) $wallet->lock_version + 1,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
         DB::table('payment_point_grants')->insert([
             'payment_id' => $payment->id,
             'point_operation_id' => $operation->id,
-            'granted_at' => $grantedAt,
+            'granted_at' => V2DatabaseTimestamp::format($grantedAt),
         ]);
 
         return (object) [
@@ -921,9 +922,9 @@ final class V2PaymentService
             'remaining_amount' => $amount,
             'reserved_amount' => 0,
             'granted_at' => $operation->occurred_at,
-            'expire_at' => $expiry,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'expire_at' => V2DatabaseTimestamp::format($expiry),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
         $before = (int) $wallet->{$type.'_balance'};
         DB::table('point_ledger_entries')->insert([
@@ -939,7 +940,7 @@ final class V2PaymentService
             'lot_remaining_after' => $amount,
             'occurred_at' => $operation->occurred_at,
             'business_date' => $operation->business_date,
-            'created_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1001,7 +1002,7 @@ final class V2PaymentService
         }
         DB::table('point_lots')->where('id', $lot->id)->update([
             'remaining_amount' => $remaining,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
         if ($lot->point_type === 'paid') {
             $paidBalance -= $amount;
@@ -1026,7 +1027,7 @@ final class V2PaymentService
             'lot_remaining_after' => $remaining,
             'occurred_at' => $operation->occurred_at,
             'business_date' => $operation->business_date,
-            'created_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1053,7 +1054,7 @@ final class V2PaymentService
             'paid_reserved_balance' => $paidReservedBalance,
             'free_reserved_balance' => $freeReservedBalance,
             'lock_version' => (int) $wallet->lock_version + 1,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1066,12 +1067,12 @@ final class V2PaymentService
                 ->lockForUpdate()->firstOrFail();
             DB::table('point_lots')->where('id', $lot->id)->update([
                 'reserved_amount' => (int) $lot->reserved_amount - (int) $reservation->amount,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             DB::table('point_lot_reservations')->where('id', $reservation->id)->update([
                 'status' => 'released',
-                'released_at' => now()->startOfSecond(),
-                'updated_at' => now(),
+                'released_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $lot->point_type === 'paid'
                 ? $paid += (int) $reservation->amount
@@ -1081,7 +1082,7 @@ final class V2PaymentService
             'paid_reserved_balance' => (int) $wallet->paid_reserved_balance - $paid,
             'free_reserved_balance' => (int) $wallet->free_reserved_balance - $free,
             'lock_version' => (int) $wallet->lock_version + 1,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1109,8 +1110,8 @@ final class V2PaymentService
             'paid_reserved_balance' => 0,
             'free_reserved_balance' => 0,
             'lock_version' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         return DB::table('wallets')->where('user_id', $userId)->lockForUpdate()->firstOrFail();
@@ -1132,11 +1133,11 @@ final class V2PaymentService
             'source_id' => $payment->id,
             'actor_type' => 'system',
             'is_qa' => false,
-            'occurred_at' => $now,
+            'occurred_at' => V2DatabaseTimestamp::format($now),
             'business_date' => CarbonImmutable::parse($now)
                 ->setTimezone('Asia/Tokyo')->toDateString(),
             'metadata' => '{}',
-            'created_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
         ]);
 
         return DB::table('point_operations')->where('id', $id)->firstOrFail();
@@ -1150,7 +1151,7 @@ final class V2PaymentService
         ?\DateTimeInterface $transitionedAt = null,
         ?int $limitedBonusPointAmount = null
     ): object {
-        $updates = ['status' => $to, 'updated_at' => now()];
+        $updates = ['status' => $to, 'updated_at' => V2DatabaseTimestamp::format(now())];
         $occurredAt = $transitionedAt === null
             ? now()->startOfSecond()
             : CarbonImmutable::parse($transitionedAt->format('Y-m-d H:i:s.uP'));
@@ -1187,11 +1188,11 @@ final class V2PaymentService
             'provider_event_id' => $eventId,
             'actor_type' => $source === 'user' ? 'user' : 'system',
             'occurred_at' => $occurredAt === null
-                ? now()->startOfSecond()
+                ? V2DatabaseTimestamp::format(now()->startOfSecond())
                 : CarbonImmutable::parse($occurredAt->format('Y-m-d H:i:s.uP'))
                     ->utc()->toIso8601String(),
             'request_id' => (string) Str::uuid(),
-            'created_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1213,10 +1214,10 @@ final class V2PaymentService
             'currency' => 'JPY',
             'requested_by_admin_id' => $adminId,
             'source_provider_event_id' => $eventId,
-            'requested_at' => now()->startOfSecond(),
-            'manual_review_at' => $status === 'manual_review' ? now()->startOfSecond() : null,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'requested_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'manual_review_at' => $status === 'manual_review' ? V2DatabaseTimestamp::format(now()->startOfSecond()) : null,
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         return DB::table('payment_adjustments')->where('id', $id)->firstOrFail();
@@ -1227,11 +1228,11 @@ final class V2PaymentService
         string $to,
         string $source
     ): object {
-        $updates = ['status' => $to, 'updated_at' => now()];
+        $updates = ['status' => $to, 'updated_at' => V2DatabaseTimestamp::format(now())];
         if ($to === 'succeeded') {
-            $updates['succeeded_at'] = now()->startOfSecond();
+            $updates['succeeded_at'] = V2DatabaseTimestamp::format(now()->startOfSecond());
         } elseif ($to === 'failed') {
-            $updates['failed_at'] = now()->startOfSecond();
+            $updates['failed_at'] = V2DatabaseTimestamp::format(now()->startOfSecond());
         }
         DB::table('payment_adjustments')->where('id', $adjustment->id)->update($updates);
         $this->adjustmentHistory($adjustment->id, $adjustment->status, $to, $source);
@@ -1253,8 +1254,8 @@ final class V2PaymentService
             'transition_source' => $source,
             'provider_event_id' => $eventId,
             'actor_type' => $source === 'admin' ? 'admin' : 'system',
-            'occurred_at' => now()->startOfSecond(),
-            'created_at' => now(),
+            'occurred_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -1266,11 +1267,11 @@ final class V2PaymentService
             'payment_provider_event_id' => $eventId,
             'attempt_no' => $attempt,
             'worker_id' => 'v2-payment-domain',
-            'started_at' => now()->startOfSecond(),
-            'completed_at' => now()->startOfSecond(),
+            'started_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'completed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             'outcome' => $outcome,
             'request_id' => (string) Str::uuid(),
-            'created_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 

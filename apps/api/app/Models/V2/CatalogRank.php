@@ -9,6 +9,8 @@ final class CatalogRank extends Model
 {
     protected $table = 'catalog_ranks';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'code',

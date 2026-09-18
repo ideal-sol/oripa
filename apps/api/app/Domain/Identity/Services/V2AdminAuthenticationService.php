@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2Realm;
@@ -106,7 +107,7 @@ final class V2AdminAuthenticationService
                 ->where('token_hash', $this->tokens->hash($invitationToken))
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->where('expires_at', '>', now())
+                ->where('expires_at', '>', V2DatabaseTimestamp::format(now()))
                 ->lockForUpdate()
                 ->first();
             if (! $invitation instanceof AdminInvitation) {
@@ -318,8 +319,8 @@ final class V2AdminAuthenticationService
                 ->where('admin_id', $adminId)
                 ->where('requires_mfa_enrollment', true)
                 ->whereNull('revoked_at')
-                ->where('idle_expires_at', '>', now())
-                ->where('absolute_expires_at', '>', now())
+                ->where('idle_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
+                ->where('absolute_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
                 ->lockForUpdate()
                 ->first();
             if (! $session instanceof AdminSession) {

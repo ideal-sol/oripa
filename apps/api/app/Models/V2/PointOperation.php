@@ -8,6 +8,8 @@ use LogicException;
 
 final class PointOperation extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'point_operations';

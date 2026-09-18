@@ -10,6 +10,8 @@ final class CatalogGacha extends Model
 {
     protected $table = 'catalog_gachas';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'public_code',

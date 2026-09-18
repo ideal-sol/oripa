@@ -13,6 +13,7 @@ use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\ValueObjects\V2IdempotencyClaim;
 use App\Models\V2\Admin;
+use App\Support\V2DatabaseTimestamp;
 use App\Support\V2HmacKeyring;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -191,8 +192,8 @@ final class V2ContentContactAdminService
                     'public_id' => $publicId,
                     'name' => $name,
                     'normalized_name' => $normalized,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             } catch (\Throwable) {
                 throw $this->conflict('BANNER_CATEGORY_NAME_CONFLICT');
@@ -249,7 +250,7 @@ final class V2ContentContactAdminService
                 DB::table('content_page_categories')->insert([
                     'public_id' => $publicId, 'name' => $name,
                     'normalized_name' => $normalized, 'is_visible' => $visibility === 'visible',
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now), 'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             } catch (\Throwable) {
                 throw $this->conflict('PAGE_CATEGORY_NAME_CONFLICT');
@@ -329,7 +330,7 @@ final class V2ContentContactAdminService
                     'public_id' => $publicId, 'slug' => $payload['slug'],
                     'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
                     'show_in_footer' => $payload['show_in_footer'] ?? false,
-                    'status' => 'draft', 'created_at' => $now, 'updated_at' => $now,
+                    'status' => 'draft', 'created_at' => V2DatabaseTimestamp::format($now), 'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             } catch (\Throwable) {
                 throw $this->conflict('PAGE_SLUG_CONFLICT');
@@ -394,7 +395,7 @@ final class V2ContentContactAdminService
                     'slug' => $payload['slug'],
                     'is_legal' => in_array($payload['slug'], (array) config('v2_content_contact.legal_slugs', []), true),
                     'show_in_footer' => $payload['show_in_footer'] ?? (bool) $parent->show_in_footer,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
             } catch (\Throwable) {
                 throw $this->conflict('PAGE_SLUG_CONFLICT');
@@ -539,8 +540,8 @@ final class V2ContentContactAdminService
                 'public_id' => $publicId,
                 'code' => 'banner-'.str_replace('-', '', $publicId),
                 'status' => 'draft',
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $version = $this->createVersionRow(
                 'banner',
@@ -620,7 +621,7 @@ final class V2ContentContactAdminService
                 $admin
             );
             DB::table('content_banners')->where('id', $parent->id)->update([
-                'updated_at' => now()->startOfSecond(),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->auditContent('content.banner_updated', $context, 'banner', $publicId, [
                 'version_public_id' => $version['id'],
@@ -664,7 +665,7 @@ final class V2ContentContactAdminService
             DB::table('content_banners')->where('id', $parent->id)->update([
                 'status' => 'archived',
                 'published_version_id' => null,
-                'updated_at' => now()->startOfSecond(),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $result = ['id' => $publicId, 'deleted' => true, 'asset_retained' => true];
             $this->auditContent('content.banner_archived', $context, 'banner', $publicId, [
@@ -755,8 +756,8 @@ final class V2ContentContactAdminService
                     'is_public' => true,
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $result = [
                     'id' => $publicId,
@@ -834,8 +835,8 @@ final class V2ContentContactAdminService
                 'public_id' => $publicId,
                 $identifierColumn => $identifier,
                 'status' => 'draft',
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ];
             if ($type === 'static-page') {
                 $parent['is_legal'] = $isLegal;
@@ -1094,14 +1095,14 @@ final class V2ContentContactAdminService
                 DB::table('content_versions')->where('id', $version->id)->update([
                     'status' => 'published',
                     'published_by_admin_id' => $admin->id,
-                    'published_at' => $now,
-                    'updated_at' => $now,
+                    'published_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             DB::table($table)->where('id', $parent->id)->update([
                 'status' => 'published',
                 'published_version_id' => $version->id,
-                'updated_at' => $now,
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $this->auditContent(
                 $isLegal ? 'content.legal_published' : 'content.published',
@@ -1290,8 +1291,8 @@ final class V2ContentContactAdminService
             DB::table('contact_inquiries')->where('id', $contact->id)->update([
                 'status' => $toStatus,
                 'assigned_admin_id' => $admin->id,
-                'closed_at' => $toStatus === 'closed' ? $now : null,
-                'updated_at' => $now,
+                'closed_at' => $toStatus === 'closed' ? V2DatabaseTimestamp::format($now) : null,
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $this->contactHistory(
                 (int) $contact->id,
@@ -1343,7 +1344,7 @@ final class V2ContentContactAdminService
                 'admin_id' => $admin->id,
                 'note_ciphertext' => Crypt::encryptString($note),
                 'request_id' => $context->requestId,
-                'created_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
             ]);
             $this->auditContact('contact.internal_note_added', $context, $admin, $publicId);
 
@@ -1395,13 +1396,13 @@ final class V2ContentContactAdminService
                 'requested_by_admin_id' => $admin->id,
                 'message_ciphertext' => Crypt::encryptString($message),
                 'request_id' => $context->requestId,
-                'created_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
             ]);
             if ($contact->status === 'new') {
                 DB::table('contact_inquiries')->where('id', $contact->id)->update([
                     'status' => 'in_progress',
                     'assigned_admin_id' => $admin->id,
-                    'updated_at' => $now,
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->contactHistory(
                     (int) $contact->id,
@@ -1462,7 +1463,7 @@ final class V2ContentContactAdminService
             DB::table($table)->where('id', $parent->id)->update([
                 'status' => $target,
                 'published_version_id' => null,
-                'updated_at' => now()->startOfSecond(),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->auditContent(
                 $isLegal && $target === 'archived'
@@ -1568,7 +1569,13 @@ final class V2ContentContactAdminService
             'created_at' => $now,
             'updated_at' => $now,
         ];
-        $id = DB::table('content_versions')->insertGetId($attributes);
+        $id = DB::table('content_versions')->insertGetId([
+            ...$attributes,
+            'publish_start_at' => V2DatabaseTimestamp::format($start),
+            'publish_end_at' => V2DatabaseTimestamp::format($end),
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
+        ]);
         $assetPublicId = $input['asset_id'] ?? null;
         if ($assetPublicId !== null) {
             if (! is_string($assetPublicId) || ! Str::isUuid($assetPublicId)) {
@@ -1584,8 +1591,8 @@ final class V2ContentContactAdminService
                 'presentation_asset_id' => $asset->id,
                 'usage_type' => $type === 'notice' ? 'thumbnail' : 'image',
                 'sort_order' => 0,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
         }
 
@@ -1707,15 +1714,15 @@ final class V2ContentContactAdminService
         if ($visibility === 'visible') {
             DB::table('content_versions')->where('id', $versionId)->update([
                 'status' => 'published', 'published_by_admin_id' => $admin->id,
-                'published_at' => $now, 'updated_at' => $now,
+                'published_at' => V2DatabaseTimestamp::format($now), 'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             DB::table('content_static_pages')->where('id', $parentId)->update([
-                'status' => 'published', 'published_version_id' => $versionId, 'updated_at' => $now,
+                'status' => 'published', 'published_version_id' => $versionId, 'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             return;
         }
         DB::table('content_static_pages')->where('id', $parentId)->update([
-            'status' => 'draft', 'published_version_id' => null, 'updated_at' => $now,
+            'status' => 'draft', 'published_version_id' => null, 'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
     }
 
@@ -2198,9 +2205,9 @@ final class V2ContentContactAdminService
             'actor_admin_id' => $admin->id,
             'reason_code' => $reason,
             'request_id' => $requestId,
-            'occurred_at' => $now,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'occurred_at' => V2DatabaseTimestamp::format($now),
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
     }
 

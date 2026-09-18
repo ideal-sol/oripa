@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Contracts\V2SuspiciousRecoveryBoundary;
 use App\Domain\Identity\Enums\V2UserState;
@@ -71,7 +72,7 @@ final class V2PasswordRecoveryService
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => $now]);
+                ->update(['revoked_at' => V2DatabaseTimestamp::format($now)]);
             $rawToken = $this->tokens->generate();
             $reset = PasswordResetToken::query()->create([
                 'user_id' => $user->getKey(),
@@ -202,15 +203,15 @@ final class V2PasswordRecoveryService
                 ->whereKeyNot($reset->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => $now]);
+                ->update(['revoked_at' => V2DatabaseTimestamp::format($now)]);
             $sessionCount = DB::table('user_sessions')
                 ->where('user_id', $user->getKey())
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => $now]);
+                ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
             $rememberCount = DB::table('user_remember_devices')
                 ->where('user_id', $user->getKey())
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => $now]);
+                ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
             $this->outbox->enqueue(
                 'identity.password-changed',
                 'user',

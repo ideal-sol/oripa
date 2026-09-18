@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class ReportingExportVerticalSliceTest extends TestCase
@@ -229,9 +230,9 @@ final class ReportingExportVerticalSliceTest extends TestCase
         $job = ExportJob::query()->firstOrFail();
         $worker = app(V2ExportWorker::class);
         self::assertCount(1, $worker->claim('first-worker', 1));
-        DB::table('export_jobs')->where('id', $job->id)->update([
+        DB::table('export_jobs')->where('id', $job->id)->update(V2TimestampFixture::attributes([
             'lease_expires_at' => now()->subSecond(),
-        ]);
+        ]));
         self::assertCount(1, $worker->claim('second-worker', 1));
         self::assertSame(
             'second-worker',
@@ -343,7 +344,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $hash = hash('sha256', bin2hex(random_bytes(32)));
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
             'mfa_verified_at' => $verifiedAt ?? now(),
@@ -353,7 +354,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => now()->addHours(7),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return new V2AdminAuthorizationContext(
             (int) $admin->id,

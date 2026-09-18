@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class FincodePaymentBackendTest extends TestCase
@@ -544,11 +545,11 @@ final class FincodePaymentBackendTest extends TestCase
                 self::assertSame('UNPAID_PAYMENT_NOT_RESUMABLE', $exception->errorCode);
             }
 
-            DB::table('payments')->where('public_id', $payment['id'])->update([
+            DB::table('payments')->where('public_id', $payment['id'])->update(V2TimestampFixture::attributes([
                 'status' => 'processing',
                 'provider_status' => 'AWAITING_CUSTOMER_PAYMENT',
                 'expires_at' => now()->addDay(),
-            ]);
+            ]));
             self::assertSame('processing', $service->show($owner, $payment['id'])['status']);
             self::assertNull($service->show($owner, $payment['id'])['next_action']);
 
@@ -603,7 +604,7 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame($providerCallCount, Http::recorded()->count());
 
         $expired = $service->start($owner, $plan->public_id, 'virtual_account', 'resume-expired');
-        DB::table('payments')->where('public_id', $expired['id'])->update(['expires_at' => now()->subSecond()]);
+        DB::table('payments')->where('public_id', $expired['id'])->update(V2TimestampFixture::attributes(['expires_at' => now()->subSecond()]));
         $providerCallCount = Http::recorded()->count();
         try {
             $service->resume($owner, $expired['id']);
@@ -633,11 +634,11 @@ final class FincodePaymentBackendTest extends TestCase
 
         $terminal = $service->start($owner, $plan->public_id, 'virtual_account', 'resume-terminal');
         foreach (['succeeded', 'expired', 'failed', 'canceled'] as $status) {
-            DB::table('payments')->where('public_id', $terminal['id'])->update([
+            DB::table('payments')->where('public_id', $terminal['id'])->update(V2TimestampFixture::attributes([
                 'status' => $status,
                 'provider_status' => strtoupper($status),
                 'expires_at' => now()->addDay(),
-            ]);
+            ]));
             try {
                 $service->resume($owner, $terminal['id']);
                 self::fail('Terminal payment must not be resumable.');
@@ -1195,9 +1196,9 @@ final class FincodePaymentBackendTest extends TestCase
             'virtual_account',
             'virtual-account-reconciliation'
         );
-        DB::table('payments')->where('public_id', $payment['id'])->update([
+        DB::table('payments')->where('public_id', $payment['id'])->update(V2TimestampFixture::attributes([
             'expires_at' => now()->subMinute(),
-        ]);
+        ]));
 
         $result = app(V2FincodeReconciliationService::class)->reconcileDue(100);
 
@@ -1315,7 +1316,7 @@ final class FincodePaymentBackendTest extends TestCase
             'virtual_account',
             'unpaid-history-expired'
         );
-        DB::table('payments')->where('public_id', $expired['id'])->update(['expires_at' => now()->subSecond()]);
+        DB::table('payments')->where('public_id', $expired['id'])->update(V2TimestampFixture::attributes(['expires_at' => now()->subSecond()]));
 
         $terminalIds = [];
         foreach (['succeeded', 'failed', 'canceled', 'expired'] as $status) {
@@ -1820,7 +1821,7 @@ final class FincodePaymentBackendTest extends TestCase
 
         DB::table('fincode_card_registration_intents')
             ->where('public_id', $started[2]['id'])
-            ->update(['expires_at' => now()->subSecond()]);
+            ->update(V2TimestampFixture::attributes(['expires_at' => now()->subSecond()]));
         self::assertSame(3, $cards->cards($user)['limits']['registration_remaining']);
         self::assertSame('requires_action', DB::table('fincode_card_registration_intents')
             ->where('public_id', $started[2]['id'])->value('status'));
@@ -1987,7 +1988,7 @@ final class FincodePaymentBackendTest extends TestCase
             ->update(['status' => 'canceled']);
         $customerId = DB::table('fincode_customers')->where('user_id', $user->id)->value('id');
         $cardId = (string) Str::uuid7();
-        DB::table('fincode_cards')->insert([
+        DB::table('fincode_cards')->insert(V2TimestampFixture::attributes([
             'public_id' => $cardId,
             'user_id' => $user->id,
             'fincode_customer_id' => $customerId,
@@ -1998,7 +1999,7 @@ final class FincodePaymentBackendTest extends TestCase
             'expire_year' => 2030,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         $collection = $cards->cards($user);
         self::assertSame('unverified', $collection['data'][0]['verification_status']);

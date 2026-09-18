@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -34,8 +35,8 @@ final class V2LimitedBonusCampaignService
                 'starts_at' => $start->utc()->toIso8601String(),
                 'ends_at' => $end->utc()->toIso8601String(),
                 'bonus_point_amount' => $bonusPointAmount,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return DB::table('point_purchase_plan_limited_bonus_campaigns')
@@ -77,7 +78,7 @@ final class V2LimitedBonusCampaignService
                     'starts_at' => $start->utc()->toIso8601String(),
                     'ends_at' => $end->utc()->toIso8601String(),
                     'bonus_point_amount' => $bonusPointAmount,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
             return DB::table('point_purchase_plan_limited_bonus_campaigns')

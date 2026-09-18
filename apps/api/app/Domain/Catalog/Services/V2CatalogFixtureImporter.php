@@ -2,7 +2,9 @@
 
 namespace App\Domain\Catalog\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -52,9 +54,9 @@ final class V2CatalogFixtureImporter
                 'v2_catalog.fixture_import_tool_version',
                 '2.0.0-alpha.1'
             ),
-            'started_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
+            'started_at' => V2DatabaseTimestamp::format(now()),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         try {
@@ -74,15 +76,15 @@ final class V2CatalogFixtureImporter
             DB::table('catalog_import_runs')->where('public_id', $runId)->update([
                 'status' => 'completed',
                 'imported_count' => $imported,
-                'completed_at' => now(),
-                'updated_at' => now(),
+                'completed_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
         } catch (Throwable $exception) {
             DB::table('catalog_import_runs')->where('public_id', $runId)->update([
                 'status' => 'failed',
                 'failed_count' => 1,
-                'completed_at' => now(),
-                'updated_at' => now(),
+                'completed_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             throw $exception;
         }
@@ -111,8 +113,8 @@ final class V2CatalogFixtureImporter
                 'description' => $category['description'] ?? null,
                 'sort_order' => $category['sort_order'],
                 'is_visible' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -124,8 +126,8 @@ final class V2CatalogFixtureImporter
                 'display_name' => $tag['name'],
                 'sort_order' => $tag['sort_order'],
                 'is_visible' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -142,8 +144,8 @@ final class V2CatalogFixtureImporter
                 ),
                 'state' => 'draft',
                 'sold_count' => $gacha['sold_count'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
             foreach ($gacha['tag_codes'] as $tagCode) {
@@ -166,8 +168,8 @@ final class V2CatalogFixtureImporter
                 'display_name' => $rank['name'],
                 'sort_order' => $rank['sort_order'],
                 'is_visible' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -190,8 +192,8 @@ final class V2CatalogFixtureImporter
                 'byte_size' => strlen(base64_decode($asset['fixture_content_base64'], true)),
                 'alt_text' => $asset['alt_text'] ?? null,
                 'is_public' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -209,12 +211,12 @@ final class V2CatalogFixtureImporter
                 'presentation_asset_id' => $assetId,
                 'usage_type' => $relation['usage_type'],
                 'sort_order' => $relation['sort_order'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             DB::table('catalog_rank_effect_materials')->insertOrIgnore([
                 'presentation_asset_id' => $assetId,
-                'created_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -241,8 +243,8 @@ final class V2CatalogFixtureImporter
                 'display_price' => $prize['display_price'],
                 'exchange_points' => $prize['exchange_points'],
                 'is_visible' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -271,10 +273,12 @@ final class V2CatalogFixtureImporter
                     'storage_identifier',
                     $version['asset_storage_identifier']
                 ),
-                'publish_start_at' => $version['publish_start_at'],
-                'publish_end_at' => $version['publish_end_at'] ?? null,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'publish_start_at' => CarbonImmutable::parse($version['publish_start_at'])->format('Y-m-d H:i:s.uP'),
+                'publish_end_at' => isset($version['publish_end_at'])
+                    ? CarbonImmutable::parse($version['publish_end_at'])->format('Y-m-d H:i:s.uP')
+                    : null,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
             $versionId = $this->gachaVersionId(
@@ -321,8 +325,8 @@ final class V2CatalogFixtureImporter
                 'is_visible' => $prize->is_visible,
                 'initial_inventory' => $relation['initial_inventory'],
                 'sort_order' => $relation['sort_order'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
         }
@@ -337,8 +341,8 @@ final class V2CatalogFixtureImporter
                 'version_number' => $version['version_number'],
                 'status' => 'draft',
                 'snapshot_sha256' => $version['snapshot_sha256'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $count++;
             foreach ($version['stages'] as $stage) {
@@ -351,8 +355,8 @@ final class V2CatalogFixtureImporter
                     'min_draw_number' => $stage['min_draw_number'],
                     'max_draw_number' => $stage['max_draw_number'] ?? null,
                     'sort_order' => $stage['sort_order'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $count++;
                 foreach ($stage['entries'] as $entry) {
@@ -370,8 +374,8 @@ final class V2CatalogFixtureImporter
                             : null,
                         'probability_ppm' => $entry['probability_ppm'],
                         'sort_order' => $entry['sort_order'],
-                        'created_at' => $now,
-                        'updated_at' => $now,
+                        'created_at' => V2DatabaseTimestamp::format($now),
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
                     $count++;
                 }
@@ -389,8 +393,8 @@ final class V2CatalogFixtureImporter
                         ? $guarantee['point_amount']
                         : null,
                     'probability_ppm' => $guarantee['probability_ppm'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $count++;
             }
@@ -399,7 +403,7 @@ final class V2CatalogFixtureImporter
                 ->update([
                     'status' => 'published',
                     'revision' => 2,
-                    'updated_at' => $now,
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             $gachaVersionRevision = (int) DB::table('catalog_gacha_versions')
                 ->where('id', $gachaVersionId)->value('revision');
@@ -409,7 +413,7 @@ final class V2CatalogFixtureImporter
                     'published_probability_version_id' => $probabilityVersionId,
                     'status' => 'published',
                     'revision' => $gachaVersionRevision + 1,
-                    'updated_at' => $now,
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
         }
 
@@ -480,12 +484,12 @@ final class V2CatalogFixtureImporter
                     'total_count' => $version->total_count,
                     'sold_count' => $gachaRow->sold_count,
                     'lock_version' => 0,
-                    'started_at' => $now,
+                    'started_at' => V2DatabaseTimestamp::format($now),
                     'sold_out_at' => (int) $gachaRow->sold_count === (int) $version->total_count
-                        ? $now
+                        ? V2DatabaseTimestamp::format($now)
                         : null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             if (
@@ -498,7 +502,7 @@ final class V2CatalogFixtureImporter
                     'management_status' => 'published',
                     'published_version_id' => $version->id,
                     'active_draw_state_id' => $stateId,
-                    'first_published_at' => $version->published_at ?? $now,
+                    'first_published_at' => $version->published_at ?? V2DatabaseTimestamp::format($now),
                     'scheduled_start_at' => null,
                     'current_publish_start_at' => $version->publish_start_at,
                     'current_title' => $version->title,
@@ -508,7 +512,7 @@ final class V2CatalogFixtureImporter
                         $version->presentation_asset_id,
                     'current_publish_end_at' => $version->publish_end_at,
                     'revision' => (int) $gachaRow->revision + 1,
-                    'updated_at' => $now,
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             $gachaRanks = DB::table('catalog_gacha_ranks')
@@ -518,9 +522,9 @@ final class V2CatalogFixtureImporter
                 ->get(['id', 'revision']);
             foreach ($gachaRanks as $gachaRank) {
                 DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
-                    'first_published_at' => $version->published_at ?? $now,
+                    'first_published_at' => $version->published_at ?? V2DatabaseTimestamp::format($now),
                     'revision' => (int) $gachaRank->revision + 1,
-                    'updated_at' => $now,
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
 
@@ -537,8 +541,8 @@ final class V2CatalogFixtureImporter
                     'available_quantity' => $relation->initial_inventory,
                     'withdrawn_quantity' => 0,
                     'lock_version' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
         }
@@ -695,8 +699,8 @@ final class V2CatalogFixtureImporter
                 'current_revision_id' => null,
                 'status' => 'active',
                 'revision' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $masterRevisionId = DB::table('catalog_rank_master_revisions')->insertGetId([
                 'rank_master_id' => $masterId,
@@ -706,11 +710,11 @@ final class V2CatalogFixtureImporter
                 'result_image_asset_id' => $result->id,
                 'show_total_stock' => false,
                 'display_order' => $rank->sort_order,
-                'created_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
             ]);
             DB::table('catalog_rank_masters')->where('id', $masterId)->update([
                 'current_revision_id' => $masterRevisionId,
-                'updated_at' => $now,
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $gachaRankId = DB::table('catalog_gacha_ranks')->insertGetId([
                 'public_id' => (string) Str::uuid7(),
@@ -719,18 +723,18 @@ final class V2CatalogFixtureImporter
                 'current_video_revision_id' => null,
                 'first_published_at' => null,
                 'revision' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
                 'gacha_rank_id' => $gachaRankId,
                 'revision_number' => 1,
                 'video_asset_id' => $video->id,
-                'created_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
             ]);
             DB::table('catalog_gacha_ranks')->where('id', $gachaRankId)->update([
                 'current_video_revision_id' => $videoRevisionId,
-                'updated_at' => $now,
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
         }
     }

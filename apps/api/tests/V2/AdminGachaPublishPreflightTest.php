@@ -19,6 +19,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminGachaPublishPreflightTest extends TestCase
@@ -278,7 +279,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'session_id_hash',
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
-            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+            ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -553,7 +554,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'session_id_hash',
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
-            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+            ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -630,7 +631,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'session_id_hash',
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
-            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+            ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -920,7 +921,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'session_id_hash',
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
-            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+            ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -1232,9 +1233,9 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'GACHA_UNPUBLISH_READY'
             );
 
-        DB::table('admin_sessions')->update([
+        DB::table('admin_sessions')->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
-        ]);
+        ]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $owner,
@@ -1244,7 +1245,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             'gacha-unpublish-stale-mfa'
         )->assertForbidden()
             ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
-        DB::table('admin_sessions')->update(['mfa_verified_at' => now()]);
+        DB::table('admin_sessions')->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()]));
 
         Auth::forgetGuards();
         $paused = $this->mutatingRequest(
@@ -1536,7 +1537,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $created = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
             'mfa_verified_at' => now(),
@@ -1545,7 +1546,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $created->copy()->addHours(8),
-        ]);
+        ]));
 
         return $token;
     }

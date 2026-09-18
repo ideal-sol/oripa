@@ -9,6 +9,8 @@ final class CatalogPresentationAsset extends Model
 {
     protected $table = 'catalog_presentation_assets';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'storage_identifier',

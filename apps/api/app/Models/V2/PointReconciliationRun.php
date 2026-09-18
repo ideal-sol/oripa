@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class PointReconciliationRun extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'point_reconciliation_runs';
 
     protected $guarded = ['*'];

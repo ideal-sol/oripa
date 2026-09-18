@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class PrizeInventoryAdjustment extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'prize_inventory_adjustments';

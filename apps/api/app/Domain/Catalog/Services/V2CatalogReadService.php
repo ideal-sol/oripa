@@ -2,6 +2,7 @@
 
 namespace App\Domain\Catalog\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Draw\Services\V2DrawEligibilityService;
 use App\Models\V2\User;
@@ -351,11 +352,11 @@ final class V2CatalogReadService
             ->when($withinPublishedPeriod, function (Builder $query) use ($now): void {
                 $query->whereRaw(
                     'COALESCE(g.current_publish_start_at, gv.publish_start_at) <= ?',
-                    [$now]
+                    [V2DatabaseTimestamp::format($now)]
                 )
                     ->where(function (Builder $period) use ($now): void {
                         $period->whereNull('g.current_publish_end_at')
-                            ->orWhere('g.current_publish_end_at', '>', $now);
+                            ->orWhere('g.current_publish_end_at', '>', V2DatabaseTimestamp::format($now));
                     });
             });
     }

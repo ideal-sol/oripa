@@ -7,6 +7,8 @@ use LogicException;
 
 final class PointLedgerEntry extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'point_ledger_entries';

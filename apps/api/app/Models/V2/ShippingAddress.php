@@ -8,6 +8,8 @@ use Illuminate\Support\Str;
 
 final class ShippingAddress extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     use SoftDeletes;
 
     protected $table = 'shipping_addresses';

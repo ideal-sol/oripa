@@ -9,6 +9,8 @@ final class CatalogProbabilityStage extends Model
 {
     protected $table = 'catalog_probability_stages';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'probability_version_id',

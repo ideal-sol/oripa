@@ -3,6 +3,7 @@
 namespace App\Domain\ContentContact\Services;
 
 use App\Domain\ContentContact\Exceptions\V2ContentContactException;
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -221,7 +222,7 @@ final class V2ContentReadService
 
     private function publishedQuery(string $table, string $ownerColumn): Builder
     {
-        $now = now();
+        $now = V2DatabaseTimestamp::format(now());
 
         return DB::table($table.' as p')
             ->join('content_versions as cv', function ($join) use ($ownerColumn): void {

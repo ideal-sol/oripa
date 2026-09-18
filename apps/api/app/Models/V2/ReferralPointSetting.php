@@ -8,6 +8,8 @@ final class ReferralPointSetting extends Model
 {
     protected $table = 'referral_point_settings';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected function casts(): array

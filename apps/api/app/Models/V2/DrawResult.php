@@ -8,6 +8,8 @@ use LogicException;
 
 final class DrawResult extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'draw_results';

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Point\Exceptions\V2PointException;
@@ -108,8 +109,8 @@ final class V2FincodePaymentService
                     );
                     $nextUrl = $this->optionalActionUrl($executed['acs_url'] ?? null);
                     DB::table('fincode_cards')->where('id', $ownedCard->id)->update([
-                        'last_used_at' => now()->startOfSecond(),
-                        'updated_at' => now(),
+                        'last_used_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                        'updated_at' => V2DatabaseTimestamp::format(now()),
                     ]);
                 }
                 $this->finishAttempt(
@@ -300,7 +301,7 @@ final class V2FincodePaymentService
                     });
                 }
             })
-            ->where('expires_at', '>', $now)
+            ->where('expires_at', '>', V2DatabaseTimestamp::format($now))
             ->whereExists(function (Builder $attempt): void {
                 $attempt
                     ->selectRaw('1')
@@ -357,8 +358,8 @@ final class V2FincodePaymentService
             'provider_execute_idempotency_key' => $card === null ? null : (string) Str::uuid(),
             'status' => 'prepared',
             'attempt_count' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         return DB::transaction(function () use ($payment): object {
@@ -396,9 +397,9 @@ final class V2FincodePaymentService
             DB::table('fincode_payment_attempts')->where('id', $attempt->id)->update([
                 'status' => 'calling',
                 'attempt_count' => DB::raw('attempt_count + 1'),
-                'last_attempted_at' => now()->startOfSecond(),
+                'last_attempted_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'last_error_code' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return DB::table('fincode_payment_attempts')->where('id', $attempt->id)->firstOrFail();
@@ -419,7 +420,7 @@ final class V2FincodePaymentService
             'redirect_url_ciphertext' => $redirectUrl === null
                 ? null
                 : Crypt::encryptString($redirectUrl),
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 
@@ -428,7 +429,7 @@ final class V2FincodePaymentService
         DB::table('fincode_payment_attempts')->where('id', $attemptId)->update([
             'status' => $exception->retryable ? 'uncertain' : 'failed',
             'last_error_code' => $exception->errorCode,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 

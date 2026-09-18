@@ -2,6 +2,7 @@
 
 namespace App\Domain\Point\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Models\V2\PointBalanceSnapshot;
@@ -102,11 +103,11 @@ final class V2PointSnapshotService
                     ), 0) AS reversed_free
                 SQL
             )
-            ->where('occurred_at', '>=', $start)
-            ->where('occurred_at', '<', $cutoff)
+            ->where('occurred_at', '>=', V2DatabaseTimestamp::format($start))
+            ->where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))
             ->first();
         $userCount = DB::table('point_ledger_entries')
-            ->where('occurred_at', '<', $cutoff)
+            ->where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))
             ->distinct()
             ->count('user_id');
         $openLotCount = DB::query()->fromSub(
@@ -114,7 +115,7 @@ final class V2PointSnapshotService
                 ->select('point_lot_id')
                 ->selectRaw('SUM(amount_delta) AS balance')
                 ->whereNotNull('point_lot_id')
-                ->where('occurred_at', '<', $cutoff)
+                ->where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))
                 ->groupBy('point_lot_id')
                 ->havingRaw('SUM(amount_delta) > 0'),
             'open_lots'
@@ -147,7 +148,7 @@ final class V2PointSnapshotService
     {
         $rows = DB::table('point_ledger_entries')
             ->selectRaw('point_type, COALESCE(SUM(amount_delta), 0) AS balance')
-            ->where('occurred_at', '<', $cutoff)
+            ->where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))
             ->groupBy('point_type')
             ->get();
         $balance = ['paid' => 0, 'free' => 0];

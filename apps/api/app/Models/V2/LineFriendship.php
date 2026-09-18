@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class LineFriendship extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'line_friendships';
 
     protected $guarded = ['*'];
