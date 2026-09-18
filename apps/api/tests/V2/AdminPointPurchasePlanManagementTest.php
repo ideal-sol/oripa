@@ -166,6 +166,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         $updated = $service->update($context, $created['data']['id'], [
             ...$this->payload(),
             'expected_revision' => $created['data']['revision'],
+            'name' => 'Updated plan without Fresh timestamp',
         ], (string) Str::uuid7());
         self::assertSame(2, $updated['data']['version']);
     }
