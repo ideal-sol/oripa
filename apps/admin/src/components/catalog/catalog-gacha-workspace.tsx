@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogBreadcrumb } from "@/components/catalog/catalog-breadcrumb";
 import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
@@ -103,8 +102,6 @@ export function CatalogGachaWorkspace({
   const [confirmMode, setConfirmMode] = useState<ConfirmMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [mutationError, setMutationError] = useState<AdminApiError | null>(null);
-  const [pendingCoreDraft, setPendingCoreDraft] = useState<GachaCoreDraft | null>(null);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const pendingMutation = useRef<{
     fingerprint: string;
     key: string;
@@ -214,13 +211,6 @@ export function CatalogGachaWorkspace({
       setMutationError(null);
       router.push(`/catalog/gachas/${gachaIdentifier(result.data)}`);
     } catch (cause) {
-      const error = normalizeError(cause);
-      if (error.requiresFreshMfa) {
-        setPendingCoreDraft(draft);
-        setFreshMfaOpen(true);
-        setMutationError(null);
-        return;
-      }
       handleMutationError(cause);
       throw cause;
     }
@@ -433,19 +423,6 @@ export function CatalogGachaWorkspace({
                 retry={() => setMutationError(null)}
               />
             ) : null}
-            <FreshMfaDialog
-              onClose={() => {
-                setFreshMfaOpen(false);
-                setPendingCoreDraft(null);
-              }}
-              onSuccess={async () => {
-                setFreshMfaOpen(false);
-                const retryDraft = pendingCoreDraft;
-                setPendingCoreDraft(null);
-                if (retryDraft) await submitCore(retryDraft);
-              }}
-              open={freshMfaOpen}
-            />
           </div>
         </ProtectedAdminRoute>
       </AdminShell>

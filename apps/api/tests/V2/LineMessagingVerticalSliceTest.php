@@ -200,7 +200,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
                 'reward_point_amount' => 0,
                 'reward_expiration_days' => 180,
             ]
-        )->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertOk();
 
         $owner = $this->adminSession(V2AdminRole::Owner);
         foreach ([

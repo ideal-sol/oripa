@@ -15,7 +15,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogBreadcrumb } from "@/components/catalog/catalog-breadcrumb";
 import { CatalogConfirmationDialog } from "@/components/catalog/catalog-confirmation-dialog";
@@ -431,10 +430,8 @@ function ProbabilityDetail({
     toProbabilityDraft(probability),
   );
   const [busy, setBusy] = useState(false);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [preflightReady, setPreflightReady] = useState(false);
-  const pendingPublishAction = useRef<"preflight" | "publish" | null>(null);
   const publishHeading = useRef<HTMLHeadingElement>(null);
   const initial = useMemo(
     () => JSON.stringify(toProbabilityDraft(probability)),
@@ -521,15 +518,9 @@ function ProbabilityDetail({
       );
       onCanonical(result.data);
       setPreflightReady(result.data.validation.is_valid);
-      pendingPublishAction.current = null;
     } catch (cause) {
       const error = normalizeError(cause);
-      if (error.requiresFreshMfa) {
-        pendingPublishAction.current = "preflight";
-        setFreshMfaOpen(true);
-      } else {
-        onError(error);
-      }
+      onError(error);
     } finally {
       setBusy(false);
     }
@@ -553,16 +544,9 @@ function ProbabilityDetail({
       onCanonical(result.data);
       setPublishConfirmOpen(false);
       setPreflightReady(false);
-      pendingPublishAction.current = null;
     } catch (cause) {
       const error = normalizeError(cause);
-      if (error.requiresFreshMfa) {
-        pendingPublishAction.current = "publish";
-        setPublishConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        onError(error);
-      }
+      onError(error);
     } finally {
       setBusy(false);
     }
@@ -703,21 +687,6 @@ function ProbabilityDetail({
           </section>
         </div>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => {
-          pendingPublishAction.current = null;
-          setFreshMfaOpen(false);
-        }}
-        onSuccess={async () => {
-          setFreshMfaOpen(false);
-          if (pendingPublishAction.current === "preflight") {
-            await preflight();
-          } else if (pendingPublishAction.current === "publish") {
-            await publish();
-          }
-        }}
-        open={freshMfaOpen}
-      />
     </div>
   );
 }

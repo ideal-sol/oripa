@@ -280,6 +280,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
+        DB::beginTransaction();
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -290,8 +291,8 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 'probability_version_id' => $probability['id'],
             ],
             'gacha-selection-stale-mfa'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertOk();
+        DB::rollBack();
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -515,7 +516,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         }
     }
 
-    public function test_immediate_publish_requires_admin_permission_fresh_mfa_and_csrf(): void
+    public function test_immediate_publish_requires_admin_permission_and_csrf_without_freshness(): void
     {
         $owner = $this->createAdminSession(V2AdminRole::Owner);
         [$draft, $probability] = $this->createDraftWithPublishedProbability($owner);
@@ -555,6 +556,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
+        DB::beginTransaction();
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -562,8 +564,8 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $root.'/publish',
             $payload,
             'gacha-immediate-stale'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertOk();
+        DB::rollBack();
 
         Auth::forgetGuards();
         $this->asAdmin(str_repeat('x', 64))
@@ -632,6 +634,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
+        DB::beginTransaction();
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -639,8 +642,8 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $root.'/publish-schedule',
             $payload,
             'gacha-schedule-stale'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertCreated();
+        DB::rollBack();
 
         Auth::forgetGuards();
         $this->asAdmin(str_repeat('x', 64))
@@ -922,6 +925,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
+        DB::beginTransaction();
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -929,8 +933,8 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $root,
             $payload,
             'gacha-sales-pause-stale-mfa'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertOk();
+        DB::rollBack();
 
         $owner = $this->createAdminSession(V2AdminRole::Owner);
         Auth::forgetGuards();
@@ -1236,6 +1240,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         DB::table('admin_sessions')->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
         ]));
+        DB::beginTransaction();
         Auth::forgetGuards();
         $this->mutatingRequest(
             $owner,
@@ -1243,8 +1248,8 @@ final class AdminGachaPublishPreflightTest extends TestCase
             $root.'/unpublish',
             ['expected_gacha_revision' => (int) $gacha->revision],
             'gacha-unpublish-stale-mfa'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertOk();
+        DB::rollBack();
         DB::table('admin_sessions')->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()]));
 
         Auth::forgetGuards();
@@ -1540,7 +1545,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => $created,
             'last_activity_at' => now(),

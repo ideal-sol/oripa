@@ -50,44 +50,30 @@ final class AdminFreshMfaQaTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_freshness_uses_server_session_time_and_expires_at_exactly_five_minutes(): void
+    public function test_allows_expired_freshness_without_changing_session_timestamps(): void
     {
         $owner = $this->admin(V2AdminRole::Owner);
-        [$context] = $this->adminSession($owner, now()->subMinutes(4)->subSeconds(59));
-        self::assertSame(
-            $owner->id,
-            app(V2AdminFreshMfaAuthorizer::class)->authorizeQa($context)->id
-        );
-
-        CarbonImmutable::setTestNow('2026-07-28T06:00:01Z');
-        try {
-            app(V2AdminFreshMfaAuthorizer::class)->authorizeQa($context);
-            self::fail('Fresh MFA must expire at exactly five minutes.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
-            self::assertSame(403, $exception->status);
-            self::assertFalse($exception->retryable);
+        foreach ([null, now()->subMinutes(5), now()->subHours(2)] as $verifiedAt) {
+            [$context] = $this->adminSession($owner, $verifiedAt);
+            $before = DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->first();
+            $authorizer = app(V2AdminFreshMfaAuthorizer::class);
+            self::assertSame($owner->id, $authorizer->authorizeQa($context)->id);
+            self::assertSame($owner->id, $authorizer->authorizeReporting($context, true)->id);
+            foreach (\App\Domain\Identity\Enums\V2Permission::cases() as $permission) {
+                if (app(\App\Domain\Identity\Services\V2PermissionAuthorizer::class)->allows($owner->role, $permission)) {
+                    self::assertSame($owner->id, $authorizer->authorizePermission($context, $permission)->id);
+                }
+            }
+            self::assertEquals($before, DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->first());
         }
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'admin.fresh_mfa.required',
-            'outcome' => 'failure',
-        ]);
-        self::assertNotSame(
-            $context->sessionIdHash,
-            DB::table('audit_logs')
-                ->where('action_code', 'admin.fresh_mfa.required')
-                ->value('session_correlation_hash')
-        );
+        self::assertDatabaseMissing('audit_logs', ['action_code' => 'admin.fresh_mfa.required']);
     }
 
     public function test_null_revoked_expired_and_client_clock_cannot_bypass_server_session_state(): void
     {
         $owner = $this->admin(V2AdminRole::Owner);
         [$nullContext] = $this->adminSession($owner, null);
-        $this->assertAuthenticationError(
-            fn () => app(V2AdminFreshMfaAuthorizer::class)->authorizeQa($nullContext),
-            'FRESH_AUTHENTICATION_REQUIRED'
-        );
+        self::assertSame($owner->id, app(V2AdminFreshMfaAuthorizer::class)->authorizeQa($nullContext)->id);
 
         [$revokedContext] = $this->adminSession($owner, now());
         DB::table('admin_sessions')
@@ -189,24 +175,24 @@ final class AdminFreshMfaQaTest extends TestCase
         }
     }
 
-    public function test_password_reauthentication_is_available_only_while_mfa_is_disabled(): void
+    public function test_password_reauthentication_is_retired_while_mfa_is_disabled(): void
     {
         $owner = $this->admin(V2AdminRole::Owner);
-        [$context, $raw] = $this->adminSession($owner, now()->subMinutes(10));
+        [$context] = $this->adminSession($owner, now()->subMinutes(10));
+        $before = DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->first();
 
-        $result = app(V2AdminReauthenticationService::class)->reauthenticate(
-            $context,
-            'password',
-            password: 'valid password'
+        $this->assertAuthenticationError(
+            fn () => app(V2AdminReauthenticationService::class)->reauthenticate($context, 'password'),
+            'INVALID_MFA_CREDENTIAL'
         );
 
-        self::assertNotSame($raw, $result['session']['token']);
-        self::assertNotNull(DB::table('admin_sessions')
-            ->where('session_id_hash', $context->sessionIdHash)
-            ->value('revoked_at'));
-        self::assertDatabaseHas('audit_logs', [
+        self::assertEquals($before, DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->first());
+        self::assertDatabaseMissing('audit_logs', [
             'action_code' => 'admin.reauthentication.succeeded',
-            'outcome' => 'success',
+        ]);
+        self::assertDatabaseHas('audit_logs', [
+            'action_code' => 'admin.reauthentication.failed',
+            'outcome' => 'failure',
         ]);
     }
 

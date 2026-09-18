@@ -14,6 +14,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("Owner adjusts free points once and the detail reloads canonical balances", async ({ page }) => {
+  const reauthentication: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/auth/reauthenticate")) reauthentication.push(request.url());
+  });
   const errors = monitor(page);
   const api = await installApi(page, "owner");
   await page.goto(`/users/${userId}`);
@@ -35,6 +39,8 @@ test("Owner adjusts free points once and the detail reloads canonical balances",
   await expect(balances.getByText("100 コイン", { exact: true })).toBeVisible();
   await expect(balances.getByText("350 コイン", { exact: true })).toBeVisible();
   expect(api.mutationCount()).toBe(1);
+  expect(reauthentication).toEqual([]);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
   expect(errors.console).toEqual([]);
   expect(errors.page).toEqual([]);
   expect(errors.gateway).toEqual([]);
@@ -56,7 +62,7 @@ async function installApi(page: Page, role: "owner" | "operator") {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) {
       return json(route, {
-        admin: { id: uuid("8"), mfa_verified: true, role, state: "active" },
+        admin: { id: uuid("8"), mfa_verified: false, role, state: "active" },
         authenticated: true,
         mfa_required: false,
         requires_mfa_enrollment: false,

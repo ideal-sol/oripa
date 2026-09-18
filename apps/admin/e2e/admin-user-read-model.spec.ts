@@ -137,9 +137,6 @@ test("Admin changes User state and the detail refetches canonical state", async 
     if (path.endsWith("/auth/permissions")) {
       return json(route, { permissions: ["user.state.manage"], request_id: uuid("9"), role: "admin" });
     }
-    if (path.endsWith("/auth/reauthenticate")) {
-      return json(route, { admin: adminSession().admin, authenticated: true });
-    }
     if (path.endsWith(`/users/${userId}/state`)) {
       mutationBody = route.request().postDataJSON() as Record<string, unknown>;
       state = "suspended";
@@ -161,8 +158,7 @@ test("Admin changes User state and the detail refetches canonical state", async 
   await page.getByLabel("変更後の状態").selectOption("suspended");
   await page.getByLabel("変更理由").fill("Preview support review.");
   await page.getByRole("button", { name: "確認して変更" }).click();
-  await page.getByLabel("現在のパスワード").fill("not-persisted");
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
 
   await expect(page.locator(".admin-user-state-summary").getByText("停止", { exact: true }))
     .toBeVisible();
@@ -184,9 +180,6 @@ test("Owner enables an indefinite Test User from User detail", async ({ page }) 
     if (path.endsWith("/auth/permissions")) {
       return json(route, { permissions: ["qa.draw.manage"], request_id: uuid("9"), role: "owner" });
     }
-    if (path.endsWith("/auth/reauthenticate")) {
-      return json(route, { admin: ownerSession().admin, authenticated: true });
-    }
     if (path.endsWith(`/users/${userId}/qa-mode`)) {
       return json(route, { mode, user_id: userId });
     }
@@ -206,8 +199,7 @@ test("Owner enables an indefinite Test User from User detail", async ({ page }) 
   await expect(page.locator(".admin-user-qa-status")).toHaveText("OFF");
   await page.getByLabel("設定理由").fill("演出確認用のPreview QA User");
   await page.getByRole("button", { name: "ONにする" }).click();
-  await page.getByLabel("認証アプリの6桁コード").fill("123456");
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
 
   await expect(page.getByText("ON（無期限）", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "テストユーザー" }).getByRole("status"))

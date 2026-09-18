@@ -206,10 +206,9 @@
       "post": {
         "operationId": "createAdminAgency",
         "summary": "代理店作成",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -253,10 +252,9 @@
       "post": {
         "operationId": "issueAdminAgencyIdentifiers",
         "summary": "Login ID・広告コード候補を自動発行",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "safe",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -324,10 +322,9 @@
       "put": {
         "operationId": "updateAdminAgency",
         "summary": "代理店編集",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -379,10 +376,9 @@
       "post": {
         "operationId": "suspendAdminAgency",
         "summary": "代理店停止",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -434,10 +430,9 @@
       "post": {
         "operationId": "reactivateAdminAgency",
         "summary": "代理店再有効化",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -489,10 +484,9 @@
       "post": {
         "operationId": "resetAdminAgencyPassword",
         "summary": "PW再設定",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -544,10 +538,9 @@
       "post": {
         "operationId": "reissueAdminAgencyLoginInformation",
         "summary": "ログイン情報を再発行",
-        "description": "Owner/Adminのみ。Fresh MFA必須。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
+        "description": "Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -677,7 +670,7 @@
       },
       "put": {
         "operationId": "updateAdminAuthenticationPolicy",
-        "summary": "OwnerがFresh Authentication済みのSessionでAdmin認証Policyを更新する",
+        "summary": "Ownerが有効なSessionでAdmin認証Policyを更新する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -728,7 +721,6 @@
         "summary": "Ownerが現在のInvitation Policyに従ってAdminを作成する",
         "x-idempotency": "not-supported",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -800,7 +792,7 @@
       "put": {
         "operationId": "updateAdminLineMessagingSetting",
         "summary": "LINE Follow自動応答Message設定を更新する",
-        "description": "OwnerまたはAdminかつ5分以内のFresh MFA、Revision OCC、Idempotency-Keyを必須とする。",
+        "description": "OwnerまたはAdmin、Revision OCC、Idempotency-Keyを必須とする。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -919,7 +911,7 @@
       "put": {
         "operationId": "updateAdminReferralPointSetting",
         "summary": "紹介ポイント設定を更新する",
-        "description": "OwnerまたはAdmin、Fresh MFA、Revision OCC、Idempotency-Keyを必須とする。",
+        "description": "OwnerまたはAdmin、Revision OCC、Idempotency-Keyを必須とする。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -1018,7 +1010,7 @@
       "post": {
         "operationId": "createAdminPointPurchasePlan",
         "summary": "ポイント購入商品を作成する",
-        "description": "OwnerまたはAdmin、Fresh MFA、Idempotency-Keyを必須とする。",
+        "description": "OwnerまたはAdmin、Idempotency-Keyを必須とする。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -1197,7 +1189,7 @@
       "post": {
         "operationId": "createAdminLimitedBonusCampaign",
         "summary": "期間限定ボーナスコイン設定を登録する",
-        "description": "OwnerまたはAdmin、Fresh MFA、Idempotency-Keyを必須とする。",
+        "description": "OwnerまたはAdmin、Idempotency-Keyを必須とする。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -3741,7 +3733,6 @@
         "summary": "Draft Gacha Versionで使用するPublished Probability Snapshotを選択する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -3793,7 +3784,6 @@
         "summary": "Draft Gacha Versionの公開前Server Validationを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -3915,7 +3905,6 @@
         "summary": "公開中GachaのSales Pause Preflightを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -3964,7 +3953,6 @@
         "summary": "公開中Gachaの新規販売・新規抽選を一時停止する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4013,7 +4001,6 @@
         "summary": "Pause中GachaのSales Resume Preflightを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4062,7 +4049,6 @@
         "summary": "Pause中Gachaの新規販売・新規抽選を再開する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4146,7 +4132,6 @@
         "summary": "Pause済みGachaのPublic／Draw解除Preflightを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4195,7 +4180,6 @@
         "summary": "Pause済みGachaをPublic Catalogと新規Draw対象から解除する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4244,7 +4228,6 @@
         "summary": "Preflight済みDraft Gacha Versionを即時公開する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4332,7 +4315,6 @@
         "summary": "Preflight済みDraft Gacha Versionの将来Publishを予約する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4384,7 +4366,6 @@
         "summary": "Gacha VersionのSchedule Publish Preflightを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4436,7 +4417,6 @@
         "summary": "未処理のGacha Version Publish予約を取消する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4821,7 +4801,6 @@
         "summary": "Draft Probability Versionの公開前検証をServerで再実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -4876,7 +4855,6 @@
         "summary": "検証済みDraft Probability Versionを不変Snapshotとして公開する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -6609,7 +6587,7 @@
     "/content/static-pages/{content_id}/versions/{version_id}/publish": {
       "post": {
         "operationId": "publishAdminContentStaticPageVersion",
-        "summary": "Static Page Versionを公開する。Legal PageはFresh MFA必須",
+        "summary": "Static Page Versionを公開する。Legal Pageも追加Fresh認証は不要",
         "x-idempotency": "naturally-idempotent",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -6650,7 +6628,7 @@
     "/content/static-pages/{content_id}/unpublish": {
       "post": {
         "operationId": "unpublishAdminContentStaticPage",
-        "summary": "Static Pageの公開を停止する。Legal PageはFresh MFA必須",
+        "summary": "Static Pageの公開を停止する。Legal Pageも追加Fresh認証は不要",
         "x-idempotency": "naturally-idempotent",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -6688,7 +6666,7 @@
     "/content/static-pages/{content_id}/archive": {
       "post": {
         "operationId": "archiveAdminContentStaticPage",
-        "summary": "Static PageをArchiveする。Legal PageはFresh MFA必須",
+        "summary": "Static PageをArchiveする。Legal Pageも追加Fresh認証は不要",
         "x-idempotency": "naturally-idempotent",
         "x-rate-limit": "none",
         "x-cache-policy": "no-store",
@@ -7371,7 +7349,7 @@
     "/auth/reauthenticate/webauthn/options": {
       "post": {
         "operationId": "createAdminReauthenticationWebauthnOptions",
-        "summary": "現在のAdmin SessionへBindingしたFresh MFA用WebAuthn Optionを発行する",
+        "summary": "現在のAdmin SessionへBindingしたMFA検証用WebAuthn Optionを発行する",
         "x-idempotency": "not-supported",
         "x-rate-limit": "session-5-per-5-minutes",
         "x-cache-policy": "no-store",
@@ -7412,8 +7390,8 @@
     "/auth/reauthenticate": {
       "post": {
         "operationId": "reauthenticateAdmin",
-        "summary": "現在の認証Policyに従ってFresh Authenticationを検証しSessionを回転する",
-        "description": "MFA必須時はTOTPまたはWebAuthn、MFA任意時は現在のPasswordを使用する。Absolute Session期限は延長しない。",
+        "summary": "TOTPまたはWebAuthnを検証しSessionを回転する",
+        "description": "MFA機構用の任意検証API。通常Admin業務操作の前提ではない。Password方式は廃止し、旧clientのmethod=passwordはINVALID_MFA_CREDENTIALで拒否する。password値は無視し、認証・保存に使用しない。Absolute Session期限は延長しない。",
         "x-idempotency": "not-supported",
         "x-rate-limit": "session-5-per-5-minutes",
         "x-cache-policy": "no-store",
@@ -7445,7 +7423,7 @@
         },
         "responses": {
           "200": {
-            "description": "Session IDとCSRF Tokenを回転したFresh MFA済みAdmin Session。",
+            "description": "Session IDとCSRF Tokenを回転したMFA検証済みAdmin Session。",
             "content": {
               "application/json": {
                 "schema": {
@@ -7472,7 +7450,6 @@
         "summary": "OwnerがUserのQA Test Modeを取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7506,7 +7483,6 @@
         "summary": "OwnerがUserのQA Test Modeを有効化または更新する",
         "x-idempotency": "state-replacement",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7553,7 +7529,6 @@
         "summary": "OwnerがUserのQA Test Modeを論理無効化する",
         "x-idempotency": "naturally-idempotent",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7592,7 +7567,6 @@
         "summary": "OwnerがUserのQA Draw Plan一覧を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7626,7 +7600,6 @@
         "summary": "Ownerが指定景品順を持つQA Draw Planを作成する",
         "x-idempotency": "not-supported",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7675,7 +7648,6 @@
         "summary": "OwnerがQA Draw Plan詳細を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7709,7 +7681,6 @@
         "summary": "Ownerが未完了QA Draw PlanのMetadataを更新する",
         "x-idempotency": "state-replacement",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7758,7 +7729,6 @@
         "summary": "OwnerがQA Draw PlanをPauseする",
         "x-idempotency": "state-transition",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7797,7 +7767,6 @@
         "summary": "Ownerが未完了QA Draw PlanをActivateする",
         "x-idempotency": "state-transition",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7836,7 +7805,6 @@
         "summary": "OwnerがQA Draw Planを論理無効化する",
         "x-idempotency": "naturally-idempotent",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7875,7 +7843,6 @@
         "summary": "OwnerがQA Draw Executionを安全な条件で絞り込む",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7956,7 +7923,6 @@
         "summary": "OwnerがQA Draw Execution詳細を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -7992,7 +7958,6 @@
         "summary": "QA Plan管理一覧を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8052,7 +8017,6 @@
         "summary": "QA Planを作成する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8101,7 +8065,6 @@
         "summary": "QA Plan管理詳細を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8135,7 +8098,6 @@
         "summary": "QA Planを更新する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8187,7 +8149,6 @@
         "summary": "QA Planを有効化する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8239,7 +8200,6 @@
         "summary": "QA Planを一時無効化する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8291,7 +8251,6 @@
         "summary": "未実行QA PlanをArchiveする",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8343,7 +8302,6 @@
         "summary": "QA Planを実行せずServer Validationする",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8379,7 +8337,6 @@
         "summary": "QA Drawの実影響を伴う実行条件を再検証する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8428,7 +8385,6 @@
         "summary": "Ownerが実影響を伴うQA Drawを実行する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8480,7 +8436,6 @@
         "summary": "QA PlanへTest Userを割り当てる",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8532,7 +8487,6 @@
         "summary": "QA PlanからTest Userを履歴保持型で解除する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8584,7 +8538,6 @@
         "summary": "QA Test User一覧を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8623,7 +8576,6 @@
         "summary": "Public IDでQA Test User候補を検索する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8670,7 +8622,6 @@
         "summary": "UserのQA Test Modeを作成または更新する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8722,7 +8673,6 @@
         "summary": "UserのQA Test Modeを論理無効化する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8774,7 +8724,6 @@
         "summary": "GachaのTest User保証設定と選択肢を取得する",
         "x-idempotency": "safe",
         "x-rate-limit": "owner-read",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8808,7 +8757,6 @@
         "summary": "GachaへTest Userと保証景品を設定する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -8860,7 +8808,6 @@
         "summary": "GachaのTest User保証設定を解除する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "no-store",
         "x-stability": "alpha",
         "security": [
@@ -9347,7 +9294,6 @@
         "summary": "OwnerまたはAdminが会員タグを作成する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -9393,7 +9339,6 @@
         "summary": "OwnerまたはAdminが会員タグを更新する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -9475,10 +9420,9 @@
       "put": {
         "operationId": "updateAdminUserState",
         "summary": "OwnerまたはAdminがUser状態を変更する",
-        "description": "既存V2 User状態遷移、Fresh Authentication、OCC、Idempotencyを適用する。",
+        "description": "既存V2 User状態遷移、OCC、Idempotencyを適用する。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -9570,7 +9514,6 @@
         "summary": "OwnerまたはAdminがUserへ会員タグを付与する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -9620,7 +9563,6 @@
         "summary": "OwnerまたはAdminがUserから会員タグを解除する",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -9752,10 +9694,9 @@
       "post": {
         "operationId": "adjustAdminUserPoints",
         "summary": "OwnerまたはAdminがUserの有償／無償Pointを調整する",
-        "description": "5分以内のFresh Authentication、Idempotency-Keyを必須とする。",
+        "description": "有効なAdmin Session、Permission、Idempotency-Keyを必須とする。追加Fresh認証は不要。",
         "x-idempotency": "required",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -10362,7 +10303,6 @@
         "summary": "小量のFinancial CSVをStreaming生成する",
         "x-idempotency": "not-supported",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -10408,7 +10348,6 @@
         "summary": "大量CSV用のExport Jobを作成する",
         "x-idempotency": "required-header",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -10528,7 +10467,6 @@
         "summary": "Private Exportの短時間Download URLを取得する",
         "x-idempotency": "not-supported",
         "x-rate-limit": "none",
-        "x-fresh-mfa": "5-minutes",
         "x-cache-policy": "private-no-store",
         "x-stability": "alpha",
         "security": [
@@ -20777,9 +20715,12 @@
               "password",
               "totp",
               "webauthn"
-            ]
+            ],
+            "description": "passwordは旧client互換の廃止済み値であり、認証は成功しない。TOTP/WebAuthnのみ検証する。"
           },
           "password": {
+            "deprecated": true,
+            "description": "旧client互換専用。値は無視し、認証・log・Audit・DB保存に使用しない。",
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
@@ -20815,6 +20756,8 @@
             "const": true
           },
           "fresh_mfa_expires_in": {
+            "deprecated": true,
+            "description": "旧client互換の情報値。Admin業務操作の有効期限・認可には使用しない。",
             "type": "integer",
             "const": 300
           },
@@ -23954,7 +23897,7 @@
     "FRESH_AUTHENTICATION_REQUIRED": {
       "status": 403,
       "retryable": false,
-      "description": "Admin MFA確認から5分以上経過したCritical管理操作は再認証を要求する。"
+      "description": "旧client互換のため維持する廃止済みerror code。Admin業務操作ではFresh期限による拒否を行わない。"
     },
     "REPORTING_PERIOD_INVALID": {
       "status": 422,

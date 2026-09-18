@@ -11,7 +11,6 @@ import {
   useState,
 } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -36,7 +35,6 @@ export function AdminUserTagManagement() {
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
   const [editing, setEditing] = useState<AdminUserTag | null>(null);
-  const [pending, setPending] = useState<"create" | "update" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const editPanelRef = useRef<HTMLElement>(null);
@@ -108,7 +106,7 @@ export function AdminUserTagManagement() {
   function submit(event: FormEvent<HTMLFormElement>, kind: "create" | "update") {
     event.preventDefault();
     if (!name.trim() || submitting) return;
-    setPending(kind);
+    void mutate(kind);
   }
 
   function beginEdit(tag: AdminUserTag) {
@@ -222,15 +220,6 @@ export function AdminUserTagManagement() {
           </section>
         </div>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => setPending(null)}
-        onSuccess={async () => {
-          const operation = pending;
-          setPending(null);
-          if (operation) await mutate(operation);
-        }}
-        open={pending !== null}
-      />
     </section>
   );
 }
@@ -248,7 +237,7 @@ export function AdminUserTagSection({
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState<AdminUserTag[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ kind: "assign" | "detach"; tag: AdminUserTag } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const managerPanelRef = useRef<HTMLElement>(null);
   const managerReturnFocus = useRef<HTMLElement | null>(null);
   const userTags = user.tags ?? [];
@@ -271,22 +260,23 @@ export function AdminUserTagSection({
     }
   }
 
-  async function change() {
-    if (!pending) return;
+  async function change(kind: "assign" | "detach", tag: AdminUserTag) {
+    if (submitting) return;
+    setSubmitting(true);
     setError(null);
     try {
       const input = { expected_revision: user.tag_assignment_revision ?? 1 };
-      if (pending.kind === "assign") {
-        await client.assignUserTag(user.id, pending.tag.id, input, crypto.randomUUID());
+      if (kind === "assign") {
+        await client.assignUserTag(user.id, tag.id, input, crypto.randomUUID());
       } else {
-        await client.detachUserTag(user.id, pending.tag.id, input, crypto.randomUUID());
+        await client.detachUserTag(user.id, tag.id, input, crypto.randomUUID());
       }
-      setPending(null);
       setOpen(false);
       onRefresh();
     } catch (reason) {
-      setPending(null);
       setError(errorMessage(reason));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -330,9 +320,9 @@ export function AdminUserTagSection({
               return <li key={tag.id}>
                 <span><strong>{tag.name}</strong><small>{tag.is_active ? "有効" : "無効"}</small></span>
                 {isAssigned ? (
-                  <button className="secondary-button" onClick={() => setPending({ kind: "detach", tag })} type="button">解除</button>
+                  <button className="secondary-button" disabled={submitting} onClick={() => void change("detach", tag)} type="button">解除</button>
                 ) : (
-                  <button className="primary-button" disabled={!tag.is_active} onClick={() => setPending({ kind: "assign", tag })} type="button">
+                  <button className="primary-button" disabled={submitting || !tag.is_active} onClick={() => void change("assign", tag)} type="button">
                     <Check aria-hidden="true" size={16} />{tag.is_active ? "付与" : "付与不可"}
                   </button>
                 )}
@@ -341,7 +331,6 @@ export function AdminUserTagSection({
           </section>
         </div>
       ) : null}
-      <FreshMfaDialog onClose={() => setPending(null)} onSuccess={change} open={pending !== null} />
     </section>
   );
 }

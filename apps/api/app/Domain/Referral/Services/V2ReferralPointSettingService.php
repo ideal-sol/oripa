@@ -30,9 +30,7 @@ final class V2ReferralPointSettingService
     {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadReferralSettings,
-            false,
-            'referral.settings.read'
+            V2Permission::ReadReferralSettings
         );
 
         return $this->serialize($this->setting());
@@ -46,9 +44,7 @@ final class V2ReferralPointSettingService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageReferralSettings,
-            true,
-            'referral.settings.update'
+            V2Permission::ManageReferralSettings
         );
         $payload = $this->validate($input);
 

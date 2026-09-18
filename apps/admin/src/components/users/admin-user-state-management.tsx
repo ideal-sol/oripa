@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminUserDetail, AdminUserState } from "@/lib/admin-api/generated";
@@ -38,7 +37,6 @@ export function AdminUserStateManagement({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [freshOpen, setFreshOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -77,12 +75,7 @@ export function AdminUserStateManagement({
       setReason("");
       onRefresh();
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) {
-        setFreshOpen(true);
-        setError("本人確認の有効期限が切れました。再認証後にもう一度実行してください。");
-      } else {
-        setError(errorMessage(cause));
-      }
+      setError(errorMessage(cause));
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +91,7 @@ export function AdminUserStateManagement({
       setError("変更理由を入力してください。");
       return;
     }
-    setFreshOpen(true);
+    void mutate();
   }
 
   return (
@@ -178,14 +171,6 @@ export function AdminUserStateManagement({
           </section>
         </div>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => setFreshOpen(false)}
-        onSuccess={async () => {
-          setFreshOpen(false);
-          await mutate();
-        }}
-        open={freshOpen}
-      />
     </section>
   );
 }

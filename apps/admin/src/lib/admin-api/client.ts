@@ -3286,7 +3286,7 @@ function statusCode(status: number): string {
 function publicErrorMessage(status: number, code: string): string {
   if (status === 401) return "管理セッションの有効期限が切れました。";
   if (status === 403 && code === "FRESH_AUTHENTICATION_REQUIRED") {
-    return "続行するには多要素認証を再確認してください。";
+    return "この操作は旧認証要件で拒否されました。画面を再読み込みしてください。";
   }
   if (status === 403) return "この操作を実行する権限がありません。";
   if (status === 429) return "試行回数が上限に達しました。時間をおいてください。";

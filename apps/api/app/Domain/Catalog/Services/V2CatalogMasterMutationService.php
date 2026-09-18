@@ -3798,9 +3798,7 @@ final class V2CatalogMasterMutationService
         try {
             return $this->authorization->authorizePermission(
                 $context,
-                V2Permission::ManageCatalog,
-                false,
-                'catalog.'.$resource.'.'.$action
+                V2Permission::ManageCatalog
             );
         } catch (V2AuthenticationException $exception) {
             $this->audit->record('catalog.master.permission_denied', [
@@ -3830,9 +3828,7 @@ final class V2CatalogMasterMutationService
         try {
             return $this->authorization->authorizePermission(
                 $context,
-                V2Permission::PublishCatalog,
-                true,
-                'catalog.'.$resource.'.'.$action
+                V2Permission::PublishCatalog
             );
         } catch (V2AuthenticationException $exception) {
             $this->audit->record('catalog.'.$domain.'.publish.authorization_failed', [

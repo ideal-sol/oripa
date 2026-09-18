@@ -18,10 +18,6 @@ vi.mock("@/components/navigation/breadcrumb", () => ({
 vi.mock("@/components/shell/admin-page-header", () => ({
   AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Fresh MFA</div> : null,
-}));
 
 import { LineMessagingSettings } from "@/components/line/line-messaging-settings";
 import { usePermissions } from "@/components/permissions/permission-provider";
@@ -160,7 +156,7 @@ describe("LINE Messaging settings", () => {
     expect(screen.getByLabelText("付与ポイント数")).toBeDisabled();
   });
 
-  it("opens the shared Fresh MFA boundary for a stale session", async () => {
+  it("reports a legacy error without opening a Fresh dialog", async () => {
     vi.spyOn(AdminApiClient.prototype, "getLineMessagingSetting").mockResolvedValue({
       data: setting,
       request_id: setting.id,
@@ -185,7 +181,8 @@ describe("LINE Messaging settings", () => {
     fireEvent.change(linked, { target: { value: "更新済み" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Fresh MFA");
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("keeps Operator access read-only without exposing save actions", async () => {

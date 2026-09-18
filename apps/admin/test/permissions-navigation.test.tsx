@@ -39,6 +39,12 @@ import {
 import { ADMIN_PERMISSION_CODES } from "@/lib/admin-api/generated";
 
 describe("Admin permission navigation", () => {
+  it("does not advertise a Fresh gate on any permitted management route", () => {
+    const routes = navigationLinksForPermissions(new Set(ADMIN_PERMISSION_CODES), true);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.every((route) => route.freshMfaBoundary === "none")).toBe(true);
+  });
+
   beforeEach(() => {
     permissionState.error = null;
     permissionState.permissions = new Set();

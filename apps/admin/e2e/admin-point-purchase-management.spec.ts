@@ -33,13 +33,61 @@ test("mobile create form defaults to all users without horizontal overflow", asy
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
 
+test("creates and updates without a Fresh or Password dialog", async ({ page }) => {
+  const mutations: Array<{ method: string; input: Record<string, unknown>; key: string }> = [];
+  const reauthentication: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/auth/reauthenticate")) reauthentication.push(request.url());
+  });
+  await page.route(/\/point-purchase-plans(?:\/[^/?]+)?$/u, async (route) => {
+    const request = route.request();
+    if (!["POST", "PUT"].includes(request.method())) return route.fallback();
+    const input = request.postDataJSON() as Record<string, unknown>;
+    mutations.push({ method: request.method(), input, key: request.headers()["idempotency-key"] ?? "" });
+    return json(route, { data: plan(), idempotent_replay: false, request_id: uuid("9") });
+  });
+  await page.goto("/purchase-plans/new");
+  await page.getByLabel("商品名").fill("Phase 2 synthetic plan");
+  await page.getByLabel("支払金額").fill("1000");
+  await page.getByLabel("付与有償ポイント").fill("1000");
+  await page.getByRole("button", { name: "登録", exact: true }).click();
+  await expect.poll(() => mutations.length).toBe(1);
+  await page.goto(`/purchase-plans/${planId}`);
+  await page.getByLabel("商品名").fill("Phase 2 updated plan");
+  await page.getByRole("button", { name: "更新", exact: true }).click();
+  await expect.poll(() => mutations.length).toBe(2);
+  expect(mutations.map((mutation) => mutation.method)).toEqual(["POST", "PUT"]);
+  for (const mutation of mutations) {
+    expect(mutation.key).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(mutation.input).not.toHaveProperty("current_password");
+    expect(mutation.input).not.toHaveProperty("password");
+  }
+  expect(mutations[1].input.expected_revision).toBe(1);
+  expect(reauthentication).toEqual([]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
+});
+
+test("permissionless Admin cannot create or update a plan", async ({ page }) => {
+  await page.route("**/auth/permissions", (route) => json(route, {
+    permissions: ["payment.plan.read"], request_id: uuid("9"), role: "admin",
+  }));
+  await page.goto("/purchase-plans/new");
+  await expect(page.getByRole("heading", { name: "アクセスできません" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "登録", exact: true })).toHaveCount(0);
+  await page.goto(`/purchase-plans/${planId}`);
+  await expect(page.getByRole("heading", { name: "アクセスできません" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "更新", exact: true })).toHaveCount(0);
+});
+
 async function installApi(page: Page): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith("/auth/session")) return json(route, { admin: { id: uuid("9"), mfa_verified: true, role: "admin", state: "active" }, authenticated: true, mfa_required: false, requires_mfa_enrollment: false });
+    if (url.pathname.endsWith("/auth/session")) return json(route, { admin: { id: uuid("9"), mfa_verified: false, role: "admin", state: "active" }, authenticated: true, mfa_required: false, requires_mfa_enrollment: false });
     if (url.pathname.endsWith("/auth/permissions")) return json(route, { permissions: ["payment.plan.read", "payment.plan.manage"], request_id: uuid("9"), role: "admin" });
     if (url.pathname.includes("/user-tags")) return json(route, { items: [tag()], next_cursor: null, request_id: uuid("9") });
     if (url.pathname.endsWith("/point-purchase-plans")) return json(route, { items: [plan()], next_cursor: null, request_id: uuid("9") });
+    if (url.pathname.endsWith("/limited-bonus-campaigns")) return json(route, { items: [], request_id: uuid("9") });
     if (url.pathname.includes("/point-purchase-plans/")) return json(route, { data: plan(), request_id: uuid("9") });
     return route.fulfill({ status: 404 });
   });

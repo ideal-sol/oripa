@@ -37,9 +37,6 @@ vi.mock("@/components/shell/admin-shell", () => ({
 vi.mock("@/components/permissions/protected-admin-route", () => ({
   ProtectedAdminRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) => open ? <p>Fresh Authentication</p> : null,
-}));
 
 import { AdminAuthenticationSettings } from "@/components/auth/admin-authentication-settings";
 import { AdminApiError } from "@/lib/admin-api/client";
@@ -81,7 +78,7 @@ describe("AdminAuthenticationSettings", () => {
     expect(screen.getByRole("checkbox", { name: "多要素認証を必須にする" })).not.toBeChecked();
   });
 
-  it("keeps Fresh Authentication on an expired freshness response", async () => {
+  it("does not reopen reauthentication for a legacy Fresh error", async () => {
     api.updateAuthenticationPolicy.mockRejectedValueOnce(
       new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false),
     );
@@ -91,7 +88,8 @@ describe("AdminAuthenticationSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     fireEvent.click(screen.getByRole("button", { name: "変更を確定" }));
 
-    expect(await screen.findByText("Fresh Authentication")).toBeVisible();
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Fresh Authentication")).toBeNull();
     expect(api.updateAuthenticationPolicy).toHaveBeenCalledOnce();
   });
 

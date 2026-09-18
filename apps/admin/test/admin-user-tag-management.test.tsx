@@ -22,10 +22,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ onSuccess, open }: { onSuccess?: () => Promise<void> | void; open: boolean }) =>
-    open ? <button onClick={() => void onSuccess?.()} type="button">本人確認を完了</button> : null,
-}));
 
 beforeEach(() => {
   permissions.clear();
@@ -53,7 +49,7 @@ describe("Admin User Tag management", () => {
     expect(screen.getAllByText("閲覧のみ")).toHaveLength(3);
   });
 
-  it("creates and edits tags through fresh authentication and revision OCC", async () => {
+  it("creates and edits tags without reauthentication and with revision OCC", async () => {
     permissions.add("user.tag.manage");
     const create = vi.spyOn(AdminApiClient.prototype, "createUserTag").mockResolvedValue({
       data: tags()[0], idempotent_replay: false, request_id: uuid("9"),
@@ -68,7 +64,7 @@ describe("Admin User Tag management", () => {
 
     fireEvent.change(screen.getByLabelText("タグ名"), { target: { value: "Campaign" } });
     fireEvent.click(screen.getByRole("button", { name: "作成" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(create).toHaveBeenCalledOnce());
     expect(create.mock.calls[0][0]).toEqual({ name: "Campaign", is_active: true });
 
@@ -76,7 +72,7 @@ describe("Admin User Tag management", () => {
     const dialog = screen.getByRole("dialog", { name: "会員タグ編集" });
     fireEvent.click(within(dialog).getByLabelText("有効"));
     fireEvent.click(within(dialog).getByRole("button", { name: "更新" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
     expect(update.mock.calls[0][1]).toMatchObject({
       expected_revision: 1,
@@ -99,7 +95,7 @@ describe("Admin User Tag management", () => {
     const dialog = await screen.findByRole("dialog", { name: "会員タグを管理" });
     expect(within(dialog).getByRole("button", { name: "付与不可" })).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "解除" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(detach).toHaveBeenCalledOnce());
     expect(detach.mock.calls[0][2]).toEqual({ expected_revision: 3 });
     expect(refresh).toHaveBeenCalledOnce();
@@ -121,7 +117,7 @@ describe("Admin User Tag management", () => {
     fireEvent.click(screen.getByRole("button", { name: "タグを管理" }));
     const dialog = await screen.findByRole("dialog", { name: "会員タグを管理" });
     fireEvent.click(within(dialog).getByRole("button", { name: "付与" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(assign).toHaveBeenCalledOnce());
     expect(assign.mock.calls[0][2]).toEqual({ expected_revision: 3 });
   });

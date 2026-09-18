@@ -204,7 +204,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         }
     }
 
-    public function test_published_version_is_immutable_and_legal_publish_requires_fresh_mfa(): void
+    public function test_published_version_is_immutable_and_legal_publish_allows_expired_freshness(): void
     {
         $stale = $this->context(V2AdminRole::Owner, now()->subMinutes(5));
         $service = app(V2ContentContactAdminService::class);
@@ -215,19 +215,8 @@ final class ContentContactVerticalSliceTest extends TestCase
             'asset_id' => $this->asset(true),
             'publish_start_at' => now()->subMinute()->toIso8601String(),
         ]);
-        try {
-            $service->publish(
-                $stale,
-                'static-page',
-                $page['id'],
-                $page['versions'][0]['id']
-            );
-            self::fail('Legal publish must require Fresh MFA.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
-        }
 
-        $fresh = $this->context(V2AdminRole::Owner);
+        $fresh = $stale;
         $published = $service->publish(
             $fresh,
             'static-page',
@@ -282,28 +271,11 @@ final class ContentContactVerticalSliceTest extends TestCase
                 'publish_start_at' => now()->subMinute()->toIso8601String(),
             ]
         );
-        try {
-            $service->publish(
-                $stale,
-                'static-page',
-                $page['id'],
-                $replacement['id']
-            );
-            self::fail('Legal replacement must require Fresh MFA.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
-        }
         $service->publish($fresh, 'static-page', $page['id'], $replacement['id']);
         self::assertSame(
             'Privacy Policy v2',
             app(V2ContentReadService::class)->staticPage('privacy')['title']
         );
-        try {
-            $service->archive($stale, 'static-page', $page['id']);
-            self::fail('Legal archive must require Fresh MFA.');
-        } catch (V2AuthenticationException $exception) {
-            self::assertSame('FRESH_AUTHENTICATION_REQUIRED', $exception->errorCode);
-        }
         $service->archive($fresh, 'static-page', $page['id']);
         try {
             app(V2ContentReadService::class)->staticPage('privacy');

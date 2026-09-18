@@ -101,14 +101,14 @@ test("Owner adds and removes a guaranteed Prize for a Test User", async ({ page 
   await page.getByRole("combobox", { name: "テストユーザー", exact: true }).selectOption(testUserId);
   await page.getByRole("combobox", { name: "保証する景品", exact: true }).selectOption(prizeId);
   await page.getByRole("button", { name: "追加・更新" }).click();
-  await completeFreshMfa(page);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
 
   const assignmentRow = page.getByRole("row", { name: /QAテストユーザー.*S 景品S.*利用可能/u });
   await expect(assignmentRow).toBeVisible();
   expect(saveBody).toEqual({ prize_id: prizeId, user_id: testUserId });
 
   await page.getByRole("button", { name: "QAテストユーザーの設定を解除" }).click();
-  await completeFreshMfa(page);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
   await expect(page.getByText("設定済みのテストユーザーはありません。")).toBeVisible();
 });
 
@@ -142,12 +142,6 @@ async function installApi(
         permissions: ["catalog.read", "catalog.manage", "qa.draw.manage"],
         request_id: uuid("9"),
         role: "owner",
-      });
-    }
-    if (path.endsWith("/auth/reauthenticate")) {
-      return json(route, {
-        admin: { id: uuid("9"), mfa_verified: true, role: "owner", state: "active" },
-        authenticated: true,
       });
     }
     if (path.includes("/qa-guarantees")) {
@@ -202,6 +196,9 @@ async function installApi(
     if (path.endsWith(`/catalog/gachas/${gachaCode}/versions/${versionId}/prizes`)) {
       return json(route, { items: [prize()], version_revision: 4 });
     }
+    if (path.endsWith(`/catalog/gachas/${gachaCode}/versions/${versionId}`)) {
+      return json(route, { data: gacha().current_version });
+    }
     if (path.endsWith(`/catalog/gachas/${gachaCode}/versions`)) {
       return json(route, { items: [gacha().current_version], next_cursor: null });
     }
@@ -210,16 +207,6 @@ async function installApi(
     }
     return route.fulfill({ status: 404 });
   });
-}
-
-async function completeFreshMfa(page: Page): Promise<void> {
-  const password = page.getByLabel("現在のパスワード");
-  if (await password.isVisible()) {
-    await password.fill("not-persisted");
-  } else {
-    await page.getByLabel("認証アプリの6桁コード").fill("123456");
-  }
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
 }
 
 function qaCollection(assignment: AdminQaGachaGuaranteeAssignment | null) {

@@ -32,7 +32,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({ FreshMfaDialog: () => null }));
 import {
   AdminUserReadWorkspace,
   AdminUserReferralHistory,

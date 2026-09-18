@@ -172,7 +172,39 @@ final class AdminAuthenticationPolicyTest extends TestCase
         }
     }
 
-    public function test_policy_is_owner_only_fresh_and_requires_eligible_owner_for_mfa(): void
+    public function test_retired_password_reauthentication_discards_legacy_values_without_rotation_or_storage(): void
+    {
+        [$owner, $session] = $this->adminSession(V2AdminRole::Owner);
+        $before = DB::table('admin_sessions')->where('admin_id', $owner->getKey())->first();
+        $queries = [];
+        $messages = [];
+        DB::listen(function (QueryExecuted $query) use (&$queries): void {
+            $queries[] = [$query->sql, $query->bindings];
+        });
+        Log::listen(function (MessageLogged $event) use (&$messages): void {
+            $messages[] = [$event->message, $event->context];
+        });
+        foreach ([self::PASSWORD, 'discarded-fresh-password'] as $password) {
+            Auth::forgetGuards();
+            $this->adminMutation($session, 'POST', '/admin/api/v2/auth/reauthenticate', [
+                'method' => 'password',
+                'password' => $password,
+            ])->assertUnauthorized()->assertJsonPath('code', 'INVALID_MFA_CREDENTIAL');
+            self::assertFalse($this->app['request']->has('password'));
+        }
+        $after = DB::table('admin_sessions')->where('admin_id', $owner->getKey())->first();
+        self::assertSame($before->mfa_verified_at, $after->mfa_verified_at);
+        self::assertSame($before->absolute_expires_at, $after->absolute_expires_at);
+        self::assertNull($after->revoked_at);
+        self::assertFalse(AdminAuthenticationPolicy::query()->sole()->mfa_required);
+        self::assertDatabaseMissing('audit_logs', ['action_code' => 'admin.reauthentication.succeeded']);
+        $observed = json_encode([$queries, $messages], JSON_THROW_ON_ERROR);
+        foreach ([self::PASSWORD, 'discarded-fresh-password'] as $password) {
+            self::assertStringNotContainsString($password, $observed);
+        }
+    }
+
+    public function test_policy_is_owner_only_without_freshness_and_requires_eligible_owner_for_mfa(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {
             [, $session] = $this->adminSession($role);
@@ -216,13 +248,16 @@ final class AdminAuthenticationPolicyTest extends TestCase
             ...$payload,
             'mfa_required' => false,
             'invitation_required' => true,
-        ])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+            'expected_revision' => 2,
+        ])->assertOk()->assertJsonPath('data.mfa_required', false);
 
         Auth::forgetGuards();
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
             ...$payload,
             'current_password' => self::PASSWORD,
-        ])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+            'mfa_required' => false,
+            'expected_revision' => 3,
+        ])->assertOk()->assertJsonPath('data.mfa_required', false);
     }
 
     public function test_policy_updates_without_password_exceed_previous_limit_and_preserve_mfa(): void
@@ -316,7 +351,7 @@ final class AdminAuthenticationPolicyTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->getKey(),
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => $createdAt,
             'last_activity_at' => now(),

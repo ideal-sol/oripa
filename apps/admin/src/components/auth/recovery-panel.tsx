@@ -3,7 +3,6 @@
 import { Check, Download, KeyRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
-import { FreshMfaDialog } from "./fresh-mfa-dialog";
 import { AuthError } from "./auth-status";
 import { useAdminAuth } from "./admin-auth-provider";
 
@@ -12,7 +11,6 @@ export function RecoveryPanel() {
     useAdminAuth();
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [freshOpen, setFreshOpen] = useState(false);
 
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,6 +20,15 @@ export function RecoveryPanel() {
       await verifyRecoveryCode(submitted);
     } catch {
       // Redacted API errors are rendered by AuthError.
+    }
+  }
+
+  async function regenerate() {
+    if (loading) return;
+    try {
+      setCodes(await regenerateRecoveryCodes());
+    } catch {
+      setCodes(null);
     }
   }
 
@@ -50,20 +57,11 @@ export function RecoveryPanel() {
             </button>
           </>
         ) : (
-          <button className="primary-button" onClick={() => setFreshOpen(true)} type="button">
+          <button className="primary-button" disabled={loading} onClick={() => void regenerate()} type="button">
             <Download size={18} aria-hidden="true" />
             コードを再生成
           </button>
         )}
-        <FreshMfaDialog
-          onClose={() => setFreshOpen(false)}
-          onSuccess={async () => {
-            const generated = await regenerateRecoveryCodes();
-            setCodes(generated);
-            setFreshOpen(false);
-          }}
-          open={freshOpen}
-        />
       </div>
     );
   }

@@ -987,7 +987,6 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/auth/auth-frame.tsx",
     "apps/admin/src/components/auth/auth-status.tsx",
     "apps/admin/src/components/auth/enrollment-form.tsx",
-    "apps/admin/src/components/auth/fresh-mfa-dialog.tsx",
     "apps/admin/src/components/auth/login-form.tsx",
     "apps/admin/src/components/auth/invitation-form.tsx",
     "apps/admin/src/components/auth/mfa-form.tsx",
@@ -4744,7 +4743,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ).read_text(encoding="utf-8")
     for required in (
         "test_publish_preflight_and_publish_create_an_immutable_snapshot_only",
-        "test_publish_rejects_invalid_archived_and_non_fresh_requests",
+        "test_publish_rejects_invalid_and_archived_requests_even_with_expired_freshness",
         "test_publish_revalidates_totals_and_revision_on_the_server",
         "test_publish_exceeds_previous_limit_without_using_limiter",
         "test_publish_outbox_failure_rolls_back_snapshot_and_idempotency",
@@ -4770,7 +4769,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     ).read_text(encoding="utf-8")
     for required in (
         "test_activation_database_guards_reject_partial_or_destructive_sql",
-        "test_immediate_publish_requires_admin_permission_fresh_mfa_and_csrf",
+        "test_immediate_publish_requires_admin_permission_and_csrf_without_freshness",
     ):
         if required not in immediate_publish_tests:
             raise PolicyFailure(f"V2 Gacha Immediate Publish test missing {required}")
@@ -5165,14 +5164,21 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         / "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "FRESH_AUTHENTICATION_REQUIRED",
-        "admin.fresh_mfa.required",
-        "lessThan",
+        "sessionAndAdmin",
+        "permissions->allows",
+        "V2Permission::ManageQaDraw",
         "requires_mfa_enrollment",
-        "session_correlation_hash",
+        "auditHasher->correlation",
+        "sessionPolicy->currentTime",
+        "V2AdminState::Active",
+        "idle_expires_at",
+        "absolute_expires_at",
     ):
         if required not in fresh_authorizer:
-            raise PolicyFailure(f"Admin Fresh MFA Authorizer missing {required}")
+            raise PolicyFailure(f"Admin Session/Permission Authorizer missing {required}")
+    for prohibited in ("FRESH_AUTHENTICATION_REQUIRED", "$this->isFresh("):
+        if prohibited in fresh_authorizer:
+            raise PolicyFailure(f"Admin business authorization retains Fresh gate {prohibited}")
 
     reauthentication = (
         repository
@@ -5191,15 +5197,11 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
             raise PolicyFailure(f"Admin reauthentication missing {required}")
     if "'recovery_code' =>" in reauthentication:
         raise PolicyFailure("Admin Fresh MFA permits prohibited recovery code method")
-    for required in (
-        "V2AdminAuthenticationPolicyService",
-        "'password' => ! $this->authenticationPolicy->mfaRequired()",
-        "$this->passwords->verify($password, $admin->password_hash)",
-    ):
-        if required not in reauthentication:
-            raise PolicyFailure(
-                "Admin password reauthentication must be limited to MFA Policy OFF"
-            )
+    for prohibited in ("'password' =>", "$this->passwords->verify", "$password"):
+        if prohibited in reauthentication:
+            raise PolicyFailure("Admin Password Fresh fallback must remain retired")
+    if "assertSubject('mfa_verify'" not in reauthentication:
+        raise PolicyFailure("Admin MFA verification limiter is missing")
 
     identity_config = (
         repository / "apps/api/config/v2_identity.php"
@@ -5223,7 +5225,7 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     if "public function mode(Admin " in admin_service:
         raise PolicyFailure("V2 QA Domain Service permits direct Admin bypass")
     if admin_service.count("authorizeQa(") < 9:
-        raise PolicyFailure("V2 QA Domain Service does not enforce Fresh MFA")
+        raise PolicyFailure("V2 QA Domain Service does not enforce Session and Owner permission")
 
     resolver = (
         repository
@@ -5295,16 +5297,14 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     }
     if not required_operations.issubset(admin_operations):
         raise PolicyFailure("V2 Admin QA Draw operation set is incomplete")
-    qa_fresh_count = sum(
-        1
-        for path, item in admin_bundle.get("paths", {}).items()
-        if "/qa-" in path or path.endswith("/qa-mode")
-        for operation in item.values()
-        if isinstance(operation, dict)
-        and operation.get("x-fresh-mfa") == "5-minutes"
-    )
-    if qa_fresh_count != 15:
-        raise PolicyFailure("Every V2 Admin QA operation must require Fresh MFA")
+    for path, item in admin_bundle.get("paths", {}).items():
+        for operation in item.values():
+            if not isinstance(operation, dict) or "operationId" not in operation:
+                continue
+            if operation.get("x-fresh-mfa"):
+                raise PolicyFailure("Admin business operations must not require Fresh MFA")
+            if ("/qa-" in path or path.endswith("/qa-mode")) and operation.get("security") != [{"adminSession": []}]:
+                raise PolicyFailure("Every V2 Admin QA operation must require Admin Session")
     public_text = json.dumps(public_bundle, sort_keys=True)
     for prohibited in ("QaMode", "QaPlan", "QaExecution", "/qa-draw"):
         if prohibited in public_text:
@@ -5341,7 +5341,7 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         repository / "apps/api/tests/V2/AdminFreshMfaQaTest.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "expires_at_exactly_five_minutes",
+        "allows_expired_freshness_without_changing_session_timestamps",
         "rotates_session_without_extending_absolute_expiry",
         "password_recovery_and_invalid_totp",
         "rate_limit_is_session_scoped_and_audited",
@@ -5400,7 +5400,8 @@ def validate_v2_reporting_boundary(repository: Path, paths: Iterable[str]) -> No
     for required in (
         "authorizeReporting",
         "ExportFinancialReporting",
-        "FRESH_AUTHENTICATION_REQUIRED",
+        "sessionAndAdmin",
+        "permissions->allows",
     ):
         if required not in authorizer:
             raise PolicyFailure(f"V2 Reporting authorization missing {required}")
@@ -5517,7 +5518,7 @@ def validate_v2_reporting_boundary(repository: Path, paths: Iterable[str]) -> No
         "test_point_report_uses_immutable_ledger_not_wallet_balance",
         "test_csv_has_stable_header_utf8_bom_and_formula_protection",
         "test_export_job_is_idempotent_and_worker_persists_private_checksum",
-        "test_reporting_permissions_and_fresh_mfa_fail_closed",
+        "test_reporting_permissions_fail_closed_without_freshness",
     ):
         if required not in tests:
             raise PolicyFailure(f"V2 Reporting test missing {required}")
@@ -5617,8 +5618,8 @@ def validate_v2_content_contact_boundary(
         "PublishContent",
         "ReadContact",
         "ManageContact",
-        "content.legal.publish",
-        "content.legal.archive",
+        "content.legal_published",
+        "content.legal_archived",
         "contact.reply.requested",
     ):
         if required not in admin_service:
@@ -5683,7 +5684,7 @@ def validate_v2_content_contact_boundary(
     for required in (
         "test_html_sanitizer_keeps_document_markup_and_removes_active_content",
         "test_published_content_respects_period_order_cursor_and_public_asset",
-        "test_published_version_is_immutable_and_legal_publish_requires_fresh_mfa",
+        "test_published_version_is_immutable_and_legal_publish_allows_expired_freshness",
         "test_contact_is_encrypted_audited_and_enqueues_notifications_atomically",
         "test_contact_admin_workflow_separates_notes_and_keeps_history_append_only",
         "test_rate_limit_and_permission_matrix_fail_closed_without_pii",

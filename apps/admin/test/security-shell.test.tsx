@@ -10,9 +10,8 @@ const auth = {
   },
   clearError: vi.fn(),
   error: null,
-  freshPassword: vi.fn(),
-  freshTotp: vi.fn(),
-  freshWebauthn: vi.fn(),
+  regenerateRecoveryCodes: vi.fn(),
+  verifyRecoveryCode: vi.fn(),
   loading: false,
   logout: vi.fn(),
   mfaRequired: true,
@@ -48,7 +47,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
+import { RecoveryPanel } from "@/components/auth/recovery-panel";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ModuleRoutePage } from "@/components/shell/module-route-page";
 import { proxy } from "@/proxy";
@@ -57,9 +56,7 @@ describe("Admin shell and security boundaries", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     permission.role = "owner";
-    auth.freshTotp.mockReset().mockResolvedValue(undefined);
-    auth.freshPassword.mockReset().mockResolvedValue(undefined);
-    auth.freshWebauthn.mockReset().mockResolvedValue(undefined);
+    auth.regenerateRecoveryCodes.mockReset().mockResolvedValue(["synthetic-recovery-code"]);
     auth.logout.mockReset().mockResolvedValue(undefined);
   });
 
@@ -85,27 +82,15 @@ describe("Admin shell and security boundaries", () => {
     await waitFor(() => expect(auth.logout).toHaveBeenCalledOnce());
   });
 
-  it("focuses Fresh MFA, accepts keyboard submission, and restores focus", async () => {
-    const opener = document.createElement("button");
-    document.body.append(opener);
-    opener.focus();
-    const onClose = vi.fn();
-    const { rerender } = render(
-      <FreshMfaDialog onClose={onClose} open />,
-    );
-
-    const input = await screen.findByLabelText("認証アプリの6桁コード");
-    await waitFor(() => expect(input).toHaveFocus());
-    screen.getByRole("button", { name: /^再認証$/u }).focus();
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Tab" });
-    expect(screen.getByRole("button", { name: "再認証を閉じる" })).toHaveFocus();
-    fireEvent.change(input, { target: { value: "123456" } });
-    fireEvent.submit(input.closest("form")!);
-    await waitFor(() => expect(auth.freshTotp).toHaveBeenCalledWith("123456"));
-
-    rerender(<FreshMfaDialog onClose={onClose} open={false} />);
-    await waitFor(() => expect(opener).toHaveFocus());
-    opener.remove();
+  it("regenerates eligible recovery codes without a redundant Fresh dialog", async () => {
+    render(<RecoveryPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "コードを再生成" }));
+    await screen.findByText("synthetic-recovery-code");
+    expect(auth.regenerateRecoveryCodes).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "コードを閉じる" }));
+    expect(screen.queryByText("synthetic-recovery-code")).toBeNull();
   });
 
   it("rejects unknown hosts and hardens allowed responses", () => {
