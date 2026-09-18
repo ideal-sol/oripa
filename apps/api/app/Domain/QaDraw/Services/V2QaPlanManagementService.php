@@ -2,6 +2,7 @@
 
 namespace App\Domain\QaDraw\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
@@ -313,11 +314,11 @@ final class V2QaPlanManagementService
                 }
                 DB::table('qa_draw_plans')->where('id', $plan->id)->update([
                     'status' => 'disabled',
-                    'archived_at' => now()->startOfSecond(),
+                    'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'archived_by_admin_id' => $admin->id,
                     'updated_by_admin_id' => $admin->id,
                     'revision' => (int) $plan->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 $this->audit($context, $admin, 'qa.plan.archived', $plan->public_id);
 
@@ -536,7 +537,7 @@ final class V2QaPlanManagementService
                 $assignment->forceFill([
                     'status' => 'unassigned',
                     'revision' => (int) $assignment->revision + 1,
-                    'unassigned_at' => now()->startOfSecond(),
+                    'unassigned_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'unassigned_by_admin_id' => $admin->id,
                 ])->save();
                 $this->audit(
@@ -669,7 +670,7 @@ final class V2QaPlanManagementService
                 $assignment->forceFill([
                     'status' => 'unassigned',
                     'revision' => (int) $assignment->revision + 1,
-                    'unassigned_at' => now()->startOfSecond(),
+                    'unassigned_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'unassigned_by_admin_id' => $admin->id,
                 ])->save();
                 $this->advancePlanRevision($plan, $admin);
@@ -921,7 +922,7 @@ final class V2QaPlanManagementService
         DB::table('qa_draw_plans')->where('id', $plan->id)->update([
             'updated_by_admin_id' => $admin->id,
             'revision' => (int) $plan->revision + 1,
-            'updated_at' => now()->startOfSecond(),
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
     }
 

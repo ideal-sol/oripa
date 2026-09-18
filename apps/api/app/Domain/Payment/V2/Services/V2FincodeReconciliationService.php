@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -27,7 +28,7 @@ final class V2FincodeReconciliationService
             ->whereIn('payment_method', ['konbini', 'virtual_account'])
             ->whereIn('status', ['requires_action', 'processing'])
             ->whereNotNull('expires_at')
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->orderBy('expires_at')
             ->orderBy('id')
             ->limit($limit)
@@ -64,7 +65,7 @@ final class V2FincodeReconciliationService
             ->where('flow_type', 'three_d_secure_2')
             ->whereIn('status', ['requires_action', 'pending'])
             ->whereNotNull('provider_payment_method_id')
-            ->where('expires_at', '>', now())
+            ->where('expires_at', '>', V2DatabaseTimestamp::format(now()))
             ->orderBy('updated_at')
             ->orderBy('id')
             ->limit($limit)

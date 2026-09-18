@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use LogicException;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class DrawVerticalSliceTest extends TestCase
@@ -360,9 +361,9 @@ final class DrawVerticalSliceTest extends TestCase
             1,
             $this->draw($user, 1, 'audience-draw-history-ignored-key')['executed_count']
         );
-        DB::table('users')->where('id', $user->id)->update([
+        DB::table('users')->where('id', $user->id)->update(V2TimestampFixture::attributes([
             'created_at' => now()->subDays(7)->subSecond(),
-        ]);
+        ]));
         $this->expectDrawFailure(
             fn () => $this->draw($user, 1, 'audience-registration-expired-key'),
             'GACHA_AUDIENCE_NOT_ELIGIBLE'
@@ -372,9 +373,9 @@ final class DrawVerticalSliceTest extends TestCase
     public function test_first_time_audience_includes_exact_seven_day_boundary(): void
     {
         [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
-        DB::table('users')->where('id', $user->id)->update([
+        DB::table('users')->where('id', $user->id)->update(V2TimestampFixture::attributes([
             'created_at' => now()->subDays(7),
-        ]);
+        ]));
         self::assertSame(
             1,
             $this->draw($user, 1, 'audience-seven-day-boundary-key')['executed_count']
@@ -785,9 +786,9 @@ final class DrawVerticalSliceTest extends TestCase
         );
         $drawRequestId = $response->json('id');
 
-        DB::table('users')->where('id', $user->id)->update([
+        DB::table('users')->where('id', $user->id)->update(V2TimestampFixture::attributes([
             'created_at' => now()->subDays(8),
-        ]);
+        ]));
 
         $this->withCredentials()
             ->withServerVariables(['HTTPS' => 'on'])

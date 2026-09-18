@@ -10,6 +10,8 @@ final class User extends Authenticatable
 {
     protected $table = 'users';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'referral_code',

@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 final class AdminRecoveryCode extends Model
 {
     protected $table = 'admin_recovery_codes';
+
+    protected $dateFormat = 'Y-m-d H:i:sP';
     public $timestamps = false;
 
     protected $fillable = [

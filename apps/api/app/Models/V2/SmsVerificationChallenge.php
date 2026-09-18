@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class SmsVerificationChallenge extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'user_id',

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2EmailVerificationNotifier;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
@@ -117,7 +118,7 @@ final class V2UserAuthenticationService
                 ->where('user_id', $user->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => now()]);
+                ->update(['revoked_at' => V2DatabaseTimestamp::format(now())]);
             $rawToken = $this->tokens->generate();
             $verificationCreatedAt = now()->startOfSecond();
             $verification = UserEmailVerification::query()->create([
@@ -177,7 +178,7 @@ final class V2UserAuthenticationService
                         $user->forceFill([
                             'state' => V2UserState::VerificationFailed,
                             'state_revision' => $user->state_revision + 1,
-                            'updated_at' => now()->startOfSecond(),
+                            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         ])->save();
                         $this->events->record('verification_failure', [
                             'realm' => 'user',
@@ -200,7 +201,7 @@ final class V2UserAuthenticationService
                     ->whereKeyNot($verification->getKey())
                     ->whereNull('used_at')
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => now()]);
+                    ->update(['revoked_at' => V2DatabaseTimestamp::format(now())]);
                 User::query()
                     ->where('email_normalized', $user->email_normalized)
                     ->whereKeyNot($user->getKey())

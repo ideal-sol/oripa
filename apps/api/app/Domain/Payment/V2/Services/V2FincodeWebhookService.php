@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use Carbon\CarbonImmutable;
@@ -220,7 +221,7 @@ final class V2FincodeWebhookService
                 'requires_action' => 'requires_action',
                 default => 'failed',
             },
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ];
         if ($terminalFailureCode !== null) {
             $attemptUpdate['last_error_code'] = $terminalFailureCode;

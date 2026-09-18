@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Models\V2\Admin;
 use App\Models\V2\AdminTotpMethod;
@@ -73,7 +74,7 @@ final class V2TotpService
         }
         $method->forceFill([
             'last_used_time_step' => $step,
-            'updated_at' => now(),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ])->save();
 
         return true;

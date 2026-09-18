@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Mockery;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminUserPointAdjustmentApiTest extends TestCase
@@ -74,8 +75,8 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         self::assertSame('false', $paidGrant->headers->get('Idempotency-Replayed'));
         $paidLot = DB::table('point_lots')->where('point_type', 'paid')->sole();
         self::assertSame(
-            now()->startOfSecond()->addDays(180)->toIso8601String(),
-            CarbonImmutable::parse($paidLot->expire_at)->toIso8601String()
+            now()->startOfSecond()->addDays(180)->getTimestamp(),
+            CarbonImmutable::parse($paidLot->expire_at)->getTimestamp()
         );
 
         Auth::forgetGuards();
@@ -88,8 +89,8 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         ])->assertOk()->assertJsonPath('data.free_balance_after', 300);
         $freeLot = DB::table('point_lots')->where('point_type', 'free')->sole();
         self::assertSame(
-            now()->startOfSecond()->addDays(180)->toIso8601String(),
-            CarbonImmutable::parse($freeLot->expire_at)->toIso8601String()
+            now()->startOfSecond()->addDays(180)->getTimestamp(),
+            CarbonImmutable::parse($freeLot->expire_at)->getTimestamp()
         );
 
         Auth::forgetGuards();
@@ -144,9 +145,9 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'unexpected' => 'invalid field',
         ])->assertUnprocessable()->assertJsonPath('code', 'POINT_ADJUSTMENT_INVALID');
 
-        DB::table('admin_sessions')->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($owner))->update([
+        DB::table('admin_sessions')->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($owner))->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
-        ]);
+        ]));
         Auth::forgetGuards();
         $this->mutate($owner, $user->public_id, [...$payload, 'current_password' => self::PASSWORD])
             ->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
@@ -357,7 +358,7 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -367,7 +368,7 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => now()->addHours(8),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return $token;
     }

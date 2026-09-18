@@ -208,9 +208,9 @@ final class AdminAuthenticationPolicyTest extends TestCase
             ->assertJsonPath('data.invitation_required', true);
         self::assertFalse(AdminAuthenticationPolicy::query()->sole()->mfa_required);
 
-        DB::table('admin_sessions')->where('admin_id', $owner->getKey())->update([
+        DB::table('admin_sessions')->where('admin_id', $owner->getKey())->update(V2TimestampFixture::attributes([
             'mfa_verified_at' => now()->subMinutes(5),
-        ]);
+        ]));
         Auth::forgetGuards();
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
             ...$payload,
@@ -313,7 +313,7 @@ final class AdminAuthenticationPolicyTest extends TestCase
         $admin = $this->admin($role);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $createdAt = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->getKey(),
             'mfa_verified_at' => now(),
@@ -322,7 +322,7 @@ final class AdminAuthenticationPolicyTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $createdAt->copy()->addHours(8),
-        ]);
+        ]));
 
         return [$admin, $token];
     }

@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class ExportJob extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'export_jobs';
 
     protected $guarded = ['*'];

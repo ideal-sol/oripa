@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Models\V2\User;
@@ -116,9 +117,9 @@ final class V2FincodeCardService
                 'idempotency_key_hash' => $keyHash,
                 'flow_type' => 'legacy',
                 'status' => 'reserved',
-                'expires_at' => $this->registrationExpiry(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'expires_at' => V2DatabaseTimestamp::format($this->registrationExpiry()),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return DB::table('fincode_card_registration_intents')
@@ -240,7 +241,7 @@ final class V2FincodeCardService
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'expired',
                     'redirect_url_ciphertext' => null,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return DB::table('fincode_card_registration_intents')
@@ -249,9 +250,9 @@ final class V2FincodeCardService
             }
             DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                 'status' => 'canceled',
-                'canceled_at' => now()->startOfSecond(),
+                'canceled_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $this->audit->record('payment.card_registration.canceled', [
                 'target_type' => 'card_registration',
@@ -333,9 +334,9 @@ final class V2FincodeCardService
             }
             $updates = [
                 'provider_transaction_id' => $payload['transaction_id'],
-                'webhook_received_at' => now()->startOfSecond(),
+                'webhook_received_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'last_error_code' => $this->safeProviderErrorCode($payload['error_code']),
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ];
             if ($payload['card_id'] !== null) {
                 $updates['provider_card_id'] = $payload['card_id'];
@@ -369,7 +370,7 @@ final class V2FincodeCardService
         }
         $ids = DB::table('fincode_card_registration_intents')
             ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->orderBy('expires_at')
             ->orderBy('id')
             ->limit($limit)
@@ -384,7 +385,7 @@ final class V2FincodeCardService
             ->update([
                 'status' => 'expired',
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -406,7 +407,7 @@ final class V2FincodeCardService
         DB::table('fincode_cards')
             ->where('id', $card->id)
             ->whereNull('deleted_at')
-            ->update(['deleted_at' => now()->startOfSecond(), 'updated_at' => now()]);
+            ->update(['deleted_at' => V2DatabaseTimestamp::format(now()->startOfSecond()), 'updated_at' => V2DatabaseTimestamp::format(now())]);
     }
 
     public function ownedUsableCard(User $user, string $cardPublicId): object
@@ -462,9 +463,9 @@ final class V2FincodeCardService
                     DB::table('fincode_card_registration_intents')->where('id', $existing->id)->update([
                         'status' => 'starting',
                         'attempt_count' => DB::raw('attempt_count + 1'),
-                        'last_attempted_at' => now()->startOfSecond(),
+                        'last_attempted_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         'last_error_code' => null,
-                        'updated_at' => now(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()),
                     ]);
                     $existing = DB::table('fincode_card_registration_intents')
                         ->where('id', $existing->id)
@@ -491,10 +492,10 @@ final class V2FincodeCardService
                 'provider_idempotency_key' => (string) Str::uuid(),
                 'status' => 'starting',
                 'attempt_count' => 1,
-                'last_attempted_at' => now()->startOfSecond(),
-                'expires_at' => $this->registrationExpiry(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'last_attempted_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                'expires_at' => V2DatabaseTimestamp::format($this->registrationExpiry()),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return [
@@ -568,9 +569,9 @@ final class V2FincodeCardService
                     'FAILED' => 'failed',
                     default => 'pending',
                 },
-                'failed_at' => $failed ? now()->startOfSecond() : null,
+                'failed_at' => $failed ? V2DatabaseTimestamp::format(now()->startOfSecond()) : null,
                 'last_error_code' => $failed ? 'CARD_REGISTRATION_FAILED' : null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return DB::table('fincode_card_registration_intents')
@@ -586,9 +587,9 @@ final class V2FincodeCardService
             ->whereNotIn('status', self::TERMINAL_REGISTRATION_STATUSES)
             ->update([
                 'status' => $exception->retryable ? 'pending' : 'failed',
-                'failed_at' => $exception->retryable ? null : now()->startOfSecond(),
+                'failed_at' => $exception->retryable ? null : V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'last_error_code' => $this->registrationStartFailureEvidence($exception),
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -670,7 +671,7 @@ final class V2FincodeCardService
         if (! is_string($intent->provider_card_id) || $intent->provider_card_id === '') {
             DB::table('fincode_card_registration_intents')->where('id', $intent->id)->update([
                 'status' => 'pending',
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return $this->registrationWithCustomer($intentId);
@@ -711,13 +712,13 @@ final class V2FincodeCardService
             ->update([
                 'provider_status' => $provider['status'],
                 'provider_tds2_status' => $provider['tds2_status'],
-                'provider_reconciled_at' => now()->startOfSecond(),
+                'provider_reconciled_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'status' => match ($provider['status']) {
                     'AWAITING_CUSTOMER_ACTION' => 'requires_action',
                     'FAILED' => 'failed',
                     default => 'pending',
                 },
-                'failed_at' => $provider['status'] === 'FAILED' ? now()->startOfSecond() : null,
+                'failed_at' => $provider['status'] === 'FAILED' ? V2DatabaseTimestamp::format(now()->startOfSecond()) : null,
                 'last_error_code' => $provider['status'] === 'FAILED'
                     ? 'CARD_REGISTRATION_FAILED'
                     : null,
@@ -725,7 +726,7 @@ final class V2FincodeCardService
                     && $provider['redirect_url'] !== null
                     ? Crypt::encryptString($provider['redirect_url'])
                     : null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -751,7 +752,7 @@ final class V2FincodeCardService
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'expired',
                     'redirect_url_ciphertext' => null,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return 'expired';
@@ -766,10 +767,10 @@ final class V2FincodeCardService
             ) {
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'failed',
-                    'failed_at' => now()->startOfSecond(),
+                    'failed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'last_error_code' => 'CARD_REGISTRATION_OWNERSHIP_INVALID',
                     'redirect_url_ciphertext' => null,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return 'failed';
@@ -780,9 +781,9 @@ final class V2FincodeCardService
             if ($existing !== null) {
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'completed',
-                    'completed_at' => $locked->completed_at ?? now()->startOfSecond(),
+                    'completed_at' => $locked->completed_at ?? V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'redirect_url_ciphertext' => null,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return 'completed';
@@ -794,12 +795,12 @@ final class V2FincodeCardService
             if ($providerCardConflict || $this->verifiedCardCount((int) $locked->user_id) >= self::MAX_CARDS) {
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'failed',
-                    'failed_at' => now()->startOfSecond(),
+                    'failed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'last_error_code' => $providerCardConflict
                         ? 'CARD_REGISTRATION_CONFLICT'
                         : 'CARD_LIMIT_REACHED',
                     'redirect_url_ciphertext' => null,
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return 'failed';
@@ -814,21 +815,21 @@ final class V2FincodeCardService
                 'provider_card_id' => $locked->provider_card_id,
                 'provider_payment_method_id' => $locked->provider_payment_method_id,
                 'registration_assurance' => 'three_d_secure_2',
-                'registration_verified_at' => $verifiedAt,
+                'registration_verified_at' => V2DatabaseTimestamp::format($verifiedAt),
                 'brand' => $safeCard['brand'],
                 'last4' => $safeCard['last4'],
                 'expire_month' => $safeCard['expire_month'],
                 'expire_year' => $safeCard['expire_year'],
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                 'status' => 'completed',
-                'provider_reconciled_at' => $verifiedAt,
-                'completed_at' => $verifiedAt,
+                'provider_reconciled_at' => V2DatabaseTimestamp::format($verifiedAt),
+                'completed_at' => V2DatabaseTimestamp::format($verifiedAt),
                 'redirect_url_ciphertext' => null,
                 'last_error_code' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $this->audit->record('payment.card_registration.completed', [
                 'target_type' => 'card_registration',
@@ -869,7 +870,7 @@ final class V2FincodeCardService
             ->update([
                 'status' => 'pending',
                 'last_error_code' => 'CARD_REGISTRATION_UNAVAILABLE',
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -880,10 +881,10 @@ final class V2FincodeCardService
             ->whereNotIn('status', self::TERMINAL_REGISTRATION_STATUSES)
             ->update([
                 'status' => 'failed',
-                'failed_at' => now()->startOfSecond(),
+                'failed_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'last_error_code' => $reasonCode,
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -892,11 +893,11 @@ final class V2FincodeCardService
         DB::table('fincode_card_registration_intents')
             ->where('id', $intentId)
             ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->update([
                 'status' => 'expired',
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -906,11 +907,11 @@ final class V2FincodeCardService
             ->where('public_id', $registrationPublicId)
             ->where('user_id', $userId)
             ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->update([
                 'status' => 'expired',
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -919,11 +920,11 @@ final class V2FincodeCardService
         DB::table('fincode_card_registration_intents')
             ->where('user_id', $userId)
             ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->update([
                 'status' => 'expired',
                 'redirect_url_ciphertext' => null,
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
     }
 
@@ -1016,7 +1017,7 @@ final class V2FincodeCardService
                 }
                 DB::table('fincode_customers')->where('id', $existing->id)->update([
                     'status' => 'calling',
-                    'updated_at' => now(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
 
                 return DB::table('fincode_customers')->where('id', $existing->id)->firstOrFail();
@@ -1028,8 +1029,8 @@ final class V2FincodeCardService
                 'provider_customer_id' => 'c'.Str::lower((string) Str::ulid()),
                 'provider_idempotency_key' => (string) Str::uuid(),
                 'status' => 'calling',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
 
             return DB::table('fincode_customers')->where('public_id', $publicId)->firstOrFail();
@@ -1052,12 +1053,12 @@ final class V2FincodeCardService
             }
             DB::table('fincode_customers')->where('id', $customer->id)->update([
                 'status' => 'active',
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
         } catch (V2FincodeException $exception) {
             DB::table('fincode_customers')->where('id', $customer->id)->update([
                 'status' => $exception->errorCode === 'FINCODE_TIMEOUT' ? 'uncertain' : 'failed',
-                'updated_at' => now(),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             throw $exception;
         }
@@ -1233,7 +1234,7 @@ final class V2FincodeCardService
             $expiry = DB::table('fincode_card_registration_intents')
                 ->where('user_id', $userId)
                 ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-                ->where('expires_at', '>', now())
+                ->where('expires_at', '>', V2DatabaseTimestamp::format(now()))
                 ->min('expires_at');
             $nextCapacityAt = $expiry === null ? null : $this->timestamp($expiry);
         }
@@ -1266,7 +1267,7 @@ final class V2FincodeCardService
         return DB::table('fincode_card_registration_intents')
             ->where('user_id', $userId)
             ->whereIn('status', self::LIVE_REGISTRATION_STATUSES)
-            ->where('expires_at', '>', now())
+            ->where('expires_at', '>', V2DatabaseTimestamp::format(now()))
             ->count();
     }
 

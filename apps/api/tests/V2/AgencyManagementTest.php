@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Mockery;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AgencyManagementTest extends TestCase
@@ -216,7 +217,7 @@ final class AgencyManagementTest extends TestCase
                 if ($offset >= 2) $payload['password'] = 'Change234';
                 $this->http()->postJson('/admin/api/v2/agencies/'.$publicId.'/'.$operation, $payload)->assertOk();
             }
-            DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => now()->subMinutes(6)]);
+            DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(6)]));
             $this->http()->postJson('/admin/api/v2/agencies/'.$publicId.'/suspend', ['expected_revision' => 6])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
         }
         $this->context(V2AdminRole::Operator);
@@ -292,11 +293,11 @@ final class AgencyManagementTest extends TestCase
         $policy = app(V2SessionPolicy::class);
         $this->token = $policy->issueOpaqueSessionId();
         $sessionHash = $policy->hashSessionId($this->token);
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $sessionHash, 'admin_id' => $admin->id, 'mfa_verified_at' => now(),
             'requires_mfa_enrollment' => false, 'created_at' => now()->subMinute(), 'last_activity_at' => now(),
             'idle_expires_at' => now()->addHours(6), 'absolute_expires_at' => now()->addHours(11),
-        ]);
+        ]));
 
         return new V2AdminAuthorizationContext($admin->id, $admin->public_id, $role, $sessionHash, hash('sha256', $sessionHash), (string) Str::uuid7());
     }

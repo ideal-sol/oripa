@@ -2039,6 +2039,25 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_point_boundary(root)
             policy_gate.validate_v2_point_boundary(root, paths)
 
+    def test_v2_point_snapshot_requires_exclusive_offset_aware_cutoff(self):
+        for replacement in (
+            "where('occurred_at', '<=', V2DatabaseTimestamp::format($cutoff))",
+            "where('occurred_at', '<', $cutoff)",
+        ):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_point_boundary(root)
+                snapshot = root / "apps/api/app/Domain/Point/Services/V2PointSnapshotService.php"
+                snapshot.write_text(
+                    snapshot.read_text(encoding="utf-8").replace(
+                        "where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))",
+                        replacement,
+                    ),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "snapshot boundary"):
+                    policy_gate.validate_v2_point_boundary(root, paths)
+
     def test_v2_point_skip_locked_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

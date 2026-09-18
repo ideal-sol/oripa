@@ -2,6 +2,7 @@
 
 namespace App\Domain\QaDraw\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
@@ -216,7 +217,7 @@ final class V2QaDrawResolver
                     ->whereColumn('consumed_count', '<=', DB::raw('quantity - '.(int) $count))
                     ->update([
                         'consumed_count' => DB::raw('consumed_count + '.(int) $count),
-                        'updated_at' => $occurredAt,
+                        'updated_at' => V2DatabaseTimestamp::format($occurredAt),
                     ]);
                 if ($updated !== 1) {
                     throw $this->configuration('QA Draw Plan Item consumption conflicted.');
@@ -283,7 +284,7 @@ final class V2QaDrawResolver
                 ->where('qa_draw_plans.status', 'active')
                 ->whereNull('qa_draw_plans.archived_at')
                 ->whereNotNull('qa_draw_plans.ends_at')
-                ->where('qa_draw_plans.ends_at', '<=', CarbonImmutable::now())
+                ->where('qa_draw_plans.ends_at', '<=', V2DatabaseTimestamp::format(CarbonImmutable::now()))
                 ->lockForUpdate()
                 ->first(['qa_draw_plans.*']);
             if ($plan instanceof QaDrawPlan) {

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Point\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Models\V2\PointLedgerEntry;
@@ -40,8 +41,8 @@ final class V2PointService
                 'paid_reserved_balance' => 0,
                 'free_reserved_balance' => 0,
                 'lock_version' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => V2DatabaseTimestamp::format(now()),
+                'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
             $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->firstOrFail();
             if ($inserted === 1) {
@@ -806,12 +807,12 @@ final class V2PointService
                 'actor_id' => null,
                 'is_qa' => false,
                 'qa_draw_execution_id' => null,
-                'occurred_at' => $occurred,
+                'occurred_at' => V2DatabaseTimestamp::format($occurred),
                 'business_date' => $businessDate,
                 'metadata' => json_encode([
                     'draw_request_public_id' => $drawRequestPublicId,
                 ], JSON_THROW_ON_ERROR),
-                'created_at' => $occurred,
+                'created_at' => V2DatabaseTimestamp::format($occurred),
             ];
             $total += $grant['amount'];
         }
@@ -843,10 +844,10 @@ final class V2PointService
                 'granted_amount' => $grant['amount'],
                 'remaining_amount' => $grant['amount'],
                 'reserved_amount' => 0,
-                'granted_at' => $occurred,
-                'expire_at' => $expiry,
-                'created_at' => $occurred,
-                'updated_at' => $occurred,
+                'granted_at' => V2DatabaseTimestamp::format($occurred),
+                'expire_at' => V2DatabaseTimestamp::format($expiry),
+                'created_at' => V2DatabaseTimestamp::format($occurred),
+                'updated_at' => V2DatabaseTimestamp::format($occurred),
             ];
         }
         foreach (array_chunk($lotRows, 250) as $chunk) {
@@ -877,9 +878,9 @@ final class V2PointService
                 'amount_delta' => $grant['amount'],
                 'wallet_balance_after' => $runningFree,
                 'lot_remaining_after' => $grant['amount'],
-                'occurred_at' => $occurred,
+                'occurred_at' => V2DatabaseTimestamp::format($occurred),
                 'business_date' => $businessDate,
-                'created_at' => $occurred,
+                'created_at' => V2DatabaseTimestamp::format($occurred),
             ];
         }
         foreach (array_chunk($ledgerRows, 250) as $chunk) {
@@ -946,9 +947,9 @@ final class V2PointService
                 'amount_delta' => -$used,
                 'wallet_balance_after' => $walletAfter,
                 'lot_remaining_after' => $lotRemaining,
-                'occurred_at' => $occurred,
+                'occurred_at' => V2DatabaseTimestamp::format($occurred),
                 'business_date' => $businessDate,
-                'created_at' => $occurred,
+                'created_at' => V2DatabaseTimestamp::format($occurred),
             ];
             $lot->forceFill(['remaining_amount' => $lotRemaining]);
             $remaining -= $used;
@@ -961,7 +962,7 @@ final class V2PointService
                 $bindings[] = $id;
                 $bindings[] = $lotRemaining;
             }
-            $bindings[] = $occurred;
+            $bindings[] = V2DatabaseTimestamp::format($occurred);
             $ids = array_keys($chunk);
             array_push($bindings, ...$ids);
             DB::update(
@@ -1073,8 +1074,8 @@ final class V2PointService
             'paid_reserved_balance' => 0,
             'free_reserved_balance' => 0,
             'lock_version' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
 
         return Wallet::query()->where('user_id', $userId)->lockForUpdate()->firstOrFail();

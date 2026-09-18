@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class QaDrawPlan extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'qa_draw_plans';
 
     protected $guarded = ['*'];

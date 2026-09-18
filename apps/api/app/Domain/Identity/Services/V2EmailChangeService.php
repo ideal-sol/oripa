@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Enums\V2UserState;
@@ -84,7 +85,7 @@ final class V2EmailChangeService
                 ->where('user_id', $lockedUser->getKey())
                 ->whereNull('used_at')
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => $now]);
+                ->update(['revoked_at' => V2DatabaseTimestamp::format($now)]);
             $rawToken = $this->tokens->generate();
             $change = UserEmailChangeRequest::query()->create([
                 'user_id' => $lockedUser->getKey(),
@@ -222,8 +223,8 @@ final class V2EmailChangeService
                     ->whereKey($change->initiating_session_hash)
                     ->where('user_id', $user->getKey())
                     ->whereNull('revoked_at')
-                    ->where('idle_expires_at', '>', now())
-                    ->where('absolute_expires_at', '>', now())
+                    ->where('idle_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
+                    ->where('absolute_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
                     ->lockForUpdate()
                     ->first();
                 $currentSessionHash = $this->sessions->sessionIdHash(
@@ -252,16 +253,16 @@ final class V2EmailChangeService
                     ->whereKeyNot($change->getKey())
                     ->whereNull('used_at')
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => V2DatabaseTimestamp::format($now)]);
                 UserSession::query()
                     ->where('user_id', $user->getKey())
                     ->whereKeyNot($change->initiating_session_hash)
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 DB::table('user_remember_devices')
                     ->where('user_id', $user->getKey())
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 $rotated = $sameBrowser
                     ? $this->sessions
                         ->rotateLockedUserSessionPreservingReauthentication($initiatingSession)

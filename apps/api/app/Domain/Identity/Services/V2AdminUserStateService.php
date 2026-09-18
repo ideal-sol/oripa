@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
@@ -105,7 +106,7 @@ final class V2AdminUserStateService
                     ->update([
                         'state' => $after->value,
                         'state_revision' => $request['expected_revision'] + 1,
-                        'updated_at' => $now,
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
                 if ($updated !== 1) {
                     throw new V2AdminUserStateException(
@@ -122,11 +123,11 @@ final class V2AdminUserStateService
                     $revokedSessions = DB::table('user_sessions')
                         ->where('user_id', $user->getKey())
                         ->whereNull('revoked_at')
-                        ->update(['revoked_at' => $now]);
+                        ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                     $revokedRememberDevices = DB::table('user_remember_devices')
                         ->where('user_id', $user->getKey())
                         ->whereNull('revoked_at')
-                        ->update(['revoked_at' => $now]);
+                        ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 }
                 if ($after === V2UserState::Closed) {
                     $releasedVerifiedPhones = DB::table('user_phone_numbers')
@@ -134,8 +135,8 @@ final class V2AdminUserStateService
                         ->whereNotNull('verified_at')
                         ->whereNull('revoked_at')
                         ->update([
-                            'revoked_at' => $now,
-                            'updated_at' => $now,
+                            'revoked_at' => V2DatabaseTimestamp::format($now),
+                            'updated_at' => V2DatabaseTimestamp::format($now),
                         ]);
                 }
 

@@ -8,6 +8,8 @@ final class AdminTotpMethod extends Model
 {
     protected $table = 'admin_totp_methods';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'admin_id',
         'secret_ciphertext',

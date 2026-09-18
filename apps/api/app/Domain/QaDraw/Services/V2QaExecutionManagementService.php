@@ -2,6 +2,7 @@
 
 namespace App\Domain\QaDraw\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Draw\Services\V2DrawService;
@@ -155,10 +156,10 @@ final class V2QaExecutionManagementService
             $query->where('request.public_id', $filters['draw_request_id']);
         }
         if (is_string($filters['from'] ?? null)) {
-            $query->where('execution.executed_at', '>=', $this->instant($filters['from']));
+            $query->where('execution.executed_at', '>=', V2DatabaseTimestamp::format($this->instant($filters['from'])));
         }
         if (is_string($filters['to'] ?? null)) {
-            $query->where('execution.executed_at', '<=', $this->instant($filters['to']));
+            $query->where('execution.executed_at', '<=', V2DatabaseTimestamp::format($this->instant($filters['to'])));
         }
         if (is_string($filters['cursor'] ?? null)) {
             $cursor = $this->decodeCursor($filters['cursor']);

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class PointBalanceSnapshot extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'point_balance_snapshots';
 
     protected $guarded = ['*'];

@@ -10,6 +10,8 @@ final class AdminInvitation extends Model
 
     protected $table = 'admin_invitations';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'admin_id',
         'token_hash',

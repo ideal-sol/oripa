@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
@@ -221,7 +222,7 @@ final class V2SmsVerificationService
                     ->whereKeyNot($challenge->getKey())
                     ->whereNull('used_at')
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => V2DatabaseTimestamp::format($now)]);
                 if (! $hadVerifiedPhone) {
                     $this->referrals->rewardForReferredUser($user);
                 }

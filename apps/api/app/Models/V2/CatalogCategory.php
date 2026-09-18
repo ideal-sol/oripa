@@ -9,6 +9,8 @@ final class CatalogCategory extends Model
 {
     protected $table = 'catalog_categories';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'code',

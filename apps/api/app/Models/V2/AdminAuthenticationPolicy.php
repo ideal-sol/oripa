@@ -8,6 +8,8 @@ final class AdminAuthenticationPolicy extends Model
 {
     protected $table = 'admin_authentication_policy';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'mfa_required',

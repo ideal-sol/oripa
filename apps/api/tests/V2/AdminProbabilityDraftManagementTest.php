@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Mockery;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminProbabilityDraftManagementTest extends TestCase
@@ -348,7 +349,9 @@ final class AdminProbabilityDraftManagementTest extends TestCase
         )->assertOk()
             ->assertJsonPath('data.status', 'published')
             ->assertJsonPath('data.revision', $draft['revision'] + 1)
-            ->assertJsonPath('data.published_at', '2026-08-10 12:04:05+09')
+            ->assertJsonPath('data.published_at', fn (string $publishedAt): bool =>
+                CarbonImmutable::parse($publishedAt)->utc()->toIso8601ZuluString()
+                === '2026-08-10T03:04:05Z')
             ->assertJsonPath('data.snapshot_sha256', $draft['snapshot_sha256'])
             ->json('data');
 
@@ -494,7 +497,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
                 'session_id_hash',
                 app(V2SessionPolicy::class)->hashSessionId($stale)
             )
-            ->update(['mfa_verified_at' => now()->subMinutes(5)]);
+            ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         Auth::forgetGuards();
         $this->mutatingRequest(
             $stale,
@@ -824,7 +827,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $created = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
             'mfa_verified_at' => now(),
@@ -833,7 +836,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $created->copy()->addHours(8),
-        ]);
+        ]));
 
         return $token;
     }

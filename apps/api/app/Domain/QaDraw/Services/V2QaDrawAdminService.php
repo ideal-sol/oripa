@@ -2,6 +2,7 @@
 
 namespace App\Domain\QaDraw\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2UserState;
@@ -404,10 +405,10 @@ final class V2QaDrawAdminService
             }
         }
         if (isset($filters['from'])) {
-            $query->where('execution.executed_at', '>=', $this->date($filters['from']));
+            $query->where('execution.executed_at', '>=', V2DatabaseTimestamp::format($this->date($filters['from'])));
         }
         if (isset($filters['to'])) {
-            $query->where('execution.executed_at', '<', $this->date($filters['to']));
+            $query->where('execution.executed_at', '<', V2DatabaseTimestamp::format($this->date($filters['to'])));
         }
         if (isset($filters['cursor'])) {
             $cursor = filter_var($filters['cursor'], FILTER_VALIDATE_INT);

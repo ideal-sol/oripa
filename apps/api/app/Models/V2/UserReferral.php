@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class UserReferral extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'user_referrals';
 
     protected $guarded = ['*'];

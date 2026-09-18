@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class UserEmailChangeRequest extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $fillable = [

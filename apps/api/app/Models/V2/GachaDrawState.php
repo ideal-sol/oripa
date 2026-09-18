@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class GachaDrawState extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'gacha_draw_states';
 
     protected $guarded = ['*'];

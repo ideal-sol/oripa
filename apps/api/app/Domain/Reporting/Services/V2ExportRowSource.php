@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Reporting\ValueObjects\V2ExportDefinition;
 use Carbon\CarbonImmutable;
 use Generator;
@@ -136,7 +137,7 @@ final class V2ExportRowSource
             $query
                 ->where($businessDate, '>=', $definition->period->start->toDateString())
                 ->where($businessDate, '<', $definition->period->end->toDateString())
-                ->where('point_balance_snapshots.generated_at', '<=', $cutoff);
+                ->where('point_balance_snapshots.generated_at', '<=', V2DatabaseTimestamp::format($cutoff));
         }
         if ($definition->reportType === 'draw_results') {
             if ($definition->qaFilter === 'normal') {

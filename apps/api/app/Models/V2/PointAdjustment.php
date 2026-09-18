@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class PointAdjustment extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'point_adjustments';
 
     protected $guarded = ['*'];

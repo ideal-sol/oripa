@@ -3670,7 +3670,7 @@ def validate_v2_point_boundary(repository: Path, paths: Iterable[str]) -> None:
         / "apps/api/app/Domain/Point/Services/V2PointSnapshotService.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "where('occurred_at', '<', $cutoff)",
+        "where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff))",
         "'ledger_cutoff'",
         "['03-31', '09-30']",
         "'expired_paid_amount'",

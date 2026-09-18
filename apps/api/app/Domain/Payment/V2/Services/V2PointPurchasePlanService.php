@@ -2,6 +2,7 @@
 
 namespace App\Domain\Payment\V2\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
@@ -121,7 +122,7 @@ final class V2PointPurchasePlanService
                 return $this->replay($claim->record->response_data);
             }
             $targetTagId = $this->targetTagId($payload['target_user_tag_id']);
-            $now = now()->startOfSecond();
+            $now = V2DatabaseTimestamp::format(now()->startOfSecond());
             $publicId = (string) Str::uuid7();
             $id = DB::table('point_purchase_plans')->insertGetId([
                 ...$this->attributes($payload, $targetTagId),
@@ -218,7 +219,7 @@ final class V2PointPurchasePlanService
                 || $current->audience_code !== $payload['audience_code']
                 || (int) ($current->target_user_tag_id ?? 0) !== (int) ($targetTagId ?? 0)
             );
-            $now = now()->startOfSecond();
+            $now = V2DatabaseTimestamp::format(now()->startOfSecond());
             if ($versionedChange) {
                 DB::table('point_purchase_plans')->where('id', $current->id)->update([
                     'status' => 'retired',

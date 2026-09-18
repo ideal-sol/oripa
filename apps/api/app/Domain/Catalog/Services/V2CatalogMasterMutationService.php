@@ -2,6 +2,7 @@
 
 namespace App\Domain\Catalog\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
@@ -111,8 +112,8 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_visible'],
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
 
                 return $this->find($definition['table'], $publicId, true);
@@ -183,7 +184,7 @@ final class V2CatalogMasterMutationService
                 DB::table($definition['table'])->where('id', $row->id)->update([
                     ...$changes,
                     'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find($definition['table'], $publicId, false);
@@ -230,8 +231,8 @@ final class V2CatalogMasterMutationService
                         'current_revision_id' => null,
                         'status' => $payload['status'],
                         'revision' => 1,
-                        'created_at' => $now,
-                        'updated_at' => $now,
+                        'created_at' => V2DatabaseTimestamp::format($now),
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
                     $displayOrder = (int) DB::table('catalog_rank_master_revisions')
                         ->max('display_order') + 1;
@@ -243,11 +244,11 @@ final class V2CatalogMasterMutationService
                         'result_image_asset_id' => $resultAsset->id,
                         'show_total_stock' => $payload['show_total_stock'],
                         'display_order' => $displayOrder,
-                        'created_at' => $now,
+                        'created_at' => V2DatabaseTimestamp::format($now),
                     ]);
                     DB::table('catalog_rank_masters')->where('id', $masterId)->update([
                         'current_revision_id' => $revisionId,
-                        'updated_at' => $now,
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
 
                     return $this->find('catalog_rank_masters', $publicId, false);
@@ -326,7 +327,7 @@ final class V2CatalogMasterMutationService
                                 'result_image_asset_id' => $resultAssetId,
                                 'show_total_stock' => $payload['show_total_stock'],
                                 'display_order' => $current->display_order,
-                                'created_at' => now()->startOfSecond(),
+                                'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                             ]);
                     }
                     if ($presentationChanged || $master->status !== $payload['status']) {
@@ -334,7 +335,7 @@ final class V2CatalogMasterMutationService
                             'current_revision_id' => $currentRevisionId,
                             'status' => $payload['status'],
                             'revision' => (int) $master->revision + 1,
-                            'updated_at' => now()->startOfSecond(),
+                            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         ]);
                     }
 
@@ -401,12 +402,12 @@ final class V2CatalogMasterMutationService
                         'result_image_asset_id' => $current->result_image_asset_id,
                         'show_total_stock' => $current->show_total_stock,
                         'display_order' => $item['display_order'],
-                        'created_at' => now()->startOfSecond(),
+                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     DB::table('catalog_rank_masters')->where('id', $master->id)->update([
                         'current_revision_id' => $revisionId,
                         'revision' => (int) $master->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                 }
 
@@ -477,9 +478,9 @@ final class V2CatalogMasterMutationService
                 $this->assertNoPublishedReference($definition['table'], (int) $row->id);
                 DB::table($definition['table'])->where('id', $row->id)->update([
                     'is_visible' => false,
-                    'archived_at' => now()->startOfSecond(),
+                    'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find($definition['table'], $publicId, false);
@@ -529,8 +530,8 @@ final class V2CatalogMasterMutationService
                     'published_version_id' => null,
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->replaceGachaTags((int) $gachaId, $tags);
 
@@ -590,8 +591,8 @@ final class V2CatalogMasterMutationService
                     'published_version_id' => null,
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->replaceGachaTags((int) $gachaId, $tags);
                 DB::table('catalog_gacha_versions')->insert([
@@ -620,8 +621,8 @@ final class V2CatalogMasterMutationService
                     'revision' => 1,
                     'archived_at' => null,
                     'cloned_from_version_id' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $versionId = (int) DB::table('catalog_gacha_versions')
                     ->where('gacha_id', $gachaId)->where('version_number', 1)->value('id');
@@ -688,7 +689,7 @@ final class V2CatalogMasterMutationService
                     DB::table('catalog_gachas')->where('id', $row->id)->update([
                         'category_id' => $category->id,
                         'revision' => (int) $row->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     $this->replaceGachaTags((int) $row->id, $tags);
                     $this->synchronizePendingSchedule((int) $row->id);
@@ -802,7 +803,7 @@ final class V2CatalogMasterMutationService
                             'scheduled_start_at' => $payload['publish_start_at'],
                         ] : []),
                         'revision' => (int) $row->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                 }
                 DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
@@ -823,7 +824,7 @@ final class V2CatalogMasterMutationService
                     'publish_start_at' => $payload['publish_start_at'],
                     'publish_end_at' => $payload['publish_end_at'],
                     'revision' => (int) $version->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 $this->replaceGachaVersionTags((int) $version->id, $tags);
                 $this->synchronizePendingSchedule(
@@ -901,8 +902,8 @@ final class V2CatalogMasterMutationService
                         'is_public' => true,
                         'revision' => 1,
                         'archived_at' => null,
-                        'created_at' => $now,
-                        'updated_at' => $now,
+                        'created_at' => V2DatabaseTimestamp::format($now),
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
 
                     return $this->find('catalog_presentation_assets', $publicId, false);
@@ -939,7 +940,7 @@ final class V2CatalogMasterMutationService
                     $row = $this->storeRankEffectAsset($payload, $storedPath);
                     DB::table('catalog_rank_effect_materials')->insert([
                         'presentation_asset_id' => $row->id,
-                        'created_at' => now()->startOfSecond(),
+                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                     return $row;
@@ -996,7 +997,7 @@ final class V2CatalogMasterMutationService
                             'alt_text' => $payload['title'],
                             'is_public' => $payload['is_active'],
                             'revision' => (int) $current->revision + 1,
-                            'updated_at' => now()->startOfSecond(),
+                            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         ]);
                         $row = $this->find('catalog_presentation_assets', $publicId, false);
                     } else {
@@ -1093,8 +1094,8 @@ final class V2CatalogMasterMutationService
                         'current_video_revision_id' => null,
                         'first_published_at' => null,
                         'revision' => 1,
-                        'created_at' => now()->startOfSecond(),
-                        'updated_at' => now()->startOfSecond(),
+                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     $gachaRank = DB::table('catalog_gacha_ranks')
                         ->where('public_id', $publicId)
@@ -1126,14 +1127,14 @@ final class V2CatalogMasterMutationService
                         'gacha_rank_id' => $gachaRank->id,
                         'revision_number' => $revisionNumber,
                         'video_asset_id' => $asset->id,
-                        'created_at' => now()->startOfSecond(),
+                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                 DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
                     'current_video_revision_id' => $videoRevisionId,
                     'revision' => $gachaRank->current_video_revision_id === null
                         ? (int) $gachaRank->revision
                         : (int) $gachaRank->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->firstOrFail();
@@ -1189,7 +1190,7 @@ final class V2CatalogMasterMutationService
                     DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
                         'current_video_revision_id' => null,
                         'revision' => (int) $gachaRank->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                 }
 
@@ -1224,9 +1225,9 @@ final class V2CatalogMasterMutationService
                 $this->assertGachaHasNoPublishedOrDrawnReference((int) $row->id);
                 DB::table('catalog_gachas')->where('id', $row->id)->update([
                     'state' => 'disabled',
-                    'archived_at' => now()->startOfSecond(),
+                    'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find('catalog_gachas', $publicId, false);
@@ -1409,7 +1410,7 @@ final class V2CatalogMasterMutationService
                     'publish_start_at' => $payload['publish_start_at'],
                     'publish_end_at' => $payload['publish_end_at'],
                     'revision' => (int) $version->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 $this->replaceGachaVersionPrizes((int) $version->id, $prizes);
 
@@ -1451,9 +1452,9 @@ final class V2CatalogMasterMutationService
                     $payload['expected_revision']
                 );
                 DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
-                    'archived_at' => now()->startOfSecond(),
+                    'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'revision' => (int) $version->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find('catalog_gacha_versions', $versionPublicId, false);
@@ -1501,16 +1502,16 @@ final class V2CatalogMasterMutationService
                     'is_visible' => true,
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $rank = $this->find('catalog_ranks', $publicId, true);
                 DB::table('catalog_gacha_version_ranks')->insert([
                     'gacha_version_id' => $version->id,
                     'rank_id' => $rank->id,
                     'sort_order' => $sortOrder,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->replaceRankAssets(
                     (int) $rank->id,
@@ -1570,14 +1571,14 @@ final class V2CatalogMasterMutationService
                     'display_name' => $payload['name'],
                     'description' => $payload['description'],
                     'revision' => (int) $rank->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 DB::table('catalog_gacha_version_prizes')
                     ->where('gacha_version_id', $version->id)
                     ->where('rank_id', $rank->id)
                     ->update([
                         'rank_display_name' => $payload['name'],
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                 $this->replaceRankAssets(
                     (int) $rank->id,
@@ -1645,8 +1646,8 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_active'],
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $prize = $this->find('catalog_prizes', $publicId, true);
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
@@ -1668,8 +1669,8 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
                     'sort_order' => $sortOrder,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 DB::table('prize_inventories')->insert([
                     'gacha_draw_state_id' => null,
@@ -1679,8 +1680,8 @@ final class V2CatalogMasterMutationService
                     'available_quantity' => $payload['total_inventory'],
                     'withdrawn_quantity' => 0,
                     'lock_version' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->incrementGachaVersionRevision($version);
 
@@ -1776,8 +1777,8 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_active'],
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $prize = $this->find('catalog_prizes', $publicId, true);
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
@@ -1800,8 +1801,8 @@ final class V2CatalogMasterMutationService
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
                     'sort_order' => $sortOrder,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 DB::table('prize_inventories')->insert([
                     'gacha_draw_state_id' => null,
@@ -1811,8 +1812,8 @@ final class V2CatalogMasterMutationService
                     'available_quantity' => $payload['total_inventory'],
                     'withdrawn_quantity' => 0,
                     'lock_version' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->incrementGachaVersionRevision($version);
 
@@ -1943,7 +1944,7 @@ final class V2CatalogMasterMutationService
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => (int) $prize->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->update([
                     'rank_id' => $rank->id,
@@ -1956,7 +1957,7 @@ final class V2CatalogMasterMutationService
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 $this->incrementGachaVersionRevision($version);
 
@@ -2093,7 +2094,7 @@ final class V2CatalogMasterMutationService
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => (int) $prize->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
                 if ($version->status === 'draft') {
                     DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->update([
@@ -2103,7 +2104,7 @@ final class V2CatalogMasterMutationService
                         'cost_price' => $payload['cost_price'],
                         'is_visible' => $payload['is_active'],
                         'initial_inventory' => $payload['total_inventory'],
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     $this->incrementGachaVersionRevision($version);
                 }
@@ -2258,7 +2259,7 @@ final class V2CatalogMasterMutationService
                     ->update([
                         'snapshot_sha256' => $this->probabilityChecksum($structure),
                         'revision' => (int) $version->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                 return $this->find(
@@ -2437,7 +2438,7 @@ final class V2CatalogMasterMutationService
                     ->update([
                         'published_probability_version_id' => $probability->id,
                         'revision' => (int) $version->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                 return $this->find(
@@ -3251,9 +3252,9 @@ final class V2CatalogMasterMutationService
                     ->update([
                         'status' => 'published',
                         'snapshot_sha256' => $checksum,
-                        'published_at' => now()->startOfSecond(),
+                        'published_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         'revision' => (int) $version->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                 return $this->find(
@@ -3325,9 +3326,9 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_probability_versions')
                     ->where('id', $version->id)
                     ->update([
-                        'archived_at' => now()->startOfSecond(),
+                        'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         'revision' => (int) $version->revision + 1,
-                        'updated_at' => now()->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                 return $this->find(
@@ -3402,8 +3403,8 @@ final class V2CatalogMasterMutationService
                     'is_public' => $payload['is_public'],
                     'revision' => 1,
                     'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
 
                 return $this->find('catalog_presentation_assets', $publicId, true);
@@ -3470,7 +3471,7 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_presentation_assets')->where('id', $row->id)->update([
                     ...$changes,
                     'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find('catalog_presentation_assets', $publicId, false);
@@ -3507,9 +3508,9 @@ final class V2CatalogMasterMutationService
                 $this->assertNoPublishedReference($table, (int) $row->id);
                 DB::table($table)->where('id', $row->id)->update([
                     $visibility => false,
-                    'archived_at' => now()->startOfSecond(),
+                    'archived_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     'revision' => (int) $row->revision + 1,
-                    'updated_at' => now()->startOfSecond(),
+                    'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
 
                 return $this->find($table, $publicId, false);
@@ -3994,8 +3995,8 @@ final class V2CatalogMasterMutationService
             'is_public' => true,
             'revision' => 1,
             'archived_at' => null,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
 
         return $this->find('catalog_presentation_assets', $publicId, false);
@@ -4505,9 +4506,7 @@ final class V2CatalogMasterMutationService
         $storedStart = CarbonImmutable::parse((string) (
             $gacha->current_publish_start_at ?? $version->publish_start_at
         ));
-        $immutableStart = CarbonImmutable::parse(
-            (string) $storedStart
-        )->utc()->toIso8601ZuluString();
+        $immutableStart = $storedStart->utc()->toIso8601ZuluString();
         $requestedStart = CarbonImmutable::parse(
             (string) $payload['publish_start_at']
         )->utc()->toIso8601ZuluString();
@@ -4544,12 +4543,12 @@ final class V2CatalogMasterMutationService
             'current_description' => $payload['description'],
             'current_notices' => $payload['notices'],
             'current_presentation_asset_id' => $asset->id,
-            'current_publish_start_at' => $storedStart,
+            'current_publish_start_at' => V2DatabaseTimestamp::format($storedStart),
             'current_publish_end_at' => $payload['publish_end_at'],
             'scheduled_start_at' => null,
             'first_published_at' => $gacha->first_published_at,
             'revision' => (int) $gacha->revision + 1,
-            'updated_at' => now()->startOfSecond(),
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
         $this->replaceGachaTags((int) $gacha->id, $tags);
 
@@ -4886,8 +4885,8 @@ final class V2CatalogMasterMutationService
             'is_public' => $payload['is_active'],
             'revision' => 1,
             'archived_at' => null,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
 
         return $this->find('catalog_presentation_assets', $publicId, false);
@@ -5251,7 +5250,7 @@ final class V2CatalogMasterMutationService
             'display_name' => $payload['name'],
             'presentation_asset_id' => $asset?->id,
             'revision' => (int) $prize->revision + 1,
-            'updated_at' => now()->startOfSecond(),
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
     }
 
@@ -5346,7 +5345,7 @@ final class V2CatalogMasterMutationService
             'available_quantity' => $available,
             'withdrawn_quantity' => $withdrawn,
             'lock_version' => $afterLockVersion,
-            'updated_at' => $now,
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
         $adjustmentPublicId = (string) Str::uuid7();
         DB::table('prize_inventory_adjustments')->insert([
@@ -5367,7 +5366,7 @@ final class V2CatalogMasterMutationService
             'after_available_quantity' => $available,
             'after_withdrawn_quantity' => $withdrawn,
             'after_lock_version' => $afterLockVersion,
-            'created_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
         ]);
         $this->recordAudit(
             'catalog.inventory.adjusted',
@@ -5869,7 +5868,7 @@ final class V2CatalogMasterMutationService
             $query->where('gv.status', 'published')
                 ->where(function ($period): void {
                     $period->whereNull('gv.publish_end_at')
-                        ->orWhere('gv.publish_end_at', '>', now());
+                        ->orWhere('gv.publish_end_at', '>', V2DatabaseTimestamp::format(now()));
                 })
                 ->exists()
         ) {
@@ -6087,8 +6086,8 @@ final class V2CatalogMasterMutationService
             fn (array $relation): array => [
                 'gacha_version_id' => $versionId,
                 ...$relation,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ],
             $prizes
         ));
@@ -6127,7 +6126,7 @@ final class V2CatalogMasterMutationService
     {
         DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
             'revision' => (int) $version->revision + 1,
-            'updated_at' => now()->startOfSecond(),
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
         $this->synchronizePendingSchedule(
             (int) $version->gacha_id,
@@ -6162,8 +6161,8 @@ final class V2CatalogMasterMutationService
                 'presentation_asset_id' => $asset['asset']->id,
                 'usage_type' => $asset['usage_type'],
                 'sort_order' => 0,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
         }
     }
@@ -6278,8 +6277,8 @@ final class V2CatalogMasterMutationService
             'revision' => 1,
             'archived_at' => null,
             'cloned_from_version_id' => $clonedFromVersionId,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
         $this->replaceGachaVersionPrizes((int) $versionId, $prizes);
         $this->replaceGachaVersionTags((int) $versionId, $tags);
@@ -6705,8 +6704,8 @@ final class V2CatalogMasterMutationService
                 'min_draw_number' => $stage['min_draw_number'],
                 'max_draw_number' => $stage['max_draw_number'],
                 'sort_order' => $stage['sort_order'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             foreach ($stage['entries'] as $entry) {
                 DB::table('catalog_probability_entries')->insert([
@@ -6716,8 +6715,8 @@ final class V2CatalogMasterMutationService
                     'point_amount' => $entry['point_amount'],
                     'probability_ppm' => $entry['probability_ppm'],
                     'sort_order' => $entry['sort_order'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             if ($stage['minimum_guarantee'] !== null) {
@@ -6729,8 +6728,8 @@ final class V2CatalogMasterMutationService
                         $guarantee['gacha_version_prize_id'],
                     'point_amount' => $guarantee['point_amount'],
                     'probability_ppm' => $guarantee['probability_ppm'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
         }
@@ -8501,8 +8500,8 @@ final class V2CatalogMasterMutationService
             'revision' => 1,
             'archived_at' => null,
             'cloned_from_probability_version_id' => $clonedFromVersionId,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
         if ($stages !== []) {
             $this->replaceProbabilityStructure((int) $versionId, $stages);

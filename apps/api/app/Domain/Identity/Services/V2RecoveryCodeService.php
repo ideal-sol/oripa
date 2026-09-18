@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Models\V2\Admin;
 use App\Models\V2\AdminRecoveryCode;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ final class V2RecoveryCodeService
             AdminRecoveryCode::query()
                 ->where('admin_id', $admin->getKey())
                 ->whereNull('revoked_at')
-                ->update(['revoked_at' => now()]);
+                ->update(['revoked_at' => V2DatabaseTimestamp::format(now())]);
 
             $codes = [];
             for ($index = 0; $index < 10; $index++) {

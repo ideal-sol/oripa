@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminUserStateManagementTest extends TestCase
@@ -219,7 +220,7 @@ final class AdminUserStateManagementTest extends TestCase
     private function userSession(User $user): string
     {
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
-        DB::table('user_sessions')->insert([
+        DB::table('user_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'user_id' => $user->id,
             'created_at' => now(),
@@ -228,7 +229,7 @@ final class AdminUserStateManagementTest extends TestCase
             'absolute_expires_at' => now()->addHours(24),
             'reauthenticated_at' => now(),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return $token;
     }
@@ -261,7 +262,7 @@ final class AdminUserStateManagementTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -271,7 +272,7 @@ final class AdminUserStateManagementTest extends TestCase
             'idle_expires_at' => now()->addHours(6),
             'absolute_expires_at' => now()->addHours(12),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return $token;
     }

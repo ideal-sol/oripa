@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
@@ -114,7 +115,7 @@ final class V2AgencyService
                         default => ['password_hash' => $this->passwords->hash($password)],
                     };
                     DB::table('agencies')->where('id', $agency->id)->update([
-                        ...$changes, 'revision' => $agency->revision + 1, 'updated_at' => now()->startOfSecond(),
+                        ...$changes, 'revision' => $agency->revision + 1, 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     $agency = $this->row($publicId);
                     if (in_array($operation, ['suspend', 'password-reset', 'login-information-reissue'], true)) {
@@ -187,10 +188,10 @@ final class V2AgencyService
                         ...$this->companyFields($payload), 'public_id' => $publicId,
                         'login_id' => $loginId, 'password_hash' => $hash,
                         'status' => 'active', 'revision' => 1,
-                        'created_at' => now()->startOfSecond(), 'updated_at' => now()->startOfSecond(),
+                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()), 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
                     DB::table('agency_advertising_codes')->insert([
-                        'agency_id' => $internalId, 'code' => $code, 'created_at' => now()->startOfSecond(),
+                        'agency_id' => $internalId, 'code' => $code, 'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                     ]);
 
                     return $this->row($publicId);

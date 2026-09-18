@@ -2,6 +2,7 @@
 
 namespace App\Domain\Draw\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Outbox\Services\V2OutboxService;
@@ -1334,7 +1335,7 @@ final class V2DrawService
             }
             $ids = array_keys($chunk);
             $bindings = [...$awardedBindings, ...$availableBindings];
-            $bindings[] = $occurredAt;
+            $bindings[] = V2DatabaseTimestamp::format($occurredAt);
             array_push($bindings, ...$ids);
             DB::update(
                 'UPDATE prize_inventories SET awarded_count = CASE id '.
@@ -1381,8 +1382,8 @@ final class V2DrawService
                 'random_value' => $row['random_value'],
                 'display_snapshot' => $row['display_snapshot_json'],
                 'display_snapshot_sha256' => $row['display_snapshot_sha256'],
-                'occurred_at' => $row['occurred_at'],
-                'created_at' => $occurredAt,
+                'occurred_at' => V2DatabaseTimestamp::format($row['occurred_at']),
+                'created_at' => V2DatabaseTimestamp::format($occurredAt),
                 'is_qa_draw' => $row['qa_draw_plan_item_id'] !== null
                     || $row['qa_gacha_guarantee_assignment_id'] !== null,
                 'qa_draw_plan_item_id' => $row['qa_draw_plan_item_id'],
@@ -1441,13 +1442,13 @@ final class V2DrawService
                 'status' => 'stored',
                 'exchange_point_snapshot' => $row['prize']['exchange_points'],
                 'exchanged_point_amount' => null,
-                'acquired_at' => $occurredAt,
-                'storage_expires_at' => $occurredAt->copy()->addDays(
+                'acquired_at' => V2DatabaseTimestamp::format($occurredAt),
+                'storage_expires_at' => V2DatabaseTimestamp::format($occurredAt->copy()->addDays(
                     (int) config('v2_prize_shipping.storage_days', 60)
-                ),
+                )),
                 'terminal_at' => null,
-                'created_at' => $occurredAt,
-                'updated_at' => $occurredAt,
+                'created_at' => V2DatabaseTimestamp::format($occurredAt),
+                'updated_at' => V2DatabaseTimestamp::format($occurredAt),
             ];
         }
         $chunkSize = (int) config('v2_draw.insert_chunk_size', 250);

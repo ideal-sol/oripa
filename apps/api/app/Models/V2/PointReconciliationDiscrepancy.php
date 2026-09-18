@@ -7,6 +7,8 @@ use LogicException;
 
 final class PointReconciliationDiscrepancy extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'point_reconciliation_discrepancies';
