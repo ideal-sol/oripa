@@ -9913,7 +9913,7 @@ curl -fsS -o /dev/null http://127.0.0.1/healthz
 
 ### 実Sourceに基づく対応記録
 
-Source確定前focused結果：以下679件のcorpusをAPP/PHP JST＋DB UTC／JSTの両条件でPASS確認（UTCは失敗原因修正後の対象再実行を含み、単一コマンドの件数ではない）。JST群別実測合計679 tests / 5962 assertions。SAFE Sessionは別枠21 tests / 394 assertionsで両起動設定からPASSし、test内部のUTC/JST切替は既存のまま。全700件がJST固定で実行されたとは扱わない。
+Source確定前focused結果：以下579件のcorpusをAPP/PHP JST＋DB UTC／JSTの両条件でPASS確認（UTCは失敗原因修正後の対象再実行を含み、単一コマンドの件数ではない）。JST群別実測合計579 tests / 5962 assertions。SAFE Sessionは別枠21 tests / 394 assertionsで両起動設定からPASSし、test内部のUTC/JST切替は既存のまま。全600件がJST固定で実行されたとは扱わない。群別件数の合算誤記679を579に訂正し、testの実行結果・期待値は変更しない。
 
 | focused群 | 件数 / assertions（JSTの群別実測） | UTC / JST |
 | --- | --- | --- |
