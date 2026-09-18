@@ -289,7 +289,7 @@ final class V2AgencyService
 
     private function authorize(V2AdminAuthorizationContext $context, string $operation): void
     {
-        $this->authorization->authorizePermission($context, V2Permission::ManageAgency, true, 'agency.'.$operation, true);
+        $this->authorization->authorizePermission($context, V2Permission::ManageAgency, true, 'agency.'.$operation);
     }
 
     private function invalid(): V2AgencyException

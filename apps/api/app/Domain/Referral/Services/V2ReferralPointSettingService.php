@@ -5,9 +5,7 @@ namespace App\Domain\Referral\Services;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
-use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
-use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -21,7 +19,6 @@ final class V2ReferralPointSettingService
 
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
-        private readonly V2RateLimiter $rateLimiter,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox
@@ -53,22 +50,6 @@ final class V2ReferralPointSettingService
             true,
             'referral.settings.update'
         );
-        try {
-            $this->rateLimiter->assertSubject('critical_admin_mutation', $admin->public_id);
-        } catch (V2AuthenticationException $exception) {
-            $this->audit->record('referral.settings.rate_limited', [
-                'request_id' => $context->requestId,
-                'actor_type' => 'admin',
-                'actor_public_id' => $admin->public_id,
-                'actor_role' => $admin->role->value,
-                'auth_realm' => 'admin',
-                'session_correlation_hash' => $context->sessionCorrelationHash,
-                'target_type' => 'referral_point_setting',
-                'outcome' => 'failure',
-                'reason_code' => strtolower($exception->errorCode),
-            ]);
-            throw $exception;
-        }
         $payload = $this->validate($input);
 
         try {

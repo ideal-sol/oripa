@@ -21,6 +21,36 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_admin_phase1_removes_only_mutation_limiters_and_explicit_password_contracts(self):
+        for path in (ROOT / "apps/api/app").rglob("*.php"):
+            source = path.read_text(encoding="utf-8")
+            for removed in ("critical_admin_mutation", "financial_export", "V2CatalogMutationRateLimiter"):
+                self.assertNotIn(removed, source, str(path))
+
+        config = (ROOT / "apps/api/config/v2_identity.php").read_text(encoding="utf-8")
+        for removed in ("critical_admin_mutation", "financial_export"):
+            self.assertNotIn(removed, config)
+        for retained in ("'admin_login_failure' => [5, 900]", "'mfa_verify' => [5, 300]", "'minutes' => 5"):
+            self.assertIn(retained, config)
+
+        authorizer = (ROOT / "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php").read_text(encoding="utf-8")
+        for retained in ("FRESH_AUTHENTICATION_REQUIRED", "sessionAndAdmin", "ExportFinancialReporting", "isFresh", "permissions->allows"):
+            self.assertIn(retained, authorizer)
+        contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
+        for operations in contract["paths"].values():
+            for operation in operations.values():
+                if isinstance(operation, dict):
+                    self.assertNotIn(operation.get("x-rate-limit"), (
+                        "catalog-mutation", "critical-admin-mutation",
+                        "critical-admin-mutation-10-per-10-minutes",
+                        "owner-mutation-10-per-10-minutes", "admin-5-per-hour",
+                    ))
+        for name in ("AdminPointAdjustmentRequest", "AdminAuthenticationPolicyUpdate"):
+            schema = contract["components"]["schemas"][name]
+            self.assertNotIn("current_password", schema["properties"])
+            self.assertNotIn("current_password", schema["required"])
+            self.assertFalse(schema["additionalProperties"])
+
     def test_agency_003_admin_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/src/app/agencies/aggregates/users/page.tsx",

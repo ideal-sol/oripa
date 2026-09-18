@@ -23,16 +23,11 @@ final class V2AdminUserPointAdjustmentController
         $requestId = $this->requestId($request);
         try {
             $this->assertExactFields($request);
-            $currentPassword = $request->input('current_password');
-            if (! is_string($currentPassword) || $currentPassword === '') {
-                throw $this->invalid();
-            }
             $result = $this->adjustments->execute(
                 $this->authorization->context($request, $requestId),
                 $userId,
                 $this->idempotencyKey($request),
-                $request->only(['point_type', 'direction', 'amount', 'reason']),
-                $currentPassword
+                $request->only(['point_type', 'direction', 'amount', 'reason'])
             );
 
             return response()->json([
@@ -54,7 +49,6 @@ final class V2AdminUserPointAdjustmentController
             'direction',
             'amount',
             'reason',
-            'current_password',
         ]) !== []) {
             throw $this->invalid();
         }

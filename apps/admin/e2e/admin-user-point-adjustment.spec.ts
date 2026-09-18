@@ -26,11 +26,14 @@ test("Owner adjusts free points once and the detail reloads canonical balances",
   await dialog.getByLabel("調整ポイント数").fill("50");
   await expect(dialog.getByText("250 pt")).toBeVisible();
   await dialog.getByLabel("調整理由").fill("Preview synthetic correction");
-  await dialog.getByLabel("現在の管理者パスワード").fill("not-recorded");
+  await expect(dialog.getByLabel("現在の管理者パスワード")).toHaveCount(0);
   await dialog.getByRole("button", { name: "内容を確認して実行" }).click();
 
-  await expect(page.getByRole("status")).toContainText("最新残高を再取得しました");
-  await expect(page.getByText("250 pt")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "最新残高を再取得しました" })).toBeVisible();
+  const balances = page.getByRole("region", { name: "コイン残高" });
+  await expect(balances.getByText("250 コイン", { exact: true })).toBeVisible();
+  await expect(balances.getByText("100 コイン", { exact: true })).toBeVisible();
+  await expect(balances.getByText("350 コイン", { exact: true })).toBeVisible();
   expect(api.mutationCount()).toBe(1);
   expect(errors.console).toEqual([]);
   expect(errors.page).toEqual([]);
@@ -66,7 +69,23 @@ async function installApi(page: Page, role: "owner" | "operator") {
         role,
       });
     }
+    if (path.endsWith(`/users/${userId}/tags`)) {
+      return json(route, {
+        data: { user_id: userId, revision: 1, tags: [] },
+        request_id: uuid("9"),
+      });
+    }
+    if (path.endsWith(`/users/${userId}/referral-history`)) {
+      return json(route, { user_id: userId, items: [], next_cursor: null, request_id: uuid("9") });
+    }
     if (path.endsWith(`/users/${userId}/point-adjustments`)) {
+      expect(route.request().postDataJSON()).toEqual({
+        point_type: "free",
+        direction: "grant",
+        amount: 50,
+        reason: "Preview synthetic correction",
+      });
+      expect(route.request().headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
       mutationCount += 1;
       freeBalance += 50;
       return json(route, {

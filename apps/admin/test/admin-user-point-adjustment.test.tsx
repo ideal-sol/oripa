@@ -18,6 +18,7 @@ vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
 }));
 
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
+import { AdminApiError } from "@/lib/admin-api/client";
 
 describe("Admin user point adjustment modal", () => {
   beforeEach(() => {
@@ -57,7 +58,7 @@ describe("Admin user point adjustment modal", () => {
     expect(screen.getByRole("button", { name: "内容を確認して実行" })).toBeDisabled();
   });
 
-  it("submits reason and current password once then refreshes the canonical detail", async () => {
+  it("submits without current password once then refreshes the canonical detail", async () => {
     const onClose = vi.fn();
     const onSuccess = vi.fn();
     renderModal({ onClose, onSuccess });
@@ -65,9 +66,7 @@ describe("Admin user point adjustment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "減算" }));
     fireEvent.change(screen.getByLabelText("調整ポイント数"), { target: { value: "50" } });
     fireEvent.change(screen.getByLabelText("調整理由"), { target: { value: "Correction" } });
-    fireEvent.change(screen.getByLabelText("現在の管理者パスワード"), {
-      target: { value: "valid current password" },
-    });
+    expect(screen.queryByLabelText("現在の管理者パスワード")).not.toBeInTheDocument();
     fireEvent.submit(screen.getByRole("button", { name: "内容を確認して実行" }).closest("form")!);
 
     await waitFor(() => expect(adjust).toHaveBeenCalledOnce());
@@ -77,11 +76,23 @@ describe("Admin user point adjustment modal", () => {
       direction: "deduct",
       amount: 50,
       reason: "Correction",
-      current_password: "valid current password",
     });
     expect(adjust.mock.calls[0][2]).toEqual(expect.any(String));
     expect(onSuccess).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the Fresh Authentication dialog when the server rejects a stale session", async () => {
+    adjust.mockRejectedValueOnce(new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false));
+    const onSuccess = vi.fn();
+    renderModal({ onSuccess });
+    fireEvent.change(screen.getByLabelText("調整ポイント数"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("調整理由"), { target: { value: "Correction" } });
+    fireEvent.click(screen.getByRole("button", { name: "内容を確認して実行" }));
+
+    expect(await screen.findByText("Fresh MFA")).toBeVisible();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(adjust).toHaveBeenCalledOnce();
   });
 
   it("supports Escape close and keeps accessible dialog semantics", () => {

@@ -30,7 +30,6 @@ final class ZReportingExportPerformanceTest extends TestCase
             'cache.default' => 'array',
             'app.key' => 'base64:'.base64_encode(str_repeat('p', 32)),
             'v2_identity.fresh_mfa.minutes' => 5,
-            'v2_identity.rate_limits.financial_export' => [5, 3600],
             'v2_audit.active_hmac_key_version' => 'v1',
             'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo',

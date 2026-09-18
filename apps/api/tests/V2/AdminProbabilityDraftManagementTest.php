@@ -558,36 +558,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
         )->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
     }
 
-    public function test_publish_rate_limit_is_fail_closed(): void
-    {
-        $token = $this->createAdminSession(V2AdminRole::Owner);
-        $sessionHash = app(V2SessionPolicy::class)->hashSessionId($token);
-        $adminPublicId = DB::table('admins')
-            ->join('admin_sessions', 'admin_sessions.admin_id', '=', 'admins.id')
-            ->where('admin_sessions.session_id_hash', $sessionHash)
-            ->value('admins.public_id');
-        $limiter = app(V2RateLimiter::class);
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $limiter->assertSubject('critical_admin_mutation', $adminPublicId);
-        }
-        $root = $this->root();
-        $draft = DB::table('catalog_probability_versions')
-            ->where('public_id', self::PUBLISHED_PROBABILITY_ID)
-            ->firstOrFail();
-        $this->mutatingRequest(
-            $token,
-            'POST',
-            $root.'/'.$draft->public_id.'/publish-preflight',
-            ['expected_revision' => $draft->revision],
-            'probability-publish-rate-limited'
-        )->assertStatus(429)->assertJsonPath('code', 'RATE_LIMITED');
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'catalog.probability.publish.rate_limited',
-            'reason_code' => 'rate_limited',
-        ]);
-    }
-
-    public function test_publish_limiter_failure_is_fail_closed(): void
+    public function test_publish_exceeds_previous_limit_without_using_limiter(): void
     {
         $cache = Mockery::mock(CacheRepository::class);
         $cache->shouldReceive('get')->andThrow(new \RuntimeException('cache unavailable'));
@@ -595,17 +566,36 @@ final class AdminProbabilityDraftManagementTest extends TestCase
             V2RateLimiter::class,
             new V2RateLimiter(new LaravelRateLimiter($cache))
         );
-        $token = $this->createAdminSession(V2AdminRole::Admin);
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $root = $this->root();
+        $draft = $this->mutatingRequest(
+            $token,
+            'POST',
+            $root.'/'.self::PUBLISHED_PROBABILITY_ID.'/clone',
+            [],
+            'unlimited-probability-clone'
+        )->assertCreated()->json('data');
+
+        for ($attempt = 1; $attempt <= 11; $attempt++) {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $token,
+                'POST',
+                $root.'/'.$draft['id'].'/publish-preflight',
+                ['expected_revision' => $draft['revision']],
+                'unlimited-probability-preflight-'.$attempt
+            )->assertOk();
+        }
+        Auth::forgetGuards();
         $this->mutatingRequest(
             $token,
             'POST',
-            $this->root().'/'.self::PUBLISHED_PROBABILITY_ID.'/publish-preflight',
-            ['expected_revision' => 2],
-            'probability-publish-limiter-unavailable'
-        )->assertStatus(503)->assertJsonPath('code', 'AUTH_SERVICE_UNAVAILABLE');
-        self::assertDatabaseHas('audit_logs', [
-            'action_code' => 'catalog.probability.publish.authorization_failed',
-            'reason_code' => 'auth_service_unavailable',
+            $root.'/'.$draft['id'].'/publish',
+            ['expected_revision' => $draft['revision']],
+            'unlimited-probability-publish'
+        )->assertOk()->assertJsonPath('data.status', 'published');
+        self::assertDatabaseMissing('audit_logs', [
+            'action_code' => 'catalog.probability.publish.rate_limited',
         ]);
     }
 

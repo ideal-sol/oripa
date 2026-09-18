@@ -564,7 +564,6 @@ V2_CATALOG_REQUIRED_FILES = {
     "apps/api/app/Domain/Catalog/Services/V2AdminCatalogReadService.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogMasterMutationService.php",
     "apps/api/app/Domain/Catalog/Services/V2ScheduledGachaPublishWorker.php",
-    "apps/api/app/Domain/Catalog/Services/V2CatalogMutationRateLimiter.php",
     "apps/api/app/Console/Commands/V2/RunV2GachaScheduledPublishWorker.php",
     "apps/api/app/Domain/Catalog/Exceptions/V2CatalogException.php",
     "apps/api/app/Domain/Catalog/Services/V2CatalogFixtureImporter.php",
@@ -4747,8 +4746,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "test_publish_preflight_and_publish_create_an_immutable_snapshot_only",
         "test_publish_rejects_invalid_archived_and_non_fresh_requests",
         "test_publish_revalidates_totals_and_revision_on_the_server",
-        "test_publish_rate_limit_is_fail_closed",
-        "test_publish_limiter_failure_is_fail_closed",
+        "test_publish_exceeds_previous_limit_without_using_limiter",
         "test_publish_outbox_failure_rolls_back_snapshot_and_idempotency",
     ):
         if required not in publish_tests:
@@ -5171,7 +5169,6 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
         "admin.fresh_mfa.required",
         "lessThan",
         "requires_mfa_enrollment",
-        "critical_admin_mutation",
         "session_correlation_hash",
     ):
         if required not in fresh_authorizer:
@@ -5210,7 +5207,9 @@ def validate_v2_qa_draw_boundary(repository: Path, paths: Iterable[str]) -> None
     for required in (
         "'fresh_mfa'",
         "'minutes' => 5",
-        "'critical_admin_mutation' => [10, 600]",
+        "'admin_login_failure' => [5, 900]",
+        "'admin_login_ip' => [20, 3600]",
+        "'mfa_verify' => [5, 300]",
     ):
         if required not in identity_config:
             raise PolicyFailure(f"Admin Fresh MFA configuration missing {required}")
@@ -5402,7 +5401,6 @@ def validate_v2_reporting_boundary(repository: Path, paths: Iterable[str]) -> No
         "authorizeReporting",
         "ExportFinancialReporting",
         "FRESH_AUTHENTICATION_REQUIRED",
-        "'financial_export'",
     ):
         if required not in authorizer:
             raise PolicyFailure(f"V2 Reporting authorization missing {required}")

@@ -608,6 +608,29 @@ final class AuthenticationFlowTest extends TestCase
             ->assertJsonPath('admin', null);
     }
 
+    public function test_admin_login_failure_limit_still_rejects_a_correct_password_after_five_failures(): void
+    {
+        $admin = $this->createAdmin(V2AdminRole::Owner);
+        $service = app(V2AdminAuthenticationService::class);
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                $service->login($admin->email_display, 'incorrect admin password', '192.0.2.71');
+                self::fail('An incorrect login password must not authenticate.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('INVALID_CREDENTIALS', $exception->errorCode);
+            }
+        }
+        try {
+            $service->login($admin->email_display, 'valid admin password', '192.0.2.71');
+            self::fail('Admin login must retain its authentication failure limiter.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('RATE_LIMITED', $exception->errorCode);
+            self::assertSame(429, $exception->status);
+            self::assertGreaterThan(0, $exception->retryAfterSeconds);
+        }
+        self::assertDatabaseCount('admin_sessions', 0);
+    }
+
     public function test_admin_password_is_only_preauth_and_totp_issues_separate_session(): void
     {
         $admin = $this->createAdmin(V2AdminRole::Operator);

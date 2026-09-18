@@ -13,7 +13,6 @@ use App\Domain\Point\Services\V2PointService;
 use App\Domain\QaDraw\Services\V2QaDrawAdminService;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
-use Illuminate\Cache\RateLimiter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -291,13 +290,6 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
                 'quantity' => $quantity,
                 'sort_order' => 1,
             ]]
-        );
-        app(RateLimiter::class)->clear(
-            'critical_admin_mutation:subject:'.hash_hmac(
-                'sha256',
-                $owner->public_id,
-                (string) config('app.key')
-            )
         );
 
         return $user;

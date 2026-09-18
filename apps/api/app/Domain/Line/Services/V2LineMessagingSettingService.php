@@ -7,7 +7,6 @@ use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
-use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Line\Exceptions\V2LineMessagingException;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
@@ -21,7 +20,6 @@ final class V2LineMessagingSettingService
 {
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
-        private readonly V2RateLimiter $rateLimiter,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2LineMessageTemplate $templates,
         private readonly V2AuditLogService $audit,
@@ -96,25 +94,6 @@ final class V2LineMessagingSettingService
             true,
             'identity.line.messaging.update'
         );
-        try {
-            $this->rateLimiter->assertSubject(
-                'critical_admin_mutation',
-                $admin->public_id
-            );
-        } catch (V2AuthenticationException $exception) {
-            $this->audit->record('line.messaging.setting.rate_limited', [
-                'request_id' => $context->requestId,
-                'actor_type' => 'admin',
-                'actor_public_id' => $admin->public_id,
-                'actor_role' => $admin->role->value,
-                'auth_realm' => 'admin',
-                'session_correlation_hash' => $context->sessionCorrelationHash,
-                'target_type' => 'line_messaging_setting',
-                'outcome' => 'failure',
-                'reason_code' => strtolower($exception->errorCode),
-            ]);
-            throw $exception;
-        }
         if (! isset($input['expected_revision']) || ! is_int($input['expected_revision'])) {
             throw $this->invalid();
         }

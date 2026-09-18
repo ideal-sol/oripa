@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 9fd617d6ba771dc80cafe48af123f4f93b18171ef40ed6f05856662931e8bbd9
+// Contract SHA-256: 711c20e6dfbbf917056c917396454576eb31a3dc7f2c787f76ac7cc8e844eaaa
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -545,7 +545,6 @@ export interface AdminPointAdjustmentRequest {
   direction: "grant" | "deduct";
   amount: number;
   reason: string;
-  current_password: string;
 }
 
 export interface AdminPointAdjustment {
@@ -730,7 +729,6 @@ export interface AdminAuthenticationPolicyUpdate {
   expected_revision: number;
   mfa_required: boolean;
   invitation_required: boolean;
-  current_password: string;
 }
 
 export interface AdminAuthenticationPolicyMutationResult {

@@ -17,7 +17,6 @@ use App\Models\V2\AdminInvitation;
 use App\Models\V2\AdminTotpMethod;
 use App\Models\V2\AdminWebauthnMethod;
 use Illuminate\Support\Facades\DB;
-use SensitiveParameter;
 
 final class V2AdminAuthenticationPolicyService
 {
@@ -27,7 +26,6 @@ final class V2AdminAuthenticationPolicyService
         private readonly V2EmailNormalizer $emails,
         private readonly V2SecureToken $tokens,
         private readonly V2MfaPolicy $mfaPolicy,
-        private readonly V2RateLimiter $rateLimiter,
         private readonly V2PointIdempotencyService $idempotency,
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox
@@ -73,19 +71,9 @@ final class V2AdminAuthenticationPolicyService
     public function update(
         V2AdminAuthorizationContext $context,
         string $idempotencyKey,
-        array $input,
-        #[SensitiveParameter] string $currentPassword
+        array $input
     ): array {
         $admin = $this->owner($context, true, 'identity.admin.authentication-policy.update');
-        $this->rateLimiter->assertSubject('critical_admin_mutation', $admin->public_id);
-        if (! $this->passwords->verify($currentPassword, $admin->password_hash)) {
-            $this->auditFailure($context, $admin, 'invalid_current_password');
-            throw new V2AuthenticationException(
-                'INVALID_CURRENT_PASSWORD',
-                401,
-                'The current password could not be verified.'
-            );
-        }
         $request = $this->validatedPolicyInput($input);
 
         try {
@@ -93,24 +81,13 @@ final class V2AdminAuthenticationPolicyService
                 $context,
                 $admin,
                 $idempotencyKey,
-                $request,
-                $currentPassword
+                $request
             ): array {
                 $lockedAdmin = Admin::query()->whereKey($admin->getKey())->lockForUpdate()->first();
                 if (! $lockedAdmin instanceof Admin
                     || $lockedAdmin->state !== V2AdminState::Active
                     || $lockedAdmin->role !== V2AdminRole::Owner) {
                     throw $this->denied();
-                }
-                if (! $this->passwords->verify(
-                    $currentPassword,
-                    $lockedAdmin->password_hash
-                )) {
-                    throw new V2AuthenticationException(
-                        'INVALID_CURRENT_PASSWORD',
-                        401,
-                        'The current password could not be verified.'
-                    );
                 }
                 $claim = $this->idempotency->claim(
                     'identity.admin.authentication_policy.update',
@@ -216,7 +193,6 @@ final class V2AdminAuthenticationPolicyService
     public function createAdmin(V2AdminAuthorizationContext $context, array $input): array
     {
         $owner = $this->owner($context, true, 'identity.admin.create');
-        $this->rateLimiter->assertSubject('critical_admin_mutation', $owner->public_id);
         $allowed = ['email', 'role', 'temporary_password'];
         if (array_diff(array_keys($input), $allowed) !== []) {
             throw $this->invalid();
@@ -407,23 +383,6 @@ final class V2AdminAuthenticationPolicyService
         }
 
         return $admin;
-    }
-
-    private function auditFailure(
-        V2AdminAuthorizationContext $context,
-        Admin $admin,
-        string $reason
-    ): void {
-        $this->audit->record('identity.admin.authentication_policy.rejected', [
-            'request_id' => $context->requestId,
-            'actor_type' => 'admin',
-            'actor_public_id' => $admin->public_id,
-            'actor_role' => $admin->role->value,
-            'auth_realm' => 'admin',
-            'session_correlation_hash' => $context->sessionCorrelationHash,
-            'outcome' => 'failure',
-            'reason_code' => $reason,
-        ]);
     }
 
     private function denied(): V2AuthenticationException

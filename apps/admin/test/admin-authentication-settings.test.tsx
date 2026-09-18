@@ -38,16 +38,17 @@ vi.mock("@/components/permissions/protected-admin-route", () => ({
   ProtectedAdminRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: () => null,
+  FreshMfaDialog: ({ open }: { open: boolean }) => open ? <p>Fresh Authentication</p> : null,
 }));
 
 import { AdminAuthenticationSettings } from "@/components/auth/admin-authentication-settings";
+import { AdminApiError } from "@/lib/admin-api/client";
 
 describe("AdminAuthenticationSettings", () => {
   beforeEach(() => {
     api.getAuthenticationPolicy.mockReset().mockResolvedValue({ data: policy });
     api.updateAuthenticationPolicy.mockReset().mockResolvedValue({
-      data: { ...policy, mfa_required: true, revision: 2 },
+      data: { ...policy, invitation_required: true, revision: 2 },
       idempotent_replay: false,
     });
     api.createAdminAccount.mockReset().mockResolvedValue({
@@ -59,27 +60,39 @@ describe("AdminAuthenticationSettings", () => {
     });
   });
 
-  it("loads canonical policy and submits toggles with password and revision", async () => {
+  it("updates invitation policy without a password and preserves the MFA toggle", async () => {
     render(<AdminAuthenticationSettings />);
 
     expect(await screen.findByRole("heading", { name: "ログイン要件" })).toBeInTheDocument();
     expect(screen.getAllByText("1人", { selector: "dd" })).toHaveLength(2);
-    fireEvent.click(screen.getByRole("checkbox", { name: "多要素認証を必須にする" }));
-    fireEvent.change(screen.getByLabelText("現在のパスワード"), {
-      target: { value: "current owner password" },
-    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "招待トークンを必須にする" }));
+    expect(screen.queryByLabelText("現在のパスワード")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     fireEvent.click(screen.getByRole("button", { name: "変更を確定" }));
 
     await waitFor(() => expect(api.updateAuthenticationPolicy).toHaveBeenCalledOnce());
     expect(api.updateAuthenticationPolicy.mock.calls[0][0]).toEqual({
-      current_password: "current owner password",
       expected_revision: 1,
-      invitation_required: false,
-      mfa_required: true,
+      invitation_required: true,
+      mfa_required: false,
     });
     expect(api.updateAuthenticationPolicy.mock.calls[0][1]).toMatch(/^[0-9a-f-]{36}$/u);
     expect(screen.getByText("認証設定を保存しました。")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "多要素認証を必須にする" })).not.toBeChecked();
+  });
+
+  it("keeps Fresh Authentication on an expired freshness response", async () => {
+    api.updateAuthenticationPolicy.mockRejectedValueOnce(
+      new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false),
+    );
+    render(<AdminAuthenticationSettings />);
+    await screen.findByRole("heading", { name: "ログイン要件" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "招待トークンを必須にする" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "変更を確定" }));
+
+    expect(await screen.findByText("Fresh Authentication")).toBeVisible();
+    expect(api.updateAuthenticationPolicy).toHaveBeenCalledOnce();
   });
 
   it("switches direct creation form to invitation mode from canonical policy", async () => {

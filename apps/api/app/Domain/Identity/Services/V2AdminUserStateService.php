@@ -44,8 +44,7 @@ final class V2AdminUserStateService
             $context,
             V2Permission::ManageUserState,
             true,
-            'user.state.update',
-            true
+            'user.state.update'
         );
         $request = $this->validate($input);
 

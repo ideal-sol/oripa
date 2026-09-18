@@ -1,6 +1,6 @@
 "use client";
 
-import { LockKeyhole, Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
@@ -31,7 +31,6 @@ export function AdminUserPointAdjustmentModal({
   const [direction, setDirection] = useState<Direction>("grant");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [freshOpen, setFreshOpen] = useState(false);
@@ -54,7 +53,7 @@ export function AdminUserPointAdjustmentModal({
       ? currentBalance + parsedAmount
       : currentBalance - parsedAmount
     : null;
-  const validation = validate(parsedAmount, expectedBalance, reason, currentPassword);
+  const validation = validate(parsedAmount, expectedBalance, reason);
 
   if (!open) return null;
   if (freshOpen) {
@@ -91,18 +90,15 @@ export function AdminUserPointAdjustmentModal({
           direction,
           amount: parsedAmount,
           reason: reason.trim(),
-          current_password: currentPassword,
         },
         idempotencyKey,
       );
-      setCurrentPassword("");
       setAmount("");
       setReason("");
       setIdempotencyKey(crypto.randomUUID());
       onSuccess();
       onClose();
     } catch (cause: unknown) {
-      setCurrentPassword("");
       if (cause instanceof AdminApiError && cause.requiresFreshMfa) {
         setFreshOpen(true);
         setError("本人確認の有効期限が切れました。再認証後にもう一度実行してください。");
@@ -229,20 +225,6 @@ export function AdminUserPointAdjustmentModal({
                 value={reason}
               />
             </label>
-            <label>
-              <span>現在の管理者パスワード</span>
-              <span className="input-shell">
-                <LockKeyhole aria-hidden="true" size={18} />
-                <input
-                  autoComplete="current-password"
-                  maxLength={128}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
-                  required
-                  type="password"
-                  value={currentPassword}
-                />
-              </span>
-            </label>
             {error ? <p className="point-adjustment-error" role="alert">{error}</p> : null}
             <div className="dialog-actions">
               <button className="secondary-button" disabled={submitting} onClick={onClose} type="button">
@@ -263,7 +245,6 @@ function validate(
   amount: number,
   expectedBalance: number | null,
   reason: string,
-  password: string,
 ): string | null {
   if (!Number.isSafeInteger(amount) || amount < 1) return "ポイント数は正の整数で入力してください。";
   if (expectedBalance === null || !Number.isSafeInteger(expectedBalance)) {
@@ -272,13 +253,12 @@ function validate(
   if (expectedBalance < 0) return "調整後残高を負数にはできません。";
   if (!reason.trim()) return "調整理由を入力してください。";
   if (/[\u0000-\u001f\u007f<>]/u.test(reason)) return "調整理由に使用できない文字が含まれています。";
-  if (!password) return "現在の管理者パスワードを入力してください。";
   return null;
 }
 
 function errorMessage(cause: unknown): string {
   if (!(cause instanceof AdminApiError)) return "ポイント調整を実行できませんでした。";
-  if (cause.status === 401) return "現在の管理者パスワードを確認してください。";
+  if (cause.status === 401) return "ログインの有効期限が切れました。再度ログインしてください。";
   if (cause.status === 403) return "ポイント調整を実行する権限がありません。";
   if (cause.status === 409 && cause.code === "POINT_ADJUSTMENT_INSUFFICIENT_BALANCE") {
     return "選択したポイント種別の残高が不足しています。最新残高を確認してください。";
