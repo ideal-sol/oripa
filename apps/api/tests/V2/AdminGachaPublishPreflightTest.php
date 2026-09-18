@@ -281,18 +281,21 @@ final class AdminGachaPublishPreflightTest extends TestCase
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         DB::beginTransaction();
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $stale,
-            'PUT',
-            $root.'/probability-selection',
-            [
-                'expected_revision' => $draft['revision'],
-                'probability_version_id' => $probability['id'],
-            ],
-            'gacha-selection-stale-mfa'
-        )->assertOk();
-        DB::rollBack();
+        try {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $stale,
+                'PUT',
+                $root.'/probability-selection',
+                [
+                    'expected_revision' => $draft['revision'],
+                    'probability_version_id' => $probability['id'],
+                ],
+                'gacha-selection-stale-mfa'
+            )->assertOk();
+        } finally {
+            DB::rollBack();
+        }
 
         Auth::forgetGuards();
         $this->mutatingRequest(
@@ -557,15 +560,18 @@ final class AdminGachaPublishPreflightTest extends TestCase
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         DB::beginTransaction();
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $stale,
-            'POST',
-            $root.'/publish',
-            $payload,
-            'gacha-immediate-stale'
-        )->assertOk();
-        DB::rollBack();
+        try {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $stale,
+                'POST',
+                $root.'/publish',
+                $payload,
+                'gacha-immediate-stale'
+            )->assertOk();
+        } finally {
+            DB::rollBack();
+        }
 
         Auth::forgetGuards();
         $this->asAdmin(str_repeat('x', 64))
@@ -635,15 +641,18 @@ final class AdminGachaPublishPreflightTest extends TestCase
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         DB::beginTransaction();
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $stale,
-            'POST',
-            $root.'/publish-schedule',
-            $payload,
-            'gacha-schedule-stale'
-        )->assertCreated();
-        DB::rollBack();
+        try {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $stale,
+                'POST',
+                $root.'/publish-schedule',
+                $payload,
+                'gacha-schedule-stale'
+            )->assertCreated();
+        } finally {
+            DB::rollBack();
+        }
 
         Auth::forgetGuards();
         $this->asAdmin(str_repeat('x', 64))
@@ -926,15 +935,18 @@ final class AdminGachaPublishPreflightTest extends TestCase
             )
             ->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(5)]));
         DB::beginTransaction();
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $stale,
-            'POST',
-            $root,
-            $payload,
-            'gacha-sales-pause-stale-mfa'
-        )->assertOk();
-        DB::rollBack();
+        try {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $stale,
+                'POST',
+                $root,
+                $payload,
+                'gacha-sales-pause-stale-mfa'
+            )->assertOk();
+        } finally {
+            DB::rollBack();
+        }
 
         $owner = $this->createAdminSession(V2AdminRole::Owner);
         Auth::forgetGuards();
@@ -1241,15 +1253,18 @@ final class AdminGachaPublishPreflightTest extends TestCase
             'mfa_verified_at' => now()->subMinutes(5),
         ]));
         DB::beginTransaction();
-        Auth::forgetGuards();
-        $this->mutatingRequest(
-            $owner,
-            'POST',
-            $root.'/unpublish',
-            ['expected_gacha_revision' => (int) $gacha->revision],
-            'gacha-unpublish-stale-mfa'
-        )->assertOk();
-        DB::rollBack();
+        try {
+            Auth::forgetGuards();
+            $this->mutatingRequest(
+                $owner,
+                'POST',
+                $root.'/unpublish',
+                ['expected_gacha_revision' => (int) $gacha->revision],
+                'gacha-unpublish-stale-mfa'
+            )->assertOk();
+        } finally {
+            DB::rollBack();
+        }
         DB::table('admin_sessions')->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()]));
 
         Auth::forgetGuards();

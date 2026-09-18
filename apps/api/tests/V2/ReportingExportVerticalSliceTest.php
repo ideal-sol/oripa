@@ -277,7 +277,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
         $cache = Mockery::mock(CacheRepository::class);
         $cache->shouldNotReceive('get');
         $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
-        $context = $this->context(V2AdminRole::Owner);
+        $context = $this->context(V2AdminRole::Owner, now()->subMinutes(6));
         $service = app(V2ExportService::class);
         $filters = [
             'report_type' => 'sales',
