@@ -76,7 +76,7 @@ export interface AdminNavigationItem {
   icon: AdminNavigationIcon;
   implementation: "available" | "scaffold";
   ownerOnly?: true;
-  freshMfaBoundary: "none" | "module-actions";
+  freshMfaBoundary: "none";
 }
 
 export interface AdminNavigationGroup {
@@ -96,10 +96,10 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
   route("users-list", "一覧", "/users", null, "users", "available", "none"),
   route("users-tags", "会員タグ", "/users/tags", "user.tag.read", "users", "available"),
-  route("users-history", "履歴", "/users/history", null, "users", "scaffold", "module-actions", true),
+  route("users-history", "履歴", "/users/history", null, "users", "scaffold", "none", true),
   route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
   route("gachas-create", "登録", "/catalog/gachas/new", "catalog.manage", "gacha", "scaffold"),
-  route("gachas-simulation", "シミュレーション", "/catalog/gachas/simulation", null, "gacha", "scaffold", "module-actions", true),
+  route("gachas-simulation", "シミュレーション", "/catalog/gachas/simulation", null, "gacha", "scaffold", "none", true),
   route("categories", "カテゴリ", "/catalog/categories", "catalog.read", "catalog"),
   route("tags", "タグ", "/catalog/tags", "catalog.read", "catalog"),
   route("gachas-history", "履歴", "/catalog/gachas/history", "reporting.financial.read", "reports", "scaffold"),
@@ -238,7 +238,7 @@ function route(
   permission: AdminPermissionCode | null,
   icon: AdminNavigationIcon,
   implementation: AdminNavigationItem["implementation"] = "available",
-  freshMfaBoundary: AdminNavigationItem["freshMfaBoundary"] = "module-actions",
+  freshMfaBoundary: AdminNavigationItem["freshMfaBoundary"] = "none",
   ownerOnly = false,
 ): AdminNavigationItem {
   return {

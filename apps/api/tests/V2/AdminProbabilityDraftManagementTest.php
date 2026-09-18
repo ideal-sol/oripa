@@ -442,7 +442,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
         }
     }
 
-    public function test_publish_rejects_invalid_archived_and_non_fresh_requests(): void
+    public function test_publish_rejects_invalid_and_archived_requests_even_with_expired_freshness(): void
     {
         $owner = $this->createAdminSession(V2AdminRole::Owner);
         $root = $this->root();
@@ -505,8 +505,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
             $root.'/'.$empty['id'].'/publish-preflight',
             ['expected_revision' => 1],
             'probability-publish-stale-mfa-key'
-        )->assertForbidden()
-            ->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_RESOURCE_ARCHIVED');
     }
 
     public function test_publish_revalidates_totals_and_revision_on_the_server(): void
@@ -830,7 +829,7 @@ final class AdminProbabilityDraftManagementTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => $created,
             'last_activity_at' => now(),

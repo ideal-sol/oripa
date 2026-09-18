@@ -13,7 +13,6 @@ vi.mock("@/components/shell/admin-shell", () => ({ AdminShell: ({ children }: { 
 vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({
   hasPermission: (permission: AdminPermissionCode) => permissions.has(permission), permissions, status: "ready",
 }) }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({ FreshMfaDialog: ({ open, onSuccess }: { open: boolean; onSuccess: () => void }) => open ? <button onClick={onSuccess}>本人確認を完了</button> : null }));
 
 const agency: AdminAgency = {
   id: "01900000-0000-7000-8000-000000000001", company_name: "QA代理店", contact_name: "QA担当者",
@@ -123,7 +122,7 @@ describe("Agency management", () => {
     });
   }
 
-  it("offers Fresh MFA without silently repeating a credential mutation", async () => {
+  it("reports a legacy error without reauthentication or repeating a credential mutation", async () => {
     permissions.add("agency.manage");
     const mutation = vi.spyOn(AdminApiClient.prototype, "resetAgencyPassword").mockRejectedValue(new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false));
     render(<AgencyWorkspace agencyId={agency.id} mode="detail" />);
@@ -132,7 +131,8 @@ describe("Agency management", () => {
     fireEvent.change(password, { target: { value: "Changed456" } });
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "確認して実行" }));
-    fireEvent.click(await screen.findByRole("button", { name: "本人確認を完了" }));
+    await waitFor(() => expect(mutation).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("button", { name: "本人確認を完了" })).toBeNull();
     expect(mutation).toHaveBeenCalledOnce();
     expect(password).toHaveValue("");
   });

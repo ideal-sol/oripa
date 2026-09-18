@@ -218,7 +218,7 @@ final class AgencyManagementTest extends TestCase
                 $this->http()->postJson('/admin/api/v2/agencies/'.$publicId.'/'.$operation, $payload)->assertOk();
             }
             DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(V2TimestampFixture::attributes(['mfa_verified_at' => now()->subMinutes(6)]));
-            $this->http()->postJson('/admin/api/v2/agencies/'.$publicId.'/suspend', ['expected_revision' => 6])->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+            $this->http()->postJson('/admin/api/v2/agencies/'.$publicId.'/suspend', ['expected_revision' => 6])->assertOk();
         }
         $this->context(V2AdminRole::Operator);
         $this->http()->getJson('/admin/api/v2/agencies')->assertOk();

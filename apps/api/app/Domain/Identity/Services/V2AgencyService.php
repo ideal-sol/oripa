@@ -66,7 +66,7 @@ final class V2AgencyService
 
     public function issue(V2AdminAuthorizationContext $context): array
     {
-        $this->authorize($context, 'issuance');
+        $this->authorize($context);
         $values = [
             'login_id' => $this->identifiers->loginId(),
             'advertising_code' => $this->identifiers->advertisingCode(),
@@ -87,7 +87,7 @@ final class V2AgencyService
         if (! in_array($operation, ['create', 'update', 'suspend', 'reactivate', 'password-reset', 'login-information-reissue'], true)) {
             throw $this->invalid();
         }
-        $this->authorize($context, $operation);
+        $this->authorize($context);
         $payload = $this->validate($operation, $input);
         $password = $payload['password'] ?? null;
         unset($payload['password']);
@@ -288,9 +288,9 @@ final class V2AgencyService
         return $query->first() ?? throw new V2AgencyException('AGENCY_NOT_FOUND', 404, 'The Agency was not found.');
     }
 
-    private function authorize(V2AdminAuthorizationContext $context, string $operation): void
+    private function authorize(V2AdminAuthorizationContext $context): void
     {
-        $this->authorization->authorizePermission($context, V2Permission::ManageAgency, true, 'agency.'.$operation);
+        $this->authorization->authorizePermission($context, V2Permission::ManageAgency);
     }
 
     private function invalid(): V2AgencyException

@@ -26,7 +26,6 @@ import {
 } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -74,8 +73,6 @@ export function QaManagementWorkspace() {
   const [view, setView] = useState<View>("plans");
   const [error, setError] = useState<AdminApiError | null>(null);
   const [busy, setBusy] = useState(false);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
-  const retryAfterFreshMfa = useRef<Mutation | null>(null);
 
   const reportError = useCallback((cause: unknown) => {
     const normalized = asApiError(cause);
@@ -89,13 +86,8 @@ export function QaManagementWorkspace() {
     setError(null);
     try {
       await operation();
-      retryAfterFreshMfa.current = null;
     } catch (cause) {
-      const normalized = reportError(cause);
-      if (normalized.requiresFreshMfa) {
-        retryAfterFreshMfa.current = operation;
-        setFreshMfaOpen(true);
-      }
+      reportError(cause);
     } finally {
       setBusy(false);
     }
@@ -157,18 +149,6 @@ export function QaManagementWorkspace() {
             <QaExecutionsPanel client={client} onError={reportError} />
           )}
         </div>
-        <FreshMfaDialog
-          onClose={() => {
-            retryAfterFreshMfa.current = null;
-            setFreshMfaOpen(false);
-          }}
-          onSuccess={async () => {
-            setFreshMfaOpen(false);
-            const retry = retryAfterFreshMfa.current;
-            if (retry) await runMutation(retry);
-          }}
-          open={freshMfaOpen}
-        />
       </ProtectedAdminRoute>
     </AdminShell>
   );

@@ -16,7 +16,6 @@ import {
   useState,
 } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -50,7 +49,6 @@ export function LineMessagingSettings() {
   const [preview, setPreview] = useState<AdminLineMessagingPreview | null>(null);
   const [error, setError] = useState<AdminApiError | null>(null);
   const [busy, setBusy] = useState<"load" | "preview" | "save" | null>("load");
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const pendingKey = useRef<string | null>(null);
 
@@ -160,9 +158,7 @@ export function LineMessagingSettings() {
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) {
-        setFreshMfaOpen(true);
-      } else if (next.status !== 0) {
+      if (next.status !== 0) {
         pendingKey.current = null;
       }
     } finally {
@@ -379,14 +375,6 @@ export function LineMessagingSettings() {
             </section>
           )}
         </div>
-        <FreshMfaDialog
-          onClose={() => setFreshMfaOpen(false)}
-          onSuccess={async () => {
-            setFreshMfaOpen(false);
-            await save();
-          }}
-          open={freshMfaOpen}
-        />
       </ProtectedAdminRoute>
     </AdminShell>
   );

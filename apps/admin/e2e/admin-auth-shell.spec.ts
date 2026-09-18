@@ -51,7 +51,7 @@ test("password-only login completes without invitation or MFA when policy is off
   await expect(page.getByText("Owner", { exact: true })).toBeVisible();
 });
 
-test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", async ({
+test("password pre-auth, TOTP, and logout stay in the Admin realm", async ({
   page,
 }) => {
   let authenticated = false;
@@ -84,13 +84,6 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
       authenticated = true;
       return json(route, adminSession());
     }
-    if (path.endsWith("/auth/reauthenticate")) {
-      return json(route, {
-        admin: adminIdentity(),
-        authenticated: true,
-        fresh_mfa_expires_in: 300,
-      });
-    }
     if (path.endsWith("/auth/logout")) {
       authenticated = false;
       return route.fulfill({ status: 204 });
@@ -121,11 +114,7 @@ test("password pre-auth, TOTP, Fresh MFA, and logout stay in the Admin realm", a
     path: "/tmp/oripa-mig-060b-admin-desktop.png",
   });
 
-  await page.getByRole("button", { name: "再確認" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("認証アプリの6桁コード").fill("654321");
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
-  await expect(page.getByText("Fresh", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
 
   await page.getByRole("button", { name: "ユーザーメニュー" }).click();
   await page.getByRole("menuitem", { name: "ログアウト" }).click();
@@ -206,6 +195,10 @@ test("Owner updates the canonical authentication policy without an explicit pass
 }) => {
   let revision = 1;
   let invitationRequired = false;
+  const reauthentication: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/auth/reauthenticate")) reauthentication.push(request.url());
+  });
   let updatePayload: Record<string, unknown> | null = null;
   let updateHeaders: Record<string, string> | null = null;
   await installAdminApi(page, async (route) => {
@@ -241,6 +234,7 @@ test("Owner updates the canonical authentication policy without an explicit pass
   await page.getByRole("button", { name: "変更を確定" }).click();
 
   await expect(page.getByText("認証設定を保存しました。")).toBeVisible();
+  expect(reauthentication).toEqual([]);
   expect(updatePayload).toEqual({
     expected_revision: 1,
     invitation_required: true,
@@ -1338,13 +1332,6 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
     if (url.pathname.endsWith("/auth/permissions")) {
       return json(route, permissionResponse("owner"));
     }
-    if (url.pathname.endsWith("/auth/reauthenticate")) {
-      return json(route, {
-        admin: adminIdentity(),
-        authenticated: true,
-        fresh_mfa_expires_in: 300,
-      });
-    }
     if (url.pathname.endsWith(`/catalog/gachas/${gachaId}/versions/${versionId}`)) {
       return json(route, { data: gachaVersion });
     }
@@ -1383,16 +1370,6 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
     ) {
       preflightAttempts += 1;
       preflightKeys.push(request.headers()["idempotency-key"] ?? "");
-      if (preflightAttempts === 1) {
-        return json(route, {
-          code: "FRESH_AUTHENTICATION_REQUIRED",
-          request_id: "01910191-0191-7191-8191-019101910193",
-          retryable: false,
-          status: 403,
-          title: "Fresh authentication is required.",
-          type: "about:blank",
-        }, 403, { "Content-Type": "application/problem+json" });
-      }
       return json(route, {
         data: probability(),
         idempotent_replay: false,
@@ -1426,12 +1403,11 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
   expect(mutationHeaders?.["x-xsrf-token"]).toBe(csrf);
   expect(mutationHeaders?.["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
   await page.getByRole("button", { name: "Publish Preflight" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("認証アプリの6桁コード").fill("654321");
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
-  await expect.poll(() => preflightAttempts).toBe(2);
+  await expect(page.getByLabel("認証アプリの6桁コード")).toHaveCount(0);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
+  await expect.poll(() => preflightAttempts).toBe(1);
   expect(preflightKeys[0]).toMatch(/^[0-9a-f-]{36}$/u);
-  expect(preflightKeys[1]).toBe(preflightKeys[0]);
+  expect(preflightKeys).toHaveLength(1);
   await page.getByRole("button", { name: "Probability Publish" }).click();
   await expect(
     page.getByRole("heading", { name: "Probabilityを公開しますか" }),
@@ -1448,7 +1424,7 @@ test("Draft Probability editor saves integer ppm and reloads canonical validatio
   ).toBe(true);
 });
 
-test("Owner updates LINE reply messages through preview and Fresh MFA retry", async ({
+test("Owner updates LINE reply messages through preview without reauthentication", async ({
   page,
 }) => {
   let revision = 1;
@@ -1460,13 +1436,6 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
     if (url.pathname.endsWith("/auth/session")) return json(route, adminSession("owner"));
     if (url.pathname.endsWith("/auth/permissions")) {
       return json(route, permissionResponse("owner"));
-    }
-    if (url.pathname.endsWith("/auth/reauthenticate")) {
-      return json(route, {
-        admin: adminIdentity(),
-        authenticated: true,
-        fresh_mfa_expires_in: 300,
-      });
     }
     if (
       url.pathname.endsWith("/identity/line-messaging") &&
@@ -1516,16 +1485,6 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
     ) {
       updateAttempts += 1;
       idempotencyKeys.push(request.headers()["idempotency-key"] ?? "");
-      if (updateAttempts === 1) {
-        return json(route, {
-          code: "FRESH_AUTHENTICATION_REQUIRED",
-          request_id: "01910191-0191-7191-8191-019101910193",
-          retryable: false,
-          status: 403,
-          title: "Fresh authentication is required.",
-          type: "about:blank",
-        }, 403, { "Content-Type": "application/problem+json" });
-      }
       const input = request.postDataJSON() as {
         friend_add_url: string | null;
         linked_follow_message: string;
@@ -1575,12 +1534,11 @@ test("Owner updates LINE reply messages through preview and Fresh MFA retry", as
   ).toBeVisible();
   await expect(page.getByText("無償 500 Point／有効期限 365日")).toBeVisible();
   await page.getByRole("button", { name: "保存" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("認証アプリの6桁コード").fill("654321");
-  await page.getByRole("button", { name: "再認証", exact: true }).click();
-  await expect.poll(() => updateAttempts).toBe(2);
+  await expect(page.getByLabel("認証アプリの6桁コード")).toHaveCount(0);
+  await expect(page.getByLabel("現在のパスワード")).toHaveCount(0);
+  await expect.poll(() => updateAttempts).toBe(1);
   expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/u);
-  expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
+  expect(idempotencyKeys).toHaveLength(1);
 });
 
 async function installAdminApi(

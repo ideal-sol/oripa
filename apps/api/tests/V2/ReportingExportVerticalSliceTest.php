@@ -210,7 +210,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
 
     public function test_export_key_conflict_and_worker_lease_recovery_are_fail_closed(): void
     {
-        $context = $this->context(V2AdminRole::Owner);
+        $context = $this->context(V2AdminRole::Owner, now()->subMinutes(6));
         $service = app(V2ExportService::class);
         $base = [
             'report_type' => 'sales',
@@ -242,7 +242,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
         );
     }
 
-    public function test_reporting_permissions_and_fresh_mfa_fail_closed(): void
+    public function test_reporting_permissions_fail_closed_without_freshness(): void
     {
         $operator = $this->context(V2AdminRole::Operator);
         try {
@@ -252,9 +252,8 @@ final class ReportingExportVerticalSliceTest extends TestCase
             self::assertSame('AUTHORIZATION_DENIED', $exception->errorCode);
         }
 
-        $stale = $this->context(V2AdminRole::Owner, now()->subMinutes(5));
         $filters = ['report_type' => 'sales', 'period_type' => 'month', 'month' => '2026-08'];
-        foreach ([$operator, $stale] as $context) {
+        foreach ([$operator] as $context) {
             foreach ([
                 fn () => app(V2ExportService::class)->stream($context, $filters),
                 fn () => app(V2ExportService::class)->createJob($context, 'stale-key', $filters),
@@ -262,10 +261,10 @@ final class ReportingExportVerticalSliceTest extends TestCase
             ] as $operation) {
                 try {
                     $operation();
-                    self::fail('Financial Export requires permission and Fresh Authentication.');
+                    self::fail('Financial Export requires permission.');
                 } catch (V2AuthenticationException $exception) {
                     self::assertSame(
-                        $context === $operator ? 'AUTHORIZATION_DENIED' : 'FRESH_AUTHENTICATION_REQUIRED',
+                        'AUTHORIZATION_DENIED',
                         $exception->errorCode
                     );
                 }
@@ -273,12 +272,12 @@ final class ReportingExportVerticalSliceTest extends TestCase
         }
     }
 
-    public function test_export_jobs_and_downloads_exceed_previous_limit_without_limiter_cache(): void
+    public function test_export_jobs_and_downloads_exceed_previous_limit_with_expired_freshness(): void
     {
         $cache = Mockery::mock(CacheRepository::class);
         $cache->shouldNotReceive('get');
         $this->app->instance(LaravelRateLimiter::class, new LaravelRateLimiter($cache));
-        $context = $this->context(V2AdminRole::Owner);
+        $context = $this->context(V2AdminRole::Owner, now()->subMinutes(6));
         $service = app(V2ExportService::class);
         $filters = [
             'report_type' => 'sales',

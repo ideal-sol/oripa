@@ -59,7 +59,7 @@ final class V2AdminAuthenticationPolicyService
     /** @return array<string, mixed> */
     public function read(V2AdminAuthorizationContext $context): array
     {
-        $this->owner($context, false, 'identity.admin.authentication-policy.read');
+        $this->owner($context);
 
         return $this->serialize($this->current());
     }
@@ -73,7 +73,7 @@ final class V2AdminAuthenticationPolicyService
         string $idempotencyKey,
         array $input
     ): array {
-        $admin = $this->owner($context, true, 'identity.admin.authentication-policy.update');
+        $admin = $this->owner($context);
         $request = $this->validatedPolicyInput($input);
 
         try {
@@ -192,7 +192,7 @@ final class V2AdminAuthenticationPolicyService
      */
     public function createAdmin(V2AdminAuthorizationContext $context, array $input): array
     {
-        $owner = $this->owner($context, true, 'identity.admin.create');
+        $owner = $this->owner($context);
         $allowed = ['email', 'role', 'temporary_password'];
         if (array_diff(array_keys($input), $allowed) !== []) {
             throw $this->invalid();
@@ -368,15 +368,11 @@ final class V2AdminAuthenticationPolicyService
     }
 
     private function owner(
-        V2AdminAuthorizationContext $context,
-        bool $fresh,
-        string $action
+        V2AdminAuthorizationContext $context
     ): Admin {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageAdminIdentity,
-            $fresh,
-            $action
+            V2Permission::ManageAdminIdentity
         );
         if ($admin->role !== V2AdminRole::Owner) {
             throw $this->denied();

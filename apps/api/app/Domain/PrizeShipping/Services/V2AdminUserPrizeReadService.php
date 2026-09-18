@@ -137,8 +137,7 @@ final class V2AdminUserPrizeReadService
     {
         return $this->authorizer->authorizePermission(
             $context,
-            V2Permission::ManageShippingRequest,
-            action: 'admin.user_prize.read'
+            V2Permission::ManageShippingRequest
         );
     }
 

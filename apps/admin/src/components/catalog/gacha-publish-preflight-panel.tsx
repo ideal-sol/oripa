@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import {
@@ -33,21 +32,6 @@ import type {
   AdminGachaUnpublishPreflight,
   AdminGachaUnpublishState,
 } from "@/lib/admin-api/generated";
-
-type PendingAction =
-  | "selection"
-  | "preflight"
-  | "publish"
-  | "schedule-preflight"
-  | "schedule"
-  | "schedule-cancel"
-  | "sales-pause-preflight"
-  | "sales-pause"
-  | "sales-resume-preflight"
-  | "sales-resume"
-  | "unpublish-preflight"
-  | "unpublish"
-  | null;
 
 const ADMIN_DISPLAY_TIME_ZONE = "Asia/Tokyo";
 
@@ -108,10 +92,8 @@ export function GachaPublishPreflightPanel({
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [salesConfirmOpen, setSalesConfirmOpen] = useState(false);
   const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
-  const pendingAction = useRef<PendingAction>(null);
   const pendingMutation = useRef<{ fingerprint: string; key: string } | null>(
     null,
   );
@@ -232,21 +214,14 @@ export function GachaPublishPreflightPanel({
         mutationKey(fingerprint),
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setConfirmOpen(false);
       setPreflight(null);
       setError(null);
       onCanonical(result.data);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "selection";
-        setConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -270,18 +245,12 @@ export function GachaPublishPreflightPanel({
         mutationKey(fingerprint),
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setError(null);
       setPreflight(result.data);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "preflight";
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -319,7 +288,6 @@ export function GachaPublishPreflightPanel({
         version.id,
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setPublishConfirmOpen(false);
       setError(null);
       setPublishState({
@@ -333,14 +301,8 @@ export function GachaPublishPreflightPanel({
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "publish";
-        setPublishConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -376,18 +338,12 @@ export function GachaPublishPreflightPanel({
         mutationKey(fingerprint),
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setError(null);
       setSchedulePreflight(result.data);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "schedule-preflight";
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -416,7 +372,6 @@ export function GachaPublishPreflightPanel({
         version.id,
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setSchedule(result.data);
       setScheduledFor("");
       setSchedulePreflight(null);
@@ -426,14 +381,8 @@ export function GachaPublishPreflightPanel({
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "schedule";
-        setScheduleConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -471,7 +420,6 @@ export function GachaPublishPreflightPanel({
         version.id,
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setSchedule(result.data);
       setCancelConfirmOpen(false);
       setError(null);
@@ -479,14 +427,8 @@ export function GachaPublishPreflightPanel({
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "schedule-cancel";
-        setCancelConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -522,18 +464,12 @@ export function GachaPublishPreflightPanel({
             mutationKey(fingerprint),
           );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setSalesPreflight(result.data);
       setError(null);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = `sales-${operation}-preflight`;
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -576,7 +512,6 @@ export function GachaPublishPreflightPanel({
             mutationKey(fingerprint),
           );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setSalesState(result.data);
       setSalesPreflight(null);
       setSalesConfirmOpen(false);
@@ -584,14 +519,8 @@ export function GachaPublishPreflightPanel({
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = `sales-${operation}`;
-        setSalesConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -615,18 +544,12 @@ export function GachaPublishPreflightPanel({
         mutationKey(fingerprint),
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setUnpublishPreflight(result.data);
       setError(null);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "unpublish-preflight";
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -650,21 +573,14 @@ export function GachaPublishPreflightPanel({
         mutationKey(fingerprint),
       );
       pendingMutation.current = null;
-      pendingAction.current = null;
       setUnpublishState(result.data);
       setUnpublishPreflight(null);
       setUnpublishConfirmOpen(false);
       setError(null);
     } catch (cause) {
       const next = normalizeError(cause);
-      if (next.requiresFreshMfa) {
-        pendingAction.current = "unpublish";
-        setUnpublishConfirmOpen(false);
-        setFreshMfaOpen(true);
-      } else {
-        if (!next.retryable) pendingMutation.current = null;
-        setError(next);
-      }
+      if (!next.retryable) pendingMutation.current = null;
+      setError(next);
     } finally {
       setBusy(false);
     }
@@ -1402,41 +1318,6 @@ export function GachaPublishPreflightPanel({
           </section>
         </div>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => {
-          pendingAction.current = null;
-          setFreshMfaOpen(false);
-        }}
-        onSuccess={async () => {
-          setFreshMfaOpen(false);
-          if (pendingAction.current === "selection") {
-            await selectProbability();
-          } else if (pendingAction.current === "preflight") {
-            await runPreflight();
-          } else if (pendingAction.current === "publish") {
-            await publishImmediately();
-          } else if (pendingAction.current === "schedule-preflight") {
-            await runSchedulePreflight();
-          } else if (pendingAction.current === "schedule") {
-            await createSchedule();
-          } else if (pendingAction.current === "schedule-cancel") {
-            await cancelSchedule();
-          } else if (pendingAction.current === "sales-pause-preflight") {
-            await runSalesPreflight("pause");
-          } else if (pendingAction.current === "sales-pause") {
-            await mutateSales("pause");
-          } else if (pendingAction.current === "sales-resume-preflight") {
-            await runSalesPreflight("resume");
-          } else if (pendingAction.current === "sales-resume") {
-            await mutateSales("resume");
-          } else if (pendingAction.current === "unpublish-preflight") {
-            await runUnpublishPreflight();
-          } else if (pendingAction.current === "unpublish") {
-            await unpublishGacha();
-          }
-        }}
-        open={freshMfaOpen}
-      />
     </section>
   );
 }

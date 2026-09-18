@@ -54,9 +54,6 @@ interface AdminAuthContextValue {
   confirmTotpEnrollment: (code: string) => Promise<boolean>;
   enrollWebauthn: (label: string) => Promise<boolean>;
   expireSession: () => void;
-  freshPassword: (password: string) => Promise<void>;
-  freshTotp: (code: string) => Promise<void>;
-  freshWebauthn: () => Promise<void>;
   login: (request: AdminLoginRequest) => Promise<void>;
   logout: () => Promise<void>;
   regenerateRecoveryCodes: () => Promise<string[]>;
@@ -280,34 +277,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return false;
       },
       expireSession,
-      freshTotp: async (code) => {
-        const result = await withRequest(() =>
-          client.reauthenticate({ method: "totp", code }),
-        );
-        setAdmin(result.admin);
-      },
-      freshPassword: async (password) => {
-        const result = await withRequest(() =>
-          client.reauthenticate({ method: "password", password }),
-        );
-        setAdmin(result.admin);
-      },
-      freshWebauthn: async () => {
-        const options = await withRequest(() =>
-          client.createReauthenticationWebauthnOptions(),
-        );
-        const credential = await withRequest(() =>
-          getWebauthnAssertion(options.options),
-        );
-        const result = await withRequest(() =>
-          client.reauthenticate({
-            method: "webauthn",
-            challenge_token: options.challenge_token,
-            credential,
-          }),
-        );
-        setAdmin(result.admin);
-      },
       regenerateRecoveryCodes: async () => {
         const result = await withRequest(() => client.regenerateRecoveryCodes());
         return result.recovery_codes;

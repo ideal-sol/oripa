@@ -22,6 +22,25 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
+        contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
+        self.assertEqual("2.0.0-alpha.31", contract["info"]["version"])
+        for item in contract["paths"].values():
+            for operation in item.values():
+                if isinstance(operation, dict):
+                    self.assertNotIn("x-fresh-mfa", operation)
+        schema = contract["components"]["schemas"]["AdminReauthenticationRequest"]
+        self.assertEqual(["password", "totp", "webauthn"], schema["properties"]["method"]["enum"])
+        self.assertTrue(schema["properties"]["password"]["deprecated"])
+        self.assertTrue(schema["properties"]["password"]["writeOnly"])
+        self.assertNotIn("password", schema["required"])
+        for operation in ("/auth/reauthenticate", "/auth/reauthenticate/webauthn/options"):
+            self.assertIn(operation, contract["paths"])
+        for name in ("AdminPointAdjustmentRequest", "AdminAuthenticationPolicyUpdate"):
+            legacy = contract["components"]["schemas"][name]
+            self.assertNotIn("current_password", legacy["required"])
+            self.assertTrue(legacy["properties"]["current_password"]["deprecated"])
+
     def test_numeric_enum_widened_to_covering_range_passes(self):
         previous = {"type": "integer", "enum": [1, 5, 10, 100, 1000]}
         current = {"type": "integer", "minimum": 1, "maximum": 1000}

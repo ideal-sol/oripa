@@ -29,9 +29,7 @@ final class V2AdminLimitedBonusCampaignService
     {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadPointPurchasePlan,
-            false,
-            'payment.limited_bonus_campaign.read'
+            V2Permission::ReadPointPurchasePlan
         );
         $plan = $this->plan($planPublicId);
 
@@ -54,9 +52,7 @@ final class V2AdminLimitedBonusCampaignService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManagePointPurchasePlan,
-            true,
-            'payment.limited_bonus_campaign.create'
+            V2Permission::ManagePointPurchasePlan
         );
         $payload = $this->input($input);
 
@@ -102,9 +98,7 @@ final class V2AdminLimitedBonusCampaignService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManagePointPurchasePlan,
-            true,
-            'payment.limited_bonus_campaign.update'
+            V2Permission::ManagePointPurchasePlan
         );
         $payload = $this->input($input);
 

@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -31,7 +30,6 @@ export function AdminAuthenticationSettings() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | "create" | null>("load");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [freshOpen, setFreshOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminRole, setAdminRole] = useState<"admin" | "operator">("admin");
   const [temporaryPassword, setTemporaryPassword] = useState("");
@@ -97,7 +95,6 @@ export function AdminAuthenticationSettings() {
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) setFreshOpen(true);
       if (next.status !== 0 && next.status !== 429) pendingKey.current = null;
     } finally {
       setBusy(null);
@@ -128,7 +125,6 @@ export function AdminAuthenticationSettings() {
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) setFreshOpen(true);
     } finally {
       setBusy(null);
     }
@@ -283,14 +279,6 @@ export function AdminAuthenticationSettings() {
             </section>
           </div>
         ) : null}
-        <FreshMfaDialog
-          onClose={() => setFreshOpen(false)}
-          onSuccess={() => {
-            setFreshOpen(false);
-            setNotice("本人確認が完了しました。操作をもう一度実行してください。");
-          }}
-          open={freshOpen}
-        />
       </ProtectedAdminRoute>
     </AdminShell>
   );

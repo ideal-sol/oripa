@@ -1071,9 +1071,7 @@ final class V2ContentContactAdminService
             $isLegal = property_exists($parent, 'is_legal') && (bool) $parent->is_legal;
             $admin = $this->authorizer->authorizePermission(
                 $context,
-                V2Permission::PublishContent,
-                $isLegal,
-                'content.legal.publish'
+                V2Permission::PublishContent
             );
             if ($parent->status === 'archived') {
                 throw $this->conflict('CONTENT_ARCHIVED');
@@ -1453,9 +1451,7 @@ final class V2ContentContactAdminService
             $isLegal = property_exists($parent, 'is_legal') && (bool) $parent->is_legal;
             $this->authorizer->authorizePermission(
                 $context,
-                V2Permission::PublishContent,
-                $isLegal,
-                $target === 'archived' ? 'content.legal.archive' : 'content.legal.unpublish'
+                V2Permission::PublishContent
             );
             if ($parent->status === 'archived') {
                 throw $this->conflict('CONTENT_ARCHIVED');

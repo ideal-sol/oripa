@@ -234,7 +234,7 @@ final class AdminUserTagManagementTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => now()->subMinute(),
             'last_activity_at' => now(),
@@ -272,7 +272,7 @@ final class AdminUserTagManagementTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $sessionHash,
             'admin_id' => $admin->id,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => now()->subMinute(),
             'last_activity_at' => now(),

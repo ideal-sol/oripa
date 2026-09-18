@@ -23,11 +23,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ onSuccess, open }: { onSuccess: () => Promise<void>; open: boolean }) => open
-    ? <button onClick={() => void onSuccess()} type="button">Fresh authentication</button>
-    : null,
-}));
 
 import { AdminUserStateManagement } from "@/components/users/admin-user-state-management";
 
@@ -65,7 +60,8 @@ describe("Admin User state management", () => {
 
     fireEvent.change(screen.getByLabelText("変更理由"), { target: { value: "  Support review.  " } });
     fireEvent.click(screen.getByRole("button", { name: "確認して変更" }));
-    expect(screen.getByRole("button", { name: "Fresh authentication" })).toBeVisible();
+    expect(update).toHaveBeenCalledOnce();
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
   });
 
   it("updates with OCC and idempotency then requests canonical refetch", async () => {
@@ -76,7 +72,7 @@ describe("Admin User state management", () => {
     fireEvent.change(screen.getByLabelText("変更後の状態"), { target: { value: "suspended" } });
     fireEvent.change(screen.getByLabelText("変更理由"), { target: { value: "Support review." } });
     fireEvent.click(screen.getByRole("button", { name: "確認して変更" }));
-    fireEvent.click(screen.getByRole("button", { name: "Fresh authentication" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
 
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
     expect(update).toHaveBeenCalledWith(

@@ -125,7 +125,7 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         self::assertStringContainsString('no-store', (string) $freeGrant->headers->get('Cache-Control'));
     }
 
-    public function test_permission_authentication_reauthentication_and_browser_security_fail_closed(): void
+    public function test_permission_authentication_and_browser_security_fail_closed_without_freshness(): void
     {
         $user = $this->user();
         $payload = $this->payload();
@@ -149,8 +149,8 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
             'mfa_verified_at' => now()->subMinutes(5),
         ]));
         Auth::forgetGuards();
-        $this->mutate($owner, $user->public_id, [...$payload, 'current_password' => self::PASSWORD])
-            ->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        $this->mutate($owner, $user->public_id, $payload)
+            ->assertOk()->assertJsonPath('data.amount', $payload['amount']);
 
         Auth::forgetGuards();
         $disabled = $this->adminSession(V2AdminRole::Admin);
@@ -361,7 +361,7 @@ final class AdminUserPointAdjustmentApiTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => now(),
             'last_activity_at' => now(),

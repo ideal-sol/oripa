@@ -20,10 +20,6 @@ vi.mock("@/components/navigation/breadcrumb", () => ({
 vi.mock("@/components/shell/admin-page-header", () => ({
   AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Fresh MFA</div> : null,
-}));
 
 import { ReferralPointSettings } from "@/components/settings/referral-point-settings";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -99,7 +95,7 @@ describe("Referral point settings", () => {
     expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
   });
 
-  it("opens the Fresh MFA boundary and exposes revision conflicts", async () => {
+  it("reports a legacy error without opening a Fresh dialog", async () => {
     vi.spyOn(AdminApiClient.prototype, "getReferralPointSetting").mockResolvedValue({
       data: setting,
       request_id: setting.id,
@@ -123,6 +119,7 @@ describe("Referral point settings", () => {
     const points = await screen.findByLabelText("紹介者へ付与するポイント");
     fireEvent.change(points, { target: { value: "125" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Fresh MFA");
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

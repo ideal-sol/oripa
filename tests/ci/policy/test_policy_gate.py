@@ -24,6 +24,7 @@ class PolicyGateTest(unittest.TestCase):
     def test_admin_phase1_removes_only_mutation_limiters_and_explicit_password_contracts(self):
         for path in (ROOT / "apps/api/app").rglob("*.php"):
             source = path.read_text(encoding="utf-8")
+            self.assertNotRegex(source, r"authorizePermission\([^)]*\b(?:action|freshMfa)\s*:", str(path))
             for removed in ("critical_admin_mutation", "financial_export", "V2CatalogMutationRateLimiter"):
                 self.assertNotIn(removed, source, str(path))
 
@@ -34,12 +35,29 @@ class PolicyGateTest(unittest.TestCase):
             self.assertIn(retained, config)
 
         authorizer = (ROOT / "apps/api/app/Domain/Identity/Services/V2AdminFreshMfaAuthorizer.php").read_text(encoding="utf-8")
-        for retained in ("FRESH_AUTHENTICATION_REQUIRED", "sessionAndAdmin", "ExportFinancialReporting", "isFresh", "permissions->allows"):
+        for retained in ("sessionAndAdmin", "ExportFinancialReporting", "isFresh", "permissions->allows"):
             self.assertIn(retained, authorizer)
+        self.assertNotIn("FRESH_AUTHENTICATION_REQUIRED", authorizer)
+        self.assertNotIn("$this->isFresh(", authorizer)
+        for path in (ROOT / "apps/admin/src/components").rglob("*.tsx"):
+            source = path.read_text(encoding="utf-8")
+            self.assertNotIn("FreshMfaDialog", source, str(path))
+            self.assertNotIn("requiresFreshMfa", source, str(path))
+            self.assertNotIn("freshPassword", source, str(path))
+        reauthentication = (ROOT / "apps/api/app/Domain/Identity/Services/V2AdminReauthenticationService.php").read_text(encoding="utf-8")
+        self.assertNotIn("$password", reauthentication)
+        self.assertNotIn("'password' =>", reauthentication)
+        for retained in ("assertSubject('mfa_verify'", "verifyReauthenticationAssertion", "rotateLockedAdminSession"):
+            self.assertIn(retained, reauthentication)
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
+        legacy = contract["components"]["schemas"]["AdminReauthenticationRequest"]
+        self.assertTrue(legacy["properties"]["password"]["deprecated"])
+        self.assertTrue(legacy["properties"]["password"]["writeOnly"])
+        self.assertIn("password", legacy["properties"]["method"]["enum"])
         for operations in contract["paths"].values():
             for operation in operations.values():
                 if isinstance(operation, dict):
+                    self.assertNotIn("x-fresh-mfa", operation)
                     self.assertNotIn(operation.get("x-rate-limit"), (
                         "catalog-mutation", "critical-admin-mutation",
                         "critical-admin-mutation-10-per-10-minutes",
@@ -2604,7 +2622,7 @@ python3 scripts/db/v2_database.py smoke \\
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "lock order"):
                 policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
-    def test_v2_qa_draw_fresh_mfa_boundary_fails_when_five_minute_check_is_removed(self):
+    def test_v2_qa_draw_session_permission_boundary_cannot_be_removed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.copy_v2_qa_draw_boundary(root)
@@ -2615,18 +2633,18 @@ python3 scripts/db/v2_database.py smoke \\
             )
             authorizer.write_text(
                 authorizer.read_text(encoding="utf-8").replace(
-                    "FRESH_AUTHENTICATION_REQUIRED",
-                    "AUTHORIZATION_DENIED",
+                    "permissions->allows",
+                    "disabledPermissionCheck",
                 ),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure,
-                "Fresh MFA Authorizer",
+                "Session/Permission Authorizer",
             ):
                 policy_gate.validate_v2_qa_draw_boundary(root, paths)
 
-    def test_v2_qa_draw_password_reauthentication_requires_mfa_policy_off(self):
+    def test_v2_qa_draw_password_reauthentication_cannot_be_restored(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             paths = self.copy_v2_qa_draw_boundary(root)
@@ -2637,14 +2655,14 @@ python3 scripts/db/v2_database.py smoke \\
             )
             service.write_text(
                 service.read_text(encoding="utf-8").replace(
-                    "! $this->authenticationPolicy->mfaRequired()",
-                    "true",
+                    "default => false,",
+                    "'password' => true, default => false,",
                 ),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure,
-                "MFA Policy OFF",
+                "Password Fresh fallback",
             ):
                 policy_gate.validate_v2_qa_draw_boundary(root, paths)
 

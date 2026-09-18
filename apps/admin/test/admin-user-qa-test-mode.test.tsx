@@ -27,10 +27,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ onSuccess, open }: { onSuccess: () => Promise<void>; open: boolean }) =>
-    open ? <button onClick={() => void onSuccess()} type="button">本人確認を完了</button> : null,
-}));
 
 import { AdminUserQaTestMode } from "@/components/users/admin-user-qa-test-mode";
 
@@ -54,7 +50,7 @@ describe("Admin User QA test mode", () => {
     expect(getMode).not.toHaveBeenCalled();
   });
 
-  it("enables an active User indefinitely through fresh authentication", async () => {
+  it("enables an active User indefinitely without reauthentication", async () => {
     permissions.add("qa.draw.manage");
     render(<AdminUserQaTestMode user={user} />);
     const reason = await screen.findByLabelText("設定理由");
@@ -63,7 +59,7 @@ describe("Admin User QA test mode", () => {
       target: { value: "  Presentation QA  " },
     });
     fireEvent.click(screen.getByRole("button", { name: "ONにする" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
 
     await waitFor(() => expect(saveMode).toHaveBeenCalledOnce());
     expect(saveMode).toHaveBeenCalledWith(
@@ -81,7 +77,7 @@ describe("Admin User QA test mode", () => {
     expect(await screen.findByText("ON（無期限）")).toBeVisible();
     getMode.mockResolvedValue({ mode: null, user_id: user.id });
     fireEvent.click(screen.getByRole("button", { name: "OFFにする" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(disableMode).toHaveBeenCalledOnce());
     expect(disableMode).toHaveBeenCalledWith(
       user.id,

@@ -3,15 +3,12 @@
 import { FlaskConical, RotateCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminQaGachaGuaranteeAssignment,
   AdminQaGachaGuaranteeCollection,
 } from "@/lib/admin-api/generated";
-
-type PendingAction = "load" | "save" | { assignment: AdminQaGachaGuaranteeAssignment } | null;
 
 export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string }) {
   const client = useMemo(() => new AdminApiClient(), []);
@@ -24,8 +21,6 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [pending, setPending] = useState<PendingAction>(null);
-  const [freshOpen, setFreshOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,11 +31,7 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
       setUserId((current) => current || response.test_users[0]?.id || "");
       setPrizeId((current) => current || response.prizes[0]?.id || "");
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) {
-        setError("テストユーザー設定の表示には再認証が必要です。");
-      } else {
-        setError(errorMessage(cause));
-      }
+      setError(errorMessage(cause));
     } finally {
       setLoading(false);
     }
@@ -53,11 +44,6 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
   }, [canManage, load]);
 
   if (!canManage) return null;
-
-  function requestFresh(action: Exclude<PendingAction, null>) {
-    setPending(action);
-    setFreshOpen(true);
-  }
 
   async function save() {
     if (!data || !userId || !prizeId || submitting) return;
@@ -103,7 +89,7 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    requestFresh("save");
+    void save();
   }
 
   const active = data?.items.filter((item) => item.status === "assigned") ?? [];
@@ -121,8 +107,8 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
       {error ? (
         <div className="catalog-gacha-qa-error" role="alert">
           <p>{error}</p>
-          <button className="secondary-button" onClick={() => requestFresh("load")} type="button">
-            <RotateCcw aria-hidden="true" size={17} />再認証して再取得
+          <button className="secondary-button" onClick={() => void load()} type="button">
+            <RotateCcw aria-hidden="true" size={17} />再取得
           </button>
         </div>
       ) : null}
@@ -144,7 +130,7 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
                         aria-label={`${item.user.display_name ?? "未設定"}の設定を解除`}
                         className="icon-button"
                         disabled={submitting}
-                        onClick={() => requestFresh({ assignment: item })}
+                        onClick={() => void disable(item)}
                         title="解除"
                         type="button"
                       ><Trash2 aria-hidden="true" size={17} /></button>
@@ -182,21 +168,6 @@ export function CatalogGachaQaGuaranteeManager({ gachaId }: { gachaId: string })
           {notice ? <p className="admin-user-adjustment-success" role="status">{notice}</p> : null}
         </>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => {
-          setFreshOpen(false);
-          setPending(null);
-        }}
-        onSuccess={async () => {
-          const action = pending;
-          setFreshOpen(false);
-          setPending(null);
-          if (action === "load") await load();
-          if (action === "save") await save();
-          if (action && typeof action === "object") await disable(action.assignment);
-        }}
-        open={freshOpen}
-      />
     </section>
   );
 }

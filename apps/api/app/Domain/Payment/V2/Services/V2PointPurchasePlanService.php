@@ -33,9 +33,7 @@ final class V2PointPurchasePlanService
     ): array {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadPointPurchasePlan,
-            false,
-            'payment.plan.read'
+            V2Permission::ReadPointPurchasePlan
         );
         if ($limit < 1 || $limit > 100) {
             throw $this->invalid('The page size is invalid.');
@@ -86,9 +84,7 @@ final class V2PointPurchasePlanService
     {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadPointPurchasePlan,
-            false,
-            'payment.plan.read'
+            V2Permission::ReadPointPurchasePlan
         );
 
         return $this->serialize($this->plan($publicId));
@@ -102,9 +98,7 @@ final class V2PointPurchasePlanService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManagePointPurchasePlan,
-            true,
-            'payment.plan.create'
+            V2Permission::ManagePointPurchasePlan
         );
         $payload = $this->validate($input, false);
 
@@ -165,9 +159,7 @@ final class V2PointPurchasePlanService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManagePointPurchasePlan,
-            true,
-            'payment.plan.update'
+            V2Permission::ManagePointPurchasePlan
         );
         $payload = $this->validate($input, true);
 

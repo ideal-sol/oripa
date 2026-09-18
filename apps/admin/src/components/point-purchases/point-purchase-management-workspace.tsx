@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -69,7 +68,6 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([]);
   const [busy, setBusy] = useState<"load" | "save" | null>("load");
   const [error, setError] = useState<AdminApiError | null>(null);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const [status, setStatus] = useState(initialStatus);
   const pendingKey = useRef<string | null>(null);
 
@@ -122,8 +120,7 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) setFreshMfaOpen(true);
-      else pendingKey.current = null;
+      pendingKey.current = null;
     } finally {
       setBusy(null);
     }
@@ -157,7 +154,6 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
           ) : null}
           {mode !== "list" ? <Link className="secondary-button point-purchase-back" href="/purchase-plans"><ArrowLeft aria-hidden="true" size={17} />一覧へ戻る</Link> : null}
         </div>
-        <FreshMfaDialog onClose={() => setFreshMfaOpen(false)} onSuccess={async () => { setFreshMfaOpen(false); await submit(); }} open={freshMfaOpen} />
       </ProtectedAdminRoute>
     </AdminShell>
   );
@@ -169,7 +165,6 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AdminApiError | null>(null);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const pendingKey = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -210,8 +205,7 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) setFreshMfaOpen(true);
-      else pendingKey.current = null;
+      pendingKey.current = null;
     } finally {
       setBusy(false);
     }
@@ -247,7 +241,6 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
       <button className="primary-button" disabled={!canManage || busy || invalidCampaign(draft)} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editingId ? "設定を更新" : "設定を登録"}</button>
       {editingId ? <button className="secondary-button" disabled={busy} onClick={() => { setEditingId(null); setDraft(EMPTY_CAMPAIGN); }} type="button">登録へ戻す</button> : null}
     </form>
-    <FreshMfaDialog onClose={() => setFreshMfaOpen(false)} onSuccess={async () => { setFreshMfaOpen(false); await submit(); }} open={freshMfaOpen} />
   </section>;
 }
 

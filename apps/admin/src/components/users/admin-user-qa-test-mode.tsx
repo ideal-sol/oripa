@@ -3,7 +3,6 @@
 import { FlaskConical, RotateCcw } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
@@ -17,8 +16,6 @@ const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
 });
 
-type PendingAction = "enable" | "disable" | "load" | null;
-
 export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const { hasPermission } = usePermissions();
@@ -29,8 +26,6 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [pending, setPending] = useState<PendingAction>(null);
-  const [freshOpen, setFreshOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,11 +35,7 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
       setMode(response.mode);
       setReason(response.mode?.reason ?? "");
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) {
-        setError("テストユーザー設定の表示には再認証が必要です。");
-      } else {
-        setError(errorMessage(cause));
-      }
+      setError(errorMessage(cause));
     } finally {
       setLoading(false);
     }
@@ -57,11 +48,6 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
   }, [canManage, load]);
 
   if (!canManage) return null;
-
-  function requestFresh(action: Exclude<PendingAction, null>) {
-    setPending(action);
-    setFreshOpen(true);
-  }
 
   async function mutate(action: "enable" | "disable") {
     if (submitting) return;
@@ -98,7 +84,7 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
       setError("設定理由を入力してください。");
       return;
     }
-    requestFresh("enable");
+    void mutate("enable");
   }
 
   return (
@@ -118,10 +104,10 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
           <p>{error}</p>
           <button
             className="secondary-button"
-            onClick={() => requestFresh("load")}
+            onClick={() => void load()}
             type="button"
           >
-            <RotateCcw aria-hidden="true" size={17} />再認証して再取得
+            <RotateCcw aria-hidden="true" size={17} />再取得
           </button>
         </div>
       ) : null}
@@ -148,7 +134,7 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
                 <button
                   className="danger-button"
                   disabled={submitting}
-                  onClick={() => requestFresh("disable")}
+                  onClick={() => void mutate("disable")}
                   type="button"
                 >
                   OFFにする
@@ -168,20 +154,6 @@ export function AdminUserQaTestMode({ user }: { user: AdminUserDetail }) {
           {notice ? <p className="admin-user-adjustment-success" role="status">{notice}</p> : null}
         </>
       ) : null}
-      <FreshMfaDialog
-        onClose={() => {
-          setFreshOpen(false);
-          setPending(null);
-        }}
-        onSuccess={async () => {
-          const action = pending;
-          setFreshOpen(false);
-          setPending(null);
-          if (action === "load") await load();
-          if (action === "enable" || action === "disable") await mutate(action);
-        }}
-        open={freshOpen}
-      />
     </section>
   );
 }

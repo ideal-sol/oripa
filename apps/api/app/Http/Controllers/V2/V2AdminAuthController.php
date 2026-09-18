@@ -234,9 +234,9 @@ final class V2AdminAuthController
 
     public function reauthenticate(Request $request): JsonResponse
     {
+        $request->offsetUnset('password');
         $data = $this->validate($request, [
             'method' => ['required', 'in:password,totp,webauthn'],
-            'password' => ['sometimes', 'string', 'max:128'],
             'code' => ['sometimes', 'string', 'size:6'],
             'challenge_token' => ['sometimes', 'string', 'size:64'],
             'credential' => ['sometimes', 'array'],
@@ -248,8 +248,7 @@ final class V2AdminAuthController
             $data['method'],
             $data['code'] ?? null,
             $data['challenge_token'] ?? null,
-            $data['credential'] ?? [],
-            $data['password'] ?? null
+            $data['credential'] ?? []
         );
         $response = response()->json([
             'authenticated' => true,

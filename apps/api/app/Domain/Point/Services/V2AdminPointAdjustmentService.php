@@ -42,9 +42,7 @@ final class V2AdminPointAdjustmentService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManagePointAdjustment,
-            true,
-            'point.admin_adjustment.execute'
+            V2Permission::ManagePointAdjustment
         );
         if (! Str::isUuid($userPublicId)) {
             throw $this->invalid();

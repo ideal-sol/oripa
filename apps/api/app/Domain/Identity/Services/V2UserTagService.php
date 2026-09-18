@@ -33,9 +33,7 @@ final class V2UserTagService
     ): array {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadUserTag,
-            false,
-            'user.tag.read'
+            V2Permission::ReadUserTag
         );
         if ($limit < 1 || $limit > 100) {
             throw $this->invalid('The page size is invalid.');
@@ -67,9 +65,7 @@ final class V2UserTagService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageUserTag,
-            true,
-            'user.tag.create'
+            V2Permission::ManageUserTag
         );
         $payload = $this->tagInput($input, false);
 
@@ -132,9 +128,7 @@ final class V2UserTagService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageUserTag,
-            true,
-            'user.tag.update'
+            V2Permission::ManageUserTag
         );
         $payload = $this->tagInput($input, true);
 
@@ -206,9 +200,7 @@ final class V2UserTagService
     ): array {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadUserTag,
-            false,
-            'user.tag.assignment.read'
+            V2Permission::ReadUserTag
         );
         $user = DB::table('users')->where('public_id', $userPublicId)->first([
             'id', 'public_id', 'tag_assignment_revision',
@@ -267,9 +259,7 @@ final class V2UserTagService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageUserTag,
-            true,
-            $assign ? 'user.tag.assign' : 'user.tag.detach'
+            V2Permission::ManageUserTag
         );
         $expectedRevision = $this->expectedRevision($input);
         $scope = $assign ? 'user.tag.assign' : 'user.tag.detach';

@@ -13,9 +13,6 @@ vi.mock("@/lib/admin-api/client", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) => open ? <p>Fresh MFA</p> : null,
-}));
 
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
 import { AdminApiError } from "@/lib/admin-api/client";
@@ -82,7 +79,7 @@ describe("Admin user point adjustment modal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("keeps the Fresh Authentication dialog when the server rejects a stale session", async () => {
+  it("does not prompt or retry when a legacy server returns a retired Fresh error", async () => {
     adjust.mockRejectedValueOnce(new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false));
     const onSuccess = vi.fn();
     renderModal({ onSuccess });
@@ -90,7 +87,8 @@ describe("Admin user point adjustment modal", () => {
     fireEvent.change(screen.getByLabelText("調整理由"), { target: { value: "Correction" } });
     fireEvent.click(screen.getByRole("button", { name: "内容を確認して実行" }));
 
-    expect(await screen.findByText("Fresh MFA")).toBeVisible();
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Fresh MFA")).toBeNull();
     expect(onSuccess).not.toHaveBeenCalled();
     expect(adjust).toHaveBeenCalledOnce();
   });

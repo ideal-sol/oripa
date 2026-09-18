@@ -15,10 +15,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
       permission === "catalog.publish" && permissionState.canPublish,
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Fresh MFA</div> : null,
-}));
 
 import { GachaPublishPreflightPanel } from "@/components/catalog/gacha-publish-preflight-panel";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -436,7 +432,7 @@ describe("Gacha Publish Preflight", () => {
     });
   });
 
-  it("shows resume blockers and requests Fresh MFA without client-side bypass", async () => {
+  it("reports a legacy resume error without a Fresh dialog or client-side bypass", async () => {
     mockReads(candidate, salesState({
       paused_at: "2026-08-14T00:00:00Z",
       reason_code: "operations_review",
@@ -465,7 +461,8 @@ describe("Gacha Publish Preflight", () => {
     await screen.findByText("Sales: 一時停止中");
     expect(screen.getByText(/2026\/8\/14 0?9:00:00/u)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Resume Preflight" }));
-    expect(await screen.findByText("Fresh MFA")).toBeVisible();
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Fresh MFA")).toBeNull();
   });
 
   it("unpublishes a paused Gacha after preflight and impact confirmation", async () => {

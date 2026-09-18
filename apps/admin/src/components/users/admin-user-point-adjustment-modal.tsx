@@ -3,7 +3,6 @@
 import { Minus, Plus, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 
 type PointType = "paid" | "free";
@@ -33,7 +32,6 @@ export function AdminUserPointAdjustmentModal({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [freshOpen, setFreshOpen] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const panelRef = useRef<HTMLElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -56,18 +54,6 @@ export function AdminUserPointAdjustmentModal({
   const validation = validate(parsedAmount, expectedBalance, reason);
 
   if (!open) return null;
-  if (freshOpen) {
-    return (
-      <FreshMfaDialog
-        onClose={() => setFreshOpen(false)}
-        onSuccess={() => {
-          setFreshOpen(false);
-          window.setTimeout(() => amountRef.current?.focus(), 0);
-        }}
-        open
-      />
-    );
-  }
 
   function resetRequestIdentity() {
     setIdempotencyKey(crypto.randomUUID());
@@ -99,12 +85,7 @@ export function AdminUserPointAdjustmentModal({
       onSuccess();
       onClose();
     } catch (cause: unknown) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) {
-        setFreshOpen(true);
-        setError("本人確認の有効期限が切れました。再認証後にもう一度実行してください。");
-      } else {
-        setError(errorMessage(cause));
-      }
+      setError(errorMessage(cause));
     } finally {
       setSubmitting(false);
     }

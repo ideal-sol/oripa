@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { PermissionGate } from "@/components/permissions/permission-gate";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -39,7 +38,6 @@ function AgencyContent({ mode, agencyId }: { mode: Mode; agencyId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
-  const [fresh, setFresh] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -74,7 +72,7 @@ function AgencyContent({ mode, agencyId }: { mode: Mode; agencyId?: string }) {
       </table></div>}
       <div className="catalog-dialog-actions">{cursor ? <button className="secondary-button" onClick={() => setCursor(undefined)} type="button">先頭へ</button> : null}{nextCursor ? <button className="secondary-button" onClick={() => setCursor(nextCursor)} type="button">次のページ</button> : null}</div>
     </> : null}
-    {!loading && !error && (mode === "new" || (mode === "edit" && agency)) ? <AgencyForm client={client} current={agency} onFresh={() => setFresh(true)} onSaved={saved} /> : null}
+    {!loading && !error && (mode === "new" || (mode === "edit" && agency)) ? <AgencyForm client={client} current={agency} onSaved={saved} /> : null}
     {!loading && !error && mode === "detail" && agency ? <>
       <section className="catalog-mutation-panel"><dl>{fields.map(([field, label]) => <div key={field}><dt>{label}</dt><dd>{agency[field]}</dd></div>)}
         <div><dt>Login ID</dt><dd>{agency.login_id}</dd></div><div><dt>Advertising Code</dt><dd>{agency.advertising_code}</dd></div>
@@ -85,13 +83,12 @@ function AgencyContent({ mode, agencyId }: { mode: Mode; agencyId?: string }) {
         {([agency.status === "active" ? "suspend" : "reactivate", "password-reset", "login-information-reissue"] as Action[]).map((operation) => <button className="secondary-button" key={operation} onClick={() => setAction(operation)} type="button">{labels[operation]}</button>)}
       </div></PermissionGate>
     </> : null}
-    {action && agency ? <AgencyActionDialog action={action} agency={agency} client={client} onClose={() => setAction(null)} onFresh={() => setFresh(true)} onSaved={saved} /> : null}
-    <FreshMfaDialog open={fresh} onClose={() => setFresh(false)} onSuccess={() => setFresh(false)} />
+    {action && agency ? <AgencyActionDialog action={action} agency={agency} client={client} onClose={() => setAction(null)} onSaved={saved} /> : null}
   </main>;
 }
 
-function AgencyForm({ client, current, onFresh, onSaved }: {
-  client: AdminApiClient; current: AdminAgency | null; onFresh: () => void; onSaved: (result: AdminAgencyMutationResult) => void;
+function AgencyForm({ client, current, onSaved }: {
+  client: AdminApiClient; current: AdminAgency | null; onSaved: (result: AdminAgencyMutationResult) => void;
 }) {
   const [draft, setDraft] = useState<AdminAgencyDraft | null>(null);
   const [issued, setIssued] = useState(false);
@@ -115,7 +112,6 @@ function AgencyForm({ client, current, onFresh, onSaved }: {
       if (!draft) setDraft(await client.issueAgencyIdentifiers());
       setIssued(true);
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) onFresh();
       setError(errorMessage(cause));
     } finally { setBusy(false); }
   }
@@ -140,7 +136,6 @@ function AgencyForm({ client, current, onFresh, onSaved }: {
       key.current = null;
       onSaved(result);
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) onFresh();
       if (cause instanceof AdminApiError && !cause.retryable) key.current = null;
       setError(errorMessage(cause));
     } finally {
@@ -165,8 +160,8 @@ function AgencyForm({ client, current, onFresh, onSaved }: {
   </form>;
 }
 
-function AgencyActionDialog({ action, agency, client, onClose, onFresh, onSaved }: {
-  action: Action; agency: AdminAgency; client: AdminApiClient; onClose: () => void; onFresh: () => void; onSaved: (result: AdminAgencyMutationResult) => void;
+function AgencyActionDialog({ action, agency, client, onClose, onSaved }: {
+  action: Action; agency: AdminAgency; client: AdminApiClient; onClose: () => void; onSaved: (result: AdminAgencyMutationResult) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +190,6 @@ function AgencyActionDialog({ action, agency, client, onClose, onFresh, onSaved 
             : client.reissueAgencyLoginInformation(agency.id, { ...revision, password }, key.current));
       onSaved(result);
     } catch (cause) {
-      if (cause instanceof AdminApiError && cause.requiresFreshMfa) onFresh();
       if (cause instanceof AdminApiError && !cause.retryable) key.current = null;
       setError(errorMessage(cause));
     } finally { form.current?.reset(); setBusy(false); }
@@ -225,7 +219,6 @@ function AgencyActionDialog({ action, agency, client, onClose, onFresh, onSaved 
 
 function errorMessage(cause: unknown): string {
   if (cause instanceof AdminApiError) {
-    if (cause.requiresFreshMfa) return "本人確認後に入力し直して、もう一度実行してください。";
     if (cause.status === 403) return "この操作を行う権限がありません。";
     if (cause.status === 404) return "代理店が見つかりません。";
     if (cause.status === 409) return "メールアドレス・Login IDの重複、または別の更新との競合です。再読み込みして確認してください。";

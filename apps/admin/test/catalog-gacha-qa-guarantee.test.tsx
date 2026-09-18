@@ -27,10 +27,6 @@ vi.mock("@/components/permissions/permission-provider", () => ({
     status: "ready",
   }),
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ onSuccess, open }: { onSuccess: () => Promise<void>; open: boolean }) =>
-    open ? <button onClick={() => void onSuccess()} type="button">本人確認を完了</button> : null,
-}));
 
 import { CatalogGachaQaGuaranteeManager } from "@/components/catalog/catalog-gacha-qa-guarantee-manager";
 
@@ -74,7 +70,7 @@ describe("Gacha QA guarantee manager", () => {
     await screen.findByText("QA User");
 
     fireEvent.click(screen.getByRole("button", { name: "追加・更新" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(saveGuarantee).toHaveBeenCalledOnce());
     expect(saveGuarantee).toHaveBeenCalledWith(
       "A7k9P2x4Qm8",
@@ -84,7 +80,7 @@ describe("Gacha QA guarantee manager", () => {
     expect(getGuarantees).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole("button", { name: "QA Userの設定を解除" }));
-    fireEvent.click(screen.getByRole("button", { name: "本人確認を完了" }));
+    expect(screen.queryByLabelText("現在のパスワード")).toBeNull();
     await waitFor(() => expect(disableGuarantee).toHaveBeenCalledOnce());
     expect(disableGuarantee).toHaveBeenCalledWith(
       "A7k9P2x4Qm8",

@@ -32,9 +32,7 @@ final class V2LineMessagingSettingService
     {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ReadLineMessaging,
-            false,
-            'identity.line.messaging.read'
+            V2Permission::ReadLineMessaging
         );
 
         return $this->serialize($this->setting());
@@ -56,9 +54,7 @@ final class V2LineMessagingSettingService
     ): array {
         $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageLineMessaging,
-            false,
-            'identity.line.messaging.preview'
+            V2Permission::ManageLineMessaging
         );
         $payload = $this->validateMessages($input, false);
         $setting = $this->setting();
@@ -90,9 +86,7 @@ final class V2LineMessagingSettingService
     ): array {
         $admin = $this->authorization->authorizePermission(
             $context,
-            V2Permission::ManageLineMessaging,
-            true,
-            'identity.line.messaging.update'
+            V2Permission::ManageLineMessaging
         );
         if (! isset($input['expected_revision']) || ! is_int($input['expected_revision'])) {
             throw $this->invalid();

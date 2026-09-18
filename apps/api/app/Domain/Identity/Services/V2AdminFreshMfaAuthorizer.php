@@ -3,7 +3,6 @@
 namespace App\Domain\Identity\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditHasher;
-use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2AdminRole;
 use App\Domain\Identity\Enums\V2AdminState;
@@ -21,7 +20,6 @@ final class V2AdminFreshMfaAuthorizer
     public function __construct(
         private readonly V2SessionManager $sessions,
         private readonly V2PermissionAuthorizer $permissions,
-        private readonly V2AuditLogService $audit,
         private readonly V2AuditHasher $auditHasher,
         private readonly V2SessionPolicy $sessionPolicy
     ) {
@@ -54,29 +52,12 @@ final class V2AdminFreshMfaAuthorizer
     public function authorizeQa(
         V2AdminAuthorizationContext $context
     ): Admin {
-        [$session, $admin] = $this->sessionAndAdmin($context);
+        [, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, V2Permission::ManageQaDraw)) {
             throw new V2AuthenticationException(
                 'AUTHORIZATION_DENIED',
                 403,
                 'The QA Draw operation is restricted to Owners.'
-            );
-        }
-        if (! $this->isFresh($session)) {
-            $this->audit->record('admin.fresh_mfa.required', [
-                'request_id' => $context->requestId,
-                'actor_type' => 'admin',
-                'actor_public_id' => $admin->public_id,
-                'actor_role' => $admin->role->value,
-                'auth_realm' => 'admin',
-                'session_correlation_hash' => $context->sessionCorrelationHash,
-                'outcome' => 'failure',
-                'reason_code' => 'fresh_authentication_required',
-            ]);
-            throw new V2AuthenticationException(
-                'FRESH_AUTHENTICATION_REQUIRED',
-                403,
-                'Fresh authentication is required.'
             );
         }
 
@@ -87,7 +68,7 @@ final class V2AdminFreshMfaAuthorizer
         V2AdminAuthorizationContext $context,
         bool $financialExport = false
     ): Admin {
-        [$session, $admin] = $this->sessionAndAdmin($context);
+        [, $admin] = $this->sessionAndAdmin($context);
         $permission = $financialExport
             ? V2Permission::ExportFinancialReporting
             : V2Permission::ReadFinancialReporting;
@@ -98,64 +79,20 @@ final class V2AdminFreshMfaAuthorizer
                 'The reporting operation is not permitted.'
             );
         }
-        if (! $financialExport) {
-            return $admin;
-        }
-        if (! $this->isFresh($session)) {
-            $this->audit->record('admin.fresh_mfa.required', [
-                'request_id' => $context->requestId,
-                'actor_type' => 'admin',
-                'actor_public_id' => $admin->public_id,
-                'actor_role' => $admin->role->value,
-                'auth_realm' => 'admin',
-                'session_correlation_hash' => $context->sessionCorrelationHash,
-                'action' => 'reporting.export',
-                'outcome' => 'failure',
-                'reason_code' => 'fresh_authentication_required',
-            ]);
-            throw new V2AuthenticationException(
-                'FRESH_AUTHENTICATION_REQUIRED',
-                403,
-                'Fresh authentication is required.'
-            );
-        }
 
         return $admin;
     }
 
     public function authorizePermission(
         V2AdminAuthorizationContext $context,
-        V2Permission $permission,
-        bool $freshMfa = false,
-        string $action = 'admin.operation'
+        V2Permission $permission
     ): Admin {
-        [$session, $admin] = $this->sessionAndAdmin($context);
+        [, $admin] = $this->sessionAndAdmin($context);
         if (! $this->permissions->allows($admin->role, $permission)) {
             throw new V2AuthenticationException(
                 'AUTHORIZATION_DENIED',
                 403,
                 'The Admin operation is not permitted.'
-            );
-        }
-        if (! $freshMfa) {
-            return $admin;
-        }
-        if (! $this->isFresh($session)) {
-            $this->audit->record('admin.fresh_mfa.required', [
-                'request_id' => $context->requestId,
-                'actor_type' => 'admin',
-                'actor_public_id' => $admin->public_id,
-                'actor_role' => $admin->role->value,
-                'auth_realm' => 'admin',
-                'session_correlation_hash' => $context->sessionCorrelationHash,
-                'outcome' => 'failure',
-                'reason_code' => 'fresh_authentication_required',
-                'metadata' => ['action' => $action],
-            ]);
-            throw new V2AuthenticationException(
-                'FRESH_AUTHENTICATION_REQUIRED',
-                403,
-                'Fresh authentication is required.'
             );
         }
 

@@ -97,7 +97,7 @@ final class AdminSessionCanonicalTimeTest extends TestCase
         self::assertSame($row->admin_id, $authorizer->validSessionForReauthentication($context, true)->admin_id);
     }
 
-    public function test_fresh_mfa_expires_at_exactly_five_minutes_without_extending_its_window(): void
+    public function test_legacy_fresh_timestamp_boundary_does_not_restrict_admin_operations(): void
     {
         $token = $this->login();
         $verifiedAt = $this->sessionRow($token)->mfa_verified_at;
@@ -109,7 +109,8 @@ final class AdminSessionCanonicalTimeTest extends TestCase
 
         Carbon::setTestNow($verifiedAt->addMinutes(5)->setTimezone('Asia/Tokyo'));
         self::assertFalse($authorizer->isFresh($this->sessionRow($token)));
-        $this->assertAuthenticationError(fn () => $authorizer->authorizeQa($context), 'FRESH_AUTHENTICATION_REQUIRED', 403);
+        self::assertSame($context->adminId, $authorizer->authorizeQa($context)->id);
+        self::assertTrue($verifiedAt->equalTo($this->sessionRow($token)->mfa_verified_at));
         $this->getAsAdmin($token, self::DASHBOARD)->assertOk();
     }
 

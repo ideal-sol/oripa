@@ -815,7 +815,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => now(),
             'last_activity_at' => now(),

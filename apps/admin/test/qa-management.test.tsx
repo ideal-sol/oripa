@@ -13,10 +13,6 @@ vi.mock("@/components/navigation/breadcrumb", () => ({
 vi.mock("@/components/shell/admin-page-header", () => ({
   AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
-vi.mock("@/components/auth/fresh-mfa-dialog", () => ({
-  FreshMfaDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Fresh MFA</div> : null,
-}));
 vi.mock("@/components/auth/admin-auth-provider", () => ({
   useAdminAuth: () => ({ expireSession: vi.fn() }),
 }));
@@ -192,7 +188,7 @@ describe("QA Plan management", () => {
     expect(create.mock.calls[0][1]).toMatch(/^[0-9a-f-]{36}$/u);
   });
 
-  it("searches and configures a Test User through the shared Fresh MFA boundary", async () => {
+  it("reports a legacy QA error without a Fresh dialog or automatic retry", async () => {
     mockPlanReads([]);
     vi.spyOn(AdminApiClient.prototype, "listQaTestUsers").mockResolvedValue({
       items: [],
@@ -225,7 +221,8 @@ describe("QA Plan management", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "有効化" }));
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Fresh MFA");
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

@@ -3,7 +3,6 @@
 import { Gift, LoaderCircle, RotateCcw, Save } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { FreshMfaDialog } from "@/components/auth/fresh-mfa-dialog";
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -33,7 +32,6 @@ export function ReferralPointSettings() {
   const [busy, setBusy] = useState<"load" | "save" | null>("load");
   const [error, setError] = useState<AdminApiError | null>(null);
   const [saved, setSaved] = useState(false);
-  const [freshMfaOpen, setFreshMfaOpen] = useState(false);
   const pendingKey = useRef<string | null>(null);
 
   const apply = useCallback((next: AdminReferralPointSetting) => {
@@ -106,8 +104,7 @@ export function ReferralPointSettings() {
     } catch (caught) {
       const next = asApiError(caught);
       setError(next);
-      if (next.requiresFreshMfa) setFreshMfaOpen(true);
-      else pendingKey.current = null;
+      pendingKey.current = null;
     } finally {
       setBusy(null);
     }
@@ -184,7 +181,6 @@ export function ReferralPointSettings() {
             </section>
           )}
         </div>
-        <FreshMfaDialog onClose={() => setFreshMfaOpen(false)} onSuccess={async () => { setFreshMfaOpen(false); await save(); }} open={freshMfaOpen} />
       </ProtectedAdminRoute>
     </AdminShell>
   );

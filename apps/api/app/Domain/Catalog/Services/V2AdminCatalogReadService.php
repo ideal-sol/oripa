@@ -1422,9 +1422,7 @@ final class V2AdminCatalogReadService
     {
         $this->authorizer->authorizePermission(
             $context,
-            V2Permission::ReadCatalog,
-            false,
-            'catalog.read'
+            V2Permission::ReadCatalog
         );
     }
 
