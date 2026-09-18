@@ -182,7 +182,7 @@ export function LineMessagingSettings() {
               <h2>設定を読み込んでいます</h2>
             </section>
           ) : setting && draft ? (
-            <form className="line-settings-form" onSubmit={save}>
+            <form className="settings-panel line-settings-form" onSubmit={save}>
               {error ? <LineSettingsError error={error} onReload={load} /> : null}
               {saved ? (
                 <p className="notice notice-success" role="status">

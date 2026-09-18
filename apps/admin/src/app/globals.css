@@ -3950,7 +3950,7 @@ label {
 .line-settings-form {
   display: grid;
   gap: 18px;
-  max-width: 820px;
+  max-width: 860px;
 }
 
 .line-settings-form > label {
@@ -4128,7 +4128,7 @@ label {
 .referral-settings-form {
   display: grid;
   gap: 18px;
-  max-width: 960px;
+  max-width: 860px;
 }
 
 .referral-settings-section {
@@ -4264,6 +4264,7 @@ label {
 }
 
 .settings-panel {
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
   display: grid;
@@ -5888,19 +5889,53 @@ label {
 }
 
 .point-purchase-table {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   max-width: 100%;
   overflow-x: auto;
 }
 
 .point-purchase-table table {
+  border-collapse: collapse;
   min-width: 1060px;
   width: 100%;
 }
 
 .point-purchase-table th,
 .point-purchase-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+  text-align: left;
   vertical-align: middle;
   white-space: nowrap;
+}
+
+.point-purchase-table th {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.catalog-rank-video-control {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.catalog-rank-video-control video {
+  background: var(--surface-muted);
+  display: block;
+  height: 135px;
+  max-height: 135px;
+  max-width: 100%;
+  object-fit: contain;
+  width: 240px;
+}
+
+.catalog-rank-video-control select {
+  min-width: 0;
+  width: 100%;
 }
 
 .point-purchase-form {

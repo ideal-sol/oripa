@@ -122,6 +122,89 @@ test("mobile Test User settings remain within the gacha detail width", async ({ 
   expect((await qaSection.boundingBox())?.width).toBeLessThanOrEqual(362);
 });
 
+for (const viewportWidth of [1440, 390]) {
+  for (const media of ["portrait", "landscape", "image", "none"] as const) {
+    test(`${viewportWidth}px rank preview contains ${media} media without stretching the prize section`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: viewportWidth, height: 900 });
+      await page.goto("/login");
+      const dimensions = media === "portrait" ? { width: 360, height: 640 } : { width: 640, height: 360 };
+      if (media === "portrait" || media === "landscape") {
+        const bytes = await page.evaluate(async (size) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = size.width;
+          canvas.height = size.height;
+          const context = canvas.getContext("2d")!;
+          context.fillStyle = "#465fff";
+          context.fillRect(0, 0, size.width, size.height);
+          const stream = canvas.captureStream(10);
+          const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8" });
+          const chunks: Blob[] = [];
+          const finished = new Promise<Blob>((resolve) => {
+            recorder.ondataavailable = (event) => chunks.push(event.data);
+            recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+          });
+          recorder.start();
+          for (let frame = 0; frame < 6; frame += 1) {
+            context.fillStyle = frame % 2 === 0 ? "#465fff" : "#3641f5";
+            context.fillRect(0, 0, size.width, size.height);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          recorder.stop();
+          const blob = await finished;
+          stream.getTracks().forEach((track) => track.stop());
+          return Array.from(new Uint8Array(await blob.arrayBuffer()));
+        }, dimensions);
+        expect(bytes.length).toBeGreaterThan(200);
+        await page.route("**/layout-video.webm", (route) => route.fulfill({ contentType: "video/webm", body: Buffer.from(bytes) }));
+      }
+      const image = { id: assetId, path: `/admin/api/v2/catalog/presentation-assets/${assetId}/content`, alt_text: "ランク画像", media_type: "image", revision_number: 1 };
+      await page.route(`**/catalog/gachas/${gachaCode}/ranks`, (route) => json(route, { items: [{
+        rank: { id: rankId, rank_name: "S", lineup_image: image, result_image: { ...image, alt_text: "抽選結果画像" }, show_total_stock: false, status: "active", display_order: 0, revision: 1, revision_number: 1 },
+        gacha_rank_id: null, gacha_rank_revision: null, can_unset_video: false,
+        current_video: media === "portrait" || media === "landscape" ? { id: assetId, path: "/layout-video.webm", media_type: "video", revision_number: 1 } : null,
+      }] }));
+      await page.route("**/catalog/rank-effects*", (route) => json(route, { items: [], next_cursor: null }));
+      await page.route(`**/catalog/gachas/${gachaCode}/versions/${versionId}/prizes`, (route) => json(route, { items: [{ ...prize(), presentation_asset: media === "image" ? { ...gacha().current_version.presentation_asset, alt_text: "景品画像" } : null }], version_revision: 4 }));
+      await page.goto(`/catalog/gachas/${gachaCode}`);
+      const section = page.getByRole("region", { name: "編集中のランク／景品", exact: true });
+      const row = section.locator("tbody tr").first();
+      await expect(row.getByText("S", { exact: true })).toBeVisible();
+      if (media === "portrait" || media === "landscape") {
+        const video = row.locator("video");
+        await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.videoHeight)).toBe(dimensions.height);
+        await expect(video).toHaveCSS("object-fit", "contain");
+        await expect(video).toHaveAttribute("controls", "");
+        const box = (await video.boundingBox())!;
+        expect(box.height).toBe(135);
+        expect(box.width).toBeLessThanOrEqual(240);
+        await video.evaluate((element: HTMLVideoElement) => element.play());
+        await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0);
+        await video.evaluate((element: HTMLVideoElement) => element.pause());
+      } else {
+        await expect(row.locator("video")).toHaveCount(0);
+      }
+      if (media !== "none") {
+        const thumbnail = row.getByRole("img", { name: "ランク画像" });
+        await expect.poll(() => thumbnail.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+        expect((await thumbnail.boundingBox())!.height).toBe(56);
+      }
+      expect((await row.boundingBox())!.height).toBeLessThanOrEqual(220);
+      const sectionBox = (await section.boundingBox())!;
+      const prizeHeading = (await section.getByRole("heading", { name: "登録済み景品" }).boundingBox())!;
+      expect(prizeHeading.y - sectionBox.y).toBeLessThan(400);
+      if (media === "image") {
+        const prizeImage = section.getByRole("img", { name: "景品画像" });
+        await expect(prizeImage).toHaveCSS("object-fit", "contain");
+        expect((await prizeImage.boundingBox())!.height).toBe(58);
+      }
+      if (media === "none") await expect(section.getByRole("img", { name: "Previewなし" })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await expect(section.locator(".catalog-table-wrap").first()).toHaveCSS("overflow-x", "auto");
+      await page.screenshot({ path: testInfo.outputPath("rank-preview.png"), fullPage: true });
+    });
+  }
+}
+
 async function installApi(
   page: Page,
   options: { onQaRequest?: (route: Route) => Promise<void> } = {},

@@ -129,7 +129,7 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
   return (
     <AdminShell>
       <ProtectedAdminRoute permission={mode === "list" ? "payment.plan.read" : "payment.plan.manage"}>
-        <div className="workspace point-purchase-workspace">
+        <div className="workspace announcement-workspace point-purchase-workspace">
           <Breadcrumb item={navigation} />
           <AdminPageHeader
             action={mode === "list" && canManage ? <Link className="primary-button" href="/purchase-plans/new"><Plus aria-hidden="true" size={17} />新規登録</Link> : undefined}
@@ -137,7 +137,7 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
             title={mode === "list" ? "ポイント購入商品" : mode === "create" ? "ポイント商品登録" : "ポイント商品編集"}
           />
           {error ? <ErrorNotice error={error} onRetry={load} /> : null}
-          {mode === "list" ? <label className="announcement-filter"><span>状態</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursor(undefined); setCursorHistory([]); }}><option value="published">有効</option><option value="draft">無効</option><option value="all">すべて</option></select></label> : null}
+          {mode === "list" ? <div className="catalog-filters"><label><span>状態</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursor(undefined); setCursorHistory([]); }}><option value="published">有効</option><option value="draft">無効</option><option value="all">すべて</option></select></label></div> : null}
           {busy === "load" ? <Loading /> : mode === "list" ? (
             <PlanList canManage={canManage} plans={plans} />
           ) : (
@@ -147,7 +147,7 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
             </>
           )}
           {mode === "list" && busy !== "load" ? (
-            <nav aria-label="ポイント購入商品ページ" className="cursor-actions">
+            <nav aria-label="ポイント購入商品ページ" className="announcement-pagination">
               <button className="secondary-button" disabled={cursorHistory.length === 0} onClick={() => { const history = [...cursorHistory]; setCursor(history.pop()); setCursorHistory(history); }} type="button"><ChevronLeft aria-hidden="true" size={17} />前へ</button>
               <button className="secondary-button" disabled={!nextCursor} onClick={() => { setCursorHistory((current) => [...current, cursor]); setCursor(nextCursor ?? undefined); }} type="button">次へ<ChevronRight aria-hidden="true" size={17} /></button>
             </nav>
