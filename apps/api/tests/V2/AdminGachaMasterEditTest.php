@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminGachaMasterEditTest extends TestCase
@@ -175,13 +176,15 @@ final class AdminGachaMasterEditTest extends TestCase
             'expected_revision' => $gachaRevision,
             'expected_version_revision' => (int) $before->revision,
         ];
-        $updated = $this->mutate(
+        $response = $this->mutate(
             $token,
             'PUT',
             '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_CODE,
             $payload,
             'mig061r-published-edit'
-        )->assertOk()
+        );
+        self::assertSame(200, $response->status(), $response->getContent());
+        $updated = $response->assertOk()
             ->assertJsonPath('data.public_code', self::PUBLISHED_GACHA_CODE)
             ->assertJsonPath('data.current_version.status', 'published')
             ->assertJsonPath('data.current_version.title', '公開後の現在表示')
@@ -197,6 +200,11 @@ final class AdminGachaMasterEditTest extends TestCase
         self::assertSame($before->publish_end_at, $published->publish_end_at);
         self::assertSame((int) $before->category_id, (int) $published->category_id);
         self::assertSame((int) $before->revision, (int) $published->revision);
+        self::assertSame(
+            CarbonImmutable::parse($before->publish_start_at)->getTimestamp(),
+            (int) DB::table('catalog_gachas')->where('public_id', self::PUBLISHED_GACHA_ID)
+                ->value(DB::raw('extract(epoch from current_publish_start_at)'))
+        );
         self::assertSame(
             $newCategoryInternalId,
             (int) DB::table('catalog_gachas')
@@ -395,7 +403,7 @@ final class AdminGachaMasterEditTest extends TestCase
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $created = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
             'mfa_verified_at' => now(),
@@ -404,7 +412,7 @@ final class AdminGachaMasterEditTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $created->copy()->addHours(8),
-        ]);
+        ]));
 
         return $token;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Reporting\ValueObjects\V2ExportDefinition;
 use App\Models\V2\ExportJob;
@@ -52,10 +53,10 @@ final class V2ExportWorker
                         ->orWhere(function ($expired) use ($now): void {
                             $expired
                                 ->where('status', 'processing')
-                                ->where('lease_expires_at', '<=', $now);
+                                ->where('lease_expires_at', '<=', V2DatabaseTimestamp::format($now));
                         });
                 })
-                ->where('expires_at', '>', $now)
+                ->where('expires_at', '>', V2DatabaseTimestamp::format($now))
                 ->orderBy('id')
                 ->limit($limit)
                 ->lock('FOR UPDATE SKIP LOCKED')
@@ -225,7 +226,7 @@ final class V2ExportWorker
     {
         ExportJob::query()
             ->where('status', 'completed')
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
             ->orderBy('id')
             ->chunkById(100, function (Collection $jobs): void {
                 foreach ($jobs as $job) {

@@ -2,6 +2,7 @@
 
 namespace App\Domain\ContentContact\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\ContentContact\Exceptions\V2ContentContactException;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
@@ -116,9 +117,9 @@ final class V2ContactService
                 'actor_admin_id' => null,
                 'reason_code' => 'contact_received',
                 'request_id' => $requestId,
-                'occurred_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'occurred_at' => V2DatabaseTimestamp::format($now),
+                'created_at' => V2DatabaseTimestamp::format($now),
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             $this->audit->record('contact.received', [
                 'request_id' => $requestId,

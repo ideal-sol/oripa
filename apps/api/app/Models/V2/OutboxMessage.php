@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class OutboxMessage extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'outbox_messages';
 
     protected $guarded = ['*'];

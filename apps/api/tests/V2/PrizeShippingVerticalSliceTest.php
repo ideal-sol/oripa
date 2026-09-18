@@ -74,7 +74,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(8000, (int) $row->exchange_point_snapshot);
         self::assertSame(
             '2026-09-28 09:00:00+09:00',
-            CarbonImmutable::parse($row->storage_expires_at)->format('Y-m-d H:i:sP')
+            CarbonImmutable::parse($row->storage_expires_at)->setTimezone('Asia/Tokyo')->format('Y-m-d H:i:sP')
         );
 
         DB::table('user_prize_status_histories')->insert($this->historyRow($row->id));

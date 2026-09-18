@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class PrizeExchangeRequest extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = false;
 
     protected $table = 'prize_exchange_requests';

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class SmsFourSDeliveryTest extends TestCase
@@ -292,9 +293,9 @@ final class SmsFourSDeliveryTest extends TestCase
             'delivery_state' => 'sending',
             'delivery_attempted_at' => now()->startOfSecond(),
         ])->save();
-        DB::table('outbox_messages')->where('id', $message->id)->update([
+        DB::table('outbox_messages')->where('id', $message->id)->update(V2TimestampFixture::attributes([
             'lease_expires_at' => now()->subSecond(),
-        ]);
+        ]));
 
         self::assertSame(1, app(V2SmsDeliveryWorker::class)->run('recovery-sms-worker', 10));
         self::assertSame(0, $provider->calls);

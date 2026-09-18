@@ -2,6 +2,7 @@
 
 namespace App\Domain\PrizeShipping\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
@@ -184,7 +185,7 @@ final class V2PrizeShippingService
                     'prize_exchange_request_id' => $request->id,
                     'user_prize_id' => $prize->id,
                     'exchange_point_snapshot' => $prize->exchange_point_snapshot,
-                    'created_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             $point = $this->points->grantPrizeExchange(
@@ -502,7 +503,7 @@ final class V2PrizeShippingService
                 DB::table('shipping_request_items')->insert([
                     'shipping_request_id' => $shipping->id,
                     'user_prize_id' => $prize->id,
-                    'created_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
                 ]);
             }
             $this->shippingHistory(
@@ -1264,6 +1265,9 @@ final class V2PrizeShippingService
         CarbonImmutable $occurredAt,
         array $extra = []
     ): void {
+        if (array_key_exists('terminal_at', $extra)) {
+            $extra['terminal_at'] = V2DatabaseTimestamp::format($extra['terminal_at']);
+        }
         $from = $prize->status;
         if (! in_array($to, self::USER_PRIZE_TRANSITIONS[$from] ?? [], true)) {
             throw new V2PrizeShippingException(
@@ -1274,7 +1278,7 @@ final class V2PrizeShippingService
         }
         DB::table('user_prizes')->where('id', $prize->id)->update([
             'status' => $to,
-            'updated_at' => $occurredAt,
+            'updated_at' => V2DatabaseTimestamp::format($occurredAt),
             ...$extra,
         ]);
         DB::table('user_prize_status_histories')->insert([
@@ -1286,8 +1290,8 @@ final class V2PrizeShippingService
             'actor_role' => $actorRole,
             'reason_code' => $this->reason($reason),
             'request_id' => $requestId,
-            'occurred_at' => $occurredAt,
-            'created_at' => $occurredAt,
+            'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
+            'created_at' => V2DatabaseTimestamp::format($occurredAt),
         ]);
     }
 
@@ -1315,10 +1319,10 @@ final class V2PrizeShippingService
             'tracking_correlation_hash' => $trackingNumber === null
                 ? null
                 : hash_hmac('sha256', $trackingNumber, $this->piiCorrelationKey()),
-            'shipped_at' => $shipping->shipped_at,
+            'shipped_at' => V2DatabaseTimestamp::format($shipping->shipped_at),
             'request_id' => $requestId,
-            'occurred_at' => $occurredAt,
-            'created_at' => $occurredAt,
+            'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
+            'created_at' => V2DatabaseTimestamp::format($occurredAt),
         ]);
     }
 

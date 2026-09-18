@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class QaDrawVerticalSliceTest extends TestCase
@@ -413,10 +414,10 @@ final class QaDrawVerticalSliceTest extends TestCase
         ]);
         DB::table('qa_draw_plans')
             ->where('public_id', $plan['id'])
-            ->update([
+            ->update(V2TimestampFixture::attributes([
                 'ends_at' => now()->addHour(),
                 'revision' => DB::raw('revision + 1'),
-            ]);
+            ]));
         CarbonImmutable::setTestNow(now()->addHours(2));
 
         try {
@@ -811,7 +812,7 @@ final class QaDrawVerticalSliceTest extends TestCase
 
     private function insertAdminSession(Admin $admin, string $hash): void
     {
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -821,7 +822,7 @@ final class QaDrawVerticalSliceTest extends TestCase
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => now()->addHours(8),
             'revoked_at' => null,
-        ]);
+        ]));
     }
 
     private function adminRequest(Admin $admin, string $path): Request

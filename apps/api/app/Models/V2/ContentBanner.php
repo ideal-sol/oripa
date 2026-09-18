@@ -9,6 +9,8 @@ final class ContentBanner extends Model
 {
     protected $table = 'content_banners';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected static function booted(): void

@@ -7,6 +7,8 @@ use Illuminate\Support\Str;
 
 final class ShippingRequest extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'shipping_requests';
 
     protected $guarded = ['*'];

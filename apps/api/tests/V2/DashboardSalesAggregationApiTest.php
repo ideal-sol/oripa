@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class DashboardSalesAggregationApiTest extends TestCase
@@ -156,7 +157,7 @@ final class DashboardSalesAggregationApiTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -166,7 +167,7 @@ final class DashboardSalesAggregationApiTest extends TestCase
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => now()->addHours(8),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return $token;
     }

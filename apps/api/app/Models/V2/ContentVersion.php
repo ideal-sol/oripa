@@ -9,6 +9,8 @@ final class ContentVersion extends Model
 {
     protected $table = 'content_versions';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected static function booted(): void

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
@@ -97,8 +98,8 @@ final class V2UserTagService
                     'normalized_name' => $payload['normalized_name'],
                     'is_active' => $payload['is_active'],
                     'revision' => 1,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'created_at' => V2DatabaseTimestamp::format($now),
+                    'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
             } catch (QueryException $exception) {
                 throw $this->duplicate($exception);
@@ -172,7 +173,7 @@ final class V2UserTagService
                         'normalized_name' => $payload['normalized_name'],
                         'is_active' => $payload['is_active'],
                         'revision' => $payload['expected_revision'] + 1,
-                        'updated_at' => CarbonImmutable::parse(now())->startOfSecond(),
+                        'updated_at' => V2DatabaseTimestamp::format(CarbonImmutable::parse(now())->startOfSecond()),
                     ]);
             } catch (QueryException $exception) {
                 throw $this->duplicate($exception);
@@ -330,7 +331,7 @@ final class V2UserTagService
                     'user_id' => $user->id,
                     'user_tag_id' => $tag->id,
                     'assigned_by_admin_public_id' => $admin->public_id,
-                    'assigned_at' => CarbonImmutable::parse(now())->startOfSecond(),
+                    'assigned_at' => V2DatabaseTimestamp::format(CarbonImmutable::parse(now())->startOfSecond()),
                 ]);
             } else {
                 if (! $existing) {

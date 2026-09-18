@@ -8,6 +8,8 @@ final class AdminWebauthnMethod extends Model
 {
     protected $table = 'admin_webauthn_credentials';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'admin_id',
         'credential_id',

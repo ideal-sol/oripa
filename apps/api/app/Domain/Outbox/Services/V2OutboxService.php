@@ -2,6 +2,7 @@
 
 namespace App\Domain\Outbox\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Models\V2\OutboxMessage;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -57,10 +58,10 @@ final class V2OutboxService
             'payload' => $payload,
             'deduplication_key' => $deduplicationKey,
             'status' => 'pending',
-            'available_at' => CarbonImmutable::parse($availableAt ?? now())->startOfSecond(),
+            'available_at' => V2DatabaseTimestamp::format(CarbonImmutable::parse($availableAt ?? now())->startOfSecond()),
             'attempts' => 0,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ];
         $insert = [
             ...$attributes,
@@ -118,12 +119,12 @@ final class V2OutboxService
                     ->where(function ($pending) use ($now): void {
                         $pending
                             ->where('status', 'pending')
-                            ->where('available_at', '<=', $now);
+                            ->where('available_at', '<=', V2DatabaseTimestamp::format($now));
                     })
                     ->orWhere(function ($expired) use ($now): void {
                         $expired
                             ->where('status', 'processing')
-                            ->where('lease_expires_at', '<=', $now);
+                            ->where('lease_expires_at', '<=', V2DatabaseTimestamp::format($now));
                     });
             })
                 ->orderBy('id')
@@ -139,22 +140,22 @@ final class V2OutboxService
                             ->where(function ($pending) use ($now): void {
                                 $pending
                                     ->where('status', 'pending')
-                                    ->where('available_at', '<=', $now);
+                                    ->where('available_at', '<=', V2DatabaseTimestamp::format($now));
                             })
                             ->orWhere(function ($expired) use ($now): void {
                                 $expired
                                     ->where('status', 'processing')
-                                    ->where('lease_expires_at', '<=', $now);
+                                    ->where('lease_expires_at', '<=', V2DatabaseTimestamp::format($now));
                             });
                     })
                     ->update([
                         'status' => 'processing',
                         'attempts' => DB::raw('attempts + 1'),
-                        'locked_at' => $now,
+                        'locked_at' => V2DatabaseTimestamp::format($now),
                         'locked_by' => $worker,
-                        'lease_expires_at' => $now->copy()->addSeconds($leaseSeconds),
+                        'lease_expires_at' => V2DatabaseTimestamp::format($now->copy()->addSeconds($leaseSeconds)),
                         'last_error_code' => null,
-                        'updated_at' => $now,
+                        'updated_at' => V2DatabaseTimestamp::format($now),
                     ]);
                 if ($updated === 1) {
                     $claimedIds[] = $message->id;

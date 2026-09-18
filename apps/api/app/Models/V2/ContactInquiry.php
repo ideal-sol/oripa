@@ -9,6 +9,8 @@ final class ContactInquiry extends Model
 {
     protected $table = 'contact_inquiries';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected static function booted(): void

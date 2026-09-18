@@ -11,6 +11,8 @@ final class AuditDailyDigest extends Model
 
     protected $table = 'audit_daily_digests';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $guarded = ['*'];
 
     protected static function booted(): void

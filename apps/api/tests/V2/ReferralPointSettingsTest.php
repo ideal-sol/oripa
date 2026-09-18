@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class ReferralPointSettingsTest extends TestCase
@@ -152,8 +153,8 @@ final class ReferralPointSettingsTest extends TestCase
         $expiries = DB::table('point_lots')->pluck('expire_at');
         foreach ($expiries as $expiry) {
             self::assertSame(
-                now()->addDays(180)->startOfSecond()->toIso8601String(),
-                CarbonImmutable::parse($expiry)->toIso8601String()
+                now()->addDays(180)->startOfSecond()->utc()->toIso8601String(),
+                CarbonImmutable::parse($expiry)->utc()->toIso8601String()
             );
         }
     }
@@ -222,7 +223,7 @@ final class ReferralPointSettingsTest extends TestCase
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $createdAt = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -231,7 +232,7 @@ final class ReferralPointSettingsTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $createdAt->copy()->addHours(8),
-        ]);
+        ]));
 
         return $token;
     }

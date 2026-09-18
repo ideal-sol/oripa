@@ -11,6 +11,8 @@ final class Admin extends Authenticatable
 {
     protected $table = 'admins';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'email_display',

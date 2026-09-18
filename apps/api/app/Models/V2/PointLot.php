@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class PointLot extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'point_lots';
 
     protected $guarded = ['*'];

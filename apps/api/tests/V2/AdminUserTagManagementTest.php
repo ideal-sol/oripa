@@ -13,6 +13,7 @@ use App\Domain\Identity\Services\V2UserTagService;
 use App\Models\V2\Admin;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminUserTagManagementTest extends TestCase
@@ -230,7 +231,7 @@ final class AdminUserTagManagementTest extends TestCase
             'role' => V2AdminRole::Owner,
             'state' => V2AdminState::Active,
         ]);
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -239,7 +240,7 @@ final class AdminUserTagManagementTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addHours(6),
             'absolute_expires_at' => now()->addHours(11),
-        ]);
+        ]));
 
         $response = $this->withCredentials()
             ->withUnencryptedCookie('__Host-oripa_admin_session', $token)
@@ -268,7 +269,7 @@ final class AdminUserTagManagementTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $sessionHash = hash('sha256', bin2hex(random_bytes(32)));
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $sessionHash,
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -277,7 +278,7 @@ final class AdminUserTagManagementTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addHours(6),
             'absolute_expires_at' => now()->addHours(11),
-        ]);
+        ]));
 
         return new V2AdminAuthorizationContext(
             $admin->id,

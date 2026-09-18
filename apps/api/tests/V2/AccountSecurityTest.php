@@ -19,6 +19,7 @@ use App\Models\V2\User;
 use App\Models\V2\UserEmailChangeRequest;
 use App\Models\V2\UserRememberDevice;
 use App\Models\V2\UserSession;
+use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiter as LaravelRateLimiter;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Database\QueryException;
@@ -434,6 +435,7 @@ final class AccountSecurityTest extends TestCase
 
     public function test_password_change_is_immediate_rotates_current_session_and_revokes_other_credentials(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-09-17T10:17:20+09:00'));
         $user = $this->user('password-change@example.test');
         [$request, $current] = $this->authenticatedRequest($user, '/api/v2/me/password', 'PUT');
         $other = app(V2SessionManager::class)->issue(V2Realm::User, (int) $user->getKey());
@@ -473,16 +475,16 @@ final class AccountSecurityTest extends TestCase
             $user->password_hash
         ));
         foreach ([$current['token'], $other['token']] as $oldToken) {
-            self::assertNotNull(DB::table('user_sessions')
+            self::assertSame(CarbonImmutable::parse('2026-09-17T01:28:20Z')->getTimestamp(), (int) DB::table('user_sessions')
                 ->where('session_id_hash', hash('sha256', $oldToken))
-                ->value('revoked_at'));
+                ->value(DB::raw('extract(epoch from revoked_at)')));
         }
         self::assertDatabaseHas('user_sessions', [
             'session_id_hash' => hash('sha256', $result['session']['token']),
             'revoked_at' => null,
         ]);
-        self::assertNotNull(UserRememberDevice::query()
-            ->where('user_id', $user->getKey())->sole()->revoked_at);
+        self::assertSame(CarbonImmutable::parse('2026-09-17T01:28:20Z')->getTimestamp(), (int) DB::table('user_remember_devices')
+            ->where('user_id', $user->getKey())->value(DB::raw('extract(epoch from revoked_at)')));
         self::assertDatabaseHas('outbox_messages', ['topic' => 'identity.password-changed']);
         self::assertDatabaseMissing('outbox_messages', [
             'topic' => 'identity.password-change-verification',

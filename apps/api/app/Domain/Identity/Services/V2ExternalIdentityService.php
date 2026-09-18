@@ -2,6 +2,7 @@
 
 namespace App\Domain\Identity\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Identity\Contracts\V2ExternalIdentityProvider;
 use App\Domain\Identity\Contracts\V2SecurityEventSink;
 use App\Domain\Identity\Enums\V2Realm;
@@ -413,12 +414,12 @@ final class V2ExternalIdentityService
                 DB::table('user_remember_devices')
                     ->where('user_id', $lockedUser->getKey())
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 UserSession::query()
                     ->where('user_id', $lockedUser->getKey())
                     ->whereKeyNot($session->getKey())
                     ->whereNull('revoked_at')
-                    ->update(['revoked_at' => $now]);
+                    ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
                 $rotated = $this->sessions->rotateLockedUserSession($session);
                 $this->outbox->enqueue(
                     'identity.external-identity-unlinked',
@@ -505,8 +506,8 @@ final class V2ExternalIdentityService
                     ->whereKey($currentHash)
                     ->where('user_id', $transaction->user_id)
                     ->whereNull('revoked_at')
-                    ->where('idle_expires_at', '>', now())
-                    ->where('absolute_expires_at', '>', now())
+                    ->where('idle_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
+                    ->where('absolute_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
                     ->exists();
                 if (! $active) {
                     throw new V2OidcProtocolException('session_binding_rejected');
@@ -802,8 +803,8 @@ final class V2ExternalIdentityService
             ->whereKey($current)
             ->where('user_id', $transaction->user_id)
             ->whereNull('revoked_at')
-            ->where('idle_expires_at', '>', now())
-            ->where('absolute_expires_at', '>', now())
+            ->where('idle_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
+            ->where('absolute_expires_at', '>', app(V2SessionPolicy::class)->currentTime())
             ->lockForUpdate()
             ->first();
         if ($session === null) {
@@ -844,7 +845,7 @@ final class V2ExternalIdentityService
                 $transaction = ExternalIdentityTransaction::query()
                     ->where('state_hash', $stateHash)
                     ->where('status', 'pending')
-                    ->where('expires_at', '<=', now())
+                    ->where('expires_at', '<=', V2DatabaseTimestamp::format(now()))
                     ->lockForUpdate()
                     ->first();
                 if ($transaction !== null) {
@@ -868,8 +869,8 @@ final class V2ExternalIdentityService
             'external_identity_account_id' => $account->getKey(),
             'action' => $action,
             'request_id' => $requestId,
-            'occurred_at' => now()->startOfSecond(),
-            'created_at' => now()->startOfSecond(),
+            'occurred_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
     }
 

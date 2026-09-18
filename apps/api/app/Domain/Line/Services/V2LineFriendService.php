@@ -2,6 +2,7 @@
 
 namespace App\Domain\Line\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Services\V2IdentityCorrelation;
 use App\Domain\Line\Contracts\V2LineMessagingTransport;
@@ -176,10 +177,10 @@ final class V2LineFriendService
                 'event_type' => $type,
                 'reply_status' => $type === 'follow' ? 'pending' : 'skipped',
                 'reply_failure_code' => null,
-                'occurred_at' => $occurredAt,
+                'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
                 'reply_attempted_at' => null,
-                'created_at' => now()->startOfSecond(),
-                'updated_at' => now()->startOfSecond(),
+                'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             if ($inserted === 0) {
                 $this->audit->record('line.webhook.redelivered', [

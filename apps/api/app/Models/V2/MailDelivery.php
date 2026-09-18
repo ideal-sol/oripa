@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class MailDelivery extends Model
 {
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $table = 'mail_deliveries';
 
     protected $guarded = ['*'];

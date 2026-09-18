@@ -2,6 +2,7 @@
 
 namespace App\Domain\Point\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\ValueObjects\V2IdempotencyClaim;
 use App\Models\V2\IdempotencyRecord;
@@ -54,8 +55,8 @@ final class V2PointIdempotencyService
                 $actorPublicId,
                 $keyHash,
                 $requestHash,
-                now(),
-                now()->addDay(),
+                V2DatabaseTimestamp::format(now()),
+                V2DatabaseTimestamp::format(now()->addDay()),
             ]
         );
         $record = IdempotencyRecord::query()
@@ -104,7 +105,7 @@ final class V2PointIdempotencyService
                 $response,
                 JSON_THROW_ON_ERROR
             ),
-            'completed_at' => now(),
+            'completed_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 

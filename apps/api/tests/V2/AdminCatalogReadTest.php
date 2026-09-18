@@ -12,6 +12,7 @@ use App\Domain\Catalog\Services\V2AdminCatalogReadService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class AdminCatalogReadTest extends TestCase
@@ -252,7 +253,7 @@ final class AdminCatalogReadTest extends TestCase
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $created = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)
                 ->hashSessionId($token),
             'admin_id' => $adminId,
@@ -262,7 +263,7 @@ final class AdminCatalogReadTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addMinutes(15),
             'absolute_expires_at' => $created->copy()->addHours(8),
-        ]);
+        ]));
 
         return $token;
     }

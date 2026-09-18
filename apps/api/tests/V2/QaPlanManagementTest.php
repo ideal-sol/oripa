@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
 final class QaPlanManagementTest extends TestCase
@@ -543,7 +544,7 @@ final class QaPlanManagementTest extends TestCase
     private function context(Admin $admin): V2AdminAuthorizationContext
     {
         $hash = hash('sha256', random_bytes(32));
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -553,7 +554,7 @@ final class QaPlanManagementTest extends TestCase
             'idle_expires_at' => now()->addHours(6),
             'absolute_expires_at' => now()->addHours(12),
             'revoked_at' => null,
-        ]);
+        ]));
 
         return new V2AdminAuthorizationContext(
             (int) $admin->id,
@@ -569,7 +570,7 @@ final class QaPlanManagementTest extends TestCase
     {
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();
         $created = now()->subSecond();
-        DB::table('admin_sessions')->insert([
+        DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $admin->id,
             'mfa_verified_at' => now(),
@@ -578,7 +579,7 @@ final class QaPlanManagementTest extends TestCase
             'last_activity_at' => now(),
             'idle_expires_at' => now()->addHours(6),
             'absolute_expires_at' => $created->copy()->addHours(12),
-        ]);
+        ]));
 
         return $token;
     }

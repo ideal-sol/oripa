@@ -10,6 +10,8 @@ final class CatalogProbabilityVersion extends Model
 {
     protected $table = 'catalog_probability_versions';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     protected $fillable = [
         'public_id',
         'gacha_version_id',

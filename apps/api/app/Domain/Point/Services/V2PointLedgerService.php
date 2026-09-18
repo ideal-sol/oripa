@@ -2,6 +2,7 @@
 
 namespace App\Domain\Point\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Point\Exceptions\V2PointException;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ final class V2PointLedgerService
             ->where('user_id', $userId)
             ->groupBy('point_type');
         if ($cutoff !== null) {
-            $query->where('occurred_at', '<', $cutoff);
+            $query->where('occurred_at', '<', V2DatabaseTimestamp::format($cutoff));
         }
         $balances = ['paid' => 0, 'free' => 0];
         foreach ($query->get() as $row) {

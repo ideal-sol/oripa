@@ -13,6 +13,7 @@ use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2PasswordPolicy;
+use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
@@ -722,15 +723,17 @@ final class ContentContactVerticalSliceTest extends TestCase
             'state' => V2AdminState::Active,
         ]);
         $hash = hash('sha256', bin2hex(random_bytes(32)));
+        $clock = app(V2SessionPolicy::class);
+        $current = $clock->currentTime();
         DB::table('admin_sessions')->insert([
             'session_id_hash' => $hash,
             'admin_id' => $admin->id,
-            'mfa_verified_at' => $verifiedAt ?? now(),
+            'mfa_verified_at' => $verifiedAt === null ? $current : $clock->canonicalTime($verifiedAt),
             'requires_mfa_enrollment' => false,
-            'created_at' => now()->subHour(),
-            'last_activity_at' => now(),
-            'idle_expires_at' => now()->addMinutes(15),
-            'absolute_expires_at' => now()->addHours(7),
+            'created_at' => $current->subHour(),
+            'last_activity_at' => $current,
+            'idle_expires_at' => $current->addMinutes(15),
+            'absolute_expires_at' => $current->addHours(7),
             'revoked_at' => null,
         ]);
 

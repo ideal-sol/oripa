@@ -2,6 +2,7 @@
 
 namespace App\Domain\Mail\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Models\V2\MailDelivery;
 use App\Models\V2\MailTemplate;
@@ -86,8 +87,8 @@ final class V2TemplateMailDeliveryService
             'source_public_id' => $sourcePublicId,
             'status' => 'pending',
             'attempts' => 0,
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => V2DatabaseTimestamp::format($now),
+            'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
         if ($inserted !== 1) {
             return;
@@ -110,7 +111,7 @@ final class V2TemplateMailDeliveryService
             $record->forceFill([
                 'status' => 'sending',
                 'attempts' => 1,
-                'updated_at' => now()->startOfSecond(),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ])->save();
 
             return $record->refresh();
@@ -129,15 +130,15 @@ final class V2TemplateMailDeliveryService
             );
             MailDelivery::query()->whereKey($delivery->id)->where('status', 'sending')->update([
                 'status' => 'sent',
-                'sent_at' => now()->startOfSecond(),
-                'updated_at' => now()->startOfSecond(),
+                'sent_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->safeAudit('mail.template.sent', $delivery, 'success');
         } catch (Throwable) {
             MailDelivery::query()->whereKey($delivery->id)->where('status', 'sending')->update([
                 'status' => 'failed',
                 'failure_code' => 'delivery_failed',
-                'updated_at' => now()->startOfSecond(),
+                'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->safeAudit('mail.template.failed', $delivery, 'failure', 'delivery_failed');
         }
@@ -169,8 +170,8 @@ final class V2TemplateMailDeliveryService
             'source_public_id' => $agencyPublicId,
             'status' => 'pending',
             'attempts' => 0,
-            'created_at' => now()->startOfSecond(),
-            'updated_at' => now()->startOfSecond(),
+            'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
         ]);
         DB::afterCommit(function () use ($publicId, $recipient, $values): void {
             $this->deliverAgency($publicId, $recipient, $values);
@@ -185,7 +186,7 @@ final class V2TemplateMailDeliveryService
         try {
             $claimed = DB::table('mail_deliveries')->where('public_id', $publicId)
                 ->where('status', 'pending')->update([
-                    'status' => 'sending', 'attempts' => 1, 'updated_at' => now()->startOfSecond(),
+                    'status' => 'sending', 'attempts' => 1, 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
             if ($claimed !== 1) {
                 return;
@@ -204,13 +205,13 @@ final class V2TemplateMailDeliveryService
                 $message->to($recipient)->subject($subject);
             });
             DB::table('mail_deliveries')->where('id', $delivery->id)->where('status', 'sending')->update([
-                'status' => 'sent', 'sent_at' => now()->startOfSecond(), 'updated_at' => now()->startOfSecond(),
+                'status' => 'sent', 'sent_at' => V2DatabaseTimestamp::format(now()->startOfSecond()), 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->safeAudit('mail.template.sent', $delivery, 'success');
         } catch (Throwable) {
             try {
                 DB::table('mail_deliveries')->where('public_id', $publicId)->where('status', 'sending')->update([
-                    'status' => 'failed', 'failure_code' => 'delivery_failed', 'updated_at' => now()->startOfSecond(),
+                    'status' => 'failed', 'failure_code' => 'delivery_failed', 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 ]);
             } catch (Throwable) {
             }
