@@ -247,17 +247,22 @@ final class AdminAuthenticationPolicyTest extends TestCase
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
             ...$payload,
             'mfa_required' => false,
-            'invitation_required' => true,
+            'invitation_required' => false,
             'expected_revision' => 2,
-        ])->assertOk()->assertJsonPath('data.mfa_required', false);
+        ])->assertOk()->assertJsonPath('data.mfa_required', false)
+            ->assertJsonPath('data.invitation_required', false)
+            ->assertJsonPath('data.revision', 3);
 
         Auth::forgetGuards();
         $this->adminMutation($session, 'PUT', '/admin/api/v2/auth/policy', [
             ...$payload,
             'current_password' => self::PASSWORD,
             'mfa_required' => false,
+            'invitation_required' => true,
             'expected_revision' => 3,
-        ])->assertOk()->assertJsonPath('data.mfa_required', false);
+        ])->assertOk()->assertJsonPath('data.mfa_required', false)
+            ->assertJsonPath('data.invitation_required', true)
+            ->assertJsonPath('data.revision', 4);
     }
 
     public function test_policy_updates_without_password_exceed_previous_limit_and_preserve_mfa(): void

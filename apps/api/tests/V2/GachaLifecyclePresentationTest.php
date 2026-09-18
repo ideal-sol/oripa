@@ -1490,7 +1490,7 @@ final class GachaLifecyclePresentationTest extends TestCase
         DB::table('admin_sessions')->insert([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
-            'mfa_verified_at' => now(),
+            'mfa_verified_at' => now()->subMinutes(6),
             'requires_mfa_enrollment' => false,
             'created_at' => $created,
             'last_activity_at' => now(),

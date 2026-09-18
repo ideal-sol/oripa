@@ -24,6 +24,7 @@ class PolicyGateTest(unittest.TestCase):
     def test_admin_phase1_removes_only_mutation_limiters_and_explicit_password_contracts(self):
         for path in (ROOT / "apps/api/app").rglob("*.php"):
             source = path.read_text(encoding="utf-8")
+            self.assertNotRegex(source, r"authorizePermission\([^)]*\b(?:action|freshMfa)\s*:", str(path))
             for removed in ("critical_admin_mutation", "financial_export", "V2CatalogMutationRateLimiter"):
                 self.assertNotIn(removed, source, str(path))
 
