@@ -166,7 +166,7 @@ final class ContactReplyFollowUpTest extends TestCase
     public function test_idempotency_is_user_scoped_and_reused_key_with_different_body_is_rejected(): void
     {
         $user = $this->contactUser();
-        $key = (string) Str::uuid7();
+        $key = 'contact/operation-0001';
         $first = $this->submit($user, [], $key);
         try {
             $this->submit($user, ['body' => 'Different operation'], $key);

@@ -55,7 +55,7 @@ final class V2ContactService
             if (array_key_exists('inquiry_id', $input) && (! is_string($inquiryId) || ! Str::isUuid($inquiryId))) {
                 throw $this->invalid();
             }
-            if (! preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9_.:-]{15,127}\z/', $idempotencyKey)) {
+            if (strlen($idempotencyKey) < 16 || strlen($idempotencyKey) > 128) {
                 throw $this->invalid();
             }
             if (($input['website'] ?? '') !== '') {

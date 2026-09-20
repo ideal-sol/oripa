@@ -16,6 +16,10 @@
 
 - PR #493作成後の最終reviewで、Client成功fixtureの旧anonymous sessionをログイン済みへ一致させ、Admin履歴fixtureへUTC／JST offset混在を追加した。Application Source変更なし。Local release全48 tests PASS。最終headへfocusedを再実行しRequired CIを取り直す。Merge／Runtime／Mailは引き続き禁止。
 
+- Contract reviewでIdempotency-Keyの独自文字種制約を除き、common Contractの16〜128 byte長と既存hash保存規約へ一致させた。Slashを含む正当なKeyでもUser scope／異なる本文の409を検証する。Public spam／認証／CSRF制御は変更しない。
+
+- 上記最終補正後、Contact12 tests／126 assertions、Client Contact3 tests、Admin Contact5 tests、PHP syntax、local policyがPASS。隔離DBを再作成して検証したため、API test image Build command計2回（後者cache使用）。共有Runtime変更なし。最終headを同じPRへpushしてCIを再取得する。
+
 ## DATETIME Phase 1 — 保存基盤とバナー先行分（2026-09-18）
 
 - Human承認は新Server PlatformのSource実装・隔離focused検証・local reviewまで。Issue `none`、Risk `R4`、Lane `Strict Change`、Activation `deferred`（今回Runtime反映なし）、通常checkout `/var/www/oripa`、Branch `fix/datetime-storage-phase1`。開始01:42:59 UTC時点でclean、実Remote mainはPhase 0と同じ `5c426715efa96d582511df1b22aa3891357fe26a`。既存認証でfetch後、local mainをfast-forwardし、このSHAをBaseに固定して通常branchを作成。commit／push／PR／merge／CIは未実施、成果は未commitのlocal diffとして保持する。
