@@ -97,7 +97,7 @@ const screens = [
   { path: "/settings/line", title: "LINE設定", ready: "LINE友だち追加URL", table: false },
   { path: "/agencies", title: "代理店一覧", ready: agency.company_name, table: true },
   { path: `/agencies/${fixtureId}`, title: "代理店詳細", ready: agency.company_name, table: false },
-  { path: `/agencies/${fixtureId}/edit`, title: "代理店編集", ready: "会社名", table: false },
+  { path: `/agencies/${fixtureId}/edit`, title: "代理店編集", ready: "会社名（必須）", table: false },
 ];
 
 for (const width of [1440, 1366, 390]) {
