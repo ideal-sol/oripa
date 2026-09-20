@@ -724,7 +724,7 @@ test("Browser Contact Clientは認証済み送信のCSRFと冪等性keyを保持
     ...browserConfig(async (url, init) => {
       requests.push({ url, init });
       if (url === "/api/v2/auth/session") {
-        return jsonResponse({ authenticated: false, user: null });
+        return jsonResponse({ authenticated: true, user: { id: "0198a001-0000-7000-8000-000000000315" } });
       }
       assert.equal(url, "/api/v2/contact-inquiries");
       assert.equal(init.headers.get("X-XSRF-TOKEN"), csrf);
@@ -734,7 +734,7 @@ test("Browser Contact Clientは認証済み送信のCSRFと冪等性keyを保持
           receipt_code: "CNT-0123456789ABCDEFGHIJ",
           status: "accepted",
           received_at: "2026-08-20T00:00:00Z",
-          request_id: "request-contact-anonymous",
+          request_id: "request-contact-authenticated",
         },
         { status: 202 },
       );

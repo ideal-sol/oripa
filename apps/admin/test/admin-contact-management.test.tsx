@@ -101,7 +101,7 @@ describe("Contact management", () => {
       ...detail(),
       reply_requests: [
         { id: "reply-two", message: "再返信", created_at: "2026-08-05T03:00:00Z" },
-        { id: "reply-one", message: "初回返信", created_at: "2026-08-05T01:00:00Z" },
+        { id: "reply-one", message: "初回返信", created_at: "2026-08-05T10:00:00+09:00" },
       ],
       user_messages: [{ id: "follow-up", message: "追加本文", created_at: "2026-08-05T02:00:00Z" }],
     });
