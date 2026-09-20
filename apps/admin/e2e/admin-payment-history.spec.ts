@@ -32,6 +32,7 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   await page.goto("/payments");
   await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
   await expect(page.getByLabel("支払方法")).toHaveValue("all");
+  const desktopViewport = page.viewportSize()!;
   for (const width of [1440, 1366, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.locator(".admin-payment-filters")).toHaveCSS("padding", "16px");
@@ -39,6 +40,7 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
     await expect(page.locator(".admin-payment-filters button")).toHaveClass("secondary-button");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+  await page.setViewportSize(desktopViewport);
   expect(paymentRequests.some((request) => {
     const url = new URL(request, "http://admin.test");
     return url.pathname === "/admin/api/v2/payments"
