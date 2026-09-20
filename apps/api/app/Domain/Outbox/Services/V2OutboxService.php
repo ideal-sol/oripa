@@ -86,7 +86,8 @@ final class V2OutboxService
         string $worker,
         int $limit = 10,
         ?int $leaseSeconds = null,
-        array $topics = []
+        array $topics = [],
+        array $eventTypes = []
     ): Collection
     {
         $this->assertWorker($worker);
@@ -99,6 +100,15 @@ final class V2OutboxService
             }
             $this->assertCode($topic, 128, 'Outbox topic');
         }
+        if (count($eventTypes) > 16 || count($eventTypes) !== count(array_unique($eventTypes))) {
+            throw new RuntimeException('Outbox event filter is invalid.');
+        }
+        foreach ($eventTypes as $eventType) {
+            if (! is_string($eventType)) {
+                throw new RuntimeException('Outbox event filter is invalid.');
+            }
+            $this->assertCode($eventType, 128, 'Outbox event type');
+        }
         $maximum = (int) config('v2_outbox.maximum_claim_size', 100);
         if ($limit < 1 || $limit > $maximum) {
             throw new RuntimeException('Outbox claim size is invalid.');
@@ -108,11 +118,14 @@ final class V2OutboxService
             throw new RuntimeException('Outbox lease duration is invalid.');
         }
 
-        return DB::transaction(function () use ($worker, $limit, $leaseSeconds, $topics): Collection {
+        return DB::transaction(function () use ($worker, $limit, $leaseSeconds, $topics, $eventTypes): Collection {
             $now = now()->startOfSecond();
             $query = OutboxMessage::query();
             if ($topics !== []) {
                 $query->whereIn('topic', $topics);
+            }
+            if ($eventTypes !== []) {
+                $query->whereIn('event_type', $eventTypes);
             }
             $messages = $query->where(function ($query) use ($now): void {
                 $query

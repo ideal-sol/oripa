@@ -9,6 +9,7 @@ return [
         'shipping_completed' => '発送完了時',
         'user_closed' => '退会時',
         'contact_received' => 'お問い合わせ完了時',
+        'contact_reply' => 'お問い合わせ返信',
         'password_reset' => 'パスワード再設定時',
         'email_change_verification' => 'メールアドレス変更認証時',
         'email_change_completed' => 'メールアドレス変更完了時',
@@ -43,6 +44,7 @@ return [
         'email_change_verification_url' => 'メールアドレス変更認証リンク',
         'expires_in_minutes' => '有効期限（分）',
         'contact_body' => 'お問い合わせ内容',
+        'reply_content' => 'お問い合わせ返信内容',
     ],
     'preview_values' => [
         'agency_company_name' => 'サンプル代理店株式会社',
@@ -68,5 +70,6 @@ return [
         'email_change_verification_url' => 'https://example.test/change-email/sample',
         'expires_in_minutes' => '60',
         'contact_body' => 'サンプルのお問い合わせ内容です。',
+        'reply_content' => "発送状況を確認しました。\nhttps://example.test/contact?inquiry_id=019a0000-0000-7000-8000-000000000001",
     ],
 ];

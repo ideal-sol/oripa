@@ -699,7 +699,7 @@ test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを�
       body: "Public-safe fixture body.",
       website: "",
     },
-    { csrf_token: "c".repeat(64) },
+    { csrf_token: "c".repeat(64), idempotency_key: "contact-submission-key" },
   );
 
   assert.equal(requests[0].path, "/content/banners");
@@ -717,7 +717,7 @@ test("Content／Contact Facadeは公開GETとCSRF付き問い合わせだけを�
   assert.equal(requests[5].retry, false);
 });
 
-test("Browser Contact Clientは匿名初回送信のCSRF境界を内部化する", async () => {
+test("Browser Contact Clientは認証済み送信のCSRFと冪等性keyを保持する", async () => {
   const requests = [];
   const csrf = "c".repeat(64);
   const contact = createBrowserStorefrontContentContactClient({
@@ -728,7 +728,7 @@ test("Browser Contact Clientは匿名初回送信のCSRF境界を内部化する
       }
       assert.equal(url, "/api/v2/contact-inquiries");
       assert.equal(init.headers.get("X-XSRF-TOKEN"), csrf);
-      assert.equal(init.headers.get("Idempotency-Key"), null);
+      assert.equal(init.headers.get("Idempotency-Key"), "contact-submission-key");
       return jsonResponse(
         {
           receipt_code: "CNT-0123456789ABCDEFGHIJ",
@@ -749,7 +749,7 @@ test("Browser Contact Clientは匿名初回送信のCSRF境界を内部化する
     subject: "Fixture inquiry",
     body: "Public-safe fixture body.",
     website: "",
-  });
+  }, { idempotency_key: "contact-submission-key" });
 
   assert.equal(result.metadata.status, 202);
   assert.equal(result.data.status, "accepted");
@@ -811,7 +811,7 @@ test("Browser Contact Clientは認証済み送信とtyped errorを保持し自�
         subject: "Fixture inquiry",
         body: "Public-safe fixture body.",
         website: "",
-      }),
+      }, { idempotency_key: "contact-submission-key" }),
       (error) =>
         error instanceof ApiProblemError
         && error.code === problem.code
@@ -837,7 +837,7 @@ test("Browser Contact Clientは認証済み送信とtyped errorを保持し自�
       subject: "Fixture inquiry",
       body: "Public-safe fixture body.",
       website: "",
-    }),
+    }, { idempotency_key: "contact-submission-key" }),
     (error) =>
       error instanceof StorefrontTransportError
       && error.code === "NETWORK_ERROR",

@@ -46,6 +46,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def next_candidate_governance(self):
         value = copy.deepcopy(self.governance())
+        value['candidate'] = None
         released = value['immutable_history'].pop()
         candidate = copy.deepcopy(artifact.release_source(value))
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
@@ -145,7 +146,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.37')
+        self.assertTrue(value['candidate']['breaking_change'])
+        self.assertEqual(value['candidate']['release_state'], 'pending')
         self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.36")
         self.assertEqual(value["latest_immutable"]["release_mode"], "contract-additive")
         self.assertFalse(value["latest_immutable"]["breaking_change"])
@@ -178,7 +181,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         )
 
     def test_pending_alpha_35_target_preserves_additive_metadata(self):
-        target = artifact.verification_target(self.governance())
+        value = self.governance()
+        value['candidate'] = None
+        target = artifact.verification_target(value)
 
         self.assertFalse(target["breaking_change"])
 
@@ -317,7 +322,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.36",
+            "2.0.0-alpha.37",
         )
         with mock.patch.object(
             artifact,
@@ -342,11 +347,12 @@ class StorefrontContractArtifactTest(unittest.TestCase):
                 "sha256": artifact.sha256_file(path),
                 "browser_compatible": True,
             }
-        shutil.copyfile(
-            ROOT / artifact.PUBLIC_OPENAPI_PATH,
-            output / artifact.PUBLIC_OPENAPI_PATH.name,
-        )
-        with mock.patch.object(artifact, "governance", return_value=governance):
+        public_path = output / artifact.PUBLIC_OPENAPI_PATH.name
+        public = artifact.load_json(ROOT / artifact.PUBLIC_OPENAPI_PATH)
+        public['info']['version'] = candidate['contract_versions']['public']
+        artifact.write_json(public_path, public)
+        candidate['public_openapi_sha256'] = artifact.sha256_file(public_path)
+        with mock.patch.object(artifact, "governance", return_value=governance), mock.patch.object(artifact, 'PUBLIC_OPENAPI_PATH', public_path):
             manifest = artifact.create_manifest(
                 ROOT,
                 source_commit or "1" * 40,
@@ -358,8 +364,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return governance
 
     def test_alpha_36_settled_ledger_rejects_republication(self):
-        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
-            artifact.pending_candidate(ROOT)
+        value = self.governance()
+        value['candidate'] = None
+        with mock.patch.object(artifact, 'governance', return_value=value):
+            with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                artifact.pending_candidate(ROOT)
         released = self.governance()['latest_immutable']
         self.assertEqual(released['source_commit'], 'aa5049f7efa63e9cff67b10d93e768b4006b0c09')
         self.assertEqual(released['manifest_sha256'], '101ec49daf4e30bcd2fecd10e3314d96604bd86ea0f6029de4b5fc2bf0a39292')

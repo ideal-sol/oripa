@@ -19,6 +19,7 @@ use Tests\TestCase;
 
 final class AdminContactManagementTest extends TestCase
 {
+    use \Tests\Support\V2ContactFixture;
     protected function setUp(): void
     {
         parent::setUp();
@@ -213,7 +214,7 @@ final class AdminContactManagementTest extends TestCase
 
     private function submit(string $email, string $body): string
     {
-        $result = app(V2ContactService::class)->submit([
+        $result = $this->submitContact([
             'name' => 'お客様',
             'email' => $email,
             'phone' => '09000000000',

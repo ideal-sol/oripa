@@ -99,10 +99,11 @@ final class V2ContentContactController
     public function contact(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->contacts->submit(
-            $request->only(['name', 'email', 'phone', 'subject', 'body', 'website']),
+            $request->all(),
             $this->user(),
             (string) ($request->ip() ?? ''),
-            $this->requestId($request)
+            $this->requestId($request),
+            (string) $request->header('Idempotency-Key', '')
         ), 202);
     }
 

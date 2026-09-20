@@ -7,6 +7,14 @@ use SensitiveParameter;
 
 final class V2IdentityMailUrlBuilder
 {
+    public function contact(string $publicId): string
+    {
+        if (! \Illuminate\Support\Str::isUuid($publicId)) {
+            throw new RuntimeException('Contact Public ID is invalid.');
+        }
+        return $this->redirectUrl('/contact', ['inquiry_id' => $publicId]);
+    }
+
     public function passwordReset(
         string $userPublicId,
         #[SensitiveParameter] string $token,

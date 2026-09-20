@@ -479,9 +479,9 @@ function browserContactClient(mock, authenticated, csrf = "a".repeat(64)) {
   });
 }
 
-test("Contact Testkitはanonymous first submit／bootstrap／202を固定する", async () => {
+test("Contact Testkitはログイン済みfirst submit／bootstrap／202を固定する", async () => {
   const mock = createMockFetch();
-  const client = browserContactClient(mock, false);
+  const client = browserContactClient(mock, true);
   mock.enqueueJson(
     { method: "POST", url: "/api/v2/contact-inquiries" },
     {
@@ -490,7 +490,7 @@ test("Contact Testkitはanonymous first submit／bootstrap／202を固定する"
       headers: { "X-Request-Id": PUBLIC_CONTACT_FIXTURE.receipt.request_id },
     },
   );
-  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input);
+  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input, { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key });
 
   assert.equal(response.metadata.status, 202);
   assert.deepEqual(response.data, PUBLIC_CONTACT_FIXTURE.receipt);
@@ -499,7 +499,7 @@ test("Contact Testkitはanonymous first submit／bootstrap／202を固定する"
     { method: "POST", url: "/api/v2/contact-inquiries" },
   ]);
   assert.equal(mock.requests[1].headers["x-xsrf-token"], "a".repeat(64));
-  assert.equal(mock.requests[1].headers["idempotency-key"], undefined);
+  assert.equal(mock.requests[1].headers["idempotency-key"], PUBLIC_CONTACT_FIXTURE.idempotency_key);
   assert.deepEqual(JSON.parse(mock.requests[1].body), PUBLIC_CONTACT_FIXTURE.input);
   assertBrowserRequestBoundary(mock.requests[1], {
     client_version: CLIENT_VERSION,
@@ -515,7 +515,7 @@ test("Contact Testkitはauthenticated submitを同じBrowser境界で固定す�
     { method: "POST", url: "/api/v2/contact-inquiries" },
     { body: PUBLIC_CONTACT_FIXTURE.receipt, status: 202 },
   );
-  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input);
+  const response = await client.submitContact(PUBLIC_CONTACT_FIXTURE.input, { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key });
 
   assert.equal(response.data.status, "accepted");
   assert.equal(mock.requests[1].headers["x-xsrf-token"], "b".repeat(64));
@@ -526,13 +526,13 @@ test("Contact Testkitはauthenticated submitを同じBrowser境界で固定す�
 test("Contact Testkitはvalidation Problem Detailsと429をtyped errorへ変換する", async () => {
   for (const problem of Object.values(PUBLIC_CONTACT_PROBLEM_FIXTURES)) {
     const mock = createMockFetch();
-    const client = browserContactClient(mock, false);
+    const client = browserContactClient(mock, true);
     mock.enqueueProblem(
       { method: "POST", url: "/api/v2/contact-inquiries" },
       problem,
     );
     await assert.rejects(
-      client.submitContact(PUBLIC_CONTACT_FIXTURE.input),
+      client.submitContact(PUBLIC_CONTACT_FIXTURE.input, { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key }),
       (error) => {
         assertProblemDetails(error);
         assert.equal(error.code, problem.code);
@@ -551,12 +551,38 @@ test("Contact Testkitはvalidation Problem Detailsと429をtyped errorへ変換�
   }
 });
 
+test("Contact Testkitは本人追記の通信再試行で同じIDとkeyを保持する", async () => {
+  const mock = createMockFetch();
+  const client = browserContactClient(mock, true);
+  const options = { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key };
+  mock.enqueueNetworkError({ method: "POST", url: "/api/v2/contact-inquiries" });
+  await assert.rejects(client.submitContact(PUBLIC_CONTACT_FIXTURE.follow_up_input, options));
+  mock.enqueueJson({ method: "POST", url: "/api/v2/contact-inquiries" }, { body: PUBLIC_CONTACT_FIXTURE.receipt, status: 202 });
+  await client.submitContact(PUBLIC_CONTACT_FIXTURE.follow_up_input, options);
+  const submissions = mock.requests.filter(({ method }) => method === "POST");
+  assert.equal(submissions.length, 2);
+  for (const submission of submissions) {
+    assert.equal(submission.headers["idempotency-key"], options.idempotency_key);
+    assert.deepEqual(JSON.parse(submission.body), PUBLIC_CONTACT_FIXTURE.follow_up_input);
+  }
+  mock.assertExhausted();
+});
+
+test("Contact Testkitは匿名の認証エラーを新規成功として扱わない", async () => {
+  const mock = createMockFetch();
+  const client = browserContactClient(mock, false);
+  mock.enqueueJson({ method: "POST", url: "/api/v2/contact-inquiries" }, { status: 401, body: { message: "Unauthenticated." } });
+  await assert.rejects(client.submitContact(PUBLIC_CONTACT_FIXTURE.input, { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key }), (error) => error instanceof StorefrontTransportError && error.code === "HTTP_ERROR" && error.metadata.status === 401);
+  assert.equal(mock.requests.length, 2);
+  mock.assertExhausted();
+});
+
 test("Contact Testkitはtransport errorをtyped errorへ変換し再送しない", async () => {
   const mock = createMockFetch();
   const client = browserContactClient(mock, true);
   mock.enqueueNetworkError({ method: "POST", url: "/api/v2/contact-inquiries" });
   await assert.rejects(
-    client.submitContact(PUBLIC_CONTACT_FIXTURE.input),
+    client.submitContact(PUBLIC_CONTACT_FIXTURE.input, { idempotency_key: PUBLIC_CONTACT_FIXTURE.idempotency_key }),
     (error) =>
       error instanceof StorefrontTransportError
       && error.code === "NETWORK_ERROR",

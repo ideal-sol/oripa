@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.32
+  version: 2.0.0-alpha.33
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -10,9 +10,9 @@ info:
   x-status: alpha
 x-oripa-surface: public
 x-oripa-breaking-change:
-  authority: oripa_v2_rank_master_gacha_rank_canonical_spec_v1.0_2026-08-28
-  change_id: MIG-099
-  scope: rank-master-gacha-rank-clean-cutover
+  authority: human_contact_reply_follow_up_2026-09-20
+  change_id: CONTACT-20260920
+  scope: authenticated-contact-submit-idempotency
 servers:
   - url: /api/v2
 paths:
@@ -126,16 +126,17 @@ paths:
   /contact-inquiries:
     post:
       operationId: createContactInquiry
-      summary: Anonymousまたは認証済みUserが問い合わせを送信する
-      x-idempotency: not-supported
+      summary: 認証済みUserが新規または本人の問い合わせへ追加投稿する
+      description: 本人所有のinquiry_idだけ既存問い合わせへ追記する。不在・他人所有IDは自身の新規受付となり区別しない。不正形式は拒否する。同一操作の再試行は同じIdempotency-Keyを使用する。
+      x-idempotency: required
       x-rate-limit: ip-5-per-hour-and-email-3-per-hour
       x-cache-policy: no-store
       x-stability: alpha
       security:
-        - {}
         - userSession: []
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -2617,6 +2618,8 @@ components:
       additionalProperties: false
       required: [name, email, subject, body, website]
       properties:
+        inquiry_id:
+          $ref: '#/components/schemas/OpaqueId'
         name:
           type: string
           minLength: 1
@@ -2642,6 +2645,7 @@ components:
           writeOnly: true
     ContactInquiryReceipt:
       type: object
+      description: 新規では新しい受付番号・日時、追記では元の受付番号・日時を返す。同一keyの再試行は元responseを返す。
       additionalProperties: false
       required: [receipt_code, status, received_at, request_id]
       properties:

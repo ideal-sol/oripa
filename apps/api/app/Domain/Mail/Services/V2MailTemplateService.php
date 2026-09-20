@@ -156,7 +156,7 @@ final class V2MailTemplateService
             throw $this->unavailable();
         }
 
-        return ['body_html' => $this->renderer->html($body, $values)];
+        return ['body_html' => $this->renderer->html($body, $values, $key === 'contact_reply' ? ['reply_content'] : [])];
     }
 
     /** @param array<string, mixed> $input @return array{subject: string, body_html: string, expected_revision: int} */
@@ -228,7 +228,7 @@ final class V2MailTemplateService
     private function catalog(): array
     {
         $catalog = config('v2_mail_templates.templates', []);
-        if (! is_array($catalog) || count($catalog) !== 16) {
+        if (! is_array($catalog) || count($catalog) !== 17) {
             throw $this->unavailable();
         }
 

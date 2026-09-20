@@ -29,8 +29,8 @@ Image Assetを必須とし、NoticeはPublic-safeなThumbnailを任意で返す�
 Published VersionのAsset RelationもDB Triggerで変更を拒否し、Storage Identifierは
 公開しない。
 
-Legal PageのPublish、Published Pageの置換、Archiveには共通Admin Fresh MFA
-5分境界を適用する。通常のReadとDraft編集にはFresh MFAを要求しない。
+Adminは現行Session／Permission／Origin／CSRF境界を使用する。廃止済みの
+Fresh Authentication、Password fallback、業務Limiterは再導入しない。
 
 ## HTML Security
 
@@ -49,8 +49,16 @@ Encryptionで保存する。Email検索・Rate LimitにはRepository外Keyによ
 Status History、Internal Note、Reply RequestはAppend-onlyである。User入力とAdmin
 Internal Noteは別Tableに保存する。返信依頼の受付時点では通知完了とみなさず、
 `new`から`in_progress`へだけ遷移し、`replied`は明示的なStatus更新で確定する。
-Contact送信はIdempotency Resourceを持たず、同じ入力も別の受付番号として受理する。
-重複抑止はIP／Email Rate Limitを境界とする。
+Public ContactはUser認証とIdempotency-Keyを必須とする。`contact.submit` scopeの
+User別Idempotency Recordを同一Transactionで保存し、同じKey／入力の再試行は
+元の受付結果を返す。同じKeyで異なる入力は409、別Keyの明示的投稿は別操作とする。
+
+任意の`inquiry_id`はContact Public IDである。本人所有の有効IDならrow lock後に
+`contact_user_messages`へ暗号化本文をappendし、全状態から`in_progress`へ戻す。
+初回本文・Owner・Public ID・受付日時は不変。Status History／Auditも同じTransactionで
+記録する。不在／他人所有IDは同じ新規受付経路へ進み、他人のContactへ書き込まない。
+Malformed ID、認証・DB・Transaction障害を新規受付へfallbackしない。
+新TableはUpdate／Delete／Truncate拒否TriggerでAppend-onlyを保証する。
 
 ## Anti-spam
 
@@ -62,8 +70,39 @@ HMAC相関Keyで制限する。Limiter障害時はFail Closedとし、429では`
 
 Content作成・Version作成・Publish・Unpublish・Archive、Contact受付・閲覧・状態変更・
 Internal Note・返信依頼・Rate Limit・Validation拒否をAppend-only Auditへ記録する。
-Contact受付と受付確認／管理者通知Outboxは同一Transactionで確定する。実Mail、SMS、
-Discord送信は後続Taskまで実装しない。
+Contact受付と受付確認／管理者通知Outboxは同一Transactionで確定する。
+既存受付メール`contact_received`のMail Delivery経路は返信Consumerから独立している。
+
+## Contact Reply Mail Cutover (CONTACT-20260920)
+
+- 新規Admin返信保存は既存Reply Request／Outbox／Idempotency／Audit Transactionを
+  維持し、topic `contact.notification`、event `contact.reply.email.requested`を作る。
+  旧`contact.reply.requested`、Receipt、Admin Notificationは新Workerのclaim対象外。
+  過去のpending行は件数・日時に関係なく不変とし、更新・削除・再送しない。
+- `v2:contact:work-reply-mail-outbox --worker=<unique-worker> --limit=10`が専用entrypoint。
+  Source提供のみで、既存Identity Worker／Schedulerへの登録やRuntime activationはしない。
+  Shared Test／Production実行には別のHuman指示が必要。
+- Consumer実行時のUser登録Emailをrecipientに使う。Contact入力Emailは使わない。
+  Ownerがない旧匿名Contact等はfail closed。現在のdisplay_name、verifiedかつ
+  revokedでないUser電話、削除されていない最新登録住所を使い、欠損は空文字とする。
+- 返信Composerは`full_name / phone_number / email / address / inquiry_url`のみを
+  一回のplain-text置換で解決する。URLは`v2_identity.origins.user`と既存URL Builderから
+  `/contact?inquiry_id=<Public ID>`を作り、Production originをhardcodeしない。
+- 解決済み本文を`reply_content`として`contact_reply`テンプレートへ渡す。
+  outer rendererでHTML escapeし、reply_contentだけ改行をbrへ変換する。User値／Admin
+  入力を再評価せず、既存Sanitizerを前後に維持する。任意HTML／Blade／PHP評価はない。
+- テンプレート表示名「お問い合わせ返信」、初期件名「お問い合わせへのご返信」。
+  本文はfull_name宛名、受付への謝辞、reply_content、再問い合わせ案内。既存設定から
+  件名・本文の編集／Previewが可能。追加catalog変数はreply_contentのみ。
+- Mail送信は最大1回のTransport呼び出し。通常例外はfailed、Transport到達後の例外は
+  `contact_reply_delivery_uncertain`としてfailed。自動retryは行わない。期限切れleaseの
+  再claim（attempts > 1）は送信せずfailedにする。記録前のCrashは送信済みか不明なため
+  Exactly Onceは保証しない。Pre-send crashも未送信のまま停止し得る安全側の設計。
+  将来の個別再送／Provider照合は別途判断し、既存Outboxを自動変更しない。
+- Timestampは`V2DatabaseTimestamp`と既存UTC persistence規約に従う。
+  Migration 000076は専用履歴Tableと固定Template行を追加する。
+  有効履歴／新Outboxがある場合downは拒否する。通常rollbackはWorker停止とSourceの
+  切戻しを先に検討し、履歴を削除するrollbackを行わない。
 
 ## Import
 

@@ -283,6 +283,7 @@ ACCT_001_V2_IDENTITY_FILES = {
 }
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
+    "apps/api/database/migrations-v2/2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
     "apps/api/database/migrations-v2/2026_09_30_000074_add_v2_agency_realm.php",
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -913,6 +914,7 @@ MIG_078_ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/settings/mail/[templateKey]/page.tsx",
     "apps/admin/src/app/settings/mail/page.tsx",
     "apps/admin/src/components/mail/mail-template-workspace.tsx",
+    "apps/admin/src/components/mail/variable-select.tsx",
     "apps/admin/src/components/rich-text/rich-text-editor.tsx",
     "apps/admin/test/admin-mail-template-management.test.tsx",
 }
@@ -3019,6 +3021,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_29_000073_create_v2_agency_foundation.php",
         "2026_09_30_000074_add_v2_agency_realm.php",
         "2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
+        "2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -5620,7 +5623,7 @@ def validate_v2_content_contact_boundary(
         "ManageContact",
         "content.legal_published",
         "content.legal_archived",
-        "contact.reply.requested",
+        "contact.reply.email.requested",
     ):
         if required not in admin_service:
             raise PolicyFailure(f"V2 Content／Contact Admin boundary missing {required}")

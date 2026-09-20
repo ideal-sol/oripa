@@ -1,4 +1,5 @@
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import unittest
@@ -22,9 +23,33 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_contact_authority_is_limited_to_login_and_idempotency_cutover(self):
+        current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        previous["info"]["version"] = "2.0.0-alpha.32"
+        previous["paths"]["/contact-inquiries"]["post"]["security"] = [{}, {"userSession": []}]
+        previous["paths"]["/contact-inquiries"]["post"]["x-idempotency"] = "not-supported"
+        authorize = openapi_contract_gate.is_authorized_contact_authenticated_break
+        self.assertTrue(authorize("public", previous, current))
+        self.assertFalse(authorize("admin", previous, current))
+        for mutation in ("other-break", "anonymous", "wrong-version", "missing-header", "missing-authority"):
+            altered = copy.deepcopy(current)
+            if mutation == "other-break":
+                altered["paths"]["/contact-inquiries"]["post"]["operationId"] = "differentOperation"
+            elif mutation == "anonymous":
+                altered["paths"]["/contact-inquiries"]["post"]["security"] = [{}]
+            elif mutation == "wrong-version":
+                altered["info"]["version"] = "2.0.0-alpha.34"
+            elif mutation == "missing-header":
+                altered["paths"]["/contact-inquiries"]["post"]["parameters"] = []
+            else:
+                altered.pop("x-oripa-breaking-change")
+            with self.subTest(mutation=mutation):
+                self.assertFalse(authorize("public", previous, altered))
+
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.31", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.33", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

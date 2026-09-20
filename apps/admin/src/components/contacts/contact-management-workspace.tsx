@@ -14,6 +14,7 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { VariableSelect } from "@/components/mail/variable-select";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -25,6 +26,11 @@ import type {
 } from "@/lib/admin-api/generated";
 
 type Mode = "list" | "detail";
+
+const REPLY_VARIABLES = [
+  ["full_name", "氏名"], ["phone_number", "電話番号"], ["email", "メールアドレス"],
+  ["address", "住所"], ["inquiry_url", "問い合わせリンク"],
+].map(([key, label]) => ({ key, label, token: `{{${key}}}` }));
 
 const STATUS_OPTIONS: Array<{ label: string; value: AdminContactStatus | "all" }> = [
   { label: "すべて", value: "all" },
@@ -189,6 +195,8 @@ function ContactDetail({ contactId }: { contactId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  const replyInput = useRef<HTMLTextAreaElement>(null);
+  const replyAttempt = useRef<{ message: string; key: string } | null>(null);
   const [nextStatus, setNextStatus] = useState<AdminContactStatus | "">("");
   const [reload, setReload] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -221,11 +229,13 @@ function ContactDetail({ contactId }: { contactId: string }) {
     setError(null);
     setSuccess(null);
     try {
+      if (replyAttempt.current?.message !== message) replyAttempt.current = { message, key: crypto.randomUUID() };
       const result = await new AdminApiClient().requestContactInquiryReply(
         contactId,
         { message },
-        crypto.randomUUID(),
+        replyAttempt.current.key,
       );
+      replyAttempt.current = null;
       setReply("");
       setSuccess(result.idempotent_replay ? "既存の返信要求を再取得しました。" : "返信要求を記録しました。");
       setLoading(true);
@@ -293,8 +303,14 @@ function ContactDetail({ contactId }: { contactId: string }) {
         <div className="contact-actions-grid">
           <form className="contact-action-card" onSubmit={submitReply}>
             <div><Mail aria-hidden="true" size={20} /><h2>返信内容</h2></div>
-            <p>既存Outboxへ返信要求を記録します。送信完了を推測表示しません。</p>
-            <label><span>返信内容</span><textarea maxLength={5000} required rows={7} value={reply} onChange={(event) => setReply(event.target.value)} /></label>
+            <p>返信要求を保存します。メールの送信完了を示すものではありません。</p>
+            <VariableSelect label="返信内容へ変数を挿入" variables={REPLY_VARIABLES} onSelect={(token) => {
+              const start = replyInput.current?.selectionStart ?? reply.length;
+              const end = replyInput.current?.selectionEnd ?? start;
+              setReply(`${reply.slice(0, start)}${token}${reply.slice(end)}`);
+              requestAnimationFrame(() => { replyInput.current?.focus(); replyInput.current?.setSelectionRange(start + token.length, start + token.length); });
+            }} />
+            <label><span>返信内容</span><textarea ref={replyInput} maxLength={5000} required rows={7} value={reply} onChange={(event) => setReply(event.target.value)} /></label>
             <button className="primary-button" disabled={saving} type="submit">{saving ? <LoaderCircle className="spin" aria-hidden="true" size={17} /> : <Mail aria-hidden="true" size={17} />}返信要求を保存</button>
           </form>
           <form className="contact-action-card" onSubmit={submitStatus}>
@@ -319,19 +335,24 @@ function ContactDetail({ contactId }: { contactId: string }) {
 
 function buildHistory(contact: AdminContactDetail) {
   return [
+    { at: contact.received_at, detail: contact.body, key: `initial-${contact.id}`, order: "", title: "ユーザー：初回問い合わせ" },
     ...contact.status_history.map((item, index) => ({
       at: item.occurred_at,
       detail: item.from_status ? `${statusLabel(item.from_status)}から${statusLabel(item.to_status)}へ変更` : "お問い合わせを受け付けました。",
       key: `status-${index}-${item.occurred_at}`,
+      order: "",
       title: statusLabel(item.to_status),
     })),
     ...(contact.reply_requests ?? []).map((item) => ({
       at: item.created_at,
       detail: item.message,
       key: `reply-${item.id}`,
-      title: "返信要求",
+      order: item.id,
+      title: "管理者：返信要求",
     })),
-  ].sort((left, right) => left.at.localeCompare(right.at));
+    ...(contact.user_messages ?? []).map((item) => ({ at: item.created_at, detail: item.message, key: `user-${item.id}`, order: item.id, title: "ユーザー：追加問い合わせ" })),
+    ...contact.internal_notes.map((item, index) => ({ at: item.created_at, detail: item.note, key: `note-${index}`, order: "", title: "管理者：内部メモ" })),
+  ].sort((left, right) => Date.parse(left.at) - Date.parse(right.at) || left.order.localeCompare(right.order));
 }
 
 function ContactStatusBadge({ status }: { status: AdminContactStatus }) {
