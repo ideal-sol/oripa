@@ -176,8 +176,8 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
         </section>
       ) : (
         <section className="announcement-table-section" aria-label="お知らせ一覧">
-          <div className="table-container">
-            <table className="announcement-table">
+          <div className="catalog-table-wrap">
+            <table className="announcement-table announcement-list-table">
               <thead><tr><th>ID</th><th>サムネイル</th><th>カテゴリ</th><th>タイトル</th><th>公開状態</th><th>公開開始日時</th><th>公開終了日時</th><th>更新日時</th><th>プレビュー</th><th>編集</th></tr></thead>
               <tbody>
                 {items.map((item) => {
@@ -185,7 +185,7 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
                   const thumbnail = version?.asset_id ? assetPaths.get(version.asset_id) : null;
                   return (
                     <tr key={item.id}>
-                      <td><code className="announcement-public-id">{item.id}</code></td>
+                      <td><code className="table-compact-id" title={item.id}>{`${item.id.slice(0, 8)}…${item.id.slice(-8)}`}</code></td>
                       <td>{thumbnail ? <Image alt="" className="announcement-thumbnail" height={38} src={thumbnail} unoptimized width={52} /> : <span className="muted-text">未設定</span>}</td>
                       <td>お知らせ</td>
                       <td><strong>{version?.title ?? "未設定"}</strong>{version?.is_important ? <small className="announcement-important">トップ表示</small> : null}</td>

@@ -1,5 +1,47 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+for (const width of [1440, 1366, 390]) {
+  test(`UI display ${width}px /announcements table geometry`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/content/notices?*", (route) => json(route, { items: [{ ...summary(), status: "draft", published_version_id: null, latest_version: { ...version(), published_at: null } }], next_cursor: null }));
+    await page.goto("/announcements");
+    const table = page.locator(".announcement-list-table");
+    await expect(table.locator("tbody tr").first()).toBeVisible();
+    await expect(table.locator("..")).toHaveCSS("overflow-x", "auto");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const cells = await table.evaluate((element) => {
+      const headers = Array.from(element.querySelectorAll("thead th"));
+      return Array.from(element.querySelectorAll("tbody tr:first-child td")).map((cell, index) => {
+        const header = getComputedStyle(headers[index]);
+        const body = getComputedStyle(cell);
+        return { headerAlignment: header.textAlign, bodyAlignment: body.textAlign, headerPadding: header.padding, bodyPadding: body.padding, vertical: body.verticalAlign, border: body.borderBottomStyle, background: header.backgroundColor };
+      });
+    });
+    for (const cell of cells) {
+      expect(cell.headerAlignment).toBe(cell.bodyAlignment);
+      expect(cell.headerPadding).toBe(cell.bodyPadding);
+      expect(cell.vertical).toBe("middle");
+      expect(cell.border).toBe("solid");
+      expect(cell.background).not.toBe("rgba(0, 0, 0, 0)");
+    }
+    await expect(page.locator(".announcement-pagination")).toHaveCSS("justify-content", "flex-end");
+    await expect(table.getByText("下書き", { exact: true })).toBeVisible();
+    await expect(table.locator("tbody td").nth(2)).toHaveCSS("white-space", "nowrap");
+    await expect(table.locator("tbody td").nth(4)).toHaveCSS("white-space", "nowrap");
+    await expect(table.getByTitle(noticeId, { exact: true })).toHaveCSS("white-space", "nowrap");
+
+    if (width > 1000) {
+      const region = table.locator("..");
+      await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      const action = table.locator("tbody tr:first-child td:last-child").locator("button, a").last();
+      await expect(action).toBeInViewport();
+      const box = (await action.boundingBox())!;
+      expect(await action.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+    }
+    await page.screenshot({ path: testInfo.outputPath("table.png"), fullPage: true });
+  });
+}
+
 const noticeId = uuid("1");
 const versionId = uuid("2");
 const csrf = "a".repeat(64);
@@ -34,7 +76,7 @@ test("desktop announcement list previews the sanitized publication", async ({ pa
     "ID", "サムネイル", "カテゴリ", "タイトル", "公開状態",
     "公開開始日時", "公開終了日時", "更新日時", "プレビュー", "編集",
   ]);
-  await expect(page.getByText(noticeId)).toBeVisible();
+  await expect(page.getByTitle(noticeId, { exact: true })).toHaveText(`${noticeId.slice(0, 8)}…${noticeId.slice(-8)}`);
   await expect(page.getByLabel("お知らせ一覧").getByText("公開", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "運用のお知らせをプレビュー" }).click();
   await expect(page.getByRole("dialog", { name: "運用のお知らせ" })).toContainText("安全な本文");

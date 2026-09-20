@@ -279,8 +279,8 @@ export function AdminShippingList({
                         type="checkbox"
                       />
                     </td>
-                    <td><code>{item.id}</code></td>
-                    <td><code>{item.user_id ?? "-"}</code></td>
+                    <td><code className="table-compact-id" title={item.id}>{`${item.id.slice(0, 8)}…${item.id.slice(-8)}`}</code></td>
+                    <td><code className="table-compact-id" title={item.user_id ?? undefined}>{item.user_id ? `${item.user_id.slice(0, 8)}…${item.user_id.slice(-8)}` : "-"}</code></td>
                     <td>{item.prize_count}</td>
                     <td><ShippingStatusBadge status={item.status} /></td>
                     <td>{formatJst(item.created_at)}</td>

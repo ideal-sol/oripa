@@ -1,5 +1,52 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+for (const width of [1440, 1366, 390]) {
+  test(`UI display ${width}px /banners table geometry`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/banners");
+    const table = page.locator(".banner-list-table");
+    await expect(table.locator("tbody tr").first()).toBeVisible();
+    await expect(table.locator("..")).toHaveCSS("overflow-x", "auto");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const cells = await table.evaluate((element) => {
+      const headers = Array.from(element.querySelectorAll("thead th"));
+      return Array.from(element.querySelectorAll("tbody tr:first-child td")).map((cell, index) => {
+        const header = getComputedStyle(headers[index]);
+        const body = getComputedStyle(cell);
+        return { headerAlignment: header.textAlign, bodyAlignment: body.textAlign, headerPadding: header.padding, bodyPadding: body.padding, vertical: body.verticalAlign, border: body.borderBottomStyle, background: header.backgroundColor };
+      });
+    });
+    for (const cell of cells) {
+      expect(cell.headerAlignment).toBe(cell.bodyAlignment);
+      expect(cell.headerPadding).toBe(cell.bodyPadding);
+      expect(cell.vertical).toBe("middle");
+      expect(cell.border).toBe("solid");
+      expect(cell.background).not.toBe("rgba(0, 0, 0, 0)");
+    }
+    await expect(page.locator(".announcement-pagination")).toHaveCSS("justify-content", "flex-end");
+
+
+    if (width > 1000) {
+      const region = table.locator("..");
+      const actions = table.locator("tbody tr:first-child td:nth-last-child(-n + 3)");
+      for (const actionCell of await actions.all()) {
+        await expect(actionCell).toHaveCSS("position", "sticky");
+        await expect(actionCell.locator("button")).toBeInViewport();
+        const button = actionCell.locator("button");
+        const buttonBox = (await button.boundingBox())!;
+        expect(await button.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x: buttonBox.x + buttonBox.width / 2, y: buttonBox.y + buttonBox.height / 2 })).toBe(true);
+      }
+      await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      const action = table.locator("tbody tr:first-child td:last-child").locator("button, a").last();
+      await expect(action).toBeInViewport();
+      const box = (await action.boundingBox())!;
+      expect(await action.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+    }
+    await page.screenshot({ path: testInfo.outputPath("table.png"), fullPage: true });
+  });
+}
+
 const categoryId = uuid("1");
 const bannerId = uuid("2");
 const publicAssetUrl = `/api/v2/content/assets/${uuid("3")}`;

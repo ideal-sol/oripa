@@ -672,7 +672,7 @@ function GachaList({
   return (
     <>
       <div className="catalog-table-wrap">
-        <table className="catalog-table">
+        <table className="catalog-table catalog-gacha-list-table">
           <thead>
             <tr>
               <th>ID</th>

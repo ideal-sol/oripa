@@ -143,7 +143,7 @@ describe("Banner management", () => {
     ]);
     expect(screen.getByText("Draft")).toBeVisible();
     expect(screen.getByText("v1")).toBeVisible();
-    expect(screen.getByText(uuid("5"))).toBeVisible();
+    expect(screen.getByTitle(uuid("5"))).toHaveTextContent(`${uuid("5").slice(0, 8)}…${uuid("5").slice(-8)}`);
     expect(screen.getByText("/gachas")).toBeVisible();
     expect(screen.getByText("メインバナー")).toBeVisible();
     expect(screen.getByText(
