@@ -486,3 +486,54 @@ nullable migration075; this metadata task has Activation `none`. Admin/Agency/
 Storefront activation and Production mutation are 0. The earlier alpha.34
 release's historical hold does not grant or change runtime authority for either
 task. No Stable Tag or Release is created.
+
+## Released Contact Reply And Follow-up Contract
+
+CONTACT-20260920 PR [493](https://github.com/ideal-sol/oripa/pull/493) was
+squash merged at `b63c37edac755f782f09ca5b18255fb71cee300b`. The reviewed head
+`9dfbbece3e522b39641c1a1600f55ab8cdb07479` has the identical tree. Canonical
+contract-only Run [35511375394](https://github.com/ideal-sol/oripa/actions/runs/35511375394)
+published immutable Artifact `10606100530` and passed downstream readback.
+REL-037 reconciles the ledger, preserves every predecessor record, sets latest
+immutable to alpha.37, and clears candidate. This is not a registry publication.
+
+- Bundle / Client / Testkit: `2.0.0-alpha.37`, contract-breaking.
+- Public / Admin / Webhook contracts: `2.0.0-alpha.33`; Public has 76 operations.
+- Site Schema: immutable `2.0.0-alpha.23` reference, not republished.
+- Outer SHA-256: `a196e21b61cef71329312cc057b4376fd6919c2a877492f6852f09006a0ac611`.
+- Manifest SHA-256: `064b178c9781ef706855baaedeaa8aa7836214a36c9f8ecd78b1044551d5c293`.
+- Client SHA-256: `1ac4ac93fa992eba0787015d9f115d52e449ec31d157662bb336e8e19af46f1c`.
+- Testkit SHA-256: `427687cc1fdee2acda012ef84a6deaf94e6fe947250b0439759deba008479e06`.
+- Public SHA-256: `08a170fbb27a452d02532a2d066aca1203f25db6f0ff528e5c2fdbf847b22cbd`.
+- SHA256SUMS SHA-256: `23b40d44cc4e56d3bd23a7dddb51007667d56c3d16b1862d0b99c746d83b4594`.
+
+The next Storefront task downloads this exact Artifact ID, verifies the outer
+digest and five-file inventory with the canonical readback helper, then pins
+`oripa-storefront-client-2.0.0-alpha.37.tgz` and
+`oripa-storefront-testkit-2.0.0-alpha.37.tgz` by exact local tarball plus digest
+using its existing dependency/lockfile convention. No range, mutable latest
+download, rebuild, or registry substitution is authoritative. Keep the existing
+Site Schema alpha.23 tarball and digest. The current Site checkout pin was not
+inspected in this Platform phase.
+
+The Storefront `/contact` route already required login before this change.
+Platform now aligns its API authentication boundary with that existing behavior.
+Next-phase work adds an optional read-only inquiry ID field populated from
+`/contact?inquiry_id=<Public ID>`, sends optional `inquiry_id` through the canonical
+content-contact Client, and supplies `idempotency_key` in submission options.
+Retain one key for retries of the same operation; use a new key for a new explicit
+submission. Preserve the existing login redirect and verify the full Contact
+return path/query survives login. Omit an empty inquiry ID and preserve ordinary
+new inquiries. Do not add independent HTTP types or a new login restriction.
+
+Migration `2026_10_02_000076_add_v2_contact_reply_and_follow_up.php` is retained.
+The date prefix follows the existing 000075 filename (`2026_10_01`); Laravel
+orders full migration names lexically and does not schedule execution by date.
+The date is not an application timestamp. No migration body or timestamp policy
+was changed during finalization. Prior isolated tests remain valid; shared Test
+and Production application are not performed by merge or publication.
+
+API/Admin/Contact Mail Worker activation, shared Test migrations, Provider mail,
+Browser Login, Storefront Source edits, and all Production operations remain
+unperformed. In particular, publishing this Artifact does not activate the new
+`contact.reply.email.requested` consumer or touch legacy Outbox records.
