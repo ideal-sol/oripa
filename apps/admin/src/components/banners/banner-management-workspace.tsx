@@ -200,7 +200,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
 
       <section className="announcement-table-section" aria-label="バナー一覧">
         {publishError ? <div className="form-error" role="alert">{publishError}</div> : null}
-        <div className="announcement-form-grid">
+        <div className="admin-payment-filters">
           <label>
             状態
             <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>

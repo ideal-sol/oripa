@@ -2,6 +2,42 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const planId = uuid("1");
 
+for (const width of [1440, 1366, 390]) {
+  test(`Form batch ${width}px point validation and checkbox alignment`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/purchase-plans/new");
+    await expect(page.getByLabel("商品名")).toBeVisible();
+    await expect(page.locator(".workspace").getByRole("alert")).toHaveCount(0);
+    const checkbox = page.getByRole("checkbox", { name: "有効", exact: true });
+    const control = (await checkbox.boundingBox())!;
+    const label = (await page.locator(".check-row span").boundingBox())!;
+    expect(control.width).toBe(18);
+    expect(control.height).toBe(18);
+    expect(label.x - control.x - control.width).toBeCloseTo(9, 0);
+    expect(Math.abs(label.y + label.height / 2 - control.y - control.height / 2)).toBeLessThan(2);
+    await page.locator(".check-row span").click();
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.focus();
+    await page.keyboard.press("Space");
+    await expect(checkbox).toBeChecked();
+    await page.getByLabel("商品名").focus();
+    await page.getByLabel("支払金額").focus();
+    await expect(page.getByText("商品名を入力してください。")).toBeVisible();
+    await page.getByLabel("商品名").fill("Synthetic plan");
+    await page.getByRole("button", { name: "登録", exact: true }).click();
+    await expect(page.getByText("支払金額は1〜1,000,000の整数にしてください。")).toBeVisible();
+    await page.getByLabel("支払金額").fill("1000");
+    await page.getByLabel("付与有償ポイント").fill("1000");
+    await expect(page.locator(".workspace").getByRole("alert")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.goto(`/purchase-plans/${planId}`);
+    await expect(page.getByRole("heading", { name: "設定を登録" })).toBeVisible();
+    await expect(page.locator(".workspace").getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "設定を登録", exact: true }).click();
+    await expect(page.getByText("開始日時を入力してください。")).toBeVisible();
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => { Object.defineProperty(Document.prototype, "cookie", { configurable: true, get: () => `__Host-oripa_admin_xsrf=${token}`, set: () => undefined }); }, "a".repeat(64));
   await installApi(page);

@@ -123,8 +123,9 @@ export function CatalogMutationForm({
         <form className="catalog-mutation-form" onSubmit={submit}>
           {mode === "create" ? (
             <label>
-              Code
+              <span>Code（必須）</span>
               <input
+                aria-label="Code"
                 autoComplete="off"
                 maxLength={resource === "ranks" ? 32 : 64}
                 onChange={(event) => setDraft({ ...draft, code: event.target.value })}
@@ -140,8 +141,9 @@ export function CatalogMutationForm({
           )}
           {resource !== "ranks" ? (
             <label>
-              Slug
+              <span>Slug（必須）</span>
               <input
+                aria-label="Slug"
                 autoComplete="off"
                 maxLength={128}
                 onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
@@ -152,8 +154,9 @@ export function CatalogMutationForm({
             </label>
           ) : null}
           <label>
-            名称
+            <span>名称（必須）</span>
             <input
+              aria-label="名称"
               autoComplete="off"
               maxLength={resource === "ranks" ? 128 : 191}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
@@ -163,8 +166,9 @@ export function CatalogMutationForm({
           </label>
           {resource === "categories" ? (
             <label>
-              説明
+              <span>説明（任意）</span>
               <textarea
+                aria-label="説明"
                 maxLength={2000}
                 onChange={(event) =>
                   setDraft({ ...draft, description: event.target.value })
@@ -175,8 +179,9 @@ export function CatalogMutationForm({
             </label>
           ) : null}
           <label>
-            表示順
+            <span>表示順（必須）</span>
             <input
+              aria-label="表示順"
               min={0}
               onChange={(event) =>
                 setDraft({ ...draft, sortOrder: Number(event.target.value) })

@@ -5,6 +5,8 @@ for (const width of [1440, 1366, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.route("**/content/notices?*", (route) => json(route, { items: [{ ...summary(), status: "draft", published_version_id: null, latest_version: { ...version(), published_at: null } }], next_cursor: null }));
     await page.goto("/announcements");
+    await expect(page.locator(".admin-payment-filters")).toHaveCSS("padding", "16px");
+    expect((await page.getByLabel("公開状態").boundingBox())!.height).toBeGreaterThanOrEqual(42);
     const table = page.locator(".announcement-list-table");
     await expect(table.locator("tbody tr").first()).toBeVisible();
     await expect(table.locator("..")).toHaveCSS("overflow-x", "auto");
@@ -45,6 +47,27 @@ for (const width of [1440, 1366, 390]) {
 const noticeId = uuid("1");
 const versionId = uuid("2");
 const csrf = "a".repeat(64);
+
+for (const width of [1440, 1366, 390]) {
+  test(`Form batch ${width}px long preview scroll keeps close visible`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/content/notices?*", (route) => json(route, { items: [{ ...summary(), latest_version: { ...version(), body_html: "<p>長文本文</p>".repeat(100) } }], next_cursor: null }));
+    await page.goto("/announcements");
+    await page.getByRole("button", { name: "運用のお知らせをプレビュー" }).click();
+    const dialog = page.getByRole("dialog");
+    const body = dialog.locator(".announcement-preview-body");
+    const close = dialog.getByRole("button", { name: "プレビューを閉じる" });
+    const before = await close.boundingBox();
+    expect((await dialog.boundingBox())!.width).toBe(width > 1000 ? 860 : 350);
+    expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await body.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await close.boundingBox()).toEqual(before);
+    await expect(close).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await close.click();
+    await expect(dialog).toHaveCount(0);
+  });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => {

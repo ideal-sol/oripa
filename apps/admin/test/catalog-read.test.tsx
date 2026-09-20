@@ -29,6 +29,18 @@ const image = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Admin Catalog read components", () => {
+  it.each(["categories", "tags"] as const)("marks only required %s fields", (resource) => {
+    render(<CatalogMutationForm mode="create" resource={resource} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    for (const label of ["Code", "Slug", "名称", "表示順"]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toBeRequired();
+      expect(input.closest("label")).toHaveTextContent("（必須）");
+    }
+    if (resource === "categories") {
+      expect(screen.getByLabelText("説明")).not.toBeRequired();
+      expect(screen.getByLabelText("説明").closest("label")).toHaveTextContent("（任意）");
+    }
+  });
   it("keeps the Catalog registry typed, unique, and available", () => {
     expect(CATALOG_SECTIONS).toHaveLength(6);
     expect(new Set(CATALOG_SECTIONS.map((item) => item.resource)).size).toBe(6);

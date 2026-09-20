@@ -185,7 +185,7 @@ export function AdminShippingList({
             <Search aria-hidden="true" size={16} />検索
           </button>
           <button
-            className="text-button"
+            className="secondary-button"
             onClick={() => {
               const reset: ShippingFilters = { dateFrom: "", dateTo: "", status: "requested" };
               setDraft(reset);

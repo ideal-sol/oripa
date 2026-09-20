@@ -294,7 +294,7 @@ function Dialog({ children, onClose, title }: { children: React.ReactNode; onClo
     dialogRef.current?.querySelector<HTMLElement>("button, input, select, textarea")?.focus();
   }, []);
   return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }} role="presentation">
-    <section aria-labelledby={titleId} aria-modal="true" className="catalog-mutation-panel catalog-rank-prize-dialog" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }} ref={dialogRef} role="dialog">
+    <section aria-labelledby={titleId} aria-modal="true" className="catalog-mutation-panel catalog-rank-prize-dialog prize-edit-dialog" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }} ref={dialogRef} role="dialog">
       <header className="catalog-dialog-title"><h2 id={titleId}>{title}</h2><button aria-label="閉じる" className="icon-button" onClick={onClose} type="button"><X aria-hidden="true" size={18} /></button></header>
       {children}
     </section>
@@ -325,6 +325,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankNa
   }
 
   return <form className="catalog-mutation-form" onSubmit={submit}>
+    <div className="catalog-dialog-body">
     <label>ランク<input readOnly value={rankName} /></label>
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
     <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); }} />
@@ -339,6 +340,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankNa
     </div>
     {remainingTotalCount < 0 ? <p className="form-field-error" role="alert">景品の総在庫数がガチャの総口数を超えています。総在庫数を減らしてください。</p> : null}
     {current ? <label>変更理由<textarea maxLength={500} name="inventory_reason" required /></label> : null}
+    </div>
     <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onCancel} type="button">キャンセル</button><button className="primary-button" disabled={busy || remainingTotalCount < 0} type="submit">{busy ? "保存中" : "保存"}</button></div>
   </form>;
 }

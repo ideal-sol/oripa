@@ -149,7 +149,7 @@ export function AdminPaymentHistory({
             </select>
           </label>
           <button
-            className="text-button"
+            className="secondary-button"
             onClick={() => {
               beginLoad();
               resetCursor();

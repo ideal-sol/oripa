@@ -101,11 +101,44 @@ const screens = [
 ];
 
 for (const width of [1440, 1366, 390]) {
+  test(`Form batch ${width}px rank checkbox and taxonomy required labels`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installLayoutApi(page);
+    await page.goto("/catalog/ranks");
+    await page.getByRole("button", { name: "SSランクを編集" }).click();
+    const checkbox = page.getByRole("checkbox", { name: "総在庫数を表示" });
+    await expect(checkbox).toBeChecked();
+    expect((await checkbox.boundingBox())!.width).toBe(18);
+    await expect(checkbox.locator("..")).toHaveCSS("display", "flex");
+    await checkbox.locator("..").click();
+    await expect(checkbox).not.toBeChecked();
+    await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+    for (const resource of ["categories", "tags"]) {
+      await page.goto(`/catalog/${resource}`);
+      await page.getByRole("button", { name: "新規作成", exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      for (const label of ["Code", "Slug", "名称", "表示順"]) {
+        const input = dialog.getByLabel(label, { exact: true });
+        await expect(input).toHaveAttribute("required");
+        await expect(input.locator("..")).toContainText("（必須）");
+      }
+      if (resource === "categories") await expect(dialog.getByLabel("説明", { exact: true })).not.toHaveAttribute("required");
+      await dialog.getByRole("button", { name: "取り消し", exact: true }).click();
+    }
+  });
+}
+
+for (const width of [1440, 1366, 390]) {
   for (const path of ["/catalog/categories", "/catalog/tags", "/purchase-plans", "/shipping"]) {
     test(`UI display ${width}px ${path} compact IDs and actions`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 900 });
       await installLayoutApi(page);
       await page.goto(path);
+      if (path === "/purchase-plans" || path === "/shipping") {
+        const filter = page.locator(path === "/purchase-plans" ? ".admin-payment-filters" : ".shipping-filters");
+        await expect(filter).toHaveCSS("padding", "16px");
+        expect((await filter.locator("select").first().boundingBox())!.height).toBeGreaterThanOrEqual(42);
+      }
       const table = page.locator(".workspace table").first();
       await expect(table.locator("tbody tr")).toHaveCount(1);
       const identifier = table.getByTitle(fixtureId, { exact: true });

@@ -15,6 +15,66 @@ const testUserId = uuid("0");
 const assignmentId = "01910191-0191-7191-8191-019101910190";
 const csrf = "a".repeat(64);
 
+for (const width of [1440, 1366, 390]) {
+  for (const mode of ["new", "edit"]) {
+    test(`Form batch ${width}px gacha ${mode} category stays standard beside media`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(mode === "new" ? "/catalog/gachas/new" : `/gachas/${gachaCode}/edit`);
+      const select = page.getByRole("combobox", { name: "カテゴリ", exact: true });
+      await expect(select.getByRole("option", { name: "カード", exact: true })).toHaveCount(1);
+      const title = page.getByLabel("ガチャタイトル");
+      for (const dimensions of [null, { width: 360, height: 640 }, { width: 640, height: 360 }]) {
+        if (dimensions) {
+          const data = await page.evaluate((size) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = size.width;
+            canvas.height = size.height;
+            return canvas.toDataURL("image/png").split(",")[1];
+          }, dimensions);
+          await page.getByLabel(/サムネイル画像/u).setInputFiles({ name: "layout.png", mimeType: "image/png", buffer: Buffer.from(data, "base64") });
+          await expect(page.getByRole("img", { name: "選択したサムネイルのPreview" })).toBeVisible();
+        }
+        expect((await select.boundingBox())!.height).toBe((await title.boundingBox())!.height);
+        expect((await select.boundingBox())!.height).toBeLessThan(50);
+        await select.selectOption(categoryId);
+        await expect(select).toHaveValue(categoryId);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    });
+  }
+
+  test(`Form batch ${width}px prize editor scroll preserves actions`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await page.route("**/banner-management/categories*", (route) => json(route, { items: [], next_cursor: null }));
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, (route) => json(route, { data: { ...gacha(), first_published_at: null } }));
+    const image = { id: assetId, path: `/admin/api/v2/catalog/presentation-assets/${assetId}/content`, alt_text: "ランク画像", media_type: "image", revision_number: 1 };
+    await page.route(`**/catalog/gachas/${gachaCode}/ranks`, (route) => json(route, { items: [{
+      rank: { id: rankId, rank_name: "S", lineup_image: image, result_image: image, show_total_stock: false, status: "active", display_order: 0, revision: 1, revision_number: 1 },
+      gacha_rank_id: null, gacha_rank_revision: null, can_unset_video: false, current_video: null,
+    }] }));
+    await page.route("**/catalog/rank-effects*", (route) => json(route, { items: [], next_cursor: null }));
+    await page.goto(`/catalog/gachas/${gachaCode}`);
+    await page.getByRole("button", { name: "景品Sを編集" }).click();
+    const dialog = page.getByRole("dialog", { name: "景品編集" });
+    const body = dialog.locator(".catalog-dialog-body");
+    const save = dialog.getByRole("button", { name: "保存", exact: true });
+    const cancel = dialog.getByRole("button", { name: "キャンセル" });
+    const close = dialog.getByRole("button", { name: "閉じる", exact: true });
+    await expect(body.getByLabel("変更理由")).toHaveCount(1);
+    expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    const before = await save.boundingBox();
+    await body.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await save.boundingBox()).toEqual(before);
+    for (const control of [save, cancel, close]) await expect(control).toBeInViewport();
+    const box = (await dialog.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(20);
+    expect(box.y + box.height).toBeLessThanOrEqual(680);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await cancel.click();
+    await expect(dialog).toHaveCount(0);
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => {
     Object.defineProperty(Document.prototype, "cookie", {

@@ -49,13 +49,17 @@ export function AgencyAggregateTable({ kind, admin = false, load }: {
     apply({ start_date: dates.start, end_date: dates.end });
   }
 
-  return <section className="workspace">
+  const filterActions = <>
+    <button className={admin ? "secondary-button" : "primary-button"} disabled={loading} type="submit">適用</button>
+    <button className="secondary-button" disabled={loading} type="button" onClick={() => { setDraft(null); apply({}); }}>当月</button>
+  </>;
+
+  return <section className={admin ? "workspace announcement-workspace" : "workspace"}>
     <AdminPageHeader eyebrow="AGENCY" title={kind === "users" ? "本登録・仮登録ユーザー集計" : "広告コード別売上集計"} />
-    <form aria-label="集計期間" className="dashboard-sales-controls" onSubmit={submit}>
+    <form aria-label="集計期間" className={admin ? "contact-filter" : "dashboard-sales-controls"} onSubmit={submit}>
       <label className="dashboard-sales-period"><span>開始日</span><input type="date" required value={dates.start} onChange={event => setDraft({ ...dates, start: event.target.value })} /></label>
       <label className="dashboard-sales-period"><span>終了日</span><input type="date" required value={dates.end} onChange={event => setDraft({ ...dates, end: event.target.value })} /></label>
-      <button className="primary-button" disabled={loading} type="submit">適用</button>
-      <button className="secondary-button" disabled={loading} type="button" onClick={() => { setDraft(null); apply({}); }}>当月</button>
+      {admin ? <div className="admin-user-filter-actions">{filterActions}</div> : filterActions}
     </form>
     <p>期間は日本時間（終了日を含む）です。{kind === "users" ? "登録日で集計します。" : "決済成功日で集計します。確定返金は元の決済期間から差し引きます。"}認証区分は現在の状態です。</p>
     {loading ? <p role="status">集計を読み込んでいます。</p> : null}

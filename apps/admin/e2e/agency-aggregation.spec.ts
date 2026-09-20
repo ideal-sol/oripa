@@ -27,9 +27,12 @@ test("Operator views agency user and sales aggregates with date filters and resp
   await page.getByRole("link", { name: "売上集計", exact: true }).click();
   await expect(page.getByRole("heading", { name: "広告コード別売上集計" })).toBeVisible();
   await expect(page.getByText("￥4,000", { exact: true })).toHaveCount(2);
-  for (const width of [1280, 390]) {
+  for (const width of [1440, 1366, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(page.getByRole("columnheader", { name: "代理店名" })).toBeAttached();
+    await expect(page.getByRole("form", { name: "集計期間" })).toHaveCSS("padding", "16px");
+    expect((await page.getByLabel("開始日").boundingBox())!.height).toBeGreaterThanOrEqual(42);
+    await expect(page.getByRole("button", { name: "適用", exact: true })).toHaveClass("secondary-button");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   expect(errors).toEqual([]);

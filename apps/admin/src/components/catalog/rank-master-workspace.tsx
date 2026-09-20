@@ -270,7 +270,7 @@ function RankModal({
           {current ? <RankImage asset={current.lineup_image} /> : null}
           <label>抽選結果表示画像<input accept="image/gif,image/jpeg,image/png,image/webp" onChange={(event) => setResult(event.target.files?.[0] ?? null)} required={!current} type="file" /></label>
           {current ? <RankImage asset={current.result_image} /> : null}
-          <label className="catalog-checkbox-row"><input checked={showTotalStock} onChange={(event) => setShowTotalStock(event.target.checked)} type="checkbox" />総在庫数を表示</label>
+          <label className="catalog-checkbox"><input checked={showTotalStock} onChange={(event) => setShowTotalStock(event.target.checked)} type="checkbox" />総在庫数を表示</label>
           <label>状態<select disabled={Boolean(current?.has_usage)} onChange={(event) => setStatus(event.target.value as "active" | "inactive")} value={status}><option value="active">有効</option><option value="inactive">無効</option></select></label>
           {current?.has_usage ? <small>使用実績があるため無効化できません。</small> : null}
           <div className="catalog-dialog-actions"><button className="secondary-button" onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
